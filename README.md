@@ -60,17 +60,35 @@ Get the latest version from [Releases](https://github.com/jhlee0409/claude-code-
 
 ### Build from source
 
-#### macOS
+**🌍 Language Support**: The app includes **complete English language support** by default, with additional support for Korean, Japanese, and Chinese.
+
+#### Quick Setup (Recommended)
 ```bash
 git clone https://github.com/jhlee0409/claude-code-history-viewer.git
 cd claude-code-history-viewer
+# Run the setup script to install all dependencies
+./scripts/setup-build-env.sh
+# Build the application
+pnpm tauri:build
+```
+
+#### Manual Setup
+
+##### macOS
+```bash
+git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+cd claude-code-history-viewer
+# Install dependencies
 pnpm install
+# Add required Rust targets for universal builds
+rustup target add x86_64-apple-darwin
+# Build
 pnpm tauri:build
 ```
 
 **Requirements**: Node.js 18+, pnpm, Rust toolchain, Xcode Command Line Tools
 
-#### Linux
+##### Linux
 See [LINUX_BUILD.md](LINUX_BUILD.md) for detailed Linux build instructions.
 
 ```bash
