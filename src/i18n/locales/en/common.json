@@ -32,7 +32,8 @@
       "description": "Select your preferred language"
     },
     "checkUpdate": "Check for Updates",
-    "checking": "Checking..."
+    "checking": "Checking...",
+    "updateSettings": "Update Settings"
   },
   "time": {
     "minutesAgo": "{{count}} minute ago",

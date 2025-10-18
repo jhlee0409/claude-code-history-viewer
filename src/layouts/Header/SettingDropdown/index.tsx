@@ -65,7 +65,7 @@ export const SettingDropdown = () => {
             <Download
               className={cn("mr-2 h-4 w-4", COLORS.ui.text.primary)}
             />
-            <span>업데이트 설정</span>
+            <span>{t("settings.updateSettings")}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <ThemeMenuGroup />
