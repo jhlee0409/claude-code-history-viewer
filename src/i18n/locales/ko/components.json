@@ -586,5 +586,22 @@
     "cacheCleared": "업데이트 캐시가 삭제되었습니다.",
     "close": "닫기",
     "save": "저장"
+  },
+  "updateIntroModal": {
+    "title": "업데이트 시스템 안내",
+    "description": "Claude Code History Viewer는 더 나은 사용 경험을 위해 자동으로 업데이트를 확인합니다.",
+    "howItWorksTitle": "작동 방식:",
+    "howItWorks1": "앱 시작 시 백그라운드에서 업데이트 확인",
+    "howItWorks2": "새 업데이트 발견 시 알림 모달 표시",
+    "howItWorks3": "다운로드/설치는 사용자가 직접 선택",
+    "howItWorks4": "30분간 결과 캐시로 효율적 운영",
+    "benefitsTitle": "장점:",
+    "benefits1": "보안 패치 신속 적용",
+    "benefits2": "새로운 기능 빠른 접근",
+    "benefits3": "오프라인 시 자동 비활성화",
+    "benefits4": "설정에서 언제든 변경 가능",
+    "tip": "💡 설정 → 업데이트 설정에서 자동 확인을 비활성화할 수 있습니다.",
+    "disableAutoCheck": "자동 확인 비활성화",
+    "understood": "이해했습니다"
   }
 }

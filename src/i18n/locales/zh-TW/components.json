@@ -585,5 +585,22 @@
     "cacheCleared": "更新快取已清除。",
     "close": "關閉",
     "save": "儲存"
+  },
+  "updateIntroModal": {
+    "title": "更新系統指南",
+    "description": "Claude Code History Viewer 會自動檢查更新，以提供更好的使用體驗。",
+    "howItWorksTitle": "運作方式：",
+    "howItWorks1": "應用程式啟動時在背景檢查更新",
+    "howItWorks2": "發現新更新時顯示通知彈窗",
+    "howItWorks3": "下載/安裝由使用者手動選擇",
+    "howItWorks4": "透過30分鐘結果快取高效運作",
+    "benefitsTitle": "優勢：",
+    "benefits1": "快速套用安全性修補程式",
+    "benefits2": "快速存取新功能",
+    "benefits3": "離線時自動停用",
+    "benefits4": "可隨時在設定中變更",
+    "tip": "💡 您可以在設定 → 更新設定中停用自動檢查。",
+    "disableAutoCheck": "停用自動檢查",
+    "understood": "我知道了"
   }
 }

@@ -570,5 +570,22 @@
     "cacheCleared": "Update cache cleared.",
     "close": "Close",
     "save": "Save"
+  },
+  "updateIntroModal": {
+    "title": "Update System Guide",
+    "description": "Claude Code History Viewer automatically checks for updates to provide a better user experience.",
+    "howItWorksTitle": "How it works:",
+    "howItWorks1": "Checks for updates in the background at app startup",
+    "howItWorks2": "Shows notification modal when new update is found",
+    "howItWorks3": "User manually chooses to download/install",
+    "howItWorks4": "Efficient operation with 30-minute result caching",
+    "benefitsTitle": "Benefits:",
+    "benefits1": "Rapid application of security patches",
+    "benefits2": "Quick access to new features",
+    "benefits3": "Automatically disabled when offline",
+    "benefits4": "Can be changed anytime in settings",
+    "tip": "💡 You can disable auto-check in Settings → Update Settings.",
+    "disableAutoCheck": "Disable Auto Check",
+    "understood": "Got it"
   }
 }
