@@ -552,5 +552,23 @@
     "readyToInstall": "インストール準備完了",
     "viewOnGitHub": "GitHubで見る",
     "downloadProgress": "{{progress}}% 完了"
+  },
+  "updateSettingsModal": {
+    "title": "アップデート設定",
+    "autoCheck": "自動アップデート確認",
+    "checkInterval": "確認間隔",
+    "intervalStartup": "アプリ起動時に毎回",
+    "intervalDaily": "1日に1回",
+    "intervalWeekly": "週に1回",
+    "respectOfflineStatus": "オフライン時は確認を無効化",
+    "allowCriticalUpdates": "重要なアップデート通知",
+    "skippedVersions": "スキップしたバージョン",
+    "clearAll": "すべてクリア",
+    "checkNow": "今すぐアップデートを確認",
+    "checking": "アップデート確認中...",
+    "clearCache": "キャッシュをクリア",
+    "cacheCleared": "アップデートキャッシュがクリアされました。",
+    "close": "閉じる",
+    "save": "保存"
   }
 }

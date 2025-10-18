@@ -552,5 +552,23 @@
     "readyToInstall": "Ready to install",
     "viewOnGitHub": "View on GitHub",
     "downloadProgress": "{{progress}}% complete"
+  },
+  "updateSettingsModal": {
+    "title": "Update Settings",
+    "autoCheck": "Auto check for updates",
+    "checkInterval": "Check interval",
+    "intervalStartup": "Every app startup",
+    "intervalDaily": "Once a day",
+    "intervalWeekly": "Once a week",
+    "respectOfflineStatus": "Disable check when offline",
+    "allowCriticalUpdates": "Critical update notifications",
+    "skippedVersions": "Skipped versions",
+    "clearAll": "Clear all",
+    "checkNow": "Check for updates now",
+    "checking": "Checking for updates...",
+    "clearCache": "Clear cache",
+    "cacheCleared": "Update cache cleared.",
+    "close": "Close",
+    "save": "Save"
   }
 }

@@ -568,5 +568,23 @@
     "readyToInstall": "설치 준비 완료",
     "viewOnGitHub": "GitHub에서 보기",
     "downloadProgress": "{{progress}}% 완료"
+  },
+  "updateSettingsModal": {
+    "title": "업데이트 설정",
+    "autoCheck": "자동 업데이트 확인",
+    "checkInterval": "체크 주기",
+    "intervalStartup": "앱 시작할 때마다",
+    "intervalDaily": "하루에 한 번",
+    "intervalWeekly": "일주일에 한 번",
+    "respectOfflineStatus": "오프라인 시 체크 비활성화",
+    "allowCriticalUpdates": "중요 업데이트 알림",
+    "skippedVersions": "건너뛴 버전",
+    "clearAll": "모두 지우기",
+    "checkNow": "지금 업데이트 확인",
+    "checking": "업데이트 확인 중...",
+    "clearCache": "캐시 삭제",
+    "cacheCleared": "업데이트 캐시가 삭제되었습니다.",
+    "close": "닫기",
+    "save": "저장"
   }
 }

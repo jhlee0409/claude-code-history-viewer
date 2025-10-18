@@ -567,5 +567,23 @@
     "readyToInstall": "准备安装",
     "viewOnGitHub": "在GitHub上查看",
     "downloadProgress": "{{progress}}% 完成"
+  },
+  "updateSettingsModal": {
+    "title": "更新设置",
+    "autoCheck": "自动检查更新",
+    "checkInterval": "检查间隔",
+    "intervalStartup": "每次启动应用时",
+    "intervalDaily": "每天一次",
+    "intervalWeekly": "每周一次",
+    "respectOfflineStatus": "离线时禁用检查",
+    "allowCriticalUpdates": "重要更新通知",
+    "skippedVersions": "跳过的版本",
+    "clearAll": "全部清除",
+    "checkNow": "立即检查更新",
+    "checking": "正在检查更新...",
+    "clearCache": "清除缓存",
+    "cacheCleared": "更新缓存已清除。",
+    "close": "关闭",
+    "save": "保存"
   }
 }
