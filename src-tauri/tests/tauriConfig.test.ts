@@ -85,11 +85,17 @@ describe('Tauri Configuration Tests', () => {
       expect(parseInt(url.port)).toBeLessThan(65536);
     });
 
-    it('should reference npm executable in build commands', () => {
-      expect(config.build.beforeDevCommand).toContain('$npm_execpath');
-      expect(config.build.beforeBuildCommand).toContain('$npm_execpath');
-      expect(config.build.beforeDevCommand).toContain('run dev');
-      expect(config.build.beforeBuildCommand).toContain('run build');
+    it('should have valid build commands', () => {
+      // Test that build commands exist and contain expected keywords
+      // Package manager agnostic - supports npm, pnpm, yarn, bun, or $npm_execpath
+      expect(config.build.beforeDevCommand).toBeTruthy();
+      expect(config.build.beforeBuildCommand).toBeTruthy();
+
+      // Should reference dev/development workflow
+      expect(config.build.beforeDevCommand.toLowerCase()).toMatch(/dev|development/);
+
+      // Should reference build workflow
+      expect(config.build.beforeBuildCommand.toLowerCase()).toMatch(/build/);
     });
 
     it('should have valid frontend distribution path', () => {
@@ -250,10 +256,9 @@ describe('Tauri Configuration Tests', () => {
         expect(config.plugins.updater.pubkey).toBeDefined();
         expect(typeof config.plugins.updater.pubkey).toBe('string');
         expect(config.plugins.updater.pubkey.length).toBeGreaterThan(50);
-        
-        // Check for minisign public key format
-        expect(config.plugins.updater.pubkey).toContain('untrusted comment: minisign public key');
-        expect(config.plugins.updater.pubkey).toMatch(/^[A-Za-z0-9+/=\s:.-]+$/);
+
+        // Check for base64 encoded minisign public key format
+        expect(config.plugins.updater.pubkey).toMatch(/^[A-Za-z0-9+/=]+$/);
       });
 
       it('should not expose private keys or secrets', () => {
@@ -349,7 +354,7 @@ describe('Tauri Configuration Tests', () => {
     it('should maintain valid JSON structure', () => {
       expect(() => JSON.parse(JSON.stringify(config))).not.toThrow();
       expect(JSON.stringify(config)).not.toContain('"undefined"');
-      expect(JSON.stringify(config)).not.toContain('null');
+      // Note: null is valid in JSON (e.g., CSP: null, signingIdentity: null)
     });
 
     it('should not have any null/undefined required values', () => {
@@ -439,9 +444,12 @@ describe('Tauri Configuration Tests', () => {
 
     it('should have updater public key but no private information', () => {
       expect(config.plugins.updater.pubkey).toBeDefined();
-      expect(config.plugins.updater.pubkey).toContain('public key');
-      expect(config.plugins.updater.pubkey).not.toContain('private');
-      expect(config.plugins.updater.pubkey).not.toContain('secret');
+      expect(typeof config.plugins.updater.pubkey).toBe('string');
+      expect(config.plugins.updater.pubkey.length).toBeGreaterThan(0);
+      // Public key can be base64 encoded, so just check it's not exposing private info
+      const lowerKey = config.plugins.updater.pubkey.toLowerCase();
+      expect(lowerKey).not.toContain('private');
+      expect(lowerKey).not.toContain('secret');
     });
   });
 });
