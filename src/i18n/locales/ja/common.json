@@ -32,7 +32,8 @@
       "description": "お好みの言語を選択してください"
     },
     "checkUpdate": "アップデートを確認",
-    "checking": "確認中..."
+    "checking": "確認中...",
+    "updateSettings": "アップデート設定"
   },
   "time": {
     "minutesAgo": "{{count}}分前",

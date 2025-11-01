@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- 🌐 **Complete i18n Coverage**: Removed all hardcoded Korean text that was ignoring language settings
+  - Date formatting in session list now displays in selected language
+  - Message count in conversation header displays in proper language
+  - Settings dropdown "Update Settings" button internationalized
+  - Update Settings modal fully internationalized (15+ elements)
+  - First-launch introduction modal displays in user's system language (14 elements)
+- 🔧 **Auto Language Detection**: App automatically detects and displays in user's system language on first launch
+- 📝 **Internationalization Scope**: 50+ text strings internationalized across all 5 supported languages (en, ko, ja, zh-CN, zh-TW)
+
+---
+
 ## Version 1.0.0-beta.3 (2025-07-03)
 
 ### Added

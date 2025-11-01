@@ -7,6 +7,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { RefreshCw, Trash2, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { getUpdateSettings, setUpdateSettings } from '@/utils/updateSettings';
 import { clearUpdateCache } from '@/utils/updateCache';
 import type { UpdateSettings } from '@/types/updateSettings';
@@ -19,6 +20,7 @@ interface SimpleUpdateSettingsProps {
 }
 
 export function SimpleUpdateSettings({ isOpen, onClose, onManualCheck, isCheckingForUpdates = false }: SimpleUpdateSettingsProps) {
+  const { t } = useTranslation('components');
   const [settings, setLocalSettings] = useState<UpdateSettings>(getUpdateSettings());
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -47,7 +49,7 @@ export function SimpleUpdateSettings({ isOpen, onClose, onManualCheck, isCheckin
 
   const handleClearCache = () => {
     clearUpdateCache();
-    alert('업데이트 캐시가 삭제되었습니다.');
+    alert(t('updateSettingsModal.cacheCleared'));
   };
 
   const handleManualCheckClick = () => {
@@ -61,13 +63,13 @@ export function SimpleUpdateSettings({ isOpen, onClose, onManualCheck, isCheckin
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>업데이트 설정</DialogTitle>
+          <DialogTitle>{t('updateSettingsModal.title')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4 dark:text-gray-300">
           {/* 자동 체크 설정 */}
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium dark:text-gray-200">자동 업데이트 확인</label>
+            <label className="text-sm font-medium dark:text-gray-200">{t('updateSettingsModal.autoCheck')}</label>
             <input
               type="checkbox"
               checked={settings.autoCheck}
@@ -79,22 +81,22 @@ export function SimpleUpdateSettings({ isOpen, onClose, onManualCheck, isCheckin
           {/* 체크 주기 설정 */}
           {settings.autoCheck && (
             <div className="space-y-2">
-              <label className="text-sm font-medium dark:text-gray-200">체크 주기</label>
+              <label className="text-sm font-medium dark:text-gray-200">{t('updateSettingsModal.checkInterval')}</label>
               <select
                 value={settings.checkInterval}
                 onChange={(e) => updateSetting('checkInterval', e.target.value as 'startup' | 'daily' | 'weekly' | 'never')}
                 className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
               >
-                <option value="startup">앱 시작할 때마다</option>
-                <option value="daily">하루에 한 번</option>
-                <option value="weekly">일주일에 한 번</option>
+                <option value="startup">{t('updateSettingsModal.intervalStartup')}</option>
+                <option value="daily">{t('updateSettingsModal.intervalDaily')}</option>
+                <option value="weekly">{t('updateSettingsModal.intervalWeekly')}</option>
               </select>
             </div>
           )}
 
           {/* 오프라인 설정 */}
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium dark:text-gray-200">오프라인 시 체크 비활성화</label>
+            <label className="text-sm font-medium dark:text-gray-200">{t('updateSettingsModal.respectOfflineStatus')}</label>
             <input
               type="checkbox"
               checked={settings.respectOfflineStatus}
@@ -105,7 +107,7 @@ export function SimpleUpdateSettings({ isOpen, onClose, onManualCheck, isCheckin
 
           {/* 중요 업데이트 설정 */}
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium dark:text-gray-200">중요 업데이트 알림</label>
+            <label className="text-sm font-medium dark:text-gray-200">{t('updateSettingsModal.allowCriticalUpdates')}</label>
             <input
               type="checkbox"
               checked={settings.allowCriticalUpdates}
@@ -118,13 +120,13 @@ export function SimpleUpdateSettings({ isOpen, onClose, onManualCheck, isCheckin
           {settings.skippedVersions.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium dark:text-gray-200">건너뛴 버전</label>
+                <label className="text-sm font-medium dark:text-gray-200">{t('updateSettingsModal.skippedVersions')}</label>
                 <button
                   onClick={() => updateSetting('skippedVersions', [])}
                   className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                 >
                   <Trash2 className="w-3 h-3 inline mr-1" />
-                  모두 지우기
+                  {t('updateSettingsModal.clearAll')}
                 </button>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -147,12 +149,12 @@ export function SimpleUpdateSettings({ isOpen, onClose, onManualCheck, isCheckin
               {isCheckingForUpdates ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  업데이트 확인 중...
+                  {t('updateSettingsModal.checking')}
                 </>
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4" />
-                  지금 업데이트 확인
+                  {t('updateSettingsModal.checkNow')}
                 </>
               )}
             </button>
@@ -161,7 +163,7 @@ export function SimpleUpdateSettings({ isOpen, onClose, onManualCheck, isCheckin
               className="w-full flex items-center justify-center gap-2 px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               <Trash2 className="w-4 h-4" />
-              캐시 삭제
+              {t('updateSettingsModal.clearCache')}
             </button>
           </div>
         </div>
@@ -171,14 +173,14 @@ export function SimpleUpdateSettings({ isOpen, onClose, onManualCheck, isCheckin
             onClick={onClose}
             className="px-4 py-2 border dark:border-gray-600 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
           >
-            닫기
+            {t('updateSettingsModal.close')}
           </button>
           {hasChanges && (
             <button
               onClick={handleSave}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-600"
             >
-              저장
+              {t('updateSettingsModal.save')}
             </button>
           )}
         </DialogFooter>

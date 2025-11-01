@@ -567,5 +567,40 @@
     "readyToInstall": "准备安装",
     "viewOnGitHub": "在GitHub上查看",
     "downloadProgress": "{{progress}}% 完成"
+  },
+  "updateSettingsModal": {
+    "title": "更新设置",
+    "autoCheck": "自动检查更新",
+    "checkInterval": "检查间隔",
+    "intervalStartup": "每次启动应用时",
+    "intervalDaily": "每天一次",
+    "intervalWeekly": "每周一次",
+    "respectOfflineStatus": "离线时禁用检查",
+    "allowCriticalUpdates": "重要更新通知",
+    "skippedVersions": "跳过的版本",
+    "clearAll": "全部清除",
+    "checkNow": "立即检查更新",
+    "checking": "正在检查更新...",
+    "clearCache": "清除缓存",
+    "cacheCleared": "更新缓存已清除。",
+    "close": "关闭",
+    "save": "保存"
+  },
+  "updateIntroModal": {
+    "title": "更新系统指南",
+    "description": "Claude Code History Viewer 会自动检查更新，以提供更好的用户体验。",
+    "howItWorksTitle": "工作原理：",
+    "howItWorks1": "应用启动时在后台检查更新",
+    "howItWorks2": "发现新更新时显示通知弹窗",
+    "howItWorks3": "下载/安装由用户手动选择",
+    "howItWorks4": "通过30分钟结果缓存高效运行",
+    "benefitsTitle": "优势：",
+    "benefits1": "快速应用安全补丁",
+    "benefits2": "快速访问新功能",
+    "benefits3": "离线时自动禁用",
+    "benefits4": "可随时在设置中更改",
+    "tip": "💡 您可以在设置 → 更新设置中禁用自动检查。",
+    "disableAutoCheck": "禁用自动检查",
+    "understood": "我知道了"
   }
 }

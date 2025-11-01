@@ -230,7 +230,7 @@ function App() {
                       <div>
                         <p className={cn("text-sm mt-1", COLORS.ui.text.muted)}>
                           {pagination.totalCount >= messages.length &&
-                            ` ${pagination.totalCount || "-"}개 • `}
+                            ` ${pagination.totalCount || "-"} ${tComponents("message.count", { count: pagination.totalCount })} • `}
                           {selectedSession.has_tool_use
                             ? tComponents("tools.toolUsed")
                             : tComponents("tools.generalConversation")}
