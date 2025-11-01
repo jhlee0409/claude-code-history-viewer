@@ -127,14 +127,17 @@ export default defineConfig(({ mode }) => ({
 
   // Test configuration
   test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
+    environment: "jsdom",
     globals: true,
-    css: true,
-    server: {
-      deps: {
-        inline: ['@tauri-apps/plugin-http', '@tauri-apps/plugin-updater', '@tauri-apps/api']
-      }
-    }
+    setupFiles: "./src/test/setup.ts",
+    include: [
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+      "src-tauri/tests/**/*.test.ts",
+    ],
+    environmentMatchGlobs: [
+      // Node environment for file system tests
+      ["src-tauri/tests/**", "node"],
+    ],
   },
 }));
