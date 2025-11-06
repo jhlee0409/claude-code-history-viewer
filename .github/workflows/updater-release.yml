@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest]
+        platform: [macos-latest, ubuntu-latest, windows-latest]
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -66,6 +66,14 @@ jobs:
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
       - name: cache Rust dependencies
         uses: actions/cache@v4
@@ -93,14 +101,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}
 
   generate-updater-metadata:
     needs: [create-release, build-tauri]
@@ -155,47 +164,91 @@ jobs:
             
             console.log(`Processing release version: ${version}`);
             console.log(`Publish date: ${pubDate}`);
-            
-            // 에셋에서 DMG 파일과 서명 찾기 (타입 안전)
-            const dmgAsset = releaseData.assets.find(asset => 
-              asset && typeof asset === 'object' && asset.name && 
-              asset.name.includes('.dmg') && !asset.name.includes('.sig')
-            );
-            
-            const sigAsset = releaseData.assets.find(asset => 
-              asset && typeof asset === 'object' && asset.name && 
-              asset.name.includes('.dmg.sig')
-            );
-            
-            const dmgUrl = dmgAsset?.browser_download_url || '';
-            const sigUrl = sigAsset?.browser_download_url || '';
-            
-            console.log(`DMG URL: ${dmgUrl}`);
-            console.log(`DMG SIG URL: ${sigUrl}`);
-            
-            // 서명 다운로드
-            let signature = '';
-            if (sigUrl) {
+
+            // Helper function to download and encode signature
+            async function getSignature(sigUrl) {
+              if (!sigUrl) return '';
               try {
                 const sigResponse = await fetch(sigUrl);
                 const sigContent = await sigResponse.text();
-                signature = Buffer.from(sigContent).toString('base64');
+                return Buffer.from(sigContent).toString('base64');
               } catch (error) {
                 console.warn('Failed to download signature:', error.message);
+                return '';
               }
             }
-            
+
+            // Find macOS assets (DMG)
+            const dmgAsset = releaseData.assets.find(asset =>
+              asset && typeof asset === 'object' && asset.name &&
+              asset.name.includes('.dmg') && !asset.name.includes('.sig')
+            );
+            const dmgSigAsset = releaseData.assets.find(asset =>
+              asset && typeof asset === 'object' && asset.name &&
+              asset.name.includes('.dmg.sig')
+            );
+
+            // Find Windows assets (MSI)
+            const msiAsset = releaseData.assets.find(asset =>
+              asset && typeof asset === 'object' && asset.name &&
+              asset.name.endsWith('.msi') && !asset.name.includes('.sig')
+            );
+            const msiSigAsset = releaseData.assets.find(asset =>
+              asset && typeof asset === 'object' && asset.name &&
+              asset.name.includes('.msi.sig')
+            );
+
+            // Find Linux assets (AppImage)
+            const appImageAsset = releaseData.assets.find(asset =>
+              asset && typeof asset === 'object' && asset.name &&
+              asset.name.endsWith('.AppImage') && !asset.name.includes('.sig')
+            );
+            const appImageSigAsset = releaseData.assets.find(asset =>
+              asset && typeof asset === 'object' && asset.name &&
+              asset.name.includes('.AppImage.sig')
+            );
+
+            console.log(`DMG URL: ${dmgAsset?.browser_download_url || 'not found'}`);
+            console.log(`MSI URL: ${msiAsset?.browser_download_url || 'not found'}`);
+            console.log(`AppImage URL: ${appImageAsset?.browser_download_url || 'not found'}`);
+
+            // Download signatures
+            const [dmgSignature, msiSignature, appImageSignature] = await Promise.all([
+              getSignature(dmgSigAsset?.browser_download_url),
+              getSignature(msiSigAsset?.browser_download_url),
+              getSignature(appImageSigAsset?.browser_download_url)
+            ]);
+
+            // Build platforms object
+            const platforms = {};
+
+            if (dmgAsset) {
+              platforms['darwin-universal'] = {
+                signature: dmgSignature,
+                url: dmgAsset.browser_download_url
+              };
+            }
+
+            if (msiAsset) {
+              platforms['windows-x86_64'] = {
+                signature: msiSignature,
+                url: msiAsset.browser_download_url
+              };
+            }
+
+            if (appImageAsset) {
+              platforms['linux-x86_64'] = {
+                signature: appImageSignature,
+                url: appImageAsset.browser_download_url
+              };
+            }
+
             // latest.json 생성
             const latestJson = {
               version: version,
               notes: releaseData.body || '',
               pub_date: pubDate,
-              platforms: {
-                "darwin-universal": {
-                  signature: signature,
-                  url: dmgUrl
-                }
-              }
+              platforms: platforms
             };
             
             fs.writeFileSync('latest.json', JSON.stringify(latestJson, null, 2));

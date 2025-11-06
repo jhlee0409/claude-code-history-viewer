@@ -1,7 +1,7 @@
 A desktop app to browse and search your Claude Code conversation history stored in `~/.claude`.
 
 ![Version](https://img.shields.io/badge/Version-1.0.0--beta.3-orange.svg)
-![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)
+![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -63,6 +63,8 @@ Get the latest version from [Releases](https://github.com/jhlee0409/claude-code-
 **🌍 Language Support**: The app includes **complete English language support** by default, with additional support for Korean, Japanese, and Chinese.
 
 #### Quick Setup (Recommended)
+
+**macOS/Linux:**
 ```bash
 git clone https://github.com/jhlee0409/claude-code-history-viewer.git
 cd claude-code-history-viewer
@@ -72,9 +74,20 @@ cd claude-code-history-viewer
 pnpm tauri:build:auto
 ```
 
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+cd claude-code-history-viewer
+# Run the setup script to install all dependencies
+.\scripts\setup-build-env.ps1
+# Build the application (auto-detects your platform)
+pnpm tauri:build:auto
+```
+
 **Platform-specific builds:**
 - macOS: `pnpm tauri:build` (universal binary for Intel + Apple Silicon)
 - Linux: `pnpm tauri:build:linux` (DEB, RPM, AppImage)
+- Windows: `pnpm tauri:build` (MSI installer)
 
 #### Manual Setup
 
@@ -104,6 +117,20 @@ pnpm tauri:build:linux
 
 **Requirements**: Node.js 18+, pnpm, Rust toolchain, system libraries (WebKit, GTK)
 
+##### Windows
+```powershell
+git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+cd claude-code-history-viewer
+# Install dependencies
+pnpm install
+# Build
+pnpm tauri:build
+```
+
+**Requirements**: Node.js 18+, pnpm, Rust toolchain, [Microsoft Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+
+**Note**: On Windows, the Claude configuration directory is located at `%USERPROFILE%\.claude`
+
 ## Usage
 
 1. Launch the app
@@ -114,7 +141,6 @@ pnpm tauri:build:linux
 
 ## Current limitations
 
-- **Linux and macOS support** (Windows support planned)
 - **Beta software** - expect some rough edges
 - Large conversation histories (thousands of messages) might be slow to load initially
 - Auto-update system is still being tested
@@ -127,8 +153,11 @@ Everything runs locally. No data is sent to any servers. The app only reads file
 
 The app expects this structure:
 
+**macOS/Linux:** `~/.claude/`
+**Windows:** `%USERPROFILE%\.claude\`
+
 ```
-~/.claude/
+.claude/
 ├── projects/          # Project conversations
 │   └── [project-name]/
 │       └── *.jsonl    # Conversation files
@@ -139,7 +168,7 @@ The app expects this structure:
 
 ## Troubleshooting
 
-**"No Claude data found"**: Make sure you've used Claude Code and have some conversation history. Check that `~/.claude` exists.
+**"No Claude data found"**: Make sure you've used Claude Code and have some conversation history. Check that `~/.claude` (macOS/Linux) or `%USERPROFILE%\.claude` (Windows) exists.
 
 **Performance issues**: Try closing other apps if you have very large conversation histories. The app loads everything into memory for now.
 

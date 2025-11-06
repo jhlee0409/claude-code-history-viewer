@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Claude Code History Viewer",
-  "version": "1.0.0-beta.4",
+  "version": "1.0.4",
   "identifier": "com.claude.history-viewer",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "$npm_execpath run dev",
-    "beforeBuildCommand": "$npm_execpath run build"
+    "beforeDevCommand": "pnpm run dev",
+    "beforeBuildCommand": "pnpm run build"
   },
   "app": {
     "windows": [
