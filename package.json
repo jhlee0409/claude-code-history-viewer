@@ -3,22 +3,6 @@
   "private": true,
   "version": "1.0.0-beta.4",
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "build": "$npm_execpath run sync-version && tsc -b && vite build",
-    "tauri:build": "$npm_execpath run sync-version && tauri build --target universal-apple-darwin",
-    "tauri:build:linux": "$npm_execpath run sync-version && tauri build",
-    "tauri:build:auto": "node scripts/build-auto.cjs",
-    "sync-version": "node scripts/sync-version.cjs",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "test": "vitest",
-    "test:run": "vitest run --reporter=verbose",
-    "test:ui": "vitest --ui",
-    "test:simple": "vitest run simple"
-  },
   "dependencies": {
     "@headlessui/react": "^1.7.0",
     "@heroicons/react": "^2.0.0",
