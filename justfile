@@ -1,5 +1,6 @@
 set dotenv-load
 set positional-arguments
+set windows-shell := ['busybox', 'sh', '-euc']
 
 # Put pnpm bin tools on PATH
 export PATH := "./node_modules/.bin:" + env_var('PATH')
@@ -8,7 +9,7 @@ export PATH := "./node_modules/.bin:" + env_var('PATH')
   just --list --unsorted
 
 # setup build environment
-setup: && setup-os
+setup: _pre-setup && _post-setup
     # install devtools
     mise install
 
@@ -16,11 +17,21 @@ setup: && setup-os
 
 # OS-specific setup
 [windows]
-setup-os:
+_pre-setup:
+    #!powershell -nop
+    winget install busybox
+    winget install mise
 [linux]
-setup-os:
+_pre-setup:
 [macos]
-setup-os:
+_pre-setup:
+
+[windows]
+_post-setup:
+[linux]
+_post-setup:
+[macos]
+_post-setup:
     # Add required Rust targets for universal macOS builds
     rustup target add x86_64-apple-darwin 2>/dev/null || true
     rustup target add aarch64-apple-darwin 2>/dev/null || true
