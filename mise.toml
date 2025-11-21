@@ -1,0 +1,9 @@
+[tools]
+just = "latest"
+node = "latest"
+pnpm = "latest"
+rust = "latest"
+
+[settings]
+# Set to symlink if hardlink fails
+windows_shim_mode = 'hardlink'
