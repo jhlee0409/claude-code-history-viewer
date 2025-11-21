@@ -2,8 +2,14 @@ set dotenv-load
 set positional-arguments
 set windows-shell := ['busybox', 'sh', '-euc']
 
-# Put pnpm bin tools on PATH
-export PATH := "./node_modules/.bin:" + env_var('PATH')
+# Put pnpm and mise tools to PATH
+export PATH := justfile_directory() + '/node_modules/.bin' + PATH_VAR_SEP + justfile_directory() + '/.mise/shims' + PATH_VAR_SEP + env_var('PATH')
+
+# Uncomment these if you do not already use mise, if you do not have it configured in your shell or $PATH.
+# This will run an isolated, local mise environment, exclusive to this project.
+
+# export MISE_CONFIG_DIR := justfile_directory() + '/.mise'
+# export MISE_DATA_DIR := justfile_directory() + '/.mise'
 
 @default:
   just --list --unsorted
@@ -11,7 +17,7 @@ export PATH := "./node_modules/.bin:" + env_var('PATH')
 # setup build environment
 setup: _pre-setup && _post-setup
     # install devtools
-    mise install
+    mise install || true
 
     pnpm install
 
