@@ -6,7 +6,6 @@ import {
   type ClaudeProject,
   type ClaudeSession,
   type ClaudeMessage,
-  type MessagePage,
   type SearchFilters,
   type SessionTokenStats,
   type ProjectStatsSummary,
@@ -37,12 +36,14 @@ interface AppStore extends AppState {
   // Analytics state
   analytics: AnalyticsState;
 
+  // Session search state (클라이언트 측 검색)
+  sessionSearch: SearchState;
+
   // Actions
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
-  selectSession: (session: ClaudeSession, pageSize?: number) => Promise<void>;
-  loadMoreMessages: () => Promise<void>;
+  selectSession: (session: ClaudeSession) => Promise<void>;
   refreshCurrentSession: () => Promise<void>;
   searchMessages: (query: string, filters?: SearchFilters) => Promise<void>;
   setSearchFilters: (filters: SearchFilters) => void;
@@ -60,6 +61,10 @@ interface AppStore extends AppState {
   clearTokenStats: () => void;
   setExcludeSidechain: (exclude: boolean) => void;
 
+  // Session search actions (세션 내 검색)
+  setSessionSearchQuery: (query: string) => void;
+  clearSessionSearch: () => void;
+
   // Analytics actions
   setAnalyticsCurrentView: (view: AnalyticsViewType) => void;
   setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => void;
@@ -72,7 +77,12 @@ interface AppStore extends AppState {
   clearAnalyticsErrors: () => void;
 }
 
-const DEFAULT_PAGE_SIZE = 20; // 초기 로딩 시 20개 메시지만 로드하여 빠른 로딩
+// 검색 관련 상태
+interface SearchState {
+  query: string;
+  results: ClaudeMessage[];
+  isSearching: boolean;
+}
 
 export const useAppStore = create<AppStore>((set, get) => ({
   // Initial state
@@ -84,7 +94,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   messages: [],
   pagination: {
     currentOffset: 0,
-    pageSize: DEFAULT_PAGE_SIZE,
+    pageSize: 0,
     totalCount: 0,
     hasMore: false,
     isLoadingMore: false,
@@ -101,6 +111,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   sessionTokenStats: null,
   projectTokenStats: [],
   excludeSidechain: true,
+
+  // Session search state (클라이언트 측 검색)
+  sessionSearch: {
+    query: "",
+    results: [],
+    isSearching: false,
+  },
 
   // Analytics state
   analytics: initialAnalyticsState,
@@ -215,45 +232,54 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  selectSession: async (
-    session: ClaudeSession,
-    pageSize = DEFAULT_PAGE_SIZE
-  ) => {
+  selectSession: async (session: ClaudeSession) => {
     set({
       selectedSession: session,
       messages: [],
       pagination: {
         currentOffset: 0,
-        pageSize,
+        pageSize: 0,
         totalCount: 0,
         hasMore: false,
         isLoadingMore: false,
+      },
+      sessionSearch: {
+        query: "",
+        results: [],
+        isSearching: false,
       },
       isLoadingMessages: true,
     });
 
     try {
-      // Use file_path from session directly
       const sessionPath = session.file_path;
+      const start = performance.now();
 
-      // 첫 페이지 로드
-      const messagePage = await invoke<MessagePage>(
-        "load_session_messages_paginated",
-        {
-          sessionPath,
-          offset: 0,
-          limit: pageSize,
-          excludeSidechain: get().excludeSidechain,
-        }
+      // 전체 메시지 한 번에 로드 (페이지네이션 제거)
+      const allMessages = await invoke<ClaudeMessage[]>(
+        "load_session_messages",
+        { sessionPath }
       );
 
+      // sidechain 필터링 (프론트엔드에서 처리)
+      const filteredMessages = get().excludeSidechain
+        ? allMessages.filter((m) => !m.isSidechain)
+        : allMessages;
+
+      const duration = performance.now() - start;
+      if (import.meta.env.DEV) {
+        console.log(
+          `🚀 [Frontend] selectSession: ${filteredMessages.length}개 메시지 로드, ${duration.toFixed(1)}ms`
+        );
+      }
+
       set({
-        messages: messagePage.messages,
+        messages: filteredMessages,
         pagination: {
-          currentOffset: messagePage.next_offset,
-          pageSize,
-          totalCount: messagePage.total_count,
-          hasMore: messagePage.has_more,
+          currentOffset: filteredMessages.length,
+          pageSize: filteredMessages.length,
+          totalCount: filteredMessages.length,
+          hasMore: false,
           isLoadingMore: false,
         },
         isLoadingMessages: false,
@@ -263,60 +289,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({
         error: { type: AppErrorType.UNKNOWN, message: String(error) },
         isLoadingMessages: false,
-      });
-    }
-  },
-
-  loadMoreMessages: async () => {
-    const { selectedProject, selectedSession, pagination, messages } = get();
-
-    if (
-      !selectedProject ||
-      !selectedSession ||
-      !pagination.hasMore ||
-      pagination.isLoadingMore
-    ) {
-      return;
-    }
-
-    set({
-      pagination: {
-        ...pagination,
-        isLoadingMore: true,
-      },
-    });
-
-    try {
-      // Use file_path from session directly
-      const sessionPath = selectedSession.file_path;
-
-      const messagePage = await invoke<MessagePage>(
-        "load_session_messages_paginated",
-        {
-          sessionPath,
-          offset: pagination.currentOffset,
-          limit: pagination.pageSize,
-          excludeSidechain: get().excludeSidechain,
-        }
-      );
-
-      set({
-        messages: [...messagePage.messages, ...messages], // 더 오래된 메시지를 앞에 추가 (채팅 스타일)
-        pagination: {
-          ...pagination,
-          currentOffset: messagePage.next_offset,
-          hasMore: messagePage.has_more,
-          isLoadingMore: false,
-        },
-      });
-    } catch (error) {
-      console.error("Failed to load more messages:", error);
-      set({
-        error: { type: AppErrorType.UNKNOWN, message: String(error) },
-        pagination: {
-          ...pagination,
-          isLoadingMore: false,
-        },
       });
     }
   },
@@ -345,7 +317,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   refreshCurrentSession: async () => {
-    const { selectedProject, selectedSession, pagination, analytics } = get();
+    const { selectedProject, selectedSession, analytics } = get();
 
     if (!selectedSession) {
       console.warn("No session selected for refresh");
@@ -370,8 +342,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ sessions });
       }
 
-      // 현재 세션을 다시 로드 (첫 페이지부터)
-      await get().selectSession(selectedSession, pagination.pageSize);
+      // 현재 세션을 다시 로드
+      await get().selectSession(selectedSession);
       
       // 분석 뷰일 때 분석 데이터도 새로고침
       if (selectedProject && (analytics.currentView === "tokenStats" || analytics.currentView === "analytics")) {
@@ -598,5 +570,76 @@ export const useAppStore = create<AppStore>((set, get) => ({
         sessionComparisonError: null,
       },
     }));
+  },
+
+  // Session search actions (세션 내 클라이언트 측 검색)
+  setSessionSearchQuery: (query: string) => {
+    const { messages } = get();
+
+    if (!query.trim()) {
+      set({
+        sessionSearch: {
+          query: "",
+          results: [],
+          isSearching: false,
+        },
+      });
+      return;
+    }
+
+    set((state) => ({
+      sessionSearch: {
+        ...state.sessionSearch,
+        query,
+        isSearching: true,
+      },
+    }));
+
+    // 클라이언트 측에서 메시지 검색 (대소문자 구분 없음)
+    const lowerQuery = query.toLowerCase();
+    const results = messages.filter((message) => {
+      // content에서 검색
+      if (message.content) {
+        const contentStr = typeof message.content === "string"
+          ? message.content
+          : JSON.stringify(message.content);
+        if (contentStr.toLowerCase().includes(lowerQuery)) {
+          return true;
+        }
+      }
+      // toolUse에서 검색
+      if (message.toolUse) {
+        const toolUseStr = JSON.stringify(message.toolUse);
+        if (toolUseStr.toLowerCase().includes(lowerQuery)) {
+          return true;
+        }
+      }
+      // toolUseResult에서 검색
+      if (message.toolUseResult) {
+        const toolResultStr = JSON.stringify(message.toolUseResult);
+        if (toolResultStr.toLowerCase().includes(lowerQuery)) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    set({
+      sessionSearch: {
+        query,
+        results,
+        isSearching: false,
+      },
+    });
+  },
+
+  clearSessionSearch: () => {
+    set({
+      sessionSearch: {
+        query: "",
+        results: [],
+        isSearching: false,
+      },
+    });
   },
 }));

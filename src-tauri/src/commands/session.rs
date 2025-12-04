@@ -611,3 +611,595 @@ pub async fn search_messages(
 
     Ok(all_messages)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs::File;
+    use std::io::Write;
+
+    fn create_test_jsonl_file(dir: &TempDir, filename: &str, content: &str) -> PathBuf {
+        let file_path = dir.path().join(filename);
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        file_path
+    }
+
+    fn create_sample_user_message(uuid: &str, session_id: &str, content: &str) -> String {
+        format!(
+            r#"{{"uuid":"{}","sessionId":"{}","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{{"role":"user","content":"{}"}}}}"#,
+            uuid, session_id, content
+        )
+    }
+
+    fn create_sample_assistant_message(uuid: &str, session_id: &str, content: &str) -> String {
+        format!(
+            r#"{{"uuid":"{}","sessionId":"{}","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"{}"}}],"id":"msg_123","model":"claude-opus-4-20250514","usage":{{"input_tokens":100,"output_tokens":50}}}}}}"#,
+            uuid, session_id, content
+        )
+    }
+
+    fn create_sample_summary_message(summary: &str) -> String {
+        format!(
+            r#"{{"type":"summary","summary":"{}","leafUuid":"leaf-123"}}"#,
+            summary
+        )
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_basic() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!")
+        );
+
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let result = load_session_messages(file_path.to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let messages = result.unwrap();
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].message_type, "user");
+        assert_eq!(messages[1].message_type, "assistant");
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_with_summary() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi!"),
+            create_sample_summary_message("Test conversation summary")
+        );
+
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let result = load_session_messages(file_path.to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let messages = result.unwrap();
+        assert_eq!(messages.len(), 3);
+
+        // Find summary message
+        let summary_msg = messages.iter().find(|m| m.message_type == "summary");
+        assert!(summary_msg.is_some());
+        if let Some(content) = &summary_msg.unwrap().content {
+            assert_eq!(content.as_str().unwrap(), "Test conversation summary");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_empty_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = create_test_jsonl_file(&temp_dir, "empty.jsonl", "");
+
+        let result = load_session_messages(file_path.to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_with_empty_lines() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "\n{}\n\n{}\n\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi!")
+        );
+
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let result = load_session_messages(file_path.to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_file_not_found() {
+        let result = load_session_messages("/nonexistent/path/file.jsonl".to_string()).await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to read session file"));
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_with_malformed_json() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // First line is valid, second is malformed
+        let content = format!(
+            "{}\n{{invalid json}}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi!")
+        );
+
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let result = load_session_messages(file_path.to_string_lossy().to_string()).await;
+
+        // Should still succeed with valid messages
+        assert!(result.is_ok());
+        let messages = result.unwrap();
+        assert_eq!(messages.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_paginated_basic() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create 5 messages
+        let mut content = String::new();
+        for i in 1..=5 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(&format!("uuid-{}", i), "session-1", &format!("Message {}", i))
+            ));
+        }
+
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let result = load_session_messages_paginated(
+            file_path.to_string_lossy().to_string(),
+            0,
+            3,
+            None
+        ).await;
+
+        assert!(result.is_ok());
+        let page = result.unwrap();
+        assert_eq!(page.total_count, 5);
+        assert_eq!(page.messages.len(), 3);
+        assert!(page.has_more);
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_paginated_offset() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let mut content = String::new();
+        for i in 1..=5 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(&format!("uuid-{}", i), "session-1", &format!("Message {}", i))
+            ));
+        }
+
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        // Get second page
+        let result = load_session_messages_paginated(
+            file_path.to_string_lossy().to_string(),
+            3,
+            3,
+            None
+        ).await;
+
+        assert!(result.is_ok());
+        let page = result.unwrap();
+        assert_eq!(page.total_count, 5);
+        assert_eq!(page.messages.len(), 2); // Only 2 remaining
+        assert!(!page.has_more);
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_paginated_exclude_sidechain() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello"},"isSidechain":false}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","message":{"role":"user","content":"Sidechain"},"isSidechain":true}
+{"uuid":"uuid-3","sessionId":"session-1","timestamp":"2025-06-26T10:02:00Z","type":"user","message":{"role":"user","content":"World"},"isSidechain":false}
+"#;
+
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", content);
+
+        // With exclude_sidechain = true
+        let result = load_session_messages_paginated(
+            file_path.to_string_lossy().to_string(),
+            0,
+            10,
+            Some(true)
+        ).await;
+
+        assert!(result.is_ok());
+        let page = result.unwrap();
+        assert_eq!(page.total_count, 2); // Sidechain message excluded
+    }
+
+    #[tokio::test]
+    async fn test_get_session_message_count() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let mut content = String::new();
+        for i in 1..=10 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(&format!("uuid-{}", i), "session-1", &format!("Message {}", i))
+            ));
+        }
+        // Add a summary (should not be counted)
+        content.push_str(&format!("{}\n", create_sample_summary_message("Summary")));
+
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let result = get_session_message_count(
+            file_path.to_string_lossy().to_string(),
+            None
+        ).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 10); // Summary not counted
+    }
+
+    #[tokio::test]
+    async fn test_get_session_message_count_exclude_sidechain() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello"},"isSidechain":false}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","message":{"role":"user","content":"Sidechain"},"isSidechain":true}
+{"uuid":"uuid-3","sessionId":"session-1","timestamp":"2025-06-26T10:02:00Z","type":"user","message":{"role":"user","content":"World"}}
+"#;
+
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", content);
+
+        // Without exclude
+        let count_all = get_session_message_count(
+            file_path.to_string_lossy().to_string(),
+            None
+        ).await.unwrap();
+        assert_eq!(count_all, 3);
+
+        // With exclude
+        let count_filtered = get_session_message_count(
+            file_path.to_string_lossy().to_string(),
+            Some(true)
+        ).await.unwrap();
+        assert_eq!(count_filtered, 2);
+    }
+
+    #[tokio::test]
+    async fn test_search_messages_basic() {
+        let temp_dir = TempDir::new().unwrap();
+        let projects_dir = temp_dir.path().join("projects");
+        let project_dir = projects_dir.join("test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let content = format!(
+            "{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello Rust programming"),
+            create_sample_assistant_message("uuid-2", "session-1", "Rust is great!")
+        );
+
+        let _file_path = create_test_jsonl_file(&TempDir::new_in(&project_dir).unwrap(), "test.jsonl", &content);
+
+        // Create file directly in project dir
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "Rust".to_string(),
+            serde_json::json!({})
+        ).await;
+
+        assert!(result.is_ok());
+        let messages = result.unwrap();
+        assert_eq!(messages.len(), 2); // Both messages contain "Rust"
+    }
+
+    #[tokio::test]
+    async fn test_search_messages_case_insensitive() {
+        let temp_dir = TempDir::new().unwrap();
+        let projects_dir = temp_dir.path().join("projects");
+        let project_dir = projects_dir.join("test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let content = format!(
+            "{}\n",
+            create_sample_user_message("uuid-1", "session-1", "HELLO World")
+        );
+
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "hello".to_string(), // lowercase
+            serde_json::json!({})
+        ).await;
+
+        assert!(result.is_ok());
+        let messages = result.unwrap();
+        assert_eq!(messages.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_search_messages_no_results() {
+        let temp_dir = TempDir::new().unwrap();
+        let projects_dir = temp_dir.path().join("projects");
+        let project_dir = projects_dir.join("test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let content = format!(
+            "{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello World")
+        );
+
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "nonexistent".to_string(),
+            serde_json::json!({})
+        ).await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_search_messages_empty_projects_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        // Don't create projects directory
+
+        let result = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "test".to_string(),
+            serde_json::json!({})
+        ).await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_basic() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello from test"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi!")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None
+        ).await;
+
+        assert!(result.is_ok());
+        let sessions = result.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].message_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_with_summary() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi!"),
+            create_sample_summary_message("This is the session summary")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None
+        ).await;
+
+        assert!(result.is_ok());
+        let sessions = result.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].summary, Some("This is the session summary".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_multiple_files() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create first session file
+        let content1 = format!(
+            "{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello")
+        );
+        let file_path1 = temp_dir.path().join("session1.jsonl");
+        let mut file1 = File::create(&file_path1).unwrap();
+        file1.write_all(content1.as_bytes()).unwrap();
+
+        // Create second session file
+        let content2 = format!(
+            "{}\n{}\n",
+            create_sample_user_message("uuid-2", "session-2", "World"),
+            create_sample_assistant_message("uuid-3", "session-2", "!")
+        );
+        let file_path2 = temp_dir.path().join("session2.jsonl");
+        let mut file2 = File::create(&file_path2).unwrap();
+        file2.write_all(content2.as_bytes()).unwrap();
+
+        let result = load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None
+        ).await;
+
+        assert!(result.is_ok());
+        let sessions = result.unwrap();
+        assert_eq!(sessions.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_exclude_sidechain() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello"},"isSidechain":false}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","message":{"role":"user","content":"Sidechain"},"isSidechain":true}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        // Without exclude
+        let result_all = load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None
+        ).await.unwrap();
+        assert_eq!(result_all[0].message_count, 2);
+
+        // With exclude
+        let result_filtered = load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            Some(true)
+        ).await.unwrap();
+        assert_eq!(result_filtered[0].message_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_with_tool_use() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Read file"}}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_1","name":"Read","input":{}}]}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None
+        ).await;
+
+        assert!(result.is_ok());
+        let sessions = result.unwrap();
+        assert!(sessions[0].has_tool_use);
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_empty_directory() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let result = load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None
+        ).await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_message_with_missing_uuid_generates_new_one() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Message without uuid
+        let content = r#"{"sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello"}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_session_messages(file_path.to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let messages = result.unwrap();
+        assert_eq!(messages.len(), 1);
+        // Should have a generated UUID
+        assert!(!messages[0].uuid.is_empty());
+        assert!(messages[0].uuid.contains("-line-"));
+    }
+
+    #[tokio::test]
+    async fn test_message_with_missing_session_id() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Message without sessionId
+        let content = r#"{"uuid":"uuid-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello"}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_session_messages(file_path.to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let messages = result.unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].session_id, "unknown-session");
+    }
+
+    #[tokio::test]
+    async fn test_assistant_message_with_usage_stats() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello!"}],"id":"msg_123","model":"claude-opus-4-20250514","stop_reason":"end_turn","usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":20,"cache_read_input_tokens":10}}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_session_messages(file_path.to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let messages = result.unwrap();
+        assert_eq!(messages.len(), 1);
+
+        let msg = &messages[0];
+        assert_eq!(msg.role, Some("assistant".to_string()));
+        assert_eq!(msg.message_id, Some("msg_123".to_string()));
+        assert_eq!(msg.model, Some("claude-opus-4-20250514".to_string()));
+        assert_eq!(msg.stop_reason, Some("end_turn".to_string()));
+
+        let usage = msg.usage.as_ref().unwrap();
+        assert_eq!(usage.input_tokens, Some(100));
+        assert_eq!(usage.output_tokens, Some(50));
+        assert_eq!(usage.cache_creation_input_tokens, Some(20));
+        assert_eq!(usage.cache_read_input_tokens, Some(10));
+    }
+}

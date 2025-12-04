@@ -394,7 +394,12 @@
       "file": "파일: {{fileName}}",
       "firstMessage": "첫번째 메시지: {{timestamp}}",
       "lastMessage": "마지막 메시지: {{timestamp}}"
-    }
+    },
+    "searchPlaceholder": "대화 내용 검색...",
+    "searching": "검색 중...",
+    "searchResults": "검색 결과: {{count}}개 / 전체 {{total}}개",
+    "noSearchResults": "검색 결과가 없습니다",
+    "tryDifferentKeyword": "다른 검색어로 시도해보세요"
   },
   "commandRenderer": {
     "commandExecution": "명령 실행",

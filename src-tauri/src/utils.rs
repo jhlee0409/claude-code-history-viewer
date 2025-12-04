@@ -18,3 +18,83 @@ pub fn estimate_message_count_from_size(file_size: u64) -> usize {
     // 작은 파일은 최소 1개 메시지로 처리
     ((file_size as f64 / 1000.0).ceil() as usize).max(1)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_project_name_with_prefix() {
+        // Test raw project name with dash prefix (e.g., "-user-home-project")
+        let result = extract_project_name("-user-home-project");
+        assert_eq!(result, "project");
+    }
+
+    #[test]
+    fn test_extract_project_name_with_complex_prefix() {
+        // Test raw project name with multiple parts
+        let result = extract_project_name("-usr-local-myproject");
+        assert_eq!(result, "myproject");
+    }
+
+    #[test]
+    fn test_extract_project_name_without_prefix() {
+        // Test raw project name without dash prefix
+        let result = extract_project_name("simple-project");
+        assert_eq!(result, "simple-project");
+    }
+
+    #[test]
+    fn test_extract_project_name_empty() {
+        let result = extract_project_name("");
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_extract_project_name_only_dashes() {
+        // When there are fewer than 4 parts, return original
+        let result = extract_project_name("-a-b");
+        assert_eq!(result, "-a-b");
+    }
+
+    #[test]
+    fn test_extract_project_name_exact_four_parts() {
+        let result = extract_project_name("-a-b-c");
+        assert_eq!(result, "c");
+    }
+
+    #[test]
+    fn test_estimate_message_count_zero_size() {
+        // Minimum should be 1
+        let result = estimate_message_count_from_size(0);
+        assert_eq!(result, 1);
+    }
+
+    #[test]
+    fn test_estimate_message_count_small_file() {
+        // 500 bytes -> ceil(0.5) = 1
+        let result = estimate_message_count_from_size(500);
+        assert_eq!(result, 1);
+    }
+
+    #[test]
+    fn test_estimate_message_count_medium_file() {
+        // 2500 bytes -> ceil(2.5) = 3
+        let result = estimate_message_count_from_size(2500);
+        assert_eq!(result, 3);
+    }
+
+    #[test]
+    fn test_estimate_message_count_large_file() {
+        // 10000 bytes -> ceil(10.0) = 10
+        let result = estimate_message_count_from_size(10000);
+        assert_eq!(result, 10);
+    }
+
+    #[test]
+    fn test_estimate_message_count_exact_boundary() {
+        // 1000 bytes -> ceil(1.0) = 1
+        let result = estimate_message_count_from_size(1000);
+        assert_eq!(result, 1);
+    }
+}
