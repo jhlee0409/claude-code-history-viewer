@@ -378,7 +378,12 @@
       "file": "File: {{fileName}}",
       "firstMessage": "First message: {{timestamp}}",
       "lastMessage": "Last message: {{timestamp}}"
-    }
+    },
+    "searchPlaceholder": "Search conversations...",
+    "searching": "Searching...",
+    "searchResults": "Search results: {{count}} / {{total}} total",
+    "noSearchResults": "No search results",
+    "tryDifferentKeyword": "Try a different keyword"
   },
   "commandRenderer": {
     "commandExecution": "Command Execution",

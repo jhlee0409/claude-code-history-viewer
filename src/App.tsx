@@ -26,7 +26,6 @@ function App() {
     selectedProject,
     selectedSession,
     messages,
-    pagination,
     isLoading,
     isLoadingProjects,
     isLoadingSessions,
@@ -34,10 +33,12 @@ function App() {
     error,
     sessionTokenStats,
     projectTokenStats,
+    sessionSearch,
     initializeApp,
     selectProject,
     selectSession,
-    loadMoreMessages,
+    setSessionSearchQuery,
+    clearSessionSearch,
   } = useAppStore();
 
   const {
@@ -229,8 +230,7 @@ function App() {
                     {computed.isMessagesView && selectedSession && (
                       <div>
                         <p className={cn("text-sm mt-1", COLORS.ui.text.muted)}>
-                          {pagination.totalCount >= messages.length &&
-                            ` ${pagination.totalCount || "-"}개 • `}
+                          {messages.length > 0 && ` ${messages.length}개 • `}
                           {selectedSession.has_tool_use
                             ? tComponents("tools.toolUsed")
                             : tComponents("tools.generalConversation")}
@@ -273,10 +273,11 @@ function App() {
               ) : selectedSession ? (
                 <MessageViewer
                   messages={messages}
-                  pagination={pagination}
                   isLoading={isLoading}
                   selectedSession={selectedSession}
-                  onLoadMore={loadMoreMessages}
+                  sessionSearch={sessionSearch}
+                  onSearchChange={setSessionSearchQuery}
+                  onClearSearch={clearSessionSearch}
                 />
               ) : (
                 <div className="h-full flex items-center justify-center">
@@ -323,9 +324,8 @@ function App() {
               </span>
               {selectedSession && computed.isMessagesView && (
                 <span>
-                  {tComponents("message.countWithTotal", {
-                    current: messages.length,
-                    total: pagination.totalCount || messages.length,
+                  {tComponents("message.count", {
+                    count: messages.length,
                   })}
                 </span>
               )}
