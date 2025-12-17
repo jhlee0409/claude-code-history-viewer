@@ -236,9 +236,9 @@ pub fn version_is_newer(current: &str, latest: &str) -> bool {
     // Same version number, compare prerelease
     // A release version (no prerelease) is newer than any prerelease
     match (&cur_pre_type, &lat_pre_type) {
-        (Some(_), None) => return true,  // current is prerelease, latest is release
-        (None, Some(_)) => return false, // current is release, latest is prerelease
-        (None, None) => return false,    // both are releases, same version
+        (Some(_), None) => true,  // current is prerelease, latest is release
+        (None, Some(_)) => false, // current is release, latest is prerelease
+        (None, None) => false,    // both are releases, same version
         (Some(cur_type), Some(lat_type)) => {
             // Compare prerelease types: alpha < beta < rc
             let type_order = |t: &str| -> u32 {
