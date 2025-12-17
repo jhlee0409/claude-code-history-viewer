@@ -142,6 +142,12 @@ pub async fn load_project_sessions(
                 };
 
                 let message_count = filtered_messages.len();
+
+                // Skip sessions with 0 messages (e.g., compacted sessions)
+                if message_count == 0 {
+                    continue;
+                }
+
                 let first_message_time = messages[0].timestamp.clone();
                 let last_message_time = messages.last().unwrap().timestamp.clone();
 
