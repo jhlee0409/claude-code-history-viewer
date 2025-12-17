@@ -78,7 +78,7 @@ interface AppStore extends AppState {
 }
 
 // 검색 관련 상태
-interface SearchState {
+export interface SearchState {
   query: string;
   results: ClaudeMessage[];
   isSearching: boolean;
@@ -92,9 +92,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   sessions: [],
   selectedSession: null,
   messages: [],
+  // Note: Pagination is deprecated - all messages are loaded at once
   pagination: {
     currentOffset: 0,
-    pageSize: 0,
+    pageSize: 0, // Always 0 - pagination disabled
     totalCount: 0,
     hasMore: false,
     isLoadingMore: false,
@@ -597,30 +598,74 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     // 클라이언트 측에서 메시지 검색 (대소문자 구분 없음)
     const lowerQuery = query.toLowerCase();
+
+    // 텍스트 추출 헬퍼 함수
+    const extractTextFromContent = (content: unknown): string => {
+      if (typeof content === "string") return content;
+      if (Array.isArray(content)) {
+        return content
+          .map(item => {
+            if (typeof item === "string") return item;
+            if (item && typeof item === "object") {
+              // text, thinking 필드에서만 추출
+              const textFields: string[] = [];
+              if ("text" in item && typeof item.text === "string") {
+                textFields.push(item.text);
+              }
+              if ("thinking" in item && typeof item.thinking === "string") {
+                textFields.push(item.thinking);
+              }
+              return textFields.join(" ");
+            }
+            return "";
+          })
+          .join(" ");
+      }
+      return "";
+    };
+
     const results = messages.filter((message) => {
       // content에서 검색
       if (message.content) {
-        const contentStr = typeof message.content === "string"
-          ? message.content
-          : JSON.stringify(message.content);
+        const contentStr = extractTextFromContent(message.content);
         if (contentStr.toLowerCase().includes(lowerQuery)) {
           return true;
         }
       }
-      // toolUse에서 검색
-      if (message.toolUse) {
-        const toolUseStr = JSON.stringify(message.toolUse);
-        if (toolUseStr.toLowerCase().includes(lowerQuery)) {
+
+      // toolUse의 name 필드에서만 검색 (input은 제외)
+      if (message.toolUse && typeof message.toolUse === "object") {
+        const toolName = (message.toolUse as { name?: string }).name || "";
+        if (toolName.toLowerCase().includes(lowerQuery)) {
           return true;
         }
       }
-      // toolUseResult에서 검색
+
+      // toolUseResult의 텍스트 필드에서만 검색
       if (message.toolUseResult) {
-        const toolResultStr = JSON.stringify(message.toolUseResult);
-        if (toolResultStr.toLowerCase().includes(lowerQuery)) {
+        const result = message.toolUseResult;
+        const searchableFields: string[] = [];
+
+        if (typeof result === "object" && result !== null) {
+          // stdout, stderr, content 등 주요 텍스트 필드만 추출
+          if ("stdout" in result && typeof result.stdout === "string") {
+            searchableFields.push(result.stdout);
+          }
+          if ("stderr" in result && typeof result.stderr === "string") {
+            searchableFields.push(result.stderr);
+          }
+          if ("content" in result && typeof result.content === "string") {
+            searchableFields.push(result.content);
+          }
+        } else if (typeof result === "string") {
+          searchableFields.push(result);
+        }
+
+        if (searchableFields.join(" ").toLowerCase().includes(lowerQuery)) {
           return true;
         }
       }
+
       return false;
     });
 

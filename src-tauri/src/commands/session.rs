@@ -55,7 +55,7 @@ pub async fn load_project_sessions(
                             }
 
                             let uuid = log_entry.uuid.unwrap_or_else(|| {
-                                let new_uuid = format!("{}-line-{}", Uuid::new_v4().to_string(), line_num + 1);
+                                let new_uuid = format!("{}-line-{}", Uuid::new_v4(), line_num + 1);
                                 eprintln!("Warning: Missing UUID in line {} of {}, generated: {}", line_num + 1, file_path, new_uuid);
                                 new_uuid
                             });
@@ -327,7 +327,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                     }
 
                     let uuid = log_entry.uuid.unwrap_or_else(|| {
-                        let new_uuid = format!("{}-line-{}", Uuid::new_v4().to_string(), line_num + 1);
+                        let new_uuid = format!("{}-line-{}", Uuid::new_v4(), line_num + 1);
                         eprintln!("Warning: Missing UUID in line {} of {}, generated: {}", line_num + 1, session_path, new_uuid);
                         new_uuid
                     });
@@ -428,7 +428,7 @@ pub async fn load_session_messages_paginated(
                     };
                     
                     let claude_message = ClaudeMessage {
-                        uuid: log_entry.uuid.unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4().to_string(), line_num + 1)),
+                        uuid: log_entry.uuid.unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1)),
                         parent_uuid: log_entry.parent_uuid,
                         session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
                         timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
@@ -472,13 +472,9 @@ pub async fn load_session_messages_paginated(
     
     // Calculate how many messages are already loaded (from newest)
     let already_loaded = offset;
-    
+
     // Calculate remaining messages that can be loaded
-    let remaining_messages = if total_count > already_loaded {
-        total_count - already_loaded
-    } else {
-        0
-    };
+    let remaining_messages = total_count.saturating_sub(already_loaded);
     
     // Actual messages to load: minimum of limit and remaining messages
     let messages_to_load = std::cmp::min(limit, remaining_messages);
@@ -585,7 +581,7 @@ pub async fn search_messages(
 
                             if content_str.to_lowercase().contains(&query.to_lowercase()) {
                                 let claude_message = ClaudeMessage {
-                                    uuid: log_entry.uuid.unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4().to_string(), line_num + 1)),
+                                    uuid: log_entry.uuid.unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1)),
                                     parent_uuid: log_entry.parent_uuid,
                                     session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
                                     timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),

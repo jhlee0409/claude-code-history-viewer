@@ -8,6 +8,7 @@ import React, {
 import { Loader2, MessageCircle, ChevronDown, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeMessage, ClaudeSession } from "../types";
+import type { SearchState } from "../store/useAppStore";
 import { ClaudeContentArrayRenderer } from "./contentRenderer";
 import {
   ClaudeToolUseDisplay,
@@ -20,17 +21,11 @@ import { cn } from "../utils/cn";
 import { COLORS } from "../constants/colors";
 import { formatTime } from "../utils/time";
 
-interface SessionSearch {
-  query: string;
-  results: ClaudeMessage[];
-  isSearching: boolean;
-}
-
 interface MessageViewerProps {
   messages: ClaudeMessage[];
   isLoading: boolean;
   selectedSession: ClaudeSession | null;
-  sessionSearch: SessionSearch;
+  sessionSearch: SearchState;
   onSearchChange: (query: string) => void;
   onClearSearch: () => void;
 }

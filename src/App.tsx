@@ -230,8 +230,8 @@ function App() {
                     {computed.isMessagesView && selectedSession && (
                       <div>
                         <p className={cn("text-sm mt-1", COLORS.ui.text.muted)}>
-                          {pagination.totalCount >= messages.length &&
-                            ` ${pagination.totalCount || "-"} ${tComponents("message.count", { count: pagination.totalCount })} • `}
+                          {messages.length > 0 &&
+                            `${messages.length} ${tComponents("message.count", { count: messages.length })} • `}
                           {selectedSession.has_tool_use
                             ? tComponents("tools.toolUsed")
                             : tComponents("tools.generalConversation")}

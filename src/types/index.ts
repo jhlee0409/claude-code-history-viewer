@@ -150,9 +150,11 @@ export interface MessagePage {
   next_offset: number;
 }
 
+// Note: Pagination is no longer used as we load all messages at once.
+// This interface is kept for backward compatibility but will be removed in future versions.
 export interface PaginationState {
   currentOffset: number;
-  pageSize: number;
+  pageSize: number; // Always 0 - pagination disabled
   totalCount: number;
   hasMore: boolean;
   isLoadingMore: boolean;
