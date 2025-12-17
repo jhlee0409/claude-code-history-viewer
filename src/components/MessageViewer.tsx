@@ -355,11 +355,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   return (
     <div className="relative flex-1 h-full flex flex-col">
       {/* 검색 UI */}
-      <div className={cn(
-        "px-4 py-3 border-b sticky top-0 z-10",
-        COLORS.ui.background.secondary,
-        COLORS.ui.border.light
-      )}>
+      <div
+        role="search"
+        className={cn(
+          "px-4 py-3 border-b sticky top-0 z-10",
+          COLORS.ui.background.secondary,
+          COLORS.ui.border.light
+        )}
+      >
         <div className="max-w-4xl mx-auto">
           <div className="relative">
             <Search className={cn(
