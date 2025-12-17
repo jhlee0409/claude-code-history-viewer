@@ -17,7 +17,6 @@ import {
   Users,
   Award,
   Timer,
-  CircuitBoard,
   Loader2,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -60,6 +59,43 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
+  };
+
+  // Calculate Claude API pricing based on model and token counts
+  const calculateModelPrice = (
+    modelName: string,
+    inputTokens: number,
+    outputTokens: number,
+    cacheCreationTokens: number,
+    cacheReadTokens: number
+  ): number => {
+    // Pricing per million tokens (MTok)
+    const pricing: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
+      'claude-opus-4': { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.50 },
+      'claude-opus-4-5': { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.50 },
+      'claude-sonnet-4': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
+      'claude-sonnet-4-5': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
+      'claude-3-5-sonnet': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
+      'claude-3-5-haiku': { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.10 },
+      'claude-3-haiku': { input: 0.25, output: 1.25, cacheWrite: 0.30, cacheRead: 0.03 },
+    };
+
+    // Find matching pricing tier (partial match for versioned models)
+    let modelPricing: { input: number; output: number; cacheWrite: number; cacheRead: number } = pricing['claude-sonnet-4-5']; // default to sonnet
+    for (const [key, value] of Object.entries(pricing)) {
+      if (modelName.toLowerCase().includes(key)) {
+        modelPricing = value;
+        break;
+      }
+    }
+
+    // Calculate cost: (tokens / 1,000,000) * price_per_MTok
+    const inputCost = (inputTokens / 1000000) * modelPricing.input;
+    const outputCost = (outputTokens / 1000000) * modelPricing.output;
+    const cacheWriteCost = (cacheCreationTokens / 1000000) * modelPricing.cacheWrite;
+    const cacheReadCost = (cacheReadTokens / 1000000) * modelPricing.cacheRead;
+
+    return inputCost + outputCost + cacheWriteCost + cacheReadCost;
   };
 
   // 7일간의 일별 데이터 생성 (누락된 날짜 채우기)
@@ -288,11 +324,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                   >
                     {t("analytics.count", { count: tool.usage_count })}
                   </span>
-                  <div className={cn("text-xs", COLORS.ui.text.muted)}>
-                    {t("analytics.successRate", {
-                      percent: Math.round(tool.success_rate),
-                    })}
-                  </div>
+                  {Math.round(tool.success_rate) !== 100 && (
+                    <div className={cn("text-xs", COLORS.ui.text.muted)}>
+                      {t("analytics.successRate", {
+                        percent: Math.round(tool.success_rate),
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="relative">
@@ -1273,10 +1311,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
   const GlobalStatsView = () => {
     if (!globalSummary) return null;
 
-    // Calculate total session time (in minutes) across all sessions
-    const totalSessionTime = Math.round(
-      globalSummary.daily_stats.reduce((sum, day) => sum + (day.active_hours * 60), 0)
-    );
+    // Use the actual calculated session duration from backend (in minutes)
+    const totalSessionTime = globalSummary.total_session_duration_minutes;
 
     return (
       <div className="space-y-6">
@@ -1378,26 +1414,35 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                 {t("analytics.modelDistribution")}
               </h3>
               <div className="space-y-3">
-                {globalSummary.model_distribution.map((model) => (
-                  <div key={model.model_name}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={cn("text-sm font-medium", COLORS.ui.text.primary)}>
-                        {model.model_name}
-                      </span>
-                      <span className={cn("text-sm", COLORS.ui.text.secondary)}>
-                        {formatNumber(model.token_count)} tokens
-                      </span>
+                {globalSummary.model_distribution.map((model) => {
+                  const price = calculateModelPrice(
+                    model.model_name,
+                    model.input_tokens,
+                    model.output_tokens,
+                    model.cache_creation_tokens,
+                    model.cache_read_tokens
+                  );
+                  return (
+                    <div key={model.model_name}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={cn("text-sm font-medium", COLORS.ui.text.primary)}>
+                          {model.model_name}
+                        </span>
+                        <span className={cn("text-sm", COLORS.ui.text.secondary)}>
+                          {formatNumber(model.token_count)} tokens (${price.toFixed(price >= 100 ? 0 : price >= 10 ? 1 : 2)})
+                        </span>
+                      </div>
+                      <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
+                          style={{
+                            width: `${(model.token_count / globalSummary.total_tokens) * 100}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
-                        style={{
-                          width: `${(model.token_count / globalSummary.total_tokens) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

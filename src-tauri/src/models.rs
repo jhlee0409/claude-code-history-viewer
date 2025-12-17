@@ -195,6 +195,10 @@ pub struct ModelStats {
     pub model_name: String,
     pub message_count: u32,
     pub token_count: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_creation_tokens: u64,
+    pub cache_read_tokens: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +215,7 @@ pub struct GlobalStatsSummary {
     pub total_sessions: u32,
     pub total_messages: u32,
     pub total_tokens: u64,
+    pub total_session_duration_minutes: u64,
     pub date_range: DateRange,
     pub token_distribution: TokenDistribution,
     pub daily_stats: Vec<DailyStats>,

@@ -271,6 +271,10 @@ export interface ModelStats {
   model_name: string;
   message_count: number;
   token_count: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
 }
 
 export interface ProjectRanking {
@@ -285,6 +289,7 @@ export interface GlobalStatsSummary {
   total_sessions: number;
   total_messages: number;
   total_tokens: number;
+  total_session_duration_minutes: number;
   date_range: DateRange;
   token_distribution: {
     input: number;

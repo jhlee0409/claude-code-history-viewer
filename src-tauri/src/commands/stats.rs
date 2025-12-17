@@ -456,7 +456,7 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u32)> = HashMap::new();
-    let mut model_usage_map: HashMap<String, (u32, u64)> = HashMap::new();
+    let mut model_usage_map: HashMap<String, (u32, u64, u64, u64, u64, u64)> = HashMap::new(); // (message_count, total_tokens, input_tokens, output_tokens, cache_creation, cache_read)
     let mut project_stats_map: HashMap<String, (u32, u32, u64)> = HashMap::new();
     let mut global_first_message: Option<DateTime<Utc>> = None;
     let mut global_last_message: Option<DateTime<Utc>> = None;
@@ -496,6 +496,8 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
             };
             let reader = BufReader::new(file);
 
+            let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
+
             for line in reader.lines() {
                 let line = match line {
                     Ok(l) => l,
@@ -514,6 +516,9 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
                         if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
                             let timestamp = timestamp.with_timezone(&Utc);
 
+                            // Collect timestamp for active time calculation
+                            session_timestamps.push(timestamp);
+
                             if global_first_message.is_none() || timestamp < global_first_message.unwrap() {
                                 global_first_message = Some(timestamp);
                             }
@@ -528,6 +533,10 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
                                 + usage.output_tokens.unwrap_or(0) as u64
                                 + usage.cache_creation_input_tokens.unwrap_or(0) as u64
                                 + usage.cache_read_input_tokens.unwrap_or(0) as u64;
+                            let input_tokens = usage.input_tokens.unwrap_or(0) as u64;
+                            let output_tokens = usage.output_tokens.unwrap_or(0) as u64;
+                            let cache_creation_tokens = usage.cache_creation_input_tokens.unwrap_or(0) as u64;
+                            let cache_read_tokens = usage.cache_read_input_tokens.unwrap_or(0) as u64;
 
                             summary.total_tokens += tokens;
                             project_tokens += tokens;
@@ -552,9 +561,13 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
                             summary.token_distribution.cache_read += usage.cache_read_input_tokens.unwrap_or(0);
 
                             if let Some(model_name) = &message.model {
-                                let model_entry = model_usage_map.entry(model_name.clone()).or_insert((0, 0));
-                                model_entry.0 += 1;
-                                model_entry.1 += tokens;
+                                let model_entry = model_usage_map.entry(model_name.clone()).or_insert((0, 0, 0, 0, 0, 0));
+                                model_entry.0 += 1; // message_count
+                                model_entry.1 += tokens; // total_tokens
+                                model_entry.2 += input_tokens; // input_tokens
+                                model_entry.3 += output_tokens; // output_tokens
+                                model_entry.4 += cache_creation_tokens; // cache_creation_tokens
+                                model_entry.5 += cache_read_tokens; // cache_read_tokens
                             }
                         }
 
@@ -591,6 +604,33 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
                     }
                 }
             }
+
+            // Calculate active session time using 5-minute activity windows
+            // If messages are within 5 minutes of each other, count the gap as active time
+            // If messages are >5 minutes apart, assume 5 minutes of activity then idle
+            if session_timestamps.len() >= 2 {
+                session_timestamps.sort();
+                let mut active_minutes = 0u64;
+
+                for i in 0..session_timestamps.len() - 1 {
+                    let gap_minutes = (session_timestamps[i + 1] - session_timestamps[i]).num_minutes();
+                    if gap_minutes <= 5 {
+                        // Messages within 5 minutes - count the actual gap
+                        active_minutes += gap_minutes.max(0) as u64;
+                    } else {
+                        // Messages >5 minutes apart - count only 5 minutes (one active period)
+                        active_minutes += 5;
+                    }
+                }
+
+                // Add final message (assume 2 minutes to read and respond)
+                active_minutes += 2;
+
+                summary.total_session_duration_minutes += active_minutes;
+            } else if session_timestamps.len() == 1 {
+                // Single message session - assume 2 minutes
+                summary.total_session_duration_minutes += 2;
+            }
         }
 
         project_stats_map.insert(project_name, (project_sessions, project_messages, project_tokens));
@@ -609,10 +649,14 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
 
     summary.model_distribution = model_usage_map
         .into_iter()
-        .map(|(model_name, (message_count, token_count))| ModelStats {
+        .map(|(model_name, (message_count, token_count, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens))| ModelStats {
             model_name,
             message_count,
             token_count,
+            input_tokens,
+            output_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
         })
         .collect();
     summary.model_distribution.sort_by(|a, b| b.token_count.cmp(&a.token_count));
