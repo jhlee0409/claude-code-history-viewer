@@ -32,7 +32,8 @@
       "description": "選擇您偏好的語言"
     },
     "checkUpdate": "檢查更新",
-    "checking": "檢查中..."
+    "checking": "檢查中...",
+    "updateSettings": "更新設定"
   },
   "time": {
     "minutesAgo": "{{count}}分鐘前",

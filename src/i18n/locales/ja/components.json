@@ -552,5 +552,40 @@
     "readyToInstall": "インストール準備完了",
     "viewOnGitHub": "GitHubで見る",
     "downloadProgress": "{{progress}}% 完了"
+  },
+  "updateSettingsModal": {
+    "title": "アップデート設定",
+    "autoCheck": "自動アップデート確認",
+    "checkInterval": "確認間隔",
+    "intervalStartup": "アプリ起動時に毎回",
+    "intervalDaily": "1日に1回",
+    "intervalWeekly": "週に1回",
+    "respectOfflineStatus": "オフライン時は確認を無効化",
+    "allowCriticalUpdates": "重要なアップデート通知",
+    "skippedVersions": "スキップしたバージョン",
+    "clearAll": "すべてクリア",
+    "checkNow": "今すぐアップデートを確認",
+    "checking": "アップデート確認中...",
+    "clearCache": "キャッシュをクリア",
+    "cacheCleared": "アップデートキャッシュがクリアされました。",
+    "close": "閉じる",
+    "save": "保存"
+  },
+  "updateIntroModal": {
+    "title": "アップデートシステムガイド",
+    "description": "Claude Code History Viewerは、より良いユーザー体験を提供するため、自動的にアップデートを確認します。",
+    "howItWorksTitle": "仕組み:",
+    "howItWorks1": "アプリ起動時にバックグラウンドでアップデートを確認",
+    "howItWorks2": "新しいアップデートが見つかった場合に通知モーダルを表示",
+    "howItWorks3": "ダウンロード/インストールはユーザーが手動で選択",
+    "howItWorks4": "30分間の結果キャッシュで効率的に動作",
+    "benefitsTitle": "メリット:",
+    "benefits1": "セキュリティパッチの迅速な適用",
+    "benefits2": "新機能への素早いアクセス",
+    "benefits3": "オフライン時は自動的に無効化",
+    "benefits4": "設定からいつでも変更可能",
+    "tip": "💡 設定 → アップデート設定で自動確認を無効化できます。",
+    "disableAutoCheck": "自動確認を無効化",
+    "understood": "了解しました"
   }
 }
