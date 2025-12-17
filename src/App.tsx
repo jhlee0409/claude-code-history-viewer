@@ -41,6 +41,12 @@ function App() {
     clearSessionSearch,
     loadMoreMessages,
     loadGlobalStats,
+    setAnalyticsCurrentView,
+    setAnalyticsLoadingProjectSummary,
+    loadProjectStatsSummary,
+    setAnalyticsProjectSummary,
+    setAnalyticsProjectSummaryError,
+    loadProjectTokenStats,
   } = useAppStore();
 
   const {
@@ -119,38 +125,40 @@ function App() {
 
   // 프로젝트 선택 핸들러 (분석 상태 초기화 포함)
   const handleProjectSelect = async (project: ClaudeProject) => {
-    const wasAnalyticsOpen = computed.isAnalyticsView;
     const wasTokenStatsOpen = computed.isTokenStatsView;
 
     // Clear global stats view flag when selecting a project
     setIsViewingGlobalStats(false);
 
-    // 기존 분석 데이터 초기화
-    if (!computed.isMessagesView) {
-      analyticsActions.switchToMessages();
-    }
-
     // 프로젝트 선택
     await selectProject(project);
 
-    // 분석 탭이 열려있었다면 새 프로젝트의 분석 데이터 자동 로드
-    if (wasAnalyticsOpen) {
-      try {
-        await analyticsActions.switchToAnalytics();
-      } catch (error) {
-        console.error("Failed to auto-load analytics for new project:", error);
-      }
-    }
-
-    // 토큰 통계 탭이 열려있었다면 새 프로젝트의 토큰 통계 자동 로드
+    // 토큰 통계 탭이 열려있었다면 유지, 아니면 기본적으로 분석 대시보드 표시
     if (wasTokenStatsOpen) {
       try {
-        await analyticsActions.switchToTokenStats();
+        setAnalyticsCurrentView("tokenStats");
+        await loadProjectTokenStats(project.path);
       } catch (error) {
         console.error(
           "Failed to auto-load token stats for new project:",
           error
         );
+      }
+    } else {
+      // Always show analytics dashboard when selecting a project
+      try {
+        // Load analytics data using the project parameter directly (not from state)
+        setAnalyticsCurrentView("analytics");
+        setAnalyticsLoadingProjectSummary(true);
+        const summary = await loadProjectStatsSummary(project.path);
+        setAnalyticsProjectSummary(summary);
+      } catch (error) {
+        console.error("Failed to auto-load analytics for new project:", error);
+        setAnalyticsProjectSummaryError(
+          error instanceof Error ? error.message : "Failed to load project stats"
+        );
+      } finally {
+        setAnalyticsLoadingProjectSummary(false);
       }
     }
   };

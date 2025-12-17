@@ -180,8 +180,7 @@ pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectSt
         let file = fs::File::open(session_path).map_err(|e| e.to_string())?;
         let reader = BufReader::new(file);
 
-        let mut session_start: Option<DateTime<Utc>> = None;
-        let mut session_end: Option<DateTime<Utc>> = None;
+        let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
         let mut session_has_messages = false;
 
         for line in reader.lines() {
@@ -198,12 +197,8 @@ pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectSt
                     if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
                         let timestamp = timestamp.with_timezone(&Utc);
 
-                        if session_start.is_none() || timestamp < session_start.unwrap() {
-                            session_start = Some(timestamp);
-                        }
-                        if session_end.is_none() || timestamp > session_end.unwrap() {
-                            session_end = Some(timestamp);
-                        }
+                        // Collect timestamp for session duration calculation
+                        session_timestamps.push(timestamp);
 
                         let hour = timestamp.hour() as u8;
                         let day = timestamp.weekday().num_days_from_sunday() as u8;
@@ -269,16 +264,41 @@ pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectSt
             }
         }
 
-        if let (Some(start), Some(end)) = (session_start, session_end) {
-            let duration = (end - start).num_minutes() as u32;
-            session_durations.push(duration);
+        // Calculate session duration using new algorithm (split at long breaks)
+        const SESSION_BREAK_THRESHOLD_MINUTES: i64 = 120; // 2 hours - increased from 60 min
+
+        if session_timestamps.len() >= 2 {
+            session_timestamps.sort();
+
+            let mut current_period_start = session_timestamps[0];
+            let mut session_total_minutes = 0u32;
+
+            for i in 0..session_timestamps.len() - 1 {
+                let current = session_timestamps[i];
+                let next = session_timestamps[i + 1];
+                let gap_minutes = (next - current).num_minutes();
+
+                if gap_minutes > SESSION_BREAK_THRESHOLD_MINUTES {
+                    // Close current period
+                    let period_duration = (current - current_period_start).num_minutes();
+                    session_total_minutes += period_duration.max(1) as u32;
+                    current_period_start = next;
+                }
+            }
+
+            // Close final period
+            let last = session_timestamps[session_timestamps.len() - 1];
+            let final_period = (last - current_period_start).num_minutes();
+            session_total_minutes += final_period.max(1) as u32;
+
+            session_durations.push(session_total_minutes);
+        } else if session_timestamps.len() == 1 {
+            session_durations.push(1); // Single message = 1 minute
         }
 
-        if session_has_messages {
-            if let Some(start) = session_start {
-                let date = start.format("%Y-%m-%d").to_string();
-                session_dates.insert(date);
-            }
+        if session_has_messages && !session_timestamps.is_empty() {
+            let date = session_timestamps[0].format("%Y-%m-%d").to_string();
+            session_dates.insert(date);
         }
     }
 
@@ -317,8 +337,9 @@ pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectSt
 
     summary.total_tokens = summary.token_distribution.input + summary.token_distribution.output + summary.token_distribution.cache_creation + summary.token_distribution.cache_read;
     summary.avg_tokens_per_session = if summary.total_sessions > 0 { summary.total_tokens / summary.total_sessions as u32 } else { 0 };
+    summary.total_session_duration = session_durations.iter().sum::<u32>();
     summary.avg_session_duration = if !session_durations.is_empty() {
-        session_durations.iter().sum::<u32>() / session_durations.len() as u32
+        summary.total_session_duration / session_durations.len() as u32
     } else {
         0
     };
@@ -605,31 +626,42 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
                 }
             }
 
-            // Calculate active session time using 5-minute activity windows
-            // If messages are within 5 minutes of each other, count the gap as active time
-            // If messages are >5 minutes apart, assume 5 minutes of activity then idle
+            // Calculate session time by counting time spans between messages
+            // Split sessions at breaks >120 minutes (overnight, long breaks, etc.)
+            const SESSION_BREAK_THRESHOLD_MINUTES: i64 = 120;
+
             if session_timestamps.len() >= 2 {
                 session_timestamps.sort();
-                let mut active_minutes = 0u64;
+
+                // Track active periods (split at long breaks)
+                let mut current_period_start = session_timestamps[0];
+                let mut total_active_minutes = 0u64;
 
                 for i in 0..session_timestamps.len() - 1 {
-                    let gap_minutes = (session_timestamps[i + 1] - session_timestamps[i]).num_minutes();
-                    if gap_minutes <= 5 {
-                        // Messages within 5 minutes - count the actual gap
-                        active_minutes += gap_minutes.max(0) as u64;
-                    } else {
-                        // Messages >5 minutes apart - count only 5 minutes (one active period)
-                        active_minutes += 5;
+                    let current = session_timestamps[i];
+                    let next = session_timestamps[i + 1];
+                    let gap_minutes = (next - current).num_minutes();
+
+                    // If gap >60 minutes, it's a session break (lunch, pause, etc.)
+                    if gap_minutes > SESSION_BREAK_THRESHOLD_MINUTES {
+                        // Close current active period
+                        let period_duration = (current - current_period_start).num_minutes();
+                        total_active_minutes += period_duration.max(1) as u64; // Minimum 1 minute
+
+                        // Start new active period after the break
+                        current_period_start = next;
                     }
                 }
 
-                // Add final message (assume 2 minutes to read and respond)
-                active_minutes += 2;
+                // Close final active period
+                let last_timestamp = session_timestamps[session_timestamps.len() - 1];
+                let final_period = (last_timestamp - current_period_start).num_minutes();
+                total_active_minutes += final_period.max(1) as u64;
 
-                summary.total_session_duration_minutes += active_minutes;
+                summary.total_session_duration_minutes += total_active_minutes;
             } else if session_timestamps.len() == 1 {
-                // Single message session - assume 2 minutes
-                summary.total_session_duration_minutes += 2;
+                // Single message session = 1 minute minimum
+                summary.total_session_duration_minutes += 1;
             }
         }
 

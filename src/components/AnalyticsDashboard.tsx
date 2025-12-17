@@ -12,11 +12,6 @@ import {
   Zap,
   Database,
   Eye,
-  Hash,
-  Target,
-  Users,
-  Award,
-  Timer,
   Loader2,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -81,7 +76,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     };
 
     // Find matching pricing tier (partial match for versioned models)
-    let modelPricing: { input: number; output: number; cacheWrite: number; cacheRead: number } = pricing['claude-sonnet-4-5']; // default to sonnet
+    const defaultPricing = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 }; // default to sonnet
+    let modelPricing = pricing['claude-sonnet-4-5'] || defaultPricing;
     for (const [key, value] of Object.entries(pricing)) {
       if (modelName.toLowerCase().includes(key)) {
         modelPricing = value;
@@ -363,7 +359,23 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
 
   // Project Statistics View
   const ProjectStatsView = () => {
-    if (!projectSummary) return null;
+    // Show loading state while data is being fetched
+    if (!projectSummary) {
+      if (analyticsState.isLoadingProjectSummary) {
+        return (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Loader2 className={cn("w-12 h-12 mx-auto mb-4 animate-spin", COLORS.ui.text.disabled)} />
+              <p className={cn("text-sm", COLORS.ui.text.tertiary)}>
+                {t("analytics.loading")}
+              </p>
+            </div>
+          </div>
+        );
+      }
+      // If not loading and no data, return null
+      return null;
+    }
 
     const lastDayStats =
       projectSummary.daily_stats[projectSummary.daily_stats.length - 1];
@@ -445,12 +457,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           >
             <div className="flex items-center justify-between mb-2">
               <Clock className={cn("w-8 h-8", COLORS.semantic.success.icon)} />
+              <span className={cn("text-xs", COLORS.ui.text.muted)}>
+                avg: {formatDuration(projectSummary.avg_session_duration)}
+              </span>
             </div>
             <div className={cn("text-2xl font-bold", COLORS.ui.text.primary)}>
-              {formatDuration(projectSummary.avg_session_duration)}
+              {formatDuration(projectSummary.total_session_duration)}
             </div>
             <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.avgSessionTime")}
+              {t("analytics.totalSessionTime")}
             </div>
           </div>
 
@@ -1107,205 +1122,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     );
   };
 
-  // Quick Stats Bar Component
-  const QuickStatsBar = () => {
-    if (!projectSummary) return null;
-
-    const sessionRank = sessionComparison?.rank_by_tokens || null;
-    const sessionPercentage =
-      sessionComparison?.percentage_of_project_tokens || 0;
-
-    return (
-      <div
-        className={cn(
-          "p-4 rounded-lg border mb-6",
-          "bg-linear-to-r from-indigo-50 via-purple-50 to-pink-50",
-          "dark:from-indigo-950 dark:via-purple-950 dark:to-pink-950",
-          COLORS.semantic.info.border
-        )}
-      >
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="flex items-center justify-center mb-1">
-              <Target
-                className={cn("w-4 h-4 mr-1", COLORS.semantic.info.icon)}
-              />
-              <span
-                className={cn("text-xs font-medium", COLORS.ui.text.tertiary)}
-              >
-                {t("analytics.totalTokens")}
-              </span>
-            </div>
-            <div className={cn("text-xl font-bold", COLORS.ui.text.primary)}>
-              {formatNumber(projectSummary.total_tokens)}
-            </div>
-          </div>
-
-          <div className="text-center">
-            <div className="flex items-center justify-center mb-1">
-              <Users
-                className={cn("w-4 h-4 mr-1", COLORS.semantic.success.icon)}
-              />
-              <span
-                className={cn("text-xs font-medium", COLORS.ui.text.tertiary)}
-              >
-                {t("analytics.totalSessions")}
-              </span>
-            </div>
-            <div className={cn("text-xl font-bold", COLORS.ui.text.primary)}>
-              {projectSummary.total_sessions}
-              {t("analytics.sessionsUnit")}
-            </div>
-          </div>
-
-          {selectedSession && sessionStats && (
-            <>
-              <div className="text-center">
-                <div className="flex items-center justify-center mb-1">
-                  <Award
-                    className={cn("w-4 h-4 mr-1", COLORS.semantic.warning.icon)}
-                  />
-                  <span
-                    className={cn(
-                      "text-xs font-medium",
-                      COLORS.ui.text.tertiary
-                    )}
-                  >
-                    {t("analytics.sessionRank")}
-                  </span>
-                </div>
-                <div
-                  className={cn("text-xl font-bold", COLORS.ui.text.primary)}
-                >
-                  #{sessionRank || "-"}
-                </div>
-              </div>
-
-              <div className="text-center">
-                <div className="flex items-center justify-center mb-1">
-                  <Timer
-                    className={cn("w-4 h-4 mr-1", COLORS.tools.search.icon)}
-                  />
-                  <span
-                    className={cn(
-                      "text-xs font-medium",
-                      COLORS.ui.text.tertiary
-                    )}
-                  >
-                    {t("analytics.projectShare")}
-                  </span>
-                </div>
-                <div
-                  className={cn("text-xl font-bold", COLORS.ui.text.primary)}
-                >
-                  {sessionPercentage.toFixed(1)}%
-                </div>
-              </div>
-            </>
-          )}
-
-          {!selectedSession && (
-            <>
-              <div className="text-center">
-                <div className="flex items-center justify-center mb-1">
-                  <Clock
-                    className={cn("w-4 h-4 mr-1", COLORS.semantic.warning.icon)}
-                  />
-                  <span
-                    className={cn(
-                      "text-xs font-medium",
-                      COLORS.ui.text.tertiary
-                    )}
-                  >
-                    {t("analytics.avgSession")}
-                  </span>
-                </div>
-                <div
-                  className={cn("text-xl font-bold", COLORS.ui.text.primary)}
-                >
-                  {formatDuration(projectSummary.avg_session_duration)}
-                </div>
-              </div>
-
-              <div className="text-center">
-                <div className="flex items-center justify-center mb-1">
-                  <Activity
-                    className={cn("w-4 h-4 mr-1", COLORS.tools.search.icon)}
-                  />
-                  <span
-                    className={cn(
-                      "text-xs font-medium",
-                      COLORS.ui.text.tertiary
-                    )}
-                  >
-                    {t("analytics.activeTime")}
-                  </span>
-                </div>
-                <div
-                  className={cn("text-xl font-bold", COLORS.ui.text.primary)}
-                >
-                  {projectSummary.most_active_hour}
-                  {t("analytics.hourSuffix")}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // Tab Navigation Component
-  const TabNavigation = () => {
-    const hasSessionData = selectedSession && sessionStats && sessionComparison;
-
-    return (
-      <div className="flex mb-6">
-        <div
-          className={cn("flex rounded-lg p-1", "bg-gray-100 dark:bg-gray-800")}
-        >
-          <button
-            onClick={() => setActiveTab("project")}
-            className={cn(
-              "px-4 py-2 rounded-md font-medium transition-all",
-              "flex items-center space-x-2",
-              activeTab === "project"
-                ? "bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400"
-                : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-            )}
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>{t("analytics.projectOverview")}</span>
-          </button>
-
-          {hasSessionData && (
-            <button
-              onClick={() => setActiveTab("session")}
-              className={cn(
-                "px-4 py-2 rounded-md font-medium transition-all",
-                "flex items-center space-x-2",
-                activeTab === "session"
-                  ? "bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400"
-                  : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-              )}
-            >
-              <Target className="w-4 h-4" />
-              <span>{t("analytics.sessionDetails")}</span>
-            </button>
-          )}
-        </div>
-
-        {hasSessionData && (
-          <div className="ml-auto flex items-center space-x-2 text-sm text-gray-500">
-            <Hash className="w-4 h-4" />
-            <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-              {selectedSession.session_id.substring(0, 8)}...
-            </code>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   // Global Stats View Component - matches ProjectStatsView layout
   const GlobalStatsView = () => {
@@ -1560,12 +1376,20 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     );
   };
 
-  // Auto-switch to session tab when session is selected
+  // Auto-switch to session tab when session is selected, reset to project tab when session is cleared
   React.useEffect(() => {
     if (selectedSession && sessionStats && sessionComparison) {
       setActiveTab("session");
+    } else {
+      // Reset to project tab when no session is selected or when switching projects
+      setActiveTab("project");
     }
   }, [selectedSession, sessionStats, sessionComparison]);
+
+  // Reset to project tab when project changes
+  React.useEffect(() => {
+    setActiveTab("project");
+  }, [selectedProject?.name]);
 
   // Main render logic - Show Global Stats when viewing global stats or no project is selected
   if (isViewingGlobalStats || !selectedProject) {
@@ -1619,10 +1443,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
   }
 
   // Project-specific stats
+  const hasSessionData = selectedSession && sessionStats && sessionComparison;
+
   return (
     <div className={cn("flex-1 p-6 overflow-auto", COLORS.ui.background.primary)}>
       {/* Tab Selector - Only show when session is selected */}
-      {selectedSession && sessionStats && sessionComparison && (
+      {hasSessionData && (
         <div className="flex space-x-2 mb-6">
           <button
             onClick={() => setActiveTab("project")}
@@ -1657,8 +1483,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
         </div>
       )}
 
-      {/* Render based on active tab */}
-      {activeTab === "project" ? <ProjectStatsView /> : <SessionStatsView />}
+      {/* Render based on active tab - but always show ProjectStatsView if no session data */}
+      {hasSessionData && activeTab === "session" ? <SessionStatsView /> : <ProjectStatsView />}
     </div>
   );
 };

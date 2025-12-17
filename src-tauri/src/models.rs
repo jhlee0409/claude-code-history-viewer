@@ -158,6 +158,7 @@ pub struct ProjectStatsSummary {
     pub total_tokens: u32,
     pub avg_tokens_per_session: u32,
     pub avg_session_duration: u32,
+    pub total_session_duration: u32,
     pub most_active_hour: u8,
     pub most_used_tools: Vec<ToolUsageStats>,
     pub daily_stats: Vec<DailyStats>,

@@ -74,6 +74,7 @@
     "avgTokensPerMessage": "Avg Tokens/Message",
     "totalMessages": "Total Messages",
     "avgSessionTime": "Avg Session Time",
+    "totalSessionTime": "Total Session Time",
     "toolsUsed": "Tools Used",
     "dailyAvgTokens": "Daily Avg Tokens",
     "dailyAvgMessages": "Daily Avg Messages",

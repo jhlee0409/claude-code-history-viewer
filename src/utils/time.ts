@@ -32,21 +32,18 @@ export const formatDuration = (minutes: number): string => {
   const parts: string[] = [];
 
   if (days > 0) {
-    parts.push(
-      `${days}${i18n.t("time.day", { count: days, ns: "components" })}`
-    );
+    const unit = days === 1 ? i18n.t("time.day", { ns: "components" }) : i18n.t("time.days", { ns: "components" });
+    parts.push(`${days} ${unit}`);
   }
 
   if (hours > 0) {
-    parts.push(
-      `${hours}${i18n.t("time.hour", { count: hours, ns: "components" })}`
-    );
+    const unit = hours === 1 ? i18n.t("time.hour", { ns: "components" }) : i18n.t("time.hours", { ns: "components" });
+    parts.push(`${hours} ${unit}`);
   }
 
   if (mins > 0) {
-    parts.push(
-      `${mins}${i18n.t("time.minute", { count: mins, ns: "components" })}`
-    );
+    const unit = mins === 1 ? i18n.t("time.minute", { ns: "components" }) : i18n.t("time.minutes", { ns: "components" });
+    parts.push(`${mins} ${unit}`);
   }
 
   return parts.join(" ");

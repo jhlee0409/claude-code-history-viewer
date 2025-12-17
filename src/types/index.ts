@@ -240,6 +240,7 @@ export interface ProjectStatsSummary {
   total_tokens: number;
   avg_tokens_per_session: number;
   avg_session_duration: number; // in minutes
+  total_session_duration: number; // in minutes - total time across all sessions
   most_active_hour: number;
   most_used_tools: ToolUsageStats[];
   daily_stats: DailyStats[];
