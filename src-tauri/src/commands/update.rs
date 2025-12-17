@@ -176,47 +176,101 @@ fn calculate_days_until_deadline(deadline: &str) -> Result<i64, String> {
     Ok(duration.num_days())
 }
 
+/// Parses a semantic version string into (major, minor, patch, prerelease_type, prerelease_num)
+/// Examples:
+/// - "1.0.0" -> (1, 0, 0, None, None)
+/// - "1.0.0-beta.3" -> (1, 0, 0, Some("beta"), Some(3))
+/// - "1.0.0-alpha.1" -> (1, 0, 0, Some("alpha"), Some(1))
+fn parse_semver(version: &str) -> (u32, u32, u32, Option<String>, Option<u32>) {
+    // Split version and prerelease parts
+    let parts: Vec<&str> = version.splitn(2, '-').collect();
+    let version_str = parts[0];
+    let prerelease_str = parts.get(1);
+
+    // Parse major.minor.patch
+    let version_parts: Vec<u32> = version_str
+        .split('.')
+        .filter_map(|s| s.parse().ok())
+        .collect();
+
+    let major = *version_parts.first().unwrap_or(&0);
+    let minor = *version_parts.get(1).unwrap_or(&0);
+    let patch = *version_parts.get(2).unwrap_or(&0);
+
+    // Parse prerelease if present (e.g., "beta.3" or "alpha.1")
+    let (prerelease_type, prerelease_num) = if let Some(pre) = prerelease_str {
+        let pre_parts: Vec<&str> = pre.splitn(2, '.').collect();
+        let pre_type = Some(pre_parts[0].to_lowercase());
+        let pre_num = pre_parts.get(1).and_then(|s| s.parse().ok());
+        (pre_type, pre_num)
+    } else {
+        (None, None)
+    };
+
+    (major, minor, patch, prerelease_type, prerelease_num)
+}
+
 pub fn version_is_newer(current: &str, latest: &str) -> bool {
-    // 간단한 버전 비교 (semantic versioning)
-    let current_parts: Vec<u32> = current.split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
-    let latest_parts: Vec<u32> = latest.split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
+    let (cur_major, cur_minor, cur_patch, cur_pre_type, cur_pre_num) = parse_semver(current);
+    let (lat_major, lat_minor, lat_patch, lat_pre_type, lat_pre_num) = parse_semver(latest);
 
-    for i in 0..std::cmp::max(current_parts.len(), latest_parts.len()) {
-        let current_part = current_parts.get(i).unwrap_or(&0);
-        let latest_part = latest_parts.get(i).unwrap_or(&0);
-
-        if latest_part > current_part {
-            return true;
-        } else if latest_part < current_part {
-            return false;
-        }
+    // Compare major.minor.patch first
+    match lat_major.cmp(&cur_major) {
+        std::cmp::Ordering::Greater => return true,
+        std::cmp::Ordering::Less => return false,
+        std::cmp::Ordering::Equal => {}
     }
 
-    false
+    match lat_minor.cmp(&cur_minor) {
+        std::cmp::Ordering::Greater => return true,
+        std::cmp::Ordering::Less => return false,
+        std::cmp::Ordering::Equal => {}
+    }
+
+    match lat_patch.cmp(&cur_patch) {
+        std::cmp::Ordering::Greater => return true,
+        std::cmp::Ordering::Less => return false,
+        std::cmp::Ordering::Equal => {}
+    }
+
+    // Same version number, compare prerelease
+    // A release version (no prerelease) is newer than any prerelease
+    match (&cur_pre_type, &lat_pre_type) {
+        (Some(_), None) => return true,  // current is prerelease, latest is release
+        (None, Some(_)) => return false, // current is release, latest is prerelease
+        (None, None) => return false,    // both are releases, same version
+        (Some(cur_type), Some(lat_type)) => {
+            // Compare prerelease types: alpha < beta < rc
+            let type_order = |t: &str| -> u32 {
+                match t {
+                    "alpha" => 0,
+                    "beta" => 1,
+                    "rc" => 2,
+                    _ => 3,
+                }
+            };
+
+            let cur_order = type_order(cur_type);
+            let lat_order = type_order(lat_type);
+
+            match lat_order.cmp(&cur_order) {
+                std::cmp::Ordering::Greater => return true,
+                std::cmp::Ordering::Less => return false,
+                std::cmp::Ordering::Equal => {}
+            }
+
+            // Same prerelease type, compare numbers
+            match (cur_pre_num, lat_pre_num) {
+                (Some(cur_n), Some(lat_n)) => lat_n > cur_n,
+                (None, Some(_)) => true,
+                (Some(_), None) => false,
+                (None, None) => false,
+            }
+        }
+    }
 }
 
 fn version_is_newer_or_equal(current: &str, minimum: &str) -> bool {
-    let current_parts: Vec<u32> = current.split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
-    let minimum_parts: Vec<u32> = minimum.split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
-
-    for i in 0..std::cmp::max(current_parts.len(), minimum_parts.len()) {
-        let current_part = current_parts.get(i).unwrap_or(&0);
-        let minimum_part = minimum_parts.get(i).unwrap_or(&0);
-
-        if current_part > minimum_part {
-            return true;
-        } else if current_part < minimum_part {
-            return false;
-        }
-    }
-
-    true // 같은 버전도 조건을 만족
+    // current >= minimum: returns true if current is newer than or equal to minimum
+    !version_is_newer(current, minimum)
 }
