@@ -372,6 +372,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               value={localSearchQuery}
               onChange={(e) => setLocalSearchQuery(e.target.value)}
               placeholder={t("messageViewer.searchPlaceholder")}
+              aria-label={t("messageViewer.searchPlaceholder")}
               className={cn(
                 "w-full pl-10 pr-10 py-2 rounded-lg border text-sm",
                 "focus:outline-none focus:ring-2 focus:ring-blue-500",
@@ -383,6 +384,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             {localSearchQuery && (
               <button
                 onClick={handleClearSearch}
+                aria-label="Clear search"
                 className={cn(
                   "absolute right-3 top-1/2 transform -translate-y-1/2",
                   "p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700",
