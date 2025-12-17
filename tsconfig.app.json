@@ -31,5 +31,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "src-tauri/tests"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*", "src-tauri/tests/**/*"]
 }
