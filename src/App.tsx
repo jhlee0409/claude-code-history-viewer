@@ -68,9 +68,9 @@ function App() {
     // Clear selected project and session to show global view
     useAppStore.setState({ selectedProject: null, selectedSession: null });
     // Switch to analytics view to show global dashboard
-    useAppStore.getState().setAnalyticsCurrentView("analytics");
+    setAnalyticsCurrentView("analytics");
     loadGlobalStats();
-  }, [loadGlobalStats]);
+  }, [loadGlobalStats, setAnalyticsCurrentView]);
 
   // 세션 선택 시 메시지 뷰로 전환 (기본값)
   const handleSessionSelect = async (session: ClaudeSession) => {
@@ -122,45 +122,57 @@ function App() {
   }, [language, i18nInstance]);
 
   // 프로젝트 선택 핸들러 (분석 상태 초기화 포함)
-  const handleProjectSelect = async (project: ClaudeProject) => {
-    const wasTokenStatsOpen = computed.isTokenStatsView;
+  const handleProjectSelect = useCallback(
+    async (project: ClaudeProject) => {
+      const wasTokenStatsOpen = computed.isTokenStatsView;
 
-    // Clear global stats view flag when selecting a project
-    setIsViewingGlobalStats(false);
+      // Clear global stats view flag when selecting a project
+      setIsViewingGlobalStats(false);
 
-    // 프로젝트 선택
-    await selectProject(project);
+      // 프로젝트 선택
+      await selectProject(project);
 
-    // 토큰 통계 탭이 열려있었다면 유지, 아니면 기본적으로 분석 대시보드 표시
-    if (wasTokenStatsOpen) {
-      try {
-        setAnalyticsCurrentView("tokenStats");
-        await loadProjectTokenStats(project.path);
-      } catch (error) {
-        console.error(
-          "Failed to auto-load token stats for new project:",
-          error
-        );
+      // 토큰 통계 탭이 열려있었다면 유지, 아니면 기본적으로 분석 대시보드 표시
+      if (wasTokenStatsOpen) {
+        try {
+          setAnalyticsCurrentView("tokenStats");
+          await loadProjectTokenStats(project.path);
+        } catch (error) {
+          console.error(
+            "Failed to auto-load token stats for new project:",
+            error
+          );
+        }
+      } else {
+        // Always show analytics dashboard when selecting a project
+        try {
+          // Load analytics data using the project parameter directly (not from state)
+          setAnalyticsCurrentView("analytics");
+          setAnalyticsLoadingProjectSummary(true);
+          const summary = await loadProjectStatsSummary(project.path);
+          setAnalyticsProjectSummary(summary);
+        } catch (error) {
+          console.error("Failed to auto-load analytics for new project:", error);
+          setAnalyticsProjectSummary(null); // Clear stale data
+          setAnalyticsProjectSummaryError(
+            error instanceof Error ? error.message : "Failed to load project stats"
+          );
+        } finally {
+          setAnalyticsLoadingProjectSummary(false);
+        }
       }
-    } else {
-      // Always show analytics dashboard when selecting a project
-      try {
-        // Load analytics data using the project parameter directly (not from state)
-        setAnalyticsCurrentView("analytics");
-        setAnalyticsLoadingProjectSummary(true);
-        const summary = await loadProjectStatsSummary(project.path);
-        setAnalyticsProjectSummary(summary);
-      } catch (error) {
-        console.error("Failed to auto-load analytics for new project:", error);
-        setAnalyticsProjectSummary(null); // Clear stale data
-        setAnalyticsProjectSummaryError(
-          error instanceof Error ? error.message : "Failed to load project stats"
-        );
-      } finally {
-        setAnalyticsLoadingProjectSummary(false);
-      }
-    }
-  };
+    },
+    [
+      computed.isTokenStatsView,
+      selectProject,
+      setAnalyticsCurrentView,
+      loadProjectTokenStats,
+      setAnalyticsLoadingProjectSummary,
+      loadProjectStatsSummary,
+      setAnalyticsProjectSummary,
+      setAnalyticsProjectSummaryError,
+    ]
+  );
 
   // Show folder selector if needed
 
