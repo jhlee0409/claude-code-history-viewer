@@ -39,7 +39,6 @@ function App() {
     selectSession,
     setSessionSearchQuery,
     clearSessionSearch,
-    loadMoreMessages,
     loadGlobalStats,
     setAnalyticsCurrentView,
     setAnalyticsLoadingProjectSummary,
