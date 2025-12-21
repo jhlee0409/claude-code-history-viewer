@@ -5,7 +5,6 @@ import React, {
   useState,
   useMemo,
   useDeferredValue,
-  startTransition,
 } from "react";
 import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -207,32 +206,31 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // 검색 진행 중 여부 (시각적 피드백용)
   const isSearchPending = searchQuery !== deferredSearchQuery;
 
-  // 입력 핸들러: startTransition으로 상태 업데이트를 비긴급으로 처리
+  // 입력 핸들러: controlled input으로 상태 업데이트
   const handleSearchInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // startTransition: React에게 이 업데이트는 긴급하지 않다고 알림
-    // 입력 자체는 DOM이 즉시 처리하고, React 상태는 백그라운드에서 업데이트
-    startTransition(() => {
-      setSearchQuery(value);
-    });
+    setSearchQuery(e.target.value);
   }, []);
 
   // deferred 값이 변경될 때만 검색 실행
   useEffect(() => {
-    // 최소 글자 수 이상일 때만 검색 실행
-    if (deferredSearchQuery.length > 0 && deferredSearchQuery.length < SEARCH_MIN_CHARS) {
+    // 빈 문자열이면 검색 초기화
+    if (deferredSearchQuery.length === 0) {
+      onSearchChange("");
       return;
     }
+
+    // 최소 글자 수 미만이면 검색하지 않음
+    if (deferredSearchQuery.length < SEARCH_MIN_CHARS) {
+      return;
+    }
+
+    // 최소 글자 수 이상일 때만 검색 실행
     onSearchChange(deferredSearchQuery);
   }, [deferredSearchQuery, onSearchChange]);
 
   // 세션 변경 시 검색어 초기화
   useEffect(() => {
     setSearchQuery("");
-    // 실제 input 요소도 초기화 (uncontrolled이므로)
-    if (searchInputRef.current) {
-      searchInputRef.current.value = "";
-    }
   }, [selectedSession?.session_id]);
 
   // 카카오톡 스타일: 항상 전체 메시지 표시 (필터링 없음)
@@ -321,10 +319,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // 검색어 초기화 핸들러
   const handleClearSearch = useCallback(() => {
     setSearchQuery("");
-    // Uncontrolled input이므로 DOM 요소도 직접 초기화
-    if (searchInputRef.current) {
-      searchInputRef.current.value = "";
-    }
     onClearSearch();
     searchInputRef.current?.focus();
   }, [onClearSearch]);
@@ -551,10 +545,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   value={sessionSearch.filterType}
                   onValueChange={(value) => {
                     onFilterTypeChange(value as SearchFilterType);
-                    // 필터 변경 시 input도 초기화
-                    if (searchInputRef.current) {
-                      searchInputRef.current.value = "";
-                    }
                     setSearchQuery("");
                   }}
                 >
@@ -577,7 +567,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               <input
                 ref={searchInputRef}
                 type="text"
-                defaultValue=""
+                value={searchQuery}
                 onChange={handleSearchInput}
                 onKeyDown={handleSearchKeyDown}
                 placeholder={t("messageViewer.searchPlaceholder")}
