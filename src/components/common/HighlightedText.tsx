@@ -46,6 +46,8 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
           key={`highlight-${matchIndex}`}
           // 현재 매치의 첫 번째 하이라이트에 스크롤 타겟 속성 추가
           {...(isCurrentMatch && isFirstMatch ? { 'data-search-highlight': 'current' } : {})}
+          // 스크린 리더를 위한 접근성 속성
+          aria-current={isCurrentMatch && isFirstMatch ? 'true' : undefined}
           className={cn(
             "rounded px-0.5 transition-colors",
             isCurrentMatch

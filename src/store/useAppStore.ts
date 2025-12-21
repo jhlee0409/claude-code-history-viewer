@@ -667,25 +667,38 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
     }));
 
-    // FlexSearch를 사용한 고속 검색 (역색인 기반 O(1) ~ O(log n))
-    const searchResults = searchMessagesFromIndex(query);
+    try {
+      // FlexSearch를 사용한 고속 검색 (역색인 기반 O(1) ~ O(log n))
+      const searchResults = searchMessagesFromIndex(query);
 
-    // SearchMatch 형식으로 변환
-    const matches: SearchMatch[] = searchResults.map((result) => ({
-      messageUuid: result.messageUuid,
-      messageIndex: result.messageIndex,
-    }));
+      // SearchMatch 형식으로 변환
+      const matches: SearchMatch[] = searchResults.map((result) => ({
+        messageUuid: result.messageUuid,
+        messageIndex: result.messageIndex,
+      }));
 
-    // 매치 결과 저장 (첫 번째 매치로 자동 이동)
-    set({
-      sessionSearch: {
-        query,
-        matches,
-        currentMatchIndex: matches.length > 0 ? 0 : -1,
-        isSearching: false,
-        results: matches.map((m) => messages[m.messageIndex]), // Legacy 호환
-      },
-    });
+      // 매치 결과 저장 (첫 번째 매치로 자동 이동)
+      set({
+        sessionSearch: {
+          query,
+          matches,
+          currentMatchIndex: matches.length > 0 ? 0 : -1,
+          isSearching: false,
+          results: matches.map((m) => messages[m.messageIndex]), // Legacy 호환
+        },
+      });
+    } catch (error) {
+      console.error("Search failed:", error);
+      set({
+        sessionSearch: {
+          query,
+          matches: [],
+          currentMatchIndex: -1,
+          isSearching: false,
+          results: [],
+        },
+      });
+    }
   },
 
   // 다음 검색 결과로 이동
