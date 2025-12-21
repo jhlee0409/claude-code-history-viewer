@@ -7,7 +7,7 @@ import React, {
   useDeferredValue,
   startTransition,
 } from "react";
-import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeMessage, ClaudeSession } from "../types";
 import type { SearchState, SearchFilterType } from "../store/useAppStore";
@@ -18,6 +18,13 @@ import {
   MessageContentDisplay,
   AssistantMessageDetails,
 } from "./messageRenderer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import { extractClaudeMessageContent } from "../utils/messageUtils";
 import { cn } from "../utils/cn";
 import { COLORS } from "../constants/colors";
@@ -502,28 +509,49 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-2">
             {/* 검색 필터 타입 선택 */}
-            <select
-              value={sessionSearch.filterType}
-              onChange={(e) => {
-                onFilterTypeChange(e.target.value as SearchFilterType);
-                // 필터 변경 시 input도 초기화
-                if (searchInputRef.current) {
-                  searchInputRef.current.value = "";
-                }
-                setSearchQuery("");
-              }}
-              className={cn(
-                "px-3 py-2 rounded-lg border text-sm",
-                "focus:outline-none focus:ring-2 focus:ring-blue-500",
-                COLORS.ui.background.primary,
-                COLORS.ui.border.light,
-                COLORS.ui.text.primary
-              )}
-              aria-label={t("messageViewer.filterType")}
-            >
-              <option value="content">{t("messageViewer.filterContent")}</option>
-              <option value="toolId">{t("messageViewer.filterToolId")}</option>
-            </select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg border text-sm",
+                    "focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    "transition-colors hover:bg-gray-100 dark:hover:bg-gray-800",
+                    COLORS.ui.background.primary,
+                    COLORS.ui.border.light,
+                    COLORS.ui.text.primary
+                  )}
+                  aria-label={t("messageViewer.filterType")}
+                >
+                  <Filter className="w-4 h-4" />
+                  <span>
+                    {sessionSearch.filterType === "content"
+                      ? t("messageViewer.filterContent")
+                      : t("messageViewer.filterToolId")}
+                  </span>
+                  <ChevronDown className="w-3 h-3 opacity-50" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-40">
+                <DropdownMenuRadioGroup
+                  value={sessionSearch.filterType}
+                  onValueChange={(value) => {
+                    onFilterTypeChange(value as SearchFilterType);
+                    // 필터 변경 시 input도 초기화
+                    if (searchInputRef.current) {
+                      searchInputRef.current.value = "";
+                    }
+                    setSearchQuery("");
+                  }}
+                >
+                  <DropdownMenuRadioItem value="content">
+                    {t("messageViewer.filterContent")}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="toolId">
+                    {t("messageViewer.filterToolId")}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* 검색 입력 필드 */}
             <div className="relative flex-1">
