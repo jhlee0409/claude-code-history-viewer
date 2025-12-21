@@ -117,6 +117,16 @@ export interface SearchState {
   results: ClaudeMessage[];
 }
 
+// Helper: Create empty search state while preserving filterType
+const createEmptySearchState = (filterType: SearchFilterType): SearchState => ({
+  query: "",
+  matches: [],
+  currentMatchIndex: -1,
+  isSearching: false,
+  filterType,
+  results: [],
+});
+
 export const useAppStore = create<AppStore>((set, get) => ({
   // Initial state
   claudePath: "",
@@ -654,20 +664,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { messages, sessionSearch } = get();
     const { filterType } = sessionSearch;
 
+    // Empty query clears search results
     if (!query.trim()) {
       set((state) => ({
-        sessionSearch: {
-          query: "",
-          matches: [],
-          currentMatchIndex: -1,
-          isSearching: false,
-          filterType: state.sessionSearch.filterType,
-          results: [],
-        },
+        sessionSearch: createEmptySearchState(state.sessionSearch.filterType),
       }));
       return;
     }
 
+    // Set searching state
     set((state) => ({
       sessionSearch: {
         ...state.sessionSearch,
@@ -702,7 +707,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         },
       }));
     } catch (error) {
-      console.error("Search failed:", error);
+      console.error("[Search] Failed to search messages:", error);
+      // On error, clear results but keep query for user feedback
       set((state) => ({
         sessionSearch: {
           query,
@@ -735,9 +741,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { sessionSearch } = get();
     if (sessionSearch.matches.length === 0) return;
 
-    const prevIndex = sessionSearch.currentMatchIndex <= 0
-      ? sessionSearch.matches.length - 1
-      : sessionSearch.currentMatchIndex - 1;
+    // Wrap around: if at first match (0), go to last match
+    const totalMatches = sessionSearch.matches.length;
+    const prevIndex =
+      sessionSearch.currentMatchIndex <= 0
+        ? totalMatches - 1
+        : sessionSearch.currentMatchIndex - 1;
+
     set({
       sessionSearch: {
         ...sessionSearch,
@@ -749,7 +759,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // 특정 인덱스로 이동
   goToMatchIndex: (index: number) => {
     const { sessionSearch } = get();
-    if (index < 0 || index >= sessionSearch.matches.length) return;
+    const { matches } = sessionSearch;
+
+    // Validate index bounds
+    if (index < 0 || index >= matches.length) {
+      console.warn(`[Search] Invalid match index: ${index} (total: ${matches.length})`);
+      return;
+    }
 
     set({
       sessionSearch: {
@@ -761,30 +777,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   clearSessionSearch: () => {
     set((state) => ({
-      sessionSearch: {
-        query: "",
-        matches: [],
-        currentMatchIndex: -1,
-        isSearching: false,
-        filterType: state.sessionSearch.filterType, // 필터 타입 유지
-        results: [],
-      },
+      sessionSearch: createEmptySearchState(state.sessionSearch.filterType),
     }));
   },
 
   // 검색 필터 타입 변경
   setSearchFilterType: (filterType: SearchFilterType) => {
-    set((state) => ({
-      sessionSearch: {
-        ...state.sessionSearch,
-        filterType,
-        // 필터 변경 시 검색 결과 초기화
-        query: "",
-        matches: [],
-        currentMatchIndex: -1,
-        isSearching: false,
-        results: [],
-      },
+    set(() => ({
+      sessionSearch: createEmptySearchState(filterType),
     }));
   },
 }));

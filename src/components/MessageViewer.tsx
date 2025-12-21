@@ -30,6 +30,10 @@ import { cn } from "../utils/cn";
 import { COLORS } from "../constants/colors";
 import { formatTime } from "../utils/time";
 
+// Search configuration constants
+const SEARCH_MIN_CHARS = 2; // Minimum characters required to trigger search
+const SCROLL_HIGHLIGHT_DELAY_MS = 100; // Delay to wait for DOM update before scrolling
+
 interface MessageViewerProps {
   messages: ClaudeMessage[];
   isLoading: boolean;
@@ -210,10 +214,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     });
   }, []);
 
-  // deferred 값이 변경될 때만 검색 실행 (최소 2글자)
+  // deferred 값이 변경될 때만 검색 실행
   useEffect(() => {
-    // 최소 2글자 이상일 때만 검색 실행
-    if (deferredSearchQuery.length > 0 && deferredSearchQuery.length < 2) {
+    // 최소 글자 수 이상일 때만 검색 실행
+    if (deferredSearchQuery.length > 0 && deferredSearchQuery.length < SEARCH_MIN_CHARS) {
       return;
     }
     onSearchChange(deferredSearchQuery);
@@ -355,7 +359,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       // DOM 업데이트 후 스크롤 (렌더링 완료 대기)
       const timer = setTimeout(() => {
         scrollToHighlight();
-      }, 100);
+      }, SCROLL_HIGHLIGHT_DELAY_MS);
       return () => clearTimeout(timer);
     }
   }, [currentMatchUuid, scrollToHighlight, sessionSearch.currentMatchIndex]);

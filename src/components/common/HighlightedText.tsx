@@ -10,7 +10,16 @@ interface HighlightedTextProps {
 
 /**
  * 검색어를 하이라이트하여 텍스트를 렌더링하는 컴포넌트
- * 카카오톡 스타일: 현재 매치는 진한 노랑, 다른 매치는 연한 노랑
+ *
+ * Features:
+ * - Case-insensitive search matching
+ * - KakaoTalk-style highlighting: bright yellow for current match, light yellow for others
+ * - Accessibility support with aria-current attribute
+ * - Scroll targeting with data-search-highlight attribute
+ *
+ * Performance:
+ * - Memoized with useMemo to prevent unnecessary recalculations
+ * - React.memo wrapper to prevent parent re-renders
  */
 const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
   text,
@@ -24,7 +33,7 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
     }
 
     const query = searchQuery.toLowerCase();
-    const parts: React.ReactNode[] = [];
+    const parts: (string | React.ReactElement)[] = [];
     let lastIndex = 0;
     let matchIndex = 0;
 
@@ -32,21 +41,24 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
     let currentIndex = textLower.indexOf(query);
 
     while (currentIndex !== -1) {
-      // 매치 전 텍스트 추가
+      // Add text before match
       if (currentIndex > lastIndex) {
         parts.push(text.slice(lastIndex, currentIndex));
       }
 
-      // 하이라이트된 텍스트 추가
+      // Add highlighted match
       const matchedText = text.slice(currentIndex, currentIndex + query.length);
       const isFirstMatch = matchIndex === 0;
 
+      // Create unique key using position and text snippet to avoid collisions
+      const keyId = `${currentIndex}-${matchedText.slice(0, 10)}`;
+
       parts.push(
         <mark
-          key={`highlight-${matchIndex}`}
-          // 현재 매치의 첫 번째 하이라이트에 스크롤 타겟 속성 추가
+          key={keyId}
+          // Scroll target for current match's first highlight
           {...(isCurrentMatch && isFirstMatch ? { 'data-search-highlight': 'current' } : {})}
-          // 스크린 리더를 위한 접근성 속성
+          // Accessibility: indicate current match for screen readers
           aria-current={isCurrentMatch && isFirstMatch ? 'true' : undefined}
           className={cn(
             "rounded px-0.5 transition-colors",
@@ -64,7 +76,7 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
       currentIndex = textLower.indexOf(query, lastIndex);
     }
 
-    // 마지막 매치 이후 텍스트 추가
+    // Add remaining text after last match
     if (lastIndex < text.length) {
       parts.push(text.slice(lastIndex));
     }

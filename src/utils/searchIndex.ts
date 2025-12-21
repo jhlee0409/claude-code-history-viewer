@@ -5,54 +5,64 @@ import type { SearchFilterType } from "../store/useAppStore";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type FlexSearchDocumentIndex = any;
 
+// Type guards for safe type checking
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
+const hasStringProperty = (obj: Record<string, unknown>, key: string): boolean => {
+  return key in obj && typeof obj[key] === "string";
+};
+
 // 검색 가능한 텍스트 추출 (content 검색용)
 const extractSearchableText = (message: ClaudeMessage): string => {
   const parts: string[] = [];
 
-  // content 추출
-  if (message.content) {
-    if (typeof message.content === "string") {
-      parts.push(message.content);
-    } else if (Array.isArray(message.content)) {
-      message.content.forEach((item) => {
-        if (typeof item === "string") {
-          parts.push(item);
-        } else if (item && typeof item === "object") {
-          if ("text" in item && typeof item.text === "string") {
-            parts.push(item.text);
-          }
-          if ("thinking" in item && typeof item.thinking === "string") {
-            parts.push(item.thinking);
+  try {
+    // content 추출
+    if (message.content) {
+      if (typeof message.content === "string") {
+        parts.push(message.content);
+      } else if (Array.isArray(message.content)) {
+        for (const item of message.content) {
+          if (typeof item === "string") {
+            parts.push(item);
+          } else if (isRecord(item)) {
+            if (hasStringProperty(item, "text")) {
+              parts.push(item.text as string);
+            }
+            if (hasStringProperty(item, "thinking")) {
+              parts.push(item.thinking as string);
+            }
           }
         }
-      });
+      }
     }
-  }
 
-  // toolUse name 추출
-  if (message.toolUse && typeof message.toolUse === "object") {
-    const toolName = (message.toolUse as { name?: string }).name;
-    if (toolName) {
-      parts.push(toolName);
+    // toolUse name 추출
+    if (isRecord(message.toolUse) && hasStringProperty(message.toolUse, "name")) {
+      parts.push(message.toolUse.name as string);
     }
-  }
 
-  // toolUseResult 추출
-  if (message.toolUseResult) {
-    const result = message.toolUseResult;
-    if (typeof result === "object" && result !== null) {
-      if ("stdout" in result && typeof result.stdout === "string") {
-        parts.push(result.stdout);
+    // toolUseResult 추출
+    if (message.toolUseResult) {
+      const result = message.toolUseResult;
+      if (typeof result === "string") {
+        parts.push(result);
+      } else if (isRecord(result)) {
+        if (hasStringProperty(result, "stdout")) {
+          parts.push(result.stdout as string);
+        }
+        if (hasStringProperty(result, "stderr")) {
+          parts.push(result.stderr as string);
+        }
+        if (hasStringProperty(result, "content")) {
+          parts.push(result.content as string);
+        }
       }
-      if ("stderr" in result && typeof result.stderr === "string") {
-        parts.push(result.stderr);
-      }
-      if ("content" in result && typeof result.content === "string") {
-        parts.push(result.content);
-      }
-    } else if (typeof result === "string") {
-      parts.push(result);
     }
+  } catch (error) {
+    console.error("[SearchIndex] Error extracting searchable text:", error);
   }
 
   return parts.join(" ");
@@ -62,28 +72,29 @@ const extractSearchableText = (message: ClaudeMessage): string => {
 const extractToolIds = (message: ClaudeMessage): string => {
   const ids: string[] = [];
 
-  // message.content 배열에서 tool_use와 tool_result의 id 추출
-  if (message.content && Array.isArray(message.content)) {
-    message.content.forEach((item) => {
-      if (item && typeof item === "object") {
-        // tool_use의 id
-        if ("type" in item && item.type === "tool_use" && "id" in item) {
-          ids.push(String(item.id));
-        }
-        // tool_result의 tool_use_id
-        if ("type" in item && item.type === "tool_result" && "tool_use_id" in item) {
-          ids.push(String(item.tool_use_id));
+  try {
+    // message.content 배열에서 tool_use와 tool_result의 id 추출
+    if (Array.isArray(message.content)) {
+      for (const item of message.content) {
+        if (isRecord(item)) {
+          // tool_use의 id
+          if (item.type === "tool_use" && hasStringProperty(item, "id")) {
+            ids.push(item.id as string);
+          }
+          // tool_result의 tool_use_id
+          if (item.type === "tool_result" && hasStringProperty(item, "tool_use_id")) {
+            ids.push(item.tool_use_id as string);
+          }
         }
       }
-    });
-  }
-
-  // toolUse 객체의 id
-  if (message.toolUse && typeof message.toolUse === "object") {
-    const toolUse = message.toolUse as { id?: string };
-    if (toolUse.id) {
-      ids.push(toolUse.id);
     }
+
+    // toolUse 객체의 id
+    if (isRecord(message.toolUse) && hasStringProperty(message.toolUse, "id")) {
+      ids.push(message.toolUse.id as string);
+    }
+  } catch (error) {
+    console.error("[SearchIndex] Error extracting tool IDs:", error);
   }
 
   return ids.join(" ");
