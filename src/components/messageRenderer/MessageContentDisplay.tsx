@@ -13,6 +13,7 @@ interface MessageContentDisplayProps {
   messageType: string;
   searchQuery?: string;
   isCurrentMatch?: boolean;
+  currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
 }
 
 export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
@@ -20,6 +21,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   messageType,
   searchQuery = "",
   isCurrentMatch = false,
+  currentMatchIndex = 0,
 }) => {
   const { t } = useTranslation("components");
 
@@ -58,6 +60,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
                 messageType={messageType}
                 searchQuery={searchQuery}
                 isCurrentMatch={isCurrentMatch}
+                currentMatchIndex={currentMatchIndex}
               />
             </div>
           )}
@@ -80,6 +83,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
                 text={content}
                 searchQuery={searchQuery}
                 isCurrentMatch={isCurrentMatch}
+                currentMatchIndex={currentMatchIndex}
               />
             ) : (
               content
@@ -108,6 +112,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
                 text={content}
                 searchQuery={searchQuery}
                 isCurrentMatch={isCurrentMatch}
+                currentMatchIndex={currentMatchIndex}
               />
             </div>
           ) : (
@@ -140,6 +145,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
             text={content}
             searchQuery={searchQuery}
             isCurrentMatch={isCurrentMatch}
+            currentMatchIndex={currentMatchIndex}
           />
         ) : (
           content

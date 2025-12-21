@@ -22,12 +22,14 @@ type Props = {
   toolUse: Record<string, unknown>;
   searchQuery?: string;
   isCurrentMatch?: boolean;
+  currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
 };
 
 export const ToolUseRenderer = ({
   toolUse,
   searchQuery = "",
   isCurrentMatch = false,
+  currentMatchIndex = 0,
 }: Props) => {
   const { t } = useTranslation("components");
   const [openRender, setOpenRender] = useState(false);
@@ -44,6 +46,7 @@ export const ToolUseRenderer = ({
         text={`ID: ${idString}`}
         searchQuery={searchQuery}
         isCurrentMatch={isCurrentMatch}
+        currentMatchIndex={currentMatchIndex}
       />
     ) : (
       <>ID: {idString}</>

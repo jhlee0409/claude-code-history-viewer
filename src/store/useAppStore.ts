@@ -99,6 +99,8 @@ interface AppStore extends AppState {
 export interface SearchMatch {
   messageUuid: string;
   messageIndex: number; // messages 배열 내 인덱스
+  matchIndex: number; // 메시지 내에서 몇 번째 매치인지 (0부터 시작)
+  matchCount: number; // 해당 메시지 내 총 매치 개수
 }
 
 // 검색 필터 타입
@@ -691,6 +693,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         .map((result) => ({
           messageUuid: result.messageUuid,
           messageIndex: result.messageIndex,
+          matchIndex: result.matchIndex,
+          matchCount: result.matchCount,
         }));
 
       // 매치 결과 저장 (첫 번째 매치로 자동 이동)

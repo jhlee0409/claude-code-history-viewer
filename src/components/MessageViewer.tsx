@@ -53,9 +53,10 @@ interface MessageNodeProps {
   isMatch?: boolean;
   searchQuery?: string;
   filterType?: SearchFilterType;
+  currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
 }
 
-const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuery, filterType = "content" }: MessageNodeProps) => {
+const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuery, filterType = "content", currentMatchIndex }: MessageNodeProps) => {
   const { t } = useTranslation("components");
 
   if (message.isSidechain) {
@@ -122,6 +123,7 @@ const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuer
             messageType={message.type}
             searchQuery={searchQuery}
             isCurrentMatch={isCurrentMatch}
+            currentMatchIndex={currentMatchIndex}
           />
 
           {/* Claude API Content Array */}
@@ -137,6 +139,7 @@ const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuer
                   searchQuery={searchQuery}
                   filterType={filterType}
                   isCurrentMatch={isCurrentMatch}
+                  currentMatchIndex={currentMatchIndex}
                 />
               </div>
             )}
@@ -240,13 +243,19 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     return new Set(sessionSearch.matches?.map(m => m.messageUuid) || []);
   }, [sessionSearch.matches]);
 
-  // 현재 매치된 메시지 UUID
-  const currentMatchUuid = useMemo(() => {
+  // 현재 매치 정보 (UUID와 메시지 내 인덱스)
+  const currentMatch = useMemo(() => {
     if (sessionSearch.currentMatchIndex >= 0 && sessionSearch.matches?.length > 0) {
-      return sessionSearch.matches[sessionSearch.currentMatchIndex]?.messageUuid;
+      const match = sessionSearch.matches[sessionSearch.currentMatchIndex];
+      return match ? {
+        messageUuid: match.messageUuid,
+        matchIndex: match.matchIndex,
+      } : null;
     }
     return null;
   }, [sessionSearch.currentMatchIndex, sessionSearch.matches]);
+
+  const currentMatchUuid = currentMatch?.messageUuid ?? null;
 
   // 메시지 트리 구조 메모이제이션 (성능 최적화)
   const { rootMessages, uniqueMessages } = useMemo(() => {
@@ -471,6 +480,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // 검색 매치 상태 확인
     const isMatch = matchedUuids.has(message.uuid);
     const isCurrentMatch = currentMatchUuid === message.uuid;
+    const messageMatchIndex = isCurrentMatch ? currentMatch?.matchIndex : undefined;
 
     // 현재 메시지를 먼저 추가하고, 자식 메시지들을 이어서 추가
     const result: React.ReactNode[] = [
@@ -482,6 +492,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         isCurrentMatch={isCurrentMatch}
         searchQuery={sessionSearch.query}
         filterType={sessionSearch.filterType}
+        currentMatchIndex={messageMatchIndex}
       />,
     ];
 
@@ -742,6 +753,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
                   const isMatch = matchedUuids.has(message.uuid);
                   const isCurrentMatch = currentMatchUuid === message.uuid;
+                  const messageMatchIndex = isCurrentMatch ? currentMatch?.matchIndex : undefined;
 
                   return (
                     <ClaudeMessageNode
@@ -752,6 +764,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                       isCurrentMatch={isCurrentMatch}
                       searchQuery={sessionSearch.query}
                       filterType={sessionSearch.filterType}
+                      currentMatchIndex={messageMatchIndex}
                     />
                   );
                 });

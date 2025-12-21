@@ -139,6 +139,7 @@ class MessageSearchIndex {
   private contentIndex: FlexSearchDocumentIndex;
   private toolIdIndex: FlexSearchDocumentIndex;
   private messageMap: Map<string, number> = new Map(); // uuid -> messageIndex
+  private messages: ClaudeMessage[] = []; // 메시지 원본 저장 (매치 위치 계산용)
   private isBuilt = false;
 
   constructor() {
@@ -150,6 +151,9 @@ class MessageSearchIndex {
   build(messages: ClaudeMessage[]): void {
     // 기존 인덱스 클리어
     this.clear();
+
+    // 메시지 원본 저장
+    this.messages = messages;
 
     // 새 인덱스 구축
     messages.forEach((message, index) => {
@@ -183,11 +187,26 @@ class MessageSearchIndex {
     }
   }
 
+  // 메시지 내 모든 매치 위치 찾기
+  private findAllMatchesInText(text: string, query: string): number {
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    let count = 0;
+    let pos = 0;
+
+    while ((pos = lowerText.indexOf(lowerQuery, pos)) !== -1) {
+      count++;
+      pos += lowerQuery.length;
+    }
+
+    return count;
+  }
+
   // 검색 실행
   search(
     query: string,
     filterType: SearchFilterType = "content"
-  ): Array<{ messageUuid: string; messageIndex: number }> {
+  ): Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }> {
     if (!this.isBuilt || !query.trim()) {
       return [];
     }
@@ -195,38 +214,62 @@ class MessageSearchIndex {
     const lowerQuery = query.toLowerCase();
     const index = filterType === "toolId" ? this.toolIdIndex : this.contentIndex;
 
-    // FlexSearch 검색
+    // FlexSearch 검색 (메시지 레벨)
     const results = index.search(lowerQuery, {
       limit: 1000, // 최대 1000개 결과
       enrich: true, // 저장된 데이터 포함
     });
 
-    // 결과 변환
-    const matches: Array<{ messageUuid: string; messageIndex: number }> = [];
-    const seenUuids = new Set<string>();
-
+    // 매치된 메시지 UUID 수집
+    const matchedUuids = new Set<string>();
     results.forEach((fieldResult: { field: string; result: (string | EnrichedResult)[] }) => {
       if (fieldResult.result) {
         fieldResult.result.forEach((item: string | EnrichedResult) => {
           const uuid = extractUuidFromResult(item);
-          if (!seenUuids.has(uuid)) {
-            seenUuids.add(uuid);
-            const messageIndex = this.messageMap.get(uuid);
-            if (messageIndex !== undefined) {
-              matches.push({
-                messageUuid: uuid,
-                messageIndex,
-              });
-            }
-          }
+          matchedUuids.add(uuid);
         });
       }
     });
 
-    // messageIndex 기준 정렬
-    matches.sort((a, b) => a.messageIndex - b.messageIndex);
+    // 각 메시지에서 모든 매치 추출
+    const allMatches: Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }> = [];
 
-    return matches;
+    matchedUuids.forEach((uuid) => {
+      const messageIndex = this.messageMap.get(uuid);
+      if (messageIndex === undefined) return;
+
+      const message = this.messages[messageIndex];
+      if (!message) return;
+
+      // 메시지 텍스트 추출
+      const messageText =
+        filterType === "toolId"
+          ? extractToolIds(message)
+          : extractSearchableText(message);
+
+      // 메시지 내 모든 매치 개수 계산
+      const matchCount = this.findAllMatchesInText(messageText, lowerQuery);
+
+      // 각 매치마다 별도의 SearchMatch 생성
+      for (let i = 0; i < matchCount; i++) {
+        allMatches.push({
+          messageUuid: uuid,
+          messageIndex,
+          matchIndex: i,
+          matchCount,
+        });
+      }
+    });
+
+    // 완전 역순 정렬: 아래에서 위로 탐색 (최신 메시지의 마지막 매치부터)
+    allMatches.sort((a, b) => {
+      if (a.messageIndex !== b.messageIndex) {
+        return b.messageIndex - a.messageIndex; // 최신 메시지 우선
+      }
+      return b.matchIndex - a.matchIndex; // 메시지 내에서도 마지막 매치부터
+    });
+
+    return allMatches;
   }
 
   // 인덱스 초기화
@@ -234,6 +277,7 @@ class MessageSearchIndex {
     this.contentIndex = createFlexSearchIndex();
     this.toolIdIndex = createFlexSearchIndex();
     this.messageMap.clear();
+    this.messages = [];
     this.isBuilt = false;
   }
 }
@@ -249,7 +293,7 @@ export const buildSearchIndex = (messages: ClaudeMessage[]): void => {
 export const searchMessages = (
   query: string,
   filterType: SearchFilterType = "content"
-): Array<{ messageUuid: string; messageIndex: number }> => {
+): Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }> => {
   return messageSearchIndex.search(query, filterType);
 };
 

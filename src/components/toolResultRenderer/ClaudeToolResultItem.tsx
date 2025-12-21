@@ -16,6 +16,7 @@ type Props = {
   index: number;
   searchQuery?: string;
   isCurrentMatch?: boolean;
+  currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
 };
 
 export const ClaudeToolResultItem = ({
@@ -23,6 +24,7 @@ export const ClaudeToolResultItem = ({
   index,
   searchQuery = "",
   isCurrentMatch = false,
+  currentMatchIndex = 0,
 }: Props) => {
   const { t } = useTranslation("components");
   const { renderCopyButton } = useCopyButton();
@@ -39,6 +41,7 @@ export const ClaudeToolResultItem = ({
         text={`Tool ID: ${idString}`}
         searchQuery={searchQuery}
         isCurrentMatch={isCurrentMatch}
+        currentMatchIndex={currentMatchIndex}
       />
     ) : (
       <>Tool ID: {idString}</>

@@ -5,6 +5,7 @@ interface HighlightedTextProps {
   text: string;
   searchQuery: string;
   isCurrentMatch?: boolean;
+  currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
   className?: string;
 }
 
@@ -25,6 +26,7 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
   text,
   searchQuery,
   isCurrentMatch = false,
+  currentMatchIndex = 0,
   className,
 }) => {
   const highlightedContent = useMemo(() => {
@@ -48,7 +50,9 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
 
       // Add highlighted match
       const matchedText = text.slice(currentIndex, currentIndex + query.length);
-      const isFirstMatch = matchIndex === 0;
+
+      // 이 매치가 현재 활성화된 매치인지 확인
+      const isThisMatchActive = isCurrentMatch && matchIndex === currentMatchIndex;
 
       // Create unique key using position and text snippet to avoid collisions
       const keyId = `${currentIndex}-${matchedText.slice(0, 10)}`;
@@ -56,13 +60,13 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
       parts.push(
         <mark
           key={keyId}
-          // Scroll target for current match's first highlight
-          {...(isCurrentMatch && isFirstMatch ? { 'data-search-highlight': 'current' } : {})}
+          // Scroll target for the active match
+          {...(isThisMatchActive ? { 'data-search-highlight': 'current' } : {})}
           // Accessibility: indicate current match for screen readers
-          aria-current={isCurrentMatch && isFirstMatch ? 'true' : undefined}
+          aria-current={isThisMatchActive ? 'true' : undefined}
           className={cn(
             "rounded px-0.5 transition-colors",
-            isCurrentMatch
+            isThisMatchActive
               ? "bg-yellow-400 dark:bg-yellow-500 text-gray-900 ring-2 ring-yellow-500 dark:ring-yellow-400"
               : "bg-yellow-200 dark:bg-yellow-600/50 text-gray-900 dark:text-gray-100"
           )}
@@ -82,7 +86,7 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
     }
 
     return parts.length > 0 ? parts : text;
-  }, [text, searchQuery, isCurrentMatch]);
+  }, [text, searchQuery, isCurrentMatch, currentMatchIndex]);
 
   return <span className={className}>{highlightedContent}</span>;
 };
