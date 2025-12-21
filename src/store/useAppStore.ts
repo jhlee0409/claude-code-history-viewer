@@ -313,7 +313,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         );
       }
 
-      // FlexSearch 인덱스 구축 (비동기적으로 백그라운드에서)
+      // FlexSearch 인덱스 구축 (동기 실행, 대부분의 경우 수 밀리초 이내 완료)
       buildSearchIndex(filteredMessages);
 
       set({

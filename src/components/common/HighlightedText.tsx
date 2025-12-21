@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, memo } from "react";
 import { cn } from "../../utils/cn";
 
 interface HighlightedTextProps {
@@ -12,7 +12,7 @@ interface HighlightedTextProps {
  * 검색어를 하이라이트하여 텍스트를 렌더링하는 컴포넌트
  * 카카오톡 스타일: 현재 매치는 진한 노랑, 다른 매치는 연한 노랑
  */
-export const HighlightedText: React.FC<HighlightedTextProps> = ({
+const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
   text,
   searchQuery,
   isCurrentMatch = false,
@@ -72,5 +72,8 @@ export const HighlightedText: React.FC<HighlightedTextProps> = ({
 
   return <span className={className}>{highlightedContent}</span>;
 };
+
+// React.memo로 불필요한 리렌더링 방지
+export const HighlightedText = memo(HighlightedTextComponent);
 
 export default HighlightedText;
