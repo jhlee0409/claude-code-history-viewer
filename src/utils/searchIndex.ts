@@ -61,6 +61,20 @@ interface SearchDocument {
   text: string;
 }
 
+// FlexSearch enriched 결과 타입
+interface EnrichedResult {
+  id: string;
+  doc?: SearchDocument;
+}
+
+// 결과 아이템에서 UUID 추출 (타입 가드)
+const extractUuidFromResult = (item: string | EnrichedResult): string => {
+  if (typeof item === "string") {
+    return item;
+  }
+  return item.id;
+};
+
 // 메시지 검색 인덱스 클래스
 class MessageSearchIndex {
   private index: FlexSearch.Document<SearchDocument, string[]>;
@@ -98,7 +112,10 @@ class MessageSearchIndex {
     });
 
     this.isBuilt = true;
-    console.log(`[SearchIndex] Built index for ${messages.length} messages`);
+
+    if (import.meta.env.DEV) {
+      console.log(`[SearchIndex] Built index for ${messages.length} messages`);
+    }
   }
 
   // 검색 실행
@@ -122,8 +139,7 @@ class MessageSearchIndex {
     results.forEach((fieldResult) => {
       if (fieldResult.result) {
         fieldResult.result.forEach((item) => {
-          // item이 string인 경우 (uuid)
-          const uuid = typeof item === "string" ? item : (item as { id: string }).id;
+          const uuid = extractUuidFromResult(item as string | EnrichedResult);
           if (!seenUuids.has(uuid)) {
             seenUuids.add(uuid);
             const messageIndex = this.messageMap.get(uuid);
@@ -159,11 +175,6 @@ class MessageSearchIndex {
     this.messageMap.clear();
     this.isBuilt = false;
   }
-
-  // 인덱스 구축 여부
-  get ready(): boolean {
-    return this.isBuilt;
-  }
 }
 
 // 싱글톤 인스턴스
@@ -182,8 +193,4 @@ export const searchMessages = (
 
 export const clearSearchIndex = (): void => {
   messageSearchIndex.clear();
-};
-
-export const isSearchIndexReady = (): boolean => {
-  return messageSearchIndex.ready;
 };

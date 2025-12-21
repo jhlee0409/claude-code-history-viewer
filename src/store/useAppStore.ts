@@ -103,10 +103,12 @@ export interface SearchMatch {
 // 검색 관련 상태 (카카오톡 스타일 네비게이션)
 export interface SearchState {
   query: string;
-  matches: SearchMatch[]; // 매치된 메시지 목록
-  currentMatchIndex: number; // 현재 보고 있는 매치 (0-based)
+  matches: SearchMatch[];
+  currentMatchIndex: number;
   isSearching: boolean;
-  // Legacy: 기존 호환성을 위해 유지 (deprecated)
+  /**
+   * @deprecated matches 필드를 사용하세요. 이 필드는 하위 호환성을 위해 유지됩니다.
+   */
   results: ClaudeMessage[];
 }
 
