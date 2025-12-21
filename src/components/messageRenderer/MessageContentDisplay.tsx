@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Copy } from "lucide-react";
@@ -6,17 +6,59 @@ import { useTranslation } from "react-i18next";
 import { CommandRenderer, ImageRenderer } from "../contentRenderer";
 import { isImageUrl, isBase64Image } from "../../utils/messageUtils";
 import { TooltipButton } from "../../shared/TooltipButton";
+import { HighlightedText } from "../common";
 
 interface MessageContentDisplayProps {
   content: string | null;
   messageType: string;
+  searchQuery?: string;
+  isCurrentMatch?: boolean;
 }
 
 export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   content,
   messageType,
+  searchQuery = "",
+  isCurrentMatch = false,
 }) => {
   const { t } = useTranslation("components");
+
+  // ReactMarkdown용 커스텀 렌더러 - 텍스트에 하이라이트 적용
+  const markdownComponents = useMemo(() => {
+    if (!searchQuery) return undefined;
+
+    return {
+      text: ({ children }: { children?: React.ReactNode }) => {
+        if (typeof children === "string") {
+          return (
+            <HighlightedText
+              text={children}
+              searchQuery={searchQuery}
+              isCurrentMatch={isCurrentMatch}
+            />
+          );
+        }
+        return <>{children}</>;
+      },
+      // code 블록 내 텍스트도 하이라이트
+      code: ({ children, className, ...props }: { children?: React.ReactNode; className?: string }) => {
+        const isInline = !className;
+        if (isInline && typeof children === "string") {
+          return (
+            <code {...props}>
+              <HighlightedText
+                text={children}
+                searchQuery={searchQuery}
+                isCurrentMatch={isCurrentMatch}
+              />
+            </code>
+          );
+        }
+        return <code className={className} {...props}>{children}</code>;
+      },
+    };
+  }, [searchQuery, isCurrentMatch]);
+
   if (!content) return null;
 
   if (typeof content === "string") {
@@ -50,6 +92,8 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
               <MessageContentDisplay
                 content={textWithoutImage}
                 messageType={messageType}
+                searchQuery={searchQuery}
+                isCurrentMatch={isCurrentMatch}
               />
             </div>
           )}
@@ -67,7 +111,15 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
       <div className="mb-3 flex justify-end">
         <div className="max-w-xs sm:max-w-md lg:max-w-lg bg-blue-500 text-white rounded-2xl px-4 py-3 relative group shadow-sm">
           <div className="whitespace-pre-wrap break-words text-sm">
-            {content}
+            {searchQuery ? (
+              <HighlightedText
+                text={content}
+                searchQuery={searchQuery}
+                isCurrentMatch={isCurrentMatch}
+              />
+            ) : (
+              content
+            )}
           </div>
           <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <TooltipButton
@@ -86,7 +138,12 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
       <div className="mb-3 flex justify-start">
         <div className="max-w-xs sm:max-w-md lg:max-w-2xl bg-green-500/80 text-white rounded-2xl px-4 py-3 relative group shadow-sm">
           <div className="prose prose-sm max-w-none prose-headings:text-white prose-p:text-white prose-a:text-blue-200 prose-code:text-gray-900 prose-code:bg-white prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-blockquote:text-green-100 prose-blockquote:border-l-4 prose-blockquote:border-green-300 prose-blockquote:pl-4 prose-ul:text-white prose-ol:text-white prose-li:text-white">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} children={content} />
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
+              {content}
+            </ReactMarkdown>
           </div>
           <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <TooltipButton
@@ -105,7 +162,17 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   // Fallback for other message types like 'system'
   return (
     <div className="prose prose-sm max-w-none">
-      <div className="whitespace-pre-wrap text-gray-800">{content}</div>
+      <div className="whitespace-pre-wrap text-gray-800">
+        {searchQuery ? (
+          <HighlightedText
+            text={content}
+            searchQuery={searchQuery}
+            isCurrentMatch={isCurrentMatch}
+          />
+        ) : (
+          content
+        )}
+      </div>
     </div>
   );
 };

@@ -39,13 +39,17 @@ export const HighlightedText: React.FC<HighlightedTextProps> = ({
 
       // 하이라이트된 텍스트 추가
       const matchedText = text.slice(currentIndex, currentIndex + query.length);
+      const isFirstMatch = matchIndex === 0;
+
       parts.push(
         <mark
           key={`highlight-${matchIndex}`}
+          // 현재 매치의 첫 번째 하이라이트에 스크롤 타겟 속성 추가
+          {...(isCurrentMatch && isFirstMatch ? { 'data-search-highlight': 'current' } : {})}
           className={cn(
             "rounded px-0.5 transition-colors",
             isCurrentMatch
-              ? "bg-yellow-400 dark:bg-yellow-500 text-gray-900"
+              ? "bg-yellow-400 dark:bg-yellow-500 text-gray-900 ring-2 ring-yellow-500 dark:ring-yellow-400"
               : "bg-yellow-200 dark:bg-yellow-600/50 text-gray-900 dark:text-gray-100"
           )}
         >

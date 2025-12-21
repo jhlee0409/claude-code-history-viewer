@@ -105,6 +105,8 @@ const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuer
           <MessageContentDisplay
             content={extractClaudeMessageContent(message)}
             messageType={message.type}
+            searchQuery={searchQuery}
+            isCurrentMatch={isCurrentMatch}
           />
 
           {/* Claude API Content Array */}
@@ -271,32 +273,49 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     searchInputRef.current?.focus();
   }, [onClearSearch]);
 
-  // 특정 메시지로 스크롤 이동
-  const scrollToMessage = useCallback((messageUuid: string) => {
+  // 현재 매치된 하이라이트 텍스트로 스크롤 이동
+  const scrollToHighlight = useCallback(() => {
     if (!scrollContainerRef.current) return;
 
-    const messageElement = scrollContainerRef.current.querySelector(
-      `[data-message-uuid="${messageUuid}"]`
+    // 먼저 하이라이트된 텍스트 요소를 찾음
+    const highlightElement = scrollContainerRef.current.querySelector(
+      '[data-search-highlight="current"]'
     );
 
-    if (messageElement) {
-      messageElement.scrollIntoView({
+    if (highlightElement) {
+      // 하이라이트된 텍스트로 스크롤
+      highlightElement.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
+      return;
     }
-  }, []);
 
-  // 현재 매치 변경 시 해당 메시지로 스크롤
+    // 하이라이트 요소가 없으면 메시지 영역으로 스크롤 (fallback)
+    if (currentMatchUuid) {
+      const messageElement = scrollContainerRef.current.querySelector(
+        `[data-message-uuid="${currentMatchUuid}"]`
+      );
+
+      if (messageElement) {
+        messageElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    }
+  }, [currentMatchUuid]);
+
+  // 현재 매치 변경 시 해당 하이라이트로 스크롤
   useEffect(() => {
     if (currentMatchUuid) {
-      // 약간의 지연을 두어 DOM 업데이트 후 스크롤
+      // DOM 업데이트 후 스크롤 (렌더링 완료 대기)
       const timer = setTimeout(() => {
-        scrollToMessage(currentMatchUuid);
-      }, 50);
+        scrollToHighlight();
+      }, 100);
       return () => clearTimeout(timer);
     }
-  }, [currentMatchUuid, scrollToMessage]);
+  }, [currentMatchUuid, scrollToHighlight, sessionSearch.currentMatchIndex]);
 
   // 키보드 단축키 핸들러
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
