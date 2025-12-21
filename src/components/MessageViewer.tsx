@@ -55,7 +55,7 @@ interface MessageNodeProps {
   currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
 }
 
-const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuery, filterType = "content", currentMatchIndex }: MessageNodeProps) => {
+const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch, searchQuery, filterType = "content", currentMatchIndex }: MessageNodeProps) => {
   const { t } = useTranslation("components");
 
   if (message.isSidechain) {
@@ -172,7 +172,9 @@ const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuer
       </div>
     </div>
   );
-};
+});
+
+ClaudeMessageNode.displayName = 'ClaudeMessageNode';
 
 // 타입 안전한 parent UUID 추출 함수
 const getParentUuid = (message: ClaudeMessage): string | null | undefined => {
