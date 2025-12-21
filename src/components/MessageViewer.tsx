@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useState,
   useMemo,
+  useDeferredValue,
 } from "react";
 import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -176,19 +177,21 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [localSearchQuery, setLocalSearchQuery] = useState("");
 
-  // 검색어 입력 시 debounce 처리 (성능 최적화: 500ms, 최소 2글자)
+  // useDeferredValue: 입력은 즉시 반영, 검색은 백그라운드에서 처리
+  // React가 자동으로 우선순위 관리 (debounce 불필요)
+  const deferredSearchQuery = useDeferredValue(localSearchQuery);
+
+  // 검색 진행 중 여부 (시각적 피드백용)
+  const isSearchPending = localSearchQuery !== deferredSearchQuery;
+
+  // deferred 값이 변경될 때만 검색 실행 (최소 2글자)
   useEffect(() => {
     // 최소 2글자 이상일 때만 검색 실행
-    if (localSearchQuery.length > 0 && localSearchQuery.length < 2) {
+    if (deferredSearchQuery.length > 0 && deferredSearchQuery.length < 2) {
       return;
     }
-
-    const timer = setTimeout(() => {
-      onSearchChange(localSearchQuery);
-    }, 500); // 500ms debounce (기존 300ms에서 증가)
-
-    return () => clearTimeout(timer);
-  }, [localSearchQuery, onSearchChange]);
+    onSearchChange(deferredSearchQuery);
+  }, [deferredSearchQuery, onSearchChange]);
 
   // 세션 변경 시 검색어 초기화
   useEffect(() => {
@@ -492,18 +495,25 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   COLORS.ui.text.primary
                 )}
               />
+              {/* 검색 진행 중 로딩 표시 또는 클리어 버튼 */}
               {localSearchQuery && (
-                <button
-                  onClick={handleClearSearch}
-                  aria-label="Clear search"
-                  className={cn(
-                    "absolute right-3 top-1/2 transform -translate-y-1/2",
-                    "p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700",
-                    COLORS.ui.text.muted
-                  )}
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                isSearchPending ? (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className={cn("w-4 h-4 animate-spin", COLORS.ui.text.muted)} />
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleClearSearch}
+                    aria-label="Clear search"
+                    className={cn(
+                      "absolute right-3 top-1/2 transform -translate-y-1/2",
+                      "p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700",
+                      COLORS.ui.text.muted
+                    )}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )
               )}
             </div>
 
@@ -551,9 +561,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           </div>
 
           {/* 검색 상태 정보 */}
-          {sessionSearch.query && (
+          {(sessionSearch.query || (localSearchQuery.length >= 2 && isSearchPending)) && (
             <div className={cn("mt-2 text-sm", COLORS.ui.text.muted)}>
-              {sessionSearch.isSearching ? (
+              {sessionSearch.isSearching || isSearchPending ? (
                 <span className="flex items-center space-x-2">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   <span>{t("messageViewer.searching")}</span>
