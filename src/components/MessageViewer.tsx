@@ -41,9 +41,10 @@ interface MessageNodeProps {
   isCurrentMatch?: boolean;
   isMatch?: boolean;
   searchQuery?: string;
+  filterType?: SearchFilterType;
 }
 
-const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuery }: MessageNodeProps) => {
+const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuery, filterType = "content" }: MessageNodeProps) => {
   const { t } = useTranslation("components");
 
   if (message.isSidechain) {
@@ -120,7 +121,12 @@ const ClaudeMessageNode = ({ message, depth, isCurrentMatch, isMatch, searchQuer
               (message.type === "assistant" &&
                 !extractClaudeMessageContent(message))) && (
               <div className="mb-2">
-                <ClaudeContentArrayRenderer content={message.content} />
+                <ClaudeContentArrayRenderer
+                  content={message.content}
+                  searchQuery={searchQuery}
+                  filterType={filterType}
+                  isCurrentMatch={isCurrentMatch}
+                />
               </div>
             )}
 
@@ -464,6 +470,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         isMatch={isMatch}
         isCurrentMatch={isCurrentMatch}
         searchQuery={sessionSearch.query}
+        filterType={sessionSearch.filterType}
       />,
     ];
 
@@ -712,6 +719,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                       isMatch={isMatch}
                       isCurrentMatch={isCurrentMatch}
                       searchQuery={sessionSearch.query}
+                      filterType={sessionSearch.filterType}
                     />
                   );
                 });

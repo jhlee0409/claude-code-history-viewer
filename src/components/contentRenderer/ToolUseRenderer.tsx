@@ -16,17 +16,39 @@ import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "../../utils/cn";
 import { COLORS } from "../../constants/colors";
 import { FileEditRenderer } from "../toolResultRenderer/FileEditRenderer";
+import { HighlightedText } from "../common";
 
 type Props = {
   toolUse: Record<string, unknown>;
+  searchQuery?: string;
+  isCurrentMatch?: boolean;
 };
 
-export const ToolUseRenderer = ({ toolUse }: Props) => {
+export const ToolUseRenderer = ({
+  toolUse,
+  searchQuery = "",
+  isCurrentMatch = false,
+}: Props) => {
   const { t } = useTranslation("components");
   const [openRender, setOpenRender] = useState(false);
   const toolName = toolUse.name || "Unknown Tool";
   const toolId = toolUse.id || "";
   const toolInput = toolUse.input || {};
+
+  // Tool ID 렌더링 헬퍼 (검색 하이라이팅 지원)
+  const renderToolId = (id: string) => {
+    if (!id) return null;
+    const idString = String(id);
+    return searchQuery ? (
+      <HighlightedText
+        text={`ID: ${idString}`}
+        searchQuery={searchQuery}
+        isCurrentMatch={isCurrentMatch}
+      />
+    ) : (
+      <>ID: {idString}</>
+    );
+  };
 
   const toggleOpenRender = () => {
     setOpenRender(!openRender);
@@ -120,7 +142,7 @@ export const ToolUseRenderer = ({ toolUse }: Props) => {
                 COLORS.semantic.success.text
               )}
             >
-              ID: {String(toolId)}
+              {renderToolId(toolId as string)}
             </code>
           )}
         </div>
@@ -247,7 +269,7 @@ export const ToolUseRenderer = ({ toolUse }: Props) => {
             >
               <Hash className={cn("w-3 h-3", COLORS.semantic.info.icon)} />
               <span className={cn("font-mono", COLORS.semantic.info.text)}>
-                ID: {String(toolId)}
+                {renderToolId(toolId as string)}
               </span>
             </div>
           )}
@@ -353,7 +375,7 @@ export const ToolUseRenderer = ({ toolUse }: Props) => {
                 COLORS.semantic.info.text
               )}
             >
-              ID: {String(toolId)}
+              {renderToolId(toolId as string)}
             </code>
           )
         }
