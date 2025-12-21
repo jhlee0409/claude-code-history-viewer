@@ -326,7 +326,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   }, [onClearSearch]);
 
   // 현재 매치된 하이라이트 텍스트로 스크롤 이동
-  const scrollToHighlight = useCallback(() => {
+  const scrollToHighlight = useCallback((matchUuid: string | null) => {
     if (!scrollContainerRef.current) return;
 
     // 먼저 하이라이트된 텍스트 요소를 찾음
@@ -344,9 +344,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     }
 
     // 하이라이트 요소가 없으면 메시지 영역으로 스크롤 (fallback)
-    if (currentMatchUuid) {
+    if (matchUuid) {
       const messageElement = scrollContainerRef.current.querySelector(
-        `[data-message-uuid="${currentMatchUuid}"]`
+        `[data-message-uuid="${matchUuid}"]`
       );
 
       if (messageElement) {
@@ -356,18 +356,18 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         });
       }
     }
-  }, [currentMatchUuid]);
+  }, []);
 
   // 현재 매치 변경 시 해당 하이라이트로 스크롤
   useEffect(() => {
     if (currentMatchUuid) {
       // DOM 업데이트 후 스크롤 (렌더링 완료 대기)
       const timer = setTimeout(() => {
-        scrollToHighlight();
+        scrollToHighlight(currentMatchUuid);
       }, SCROLL_HIGHLIGHT_DELAY_MS);
       return () => clearTimeout(timer);
     }
-  }, [currentMatchUuid, scrollToHighlight, sessionSearch.currentMatchIndex]);
+  }, [currentMatchUuid, sessionSearch.currentMatchIndex, scrollToHighlight]);
 
   // 키보드 단축키 핸들러
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -523,6 +523,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
+                  type="button"
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 rounded-lg border text-sm",
                     "focus:outline-none focus:ring-2 focus:ring-blue-500",
@@ -590,6 +591,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   </div>
                 ) : (
                   <button
+                    type="button"
                     onClick={handleClearSearch}
                     aria-label="Clear search"
                     className={cn(
@@ -614,6 +616,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
                 {/* 이전 매치 버튼 */}
                 <button
+                  type="button"
                   onClick={onPrevMatch}
                   disabled={sessionSearch.matches.length === 0}
                   aria-label="Previous match (Shift+Enter)"
@@ -630,6 +633,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
                 {/* 다음 매치 버튼 */}
                 <button
+                  type="button"
                   onClick={onNextMatch}
                   disabled={sessionSearch.matches.length === 0}
                   aria-label="Next match (Enter)"
@@ -784,6 +788,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                       {t("messageViewer.checkConsole")}
                     </div>
                     <button
+                      type="button"
                       onClick={() => window.location.reload()}
                       className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
                     >
@@ -799,6 +804,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         {/* 플로팅 맨 아래로 버튼 */}
         {showScrollToBottom && (
           <button
+            type="button"
             onClick={scrollToBottom}
             className={cn(
               "fixed bottom-10 right-2 p-3 rounded-full shadow-lg transition-all duration-300 z-50",
