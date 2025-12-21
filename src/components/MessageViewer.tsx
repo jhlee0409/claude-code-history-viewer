@@ -5,6 +5,7 @@ import React, {
   useState,
   useMemo,
   useDeferredValue,
+  startTransition,
 } from "react";
 import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -175,14 +176,24 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const { t } = useTranslation("components");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [localSearchQuery, setLocalSearchQuery] = useState("");
+  // Optimistic UI: 입력 상태를 별도로 관리 (startTransition으로 비긴급 업데이트)
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // useDeferredValue: 입력은 즉시 반영, 검색은 백그라운드에서 처리
-  // React가 자동으로 우선순위 관리 (debounce 불필요)
-  const deferredSearchQuery = useDeferredValue(localSearchQuery);
+  // useDeferredValue: 검색은 백그라운드에서 처리
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // 검색 진행 중 여부 (시각적 피드백용)
-  const isSearchPending = localSearchQuery !== deferredSearchQuery;
+  const isSearchPending = searchQuery !== deferredSearchQuery;
+
+  // 입력 핸들러: startTransition으로 상태 업데이트를 비긴급으로 처리
+  const handleSearchInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // startTransition: React에게 이 업데이트는 긴급하지 않다고 알림
+    // 입력 자체는 DOM이 즉시 처리하고, React 상태는 백그라운드에서 업데이트
+    startTransition(() => {
+      setSearchQuery(value);
+    });
+  }, []);
 
   // deferred 값이 변경될 때만 검색 실행 (최소 2글자)
   useEffect(() => {
@@ -195,7 +206,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // 세션 변경 시 검색어 초기화
   useEffect(() => {
-    setLocalSearchQuery("");
+    setSearchQuery("");
+    // 실제 input 요소도 초기화 (uncontrolled이므로)
+    if (searchInputRef.current) {
+      searchInputRef.current.value = "";
+    }
   }, [selectedSession?.session_id]);
 
   // 카카오톡 스타일: 항상 전체 메시지 표시 (필터링 없음)
@@ -277,7 +292,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // 검색어 초기화 핸들러
   const handleClearSearch = useCallback(() => {
-    setLocalSearchQuery("");
+    setSearchQuery("");
+    // Uncontrolled input이므로 DOM 요소도 직접 초기화
+    if (searchInputRef.current) {
+      searchInputRef.current.value = "";
+    }
     onClearSearch();
     searchInputRef.current?.focus();
   }, [onClearSearch]);
@@ -482,8 +501,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               <input
                 ref={searchInputRef}
                 type="text"
-                value={localSearchQuery}
-                onChange={(e) => setLocalSearchQuery(e.target.value)}
+                defaultValue=""
+                onChange={handleSearchInput}
                 onKeyDown={handleSearchKeyDown}
                 placeholder={t("messageViewer.searchPlaceholder")}
                 aria-label={t("messageViewer.searchPlaceholder")}
@@ -496,7 +515,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 )}
               />
               {/* 검색 진행 중 로딩 표시 또는 클리어 버튼 */}
-              {localSearchQuery && (
+              {searchQuery && (
                 isSearchPending ? (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                     <Loader2 className={cn("w-4 h-4 animate-spin", COLORS.ui.text.muted)} />
@@ -561,7 +580,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           </div>
 
           {/* 검색 상태 정보 */}
-          {(sessionSearch.query || (localSearchQuery.length >= 2 && isSearchPending)) && (
+          {(sessionSearch.query || (searchQuery.length >= 2 && isSearchPending)) && (
             <div className={cn("mt-2 text-sm", COLORS.ui.text.muted)}>
               {sessionSearch.isSearching || isSearchPending ? (
                 <span className="flex items-center space-x-2">
