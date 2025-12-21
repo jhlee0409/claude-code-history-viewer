@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Copy } from "lucide-react";
@@ -22,42 +22,6 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   isCurrentMatch = false,
 }) => {
   const { t } = useTranslation("components");
-
-  // ReactMarkdown용 커스텀 렌더러 - 텍스트에 하이라이트 적용
-  const markdownComponents = useMemo(() => {
-    if (!searchQuery) return undefined;
-
-    return {
-      text: ({ children }: { children?: React.ReactNode }) => {
-        if (typeof children === "string") {
-          return (
-            <HighlightedText
-              text={children}
-              searchQuery={searchQuery}
-              isCurrentMatch={isCurrentMatch}
-            />
-          );
-        }
-        return <>{children}</>;
-      },
-      // code 블록 내 텍스트도 하이라이트
-      code: ({ children, className, ...props }: { children?: React.ReactNode; className?: string }) => {
-        const isInline = !className;
-        if (isInline && typeof children === "string") {
-          return (
-            <code {...props}>
-              <HighlightedText
-                text={children}
-                searchQuery={searchQuery}
-                isCurrentMatch={isCurrentMatch}
-              />
-            </code>
-          );
-        }
-        return <code className={className} {...props}>{children}</code>;
-      },
-    };
-  }, [searchQuery, isCurrentMatch]);
 
   if (!content) return null;
 
@@ -137,14 +101,22 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
     return (
       <div className="mb-3 flex justify-start">
         <div className="max-w-xs sm:max-w-md lg:max-w-2xl bg-green-500/80 text-white rounded-2xl px-4 py-3 relative group shadow-sm">
-          <div className="prose prose-sm max-w-none prose-headings:text-white prose-p:text-white prose-a:text-blue-200 prose-code:text-gray-900 prose-code:bg-white prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-blockquote:text-green-100 prose-blockquote:border-l-4 prose-blockquote:border-green-300 prose-blockquote:pl-4 prose-ul:text-white prose-ol:text-white prose-li:text-white">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
-            >
-              {content}
-            </ReactMarkdown>
-          </div>
+          {/* 검색 중일 때는 plain text로 렌더링 (성능 + 하이라이팅) */}
+          {searchQuery ? (
+            <div className="whitespace-pre-wrap break-words text-sm">
+              <HighlightedText
+                text={content}
+                searchQuery={searchQuery}
+                isCurrentMatch={isCurrentMatch}
+              />
+            </div>
+          ) : (
+            <div className="prose prose-sm max-w-none prose-headings:text-white prose-p:text-white prose-a:text-blue-200 prose-code:text-gray-900 prose-code:bg-white prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-blockquote:text-green-100 prose-blockquote:border-l-4 prose-blockquote:border-green-300 prose-blockquote:pl-4 prose-ul:text-white prose-ol:text-white prose-li:text-white">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {content}
+              </ReactMarkdown>
+            </div>
+          )}
           <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <TooltipButton
               onClick={() => navigator.clipboard.writeText(content)}

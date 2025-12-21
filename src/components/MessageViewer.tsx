@@ -176,11 +176,17 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [localSearchQuery, setLocalSearchQuery] = useState("");
 
-  // 검색어 입력 시 debounce 처리
+  // 검색어 입력 시 debounce 처리 (성능 최적화: 500ms, 최소 2글자)
   useEffect(() => {
+    // 최소 2글자 이상일 때만 검색 실행
+    if (localSearchQuery.length > 0 && localSearchQuery.length < 2) {
+      return;
+    }
+
     const timer = setTimeout(() => {
       onSearchChange(localSearchQuery);
-    }, 300);
+    }, 500); // 500ms debounce (기존 300ms에서 증가)
+
     return () => clearTimeout(timer);
   }, [localSearchQuery, onSearchChange]);
 
