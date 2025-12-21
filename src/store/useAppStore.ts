@@ -671,11 +671,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       // FlexSearch를 사용한 고속 검색 (역색인 기반 O(1) ~ O(log n))
       const searchResults = searchMessagesFromIndex(query);
 
-      // SearchMatch 형식으로 변환
-      const matches: SearchMatch[] = searchResults.map((result) => ({
-        messageUuid: result.messageUuid,
-        messageIndex: result.messageIndex,
-      }));
+      // SearchMatch 형식으로 변환 (유효한 인덱스만 필터링)
+      const matches: SearchMatch[] = searchResults
+        .filter((result) => result.messageIndex >= 0 && result.messageIndex < messages.length)
+        .map((result) => ({
+          messageUuid: result.messageUuid,
+          messageIndex: result.messageIndex,
+        }));
 
       // 매치 결과 저장 (첫 번째 매치로 자동 이동)
       set({
