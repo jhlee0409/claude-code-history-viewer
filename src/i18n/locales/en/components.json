@@ -398,7 +398,10 @@
     "searching": "Searching...",
     "searchResults": "Search results: {{count}} / {{total}} total",
     "noSearchResults": "No search results",
-    "tryDifferentKeyword": "Try a different keyword"
+    "tryDifferentKeyword": "Try a different keyword",
+    "filterType": "Search filter type",
+    "filterContent": "Content",
+    "filterToolId": "Tool ID"
   },
   "commandRenderer": {
     "commandExecution": "Command Execution",

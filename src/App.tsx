@@ -38,6 +38,7 @@ function App() {
     selectProject,
     selectSession,
     setSessionSearchQuery,
+    setSearchFilterType,
     goToNextMatch,
     goToPrevMatch,
     clearSessionSearch,
@@ -52,9 +53,10 @@ function App() {
 
   const {
     state: analyticsState,
-    actions: analyticsActions,
+    actions: _analyticsActions,
     computed,
   } = useAnalytics();
+  void _analyticsActions; // Reserved for future use
 
   const { t, i18n: i18nInstance } = useTranslation("common");
   const { t: tComponents } = useTranslation("components");
@@ -328,6 +330,7 @@ function App() {
                   selectedSession={selectedSession}
                   sessionSearch={sessionSearch}
                   onSearchChange={setSessionSearchQuery}
+                  onFilterTypeChange={setSearchFilterType}
                   onClearSearch={clearSessionSearch}
                   onNextMatch={goToNextMatch}
                   onPrevMatch={goToPrevMatch}

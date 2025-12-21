@@ -413,7 +413,10 @@
     "searching": "검색 중...",
     "searchResults": "검색 결과: {{count}}개 / 전체 {{total}}개",
     "noSearchResults": "검색 결과가 없습니다",
-    "tryDifferentKeyword": "다른 검색어로 시도해보세요"
+    "tryDifferentKeyword": "다른 검색어로 시도해보세요",
+    "filterType": "검색 필터 유형",
+    "filterContent": "내용",
+    "filterToolId": "Tool ID"
   },
   "commandRenderer": {
     "commandExecution": "명령 실행",

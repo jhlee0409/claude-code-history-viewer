@@ -10,7 +10,7 @@ import React, {
 import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeMessage, ClaudeSession } from "../types";
-import type { SearchState } from "../store/useAppStore";
+import type { SearchState, SearchFilterType } from "../store/useAppStore";
 import { ClaudeContentArrayRenderer } from "./contentRenderer";
 import {
   ClaudeToolUseDisplay,
@@ -29,6 +29,7 @@ interface MessageViewerProps {
   selectedSession: ClaudeSession | null;
   sessionSearch: SearchState;
   onSearchChange: (query: string) => void;
+  onFilterTypeChange: (filterType: SearchFilterType) => void;
   onClearSearch: () => void;
   onNextMatch?: () => void;
   onPrevMatch?: () => void;
@@ -169,6 +170,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   selectedSession,
   sessionSearch,
   onSearchChange,
+  onFilterTypeChange,
   onClearSearch,
   onNextMatch,
   onPrevMatch,
@@ -492,6 +494,30 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       >
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-2">
+            {/* 검색 필터 타입 선택 */}
+            <select
+              value={sessionSearch.filterType}
+              onChange={(e) => {
+                onFilterTypeChange(e.target.value as SearchFilterType);
+                // 필터 변경 시 input도 초기화
+                if (searchInputRef.current) {
+                  searchInputRef.current.value = "";
+                }
+                setSearchQuery("");
+              }}
+              className={cn(
+                "px-3 py-2 rounded-lg border text-sm",
+                "focus:outline-none focus:ring-2 focus:ring-blue-500",
+                COLORS.ui.background.primary,
+                COLORS.ui.border.light,
+                COLORS.ui.text.primary
+              )}
+              aria-label={t("messageViewer.filterType")}
+            >
+              <option value="content">{t("messageViewer.filterContent")}</option>
+              <option value="toolId">{t("messageViewer.filterToolId")}</option>
+            </select>
+
             {/* 검색 입력 필드 */}
             <div className="relative flex-1">
               <Search className={cn(

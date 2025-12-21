@@ -73,6 +73,7 @@ interface AppStore extends AppState {
 
   // Session search actions (카카오톡 스타일 네비게이션 검색)
   setSessionSearchQuery: (query: string) => void;
+  setSearchFilterType: (filterType: SearchFilterType) => void;
   goToNextMatch: () => void;
   goToPrevMatch: () => void;
   goToMatchIndex: (index: number) => void;
@@ -100,12 +101,16 @@ export interface SearchMatch {
   messageIndex: number; // messages 배열 내 인덱스
 }
 
+// 검색 필터 타입
+export type SearchFilterType = "content" | "toolId";
+
 // 검색 관련 상태 (카카오톡 스타일 네비게이션)
 export interface SearchState {
   query: string;
   matches: SearchMatch[];
   currentMatchIndex: number;
   isSearching: boolean;
+  filterType: SearchFilterType;
   /**
    * @deprecated matches 필드를 사용하세요. 이 필드는 하위 호환성을 위해 유지됩니다.
    */
@@ -147,6 +152,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     matches: [],
     currentMatchIndex: -1,
     isSearching: false,
+    filterType: "content" as SearchFilterType,
     results: [], // Legacy
   },
 
@@ -287,6 +293,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         currentMatchIndex: -1,
         results: [],
         isSearching: false,
+        filterType: get().sessionSearch.filterType, // 필터 타입 유지
       },
       isLoadingMessages: true,
     });
@@ -644,18 +651,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   // Session search actions (카카오톡 스타일 네비게이션 검색)
   setSessionSearchQuery: (query: string) => {
-    const { messages } = get();
+    const { messages, sessionSearch } = get();
+    const { filterType } = sessionSearch;
 
     if (!query.trim()) {
-      set({
+      set((state) => ({
         sessionSearch: {
           query: "",
           matches: [],
           currentMatchIndex: -1,
           isSearching: false,
+          filterType: state.sessionSearch.filterType,
           results: [],
         },
-      });
+      }));
       return;
     }
 
@@ -669,7 +678,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     try {
       // FlexSearch를 사용한 고속 검색 (역색인 기반 O(1) ~ O(log n))
-      const searchResults = searchMessagesFromIndex(query);
+      const searchResults = searchMessagesFromIndex(query, filterType);
 
       // SearchMatch 형식으로 변환 (유효한 인덱스만 필터링)
       const matches: SearchMatch[] = searchResults
@@ -680,26 +689,30 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }));
 
       // 매치 결과 저장 (첫 번째 매치로 자동 이동)
-      set({
+      set((state) => ({
         sessionSearch: {
           query,
           matches,
           currentMatchIndex: matches.length > 0 ? 0 : -1,
           isSearching: false,
-          results: matches.map((m) => messages[m.messageIndex]), // Legacy 호환
+          filterType: state.sessionSearch.filterType,
+          results: matches
+            .map((m) => messages[m.messageIndex])
+            .filter((m): m is ClaudeMessage => m !== undefined), // Legacy 호환
         },
-      });
+      }));
     } catch (error) {
       console.error("Search failed:", error);
-      set({
+      set((state) => ({
         sessionSearch: {
           query,
           matches: [],
           currentMatchIndex: -1,
           isSearching: false,
+          filterType: state.sessionSearch.filterType,
           results: [],
         },
-      });
+      }));
     }
   },
 
@@ -747,14 +760,31 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   clearSessionSearch: () => {
-    set({
+    set((state) => ({
       sessionSearch: {
+        query: "",
+        matches: [],
+        currentMatchIndex: -1,
+        isSearching: false,
+        filterType: state.sessionSearch.filterType, // 필터 타입 유지
+        results: [],
+      },
+    }));
+  },
+
+  // 검색 필터 타입 변경
+  setSearchFilterType: (filterType: SearchFilterType) => {
+    set((state) => ({
+      sessionSearch: {
+        ...state.sessionSearch,
+        filterType,
+        // 필터 변경 시 검색 결과 초기화
         query: "",
         matches: [],
         currentMatchIndex: -1,
         isSearching: false,
         results: [],
       },
-    });
+    }));
   },
 }));
