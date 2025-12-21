@@ -19,6 +19,11 @@ import {
   type AnalyticsViewType,
   initialAnalyticsState,
 } from "../types/analytics";
+import {
+  buildSearchIndex,
+  searchMessages as searchMessagesFromIndex,
+  clearSearchIndex,
+} from "../utils/searchIndex";
 
 // Tauri API가 사용 가능한지 확인하는 함수
 const isTauriAvailable = () => {
@@ -261,6 +266,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   selectSession: async (session: ClaudeSession) => {
+    // 이전 세션의 검색 인덱스 초기화
+    clearSearchIndex();
+
     set({
       selectedSession: session,
       messages: [],
@@ -273,6 +281,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
       sessionSearch: {
         query: "",
+        matches: [],
+        currentMatchIndex: -1,
         results: [],
         isSearching: false,
       },
@@ -300,6 +310,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           `🚀 [Frontend] selectSession: ${filteredMessages.length}개 메시지 로드, ${duration.toFixed(1)}ms`
         );
       }
+
+      // FlexSearch 인덱스 구축 (비동기적으로 백그라운드에서)
+      buildSearchIndex(filteredMessages);
 
       set({
         messages: filteredMessages,
@@ -652,87 +665,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
     }));
 
-    // 클라이언트 측에서 메시지 검색 (대소문자 구분 없음)
-    const lowerQuery = query.toLowerCase();
+    // FlexSearch를 사용한 고속 검색 (역색인 기반 O(1) ~ O(log n))
+    const searchResults = searchMessagesFromIndex(query);
 
-    // 텍스트 추출 헬퍼 함수
-    const extractTextFromContent = (content: unknown): string => {
-      if (typeof content === "string") return content;
-      if (Array.isArray(content)) {
-        return content
-          .map(item => {
-            if (typeof item === "string") return item;
-            if (item && typeof item === "object") {
-              // text, thinking 필드에서만 추출
-              const textFields: string[] = [];
-              if ("text" in item && typeof item.text === "string") {
-                textFields.push(item.text);
-              }
-              if ("thinking" in item && typeof item.thinking === "string") {
-                textFields.push(item.thinking);
-              }
-              return textFields.join(" ");
-            }
-            return "";
-          })
-          .join(" ");
-      }
-      return "";
-    };
-
-    // 매치된 메시지의 위치 정보 수집
-    const matches: SearchMatch[] = [];
-
-    messages.forEach((message, index) => {
-      let isMatch = false;
-
-      // content에서 검색
-      if (message.content) {
-        const contentStr = extractTextFromContent(message.content);
-        if (contentStr.toLowerCase().includes(lowerQuery)) {
-          isMatch = true;
-        }
-      }
-
-      // toolUse의 name 필드에서만 검색 (input은 제외)
-      if (!isMatch && message.toolUse && typeof message.toolUse === "object") {
-        const toolName = (message.toolUse as { name?: string }).name || "";
-        if (toolName.toLowerCase().includes(lowerQuery)) {
-          isMatch = true;
-        }
-      }
-
-      // toolUseResult의 텍스트 필드에서만 검색
-      if (!isMatch && message.toolUseResult) {
-        const result = message.toolUseResult;
-        const searchableFields: string[] = [];
-
-        if (typeof result === "object" && result !== null) {
-          if ("stdout" in result && typeof result.stdout === "string") {
-            searchableFields.push(result.stdout);
-          }
-          if ("stderr" in result && typeof result.stderr === "string") {
-            searchableFields.push(result.stderr);
-          }
-          if ("content" in result && typeof result.content === "string") {
-            searchableFields.push(result.content);
-          }
-        } else if (typeof result === "string") {
-          searchableFields.push(result);
-        }
-
-        if (searchableFields.join(" ").toLowerCase().includes(lowerQuery)) {
-          isMatch = true;
-        }
-      }
-
-      if (isMatch) {
-        matches.push({
-          messageUuid: message.uuid,
-          messageIndex: index,
-        });
-      }
-    });
+    // SearchMatch 형식으로 변환
+    const matches: SearchMatch[] = searchResults.map((result) => ({
+      messageUuid: result.messageUuid,
+      messageIndex: result.messageIndex,
+    }));
 
     // 매치 결과 저장 (첫 번째 매치로 자동 이동)
     set({
@@ -741,7 +681,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         matches,
         currentMatchIndex: matches.length > 0 ? 0 : -1,
         isSearching: false,
-        results: matches.map(m => messages[m.messageIndex]), // Legacy 호환
+        results: matches.map((m) => messages[m.messageIndex]), // Legacy 호환
       },
     });
   },
