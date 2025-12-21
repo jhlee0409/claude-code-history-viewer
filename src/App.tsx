@@ -38,6 +38,8 @@ function App() {
     selectProject,
     selectSession,
     setSessionSearchQuery,
+    goToNextMatch,
+    goToPrevMatch,
     clearSessionSearch,
     loadGlobalStats,
     setAnalyticsCurrentView,
@@ -327,6 +329,8 @@ function App() {
                   sessionSearch={sessionSearch}
                   onSearchChange={setSessionSearchQuery}
                   onClearSearch={clearSessionSearch}
+                  onNextMatch={goToNextMatch}
+                  onPrevMatch={goToPrevMatch}
                 />
               ) : (
                 <div className="h-full flex items-center justify-center">

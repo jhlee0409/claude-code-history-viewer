@@ -66,8 +66,11 @@ interface AppStore extends AppState {
   clearTokenStats: () => void;
   setExcludeSidechain: (exclude: boolean) => void;
 
-  // Session search actions (세션 내 검색)
+  // Session search actions (카카오톡 스타일 네비게이션 검색)
   setSessionSearchQuery: (query: string) => void;
+  goToNextMatch: () => void;
+  goToPrevMatch: () => void;
+  goToMatchIndex: (index: number) => void;
   clearSessionSearch: () => void;
 
   // Global stats actions
@@ -86,11 +89,20 @@ interface AppStore extends AppState {
   clearAnalyticsErrors: () => void;
 }
 
-// 검색 관련 상태
+// 검색 매치 정보
+export interface SearchMatch {
+  messageUuid: string;
+  messageIndex: number; // messages 배열 내 인덱스
+}
+
+// 검색 관련 상태 (카카오톡 스타일 네비게이션)
 export interface SearchState {
   query: string;
-  results: ClaudeMessage[];
+  matches: SearchMatch[]; // 매치된 메시지 목록
+  currentMatchIndex: number; // 현재 보고 있는 매치 (0-based)
   isSearching: boolean;
+  // Legacy: 기존 호환성을 위해 유지 (deprecated)
+  results: ClaudeMessage[];
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -122,11 +134,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   projectTokenStats: [],
   excludeSidechain: true,
 
-  // Session search state (클라이언트 측 검색)
+  // Session search state (카카오톡 스타일 네비게이션 검색)
   sessionSearch: {
     query: "",
-    results: [],
+    matches: [],
+    currentMatchIndex: -1,
     isSearching: false,
+    results: [], // Legacy
   },
 
   // Analytics state
@@ -613,7 +627,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }));
   },
 
-  // Session search actions (세션 내 클라이언트 측 검색)
+  // Session search actions (카카오톡 스타일 네비게이션 검색)
   setSessionSearchQuery: (query: string) => {
     const { messages } = get();
 
@@ -621,8 +635,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({
         sessionSearch: {
           query: "",
-          results: [],
+          matches: [],
+          currentMatchIndex: -1,
           isSearching: false,
+          results: [],
         },
       });
       return;
@@ -664,30 +680,34 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return "";
     };
 
-    const results = messages.filter((message) => {
+    // 매치된 메시지의 위치 정보 수집
+    const matches: SearchMatch[] = [];
+
+    messages.forEach((message, index) => {
+      let isMatch = false;
+
       // content에서 검색
       if (message.content) {
         const contentStr = extractTextFromContent(message.content);
         if (contentStr.toLowerCase().includes(lowerQuery)) {
-          return true;
+          isMatch = true;
         }
       }
 
       // toolUse의 name 필드에서만 검색 (input은 제외)
-      if (message.toolUse && typeof message.toolUse === "object") {
+      if (!isMatch && message.toolUse && typeof message.toolUse === "object") {
         const toolName = (message.toolUse as { name?: string }).name || "";
         if (toolName.toLowerCase().includes(lowerQuery)) {
-          return true;
+          isMatch = true;
         }
       }
 
       // toolUseResult의 텍스트 필드에서만 검색
-      if (message.toolUseResult) {
+      if (!isMatch && message.toolUseResult) {
         const result = message.toolUseResult;
         const searchableFields: string[] = [];
 
         if (typeof result === "object" && result !== null) {
-          // stdout, stderr, content 등 주요 텍스트 필드만 추출
           if ("stdout" in result && typeof result.stdout === "string") {
             searchableFields.push(result.stdout);
           }
@@ -702,18 +722,69 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }
 
         if (searchableFields.join(" ").toLowerCase().includes(lowerQuery)) {
-          return true;
+          isMatch = true;
         }
       }
 
-      return false;
+      if (isMatch) {
+        matches.push({
+          messageUuid: message.uuid,
+          messageIndex: index,
+        });
+      }
     });
 
+    // 매치 결과 저장 (첫 번째 매치로 자동 이동)
     set({
       sessionSearch: {
         query,
-        results,
+        matches,
+        currentMatchIndex: matches.length > 0 ? 0 : -1,
         isSearching: false,
+        results: matches.map(m => messages[m.messageIndex]), // Legacy 호환
+      },
+    });
+  },
+
+  // 다음 검색 결과로 이동
+  goToNextMatch: () => {
+    const { sessionSearch } = get();
+    if (sessionSearch.matches.length === 0) return;
+
+    const nextIndex = (sessionSearch.currentMatchIndex + 1) % sessionSearch.matches.length;
+    set({
+      sessionSearch: {
+        ...sessionSearch,
+        currentMatchIndex: nextIndex,
+      },
+    });
+  },
+
+  // 이전 검색 결과로 이동
+  goToPrevMatch: () => {
+    const { sessionSearch } = get();
+    if (sessionSearch.matches.length === 0) return;
+
+    const prevIndex = sessionSearch.currentMatchIndex <= 0
+      ? sessionSearch.matches.length - 1
+      : sessionSearch.currentMatchIndex - 1;
+    set({
+      sessionSearch: {
+        ...sessionSearch,
+        currentMatchIndex: prevIndex,
+      },
+    });
+  },
+
+  // 특정 인덱스로 이동
+  goToMatchIndex: (index: number) => {
+    const { sessionSearch } = get();
+    if (index < 0 || index >= sessionSearch.matches.length) return;
+
+    set({
+      sessionSearch: {
+        ...sessionSearch,
+        currentMatchIndex: index,
       },
     });
   },
@@ -722,8 +793,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({
       sessionSearch: {
         query: "",
-        results: [],
+        matches: [],
+        currentMatchIndex: -1,
         isSearching: false,
+        results: [],
       },
     });
   },
