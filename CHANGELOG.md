@@ -7,15 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## Version 1.0.0-beta.4 (2025-12-21)
+
+### Added
+
+- 📊 **Global Aggregated Dashboard**: View aggregated statistics across all projects in a single dashboard (#21)
+- ⏱️ **Accurate Session Time Calculation**: Session duration now calculated precisely from message timestamps
+- 💰 **Accurate Pricing Information**: Token usage cost calculation with accurate pricing model
+- 🐧 **Linux Build Support**: Added comprehensive Linux build support with cross-platform automation (#6)
+- ✅ **Unit Tests**: Added Vitest unit tests for tauri.conf.json validation and importability (#5)
+- 🔄 **Update Check Caching**: Added update check result caching utility and force update check feature
+
+### Changed
+
+- 🌐 **Default Language**: Changed default language from Korean to English for better international accessibility
+- ⚡ **Search Performance**: Optimized search performance for large JSONL files with improved indexing (#23)
+- 📦 **JSONL Loading Optimization**: Analyzed and optimized batch size for better loading performance (#20)
+- 🪟 **Windows Build**: Easier toolchain setup and build process on Windows (#17)
+- 🔧 **Build System**: Enhanced build system with multi-package-manager support using $npm_execpath (#4)
+- 🔄 **Update System**: Restructured update system for better reliability
+
 ### Fixed
 
-- 🌐 **Complete i18n Coverage**: Removed all hardcoded Korean text that was ignoring language settings
+- 🌐 **Complete i18n Coverage**: Removed all hardcoded Korean text that was ignoring language settings (#11)
   - Date formatting in session list now displays in selected language
   - Message count in conversation header displays in proper language
   - Settings dropdown "Update Settings" button internationalized
   - Update Settings modal fully internationalized (15+ elements)
   - First-launch introduction modal displays in user's system language (14 elements)
 - 🔧 **Auto Language Detection**: App automatically detects and displays in user's system language on first launch
+- 🔄 **App Update Version Management**: Fixed version comparison logic for proper update detection (#22)
+- 🔐 **Security Patches**: Applied critical security patches and code quality improvements
+- 🔑 **Tauri Signing**: Improved Tauri signing key handling and release workflow stability
+- 🎨 **Component Optimization**: Optimized theme handling with useCallback for better performance
 - 📝 **Internationalization Scope**: 50+ text strings internationalized across all 5 supported languages (en, ko, ja, zh-CN, zh-TW)
 
 ---
