@@ -58,7 +58,7 @@ vite-preview:
 
 # Build frontend
 frontend-build: sync-version
-    pnpm exec tsc -b
+    pnpm exec tsc --build .
     pnpm exec vite build
 
 [windows]
