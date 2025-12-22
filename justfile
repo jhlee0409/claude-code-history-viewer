@@ -58,8 +58,8 @@ vite-preview:
 
 # Build frontend
 frontend-build: sync-version
-    tsc -b
-    vite build
+    pnpm exec tsc -b
+    pnpm exec vite build
 
 [windows]
 tauri-build:
