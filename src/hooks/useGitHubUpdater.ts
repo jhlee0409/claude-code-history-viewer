@@ -159,16 +159,23 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
     try {
       setState((prev) => ({ ...prev, isDownloading: true, error: null }));
 
+      // 다운로드 진행률 추적을 위한 변수
+      let contentLength = 0;
+      let downloaded = 0;
+
       // 다운로드 진행률 리스너
       await state.updateInfo.downloadAndInstall((event) => {
         switch (event.event) {
           case "Started":
+            contentLength = event.data.contentLength ?? 0;
+            downloaded = 0;
             setState((prev) => ({ ...prev, downloadProgress: 0 }));
             break;
           case "Progress": {
-            const progress = Math.round(
-              (event.data.chunkLength / (event.data.chunkLength || 1)) * 100
-            );
+            downloaded += event.data.chunkLength;
+            const progress = contentLength > 0
+              ? Math.round((downloaded / contentLength) * 100)
+              : 0;
             setState((prev) => ({ ...prev, downloadProgress: progress }));
             break;
           }
