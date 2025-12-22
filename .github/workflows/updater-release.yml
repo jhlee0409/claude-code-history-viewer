@@ -31,9 +31,9 @@ jobs:
               repo: context.repo.repo,
               tag_name: `v${process.env.PACKAGE_VERSION}`,
               name: `Claude Code History Viewer v${process.env.PACKAGE_VERSION}`,
-              body: '🎉 새로운 버전이 출시되었습니다! 자세한 변경사항은 아래를 확인하세요.',
-              generate_release_notes: true,
-              draft: false,
+              body: '⏳ 빌드 진행 중...',
+              generate_release_notes: false,
+              draft: true,
               prerelease: false,
             });
             return data.id;
@@ -260,3 +260,26 @@ jobs:
           gh release upload ${{ github.ref_name }} latest.json --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish release with release notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Generate release notes using GitHub's API
+            const { data: generatedNotes } = await github.rest.repos.generateReleaseNotes({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ github.ref_name }}',
+            });
+
+            // Update release with generated notes and publish (set draft to false)
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ needs.create-release.outputs.release_id }},
+              body: generatedNotes.body,
+              draft: false,
+            });
+
+            console.log('✅ Release published with release notes');
+            console.log(generatedNotes.body);
