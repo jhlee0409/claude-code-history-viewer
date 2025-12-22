@@ -65,6 +65,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: install just
+        uses: extractions/setup-just@v2
+
       - name: install pnpm
         uses: pnpm/action-setup@v4
         with:
