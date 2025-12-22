@@ -17,14 +17,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: get version from tag
         run: echo "PACKAGE_VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
@@ -73,10 +65,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: setup node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'pnpm'
 
       # Linux dependencies (Tauri v2 requires webkit2gtk-4.1)
       - name: install dependencies (ubuntu only)
@@ -95,13 +93,8 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      - name: install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: install frontend dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - uses: tauri-apps/tauri-action@v0
         env:
