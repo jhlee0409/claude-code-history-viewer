@@ -1,6 +1,6 @@
 set dotenv-load
 set positional-arguments
-set windows-shell := ['busybox', 'sh', '-euc']
+set windows-powershell := true
 
 # Put pnpm and mise tools to PATH
 export PATH := justfile_directory() + '/node_modules/.bin' + PATH_VAR_SEP + justfile_directory() + '/.mise/shims' + PATH_VAR_SEP + env_var('PATH')
@@ -25,7 +25,6 @@ setup: _pre-setup && _post-setup
 [windows]
 _pre-setup:
     #!powershell -nop
-    winget install busybox
     winget install mise
 [linux]
 _pre-setup:
