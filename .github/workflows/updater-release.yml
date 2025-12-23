@@ -157,10 +157,10 @@ jobs:
               return { asset, sig };
             };
 
-            // macOS - Apple Silicon (aarch64)
+            // macOS - Apple Silicon (aarch64) - Tauri updater requires .app.tar.gz
             const macAarch64 = findAssetPair(
-              /aarch64.*\.dmg$/,
-              /aarch64.*\.dmg\.sig$/
+              /_aarch64\.app\.tar\.gz$/,
+              /_aarch64\.app\.tar\.gz\.sig$/
             );
             if (macAarch64.asset) {
               let signature = '';
@@ -177,10 +177,10 @@ jobs:
               console.log(`✅ darwin-aarch64: ${macAarch64.asset.name}`);
             }
 
-            // macOS - Intel (x86_64)
+            // macOS - Intel (x86_64) - Tauri updater requires .app.tar.gz
             const macX64 = findAssetPair(
-              /x86_64.*\.dmg$/,
-              /x86_64.*\.dmg\.sig$/
+              /_x64\.app\.tar\.gz$/,
+              /_x64\.app\.tar\.gz\.sig$/
             );
             if (macX64.asset) {
               let signature = '';
