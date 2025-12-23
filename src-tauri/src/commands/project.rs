@@ -48,6 +48,7 @@ pub async fn validate_claude_folder(path: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, String> {
+    #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
     let projects_path = PathBuf::from(&claude_path).join("projects");
 
@@ -110,10 +111,12 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
 
-    let elapsed = start_time.elapsed();
     #[cfg(debug_assertions)]
-    println!("📊 scan_projects 성능: {}개 프로젝트, {}ms 소요", 
-             projects.len(), elapsed.as_millis());
+    {
+        let elapsed = start_time.elapsed();
+        println!("📊 scan_projects 성능: {}개 프로젝트, {}ms 소요",
+                 projects.len(), elapsed.as_millis());
+    }
 
     Ok(projects)
 }
