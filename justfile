@@ -1,5 +1,4 @@
 set dotenv-load
-set positional-arguments
 set windows-powershell := true
 
 # Put pnpm and mise tools to PATH
@@ -57,6 +56,11 @@ vite-preview:
     vite preview
 
 # Build frontend
+[windows]
+frontend-build: sync-version
+    pnpm exec tsc --build
+    pnpm exec vite build
+[unix]
 frontend-build: sync-version
     pnpm exec tsc --build .
     pnpm exec vite build
