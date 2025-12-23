@@ -11,6 +11,7 @@ pub async fn load_project_sessions(
     project_path: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<Vec<ClaudeSession>, String> {
+    #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
     let mut sessions = Vec::new();
 
@@ -272,10 +273,12 @@ pub async fn load_project_sessions(
         }
     }
 
-    let elapsed = start_time.elapsed();
     #[cfg(debug_assertions)]
-    println!("📊 load_project_sessions 성능: {}개 세션, {}ms 소요", 
-             sessions.len(), elapsed.as_millis());
+    {
+        let elapsed = start_time.elapsed();
+        println!("📊 load_project_sessions 성능: {}개 세션, {}ms 소요",
+                 sessions.len(), elapsed.as_millis());
+    }
 
     Ok(sessions)
 }
@@ -392,6 +395,7 @@ pub async fn load_session_messages_paginated(
     limit: usize,
     exclude_sidechain: Option<bool>,
 ) -> Result<MessagePage, String> {
+    #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
     use std::io::{BufRead, BufReader};
     use std::fs::File;
@@ -514,9 +518,11 @@ pub async fn load_session_messages_paginated(
     let has_more = start_idx > 0;
     let next_offset = offset + messages.len();
     
-    let elapsed = start_time.elapsed();
     #[cfg(debug_assertions)]
-    eprintln!("📊 load_session_messages_paginated 성능: {}개 메시지, {}ms 소요", messages.len(), elapsed.as_millis());
+    {
+        let elapsed = start_time.elapsed();
+        eprintln!("📊 load_session_messages_paginated 성능: {}개 메시지, {}ms 소요", messages.len(), elapsed.as_millis());
+    }
     #[cfg(debug_assertions)]
     eprintln!("Result: {} messages returned, has_more={}, next_offset={}", messages.len(), has_more, next_offset);
     
