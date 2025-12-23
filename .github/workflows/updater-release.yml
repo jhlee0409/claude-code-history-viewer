@@ -197,12 +197,6 @@ jobs:
               console.log(`✅ darwin-x86_64: ${macX64.asset.name}`);
             }
 
-            // macOS Universal (fallback for older updater versions)
-            // Use aarch64 as universal if both exist
-            if (platforms['darwin-aarch64']) {
-              platforms['darwin-universal'] = platforms['darwin-aarch64'];
-            }
-
             // Linux - x64 (AppImage)
             const linuxAppImage = findAssetPair(
               /\.AppImage$/,
