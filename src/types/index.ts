@@ -29,6 +29,9 @@ export interface RawClaudeMessage {
   cwd?: string;
   version?: string;
   requestId?: string;
+  // Cost and performance metrics (2025 additions)
+  costUSD?: number;
+  durationMs?: number;
 }
 
 // Nested message object within RawClaudeMessage
@@ -48,16 +51,23 @@ export interface MessagePayload {
   };
 }
 
-// Content types based on CLAUDE.md
+// Content types based on CLAUDE.md and 2025 Claude API updates
 export type ContentItem =
   | TextContent
   | ToolUseContent
   | ToolResultContent
-  | ThinkingContent;
+  | ThinkingContent
+  | RedactedThinkingContent
+  | ServerToolUseContent
+  | WebSearchToolResultContent
+  | ImageContent
+  | DocumentContent
+  | SearchResultContent;
 
 export interface TextContent {
   type: "text";
   text: string;
+  citations?: Citation[];
 }
 
 export interface ToolUseContent {
@@ -78,6 +88,115 @@ export interface ThinkingContent {
   type: "thinking";
   thinking: string;
   signature?: string;
+}
+
+// New content types added in 2025
+
+/** Redacted thinking block - encrypted by safety systems (pre-Claude 4 models) */
+export interface RedactedThinkingContent {
+  type: "redacted_thinking";
+  data: string;
+}
+
+/** Server-side tool use (e.g., web_search) */
+export interface ServerToolUseContent {
+  type: "server_tool_use";
+  id: string;
+  name: "web_search" | string;
+  input: Record<string, unknown>;
+}
+
+/** Web search tool result */
+export interface WebSearchToolResultContent {
+  type: "web_search_tool_result";
+  tool_use_id: string;
+  content: WebSearchResultItem[] | WebSearchToolError;
+}
+
+export interface WebSearchResultItem {
+  type: "web_search_result";
+  title: string;
+  url: string;
+  encrypted_content?: string;
+  page_age?: string;
+}
+
+export interface WebSearchToolError {
+  type: "error";
+  error_code: string;
+  message: string;
+}
+
+/** Image content block */
+export interface ImageContent {
+  type: "image";
+  source: Base64ImageSource | URLImageSource;
+}
+
+export interface Base64ImageSource {
+  type: "base64";
+  media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  data: string;
+}
+
+export interface URLImageSource {
+  type: "url";
+  url: string;
+}
+
+/** Document content block */
+export interface DocumentContent {
+  type: "document";
+  source: Base64PDFSource | PlainTextSource | URLPDFSource;
+  title?: string;
+  context?: string;
+  citations?: CitationsConfig;
+}
+
+export interface Base64PDFSource {
+  type: "base64";
+  media_type: "application/pdf";
+  data: string;
+}
+
+export interface PlainTextSource {
+  type: "text";
+  media_type: "text/plain";
+  data: string;
+}
+
+export interface URLPDFSource {
+  type: "url";
+  url: string;
+}
+
+export interface CitationsConfig {
+  enabled: boolean;
+}
+
+/** Search result content block */
+export interface SearchResultContent {
+  type: "search_result";
+  title: string;
+  source: string;
+  content: TextContent[];
+}
+
+/** Citation structure for referencing source documents */
+export interface Citation {
+  type: "char_location" | "page_location" | "content_block_location";
+  cited_text: string;
+  document_index: number;
+  document_title?: string;
+  // char_location specific
+  start_char_index?: number;
+  end_char_index?: number;
+  // page_location specific (1-indexed)
+  start_page_number?: number;
+  end_page_number?: number;
+  // content_block_location specific (0-indexed)
+  start_block_index?: number;
+  end_block_index?: number;
 }
 
 // Processed message for UI
@@ -101,6 +220,9 @@ export interface ClaudeMessage {
     cache_read_input_tokens?: number;
     service_tier?: string;
   };
+  // Cost and performance metrics (2025 additions)
+  costUSD?: number;
+  durationMs?: number;
 }
 
 export interface ClaudeProject {
