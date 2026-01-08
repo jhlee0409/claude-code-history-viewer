@@ -11,6 +11,7 @@ import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
 import { MCPToolResultRenderer } from "./MCPToolResultRenderer";
 import { ClaudeToolResultItem } from "../toolResultRenderer";
 import { useTranslation } from "react-i18next";
+import { isImageUrl } from "../../utils/messageUtils";
 import type { SearchFilterType } from "../../store/useAppStore";
 import type {
   DocumentContent,
@@ -18,7 +19,8 @@ import type {
   WebSearchResultItem,
   WebSearchToolError,
   Citation,
-  MCPToolResultData,
+  MCPToolUseContent,
+  MCPToolResultContent,
 } from "../../types";
 
 type Props = {
@@ -47,40 +49,48 @@ const isCitationArray = (citations: unknown): citations is Citation[] => {
   );
 };
 
-const isDocumentContent = (item: Record<string, unknown>): boolean => {
+const isDocumentContent = (item: unknown): item is DocumentContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
   return (
-    item.type === "document" &&
-    typeof item.source === "object" &&
-    item.source !== null
+    obj.type === "document" &&
+    typeof obj.source === "object" &&
+    obj.source !== null
   );
 };
 
-const isSearchResultContent = (item: Record<string, unknown>): boolean => {
+const isSearchResultContent = (item: unknown): item is SearchResultContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
   return (
-    item.type === "search_result" &&
-    typeof item.title === "string" &&
-    typeof item.source === "string" &&
-    Array.isArray(item.content)
+    obj.type === "search_result" &&
+    typeof obj.title === "string" &&
+    typeof obj.source === "string" &&
+    Array.isArray(obj.content)
   );
 };
 
-const isMCPToolUse = (item: Record<string, unknown>): boolean => {
+const isMCPToolUse = (item: unknown): item is MCPToolUseContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
   return (
-    item.type === "mcp_tool_use" &&
-    typeof item.id === "string" &&
-    typeof item.server_name === "string" &&
-    typeof item.tool_name === "string" &&
-    typeof item.input === "object" &&
-    item.input !== null
+    obj.type === "mcp_tool_use" &&
+    typeof obj.id === "string" &&
+    typeof obj.server_name === "string" &&
+    typeof obj.tool_name === "string" &&
+    typeof obj.input === "object" &&
+    obj.input !== null
   );
 };
 
-const isMCPToolResult = (item: Record<string, unknown>): boolean => {
+const isMCPToolResult = (item: unknown): item is MCPToolResultContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
   return (
-    item.type === "mcp_tool_result" &&
-    typeof item.tool_use_id === "string" &&
-    (typeof item.content === "string" ||
-      (typeof item.content === "object" && item.content !== null))
+    obj.type === "mcp_tool_result" &&
+    typeof obj.tool_use_id === "string" &&
+    (typeof obj.content === "string" ||
+      (typeof obj.content === "object" && obj.content !== null))
   );
 };
 
@@ -148,7 +158,11 @@ export const ClaudeContentArrayRenderer = ({
               const imageUrl = `data:${source.media_type};base64,${source.data}`;
               return <ImageRenderer key={index} imageUrl={imageUrl} />;
             }
-            if (source.type === "url" && typeof source.url === "string") {
+            if (
+              source.type === "url" &&
+              typeof source.url === "string" &&
+              isImageUrl(source.url)
+            ) {
               return <ImageRenderer key={index} imageUrl={source.url} />;
             }
             return null;
@@ -205,22 +219,12 @@ export const ClaudeContentArrayRenderer = ({
 
           case "document": {
             if (!isDocumentContent(item)) return null;
-            return (
-              <DocumentRenderer
-                key={index}
-                document={item as unknown as DocumentContent}
-              />
-            );
+            return <DocumentRenderer key={index} document={item} />;
           }
 
           case "search_result": {
             if (!isSearchResultContent(item)) return null;
-            return (
-              <SearchResultRenderer
-                key={index}
-                searchResult={item as unknown as SearchResultContent}
-              />
-            );
+            return <SearchResultRenderer key={index} searchResult={item} />;
           }
 
           case "mcp_tool_use": {
@@ -228,10 +232,10 @@ export const ClaudeContentArrayRenderer = ({
             return (
               <MCPToolUseRenderer
                 key={index}
-                id={item.id as string}
-                serverName={item.server_name as string}
-                toolName={item.tool_name as string}
-                input={item.input as Record<string, unknown>}
+                id={item.id}
+                serverName={item.server_name}
+                toolName={item.tool_name}
+                input={item.input}
               />
             );
           }
@@ -241,11 +245,9 @@ export const ClaudeContentArrayRenderer = ({
             return (
               <MCPToolResultRenderer
                 key={index}
-                toolUseId={item.tool_use_id as string}
-                content={item.content as MCPToolResultData | string}
-                isError={
-                  typeof item.is_error === "boolean" ? item.is_error : undefined
-                }
+                toolUseId={item.tool_use_id}
+                content={item.content}
+                isError={item.is_error}
               />
             );
           }
