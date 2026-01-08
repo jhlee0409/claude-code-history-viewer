@@ -30,7 +30,7 @@ pub struct RawLogEntry {
     pub timestamp: Option<String>,
     #[serde(rename = "type")]
     pub message_type: String,
-    
+
     // Fields for summary
     pub summary: Option<String>,
     #[serde(rename = "leafUuid")]
@@ -44,6 +44,12 @@ pub struct RawLogEntry {
     pub tool_use_result: Option<serde_json::Value>,
     #[serde(rename = "isSidechain")]
     pub is_sidechain: Option<bool>,
+
+    // Cost and performance metrics (2025 additions)
+    #[serde(rename = "costUSD")]
+    pub cost_usd: Option<f64>,
+    #[serde(rename = "durationMs")]
+    pub duration_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +80,11 @@ pub struct ClaudeMessage {
     pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<String>,
+    // Cost and performance metrics (2025 additions)
+    #[serde(rename = "costUSD", skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
+    #[serde(rename = "durationMs", skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -372,6 +383,8 @@ mod tests {
             message_id: None,
             model: None,
             stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
         };
 
         let serialized = serde_json::to_string(&message).unwrap();
@@ -399,6 +412,8 @@ mod tests {
             message_id: None,
             model: None,
             stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
         };
 
         let serialized = serde_json::to_string(&message).unwrap();
@@ -408,6 +423,8 @@ mod tests {
         assert!(!serialized.contains("message_id"));
         assert!(!serialized.contains("model"));
         assert!(!serialized.contains("stop_reason"));
+        assert!(!serialized.contains("costUSD"));
+        assert!(!serialized.contains("durationMs"));
     }
 
     #[test]

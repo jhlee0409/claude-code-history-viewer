@@ -407,18 +407,31 @@ This is the corrected structure based on analysis of the `.jsonl` files.
 
 Currently Supported:
 
-- ✅ Text content (`type: "text"`)
+- ✅ Text content (`type: "text"`) - with citations support
 - ✅ Tool use (`type: "tool_use"`)
-- ✅ Tool results (`type: "tool_result`)
+- ✅ Tool results (`type: "tool_result"`)
 - ✅ Command messages (within text content)
+- ✅ Thinking content (`type: "thinking"`)
+- ✅ Redacted thinking (`type: "redacted_thinking"`) - encrypted by safety systems
+- ✅ Image content (`type: "image"`) - base64 and URL sources
+- ✅ Server tool use (`type: "server_tool_use"`) - e.g., web_search
+- ✅ Web search results (`type: "web_search_tool_result"`)
+- ✅ Document content (`type: "document"`) - PDF and plain text
+- ✅ Search results (`type: "search_result"`)
+- ✅ Citations - inline source references
 
-Not Yet Supported:
-
-- ❌ Thinking type (`type: "thinking`) - currently only supported as text tags
-- ❌ Image content - structure supports it via `isImage` flag but no rendering logic
+Message-level Metadata (2025):
+- ✅ `costUSD` - API usage cost
+- ✅ `durationMs` - Response latency
 
 ### Recent Updates
 
+- **2025 Content Types Support (December 2025)**:
+  - Added support for new content types from Claude API 2025 updates
+  - Implemented `redacted_thinking`, `server_tool_use`, `web_search_tool_result`, `document`, `search_result` renderers
+  - Added `CitationRenderer` for inline source references
+  - Added `costUSD` and `durationMs` fields to message metadata
+  - Enhanced `AssistantMessageDetails` to display cost and duration metrics
 - **Data Structure & Type Correction (June 2025)**:
   - Performed a deep analysis of `.jsonl` log files in the `~/.claude` directory to verify the exact data structure.
   - Added a `Raw Message Structure` section to this document to accurately model the nested `message` object and include assistant-specific metadata (`id`, `model`, `stop_reason`, `usage`).

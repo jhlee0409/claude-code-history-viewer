@@ -460,6 +460,8 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
             message_id,
             model,
             stop_reason,
+            cost_usd: log_entry.cost_usd,
+            duration_ms: log_entry.duration_ms,
         })
     }
 }

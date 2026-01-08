@@ -95,6 +95,8 @@ pub async fn load_project_sessions(
                                 message_id,
                                 model,
                                 stop_reason,
+                                cost_usd: log_entry.cost_usd,
+                                duration_ms: log_entry.duration_ms,
                             };
                             messages.push(claude_message);
                         }
@@ -327,6 +329,8 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                             message_id: None,
                             model: None,
                             stop_reason: None,
+                            cost_usd: None,
+                            duration_ms: None,
                         };
                         messages.push(summary_message);
                     }
@@ -375,6 +379,8 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                         message_id,
                         model,
                         stop_reason,
+                        cost_usd: log_entry.cost_usd,
+                        duration_ms: log_entry.duration_ms,
                     };
                     messages.push(claude_message);
                 }
@@ -452,6 +458,8 @@ pub async fn load_session_messages_paginated(
                         message_id,
                         model,
                         stop_reason,
+                        cost_usd: log_entry.cost_usd,
+                        duration_ms: log_entry.duration_ms,
                     };
                     all_messages.push(claude_message);
                 }
@@ -607,6 +615,8 @@ pub async fn search_messages(
                                     message_id: message_content.id.clone(),
                                     model: message_content.model.clone(),
                                     stop_reason: message_content.stop_reason.clone(),
+                                    cost_usd: log_entry.cost_usd,
+                                    duration_ms: log_entry.duration_ms,
                                 };
                                 all_messages.push(claude_message);
                             }

@@ -1,21 +1,105 @@
 import { ThinkingRenderer } from "./ThinkingRenderer";
 import { ToolUseRenderer } from "./ToolUseRenderer";
 import { ImageRenderer } from "./ImageRenderer";
+import { RedactedThinkingRenderer } from "./RedactedThinkingRenderer";
+import { ServerToolUseRenderer } from "./ServerToolUseRenderer";
+import { WebSearchResultRenderer } from "./WebSearchResultRenderer";
+import { DocumentRenderer } from "./DocumentRenderer";
+import { CitationRenderer } from "./CitationRenderer";
+import { SearchResultRenderer } from "./SearchResultRenderer";
+import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
+import { MCPToolResultRenderer } from "./MCPToolResultRenderer";
 import { ClaudeToolResultItem } from "../toolResultRenderer";
 import { useTranslation } from "react-i18next";
+import { isImageUrl } from "../../utils/messageUtils";
 import type { SearchFilterType } from "../../store/useAppStore";
+import type {
+  DocumentContent,
+  SearchResultContent,
+  WebSearchResultItem,
+  WebSearchToolError,
+  Citation,
+  MCPToolUseContent,
+  MCPToolResultContent,
+} from "../../types";
 
 type Props = {
   content: unknown[];
   searchQuery?: string;
   filterType?: SearchFilterType;
   isCurrentMatch?: boolean;
-  currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
+  currentMatchIndex?: number;
 };
 
-// Type guard for content items
 const isContentItem = (item: unknown): item is Record<string, unknown> => {
   return item !== null && typeof item === "object";
+};
+
+const isCitationArray = (citations: unknown): citations is Citation[] => {
+  return (
+    Array.isArray(citations) &&
+    citations.every(
+      (c) =>
+        typeof c === "object" &&
+        c !== null &&
+        "type" in c &&
+        "cited_text" in c &&
+        "document_index" in c
+    )
+  );
+};
+
+const isDocumentContent = (item: unknown): item is DocumentContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    obj.type === "document" &&
+    typeof obj.source === "object" &&
+    obj.source !== null
+  );
+};
+
+const isSearchResultContent = (item: unknown): item is SearchResultContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    obj.type === "search_result" &&
+    typeof obj.title === "string" &&
+    typeof obj.source === "string" &&
+    Array.isArray(obj.content)
+  );
+};
+
+const isMCPToolUse = (item: unknown): item is MCPToolUseContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    obj.type === "mcp_tool_use" &&
+    typeof obj.id === "string" &&
+    typeof obj.server_name === "string" &&
+    typeof obj.tool_name === "string" &&
+    typeof obj.input === "object" &&
+    obj.input !== null
+  );
+};
+
+const isMCPToolResult = (item: unknown): item is MCPToolResultContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    obj.type === "mcp_tool_result" &&
+    typeof obj.tool_use_id === "string" &&
+    (typeof obj.content === "string" ||
+      (typeof obj.content === "object" && obj.content !== null))
+  );
+};
+
+const safeStringify = (obj: unknown, indent = 2): string => {
+  try {
+    return JSON.stringify(obj, null, indent);
+  } catch {
+    return "[Unable to stringify - possible circular reference]";
+  }
 };
 
 export const ClaudeContentArrayRenderer = ({
@@ -44,41 +128,129 @@ export const ClaudeContentArrayRenderer = ({
         const itemType = item.type as string;
 
         switch (itemType) {
-          case "text":
-            if (typeof item.text === "string") {
-              return (
-                <div
-                  key={index}
-                  className="p-3 bg-gray-50 border border-gray-200 rounded-lg"
-                >
+          case "text": {
+            if (typeof item.text !== "string") return null;
+            const citations = isCitationArray(item.citations)
+              ? item.citations
+              : undefined;
+            return (
+              <div key={index}>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                   <div className="whitespace-pre-wrap text-gray-800">
                     {item.text}
                   </div>
                 </div>
-              );
-            }
-            return null;
+                {citations && citations.length > 0 && (
+                  <CitationRenderer citations={citations} />
+                )}
+              </div>
+            );
+          }
 
-          case "image":
-            // Claude API 형태의 이미지 객체 처리
-            if (item.source && typeof item.source === "object") {
-              const source = item.source as Record<string, unknown>;
-              if (
-                source.type === "base64" &&
-                source.data &&
-                source.media_type
-              ) {
-                const imageUrl = `data:${source.media_type};base64,${source.data}`;
-                return <ImageRenderer key={index} imageUrl={imageUrl} />;
-              }
+          case "image": {
+            if (!item.source || typeof item.source !== "object") return null;
+            const source = item.source as Record<string, unknown>;
+            if (
+              source.type === "base64" &&
+              typeof source.data === "string" &&
+              typeof source.media_type === "string"
+            ) {
+              const imageUrl = `data:${source.media_type};base64,${source.data}`;
+              return <ImageRenderer key={index} imageUrl={imageUrl} />;
+            }
+            if (
+              source.type === "url" &&
+              typeof source.url === "string" &&
+              isImageUrl(source.url)
+            ) {
+              return <ImageRenderer key={index} imageUrl={source.url} />;
             }
             return null;
+          }
 
           case "thinking":
+            if (typeof item.thinking === "string") {
+              return <ThinkingRenderer key={index} content={item.thinking} />;
+            }
             if (typeof item.content === "string") {
               return <ThinkingRenderer key={index} content={item.content} />;
             }
             return null;
+
+          case "redacted_thinking":
+            if (typeof item.data !== "string") return null;
+            return <RedactedThinkingRenderer key={index} data={item.data} />;
+
+          case "server_tool_use": {
+            if (
+              typeof item.id !== "string" ||
+              typeof item.name !== "string" ||
+              typeof item.input !== "object" ||
+              item.input === null
+            ) {
+              return null;
+            }
+            return (
+              <ServerToolUseRenderer
+                key={index}
+                id={item.id}
+                name={item.name}
+                input={item.input as Record<string, unknown>}
+              />
+            );
+          }
+
+          case "web_search_tool_result": {
+            if (
+              typeof item.tool_use_id !== "string" ||
+              (!Array.isArray(item.content) &&
+                (typeof item.content !== "object" || item.content === null))
+            ) {
+              return null;
+            }
+            return (
+              <WebSearchResultRenderer
+                key={index}
+                toolUseId={item.tool_use_id}
+                content={item.content as WebSearchResultItem[] | WebSearchToolError}
+              />
+            );
+          }
+
+          case "document": {
+            if (!isDocumentContent(item)) return null;
+            return <DocumentRenderer key={index} document={item} />;
+          }
+
+          case "search_result": {
+            if (!isSearchResultContent(item)) return null;
+            return <SearchResultRenderer key={index} searchResult={item} />;
+          }
+
+          case "mcp_tool_use": {
+            if (!isMCPToolUse(item)) return null;
+            return (
+              <MCPToolUseRenderer
+                key={index}
+                id={item.id}
+                serverName={item.server_name}
+                toolName={item.tool_name}
+                input={item.input}
+              />
+            );
+          }
+
+          case "mcp_tool_result": {
+            if (!isMCPToolResult(item)) return null;
+            return (
+              <MCPToolResultRenderer
+                key={index}
+                toolUseId={item.tool_use_id}
+                content={item.content}
+                isError={item.is_error}
+              />
+            );
+          }
 
           case "tool_use":
             return (
@@ -103,7 +275,6 @@ export const ClaudeContentArrayRenderer = ({
             );
 
           default:
-            // 기본 JSON 렌더링
             return (
               <div
                 key={index}
@@ -116,7 +287,7 @@ export const ClaudeContentArrayRenderer = ({
                   })}
                 </div>
                 <pre className="text-xs text-yellow-700 overflow-auto">
-                  {JSON.stringify(item, null, 2)}
+                  {safeStringify(item)}
                 </pre>
               </div>
             );
