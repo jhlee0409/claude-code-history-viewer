@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -5,7 +6,9 @@ type Props = {
   data: string;
 };
 
-export const RedactedThinkingRenderer = ({ data }: Props) => {
+export const RedactedThinkingRenderer = memo(function RedactedThinkingRenderer({
+  data,
+}: Props) {
   const { t } = useTranslation("components");
 
   return (
@@ -31,4 +34,4 @@ export const RedactedThinkingRenderer = ({ data }: Props) => {
       </div>
     </div>
   );
-};
+});

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Globe, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -7,7 +8,19 @@ type Props = {
   input: Record<string, unknown>;
 };
 
-export const ServerToolUseRenderer = ({ id, name, input }: Props) => {
+const safeStringify = (obj: unknown, indent = 2): string => {
+  try {
+    return JSON.stringify(obj, null, indent);
+  } catch {
+    return "[Unable to stringify]";
+  }
+};
+
+export const ServerToolUseRenderer = memo(function ServerToolUseRenderer({
+  id,
+  name,
+  input,
+}: Props) {
   const { t } = useTranslation("components");
 
   const getIcon = () => {
@@ -40,7 +53,7 @@ export const ServerToolUseRenderer = ({ id, name, input }: Props) => {
         <span className="text-xs font-medium text-blue-800">{getTitle()}</span>
         <span className="text-xs text-blue-500 font-mono">{id}</span>
       </div>
-      {name === "web_search" && input.query && (
+      {name === "web_search" && input.query !== undefined && (
         <div className="text-sm text-blue-700">
           <span className="font-medium">
             {t("serverToolUseRenderer.query", { defaultValue: "Query" })}:
@@ -57,10 +70,10 @@ export const ServerToolUseRenderer = ({ id, name, input }: Props) => {
               })}
             </summary>
             <pre className="mt-2 text-xs text-blue-700 bg-blue-100 rounded p-2 overflow-x-auto">
-              {JSON.stringify(input, null, 2)}
+              {safeStringify(input)}
             </pre>
           </details>
         )}
     </div>
   );
-};
+});

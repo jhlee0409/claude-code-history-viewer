@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FileText, File, Link } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -29,7 +30,7 @@ const isURLPDF = (
   return source.type === "url";
 };
 
-export const DocumentRenderer = ({ document }: Props) => {
+export const DocumentRenderer = memo(function DocumentRenderer({ document }: Props) {
   const { t } = useTranslation("components");
   const { source, title, context } = document;
 
@@ -113,4 +114,4 @@ export const DocumentRenderer = ({ document }: Props) => {
       )}
     </div>
   );
-};
+});

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Server, CheckCircle, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MCPToolResultData } from "../../types";
@@ -14,18 +15,27 @@ const isTextContent = (
   return typeof content === "object" && content !== null;
 };
 
-export const MCPToolResultRenderer = ({
+const safeStringify = (obj: unknown, indent = 2): string => {
+  try {
+    return JSON.stringify(obj, null, indent);
+  } catch {
+    return "[Unable to stringify]";
+  }
+};
+
+export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
   toolUseId,
   content,
   isError = false,
-}: Props) => {
+}: Props) {
   const { t } = useTranslation("components");
 
   if (isError) {
-    const errorMessage =
-      typeof content === "string"
-        ? content
-        : content.text || JSON.stringify(content);
+    const getErrorMessage = (): string => {
+      if (typeof content === "string") return content;
+      if (content.type === "text") return content.text;
+      return safeStringify(content);
+    };
 
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -37,7 +47,7 @@ export const MCPToolResultRenderer = ({
           <span className="text-xs text-red-500 font-mono">{toolUseId}</span>
         </div>
         <div className="text-sm text-red-700 whitespace-pre-wrap">
-          {errorMessage}
+          {getErrorMessage()}
         </div>
       </div>
     );
@@ -85,7 +95,7 @@ export const MCPToolResultRenderer = ({
 
       return (
         <pre className="text-sm text-violet-700 bg-violet-100 rounded p-2 overflow-x-auto">
-          {JSON.stringify(content, null, 2)}
+          {safeStringify(content)}
         </pre>
       );
     }
@@ -107,4 +117,4 @@ export const MCPToolResultRenderer = ({
       <div className="mt-2">{renderContent()}</div>
     </div>
   );
-};
+});

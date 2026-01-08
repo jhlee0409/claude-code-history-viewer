@@ -202,14 +202,32 @@ export interface MCPToolResultContent {
   is_error?: boolean;
 }
 
-/** MCP tool result data structure */
-export interface MCPToolResultData {
-  type?: "text" | "image" | "resource";
-  text?: string;
-  data?: string;
-  mimeType?: string;
-  uri?: string;
-  blob?: string;
+/** MCP tool result data - discriminated union for type safety */
+export type MCPToolResultData =
+  | MCPTextResult
+  | MCPImageResult
+  | MCPResourceResult
+  | MCPUnknownResult;
+
+export interface MCPTextResult {
+  type: "text";
+  text: string;
+}
+
+export interface MCPImageResult {
+  type: "image";
+  data: string;
+  mimeType: string;
+}
+
+export interface MCPResourceResult {
+  type: "resource";
+  uri: string;
+}
+
+export interface MCPUnknownResult {
+  type?: undefined;
+  [key: string]: unknown;
 }
 
 /** Citation structure for referencing source documents */

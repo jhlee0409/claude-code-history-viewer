@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Server, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -8,12 +9,20 @@ type Props = {
   input: Record<string, unknown>;
 };
 
-export const MCPToolUseRenderer = ({
+const safeStringify = (obj: unknown, indent = 2): string => {
+  try {
+    return JSON.stringify(obj, null, indent);
+  } catch {
+    return "[Unable to stringify]";
+  }
+};
+
+export const MCPToolUseRenderer = memo(function MCPToolUseRenderer({
   id,
   serverName,
   toolName,
   input,
-}: Props) => {
+}: Props) {
   const { t } = useTranslation("components");
 
   return (
@@ -43,10 +52,10 @@ export const MCPToolUseRenderer = ({
             })}
           </summary>
           <pre className="mt-2 text-xs text-violet-700 bg-violet-100 rounded p-2 overflow-x-auto">
-            {JSON.stringify(input, null, 2)}
+            {safeStringify(input)}
           </pre>
         </details>
       )}
     </div>
   );
-};
+});

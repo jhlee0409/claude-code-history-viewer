@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ExternalLink, Search, AlertCircle, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -21,7 +22,10 @@ const isError = (
   );
 };
 
-export const WebSearchResultRenderer = ({ toolUseId, content }: Props) => {
+export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({
+  toolUseId,
+  content,
+}: Props) {
   const { t } = useTranslation("components");
 
   if (isError(content)) {
@@ -62,9 +66,9 @@ export const WebSearchResultRenderer = ({ toolUseId, content }: Props) => {
       </div>
 
       <div className="space-y-2">
-        {results.map((result, index) => (
+        {results.map((result) => (
           <div
-            key={index}
+            key={result.url}
             className="bg-white border border-green-100 rounded p-2"
           >
             <a
@@ -94,4 +98,4 @@ export const WebSearchResultRenderer = ({ toolUseId, content }: Props) => {
       </div>
     </div>
   );
-};
+});

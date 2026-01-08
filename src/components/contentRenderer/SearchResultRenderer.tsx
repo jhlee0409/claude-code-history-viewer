@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Search, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SearchResultContent, TextContent } from "../../types";
@@ -6,7 +7,9 @@ type Props = {
   searchResult: SearchResultContent;
 };
 
-export const SearchResultRenderer = ({ searchResult }: Props) => {
+export const SearchResultRenderer = memo(function SearchResultRenderer({
+  searchResult,
+}: Props) {
   const { t } = useTranslation("components");
   const { title, source, content } = searchResult;
 
@@ -41,4 +44,4 @@ export const SearchResultRenderer = ({ searchResult }: Props) => {
       )}
     </div>
   );
-};
+});

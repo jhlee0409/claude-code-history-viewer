@@ -50,8 +50,19 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
       {/* Token usage tooltip */}
       {usage && (usage.input_tokens || usage.output_tokens) && (
         <div className="relative group">
-          <HelpCircle className="w-3.5 h-3.5 cursor-help" />
-          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 bg-gray-800 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10">
+          <button
+            type="button"
+            className="p-0 border-0 bg-transparent cursor-help"
+            aria-label={t('assistantMessageDetails.tokenUsageLabel', { defaultValue: 'View token usage details' })}
+            aria-describedby="token-usage-tooltip"
+          >
+            <HelpCircle className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+          <div
+            id="token-usage-tooltip"
+            role="tooltip"
+            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 bg-gray-800 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10"
+          >
             <p><strong>{t('assistantMessageDetails.tokenUsage')}</strong></p>
             {usage.input_tokens ? <p>{t('assistantMessageDetails.input')}: {usage.input_tokens.toLocaleString()}</p> : null}
             {usage.output_tokens ? <p>{t('assistantMessageDetails.output')}: {usage.output_tokens.toLocaleString()}</p> : null}
@@ -60,7 +71,7 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
             {usage.service_tier ? <p>{t('assistantMessageDetails.tier')}: {usage.service_tier}</p> : null}
             {costUSD !== undefined && <p className="mt-1 pt-1 border-t border-gray-600">{t('assistantMessageDetails.cost', { defaultValue: 'Cost' })}: {formatCost(costUSD)}</p>}
             {durationMs !== undefined && <p>{t('assistantMessageDetails.duration', { defaultValue: 'Duration' })}: {formatDuration(durationMs)}</p>}
-            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
+            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800" aria-hidden="true"></div>
           </div>
         </div>
       )}

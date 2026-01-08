@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Quote, FileText, Hash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Citation } from "../../types";
@@ -6,14 +7,22 @@ type Props = {
   citations: Citation[];
 };
 
-export const CitationRenderer = ({ citations }: Props) => {
+export const CitationRenderer = memo(function CitationRenderer({
+  citations,
+}: Props) {
   const { t } = useTranslation("components");
 
   if (!citations || citations.length === 0) return null;
 
   const getLocationInfo = (citation: Citation) => {
     switch (citation.type) {
-      case "char_location":
+      case "char_location": {
+        if (
+          citation.start_char_index === undefined ||
+          citation.end_char_index === undefined
+        ) {
+          return null;
+        }
         return (
           <span className="text-xs text-gray-500">
             {t("citationRenderer.charLocation", {
@@ -23,7 +32,14 @@ export const CitationRenderer = ({ citations }: Props) => {
             })}
           </span>
         );
-      case "page_location":
+      }
+      case "page_location": {
+        if (
+          citation.start_page_number === undefined ||
+          citation.end_page_number === undefined
+        ) {
+          return null;
+        }
         return (
           <span className="text-xs text-gray-500">
             {citation.start_page_number === citation.end_page_number
@@ -38,7 +54,14 @@ export const CitationRenderer = ({ citations }: Props) => {
                 })}
           </span>
         );
-      case "content_block_location":
+      }
+      case "content_block_location": {
+        if (
+          citation.start_block_index === undefined ||
+          citation.end_block_index === undefined
+        ) {
+          return null;
+        }
         return (
           <span className="text-xs text-gray-500">
             {t("citationRenderer.blockLocation", {
@@ -48,6 +71,7 @@ export const CitationRenderer = ({ citations }: Props) => {
             })}
           </span>
         );
+      }
       default:
         return null;
     }
@@ -104,4 +128,4 @@ export const CitationRenderer = ({ citations }: Props) => {
       </div>
     </div>
   );
-};
+});
