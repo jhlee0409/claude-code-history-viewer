@@ -51,7 +51,6 @@ export interface MessagePayload {
   };
 }
 
-// Content types based on CLAUDE.md and 2025 Claude API updates
 export type ContentItem =
   | TextContent
   | ToolUseContent
@@ -62,7 +61,9 @@ export type ContentItem =
   | WebSearchToolResultContent
   | ImageContent
   | DocumentContent
-  | SearchResultContent;
+  | SearchResultContent
+  | MCPToolUseContent
+  | MCPToolResultContent;
 
 export interface TextContent {
   type: "text";
@@ -180,6 +181,35 @@ export interface SearchResultContent {
   title: string;
   source: string;
   content: TextContent[];
+}
+
+// MCP (Model Context Protocol) content types
+
+/** MCP tool use - server-side tool invocation via MCP */
+export interface MCPToolUseContent {
+  type: "mcp_tool_use";
+  id: string;
+  server_name: string;
+  tool_name: string;
+  input: Record<string, unknown>;
+}
+
+/** MCP tool result - response from MCP server tool */
+export interface MCPToolResultContent {
+  type: "mcp_tool_result";
+  tool_use_id: string;
+  content: MCPToolResultData | string;
+  is_error?: boolean;
+}
+
+/** MCP tool result data structure */
+export interface MCPToolResultData {
+  type?: "text" | "image" | "resource";
+  text?: string;
+  data?: string;
+  mimeType?: string;
+  uri?: string;
+  blob?: string;
 }
 
 /** Citation structure for referencing source documents */

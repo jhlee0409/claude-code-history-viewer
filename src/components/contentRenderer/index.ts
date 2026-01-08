@@ -9,3 +9,5 @@ export { WebSearchResultRenderer } from "./WebSearchResultRenderer";
 export { DocumentRenderer } from "./DocumentRenderer";
 export { CitationRenderer } from "./CitationRenderer";
 export { SearchResultRenderer } from "./SearchResultRenderer";
+export { MCPToolUseRenderer } from "./MCPToolUseRenderer";
+export { MCPToolResultRenderer } from "./MCPToolResultRenderer";

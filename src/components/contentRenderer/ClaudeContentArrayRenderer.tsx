@@ -7,6 +7,8 @@ import { WebSearchResultRenderer } from "./WebSearchResultRenderer";
 import { DocumentRenderer } from "./DocumentRenderer";
 import { CitationRenderer } from "./CitationRenderer";
 import { SearchResultRenderer } from "./SearchResultRenderer";
+import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
+import { MCPToolResultRenderer } from "./MCPToolResultRenderer";
 import { ClaudeToolResultItem } from "../toolResultRenderer";
 import { useTranslation } from "react-i18next";
 import type { SearchFilterType } from "../../store/useAppStore";
@@ -16,6 +18,7 @@ import type {
   WebSearchResultItem,
   WebSearchToolError,
   Citation,
+  MCPToolResultData,
 } from "../../types";
 
 type Props = {
@@ -137,6 +140,27 @@ export const ClaudeContentArrayRenderer = ({
               <SearchResultRenderer
                 key={index}
                 searchResult={item as unknown as SearchResultContent}
+              />
+            );
+
+          case "mcp_tool_use":
+            return (
+              <MCPToolUseRenderer
+                key={index}
+                id={item.id as string}
+                serverName={item.server_name as string}
+                toolName={item.tool_name as string}
+                input={item.input as Record<string, unknown>}
+              />
+            );
+
+          case "mcp_tool_result":
+            return (
+              <MCPToolResultRenderer
+                key={index}
+                toolUseId={item.tool_use_id as string}
+                content={item.content as MCPToolResultData | string}
+                isError={item.is_error as boolean | undefined}
               />
             );
 
