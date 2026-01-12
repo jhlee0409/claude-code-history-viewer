@@ -6,17 +6,17 @@ import React, {
   useMemo,
   useDeferredValue,
 } from "react";
-import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X, Filter } from "lucide-react";
+import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X, Filter, HelpCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeMessage, ClaudeSession } from "../types";
 import type { SearchState, SearchFilterType } from "../store/useAppStore";
 import { ClaudeContentArrayRenderer } from "./contentRenderer";
 import {
   ClaudeToolUseDisplay,
-  ToolExecutionResultRouter,
   MessageContentDisplay,
-  AssistantMessageDetails,
+  ToolExecutionResultRouter,
 } from "./messageRenderer";
+import { getToolName } from "./CollapsibleToolResult";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,7 +27,8 @@ import {
 import { extractClaudeMessageContent } from "../utils/messageUtils";
 import { cn } from "../utils/cn";
 import { COLORS } from "../constants/colors";
-import { formatTime } from "../utils/time";
+import { formatTime, formatTimeShort } from "../utils/time";
+import { getShortModelName } from "../utils/model";
 
 // Search configuration constants
 const SEARCH_MIN_CHARS = 2; // Minimum characters required to trigger search
@@ -55,21 +56,77 @@ interface MessageNodeProps {
   currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
 }
 
+interface MessageHeaderProps {
+  message: ClaudeMessage;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}
+
+const MessageHeader = ({ message, t }: MessageHeaderProps) => {
+  const isToolResultMessage = !!message.toolUseResult && message.type === "user";
+  const toolName = isToolResultMessage
+    ? getToolName(message.toolUse as Record<string, unknown> | undefined, message.toolUseResult)
+    : null;
+  const isLeftAligned = message.type !== "user" || isToolResultMessage;
+
+  return (
+    <div className={cn(
+      "flex items-center mb-1 text-xs text-gray-500 dark:text-gray-400",
+      isLeftAligned ? "justify-between" : "justify-end"
+    )}>
+      <div className="flex items-center gap-1.5">
+        <span className="font-medium">
+          {isToolResultMessage && toolName
+            ? toolName
+            : message.type === "user"
+            ? t("messageViewer.user")
+            : message.type === "assistant"
+            ? t("messageViewer.claude")
+            : t("messageViewer.system")}
+        </span>
+        <span>·</span>
+        <span>{formatTimeShort(message.timestamp)}</span>
+        {message.isSidechain && (
+          <span className="px-1.5 py-0.5 text-[10px] bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded-full">
+            {t("messageViewer.branch")}
+          </span>
+        )}
+      </div>
+
+      {message.type === "assistant" && message.model && (
+        <div className="relative group flex items-center gap-1">
+          <span className="text-gray-400 dark:text-gray-500">{getShortModelName(message.model)}</span>
+          {message.usage && (
+            <>
+              <HelpCircle className="w-3 h-3 cursor-help text-gray-400 dark:text-gray-500" />
+              <div className="absolute bottom-full mb-2 right-0 w-52 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded-lg p-2.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10">
+                <p className="mb-1"><strong>{t("assistantMessageDetails.model")}:</strong> {message.model}</p>
+                <p className="mb-1"><strong>{t("messageViewer.time")}:</strong> {formatTime(message.timestamp)}</p>
+                {message.usage.input_tokens && <p>{t("assistantMessageDetails.input")}: {message.usage.input_tokens.toLocaleString()}</p>}
+                {message.usage.output_tokens && <p>{t("assistantMessageDetails.output")}: {message.usage.output_tokens.toLocaleString()}</p>}
+                {message.usage.cache_creation_input_tokens ? <p>{t("assistantMessageDetails.cacheCreation")}: {message.usage.cache_creation_input_tokens.toLocaleString()}</p> : null}
+                {message.usage.cache_read_input_tokens ? <p>{t("assistantMessageDetails.cacheRead")}: {message.usage.cache_read_input_tokens.toLocaleString()}</p> : null}
+                <div className="absolute right-4 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800 dark:border-t-gray-700"></div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch, searchQuery, filterType = "content", currentMatchIndex }: MessageNodeProps) => {
   const { t } = useTranslation("components");
 
   if (message.isSidechain) {
     return null;
   }
-  // depth에 따른 왼쪽 margin 적용
-  const leftMargin = depth > 0 ? `ml-${Math.min(depth * 4, 16)}` : "";
 
   return (
     <div
       data-message-uuid={message.uuid}
       className={cn(
         "w-full px-4 py-2 transition-colors duration-300",
-        leftMargin,
         message.isSidechain && "bg-gray-100 dark:bg-gray-800",
         // 현재 매치된 메시지 강조
         isCurrentMatch && "bg-yellow-100 dark:bg-yellow-900/30 ring-2 ring-yellow-400 dark:ring-yellow-500",
@@ -78,41 +135,8 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
       )}
     >
       <div className="max-w-4xl mx-auto">
-        {/* depth 표시 (개발 모드에서만) */}
-        {import.meta.env.DEV && depth > 0 && (
-          <div className="text-xs text-gray-400 dark:text-gray-600 mb-1">
-            └─ {t("messageViewer.reply", { depth })}
-          </div>
-        )}
-
-        {/* 메시지 헤더 */}
-        <div
-          className={`flex items-center space-x-2 mb-1 text-md text-gray-500 dark:text-gray-400 ${
-            message.type === "user" ? "justify-end" : "justify-start"
-          }`}
-        >
-          {message.type === "user" && (
-            <div className="w-full h-0.5 bg-gray-100 dark:bg-gray-700 rounded-full" />
-          )}
-          <span className="font-medium whitespace-nowrap">
-            {message.type === "user"
-              ? t("messageViewer.user")
-              : message.type === "assistant"
-              ? t("messageViewer.claude")
-              : t("messageViewer.system")}
-          </span>
-          <span className="whitespace-nowrap">
-            {formatTime(message.timestamp)}
-          </span>
-          {message.isSidechain && (
-            <span className="px-2 py-1 whitespace-nowrap text-xs bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded-full">
-              {t("messageViewer.branch")}
-            </span>
-          )}
-          {message.type === "assistant" && (
-            <div className="w-full h-0.5 bg-gray-100 dark:bg-gray-700 rounded-full" />
-          )}
-        </div>
+        {/* Compact message header */}
+        <MessageHeader message={message} t={t} />
 
         {/* 메시지 내용 */}
         <div className="w-full">
@@ -139,17 +163,8 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
                   filterType={filterType}
                   isCurrentMatch={isCurrentMatch}
                   currentMatchIndex={currentMatchIndex}
+                  skipToolResults={!!message.toolUseResult}
                 />
-              </div>
-            )}
-
-          {/* Special case: when content is null but toolUseResult exists */}
-          {!extractClaudeMessageContent(message) &&
-            message.toolUseResult &&
-            typeof message.toolUseResult === "object" &&
-            Array.isArray(message.toolUseResult.content) && (
-              <div className={cn("text-sm mb-2", COLORS.ui.text.tertiary)}>
-                <span className="italic">:</span>
               </div>
             )}
 
@@ -160,14 +175,8 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
 
           {/* Tool Result */}
           {message.toolUseResult && (
-            <ToolExecutionResultRouter
-              toolResult={message.toolUseResult}
-              depth={depth}
-            />
+            <ToolExecutionResultRouter toolResult={message.toolUseResult} depth={0} />
           )}
-
-          {/* Assistant Metadata */}
-          <AssistantMessageDetails message={message} />
         </div>
       </div>
     </div>
@@ -388,6 +397,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // 스크롤 위치 상태 추가
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  // 맨 위로 스크롤하는 함수
+  const scrollToTop = useCallback(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, []);
 
   // 스크롤 이벤트 최적화 (쓰로틀링 적용)
   useEffect(() => {
@@ -402,7 +419,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             const { scrollTop, scrollHeight, clientHeight } =
               scrollContainerRef.current;
             const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+            const isNearTop = scrollTop < 100;
             setShowScrollToBottom(!isNearBottom && displayMessages.length > 5);
+            setShowScrollToTop(!isNearTop && displayMessages.length > 5);
           }
         } catch (error) {
           console.error("Scroll handler error:", error);
@@ -801,26 +820,41 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           })()}
         </div>
 
-        {/* 플로팅 맨 아래로 버튼 */}
-        {showScrollToBottom && (
-          <button
-            type="button"
-            onClick={scrollToBottom}
-            className={cn(
-              "fixed bottom-10 right-2 p-3 rounded-full shadow-lg transition-all duration-300 z-50",
-              "bg-blue-500/50 hover:bg-blue-600 text-white",
-              "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300",
-              "dark:bg-blue-600/50 dark:hover:bg-blue-700 dark:focus:ring-blue-800",
-              showScrollToBottom
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-2"
-            )}
-            title={t("messageViewer.scrollToBottom")}
-            aria-label={t("messageViewer.scrollToBottom")}
-          >
-            <ChevronDown className="w-3 h-3" />
-          </button>
-        )}
+        {/* Floating scroll buttons */}
+        <div className="fixed bottom-10 right-2 flex flex-col gap-2 z-50">
+          {showScrollToTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className={cn(
+                "p-3 rounded-full shadow-lg transition-all duration-300",
+                "bg-blue-500/50 hover:bg-blue-600 text-white",
+                "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300",
+                "dark:bg-blue-600/50 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+              )}
+              title={t("messageViewer.scrollToTop")}
+              aria-label={t("messageViewer.scrollToTop")}
+            >
+              <ChevronUp className="w-3 h-3" />
+            </button>
+          )}
+          {showScrollToBottom && (
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className={cn(
+                "p-3 rounded-full shadow-lg transition-all duration-300",
+                "bg-blue-500/50 hover:bg-blue-600 text-white",
+                "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300",
+                "dark:bg-blue-600/50 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+              )}
+              title={t("messageViewer.scrollToBottom")}
+              aria-label={t("messageViewer.scrollToBottom")}
+            >
+              <ChevronDown className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

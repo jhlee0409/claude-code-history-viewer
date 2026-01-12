@@ -387,6 +387,7 @@
     "claude": "Claude",
     "system": "系统",
     "branch": "分支",
+    "time": "时间",
     "reply": "回复 (depth: {{depth}})",
     "filterType": "搜索筛选类型",
     "filterContent": "内容",
@@ -400,6 +401,7 @@
     "renderError": "消息渲染错误",
     "checkConsole": "请查看控制台以获取详细错误信息。",
     "refresh": "刷新",
+    "scrollToTop": "滚动到顶部",
     "scrollToBottom": "滚动到底部",
     "debugInfo": {
       "messages": "消息: {{current}} / {{total}}",
@@ -514,7 +516,7 @@
     "unknownResultFormat": "未知结果格式"
   },
   "thinkingRenderer": {
-    "title": "Claude的思考过程"
+    "title": "思考"
   },
   "copyButton": {
     "copy": "复制",

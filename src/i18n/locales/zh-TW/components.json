@@ -387,6 +387,7 @@
     "claude": "Claude",
     "system": "系統",
     "branch": "分支",
+    "time": "時間",
     "reply": "回覆 (depth: {{depth}})",
     "filterType": "搜尋篩選類型",
     "filterContent": "內容",
@@ -400,6 +401,7 @@
     "renderError": "訊息轉譯錯誤",
     "checkConsole": "請查看主控台以取得詳細錯誤資訊。",
     "refresh": "重新整理",
+    "scrollToTop": "捲動到頂部",
     "scrollToBottom": "捲動到底部",
     "debugInfo": {
       "messages": "訊息: {{current}} / {{total}}",
@@ -514,7 +516,7 @@
     "unknownResultFormat": "未知結果格式"
   },
   "thinkingRenderer": {
-    "title": "Claude的思考過程"
+    "title": "思考"
   },
   "copyButton": {
     "copy": "複製",

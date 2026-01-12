@@ -31,28 +31,41 @@ export const FileEditRenderer = ({ toolResult }: Props) => {
       ? toolResult.userModified
       : false;
 
+  const formatShortPath = (path: string): string => {
+    if (!path) return "";
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length <= 3) return parts.join('/');
+    return `…/${parts.slice(-3).join('/')}`;
+  };
+
   return (
     <Renderer
       className={cn(COLORS.tools.code.bg, COLORS.tools.code.border)}
-      enableToggle={false}
     >
       <Renderer.Header
         title={t('fileEditRenderer.fileEditResult')}
         icon={<Edit className={cn("w-4 h-4", COLORS.tools.code.icon)} />}
         titleClassName={COLORS.tools.code.text}
         rightContent={
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
+            {filePath && (
+              <span className="text-xs text-blue-600 dark:text-blue-400 truncate max-w-[250px]" title={filePath}>
+                {formatShortPath(filePath)}
+              </span>
+            )}
             {newString &&
               renderCopyButton(
                 newString,
                 `edit-result-${filePath}`,
-                t('fileEditRenderer.copyChangedResult')
+                t('fileEditRenderer.copyChangedResult'),
+                true
               )}
             {originalFile &&
               renderCopyButton(
                 originalFile,
                 `original-file-${filePath}`,
-                t('fileEditRenderer.copyOriginalFile')
+                t('fileEditRenderer.copyOriginalFile'),
+                true
               )}
           </div>
         }

@@ -20,6 +20,17 @@ export const formatTime = (timestamp: string): string => {
   });
 };
 
+export const formatTimeShort = (timestamp: string): string => {
+  const date = new Date(timestamp);
+  const currentLanguage = i18n.language || "en";
+  const locale = getLocale(currentLanguage);
+
+  return date.toLocaleTimeString(locale, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
 export const formatDuration = (minutes: number): string => {
   if (minutes < 1) {
     return i18n.t("time.lessThanMinute", { ns: "components" });

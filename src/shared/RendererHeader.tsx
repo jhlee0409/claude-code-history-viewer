@@ -54,7 +54,7 @@ const RendererWrapper = ({
     <ContentProvider hasError={hasError} enableToggle={enableToggle}>
       <div
         className={cn(
-          "mt-2 p-3 border rounded-lg",
+          "mt-2 border rounded-lg overflow-hidden",
           className,
           hasError &&
             `${COLORS.semantic.error.bg} ${COLORS.semantic.error.border}`
@@ -84,50 +84,16 @@ const RendererHeader = ({
 
   if (!enableToggle) {
     return (
-      <div className={cn("flex items-center justify-between mb-2")}>
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-2">
-            {hasError ? (
-              <X className={`w-4 h-4 ${COLORS.semantic.error.icon}`} />
-            ) : (
-              icon
-            )}
-            <span
-              className={cn(
-                "font-medium",
-                titleClassName,
-                hasError && COLORS.semantic.error.textDark
-              )}
-            >
-              {`${title} ${hasError ? t("errorOccurred") : ""}`}
-            </span>
-          </div>
-        </div>
-        {rightContent}
-      </div>
-    );
-  }
-  return (
-    <div className={cn("flex items-center justify-between", isOpen && "mb-2")}>
-      <div
-        className="flex items-center space-x-2 cursor-pointer"
-        onClick={toggle}
-      >
-        <ChevronRight
-          className={cn(
-            `p-1 rounded-full ${COLORS.ui.interactive.hover} transition-all duration-200 ${COLORS.ui.text.primary}`,
-            isOpen && "rotate-90"
-          )}
-        />
-        <div className="flex items-center space-x-2">
+      <div className={cn("flex items-center justify-between px-3 py-2")}>
+        <div className="flex items-center gap-2">
           {hasError ? (
-            <X className={`w-4 h-4 ${COLORS.semantic.error.icon}`} />
+            <X className={`w-4 h-4 shrink-0 ${COLORS.semantic.error.icon}`} />
           ) : (
             icon
           )}
           <span
             className={cn(
-              "font-medium",
+              "text-xs font-medium",
               titleClassName,
               hasError && COLORS.semantic.error.textDark
             )}
@@ -135,9 +101,44 @@ const RendererHeader = ({
             {`${title} ${hasError ? t("errorOccurred") : ""}`}
           </span>
         </div>
+        {rightContent}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className={cn(
+        "w-full flex items-center justify-between px-3 py-2 text-left",
+        "hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <ChevronRight
+          className={cn(
+            "w-4 h-4 shrink-0 transition-transform duration-200",
+            COLORS.ui.text.muted,
+            isOpen && "rotate-90"
+          )}
+        />
+        {hasError ? (
+          <X className={`w-4 h-4 shrink-0 ${COLORS.semantic.error.icon}`} />
+        ) : (
+          icon
+        )}
+        <span
+          className={cn(
+            "text-xs font-medium",
+            titleClassName,
+            hasError && COLORS.semantic.error.textDark
+          )}
+        >
+          {`${title} ${hasError ? t("errorOccurred") : ""}`}
+        </span>
       </div>
       {rightContent}
-    </div>
+    </button>
   );
 };
 
@@ -149,10 +150,10 @@ const RendererContent = ({ children }: RendererContentProps) => {
   const { isOpen, enableToggle } = useContext(ContentContext);
 
   if (!enableToggle) {
-    return children;
+    return <div className="px-3 pb-3">{children}</div>;
   }
 
-  return isOpen ? children : null;
+  return isOpen ? <div className="px-3 pb-3">{children}</div> : null;
 };
 
 export const Renderer = Object.assign(RendererWrapper, {

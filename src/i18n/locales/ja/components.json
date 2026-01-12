@@ -372,6 +372,7 @@
     "claude": "Claude",
     "system": "システム",
     "branch": "ブランチ",
+    "time": "時刻",
     "reply": "返信 (depth: {{depth}})",
     "filterType": "検索フィルタータイプ",
     "filterContent": "内容",
@@ -385,6 +386,7 @@
     "renderError": "メッセージレンダリングエラー",
     "checkConsole": "詳細なエラー情報はコンソールで確認してください。",
     "refresh": "更新",
+    "scrollToTop": "最上部に移動",
     "scrollToBottom": "最下部に移動",
     "debugInfo": {
       "messages": "メッセージ: {{current}} / {{total}}",
@@ -499,7 +501,7 @@
     "unknownResultFormat": "不明な結果フォーマット"
   },
   "thinkingRenderer": {
-    "title": "Claudeの思考プロセス"
+    "title": "思考"
   },
   "copyButton": {
     "copy": "コピー",

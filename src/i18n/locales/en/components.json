@@ -373,6 +373,7 @@
     "claude": "Claude",
     "system": "System",
     "branch": "Branch",
+    "time": "Time",
     "reply": "Reply (depth: {{depth}})",
     "loadingMessages": "Loading messages...",
     "noMessages": "No messages",
@@ -383,6 +384,7 @@
     "renderError": "Message rendering error",
     "checkConsole": "Check the console for detailed error information.",
     "refresh": "Refresh",
+    "scrollToTop": "Scroll to top",
     "scrollToBottom": "Scroll to bottom",
     "debugInfo": {
       "messages": "Messages: {{current}} / {{total}}",
@@ -505,7 +507,7 @@
     "unknownResultFormat": "Unknown result format"
   },
   "thinkingRenderer": {
-    "title": "Claude's thought process"
+    "title": "Thoughts"
   },
   "copyButton": {
     "copy": "Copy",
