@@ -41,6 +41,7 @@ type Props = {
   filterType?: SearchFilterType;
   isCurrentMatch?: boolean;
   currentMatchIndex?: number;
+  skipToolResults?: boolean;
 };
 
 const isContentItem = (item: unknown): item is Record<string, unknown> => {
@@ -168,6 +169,7 @@ export const ClaudeContentArrayRenderer = memo(function ClaudeContentArrayRender
   filterType = "content",
   isCurrentMatch = false,
   currentMatchIndex = 0,
+  skipToolResults = false,
 }: Props) {
   const { t } = useTranslation("components");
   if (!Array.isArray(content) || content.length === 0) {
@@ -231,9 +233,6 @@ export const ClaudeContentArrayRenderer = memo(function ClaudeContentArrayRender
           case "thinking":
             if (typeof item.thinking === "string") {
               return <ThinkingRenderer key={index} thinking={item.thinking} />;
-            }
-            if (typeof item.content === "string") {
-              return <ThinkingRenderer key={index} thinking={item.content} />;
             }
             return null;
 
@@ -380,6 +379,7 @@ export const ClaudeContentArrayRenderer = memo(function ClaudeContentArrayRender
             );
 
           case "tool_result":
+            if (skipToolResults) return null;
             return (
               <ClaudeToolResultItem
                 key={index}

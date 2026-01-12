@@ -206,9 +206,9 @@ export const ToolUseRenderer = ({
                   }}
                 >
                   {tokens.map((line, i) => (
-                    <div key={i} {...getLineProps({ line, key: i })}>
-                      {line.map((token, key) => (
-                        <span key={key} {...getTokenProps({ token, key })} />
+                    <div key={i} {...getLineProps({ line })}>
+                      {line.map((token, j) => (
+                        <span key={j} {...getTokenProps({ token })} />
                       ))}
                     </div>
                   ))}
@@ -411,9 +411,9 @@ export const ToolUseRenderer = ({
                 }}
               >
                 {tokens.map((line, i) => (
-                  <div key={i} {...getLineProps({ line, key: i })}>
-                    {line.map((token, key) => (
-                      <span key={key} {...getTokenProps({ token, key })} />
+                  <div key={i} {...getLineProps({ line })}>
+                    {line.map((token, j) => (
+                      <span key={j} {...getTokenProps({ token })} />
                     ))}
                   </div>
                 ))}
