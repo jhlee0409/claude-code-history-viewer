@@ -75,8 +75,8 @@ export const ClaudeContentArrayRenderer = ({
             return null;
 
           case "thinking":
-            if (typeof item.content === "string") {
-              return <ThinkingRenderer key={index} content={item.content} />;
+            if (typeof item.thinking === "string") {
+              return <ThinkingRenderer key={index} thinking={item.thinking} />;
             }
             return null;
 
@@ -94,6 +94,7 @@ export const ClaudeContentArrayRenderer = ({
           case "tool_result":
             return (
               <ClaudeToolResultItem
+                key={index}
                 toolResult={item}
                 index={index}
                 searchQuery={filterType === "toolId" ? searchQuery : ""}
