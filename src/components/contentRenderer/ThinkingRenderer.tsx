@@ -1,50 +1,54 @@
-import { Bot } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useState } from "react";
+import { Bot, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { cn } from "../../utils/cn";
 
 type Props = {
-  text?: string;
-  content?: string;
+  thinking: string;
 };
 
-export const ThinkingRenderer = ({ text, content }: Props) => {
-  const { t } = useTranslation('components');
-  const textContent = text || content || "";
-  if (!textContent) return null;
-  // Extract thinking content and regular content
-  const thinkingRegex = /<thinking>(.*?)<\/thinking>/gs;
-  const matches = textContent.match(thinkingRegex);
-  const withoutThinking = textContent.replace(thinkingRegex, "").trim();
+export const ThinkingRenderer = ({ thinking }: Props) => {
+  const { t } = useTranslation("components");
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!thinking) return null;
+
+  const firstLine = thinking.split("\n")[0]?.slice(0, 100);
+  const hasMore = firstLine && thinking.length > (firstLine.length || 0);
 
   return (
-    <div className="space-y-2">
-      {matches &&
-        matches.map((match, idx) => {
-          const thinkingContent = match.replace(/<\/?thinking>/g, "").trim();
-          return (
-            <div
-              key={idx}
-              className="bg-amber-50 border border-amber-200 rounded-lg p-3"
-            >
-              <div className="flex items-center space-x-2 mb-2">
-                <Bot className="w-4 h-4 text-amber-600" />
-                <span className="text-xs font-medium text-amber-800">
-                  {t('thinkingRenderer.title')}
-                </span>
-              </div>
-              <div className="text-sm text-amber-700 italic">
-                {thinkingContent}
-              </div>
-            </div>
-          );
-        })}
+    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg mt-2 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-2 text-left",
+          "hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+        )}
+      >
+        <ChevronRight
+          className={cn(
+            "w-4 h-4 shrink-0 transition-transform duration-200 text-amber-500 dark:text-amber-400",
+            isExpanded && "rotate-90"
+          )}
+        />
+        <Bot className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+        <span className="text-xs font-medium text-amber-800 dark:text-amber-200">
+          {t("thinkingRenderer.title")}
+        </span>
+        {!isExpanded && (
+          <span className="text-xs text-amber-600 dark:text-amber-400 truncate italic">
+            {firstLine}
+            {hasMore && "..."}
+          </span>
+        )}
+      </button>
 
-      {withoutThinking && (
-        <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-blue-600 prose-code:text-red-600 prose-code:bg-gray-100">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {withoutThinking}
-          </ReactMarkdown>
+      {isExpanded && (
+        <div className="px-3 pb-3">
+          <div className="text-sm text-amber-700 dark:text-amber-300 whitespace-pre-wrap">
+            {thinking}
+          </div>
         </div>
       )}
     </div>

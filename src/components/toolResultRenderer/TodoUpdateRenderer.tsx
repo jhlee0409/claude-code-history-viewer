@@ -40,7 +40,6 @@ export const TodoUpdateRenderer = ({ todoData }: Props) => {
         "border",
         COLORS.tools.search.border
       )}
-      enableToggle={false}
     >
       <Renderer.Header
         title={t("tools.todoUpdate")}

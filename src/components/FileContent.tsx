@@ -126,6 +126,24 @@ export const FileContent = ({
 
   const language = getLanguageFromPath(filePath);
 
+  // Format path to show filename with up to 2 parent directories
+  const formatShortPath = (path: string): string => {
+    if (!path) return "";
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length <= 3) return parts.join('/');
+    return `…/${parts.slice(-3).join('/')}`;
+  };
+
+  // Format line info - simplified
+  const formatLineInfo = (): string | null => {
+    if (numLines <= 0 || totalLines <= 0) return null;
+    const isPartial = startLine > 1 || numLines < totalLines;
+    if (isPartial) {
+      return `${startLine}-${startLine + numLines - 1} of ${totalLines}`;
+    }
+    return `${totalLines} lines`;
+  };
+
   // 접기/펼치기 상태 관리
   const [isExpanded, setIsExpanded] = useState(false);
   const MAX_LINES = 20; // 최대 표시 줄 수
@@ -146,23 +164,20 @@ export const FileContent = ({
         icon={<FileText className={cn("w-4 h-4", COLORS.semantic.info.icon)} />}
         titleClassName={cn(COLORS.semantic.info.text)}
         rightContent={
-          <div className="flex items-center space-x-2">
-            {/* 파일 내용 복사 버튼 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-blue-600 dark:text-blue-400 truncate max-w-[250px]" title={filePath}>
+              {filePath && formatShortPath(filePath)}
+              {formatLineInfo() && (
+                <span className="ml-1.5">· {formatLineInfo()}</span>
+              )}
+            </span>
             {content &&
               renderCopyButton(
                 content,
                 `file-content-${filePath}`,
-                t("fileContent.copyFileContent")
+                t("fileContent.copyFileContent"),
+                true
               )}
-
-            <div className={cn("text-xs", COLORS.semantic.info.text)}>
-              {numLines > 0 && totalLines > 0 && (
-                <span>
-                  {startLine}-{startLine + numLines - 1} / {totalLines}{" "}
-                  {t("fileContent.lines")}
-                </span>
-              )}
-            </div>
           </div>
         }
       />

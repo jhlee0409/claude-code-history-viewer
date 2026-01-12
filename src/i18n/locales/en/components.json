@@ -373,6 +373,7 @@
     "claude": "Claude",
     "system": "System",
     "branch": "Branch",
+    "time": "Time",
     "reply": "Reply (depth: {{depth}})",
     "loadingMessages": "Loading messages...",
     "noMessages": "No messages",
@@ -383,6 +384,7 @@
     "renderError": "Message rendering error",
     "checkConsole": "Check the console for detailed error information.",
     "refresh": "Refresh",
+    "scrollToTop": "Scroll to top",
     "scrollToBottom": "Scroll to bottom",
     "debugInfo": {
       "messages": "Messages: {{current}} / {{total}}",
@@ -401,7 +403,11 @@
     "tryDifferentKeyword": "Try a different keyword",
     "filterType": "Search filter type",
     "filterContent": "Content",
-    "filterToolId": "Tool ID"
+    "filterToolId": "Tool ID",
+    "messagesShort": "msgs",
+    "toolsUsed": "tools",
+    "hasErrors": "errors",
+    "priorContext": "Prior Context"
   },
   "commandRenderer": {
     "commandExecution": "Command Execution",
@@ -410,7 +416,8 @@
     "status": "Status:",
     "errorOutput": "Error Output",
     "executionResult": "Execution Result",
-    "unknownContentType": "Unknown content type"
+    "unknownContentType": "Unknown content type",
+    "systemNote": "System Note"
   },
   "toolUseRenderer": {
     "fileCreation": "File Creation",
@@ -505,7 +512,7 @@
     "unknownResultFormat": "Unknown result format"
   },
   "thinkingRenderer": {
-    "title": "Claude's thought process"
+    "title": "Thoughts"
   },
   "copyButton": {
     "copy": "Copy",

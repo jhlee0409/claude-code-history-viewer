@@ -1,11 +1,16 @@
-import { FileText } from "lucide-react";
-import { useTranslation } from 'react-i18next';
+"use client";
+
+import { FileText, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Renderer } from "../../shared/RendererHeader";
+import { cn } from "../../utils/cn";
+import { COLORS } from "../../constants/colors";
 
 type Props = {
   contextData: Record<string, unknown>;
 };
 
-// 코드베이스 컨텍스트 정보 렌더링
 export const CodebaseContextRenderer = ({ contextData }: Props) => {
   const { t } = useTranslation('components');
   const filesAnalyzed =
@@ -15,48 +20,77 @@ export const CodebaseContextRenderer = ({ contextData }: Props) => {
   const relevantFiles =
     contextData.relevant_files || contextData.relevantFiles || [];
 
+  const [showFiles, setShowFiles] = useState(false);
+
   return (
-    <div className="mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-      <div className="flex items-center space-x-2 mb-3">
-        <FileText className="w-4 h-4 text-indigo-600" />
-        <span className="font-medium text-indigo-800">{t('codebaseContextRenderer.codebaseContext')}</span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <span className="text-indigo-700 font-medium">{t('codebaseContextRenderer.analyzedFiles')}</span>
-          <span className="ml-2 text-indigo-900">
-            {t('codebaseContextRenderer.filesCount', { count: Number(filesAnalyzed) })}
-          </span>
+    <Renderer
+      className={cn(
+        "bg-indigo-50 dark:bg-indigo-900/20",
+        "border-indigo-200 dark:border-indigo-800"
+      )}
+    >
+      <Renderer.Header
+        title={t('codebaseContextRenderer.codebaseContext')}
+        icon={<FileText className={cn("w-4 h-4", COLORS.tools.system.icon)} />}
+        titleClassName={COLORS.tools.system.text}
+      />
+      <Renderer.Content>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className={cn("font-medium", COLORS.tools.system.text)}>
+              {t('codebaseContextRenderer.analyzedFiles')}
+            </span>
+            <span className={cn("ml-2", COLORS.ui.text.primary)}>
+              {t('codebaseContextRenderer.filesCount', { count: Number(filesAnalyzed) })}
+            </span>
+          </div>
+          <div>
+            <span className={cn("font-medium", COLORS.tools.system.text)}>
+              {t('codebaseContextRenderer.contextWindow')}
+            </span>
+            <span className={cn("ml-2", COLORS.ui.text.primary)}>
+              {String(contextWindow)}
+            </span>
+          </div>
         </div>
-        <div>
-          <span className="text-indigo-700 font-medium">{t('codebaseContextRenderer.contextWindow')}</span>
-          <span className="ml-2 text-indigo-900">{String(contextWindow)}</span>
-        </div>
-      </div>
 
-      {Array.isArray(relevantFiles) && relevantFiles.length > 0 && (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-indigo-700 font-medium text-sm">
-            {t('codebaseContextRenderer.relevantFiles', { count: relevantFiles.length })}
-          </summary>
-          <div className="mt-2 space-y-1">
-            {relevantFiles.slice(0, 10).map((file, idx) => (
-              <div
-                key={idx}
-                className="text-xs font-mono text-indigo-800 bg-indigo-100 px-2 py-1 rounded"
-              >
-                {String(file)}
-              </div>
-            ))}
-            {relevantFiles.length > 10 && (
-              <div className="text-xs text-indigo-600 italic">
-                {t('codebaseContextRenderer.andMoreFiles', { count: relevantFiles.length - 10 })}
+        {Array.isArray(relevantFiles) && relevantFiles.length > 0 && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setShowFiles(!showFiles)}
+              className={cn(
+                "flex items-center space-x-1 text-sm font-medium cursor-pointer",
+                COLORS.tools.system.text
+              )}
+            >
+              <ChevronRight className={cn("w-3 h-3 transition-transform", showFiles && "rotate-90")} />
+              <span>{t('codebaseContextRenderer.relevantFiles', { count: relevantFiles.length })}</span>
+            </button>
+            {showFiles && (
+              <div className="mt-2 space-y-1">
+                {relevantFiles.slice(0, 10).map((file, idx) => (
+                  <div
+                    key={idx}
+                    className={cn(
+                      "text-xs font-mono px-2 py-1 rounded",
+                      "bg-indigo-100 dark:bg-indigo-900/40",
+                      COLORS.tools.system.text
+                    )}
+                  >
+                    {String(file)}
+                  </div>
+                ))}
+                {relevantFiles.length > 10 && (
+                  <div className={cn("text-xs italic", COLORS.ui.text.muted)}>
+                    {t('codebaseContextRenderer.andMoreFiles', { count: relevantFiles.length - 10 })}
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </details>
-      )}
-    </div>
+        )}
+      </Renderer.Content>
+    </Renderer>
   );
 };

@@ -16,7 +16,6 @@ export const ErrorRenderer = ({ error }: Props) => {
 
   return (
     <Renderer
-      enableToggle={false}
       className={`${COLORS.semantic.error.bg} ${COLORS.semantic.error.border}`}
     >
       <Renderer.Header

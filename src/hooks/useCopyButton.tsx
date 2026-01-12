@@ -39,9 +39,37 @@ export const useCopyButton = () => {
   const renderCopyButton = (
     text: string,
     id: string,
-    label: string = t('copyButton.copy')
+    label: string = t('copyButton.copy'),
+    iconOnly: boolean = false
   ) => {
     const state = copyStates[id] || "idle";
+
+    if (iconOnly) {
+      return (
+        <TooltipButton
+          onClick={() => copyToClipboard(text, id)}
+          disabled={state === "copying"}
+          className={`p-1 rounded transition-colors ${
+            state === "success"
+              ? "text-green-600 dark:text-green-400"
+              : state === "error"
+              ? "text-red-600 dark:text-red-400"
+              : "text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          }`}
+          content={label}
+        >
+          {state === "copying" ? (
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          ) : state === "success" ? (
+            <Check className="w-3.5 h-3.5" />
+          ) : state === "error" ? (
+            <X className="w-3.5 h-3.5" />
+          ) : (
+            <Clipboard className="w-3.5 h-3.5" />
+          )}
+        </TooltipButton>
+      );
+    }
 
     return (
       <TooltipButton

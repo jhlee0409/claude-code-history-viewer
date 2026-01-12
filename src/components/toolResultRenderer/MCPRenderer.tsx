@@ -1,12 +1,16 @@
 "use client";
-import { Globe } from "lucide-react";
-import { useTranslation } from 'react-i18next';
+
+import { Globe, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Renderer } from "../../shared/RendererHeader";
+import { cn } from "../../utils/cn";
+import { COLORS } from "../../constants/colors";
 
 type Props = {
   mcpData: Record<string, unknown>;
 };
 
-// MCP 도구 호출 결과 렌더링
 export const MCPRenderer = ({ mcpData }: Props) => {
   const { t } = useTranslation('components');
   const server = mcpData.server || "unknown";
@@ -15,46 +19,92 @@ export const MCPRenderer = ({ mcpData }: Props) => {
   const result = mcpData.result || {};
   const error = mcpData.error;
 
+  const [showParams, setShowParams] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+
   return (
-    <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center space-x-2">
-          <Globe className="w-4 h-4 text-purple-600" />
-          <span className="font-medium text-purple-800">{t('mcpRenderer.mcpToolCall')}</span>
-        </div>
-        <div className="text-xs text-purple-600">
-          {String(server)}.{String(method)}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {/* 매개변수 */}
-        <details className="text-sm">
-          <summary className="cursor-pointer text-purple-700 font-medium">
-            {t('mcpRenderer.parameters')}
-          </summary>
-          <pre className="mt-1 p-2 bg-purple-100 rounded text-xs overflow-auto">
-            {JSON.stringify(params, null, 2)}
-          </pre>
-        </details>
-
-        {/* 결과 */}
-        {error ? (
-          <div className="p-2 bg-red-100 border border-red-200 rounded">
-            <div className="text-xs font-medium text-red-800 mb-1">{t('mcpRenderer.error')}</div>
-            <div className="text-sm text-red-700">{String(error)}</div>
+    <Renderer
+      className={cn(
+        "bg-purple-50 dark:bg-purple-900/20",
+        "border-purple-200 dark:border-purple-800"
+      )}
+    >
+      <Renderer.Header
+        title={t('mcpRenderer.mcpToolCall')}
+        icon={<Globe className={cn("w-4 h-4", COLORS.tools.search.icon)} />}
+        titleClassName={COLORS.tools.search.text}
+        rightContent={
+          <div className={cn("text-xs", COLORS.tools.search.text)}>
+            {String(server)}.{String(method)}
           </div>
-        ) : (
-          <details className="text-sm">
-            <summary className="cursor-pointer text-purple-700 font-medium">
-              {t('mcpRenderer.executionResult')}
-            </summary>
-            <pre className="mt-1 p-2 bg-gray-100 rounded text-xs overflow-auto">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          </details>
-        )}
-      </div>
-    </div>
+        }
+      />
+      <Renderer.Content>
+        <div className="space-y-2">
+          {/* 매개변수 */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowParams(!showParams)}
+              className={cn(
+                "flex items-center space-x-1 text-sm font-medium cursor-pointer",
+                COLORS.tools.search.text
+              )}
+            >
+              <ChevronRight className={cn("w-3 h-3 transition-transform", showParams && "rotate-90")} />
+              <span>{t('mcpRenderer.parameters')}</span>
+            </button>
+            {showParams && (
+              <pre className={cn(
+                "mt-1 p-2 rounded text-xs overflow-auto",
+                "bg-purple-100 dark:bg-purple-900/40",
+                COLORS.ui.text.primary
+              )}>
+                {JSON.stringify(params, null, 2)}
+              </pre>
+            )}
+          </div>
+
+          {/* 결과 */}
+          {error ? (
+            <div className={cn(
+              "p-2 rounded border",
+              "bg-red-100 dark:bg-red-900/30",
+              "border-red-200 dark:border-red-800"
+            )}>
+              <div className={cn("text-xs font-medium mb-1", COLORS.semantic.error.text)}>
+                {t('mcpRenderer.error')}
+              </div>
+              <div className={cn("text-sm", COLORS.semantic.error.text)}>
+                {String(error)}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowResult(!showResult)}
+                className={cn(
+                  "flex items-center space-x-1 text-sm font-medium cursor-pointer",
+                  COLORS.tools.search.text
+                )}
+              >
+                <ChevronRight className={cn("w-3 h-3 transition-transform", showResult && "rotate-90")} />
+                <span>{t('mcpRenderer.executionResult')}</span>
+              </button>
+              {showResult && (
+                <pre className={cn(
+                  "mt-1 p-2 rounded text-xs overflow-auto",
+                  "bg-gray-100 dark:bg-gray-800",
+                  COLORS.ui.text.primary
+                )}>
+                  {JSON.stringify(result, null, 2)}
+                </pre>
+              )}
+            </div>
+          )}
+        </div>
+      </Renderer.Content>
+    </Renderer>
   );
 };

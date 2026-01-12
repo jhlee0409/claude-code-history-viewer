@@ -10,7 +10,8 @@ type Props = {
   searchQuery?: string;
   filterType?: SearchFilterType;
   isCurrentMatch?: boolean;
-  currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
+  currentMatchIndex?: number;
+  skipToolResults?: boolean;
 };
 
 // Type guard for content items
@@ -24,6 +25,7 @@ export const ClaudeContentArrayRenderer = ({
   filterType = "content",
   isCurrentMatch = false,
   currentMatchIndex = 0,
+  skipToolResults = false,
 }: Props) => {
   const { t } = useTranslation("components");
   if (!Array.isArray(content) || content.length === 0) {
@@ -75,8 +77,8 @@ export const ClaudeContentArrayRenderer = ({
             return null;
 
           case "thinking":
-            if (typeof item.content === "string") {
-              return <ThinkingRenderer key={index} content={item.content} />;
+            if (typeof item.thinking === "string") {
+              return <ThinkingRenderer key={index} thinking={item.thinking} />;
             }
             return null;
 
@@ -92,8 +94,10 @@ export const ClaudeContentArrayRenderer = ({
             );
 
           case "tool_result":
+            if (skipToolResults) return null;
             return (
               <ClaudeToolResultItem
+                key={index}
                 toolResult={item}
                 index={index}
                 searchQuery={filterType === "toolId" ? searchQuery : ""}

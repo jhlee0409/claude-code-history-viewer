@@ -1,9 +1,11 @@
-import { Terminal, CheckCircle, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { Terminal, CheckCircle, AlertCircle, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../../utils/cn";
+import { COLORS } from "../../constants/colors";
 
 type Props = {
   text: string;
@@ -18,6 +20,10 @@ interface CommandGroup {
 interface OutputTag {
   type: "stdout" | "stderr" | "other";
   name: string;
+  content: string;
+}
+
+interface CaveatBlock {
   content: string;
 }
 
@@ -87,35 +93,45 @@ export const CommandRenderer = ({ text }: Props) => {
     }
   }
 
-  console.log("Extracted command group:", commandGroup);
-  console.log("Extracted output tags:", outputTags);
+  // Extract local-command-caveat tags
+  const caveatRegex = /<local-command-caveat>\s*(.*?)\s*<\/local-command-caveat>/gs;
+  const caveats: CaveatBlock[] = [];
+  let caveatMatch;
+  while ((caveatMatch = caveatRegex.exec(text)) !== null) {
+    const [, content] = caveatMatch;
+    if (content && content.trim()) {
+      caveats.push({ content: content.trim() });
+    }
+  }
 
-  // 모든 태그 제거
+  // Remove all tags
   const withoutCommands = text
     .replace(commandNameRegex, "")
     .replace(commandMessageRegex, "")
     .replace(commandArgsRegex, "")
     .replace(stdoutRegex, "")
     .replace(stderrRegex, "")
-    .replace(/^\s*\n/gm, "") // 빈 줄 제거
+    .replace(caveatRegex, "")
+    .replace(/^\s*\n/gm, "")
     .trim();
 
   const hasCommandGroup =
     commandGroup.name || commandGroup.message || commandGroup.args;
   const hasOutputs = outputTags.length > 0;
+  const hasCaveats = caveats.length > 0;
 
-  if (!hasCommandGroup && !hasOutputs && !withoutCommands) {
+  if (!hasCommandGroup && !hasOutputs && !hasCaveats && !withoutCommands) {
     return null;
   }
 
   return (
     <div className="space-y-2">
-      {/* Command Group - 한 묶음으로 처리 */}
+      {/* Command Group */}
       {hasCommandGroup && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+        <div className={cn("rounded-lg p-3 border", COLORS.tools.system.bg, COLORS.tools.system.border)}>
           <div className="flex items-center space-x-2 mb-2">
-            <Terminal className="w-4 h-4 text-indigo-600" />
-            <span className="text-xs font-medium text-indigo-800">
+            <Terminal className={cn("w-4 h-4", COLORS.tools.system.icon)} />
+            <span className={cn("text-xs font-medium", COLORS.tools.system.text)}>
               {t("commandRenderer.commandExecution")}
             </span>
           </div>
@@ -123,10 +139,10 @@ export const CommandRenderer = ({ text }: Props) => {
           <div className="space-y-2">
             {commandGroup.name && (
               <div className="flex items-start space-x-2">
-                <span className="text-xs font-medium text-indigo-700 mt-0.5 min-w-[40px]">
+                <span className={cn("text-xs font-medium mt-0.5 min-w-[40px]", COLORS.tools.system.text)}>
                   {t("commandRenderer.command")}
                 </span>
-                <code className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-xs font-mono">
+                <code className={cn("px-2 py-1 rounded text-xs font-mono", COLORS.tools.system.bgDark, COLORS.tools.system.text)}>
                   {commandGroup.name}
                 </code>
               </div>
@@ -134,10 +150,10 @@ export const CommandRenderer = ({ text }: Props) => {
 
             {commandGroup.args && (
               <div className="flex items-start space-x-2">
-                <span className="text-xs font-medium text-indigo-700 mt-0.5 min-w-[40px]">
+                <span className={cn("text-xs font-medium mt-0.5 min-w-[40px]", COLORS.tools.system.text)}>
                   {t("commandRenderer.arguments")}
                 </span>
-                <code className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-mono whitespace-pre-wrap">
+                <code className={cn("px-2 py-1 rounded text-xs font-mono whitespace-pre-wrap", COLORS.tools.search.bgDark, COLORS.tools.search.text)}>
                   {commandGroup.args}
                 </code>
               </div>
@@ -145,10 +161,10 @@ export const CommandRenderer = ({ text }: Props) => {
 
             {commandGroup.message && (
               <div className="flex items-start space-x-2">
-                <span className="text-xs font-medium text-indigo-700 mt-0.5 min-w-[40px]">
+                <span className={cn("text-xs font-medium mt-0.5 min-w-[40px]", COLORS.tools.system.text)}>
                   {t("commandRenderer.status")}
                 </span>
-                <span className="text-sm text-indigo-600 italic">
+                <span className={cn("text-sm italic", COLORS.tools.system.icon)}>
                   {commandGroup.message}
                 </span>
               </div>
@@ -157,14 +173,10 @@ export const CommandRenderer = ({ text }: Props) => {
         </div>
       )}
 
-      {/* 출력 태그들 */}
+      {/* Output Tags */}
       {outputTags.map((output, index) => {
         const isError = output.type === "stderr";
-        const bgColor = isError ? "bg-red-50" : "bg-green-50";
-        const borderColor = isError ? "border-red-200" : "border-green-200";
-        const textColor = isError ? "text-red-800" : "text-green-800";
-        const contentBg = isError ? "bg-red-100" : "bg-green-100";
-        const contentText = isError ? "text-red-700" : "text-green-700";
+        const colors = isError ? COLORS.semantic.error : COLORS.semantic.success;
         const Icon = isError ? AlertCircle : CheckCircle;
         const label = isError
           ? t("commandRenderer.errorOutput")
@@ -173,20 +185,20 @@ export const CommandRenderer = ({ text }: Props) => {
         return (
           <div
             key={index}
-            className={`${bgColor} border ${borderColor} rounded-lg p-3`}
+            className={cn("rounded-lg p-3 border", colors.bg, colors.border)}
           >
             <div className="flex items-center space-x-2 mb-2">
-              <Icon className={`w-4 h-4 ${textColor}`} />
-              <span className={`text-xs font-medium ${textColor}`}>
+              <Icon className={cn("w-4 h-4", colors.icon)} />
+              <span className={cn("text-xs font-medium", colors.textDark)}>
                 {label} ({output.name})
               </span>
             </div>
 
             <div
               className={cn(
-                `p-2 rounded max-h-80 overflow-y-auto text-sm`,
-                contentBg,
-                contentText
+                "p-2 rounded max-h-80 overflow-y-auto text-sm",
+                colors.bgDark,
+                colors.text
               )}
             >
               <Markdown remarkPlugins={[remarkGfm]}>{output.content}</Markdown>
@@ -195,12 +207,52 @@ export const CommandRenderer = ({ text }: Props) => {
         );
       })}
 
-      {/* 나머지 텍스트 */}
+      {/* Caveats - collapsible info blocks */}
+      {caveats.map((caveat, index) => (
+        <CaveatRenderer key={index} content={caveat.content} />
+      ))}
+
+      {/* Remaining Text */}
       {withoutCommands && (
-        <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-blue-600 prose-code:text-red-600 prose-code:bg-gray-100">
+        <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-code:text-red-600 dark:prose-code:text-red-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-800">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {withoutCommands}
           </ReactMarkdown>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CaveatRenderer = ({ content }: { content: string }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { t } = useTranslation("components");
+
+  return (
+    <div className={cn("rounded-lg border", COLORS.semantic.info.bg, COLORS.semantic.info.border)}>
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-2 text-left",
+          "hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors rounded-lg"
+        )}
+      >
+        <ChevronRight
+          className={cn(
+            "w-4 h-4 transition-transform",
+            COLORS.semantic.info.icon,
+            isExpanded && "rotate-90"
+          )}
+        />
+        <Info className={cn("w-4 h-4", COLORS.semantic.info.icon)} />
+        <span className={cn("text-xs font-medium", COLORS.semantic.info.text)}>
+          {t("commandRenderer.systemNote")}
+        </span>
+      </button>
+
+      {isExpanded && (
+        <div className={cn("px-3 pb-3 text-xs", COLORS.semantic.info.text)}>
+          {content}
         </div>
       )}
     </div>

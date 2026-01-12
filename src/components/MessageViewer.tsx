@@ -6,28 +6,22 @@ import React, {
   useMemo,
   useDeferredValue,
 } from "react";
-import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X, Filter } from "lucide-react";
+import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X, HelpCircle, ChevronRight, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeMessage, ClaudeSession } from "../types";
 import type { SearchState, SearchFilterType } from "../store/useAppStore";
 import { ClaudeContentArrayRenderer } from "./contentRenderer";
 import {
   ClaudeToolUseDisplay,
-  ToolExecutionResultRouter,
   MessageContentDisplay,
-  AssistantMessageDetails,
+  ToolExecutionResultRouter,
 } from "./messageRenderer";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
+import { getToolName } from "./CollapsibleToolResult";
 import { extractClaudeMessageContent } from "../utils/messageUtils";
 import { cn } from "../utils/cn";
 import { COLORS } from "../constants/colors";
-import { formatTime } from "../utils/time";
+import { formatTime, formatTimeShort } from "../utils/time";
+import { getShortModelName } from "../utils/model";
 
 // Search configuration constants
 const SEARCH_MIN_CHARS = 2; // Minimum characters required to trigger search
@@ -55,21 +49,183 @@ interface MessageNodeProps {
   currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
 }
 
+interface MessageHeaderProps {
+  message: ClaudeMessage;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}
+
+const hasSystemCommandContent = (message: ClaudeMessage): boolean => {
+  const content = extractClaudeMessageContent(message);
+  if (!content || typeof content !== "string") return false;
+  // Check for actual XML tag pairs, not just strings in backticks
+  return /<command-name>[\s\S]*?<\/command-name>/.test(content) ||
+         /<local-command-caveat>[\s\S]*?<\/local-command-caveat>/.test(content) ||
+         /<command-message>[\s\S]*?<\/command-message>/.test(content);
+};
+
+const MessageHeader = ({ message, t }: MessageHeaderProps) => {
+  const isToolResultMessage = !!message.toolUseResult && message.type === "user";
+  const isSystemContent = hasSystemCommandContent(message);
+  const toolName = isToolResultMessage
+    ? getToolName(message.toolUse as Record<string, unknown> | undefined, message.toolUseResult)
+    : null;
+  const isLeftAligned = message.type !== "user" || isToolResultMessage || isSystemContent;
+
+  return (
+    <div className={cn(
+      "flex items-center mb-1 text-xs text-gray-500 dark:text-gray-400",
+      isLeftAligned ? "justify-between" : "justify-end"
+    )}>
+      <div className="flex items-center gap-1.5">
+        <span className="font-medium">
+          {isToolResultMessage && toolName
+            ? toolName
+            : isSystemContent
+            ? t("messageViewer.system")
+            : message.type === "user"
+            ? t("messageViewer.user")
+            : message.type === "assistant"
+            ? t("messageViewer.claude")
+            : t("messageViewer.system")}
+        </span>
+        <span>·</span>
+        <span>{formatTimeShort(message.timestamp)}</span>
+        {message.isSidechain && (
+          <span className="px-1.5 py-0.5 text-[10px] bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded-full">
+            {t("messageViewer.branch")}
+          </span>
+        )}
+      </div>
+
+      {message.type === "assistant" && message.model && (
+        <div className="relative group flex items-center gap-1">
+          <span className="text-gray-400 dark:text-gray-500">{getShortModelName(message.model)}</span>
+          {message.usage && (
+            <>
+              <HelpCircle className="w-3 h-3 cursor-help text-gray-400 dark:text-gray-500" />
+              <div className="absolute bottom-full mb-2 right-0 w-52 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded-lg p-2.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10">
+                <p className="mb-1"><strong>{t("assistantMessageDetails.model")}:</strong> {message.model}</p>
+                <p className="mb-1"><strong>{t("messageViewer.time")}:</strong> {formatTime(message.timestamp)}</p>
+                {message.usage.input_tokens && <p>{t("assistantMessageDetails.input")}: {message.usage.input_tokens.toLocaleString()}</p>}
+                {message.usage.output_tokens && <p>{t("assistantMessageDetails.output")}: {message.usage.output_tokens.toLocaleString()}</p>}
+                {message.usage.cache_creation_input_tokens ? <p>{t("assistantMessageDetails.cacheCreation")}: {message.usage.cache_creation_input_tokens.toLocaleString()}</p> : null}
+                {message.usage.cache_read_input_tokens ? <p>{t("assistantMessageDetails.cacheRead")}: {message.usage.cache_read_input_tokens.toLocaleString()}</p> : null}
+                <div className="absolute right-4 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800 dark:border-t-gray-700"></div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface SummaryMessageProps {
+  content: string;
+  timestamp: string;
+}
+
+const SummaryMessage = ({ content, timestamp }: SummaryMessageProps) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { t } = useTranslation("components");
+
+  return (
+    <div className={cn(
+      "rounded-lg border mx-4 my-2",
+      COLORS.semantic.info.bg,
+      COLORS.semantic.info.border
+    )}>
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-2 text-left",
+          "hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors rounded-lg"
+        )}
+      >
+        <ChevronRight
+          className={cn(
+            "w-4 h-4 transition-transform flex-shrink-0",
+            COLORS.semantic.info.icon,
+            isExpanded && "rotate-90"
+          )}
+        />
+        <FileText className={cn("w-4 h-4 flex-shrink-0", COLORS.semantic.info.icon)} />
+        <span className={cn("text-xs font-medium", COLORS.semantic.info.text)}>
+          {t("messageViewer.priorContext")}
+        </span>
+        <span className={cn("text-xs ml-auto", COLORS.semantic.info.icon)}>
+          {formatTimeShort(timestamp)}
+        </span>
+      </button>
+
+      {isExpanded && (
+        <div className={cn("px-3 pb-3 text-sm", COLORS.semantic.info.text)}>
+          {content}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const isEmptyMessage = (message: ClaudeMessage): boolean => {
+  // Messages with tool use or results should be shown
+  if (message.toolUse || message.toolUseResult) return false;
+
+  // Check for array content (tool results, etc.)
+  if (message.content && Array.isArray(message.content) && message.content.length > 0) {
+    return false;
+  }
+
+  const content = extractClaudeMessageContent(message);
+
+  // No content at all
+  if (!content) return true;
+
+  // Non-string content that exists
+  if (typeof content !== "string") return false;
+
+  // Strip command tags and check if anything remains
+  const stripped = content
+    .replace(/<command-name>[\s\S]*?<\/command-name>/g, "")
+    .replace(/<command-message>[\s\S]*?<\/command-message>/g, "")
+    .replace(/<command-args>[\s\S]*?<\/command-args>/g, "")
+    .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g, "")
+    .replace(/<[^>]*(?:stdout|output)[^>]*>[\s\S]*?<\/[^>]*>/g, "")
+    .replace(/<[^>]*(?:stderr|error)[^>]*>[\s\S]*?<\/[^>]*>/g, "")
+    .trim();
+
+  return stripped.length === 0;
+};
+
 const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch, searchQuery, filterType = "content", currentMatchIndex }: MessageNodeProps) => {
   const { t } = useTranslation("components");
 
   if (message.isSidechain) {
     return null;
   }
-  // depth에 따른 왼쪽 margin 적용
-  const leftMargin = depth > 0 ? `ml-${Math.min(depth * 4, 16)}` : "";
+
+  // Skip empty messages (no content, or only command tags)
+  if (isEmptyMessage(message)) {
+    return null;
+  }
+
+  // Summary messages get special collapsible rendering
+  if (message.type === "summary") {
+    const summaryContent = typeof message.content === "string"
+      ? message.content
+      : "";
+    return (
+      <div data-message-uuid={message.uuid} className="max-w-4xl mx-auto">
+        <SummaryMessage content={summaryContent} timestamp={message.timestamp} />
+      </div>
+    );
+  }
 
   return (
     <div
       data-message-uuid={message.uuid}
       className={cn(
         "w-full px-4 py-2 transition-colors duration-300",
-        leftMargin,
         message.isSidechain && "bg-gray-100 dark:bg-gray-800",
         // 현재 매치된 메시지 강조
         isCurrentMatch && "bg-yellow-100 dark:bg-yellow-900/30 ring-2 ring-yellow-400 dark:ring-yellow-500",
@@ -78,41 +234,8 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
       )}
     >
       <div className="max-w-4xl mx-auto">
-        {/* depth 표시 (개발 모드에서만) */}
-        {import.meta.env.DEV && depth > 0 && (
-          <div className="text-xs text-gray-400 dark:text-gray-600 mb-1">
-            └─ {t("messageViewer.reply", { depth })}
-          </div>
-        )}
-
-        {/* 메시지 헤더 */}
-        <div
-          className={`flex items-center space-x-2 mb-1 text-md text-gray-500 dark:text-gray-400 ${
-            message.type === "user" ? "justify-end" : "justify-start"
-          }`}
-        >
-          {message.type === "user" && (
-            <div className="w-full h-0.5 bg-gray-100 dark:bg-gray-700 rounded-full" />
-          )}
-          <span className="font-medium whitespace-nowrap">
-            {message.type === "user"
-              ? t("messageViewer.user")
-              : message.type === "assistant"
-              ? t("messageViewer.claude")
-              : t("messageViewer.system")}
-          </span>
-          <span className="whitespace-nowrap">
-            {formatTime(message.timestamp)}
-          </span>
-          {message.isSidechain && (
-            <span className="px-2 py-1 whitespace-nowrap text-xs bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded-full">
-              {t("messageViewer.branch")}
-            </span>
-          )}
-          {message.type === "assistant" && (
-            <div className="w-full h-0.5 bg-gray-100 dark:bg-gray-700 rounded-full" />
-          )}
-        </div>
+        {/* Compact message header */}
+        <MessageHeader message={message} t={t} />
 
         {/* 메시지 내용 */}
         <div className="w-full">
@@ -139,17 +262,8 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
                   filterType={filterType}
                   isCurrentMatch={isCurrentMatch}
                   currentMatchIndex={currentMatchIndex}
+                  skipToolResults={!!message.toolUseResult}
                 />
-              </div>
-            )}
-
-          {/* Special case: when content is null but toolUseResult exists */}
-          {!extractClaudeMessageContent(message) &&
-            message.toolUseResult &&
-            typeof message.toolUseResult === "object" &&
-            Array.isArray(message.toolUseResult.content) && (
-              <div className={cn("text-sm mb-2", COLORS.ui.text.tertiary)}>
-                <span className="italic">:</span>
               </div>
             )}
 
@@ -160,14 +274,8 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
 
           {/* Tool Result */}
           {message.toolUseResult && (
-            <ToolExecutionResultRouter
-              toolResult={message.toolUseResult}
-              depth={depth}
-            />
+            <ToolExecutionResultRouter toolResult={message.toolUseResult} depth={0} />
           )}
-
-          {/* Assistant Metadata */}
-          <AssistantMessageDetails message={message} />
         </div>
       </div>
     </div>
@@ -388,6 +496,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // 스크롤 위치 상태 추가
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  // 맨 위로 스크롤하는 함수
+  const scrollToTop = useCallback(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, []);
 
   // 스크롤 이벤트 최적화 (쓰로틀링 적용)
   useEffect(() => {
@@ -402,7 +518,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             const { scrollTop, scrollHeight, clientHeight } =
               scrollContainerRef.current;
             const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+            const isNearTop = scrollTop < 100;
             setShowScrollToBottom(!isNearBottom && displayMessages.length > 5);
+            setShowScrollToTop(!isNearTop && displayMessages.length > 5);
           }
         } catch (error) {
           console.error("Scroll handler error:", error);
@@ -508,171 +626,127 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   return (
     <div className="relative flex-1 h-full flex flex-col">
-      {/* 검색 UI */}
+      {/* Compact Toolbar */}
       <div
         role="search"
         className={cn(
-          "px-4 py-3 border-b sticky top-0 z-10",
+          "flex items-center gap-3 px-4 py-2 border-b sticky top-0 z-10",
           COLORS.ui.background.secondary,
           COLORS.ui.border.light
         )}
       >
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-2">
-            {/* 검색 필터 타입 선택 */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-lg border text-sm",
-                    "focus:outline-none focus:ring-2 focus:ring-blue-500",
-                    "transition-colors hover:bg-gray-100 dark:hover:bg-gray-800",
-                    COLORS.ui.background.primary,
-                    COLORS.ui.border.light,
-                    COLORS.ui.text.primary
-                  )}
-                  aria-label={t("messageViewer.filterType")}
-                >
-                  <Filter className="w-4 h-4" />
-                  <span>
-                    {sessionSearch.filterType === "content"
-                      ? t("messageViewer.filterContent")
-                      : t("messageViewer.filterToolId")}
-                  </span>
-                  <ChevronDown className="w-3 h-3 opacity-50" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40">
-                <DropdownMenuRadioGroup
-                  value={sessionSearch.filterType}
-                  onValueChange={(value) => {
-                    onFilterTypeChange(value as SearchFilterType);
-                    setSearchQuery("");
-                  }}
-                >
-                  <DropdownMenuRadioItem value="content">
-                    {t("messageViewer.filterContent")}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="toolId">
-                    {t("messageViewer.filterToolId")}
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+        {/* Filter Toggle */}
+        <button
+          type="button"
+          onClick={() => {
+            onFilterTypeChange(sessionSearch.filterType === "content" ? "toolId" : "content");
+            setSearchQuery("");
+          }}
+          className={cn(
+            "text-xs px-2 py-1.5 rounded-md transition-colors whitespace-nowrap",
+            "hover:bg-gray-200 dark:hover:bg-gray-700",
+            COLORS.ui.background.tertiary,
+            COLORS.ui.text.secondary
+          )}
+          title={t("messageViewer.filterType")}
+        >
+          {sessionSearch.filterType === "content"
+            ? t("messageViewer.filterContent")
+            : t("messageViewer.filterToolId")}
+        </button>
 
-            {/* 검색 입력 필드 */}
-            <div className="relative flex-1">
-              <Search className={cn(
-                "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4",
-                COLORS.ui.text.muted
-              )} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={handleSearchInput}
-                onKeyDown={handleSearchKeyDown}
-                placeholder={t("messageViewer.searchPlaceholder")}
-                aria-label={t("messageViewer.searchPlaceholder")}
-                className={cn(
-                  "w-full pl-10 pr-10 py-2 rounded-lg border text-sm",
-                  "focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  COLORS.ui.background.primary,
-                  COLORS.ui.border.light,
-                  COLORS.ui.text.primary
-                )}
-              />
-              {/* 검색 진행 중 로딩 표시 또는 클리어 버튼 */}
-              {searchQuery && (
-                isSearchPending ? (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <Loader2 className={cn("w-4 h-4 animate-spin", COLORS.ui.text.muted)} />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    aria-label="Clear search"
-                    className={cn(
-                      "absolute right-3 top-1/2 transform -translate-y-1/2",
-                      "p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700",
-                      COLORS.ui.text.muted
-                    )}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )
-              )}
-            </div>
-
-            {/* 검색 결과 네비게이션 (카카오톡 스타일) */}
-            {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
-              <div className="flex items-center gap-1">
-                {/* 매치 카운터 */}
-                <span className={cn("text-sm font-medium min-w-[60px] text-center", COLORS.ui.text.muted)}>
-                  {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
-                </span>
-
-                {/* 이전 매치 버튼 */}
-                <button
-                  type="button"
-                  onClick={onPrevMatch}
-                  disabled={sessionSearch.matches.length === 0}
-                  aria-label="Previous match (Shift+Enter)"
-                  title="Previous match (Shift+Enter)"
-                  className={cn(
-                    "p-1.5 rounded-lg border transition-colors",
-                    "hover:bg-gray-100 dark:hover:bg-gray-700",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
-                    COLORS.ui.border.light
-                  )}
-                >
-                  <ChevronUp className="w-4 h-4" />
-                </button>
-
-                {/* 다음 매치 버튼 */}
-                <button
-                  type="button"
-                  onClick={onNextMatch}
-                  disabled={sessionSearch.matches.length === 0}
-                  aria-label="Next match (Enter)"
-                  title="Next match (Enter)"
-                  className={cn(
-                    "p-1.5 rounded-lg border transition-colors",
-                    "hover:bg-gray-100 dark:hover:bg-gray-700",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
-                    COLORS.ui.border.light
-                  )}
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-              </div>
+        {/* Search Input */}
+        <div className="relative flex-1 max-w-md">
+          <Search className={cn(
+            "absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4",
+            COLORS.ui.text.muted
+          )} />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={handleSearchInput}
+            onKeyDown={handleSearchKeyDown}
+            placeholder={t("messageViewer.searchPlaceholder")}
+            aria-label={t("messageViewer.searchPlaceholder")}
+            className={cn(
+              "w-full pl-8 pr-8 py-1.5 rounded-md border text-sm",
+              "focus:outline-none focus:ring-2 focus:ring-blue-500",
+              COLORS.ui.background.primary,
+              COLORS.ui.border.light,
+              COLORS.ui.text.primary
             )}
-          </div>
+          />
+          {searchQuery && (
+            isSearchPending ? (
+              <div className="absolute right-2.5 top-1/2 transform -translate-y-1/2">
+                <Loader2 className={cn("w-3.5 h-3.5 animate-spin", COLORS.ui.text.muted)} />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+                className={cn(
+                  "absolute right-2 top-1/2 transform -translate-y-1/2",
+                  "p-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700",
+                  COLORS.ui.text.muted
+                )}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )
+          )}
+        </div>
 
-          {/* 검색 상태 정보 */}
-          {(sessionSearch.query || (searchQuery.length >= 2 && isSearchPending)) && (
-            <div className={cn("mt-2 text-sm", COLORS.ui.text.muted)}>
-              {sessionSearch.isSearching || isSearchPending ? (
-                <span className="flex items-center space-x-2">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>{t("messageViewer.searching")}</span>
-                </span>
-              ) : (
-                <span>
-                  {t("messageViewer.searchResults", {
-                    count: sessionSearch.matches?.length || 0,
-                    total: messages.length,
-                  })}
-                  {sessionSearch.matches && sessionSearch.matches.length > 0 && (
-                    <span className="ml-2 text-xs">
-                      (Enter: next, Shift+Enter: prev, Esc: clear)
-                    </span>
-                  )}
-                </span>
+        {/* Match Navigation */}
+        {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
+          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+            <span className="font-medium tabular-nums">
+              {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
+            </span>
+            <button
+              type="button"
+              onClick={onPrevMatch}
+              disabled={sessionSearch.matches.length === 0}
+              aria-label="Previous match (Shift+Enter)"
+              title="Shift+Enter"
+              className={cn(
+                "p-1 rounded transition-colors",
+                "hover:bg-gray-200 dark:hover:bg-gray-700",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
-            </div>
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onNextMatch}
+              disabled={sessionSearch.matches.length === 0}
+              aria-label="Next match (Enter)"
+              title="Enter"
+              className={cn(
+                "p-1 rounded transition-colors",
+                "hover:bg-gray-200 dark:hover:bg-gray-700",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Meta Info */}
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <span>{messages.length} {t("messageViewer.messagesShort")}</span>
+          {selectedSession?.has_tool_use && (
+            <span>· {t("messageViewer.toolsUsed")}</span>
+          )}
+          {selectedSession?.has_errors && (
+            <span className="text-orange-500 dark:text-orange-400">· {t("messageViewer.hasErrors")}</span>
           )}
         </div>
       </div>
@@ -801,26 +875,41 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           })()}
         </div>
 
-        {/* 플로팅 맨 아래로 버튼 */}
-        {showScrollToBottom && (
-          <button
-            type="button"
-            onClick={scrollToBottom}
-            className={cn(
-              "fixed bottom-10 right-2 p-3 rounded-full shadow-lg transition-all duration-300 z-50",
-              "bg-blue-500/50 hover:bg-blue-600 text-white",
-              "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300",
-              "dark:bg-blue-600/50 dark:hover:bg-blue-700 dark:focus:ring-blue-800",
-              showScrollToBottom
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-2"
-            )}
-            title={t("messageViewer.scrollToBottom")}
-            aria-label={t("messageViewer.scrollToBottom")}
-          >
-            <ChevronDown className="w-3 h-3" />
-          </button>
-        )}
+        {/* Floating scroll buttons */}
+        <div className="fixed bottom-10 right-2 flex flex-col gap-2 z-50">
+          {showScrollToTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className={cn(
+                "p-3 rounded-full shadow-lg transition-all duration-300",
+                "bg-blue-500/50 hover:bg-blue-600 text-white",
+                "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300",
+                "dark:bg-blue-600/50 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+              )}
+              title={t("messageViewer.scrollToTop")}
+              aria-label={t("messageViewer.scrollToTop")}
+            >
+              <ChevronUp className="w-3 h-3" />
+            </button>
+          )}
+          {showScrollToBottom && (
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className={cn(
+                "p-3 rounded-full shadow-lg transition-all duration-300",
+                "bg-blue-500/50 hover:bg-blue-600 text-white",
+                "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300",
+                "dark:bg-blue-600/50 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+              )}
+              title={t("messageViewer.scrollToBottom")}
+              aria-label={t("messageViewer.scrollToBottom")}
+            >
+              <ChevronDown className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

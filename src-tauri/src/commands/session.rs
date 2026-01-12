@@ -177,50 +177,73 @@ pub async fn load_project_sessions(
                     false
                 });
 
-                // summary가 없을 때만 첫 번째 사용자 메시지에서 텍스트 추출
-                let final_summary = if session_summary.is_none() {
-                    messages.iter()
-                        .find(|m| m.message_type == "user")
-                        .and_then(|m| {
-                            if let Some(content) = &m.content {
-                                match content {
-                                    // 단순 문자열인 경우
-                                    serde_json::Value::String(text) => {
-                                        if text.trim().is_empty() {
-                                            None
-                                        } else if text.chars().count() > 100 {
-                                            let truncated: String = text.chars().take(100).collect();
-                                            Some(format!("{}...", truncated))
-                                        } else {
-                                            Some(text.clone())
-                                        }
-                                    },
-                                    // 배열인 경우 type="text" 찾기
-                                    serde_json::Value::Array(arr) => {
-                                        for item in arr {
-                                            if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                                                if item_type == "text" {
-                                                    if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
-                                                        if !text.trim().is_empty() {
-                                                            return if text.chars().count() > 100 {
-                                                                let truncated: String = text.chars().take(100).collect();
-                                                                Some(format!("{}...", truncated))
-                                                            } else {
-                                                                Some(text.to_string())
-                                                            };
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        None
-                                    },
-                                    _ => None
-                                }
+                // Helper to check if text is a genuine user message (not system-generated)
+                fn is_genuine_user_text(text: &str) -> bool {
+                    let trimmed = text.trim();
+                    if trimmed.is_empty() {
+                        return false;
+                    }
+                    // Skip XML/HTML-like tags (system messages)
+                    if trimmed.starts_with('<') {
+                        return false;
+                    }
+                    // Skip known system messages
+                    let system_phrases = [
+                        "Session Cleared",
+                        "session cleared",
+                        "Caveat:",
+                        "Tool execution",
+                    ];
+                    for phrase in &system_phrases {
+                        if trimmed.starts_with(phrase) {
+                            return false;
+                        }
+                    }
+                    true
+                }
+
+                fn truncate_text(text: &str, max_chars: usize) -> String {
+                    if text.chars().count() > max_chars {
+                        let truncated: String = text.chars().take(max_chars).collect();
+                        format!("{}...", truncated)
+                    } else {
+                        text.to_string()
+                    }
+                }
+
+                // Extract text from message content, filtering out system messages
+                fn extract_user_text(content: &serde_json::Value) -> Option<String> {
+                    match content {
+                        serde_json::Value::String(text) => {
+                            if is_genuine_user_text(text) {
+                                Some(truncate_text(text, 100))
                             } else {
                                 None
                             }
-                        })
+                        },
+                        serde_json::Value::Array(arr) => {
+                            for item in arr {
+                                if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
+                                    if item_type == "text" {
+                                        if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
+                                            if is_genuine_user_text(text) {
+                                                return Some(truncate_text(text, 100));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            None
+                        },
+                        _ => None
+                    }
+                }
+
+                // Find first genuine user message for summary fallback
+                let final_summary = if session_summary.is_none() {
+                    messages.iter()
+                        .filter(|m| m.message_type == "user")
+                        .find_map(|m| m.content.as_ref().and_then(extract_user_text))
                 } else {
                     session_summary
                 };
