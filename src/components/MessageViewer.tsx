@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useDeferredValue,
 } from "react";
-import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X, Filter, HelpCircle } from "lucide-react";
+import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X, HelpCircle, ChevronRight, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeMessage, ClaudeSession } from "../types";
 import type { SearchState, SearchFilterType } from "../store/useAppStore";
@@ -17,13 +17,6 @@ import {
   ToolExecutionResultRouter,
 } from "./messageRenderer";
 import { getToolName } from "./CollapsibleToolResult";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
 import { extractClaudeMessageContent } from "../utils/messageUtils";
 import { cn } from "../utils/cn";
 import { COLORS } from "../constants/colors";
@@ -61,12 +54,22 @@ interface MessageHeaderProps {
   t: (key: string, options?: Record<string, unknown>) => string;
 }
 
+const hasSystemCommandContent = (message: ClaudeMessage): boolean => {
+  const content = extractClaudeMessageContent(message);
+  if (!content || typeof content !== "string") return false;
+  // Check for actual XML tag pairs, not just strings in backticks
+  return /<command-name>[\s\S]*?<\/command-name>/.test(content) ||
+         /<local-command-caveat>[\s\S]*?<\/local-command-caveat>/.test(content) ||
+         /<command-message>[\s\S]*?<\/command-message>/.test(content);
+};
+
 const MessageHeader = ({ message, t }: MessageHeaderProps) => {
   const isToolResultMessage = !!message.toolUseResult && message.type === "user";
+  const isSystemContent = hasSystemCommandContent(message);
   const toolName = isToolResultMessage
     ? getToolName(message.toolUse as Record<string, unknown> | undefined, message.toolUseResult)
     : null;
-  const isLeftAligned = message.type !== "user" || isToolResultMessage;
+  const isLeftAligned = message.type !== "user" || isToolResultMessage || isSystemContent;
 
   return (
     <div className={cn(
@@ -77,6 +80,8 @@ const MessageHeader = ({ message, t }: MessageHeaderProps) => {
         <span className="font-medium">
           {isToolResultMessage && toolName
             ? toolName
+            : isSystemContent
+            ? t("messageViewer.system")
             : message.type === "user"
             ? t("messageViewer.user")
             : message.type === "assistant"
@@ -115,11 +120,105 @@ const MessageHeader = ({ message, t }: MessageHeaderProps) => {
   );
 };
 
+interface SummaryMessageProps {
+  content: string;
+  timestamp: string;
+}
+
+const SummaryMessage = ({ content, timestamp }: SummaryMessageProps) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { t } = useTranslation("components");
+
+  return (
+    <div className={cn(
+      "rounded-lg border mx-4 my-2",
+      COLORS.semantic.info.bg,
+      COLORS.semantic.info.border
+    )}>
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-2 text-left",
+          "hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors rounded-lg"
+        )}
+      >
+        <ChevronRight
+          className={cn(
+            "w-4 h-4 transition-transform flex-shrink-0",
+            COLORS.semantic.info.icon,
+            isExpanded && "rotate-90"
+          )}
+        />
+        <FileText className={cn("w-4 h-4 flex-shrink-0", COLORS.semantic.info.icon)} />
+        <span className={cn("text-xs font-medium", COLORS.semantic.info.text)}>
+          {t("messageViewer.priorContext")}
+        </span>
+        <span className={cn("text-xs ml-auto", COLORS.semantic.info.icon)}>
+          {formatTimeShort(timestamp)}
+        </span>
+      </button>
+
+      {isExpanded && (
+        <div className={cn("px-3 pb-3 text-sm", COLORS.semantic.info.text)}>
+          {content}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const isEmptyMessage = (message: ClaudeMessage): boolean => {
+  // Messages with tool use or results should be shown
+  if (message.toolUse || message.toolUseResult) return false;
+
+  // Check for array content (tool results, etc.)
+  if (message.content && Array.isArray(message.content) && message.content.length > 0) {
+    return false;
+  }
+
+  const content = extractClaudeMessageContent(message);
+
+  // No content at all
+  if (!content) return true;
+
+  // Non-string content that exists
+  if (typeof content !== "string") return false;
+
+  // Strip command tags and check if anything remains
+  const stripped = content
+    .replace(/<command-name>[\s\S]*?<\/command-name>/g, "")
+    .replace(/<command-message>[\s\S]*?<\/command-message>/g, "")
+    .replace(/<command-args>[\s\S]*?<\/command-args>/g, "")
+    .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g, "")
+    .replace(/<[^>]*(?:stdout|output)[^>]*>[\s\S]*?<\/[^>]*>/g, "")
+    .replace(/<[^>]*(?:stderr|error)[^>]*>[\s\S]*?<\/[^>]*>/g, "")
+    .trim();
+
+  return stripped.length === 0;
+};
+
 const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch, searchQuery, filterType = "content", currentMatchIndex }: MessageNodeProps) => {
   const { t } = useTranslation("components");
 
   if (message.isSidechain) {
     return null;
+  }
+
+  // Skip empty messages (no content, or only command tags)
+  if (isEmptyMessage(message)) {
+    return null;
+  }
+
+  // Summary messages get special collapsible rendering
+  if (message.type === "summary") {
+    const summaryContent = typeof message.content === "string"
+      ? message.content
+      : "";
+    return (
+      <div data-message-uuid={message.uuid} className="max-w-4xl mx-auto">
+        <SummaryMessage content={summaryContent} timestamp={message.timestamp} />
+      </div>
+    );
   }
 
   return (
@@ -527,171 +626,127 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   return (
     <div className="relative flex-1 h-full flex flex-col">
-      {/* 검색 UI */}
+      {/* Compact Toolbar */}
       <div
         role="search"
         className={cn(
-          "px-4 py-3 border-b sticky top-0 z-10",
+          "flex items-center gap-3 px-4 py-2 border-b sticky top-0 z-10",
           COLORS.ui.background.secondary,
           COLORS.ui.border.light
         )}
       >
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-2">
-            {/* 검색 필터 타입 선택 */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-lg border text-sm",
-                    "focus:outline-none focus:ring-2 focus:ring-blue-500",
-                    "transition-colors hover:bg-gray-100 dark:hover:bg-gray-800",
-                    COLORS.ui.background.primary,
-                    COLORS.ui.border.light,
-                    COLORS.ui.text.primary
-                  )}
-                  aria-label={t("messageViewer.filterType")}
-                >
-                  <Filter className="w-4 h-4" />
-                  <span>
-                    {sessionSearch.filterType === "content"
-                      ? t("messageViewer.filterContent")
-                      : t("messageViewer.filterToolId")}
-                  </span>
-                  <ChevronDown className="w-3 h-3 opacity-50" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40">
-                <DropdownMenuRadioGroup
-                  value={sessionSearch.filterType}
-                  onValueChange={(value) => {
-                    onFilterTypeChange(value as SearchFilterType);
-                    setSearchQuery("");
-                  }}
-                >
-                  <DropdownMenuRadioItem value="content">
-                    {t("messageViewer.filterContent")}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="toolId">
-                    {t("messageViewer.filterToolId")}
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+        {/* Filter Toggle */}
+        <button
+          type="button"
+          onClick={() => {
+            onFilterTypeChange(sessionSearch.filterType === "content" ? "toolId" : "content");
+            setSearchQuery("");
+          }}
+          className={cn(
+            "text-xs px-2 py-1.5 rounded-md transition-colors whitespace-nowrap",
+            "hover:bg-gray-200 dark:hover:bg-gray-700",
+            COLORS.ui.background.tertiary,
+            COLORS.ui.text.secondary
+          )}
+          title={t("messageViewer.filterType")}
+        >
+          {sessionSearch.filterType === "content"
+            ? t("messageViewer.filterContent")
+            : t("messageViewer.filterToolId")}
+        </button>
 
-            {/* 검색 입력 필드 */}
-            <div className="relative flex-1">
-              <Search className={cn(
-                "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4",
-                COLORS.ui.text.muted
-              )} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={handleSearchInput}
-                onKeyDown={handleSearchKeyDown}
-                placeholder={t("messageViewer.searchPlaceholder")}
-                aria-label={t("messageViewer.searchPlaceholder")}
-                className={cn(
-                  "w-full pl-10 pr-10 py-2 rounded-lg border text-sm",
-                  "focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  COLORS.ui.background.primary,
-                  COLORS.ui.border.light,
-                  COLORS.ui.text.primary
-                )}
-              />
-              {/* 검색 진행 중 로딩 표시 또는 클리어 버튼 */}
-              {searchQuery && (
-                isSearchPending ? (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <Loader2 className={cn("w-4 h-4 animate-spin", COLORS.ui.text.muted)} />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    aria-label="Clear search"
-                    className={cn(
-                      "absolute right-3 top-1/2 transform -translate-y-1/2",
-                      "p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700",
-                      COLORS.ui.text.muted
-                    )}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )
-              )}
-            </div>
-
-            {/* 검색 결과 네비게이션 (카카오톡 스타일) */}
-            {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
-              <div className="flex items-center gap-1">
-                {/* 매치 카운터 */}
-                <span className={cn("text-sm font-medium min-w-[60px] text-center", COLORS.ui.text.muted)}>
-                  {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
-                </span>
-
-                {/* 이전 매치 버튼 */}
-                <button
-                  type="button"
-                  onClick={onPrevMatch}
-                  disabled={sessionSearch.matches.length === 0}
-                  aria-label="Previous match (Shift+Enter)"
-                  title="Previous match (Shift+Enter)"
-                  className={cn(
-                    "p-1.5 rounded-lg border transition-colors",
-                    "hover:bg-gray-100 dark:hover:bg-gray-700",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
-                    COLORS.ui.border.light
-                  )}
-                >
-                  <ChevronUp className="w-4 h-4" />
-                </button>
-
-                {/* 다음 매치 버튼 */}
-                <button
-                  type="button"
-                  onClick={onNextMatch}
-                  disabled={sessionSearch.matches.length === 0}
-                  aria-label="Next match (Enter)"
-                  title="Next match (Enter)"
-                  className={cn(
-                    "p-1.5 rounded-lg border transition-colors",
-                    "hover:bg-gray-100 dark:hover:bg-gray-700",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
-                    COLORS.ui.border.light
-                  )}
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-              </div>
+        {/* Search Input */}
+        <div className="relative flex-1 max-w-md">
+          <Search className={cn(
+            "absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4",
+            COLORS.ui.text.muted
+          )} />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={handleSearchInput}
+            onKeyDown={handleSearchKeyDown}
+            placeholder={t("messageViewer.searchPlaceholder")}
+            aria-label={t("messageViewer.searchPlaceholder")}
+            className={cn(
+              "w-full pl-8 pr-8 py-1.5 rounded-md border text-sm",
+              "focus:outline-none focus:ring-2 focus:ring-blue-500",
+              COLORS.ui.background.primary,
+              COLORS.ui.border.light,
+              COLORS.ui.text.primary
             )}
-          </div>
+          />
+          {searchQuery && (
+            isSearchPending ? (
+              <div className="absolute right-2.5 top-1/2 transform -translate-y-1/2">
+                <Loader2 className={cn("w-3.5 h-3.5 animate-spin", COLORS.ui.text.muted)} />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+                className={cn(
+                  "absolute right-2 top-1/2 transform -translate-y-1/2",
+                  "p-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700",
+                  COLORS.ui.text.muted
+                )}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )
+          )}
+        </div>
 
-          {/* 검색 상태 정보 */}
-          {(sessionSearch.query || (searchQuery.length >= 2 && isSearchPending)) && (
-            <div className={cn("mt-2 text-sm", COLORS.ui.text.muted)}>
-              {sessionSearch.isSearching || isSearchPending ? (
-                <span className="flex items-center space-x-2">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>{t("messageViewer.searching")}</span>
-                </span>
-              ) : (
-                <span>
-                  {t("messageViewer.searchResults", {
-                    count: sessionSearch.matches?.length || 0,
-                    total: messages.length,
-                  })}
-                  {sessionSearch.matches && sessionSearch.matches.length > 0 && (
-                    <span className="ml-2 text-xs">
-                      (Enter: next, Shift+Enter: prev, Esc: clear)
-                    </span>
-                  )}
-                </span>
+        {/* Match Navigation */}
+        {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
+          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+            <span className="font-medium tabular-nums">
+              {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
+            </span>
+            <button
+              type="button"
+              onClick={onPrevMatch}
+              disabled={sessionSearch.matches.length === 0}
+              aria-label="Previous match (Shift+Enter)"
+              title="Shift+Enter"
+              className={cn(
+                "p-1 rounded transition-colors",
+                "hover:bg-gray-200 dark:hover:bg-gray-700",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
-            </div>
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onNextMatch}
+              disabled={sessionSearch.matches.length === 0}
+              aria-label="Next match (Enter)"
+              title="Enter"
+              className={cn(
+                "p-1 rounded transition-colors",
+                "hover:bg-gray-200 dark:hover:bg-gray-700",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Meta Info */}
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <span>{messages.length} {t("messageViewer.messagesShort")}</span>
+          {selectedSession?.has_tool_use && (
+            <span>· {t("messageViewer.toolsUsed")}</span>
+          )}
+          {selectedSession?.has_errors && (
+            <span className="text-orange-500 dark:text-orange-400">· {t("messageViewer.hasErrors")}</span>
           )}
         </div>
       </div>

@@ -28,12 +28,15 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   if (!content) return null;
 
   if (typeof content === "string") {
+    // Check for actual XML command tags (not inside backticks/code)
+    // Must have opening tag followed by content and closing tag
     const hasCommandTags =
-      content.includes("<command-") ||
-      content.includes("<local-command-") ||
-      content.includes("-command-") ||
-      content.includes("-stdout>") ||
-      content.includes("-stderr>");
+      /<command-name>[\s\S]*?<\/command-name>/.test(content) ||
+      /<command-message>[\s\S]*?<\/command-message>/.test(content) ||
+      /<command-args>[\s\S]*?<\/command-args>/.test(content) ||
+      /<local-command-caveat>[\s\S]*?<\/local-command-caveat>/.test(content) ||
+      /<[^>]*-stdout>[\s\S]*?<\/[^>]*>/.test(content) ||
+      /<[^>]*-stderr>[\s\S]*?<\/[^>]*>/.test(content);
 
     if (hasCommandTags) {
       return <CommandRenderer text={content} />;

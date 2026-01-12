@@ -245,9 +245,8 @@ function App() {
 
           {/* Main Content Area */}
           <div className="w-full flex flex-col relative">
-            {/* Content Header */}
-            {(selectedSession ||
-              computed.isTokenStatsView ||
+            {/* Content Header - Only for Analytics/Token Stats views (Messages view has its own toolbar) */}
+            {(computed.isTokenStatsView ||
               computed.isAnalyticsView ||
               isViewingGlobalStats) && (
               <div
@@ -269,9 +268,7 @@ function App() {
                         ? tComponents("analytics.globalOverview")
                         : computed.isAnalyticsView
                         ? tComponents("analytics.dashboard")
-                        : computed.isTokenStatsView
-                        ? tMessages("tokenStats.title")
-                        : tComponents("message.conversation")}
+                        : tMessages("tokenStats.title")}
                     </h2>
                     <span className={cn("text-sm", COLORS.ui.text.secondary)}>
                       {isViewingGlobalStats
@@ -279,19 +276,6 @@ function App() {
                         : selectedSession?.summary ||
                           tComponents("session.summaryNotFound")}
                     </span>
-                    {computed.isMessagesView && selectedSession && (
-                      <div>
-                        <p className={cn("text-sm mt-1", COLORS.ui.text.muted)}>
-                          {messages.length > 0 &&
-                            `${messages.length} ${tComponents("message.count", { count: messages.length })} • `}
-                          {selectedSession.has_tool_use
-                            ? tComponents("tools.toolUsed")
-                            : tComponents("tools.generalConversation")}
-                          {selectedSession.has_errors &&
-                            ` • ${tComponents("tools.errorOccurred")}`}
-                        </p>
-                      </div>
-                    )}
                     {computed.isTokenStatsView && (
                       <p className={cn("text-sm mt-1", COLORS.ui.text.muted)}>
                         {tComponents("analytics.tokenUsageDetailed")}

@@ -403,7 +403,11 @@
     "tryDifferentKeyword": "Try a different keyword",
     "filterType": "Search filter type",
     "filterContent": "Content",
-    "filterToolId": "Tool ID"
+    "filterToolId": "Tool ID",
+    "messagesShort": "msgs",
+    "toolsUsed": "tools",
+    "hasErrors": "errors",
+    "priorContext": "Prior Context"
   },
   "commandRenderer": {
     "commandExecution": "Command Execution",
@@ -412,7 +416,8 @@
     "status": "Status:",
     "errorOutput": "Error Output",
     "executionResult": "Execution Result",
-    "unknownContentType": "Unknown content type"
+    "unknownContentType": "Unknown content type",
+    "systemNote": "System Note"
   },
   "toolUseRenderer": {
     "fileCreation": "File Creation",

@@ -71,32 +71,22 @@ export const Header = () => {
             alt="Claude Code History Viewer"
             className="w-10 h-10"
           />
-          <div>
+          <div className="max-w-lg">
             <h1 className={cn("text-xl font-semibold", COLORS.ui.text.primary)}>
               {t("appName")}
             </h1>
-            <p className={cn("text-sm", COLORS.ui.text.muted)}>
-              {t("appDescription")}
+            <p className={cn("text-sm truncate", COLORS.ui.text.muted)}>
+              {selectedSession
+                ? selectedSession.summary ||
+                  `${tComponents("session.title")} ${selectedSession.session_id.slice(-8)}`
+                : selectedProject
+                ? selectedProject.name
+                : t("appDescription")}
             </p>
           </div>
         </div>
 
         <div className="flex items-center space-x-4">
-          {selectedProject && (
-            <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              <span className="font-medium">{selectedProject.name}</span>
-              {selectedSession && (
-                <>
-                  <span className="mx-2">›</span>
-                  <span>
-                    {tComponents("session.title")}{" "}
-                    {selectedSession.session_id.slice(-8)}
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-
           <div className="flex items-center space-x-2">
             {selectedProject && (
               <>
