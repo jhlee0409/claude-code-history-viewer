@@ -26,6 +26,9 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     setAnalyticsLoadingSessionComparison,
     setAnalyticsProjectSummaryError,
     setAnalyticsSessionComparisonError,
+    setAnalyticsRecentEdits,
+    setAnalyticsLoadingRecentEdits,
+    setAnalyticsRecentEditsError,
     resetAnalytics,
     clearAnalyticsErrors,
 
@@ -34,6 +37,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     loadProjectStatsSummary,
     loadSessionComparison,
     loadSessionTokenStats,
+    loadRecentEdits,
     clearTokenStats,
   } = useAppStore();
 
@@ -144,6 +148,45 @@ export const useAnalytics = (): UseAnalyticsReturn => {
   ]);
 
   /**
+   * 최근 편집 뷰로 전환
+   * 프로젝트의 모든 파일 편집 기록을 로드
+   */
+  const switchToRecentEdits = useCallback(async () => {
+    if (!selectedProject) {
+      throw new Error("프로젝트가 선택되지 않았습니다.");
+    }
+
+    try {
+      setAnalyticsCurrentView("recentEdits");
+      clearAnalyticsErrors();
+
+      setAnalyticsLoadingRecentEdits(true);
+      try {
+        const result = await loadRecentEdits(selectedProject.path);
+        setAnalyticsRecentEdits(result);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "최근 편집 로드 실패";
+        setAnalyticsRecentEditsError(errorMessage);
+        throw error;
+      } finally {
+        setAnalyticsLoadingRecentEdits(false);
+      }
+    } catch (error) {
+      console.error("Failed to load recent edits:", error);
+      throw error;
+    }
+  }, [
+    selectedProject,
+    setAnalyticsCurrentView,
+    clearAnalyticsErrors,
+    setAnalyticsLoadingRecentEdits,
+    setAnalyticsRecentEdits,
+    setAnalyticsRecentEditsError,
+    loadRecentEdits,
+  ]);
+
+  /**
    * 현재 뷰의 분석 데이터 새로고침
    * 현재 뷰에 따라 적절한 데이터만 다시 로드
    */
@@ -155,13 +198,16 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       case "analytics":
         await switchToAnalytics();
         break;
+      case "recentEdits":
+        await switchToRecentEdits();
+        break;
       case "messages":
         // 메시지 뷰는 별도 새로고침 로직 없음
         break;
       default:
         console.warn("Unknown analytics view:", analytics.currentView);
     }
-  }, [analytics.currentView, switchToTokenStats, switchToAnalytics]);
+  }, [analytics.currentView, switchToTokenStats, switchToAnalytics, switchToRecentEdits]);
 
   /**
    * 모든 analytics 상태 초기화
@@ -179,20 +225,26 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       isTokenStatsView: analytics.currentView === "tokenStats",
       isAnalyticsView: analytics.currentView === "analytics",
       isMessagesView: analytics.currentView === "messages",
+      isRecentEditsView: analytics.currentView === "recentEdits",
       hasAnyError: !!(
-        analytics.projectSummaryError || analytics.sessionComparisonError
+        analytics.projectSummaryError ||
+        analytics.sessionComparisonError ||
+        analytics.recentEditsError
       ),
       isAnyLoading:
         analytics.isLoadingProjectSummary ||
         analytics.isLoadingSessionComparison ||
+        analytics.isLoadingRecentEdits ||
         isLoadingTokenStats,
     }),
     [
       analytics.currentView,
       analytics.projectSummaryError,
       analytics.sessionComparisonError,
+      analytics.recentEditsError,
       analytics.isLoadingProjectSummary,
       analytics.isLoadingSessionComparison,
+      analytics.isLoadingRecentEdits,
       isLoadingTokenStats,
     ]
   );
@@ -264,6 +316,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       switchToMessages,
       switchToTokenStats,
       switchToAnalytics,
+      switchToRecentEdits,
       refreshAnalytics,
       clearAll,
     },

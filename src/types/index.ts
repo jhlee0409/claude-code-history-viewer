@@ -305,6 +305,26 @@ export interface GlobalStatsSummary {
   top_projects: ProjectRanking[];
 }
 
+// Recent file edits types for file recovery
+export interface RecentFileEdit {
+  file_path: string;
+  timestamp: string;
+  session_id: string;
+  operation_type: 'edit' | 'write';
+  content_after_change: string;
+  original_content?: string;
+  lines_added: number;
+  lines_removed: number;
+  cwd?: string;
+}
+
+export interface RecentEditsResult {
+  files: RecentFileEdit[];
+  total_edits_count: number;
+  unique_files_count: number;
+  project_cwd?: string;
+}
+
 // 업데이트 관련 타입 정의
 export type UpdatePriority = "critical" | "recommended" | "optional";
 export type UpdateType = "hotfix" | "feature" | "patch" | "major";

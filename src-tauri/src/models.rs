@@ -44,6 +44,7 @@ pub struct RawLogEntry {
     pub tool_use_result: Option<serde_json::Value>,
     #[serde(rename = "isSidechain")]
     pub is_sidechain: Option<bool>,
+    pub cwd: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -224,6 +225,29 @@ pub struct GlobalStatsSummary {
     pub most_used_tools: Vec<ToolUsageStats>,
     pub model_distribution: Vec<ModelStats>,
     pub top_projects: Vec<ProjectRanking>,
+}
+
+/// Recent file edit information for recovery purposes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentFileEdit {
+    pub file_path: String,
+    pub timestamp: String,
+    pub session_id: String,
+    pub operation_type: String, // "edit" or "write"
+    pub content_after_change: String,
+    pub original_content: Option<String>,
+    pub lines_added: usize,
+    pub lines_removed: usize,
+    pub cwd: Option<String>, // Working directory when edit was made
+}
+
+/// Result container for recent edits query
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentEditsResult {
+    pub files: Vec<RecentFileEdit>,
+    pub total_edits_count: usize,
+    pub unique_files_count: usize,
+    pub project_cwd: Option<String>, // Most common working directory for this project
 }
 
 #[cfg(test)]

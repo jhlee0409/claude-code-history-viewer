@@ -443,6 +443,7 @@
   "fileEditRenderer": {
     "fileEditResult": "文件编辑结果",
     "copyChangedResult": "复制变更结果",
+    "copyFileAfterChange": "复制变更后文件",
     "copyOriginalFile": "复制原始文件",
     "filePath": "文件路径:",
     "editType": "编辑类型",
@@ -602,6 +603,22 @@
     "cacheCleared": "更新缓存已清除。",
     "close": "关闭",
     "save": "保存"
+  },
+  "recentEdits": {
+    "title": "最近编辑",
+    "description": "查看更改后的最新内容，恢复意外删除的文件",
+    "loading": "正在加载最近编辑...",
+    "noEdits": "没有最近编辑",
+    "noEditsDescription": "在此项目中未找到文件编辑或创建记录",
+    "searchPlaceholder": "按文件路径或内容搜索...",
+    "noSearchResults": "没有匹配搜索的文件",
+    "copyContent": "复制内容",
+    "restoreFile": "恢复文件",
+    "created": "已创建",
+    "edited": "已编辑",
+    "lines": "行",
+    "stats": "{{files}}个文件，{{edits}}次编辑",
+    "footerInfo": "显示每个文件的最新内容。使用「复制内容」恢复已删除的文件。"
   },
   "updateIntroModal": {
     "title": "更新系统指南",

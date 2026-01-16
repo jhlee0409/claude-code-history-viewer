@@ -443,6 +443,7 @@
   "fileEditRenderer": {
     "fileEditResult": "檔案編輯結果",
     "copyChangedResult": "複製變更結果",
+    "copyFileAfterChange": "複製變更後檔案",
     "copyOriginalFile": "複製原始檔案",
     "filePath": "檔案路徑:",
     "editType": "編輯類型",
@@ -602,6 +603,22 @@
     "cacheCleared": "更新快取已清除。",
     "close": "關閉",
     "save": "儲存"
+  },
+  "recentEdits": {
+    "title": "最近編輯",
+    "description": "查看變更後的最新內容，恢復意外刪除的檔案",
+    "loading": "正在載入最近編輯...",
+    "noEdits": "沒有最近編輯",
+    "noEditsDescription": "在此專案中未找到檔案編輯或建立記錄",
+    "searchPlaceholder": "按檔案路徑或內容搜尋...",
+    "noSearchResults": "沒有符合搜尋的檔案",
+    "copyContent": "複製內容",
+    "restoreFile": "恢復檔案",
+    "created": "已建立",
+    "edited": "已編輯",
+    "lines": "行",
+    "stats": "{{files}}個檔案，{{edits}}次編輯",
+    "footerInfo": "顯示每個檔案的最新內容。使用「複製內容」恢復已刪除的檔案。"
   },
   "updateIntroModal": {
     "title": "更新系統指南",

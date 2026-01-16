@@ -434,6 +434,7 @@
   "fileEditRenderer": {
     "fileEditResult": "File Edit Result",
     "copyChangedResult": "Copy Changed Result",
+    "copyFileAfterChange": "Copy File After Change",
     "copyOriginalFile": "Copy Original File",
     "filePath": "File Path:",
     "editType": "Edit Type",
@@ -593,6 +594,22 @@
     "cacheCleared": "Update cache cleared.",
     "close": "Close",
     "save": "Save"
+  },
+  "recentEdits": {
+    "title": "Recent Edits",
+    "description": "Recover accidentally deleted files by viewing the latest content after changes",
+    "loading": "Loading recent edits...",
+    "noEdits": "No Recent Edits",
+    "noEditsDescription": "No file edits or creations found in this project",
+    "searchPlaceholder": "Search by file path or content...",
+    "noSearchResults": "No files match your search",
+    "copyContent": "Copy Content",
+    "restoreFile": "Restore File",
+    "created": "Created",
+    "edited": "Edited",
+    "lines": "lines",
+    "stats": "{{files}} files, {{edits}} total edits",
+    "footerInfo": "Showing the latest content for each file. Click restore to write the file back to disk."
   },
   "updateIntroModal": {
     "title": "Update System Guide",
