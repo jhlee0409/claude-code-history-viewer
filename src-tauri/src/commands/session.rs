@@ -787,10 +787,23 @@ pub async fn get_recent_edits(project_path: String) -> Result<crate::models::Rec
         .map(|(cwd, _)| cwd);
 
     // Filter edits to only include files within the project directory
+    // Use case-insensitive comparison on Windows for path matching
     let filtered_edits: Vec<crate::models::RecentFileEdit> = if let Some(ref cwd) = project_cwd {
+        #[cfg(target_os = "windows")]
+        let cwd_normalized = cwd.to_lowercase();
+        #[cfg(not(target_os = "windows"))]
+        let cwd_normalized = cwd.clone();
+
         all_edits
             .into_iter()
-            .filter(|edit| edit.file_path.starts_with(cwd))
+            .filter(|edit| {
+                #[cfg(target_os = "windows")]
+                let file_path_normalized = edit.file_path.to_lowercase();
+                #[cfg(not(target_os = "windows"))]
+                let file_path_normalized = edit.file_path.clone();
+
+                file_path_normalized.starts_with(&cwd_normalized)
+            })
             .collect()
     } else {
         all_edits
@@ -823,12 +836,35 @@ pub async fn get_recent_edits(project_path: String) -> Result<crate::models::Rec
 }
 
 /// Restore a file by writing content to the specified path
+/// Security: Validates path to prevent path traversal attacks
 #[tauri::command]
 pub async fn restore_file(file_path: String, content: String) -> Result<(), String> {
     use std::fs;
     use std::path::Path;
 
+    // Security validation: reject paths with null bytes
+    if file_path.contains('\0') {
+        return Err("Invalid file path: contains null bytes".to_string());
+    }
+
+    // Security validation: reject relative paths (must be absolute)
     let path = Path::new(&file_path);
+    if !path.is_absolute() {
+        return Err("Invalid file path: must be an absolute path".to_string());
+    }
+
+    // Security validation: reject paths with parent traversal segments
+    for component in path.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err("Invalid file path: path traversal not allowed".to_string());
+        }
+    }
+
+    // Additional validation: ensure the path doesn't contain suspicious patterns
+    let path_str = file_path.as_str();
+    if path_str.contains("..") {
+        return Err("Invalid file path: parent directory references not allowed".to_string());
+    }
 
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {

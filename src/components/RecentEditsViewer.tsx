@@ -125,6 +125,8 @@ const FileEditItem: React.FC<{
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const language = getLanguageFromPath(edit.file_path);
   const fileName = edit.file_path.split("/").pop() || edit.file_path;
@@ -140,7 +142,13 @@ const FileEditItem: React.FC<{
     }
   };
 
-  const handleRestore = async () => {
+  const handleRestoreClick = () => {
+    setShowConfirmDialog(true);
+  };
+
+  const handleRestoreConfirm = async () => {
+    setShowConfirmDialog(false);
+    setErrorMessage(null);
     try {
       setRestoreStatus('loading');
       await invoke("restore_file", {
@@ -151,9 +159,18 @@ const FileEditItem: React.FC<{
       setTimeout(() => setRestoreStatus('idle'), 2000);
     } catch (err) {
       console.error("Failed to restore file:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      setErrorMessage(message);
       setRestoreStatus('error');
-      setTimeout(() => setRestoreStatus('idle'), 3000);
+      setTimeout(() => {
+        setRestoreStatus('idle');
+        setErrorMessage(null);
+      }, 5000);
     }
+  };
+
+  const handleRestoreCancel = () => {
+    setShowConfirmDialog(false);
   };
 
   return (
@@ -260,7 +277,7 @@ const FileEditItem: React.FC<{
             onClick={(e) => {
               e.stopPropagation();
               if (restoreStatus === 'idle') {
-                handleRestore();
+                handleRestoreClick();
               }
             }}
             disabled={restoreStatus === 'loading'}
@@ -286,6 +303,54 @@ const FileEditItem: React.FC<{
           </button>
         </div>
       </div>
+
+      {/* Error message toast */}
+      {errorMessage && (
+        <div className="mx-3 mb-2 p-2 rounded-md bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 text-xs">
+          {t("recentEdits.restoreError")}: {errorMessage}
+        </div>
+      )}
+
+      {/* Confirmation dialog */}
+      {showConfirmDialog && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={handleRestoreCancel}
+        >
+          <div
+            className={cn(
+              "rounded-lg p-6 max-w-md mx-4 shadow-xl",
+              COLORS.ui.background.primary
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className={cn("text-lg font-semibold mb-2", COLORS.ui.text.primary)}>
+              {t("recentEdits.confirmRestoreTitle")}
+            </h3>
+            <p className={cn("text-sm mb-4", COLORS.ui.text.muted)}>
+              {t("recentEdits.confirmRestoreMessage", { path: edit.file_path })}
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleRestoreCancel}
+                className={cn(
+                  "px-4 py-2 rounded-md text-sm",
+                  "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600",
+                  COLORS.ui.text.primary
+                )}
+              >
+                {t("recentEdits.cancel")}
+              </button>
+              <button
+                onClick={handleRestoreConfirm}
+                className="px-4 py-2 rounded-md text-sm bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {t("recentEdits.confirmRestore")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expanded content */}
       {isExpanded && (
