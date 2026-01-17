@@ -3,12 +3,12 @@
  * 가독성과 예측 가능성을 위한 명확한 타입 구조
  */
 
-import type { ProjectStatsSummary, SessionComparison } from './index';
+import type { ProjectStatsSummary, SessionComparison, RecentEditsResult } from './index';
 
 /**
  * Analytics 뷰 타입
  */
-export type AnalyticsView = 'messages' | 'tokenStats' | 'analytics';
+export type AnalyticsView = 'messages' | 'tokenStats' | 'analytics' | 'recentEdits';
 export type AnalyticsViewType = AnalyticsView;
 
 /**
@@ -19,18 +19,21 @@ export type AnalyticsViewType = AnalyticsView;
 export interface AnalyticsState {
   // 현재 활성 뷰
   currentView: AnalyticsView;
-  
+
   // 데이터 상태
   projectSummary: ProjectStatsSummary | null;
   sessionComparison: SessionComparison | null;
-  
+  recentEdits: RecentEditsResult | null;
+
   // 로딩 상태
   isLoadingProjectSummary: boolean;
   isLoadingSessionComparison: boolean;
-  
+  isLoadingRecentEdits: boolean;
+
   // 에러 상태
   projectSummaryError: string | null;
   sessionComparisonError: string | null;
+  recentEditsError: string | null;
 }
 
 /**
@@ -40,24 +43,28 @@ export interface AnalyticsState {
 export interface AnalyticsActions {
   // 뷰 변경
   setCurrentView: (view: AnalyticsView) => void;
-  
+
   // 데이터 설정
   setProjectSummary: (summary: ProjectStatsSummary | null) => void;
   setSessionComparison: (comparison: SessionComparison | null) => void;
-  
+  setRecentEdits: (edits: RecentEditsResult | null) => void;
+
   // 로딩 상태 관리
   setLoadingProjectSummary: (loading: boolean) => void;
   setLoadingSessionComparison: (loading: boolean) => void;
-  
+  setLoadingRecentEdits: (loading: boolean) => void;
+
   // 에러 상태 관리
   setProjectSummaryError: (error: string | null) => void;
   setSessionComparisonError: (error: string | null) => void;
-  
+  setRecentEditsError: (error: string | null) => void;
+
   // 복합 액션 (비즈니스 로직)
   switchToMessages: () => void;
   switchToTokenStats: () => void;
   switchToAnalytics: () => void;
-  
+  switchToRecentEdits: () => void;
+
   // 초기화
   resetAnalytics: () => void;
   clearErrors: () => void;
@@ -70,10 +77,13 @@ export const initialAnalyticsState: AnalyticsState = {
   currentView: 'messages',
   projectSummary: null,
   sessionComparison: null,
+  recentEdits: null,
   isLoadingProjectSummary: false,
   isLoadingSessionComparison: false,
+  isLoadingRecentEdits: false,
   projectSummaryError: null,
   sessionComparisonError: null,
+  recentEditsError: null,
 };
 
 /**
@@ -83,21 +93,23 @@ export const initialAnalyticsState: AnalyticsState = {
 export interface UseAnalyticsReturn {
   // 상태 (읽기 전용)
   readonly state: AnalyticsState;
-  
+
   // 액션 (예측 가능한 이름)
   readonly actions: {
     switchToMessages: () => void;
     switchToTokenStats: () => Promise<void>;
     switchToAnalytics: () => Promise<void>;
+    switchToRecentEdits: () => Promise<void>;
     refreshAnalytics: () => Promise<void>;
     clearAll: () => void;
   };
-  
+
   // 계산된 값들
   readonly computed: {
     isTokenStatsView: boolean;
     isAnalyticsView: boolean;
     isMessagesView: boolean;
+    isRecentEditsView: boolean;
     hasAnyError: boolean;
     isAnyLoading: boolean;
   };

@@ -24,6 +24,8 @@ pub fn run() {
             load_session_messages_paginated,
             get_session_message_count,
             search_messages,
+            get_recent_edits,
+            restore_file,
             get_session_token_stats,
             get_project_token_stats,
             get_project_stats_summary,

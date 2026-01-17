@@ -11,6 +11,7 @@ import {
   type ProjectStatsSummary,
   type SessionComparison,
   type GlobalStatsSummary,
+  type RecentEditsResult,
   type AppError,
   AppErrorType,
 } from "../types";
@@ -91,6 +92,10 @@ interface AppStore extends AppState {
   setAnalyticsLoadingSessionComparison: (loading: boolean) => void;
   setAnalyticsProjectSummaryError: (error: string | null) => void;
   setAnalyticsSessionComparisonError: (error: string | null) => void;
+  setAnalyticsRecentEdits: (edits: RecentEditsResult | null) => void;
+  setAnalyticsLoadingRecentEdits: (loading: boolean) => void;
+  setAnalyticsRecentEditsError: (error: string | null) => void;
+  loadRecentEdits: (projectPath: string) => Promise<RecentEditsResult>;
   resetAnalytics: () => void;
   clearAnalyticsErrors: () => void;
 }
@@ -647,6 +652,45 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }));
   },
 
+  setAnalyticsRecentEdits: (edits: RecentEditsResult | null) => {
+    set((state) => ({
+      analytics: {
+        ...state.analytics,
+        recentEdits: edits,
+      },
+    }));
+  },
+
+  setAnalyticsLoadingRecentEdits: (loading: boolean) => {
+    set((state) => ({
+      analytics: {
+        ...state.analytics,
+        isLoadingRecentEdits: loading,
+      },
+    }));
+  },
+
+  setAnalyticsRecentEditsError: (error: string | null) => {
+    set((state) => ({
+      analytics: {
+        ...state.analytics,
+        recentEditsError: error,
+      },
+    }));
+  },
+
+  loadRecentEdits: async (projectPath: string) => {
+    try {
+      const result = await invoke<RecentEditsResult>("get_recent_edits", {
+        projectPath,
+      });
+      return result;
+    } catch (error) {
+      console.error("Failed to load recent edits:", error);
+      throw error;
+    }
+  },
+
   resetAnalytics: () => {
     set({ analytics: initialAnalyticsState });
   },
@@ -657,6 +701,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         ...state.analytics,
         projectSummaryError: null,
         sessionComparisonError: null,
+        recentEditsError: null,
       },
     }));
   },

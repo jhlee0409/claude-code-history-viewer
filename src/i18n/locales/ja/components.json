@@ -428,6 +428,7 @@
   "fileEditRenderer": {
     "fileEditResult": "ファイル編集結果",
     "copyChangedResult": "変更された結果をコピー",
+    "copyFileAfterChange": "変更後のファイルをコピー",
     "copyOriginalFile": "元のファイルをコピー",
     "filePath": "ファイルパス:",
     "editType": "編集タイプ",
@@ -587,6 +588,27 @@
     "cacheCleared": "アップデートキャッシュがクリアされました。",
     "close": "閉じる",
     "save": "保存"
+  },
+  "recentEdits": {
+    "title": "最近の編集",
+    "description": "変更後の最新コンテンツを確認して、誤って削除されたファイルを復元",
+    "loading": "最近の編集を読み込み中...",
+    "noEdits": "最近の編集なし",
+    "noEditsDescription": "このプロジェクトでファイルの編集や作成が見つかりません",
+    "searchPlaceholder": "ファイルパスまたは内容で検索...",
+    "noSearchResults": "検索に一致するファイルがありません",
+    "copyContent": "内容をコピー",
+    "restoreFile": "ファイルを復元",
+    "restoreError": "ファイルの復元に失敗しました",
+    "confirmRestoreTitle": "ファイルを復元しますか？",
+    "confirmRestoreMessage": "次のパスのファイルを上書きします:\n{{path}}\n\n続行しますか？",
+    "cancel": "キャンセル",
+    "confirmRestore": "復元",
+    "created": "作成済み",
+    "edited": "編集済み",
+    "lines": "行",
+    "stats": "{{files}}ファイル、{{edits}}件の編集",
+    "footerInfo": "各ファイルの最新コンテンツを表示しています。復元をクリックしてファイルをディスクに書き戻します。"
   },
   "updateIntroModal": {
     "title": "アップデートシステムガイド",

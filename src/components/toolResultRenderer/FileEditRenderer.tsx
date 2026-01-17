@@ -31,6 +31,14 @@ export const FileEditRenderer = ({ toolResult }: Props) => {
       ? toolResult.userModified
       : false;
 
+  // Compute file content after applying the edit
+  const fileAfterChange =
+    originalFile && oldString
+      ? replaceAll
+        ? originalFile.split(oldString).join(newString)
+        : originalFile.replace(oldString, newString)
+      : "";
+
   return (
     <Renderer
       className={cn(COLORS.tools.code.bg, COLORS.tools.code.border)}
@@ -47,6 +55,12 @@ export const FileEditRenderer = ({ toolResult }: Props) => {
                 newString,
                 `edit-result-${filePath}`,
                 t('fileEditRenderer.copyChangedResult')
+              )}
+            {fileAfterChange &&
+              renderCopyButton(
+                fileAfterChange,
+                `file-after-change-${filePath}`,
+                t('fileEditRenderer.copyFileAfterChange')
               )}
             {originalFile &&
               renderCopyButton(

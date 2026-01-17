@@ -4,6 +4,7 @@ import {
   BarChart3,
   MessageSquare,
   Activity,
+  FileEdit,
 } from "lucide-react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
@@ -51,8 +52,17 @@ export const Header = () => {
       await analyticsActions.switchToAnalytics();
     } catch (error) {
       console.error("Failed to load analytics:", error);
-      // TODO: 토스트 메시지나 에러 상태 표시
-      // toast.error(t("errors.failedToLoadAnalytics"));
+    }
+  };
+
+  // 최근 편집 로드
+  const handleLoadRecentEdits = async () => {
+    if (!selectedProject) return;
+
+    try {
+      await analyticsActions.switchToRecentEdits();
+    } catch (error) {
+      console.error("Failed to load recent edits:", error);
     }
   };
 
@@ -149,6 +159,27 @@ export const Header = () => {
                       className={cn("w-5 h-5", COLORS.ui.text.primary)}
                     />
                   )}
+                </TooltipButton>
+                <TooltipButton
+                  content={tComponents("recentEdits.title")}
+                  onClick={() => {
+                    if (computed.isRecentEditsView) {
+                      analyticsActions.switchToMessages();
+                    } else {
+                      handleLoadRecentEdits();
+                    }
+                  }}
+                  disabled={computed.isAnyLoading}
+                  className={cn(
+                    "p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                    computed.isRecentEditsView
+                      ? COLORS.semantic.warning.bgDark
+                      : COLORS.ui.interactive.hover
+                  )}
+                >
+                  <FileEdit
+                    className={cn("w-5 h-5", COLORS.ui.text.primary)}
+                  />
                 </TooltipButton>
               </>
             )}
