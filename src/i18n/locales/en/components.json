@@ -610,5 +610,81 @@
     "tip": "💡 You can disable auto-check in Settings → Update Settings.",
     "disableAutoCheck": "Disable Auto Check",
     "understood": "Got it"
+  },
+  "webFetchToolResultRenderer": {
+    "error": "Web Fetch Error",
+    "title": "Web Fetch Result",
+    "retrievedAt": "Retrieved",
+    "showContent": "Show content preview"
+  },
+  "codeExecutionToolResultRenderer": {
+    "error": "Code Execution Error",
+    "title": "Code Execution Result",
+    "noOutput": "No output"
+  },
+  "bashCodeExecutionToolResultRenderer": {
+    "error": "Bash Execution Error",
+    "title": "Bash Execution",
+    "noOutput": "No output"
+  },
+  "textEditorCodeExecutionToolResultRenderer": {
+    "error": "Text Editor Error",
+    "view": "View File",
+    "create": "Create File",
+    "delete": "Delete File",
+    "edit": "Edit File",
+    "showContent": "Show file content"
+  },
+  "toolSearchToolResultRenderer": {
+    "error": "Tool Search Error",
+    "title": "Tool Search Results",
+    "noResults": "No tools found",
+    "found": "found"
+  },
+  "fileHistorySnapshotRenderer": {
+    "snapshot": "File History Snapshot",
+    "update": "File History Update",
+    "files": "files tracked",
+    "trackedFiles": "Tracked Files",
+    "noFiles": "No files tracked in this snapshot"
+  },
+  "progressRenderer": {
+    "types": {
+      "agent": "Agent",
+      "mcp": "MCP Tool",
+      "bash": "Bash",
+      "hook": "Hook",
+      "search": "Search",
+      "query": "Query",
+      "waiting": "Waiting"
+    },
+    "status": {
+      "completed": "Completed",
+      "started": "Started",
+      "running": "Running",
+      "error": "Error"
+    }
+  },
+  "queueOperationRenderer": {
+    "title": "Queue Operation",
+    "operations": {
+      "enqueue": "Enqueue",
+      "dequeue": "Dequeue",
+      "remove": "Remove",
+      "popAll": "Clear All"
+    },
+    "descriptions": {
+      "enqueue": "Added to queue",
+      "dequeue": "Removed from queue",
+      "remove": "Item removed",
+      "popAll": "Queue cleared"
+    }
+  },
+  "systemMessageRenderer": {
+    "title": "System",
+    "empty": "No content",
+    "subtypes": {
+      "localCommand": "Local Command"
+    }
   }
 }

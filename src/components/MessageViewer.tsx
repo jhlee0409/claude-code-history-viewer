@@ -16,6 +16,10 @@ import {
   ToolExecutionResultRouter,
   MessageContentDisplay,
   AssistantMessageDetails,
+  FileHistorySnapshotRenderer,
+  ProgressRenderer,
+  QueueOperationRenderer,
+  SystemMessageRenderer,
 } from "./messageRenderer";
 import {
   DropdownMenu,
@@ -61,6 +65,81 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
   if (message.isSidechain) {
     return null;
   }
+
+  // Handle file-history-snapshot type with dedicated renderer
+  if (message.type === "file-history-snapshot" && message.snapshot && message.messageId) {
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className="w-full px-4 py-2"
+      >
+        <div className="max-w-4xl mx-auto">
+          <FileHistorySnapshotRenderer
+            messageId={message.messageId}
+            snapshot={message.snapshot}
+            isSnapshotUpdate={message.isSnapshotUpdate ?? false}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Handle progress type with dedicated renderer
+  if (message.type === "progress" && message.data) {
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className="w-full px-4 py-1"
+      >
+        <div className="max-w-4xl mx-auto">
+          <ProgressRenderer
+            data={message.data}
+            toolUseID={message.toolUseID}
+            parentToolUseID={message.parentToolUseID}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Handle queue-operation type with dedicated renderer
+  if (message.type === "queue-operation" && message.operation) {
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className="w-full px-4 py-1"
+      >
+        <div className="max-w-4xl mx-auto">
+          <QueueOperationRenderer
+            operation={message.operation}
+            content={typeof message.content === "string" ? message.content : undefined}
+            timestamp={message.timestamp}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Handle system messages with enhanced renderer
+  if (message.type === "system") {
+    const content = typeof message.content === "string" ? message.content : undefined;
+    const rawMessage = message as { subtype?: string; level?: "info" | "warning" | "error" };
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className="w-full px-4 py-2"
+      >
+        <div className="max-w-4xl mx-auto">
+          <SystemMessageRenderer
+            content={content}
+            subtype={rawMessage.subtype}
+            level={rawMessage.level}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // depth에 따른 왼쪽 margin 적용
   const leftMargin = depth > 0 ? `ml-${Math.min(depth * 4, 16)}` : "";
 

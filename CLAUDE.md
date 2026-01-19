@@ -418,7 +418,16 @@ Currently Supported:
 - ✅ Web search results (`type: "web_search_tool_result"`)
 - ✅ Document content (`type: "document"`) - PDF and plain text
 - ✅ Search results (`type: "search_result"`)
+- ✅ MCP tool use (`type: "mcp_tool_use"`) - Model Context Protocol tool calls
+- ✅ MCP tool result (`type: "mcp_tool_result"`) - MCP tool execution results
 - ✅ Citations - inline source references
+
+2025 Beta Content Types:
+- ✅ Web fetch result (`type: "web_fetch_tool_result"`) - Full page/PDF content retrieval (beta: web-fetch-2025-09-10)
+- ✅ Code execution result (`type: "code_execution_tool_result"`) - Legacy Python execution (beta: code-execution-2025-08-25)
+- ✅ Bash execution result (`type: "bash_code_execution_tool_result"`) - Bash command execution (beta: code-execution-2025-08-25)
+- ✅ Text editor result (`type: "text_editor_code_execution_tool_result"`) - File operations (beta: code-execution-2025-08-25)
+- ✅ Tool search result (`type: "tool_search_tool_result"`) - MCP tool discovery (beta: mcp-client-2025-11-20)
 
 Message-level Metadata (2025):
 - ✅ `costUSD` - API usage cost
@@ -426,6 +435,15 @@ Message-level Metadata (2025):
 
 ### Recent Updates
 
+- **2025 Beta Content Types Support (January 2026)**:
+  - Added 5 new beta content type renderers:
+    - `WebFetchToolResultRenderer` - Web page/PDF content retrieval
+    - `CodeExecutionToolResultRenderer` - Legacy Python code execution
+    - `BashCodeExecutionToolResultRenderer` - Bash command execution
+    - `TextEditorCodeExecutionToolResultRenderer` - File view/create/edit/delete operations
+    - `ToolSearchToolResultRenderer` - MCP tool discovery results
+  - Added shared `safeStringify` utility in `src/utils/jsonUtils.ts`
+  - Memoized `ClaudeContentArrayRenderer` for performance
 - **2025 Content Types Support (December 2025)**:
   - Added support for new content types from Claude API 2025 updates
   - Implemented `redacted_thinking`, `server_tool_use`, `web_search_tool_result`, `document`, `search_result` renderers

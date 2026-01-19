@@ -1,19 +1,12 @@
 import { memo } from "react";
 import { Globe, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { safeStringify } from "../../utils/jsonUtils";
 
 type Props = {
   id: string;
   name: string;
   input: Record<string, unknown>;
-};
-
-const safeStringify = (obj: unknown, indent = 2): string => {
-  try {
-    return JSON.stringify(obj, null, indent);
-  } catch {
-    return "[Unable to stringify]";
-  }
 };
 
 export const ServerToolUseRenderer = memo(function ServerToolUseRenderer({

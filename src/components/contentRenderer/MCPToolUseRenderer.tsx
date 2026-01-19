@@ -1,20 +1,13 @@
 import { memo } from "react";
 import { Server, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { safeStringify } from "../../utils/jsonUtils";
 
 type Props = {
   id: string;
   serverName: string;
   toolName: string;
   input: Record<string, unknown>;
-};
-
-const safeStringify = (obj: unknown, indent = 2): string => {
-  try {
-    return JSON.stringify(obj, null, indent);
-  } catch {
-    return "[Unable to stringify]";
-  }
 };
 
 export const MCPToolUseRenderer = memo(function MCPToolUseRenderer({

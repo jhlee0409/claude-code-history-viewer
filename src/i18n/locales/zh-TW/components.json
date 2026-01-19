@@ -619,5 +619,81 @@
     "tip": "💡 您可以在設定 → 更新設定中停用自動檢查。",
     "disableAutoCheck": "停用自動檢查",
     "understood": "我知道了"
+  },
+  "webFetchToolResultRenderer": {
+    "error": "網頁擷取錯誤",
+    "title": "網頁擷取結果",
+    "retrievedAt": "擷取時間",
+    "showContent": "顯示內容預覽"
+  },
+  "codeExecutionToolResultRenderer": {
+    "error": "程式碼執行錯誤",
+    "title": "程式碼執行結果",
+    "noOutput": "無輸出"
+  },
+  "bashCodeExecutionToolResultRenderer": {
+    "error": "Bash執行錯誤",
+    "title": "Bash執行",
+    "noOutput": "無輸出"
+  },
+  "textEditorCodeExecutionToolResultRenderer": {
+    "error": "文字編輯器錯誤",
+    "view": "檢視檔案",
+    "create": "建立檔案",
+    "delete": "刪除檔案",
+    "edit": "編輯檔案",
+    "showContent": "顯示檔案內容"
+  },
+  "toolSearchToolResultRenderer": {
+    "error": "工具搜尋錯誤",
+    "title": "工具搜尋結果",
+    "noResults": "找不到工具",
+    "found": "個找到"
+  },
+  "fileHistorySnapshotRenderer": {
+    "snapshot": "檔案歷史快照",
+    "update": "檔案歷史更新",
+    "files": "個檔案被追蹤",
+    "trackedFiles": "追蹤的檔案",
+    "noFiles": "此快照中沒有被追蹤的檔案"
+  },
+  "progressRenderer": {
+    "types": {
+      "agent": "代理程式",
+      "mcp": "MCP工具",
+      "bash": "Bash",
+      "hook": "鉤子",
+      "search": "搜尋",
+      "query": "查詢",
+      "waiting": "等待中"
+    },
+    "status": {
+      "completed": "已完成",
+      "started": "已開始",
+      "running": "執行中",
+      "error": "錯誤"
+    }
+  },
+  "queueOperationRenderer": {
+    "title": "佇列操作",
+    "operations": {
+      "enqueue": "入列",
+      "dequeue": "出列",
+      "remove": "移除",
+      "popAll": "清空全部"
+    },
+    "descriptions": {
+      "enqueue": "已加入佇列",
+      "dequeue": "已從佇列移除",
+      "remove": "項目已刪除",
+      "popAll": "佇列已清空"
+    }
+  },
+  "systemMessageRenderer": {
+    "title": "系統",
+    "empty": "無內容",
+    "subtypes": {
+      "localCommand": "本地命令"
+    }
   }
 }

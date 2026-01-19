@@ -14,13 +14,74 @@ export interface ClaudeToolUseResult {
   exitCode: number;
 }
 
+// File history snapshot - tracks file changes during conversations
+export interface FileHistorySnapshotData {
+  messageId: string;
+  trackedFileBackups: Record<string, FileBackupEntry>;
+  timestamp: string;
+}
+
+export interface FileBackupEntry {
+  originalPath: string;
+  backupPath?: string;
+  content?: string;
+  timestamp: string;
+}
+
+export interface FileHistorySnapshotMessage {
+  type: "file-history-snapshot";
+  messageId: string;
+  snapshot: FileHistorySnapshotData;
+  isSnapshotUpdate: boolean;
+}
+
+// Progress message types - tracks various operation progress
+export type ProgressDataType =
+  | "agent_progress"
+  | "mcp_progress"
+  | "bash_progress"
+  | "hook_progress"
+  | "search_results_received"
+  | "query_update"
+  | "waiting_for_task";
+
+export interface ProgressData {
+  type: ProgressDataType;
+  status?: "started" | "completed" | "running" | "error";
+  serverName?: string;
+  toolName?: string;
+  elapsedTimeMs?: number;
+  message?: string;
+  agentId?: string;
+  taskId?: string;
+}
+
+export interface ProgressMessage {
+  type: "progress";
+  data: ProgressData;
+  toolUseID?: string;
+  parentToolUseID?: string;
+  timestamp?: string;
+}
+
+// Queue operation types - tracks message queue operations
+export type QueueOperationType = "enqueue" | "dequeue" | "remove" | "popAll";
+
+export interface QueueOperationMessage {
+  type: "queue-operation";
+  operation: QueueOperationType;
+  content?: string;
+  timestamp?: string;
+  sessionId?: string;
+}
+
 // Raw message structure from JSONL files
 export interface RawClaudeMessage {
   uuid: string;
   parentUuid?: string;
   sessionId: string;
   timestamp: string;
-  type: "user" | "assistant" | "system" | "summary";
+  type: "user" | "assistant" | "system" | "summary" | "file-history-snapshot" | "progress" | "queue-operation";
   message: MessagePayload;
   toolUse?: Record<string, unknown>;
   toolUseResult?: Record<string, unknown> | string;
@@ -32,6 +93,16 @@ export interface RawClaudeMessage {
   // Cost and performance metrics (2025 additions)
   costUSD?: number;
   durationMs?: number;
+  // File history snapshot fields
+  messageId?: string;
+  snapshot?: FileHistorySnapshotData;
+  isSnapshotUpdate?: boolean;
+  // Progress message fields
+  data?: ProgressData;
+  toolUseID?: string;
+  parentToolUseID?: string;
+  // Queue operation fields
+  operation?: QueueOperationType;
 }
 
 // Nested message object within RawClaudeMessage
@@ -59,6 +130,11 @@ export type ContentItem =
   | RedactedThinkingContent
   | ServerToolUseContent
   | WebSearchToolResultContent
+  | WebFetchToolResultContent
+  | CodeExecutionToolResultContent
+  | BashCodeExecutionToolResultContent
+  | TextEditorCodeExecutionToolResultContent
+  | ToolSearchToolResultContent
   | ImageContent
   | DocumentContent
   | SearchResultContent
@@ -230,6 +306,142 @@ export interface MCPUnknownResult {
   [key: string]: unknown;
 }
 
+// 2025 Beta Content Types
+
+/** Web fetch tool result (beta: web-fetch-2025-09-10) */
+export interface WebFetchToolResultContent {
+  type: "web_fetch_tool_result";
+  tool_use_id: string;
+  content: WebFetchResult | WebFetchError;
+}
+
+export interface WebFetchResult {
+  type: "web_fetch_result";
+  url: string;
+  content?: {
+    type: "document";
+    source?: {
+      type: "base64" | "text" | "url";
+      media_type?: string;
+      data?: string;
+      url?: string;
+    };
+    title?: string;
+  };
+  retrieved_at?: string;
+}
+
+export interface WebFetchError {
+  type: "web_fetch_tool_error";
+  error_code:
+    | "invalid_input"
+    | "url_too_long"
+    | "url_not_allowed"
+    | "url_not_accessible"
+    | "too_many_requests"
+    | "unsupported_content_type"
+    | "max_uses_exceeded"
+    | "unavailable";
+}
+
+/** Legacy Python code execution result (beta: code-execution-2025-08-25) */
+export interface CodeExecutionToolResultContent {
+  type: "code_execution_tool_result";
+  tool_use_id: string;
+  content: CodeExecutionResult | CodeExecutionError;
+}
+
+export interface CodeExecutionResult {
+  type: "code_execution_result";
+  stdout?: string;
+  stderr?: string;
+  return_code?: number;
+}
+
+export interface CodeExecutionError {
+  type: "code_execution_tool_result_error";
+  error_code:
+    | "invalid_tool_input"
+    | "unavailable"
+    | "too_many_requests"
+    | "execution_time_exceeded";
+}
+
+/** Bash code execution result (beta: code-execution-2025-08-25) */
+export interface BashCodeExecutionToolResultContent {
+  type: "bash_code_execution_tool_result";
+  tool_use_id: string;
+  content: BashCodeExecutionResult | BashCodeExecutionError;
+}
+
+export interface BashCodeExecutionResult {
+  type: "bash_code_execution_result";
+  stdout?: string;
+  stderr?: string;
+  return_code?: number;
+}
+
+export interface BashCodeExecutionError {
+  type: "bash_code_execution_tool_result_error";
+  error_code:
+    | "invalid_tool_input"
+    | "unavailable"
+    | "too_many_requests"
+    | "execution_time_exceeded";
+}
+
+/** Text editor code execution result (beta: code-execution-2025-08-25) */
+export interface TextEditorCodeExecutionToolResultContent {
+  type: "text_editor_code_execution_tool_result";
+  tool_use_id: string;
+  content: TextEditorResult | TextEditorError;
+}
+
+export interface TextEditorResult {
+  type: "text_editor_code_execution_result";
+  operation?: "view" | "create" | "edit" | "delete";
+  path?: string;
+  content?: string;
+  old_content?: string;
+  new_content?: string;
+  success?: boolean;
+}
+
+export interface TextEditorError {
+  type: "text_editor_code_execution_tool_result_error";
+  error_code:
+    | "invalid_tool_input"
+    | "unavailable"
+    | "too_many_requests"
+    | "execution_time_exceeded"
+    | "file_not_found"
+    | "permission_denied";
+}
+
+/** Tool search result (beta: mcp-client-2025-11-20) */
+export interface ToolSearchToolResultContent {
+  type: "tool_search_tool_result";
+  tool_use_id: string;
+  content: ToolSearchResult[] | ToolSearchError;
+}
+
+export interface ToolSearchResult {
+  type: "tool_search_tool_search_result";
+  tool_name: string;
+  server_name?: string;
+  description?: string;
+  input_schema?: Record<string, unknown>;
+}
+
+export interface ToolSearchError {
+  type: "tool_search_tool_result_error";
+  error_code:
+    | "invalid_tool_input"
+    | "unavailable"
+    | "too_many_requests"
+    | "no_results";
+}
+
 /** Citation structure for referencing source documents */
 export interface Citation {
   type: "char_location" | "page_location" | "content_block_location";
@@ -271,6 +483,16 @@ export interface ClaudeMessage {
   // Cost and performance metrics (2025 additions)
   costUSD?: number;
   durationMs?: number;
+  // File history snapshot fields (for type: "file-history-snapshot")
+  messageId?: string;
+  snapshot?: FileHistorySnapshotData;
+  isSnapshotUpdate?: boolean;
+  // Progress message fields (for type: "progress")
+  data?: ProgressData;
+  toolUseID?: string;
+  parentToolUseID?: string;
+  // Queue operation fields (for type: "queue-operation")
+  operation?: QueueOperationType;
 }
 
 export interface ClaudeProject {

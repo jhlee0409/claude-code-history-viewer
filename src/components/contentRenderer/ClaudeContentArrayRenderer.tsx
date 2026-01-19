@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ThinkingRenderer } from "./ThinkingRenderer";
 import { ToolUseRenderer } from "./ToolUseRenderer";
 import { ImageRenderer } from "./ImageRenderer";
@@ -9,9 +10,15 @@ import { CitationRenderer } from "./CitationRenderer";
 import { SearchResultRenderer } from "./SearchResultRenderer";
 import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
 import { MCPToolResultRenderer } from "./MCPToolResultRenderer";
+import { WebFetchToolResultRenderer } from "./WebFetchToolResultRenderer";
+import { CodeExecutionToolResultRenderer } from "./CodeExecutionToolResultRenderer";
+import { BashCodeExecutionToolResultRenderer } from "./BashCodeExecutionToolResultRenderer";
+import { TextEditorCodeExecutionToolResultRenderer } from "./TextEditorCodeExecutionToolResultRenderer";
+import { ToolSearchToolResultRenderer } from "./ToolSearchToolResultRenderer";
 import { ClaudeToolResultItem } from "../toolResultRenderer";
 import { useTranslation } from "react-i18next";
 import { isImageUrl } from "../../utils/messageUtils";
+import { safeStringify } from "../../utils/jsonUtils";
 import type { SearchFilterType } from "../../store/useAppStore";
 import type {
   DocumentContent,
@@ -21,6 +28,11 @@ import type {
   Citation,
   MCPToolUseContent,
   MCPToolResultContent,
+  WebFetchToolResultContent,
+  CodeExecutionToolResultContent,
+  BashCodeExecutionToolResultContent,
+  TextEditorCodeExecutionToolResultContent,
+  ToolSearchToolResultContent,
 } from "../../types";
 
 type Props = {
@@ -94,21 +106,69 @@ const isMCPToolResult = (item: unknown): item is MCPToolResultContent => {
   );
 };
 
-const safeStringify = (obj: unknown, indent = 2): string => {
-  try {
-    return JSON.stringify(obj, null, indent);
-  } catch {
-    return "[Unable to stringify - possible circular reference]";
-  }
+// 2025 Beta Content Type Guards
+const isWebFetchToolResult = (item: unknown): item is WebFetchToolResultContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    obj.type === "web_fetch_tool_result" &&
+    typeof obj.tool_use_id === "string" &&
+    typeof obj.content === "object" &&
+    obj.content !== null
+  );
 };
 
-export const ClaudeContentArrayRenderer = ({
+const isCodeExecutionToolResult = (item: unknown): item is CodeExecutionToolResultContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    obj.type === "code_execution_tool_result" &&
+    typeof obj.tool_use_id === "string" &&
+    typeof obj.content === "object" &&
+    obj.content !== null
+  );
+};
+
+const isBashCodeExecutionToolResult = (item: unknown): item is BashCodeExecutionToolResultContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    obj.type === "bash_code_execution_tool_result" &&
+    typeof obj.tool_use_id === "string" &&
+    typeof obj.content === "object" &&
+    obj.content !== null
+  );
+};
+
+const isTextEditorCodeExecutionToolResult = (item: unknown): item is TextEditorCodeExecutionToolResultContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    obj.type === "text_editor_code_execution_tool_result" &&
+    typeof obj.tool_use_id === "string" &&
+    typeof obj.content === "object" &&
+    obj.content !== null
+  );
+};
+
+const isToolSearchToolResult = (item: unknown): item is ToolSearchToolResultContent => {
+  if (typeof item !== "object" || item === null) return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    obj.type === "tool_search_tool_result" &&
+    typeof obj.tool_use_id === "string" &&
+    (Array.isArray(obj.content) ||
+      (typeof obj.content === "object" && obj.content !== null))
+  );
+};
+
+export const ClaudeContentArrayRenderer = memo(function ClaudeContentArrayRenderer({
   content,
   searchQuery = "",
   filterType = "content",
   isCurrentMatch = false,
   currentMatchIndex = 0,
-}: Props) => {
+}: Props) {
   const { t } = useTranslation("components");
   if (!Array.isArray(content) || content.length === 0) {
     return null;
@@ -252,6 +312,62 @@ export const ClaudeContentArrayRenderer = ({
             );
           }
 
+          // 2025 Beta Content Types
+          case "web_fetch_tool_result": {
+            if (!isWebFetchToolResult(item)) return null;
+            return (
+              <WebFetchToolResultRenderer
+                key={index}
+                toolUseId={item.tool_use_id}
+                content={item.content}
+              />
+            );
+          }
+
+          case "code_execution_tool_result": {
+            if (!isCodeExecutionToolResult(item)) return null;
+            return (
+              <CodeExecutionToolResultRenderer
+                key={index}
+                toolUseId={item.tool_use_id}
+                content={item.content}
+              />
+            );
+          }
+
+          case "bash_code_execution_tool_result": {
+            if (!isBashCodeExecutionToolResult(item)) return null;
+            return (
+              <BashCodeExecutionToolResultRenderer
+                key={index}
+                toolUseId={item.tool_use_id}
+                content={item.content}
+              />
+            );
+          }
+
+          case "text_editor_code_execution_tool_result": {
+            if (!isTextEditorCodeExecutionToolResult(item)) return null;
+            return (
+              <TextEditorCodeExecutionToolResultRenderer
+                key={index}
+                toolUseId={item.tool_use_id}
+                content={item.content}
+              />
+            );
+          }
+
+          case "tool_search_tool_result": {
+            if (!isToolSearchToolResult(item)) return null;
+            return (
+              <ToolSearchToolResultRenderer
+                key={index}
+                toolUseId={item.tool_use_id}
+                content={item.content}
+              />
+            );
+          }
+
           case "tool_use":
             return (
               <ToolUseRenderer
@@ -295,4 +411,4 @@ export const ClaudeContentArrayRenderer = ({
       })}
     </div>
   );
-};
+});

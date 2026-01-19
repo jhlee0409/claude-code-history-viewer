@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Server, CheckCircle, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { safeStringify } from "../../utils/jsonUtils";
 import type { MCPToolResultData } from "../../types";
 
 type Props = {
@@ -9,18 +10,10 @@ type Props = {
   isError?: boolean;
 };
 
-const isTextContent = (
+const isObjectContent = (
   content: MCPToolResultData | string
 ): content is MCPToolResultData => {
   return typeof content === "object" && content !== null;
-};
-
-const safeStringify = (obj: unknown, indent = 2): string => {
-  try {
-    return JSON.stringify(obj, null, indent);
-  } catch {
-    return "[Unable to stringify]";
-  }
 };
 
 export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
@@ -62,7 +55,7 @@ export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
       );
     }
 
-    if (isTextContent(content)) {
+    if (isObjectContent(content)) {
       if (content.type === "text" && content.text) {
         return (
           <pre className="text-sm text-violet-700 bg-violet-100 rounded p-2 overflow-x-auto whitespace-pre-wrap">
