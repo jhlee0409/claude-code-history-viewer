@@ -1,24 +1,7 @@
 import { memo } from "react";
 import { Terminal, CheckCircle, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
-/** Bash code execution result */
-interface BashCodeExecutionResult {
-  type: "bash_code_execution_result";
-  stdout?: string;
-  stderr?: string;
-  return_code?: number;
-}
-
-/** Bash execution error */
-interface BashCodeExecutionError {
-  type: "bash_code_execution_tool_result_error";
-  error_code:
-    | "invalid_tool_input"
-    | "unavailable"
-    | "too_many_requests"
-    | "execution_time_exceeded";
-}
+import type { BashCodeExecutionResult, BashCodeExecutionError } from "../../types";
 
 type Props = {
   toolUseId: string;
