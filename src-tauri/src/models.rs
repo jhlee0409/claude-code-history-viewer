@@ -51,6 +51,23 @@ pub struct RawLogEntry {
     #[serde(rename = "durationMs")]
     pub duration_ms: Option<u64>,
 
+    // File history snapshot fields (for type: "file-history-snapshot")
+    #[serde(rename = "messageId")]
+    pub message_id: Option<String>,
+    pub snapshot: Option<serde_json::Value>,
+    #[serde(rename = "isSnapshotUpdate")]
+    pub is_snapshot_update: Option<bool>,
+
+    // Progress message fields (for type: "progress")
+    pub data: Option<serde_json::Value>,
+    #[serde(rename = "toolUseID")]
+    pub tool_use_id: Option<String>,
+    #[serde(rename = "parentToolUseID")]
+    pub parent_tool_use_id: Option<String>,
+
+    // Queue operation fields (for type: "queue-operation")
+    pub operation: Option<String>,
+
     // System message fields
     pub subtype: Option<String>,
     pub level: Option<String>,
@@ -92,8 +109,6 @@ pub struct ClaudeMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub message_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<String>,
@@ -102,6 +117,26 @@ pub struct ClaudeMessage {
     pub cost_usd: Option<f64>,
     #[serde(rename = "durationMs", skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u64>,
+
+    // File history snapshot fields (for type: "file-history-snapshot")
+    #[serde(rename = "messageId", skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<serde_json::Value>,
+    #[serde(rename = "isSnapshotUpdate", skip_serializing_if = "Option::is_none")]
+    pub is_snapshot_update: Option<bool>,
+
+    // Progress message fields (for type: "progress")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
+    #[serde(rename = "toolUseID", skip_serializing_if = "Option::is_none")]
+    pub tool_use_id: Option<String>,
+    #[serde(rename = "parentToolUseID", skip_serializing_if = "Option::is_none")]
+    pub parent_tool_use_id: Option<String>,
+
+    // Queue operation fields (for type: "queue-operation")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation: Option<String>,
 
     // System message fields
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -415,11 +450,20 @@ mod tests {
             is_sidechain: Some(false),
             usage: None,
             role: Some("user".to_string()),
-            message_id: None,
             model: None,
             stop_reason: None,
             cost_usd: None,
             duration_ms: None,
+            // File history snapshot fields
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            // Progress message fields
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            // Queue operation fields
+            operation: None,
             // System message fields
             subtype: None,
             level: None,
@@ -453,11 +497,20 @@ mod tests {
             is_sidechain: None,
             usage: None,
             role: None,
-            message_id: None,
             model: None,
             stop_reason: None,
             cost_usd: None,
             duration_ms: None,
+            // File history snapshot fields
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            // Progress message fields
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            // Queue operation fields
+            operation: None,
             // System message fields
             subtype: None,
             level: None,
@@ -473,7 +526,7 @@ mod tests {
         // Optional fields with skip_serializing_if should not appear
         assert!(!serialized.contains("usage"));
         assert!(!serialized.contains("role"));
-        assert!(!serialized.contains("message_id"));
+        assert!(!serialized.contains("messageId"));
         assert!(!serialized.contains("model"));
         assert!(!serialized.contains("stop_reason"));
         assert!(!serialized.contains("costUSD"));
@@ -695,11 +748,20 @@ mod tests {
             is_sidechain: None,
             usage: None,
             role: None,
-            message_id: None,
             model: None,
             stop_reason: None,
             cost_usd: None,
             duration_ms: Some(5000),
+            // File history snapshot fields
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            // Progress message fields
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            // Queue operation fields
+            operation: None,
             // System message fields
             subtype: Some("turn_duration".to_string()),
             level: None,
@@ -738,11 +800,20 @@ mod tests {
             is_sidechain: None,
             usage: None,
             role: None,
-            message_id: None,
             model: None,
             stop_reason: None,
             cost_usd: None,
             duration_ms: None,
+            // File history snapshot fields
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            // Progress message fields
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            // Queue operation fields
+            operation: None,
             // System message fields
             subtype: Some("stop_hook_summary".to_string()),
             level: Some("suggestion".to_string()),
@@ -815,11 +886,20 @@ mod tests {
             is_sidechain: entry.is_sidechain,
             usage: None,
             role: None,
-            message_id: None,
             model: None,
             stop_reason: None,
             cost_usd: entry.cost_usd,
             duration_ms: entry.duration_ms,
+            // File history snapshot fields
+            message_id: entry.message_id,
+            snapshot: entry.snapshot,
+            is_snapshot_update: entry.is_snapshot_update,
+            // Progress message fields
+            data: entry.data,
+            tool_use_id: entry.tool_use_id,
+            parent_tool_use_id: entry.parent_tool_use_id,
+            // Queue operation fields
+            operation: entry.operation,
             // System message fields
             subtype: entry.subtype,
             level: entry.level,
@@ -897,11 +977,20 @@ mod tests {
             is_sidechain: entry.is_sidechain,
             usage: None,
             role: None,
-            message_id: None,
             model: None,
             stop_reason: None,
             cost_usd: entry.cost_usd,
             duration_ms: entry.duration_ms,
+            // File history snapshot fields
+            message_id: entry.message_id,
+            snapshot: entry.snapshot,
+            is_snapshot_update: entry.is_snapshot_update,
+            // Progress message fields
+            data: entry.data,
+            tool_use_id: entry.tool_use_id,
+            parent_tool_use_id: entry.parent_tool_use_id,
+            // Queue operation fields
+            operation: entry.operation,
             // System message fields
             subtype: entry.subtype,
             level: entry.level,

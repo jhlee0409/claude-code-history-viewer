@@ -457,11 +457,20 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
             is_sidechain: log_entry.is_sidechain,
             usage,
             role,
-            message_id,
             model,
             stop_reason,
             cost_usd: log_entry.cost_usd,
             duration_ms: log_entry.duration_ms,
+            // File history snapshot fields
+            message_id: message_id.or(log_entry.message_id),
+            snapshot: log_entry.snapshot,
+            is_snapshot_update: log_entry.is_snapshot_update,
+            // Progress message fields
+            data: log_entry.data,
+            tool_use_id: log_entry.tool_use_id,
+            parent_tool_use_id: log_entry.parent_tool_use_id,
+            // Queue operation fields
+            operation: log_entry.operation,
             // System message fields
             subtype: log_entry.subtype,
             level: log_entry.level,

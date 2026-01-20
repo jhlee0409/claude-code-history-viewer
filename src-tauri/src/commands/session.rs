@@ -92,11 +92,20 @@ pub async fn load_project_sessions(
                                 is_sidechain: log_entry.is_sidechain,
                                 usage,
                                 role,
-                                message_id,
                                 model,
                                 stop_reason,
                                 cost_usd: log_entry.cost_usd,
                                 duration_ms: log_entry.duration_ms,
+                                // File history snapshot fields
+                                message_id: message_id.or(log_entry.message_id),
+                                snapshot: log_entry.snapshot,
+                                is_snapshot_update: log_entry.is_snapshot_update,
+                                // Progress message fields
+                                data: log_entry.data,
+                                tool_use_id: log_entry.tool_use_id,
+                                parent_tool_use_id: log_entry.parent_tool_use_id,
+                                // Queue operation fields
+                                operation: log_entry.operation,
                                 // System message fields
                                 subtype: log_entry.subtype,
                                 level: log_entry.level,
@@ -335,11 +344,20 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                             is_sidechain: None,
                             usage: None,
                             role: None,
-                            message_id: None,
                             model: None,
                             stop_reason: None,
                             cost_usd: None,
                             duration_ms: None,
+                            // File history snapshot fields (not applicable for summary)
+                            message_id: None,
+                            snapshot: None,
+                            is_snapshot_update: None,
+                            // Progress message fields (not applicable for summary)
+                            data: None,
+                            tool_use_id: None,
+                            parent_tool_use_id: None,
+                            // Queue operation fields (not applicable for summary)
+                            operation: None,
                             // System message fields (not applicable for summary)
                             subtype: None,
                             level: None,
@@ -394,11 +412,20 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                         is_sidechain: log_entry.is_sidechain,
                         usage,
                         role,
-                        message_id,
                         model,
                         stop_reason,
                         cost_usd: log_entry.cost_usd,
                         duration_ms: log_entry.duration_ms,
+                        // File history snapshot fields
+                        message_id: message_id.or(log_entry.message_id),
+                        snapshot: log_entry.snapshot,
+                        is_snapshot_update: log_entry.is_snapshot_update,
+                        // Progress message fields
+                        data: log_entry.data,
+                        tool_use_id: log_entry.tool_use_id,
+                        parent_tool_use_id: log_entry.parent_tool_use_id,
+                        // Queue operation fields
+                        operation: log_entry.operation,
                         // System message fields
                         subtype: log_entry.subtype,
                         level: log_entry.level,
@@ -496,11 +523,20 @@ pub async fn load_session_messages_paginated(
                         is_sidechain: log_entry.is_sidechain,
                         usage,
                         role,
-                        message_id,
                         model,
                         stop_reason,
                         cost_usd: log_entry.cost_usd,
                         duration_ms: log_entry.duration_ms,
+                        // File history snapshot fields
+                        message_id: message_id.or(log_entry.message_id),
+                        snapshot: log_entry.snapshot,
+                        is_snapshot_update: log_entry.is_snapshot_update,
+                        // Progress message fields
+                        data: log_entry.data,
+                        tool_use_id: log_entry.tool_use_id,
+                        parent_tool_use_id: log_entry.parent_tool_use_id,
+                        // Queue operation fields
+                        operation: log_entry.operation,
                         // System message fields
                         subtype: log_entry.subtype,
                         level: log_entry.level,
@@ -519,7 +555,7 @@ pub async fn load_session_messages_paginated(
             }
         }
     }
-    
+
     let total_count = all_messages.len();
     
     #[cfg(debug_assertions)]
@@ -662,11 +698,20 @@ pub async fn search_messages(
                                     is_sidechain: log_entry.is_sidechain,
                                     usage: message_content.usage.clone(),
                                     role: Some(message_content.role.clone()),
-                                    message_id: message_content.id.clone(),
                                     model: message_content.model.clone(),
                                     stop_reason: message_content.stop_reason.clone(),
                                     cost_usd: log_entry.cost_usd,
                                     duration_ms: log_entry.duration_ms,
+                                    // File history snapshot fields (not applicable for search results)
+                                    message_id: message_content.id.clone(),
+                                    snapshot: None,
+                                    is_snapshot_update: None,
+                                    // Progress message fields (not applicable for search results)
+                                    data: None,
+                                    tool_use_id: None,
+                                    parent_tool_use_id: None,
+                                    // Queue operation fields (not applicable for search results)
+                                    operation: None,
                                     // System message fields (not applicable for search results)
                                     subtype: None,
                                     level: None,
