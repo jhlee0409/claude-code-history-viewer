@@ -210,9 +210,12 @@ export interface ImageContent {
   source: Base64ImageSource | URLImageSource;
 }
 
+/** Allowed image MIME types for type safety */
+export type ImageMimeType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
 export interface Base64ImageSource {
   type: "base64";
-  media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  media_type: ImageMimeType;
   data: string;
 }
 
@@ -293,7 +296,7 @@ export interface MCPTextResult {
 export interface MCPImageResult {
   type: "image";
   data: string;
-  mimeType: string;
+  mimeType: ImageMimeType;
 }
 
 export interface MCPResourceResult {
