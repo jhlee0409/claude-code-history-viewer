@@ -1018,6 +1018,13 @@ mod tests {
         assert!(cm_content.as_str().unwrap().contains("<command-name>/doctor</command-name>"));
 
         // Verify content is serialized as a JSON string (not object)
-        assert!(output_json.contains(r#""content": "<command-name>/doctor</command-name>"#));
+        // Parse output_json and validate via JSON access to avoid escaping issues
+        let parsed: serde_json::Value = serde_json::from_str(&output_json).unwrap();
+        assert!(parsed["content"].is_string(), "content should be a JSON string");
+        let content_str = parsed["content"].as_str().unwrap();
+        assert!(
+            content_str.contains("<command-name>/doctor</command-name>"),
+            "content should contain the command-name tag"
+        );
     }
 }
