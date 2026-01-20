@@ -44,7 +44,7 @@ export const useLanguageStore = create<LanguageStore>((set, get) => ({
       await i18n.changeLanguage(language);
       set({ language });
 
-      const store = await load("settings.json", { defaults: {}, autoSave: true });
+      const store = await load("settings.json", { autoSave: true });
       await store.set("language", language);
       await store.save();
     } catch (e) {
@@ -64,7 +64,7 @@ export const useLanguageStore = create<LanguageStore>((set, get) => ({
 
       if (!language) {
         try {
-          const store = await load("settings.json", { defaults: {}, autoSave: true });
+          const store = await load("settings.json", { autoSave: true });
           language = (await store.get("language")) as SupportedLanguage | null;
         } catch (e) {
           console.log("Tauri Store not available:", e);

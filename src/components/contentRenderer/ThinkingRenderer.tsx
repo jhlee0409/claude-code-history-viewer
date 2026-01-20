@@ -25,8 +25,9 @@ function escapeHtmlOutsideCode(text: string): string {
     const before = text.slice(lastIndex, match.index);
     parts.push(escapeHtmlPreservingInlineCode(before));
     // Code block - keep as is
-    parts.push(match[1]);
-    lastIndex = match.index + match[1].length;
+    const codeBlock = match[1] ?? match[0];
+    parts.push(codeBlock);
+    lastIndex = (match.index ?? 0) + codeBlock.length;
   }
 
   if (lastIndex < text.length) {

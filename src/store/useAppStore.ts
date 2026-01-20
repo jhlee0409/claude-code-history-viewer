@@ -187,7 +187,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
       // Try to load saved settings first
       try {
-        const store = await load("settings.json", { defaults: {}, autoSave: false });
+        const store = await load("settings.json", { autoSave: false });
         const savedPath = await store.get<string>("claudePath");
 
         if (savedPath) {
@@ -461,7 +461,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     // Save to persistent storage
     try {
-      const store = await load("settings.json", { defaults: {}, autoSave: false });
+      const store = await load("settings.json", { autoSave: false });
       await store.set("claudePath", path);
       await store.save();
     } catch (error) {
