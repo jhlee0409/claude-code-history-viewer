@@ -98,7 +98,7 @@ export const BashCodeExecutionToolResultRenderer = memo(
             <div className="flex items-center space-x-1 text-xs text-slate-500 mb-1">
               <span className="font-mono">stdout:</span>
             </div>
-            <pre className="text-xs text-slate-700 bg-slate-900 text-green-400 rounded p-2 overflow-x-auto whitespace-pre-wrap max-h-64 font-mono">
+            <pre className="text-xs bg-slate-900 text-green-400 rounded p-2 overflow-x-auto whitespace-pre-wrap max-h-64 font-mono">
               {stdout}
             </pre>
           </div>
