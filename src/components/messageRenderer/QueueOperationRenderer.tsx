@@ -12,7 +12,6 @@ import type { QueueOperationType } from "../../types";
 type Props = {
   operation: QueueOperationType;
   content?: string;
-  timestamp?: string;
 };
 
 const OPERATION_CONFIG: Record<

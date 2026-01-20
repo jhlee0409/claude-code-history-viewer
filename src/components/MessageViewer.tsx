@@ -118,7 +118,6 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
           <QueueOperationRenderer
             operation={message.operation}
             content={typeof message.content === "string" ? message.content : undefined}
-            timestamp={message.timestamp}
           />
         </div>
       </div>
