@@ -13,8 +13,8 @@ export const ThinkingRenderer = ({ thinking }: Props) => {
 
   if (!thinking) return null;
 
-  const firstLine = thinking.split("\n")[0]?.slice(0, 100);
-  const hasMore = firstLine && thinking.length > (firstLine.length || 0);
+  const firstLine = thinking.split("\n")[0]?.slice(0, 100) || "";
+  const hasMore = thinking.length > firstLine.length || thinking.includes("\n");
 
   return (
     <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg mt-2 overflow-hidden">

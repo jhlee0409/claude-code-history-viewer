@@ -836,7 +836,7 @@ pub async fn get_recent_edits(project_path: String) -> Result<crate::models::Rec
                                                         edit.get("old_string").and_then(|v| v.as_str()),
                                                         edit.get("new_string").and_then(|v| v.as_str())
                                                     ) {
-                                                        content = content.replace(old_str, new_str);
+                                                        content = content.replacen(old_str, new_str, 1);
                                                         lines_removed += old_str.lines().count();
                                                         lines_added += new_str.lines().count();
                                                     }
@@ -862,7 +862,7 @@ pub async fn get_recent_edits(project_path: String) -> Result<crate::models::Rec
                                         // Single edit format with oldString/newString
                                         // Only include if we have originalFile (needed for full file reconstruction)
                                         if let Some(original) = tool_use_result.get("originalFile").and_then(|v| v.as_str()) {
-                                            let content = original.replace(old_str, new_str);
+                                            let content = original.replacen(old_str, new_str, 1);
 
                                             all_edits.push(crate::models::RecentFileEdit {
                                                 file_path: file_path_str.to_string(),
@@ -995,12 +995,6 @@ pub async fn restore_file(file_path: String, content: String) -> Result<(), Stri
         if let std::path::Component::ParentDir = component {
             return Err("Invalid file path: path traversal not allowed".to_string());
         }
-    }
-
-    // Additional validation: ensure the path doesn't contain suspicious patterns
-    let path_str = file_path.as_str();
-    if path_str.contains("..") {
-        return Err("Invalid file path: parent directory references not allowed".to_string());
     }
 
     // Create parent directories if they don't exist

@@ -625,7 +625,7 @@
     "edited": "已編輯",
     "lines": "行",
     "stats": "{{files}}個檔案，{{edits}}次編輯",
-    "footerInfo": "顯示每個檔案的最新內容。使用「複製內容」恢復已刪除的檔案。"
+    "footerInfo": "顯示每個檔案的最新內容。點擊「恢復檔案」將內容寫回磁碟。"
   },
   "updateIntroModal": {
     "title": "更新系統指南",

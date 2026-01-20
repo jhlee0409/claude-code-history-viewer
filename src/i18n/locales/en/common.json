@@ -36,6 +36,7 @@
     "updateSettings": "Update Settings"
   },
   "time": {
+    "justNow": "just now",
     "minutesAgo": "{{count}} minute ago",
     "hoursAgo": "{{count}} hour ago",
     "daysAgo": "{{count}} day ago",

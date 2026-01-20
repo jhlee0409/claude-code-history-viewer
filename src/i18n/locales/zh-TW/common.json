@@ -36,6 +36,7 @@
     "updateSettings": "更新設定"
   },
   "time": {
+    "justNow": "剛剛",
     "minutesAgo": "{{count}}分鐘前",
     "hoursAgo": "{{count}}小時前",
     "daysAgo": "{{count}}天前",

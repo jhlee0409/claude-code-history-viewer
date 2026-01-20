@@ -30,8 +30,9 @@ interface RecentEditsViewerProps {
 
 // Helper function to get file extension language for syntax highlighting
 const getLanguageFromPath = (path: string): string => {
-  const ext = path.split(".").pop()?.toLowerCase();
-  const fileName = path.split("/").pop()?.toLowerCase() || "";
+  const normalizedPath = path.replace(/\\/g, "/");
+  const ext = normalizedPath.split(".").pop()?.toLowerCase();
+  const fileName = normalizedPath.split("/").pop()?.toLowerCase() || "";
 
   switch (ext) {
     case "rs":
@@ -96,8 +97,11 @@ const formatTimestamp = (timestamp: string): string => {
   }
 };
 
-// Helper function to get relative time
-const getRelativeTime = (timestamp: string): string => {
+// Helper function to get relative time with i18n support
+const getRelativeTime = (
+  timestamp: string,
+  t: (key: string, options?: { count: number }) => string
+): string => {
   try {
     const date = new Date(timestamp);
     const now = new Date();
@@ -106,10 +110,10 @@ const getRelativeTime = (timestamp: string): string => {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffMins < 1) return t("time.justNow");
+    if (diffMins < 60) return t("time.minutesAgo", { count: diffMins });
+    if (diffHours < 24) return t("time.hoursAgo", { count: diffHours });
+    if (diffDays < 7) return t("time.daysAgo", { count: diffDays });
     return date.toLocaleDateString();
   } catch {
     return "";
@@ -122,6 +126,7 @@ const FileEditItem: React.FC<{
   isDarkMode: boolean;
 }> = ({ edit, isDarkMode }) => {
   const { t } = useTranslation("components");
+  const { t: tCommon } = useTranslation("common");
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -129,7 +134,7 @@ const FileEditItem: React.FC<{
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const language = getLanguageFromPath(edit.file_path);
-  const fileName = edit.file_path.split("/").pop() || edit.file_path;
+  const fileName = edit.file_path.replace(/\\/g, "/").split("/").pop() || edit.file_path;
   const lines = edit.content_after_change.split("\n");
 
   const handleCopy = async () => {
@@ -251,7 +256,7 @@ const FileEditItem: React.FC<{
           <div className={cn("flex items-center space-x-1 text-xs", COLORS.ui.text.muted)}>
             <Clock className="w-3 h-3" />
             <span title={formatTimestamp(edit.timestamp)}>
-              {getRelativeTime(edit.timestamp)}
+              {getRelativeTime(edit.timestamp, tCommon)}
             </span>
           </div>
 

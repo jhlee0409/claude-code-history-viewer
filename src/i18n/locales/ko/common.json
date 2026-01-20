@@ -36,6 +36,7 @@
     "updateSettings": "업데이트 설정"
   },
   "time": {
+    "justNow": "방금 전",
     "minutesAgo": "{{count}}분 전",
     "hoursAgo": "{{count}}시간 전",
     "daysAgo": "{{count}}일 전",
