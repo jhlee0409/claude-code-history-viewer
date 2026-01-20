@@ -21,9 +21,9 @@ function escapeHtmlOutsideCode(text: string): string {
   let match;
 
   while ((match = fencedRegex.exec(text)) !== null) {
-    // Text before code block - escape HTML
+    // Text before code block - escape HTML while preserving inline code
     const before = text.slice(lastIndex, match.index);
-    parts.push(escapeHtmlInText(before));
+    parts.push(escapeHtmlPreservingInlineCode(before));
     // Code block - keep as is
     parts.push(match[1]);
     lastIndex = match.index + match[1].length;

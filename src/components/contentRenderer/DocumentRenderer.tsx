@@ -21,7 +21,7 @@ const isBase64PDF = (
 const isPlainText = (
   source: Base64PDFSource | PlainTextSource | URLPDFSource
 ): source is PlainTextSource => {
-  return source.type === "text" && "media_type" in source && source.media_type === "text/plain";
+  return source.type === "text" && "media_type" in source && source.media_type === "text/plain" && "data" in source && typeof source.data === "string";
 };
 
 const isURLPDF = (
