@@ -1,29 +1,7 @@
 import { memo } from "react";
 import { FileEdit, CheckCircle, AlertCircle, Eye, FilePlus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
-/** Text editor operation result */
-interface TextEditorResult {
-  type: "text_editor_code_execution_result";
-  operation?: "view" | "create" | "edit" | "delete";
-  path?: string;
-  content?: string;
-  old_content?: string;
-  new_content?: string;
-  success?: boolean;
-}
-
-/** Text editor error */
-interface TextEditorError {
-  type: "text_editor_code_execution_tool_result_error";
-  error_code:
-    | "invalid_tool_input"
-    | "unavailable"
-    | "too_many_requests"
-    | "execution_time_exceeded"
-    | "file_not_found"
-    | "permission_denied";
-}
+import type { TextEditorResult, TextEditorError } from "../../types";
 
 type Props = {
   toolUseId: string;
