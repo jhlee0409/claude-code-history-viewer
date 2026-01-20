@@ -44,7 +44,7 @@ function escapeHtmlOutsideCode(text: string): string {
 
 function escapeHtmlInText(text: string): string {
   // Only escape < and > that look like HTML tags (not operators like < or >)
-  return text.replace(/<([a-zA-Z\/][^>]*)>/g, '&lt;$1&gt;');
+  return text.replace(/<([a-zA-Z/][^>]*)>/g, '&lt;$1&gt;');
 }
 
 function escapeHtmlPreservingInlineCode(text: string): string {
