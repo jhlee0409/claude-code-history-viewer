@@ -60,6 +60,34 @@ interface MessageNodeProps {
   currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
 }
 
+/** Computes the shared container className for all message types */
+const getMessageContainerClassName = (
+  depth: number,
+  isSidechain: boolean | undefined,
+  isCurrentMatch?: boolean,
+  isMatch?: boolean,
+  paddingY: "py-1" | "py-2" = "py-2"
+): string => {
+  const leftMargin = depth > 0 ? `ml-${Math.min(depth * 4, 16)}` : "";
+  return cn(
+    "w-full px-4 transition-colors duration-300",
+    paddingY,
+    leftMargin,
+    isSidechain && "bg-gray-100 dark:bg-gray-800",
+    isCurrentMatch && "bg-yellow-100 dark:bg-yellow-900/30 ring-2 ring-yellow-400 dark:ring-yellow-500",
+    isMatch && !isCurrentMatch && "bg-yellow-50 dark:bg-yellow-900/10"
+  );
+};
+
+/** Safely extracts parent UUID from message, handling both parentUuid and parent_uuid fields */
+const getParentUuid = (message: ClaudeMessage): string | null | undefined => {
+  const msgWithParent = message as ClaudeMessage & {
+    parentUuid?: string;
+    parent_uuid?: string;
+  };
+  return msgWithParent.parentUuid || msgWithParent.parent_uuid;
+};
+
 const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch, searchQuery, filterType = "content", currentMatchIndex }: MessageNodeProps) => {
   const { t } = useTranslation("components");
 
@@ -72,7 +100,7 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
     return (
       <div
         data-message-uuid={message.uuid}
-        className="w-full px-4 py-2"
+        className={getMessageContainerClassName(depth, message.isSidechain, isCurrentMatch, isMatch, "py-2")}
       >
         <div className="max-w-4xl mx-auto">
           <FileHistorySnapshotRenderer
@@ -94,7 +122,7 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
     return (
       <div
         data-message-uuid={message.uuid}
-        className="w-full px-4 py-1"
+        className={getMessageContainerClassName(depth, message.isSidechain, isCurrentMatch, isMatch, "py-1")}
       >
         <div className="max-w-4xl mx-auto">
           <ProgressRenderer
@@ -112,7 +140,7 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
     return (
       <div
         data-message-uuid={message.uuid}
-        className="w-full px-4 py-1"
+        className={getMessageContainerClassName(depth, message.isSidechain, isCurrentMatch, isMatch, "py-1")}
       >
         <div className="max-w-4xl mx-auto">
           <QueueOperationRenderer
@@ -130,7 +158,7 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
     return (
       <div
         data-message-uuid={message.uuid}
-        className="w-full px-4 py-2"
+        className={getMessageContainerClassName(depth, message.isSidechain, isCurrentMatch, isMatch, "py-2")}
       >
         <div className="max-w-4xl mx-auto">
           <SystemMessageRenderer
@@ -154,22 +182,23 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
   if (message.type === "summary") {
     // summary field comes from the content in ClaudeMessage (set from RawLogEntry.summary)
     const summaryContent = typeof message.content === "string" ? message.content : undefined;
+    const leafUuid = getParentUuid(message) ?? undefined;
     return (
       <div
         data-message-uuid={message.uuid}
-        className="w-full px-4 py-1"
+        className={getMessageContainerClassName(depth, message.isSidechain, isCurrentMatch, isMatch, "py-1")}
       >
         <div className="max-w-4xl mx-auto">
           <SummaryMessageRenderer
             summary={summaryContent}
-            leafUuid={message.parentUuid}
+            leafUuid={leafUuid}
           />
         </div>
       </div>
     );
   }
 
-  // depth에 따른 왼쪽 margin 적용
+  // depth에 따른 왼쪽 margin 적용 (for regular messages below)
   const leftMargin = depth > 0 ? `ml-${Math.min(depth * 4, 16)}` : "";
 
   return (
@@ -283,15 +312,6 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
 });
 
 ClaudeMessageNode.displayName = 'ClaudeMessageNode';
-
-// 타입 안전한 parent UUID 추출 함수
-const getParentUuid = (message: ClaudeMessage): string | null | undefined => {
-  const msgWithParent = message as ClaudeMessage & {
-    parentUuid?: string;
-    parent_uuid?: string;
-  };
-  return msgWithParent.parentUuid || msgWithParent.parent_uuid;
-};
 
 export const MessageViewer: React.FC<MessageViewerProps> = ({
   messages,
