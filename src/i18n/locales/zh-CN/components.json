@@ -619,5 +619,91 @@
     "tip": "💡 您可以在设置 → 更新设置中禁用自动检查。",
     "disableAutoCheck": "禁用自动检查",
     "understood": "我知道了"
+  },
+  "webFetchToolResultRenderer": {
+    "error": "网页获取错误",
+    "title": "网页获取结果",
+    "retrievedAt": "获取时间",
+    "showContent": "显示内容预览"
+  },
+  "codeExecutionToolResultRenderer": {
+    "error": "代码执行错误",
+    "title": "代码执行结果",
+    "noOutput": "无输出"
+  },
+  "bashCodeExecutionToolResultRenderer": {
+    "error": "Bash执行错误",
+    "title": "Bash执行",
+    "noOutput": "无输出"
+  },
+  "textEditorCodeExecutionToolResultRenderer": {
+    "error": "文本编辑器错误",
+    "view": "查看文件",
+    "create": "创建文件",
+    "delete": "删除文件",
+    "edit": "编辑文件",
+    "showContent": "显示文件内容"
+  },
+  "toolSearchToolResultRenderer": {
+    "error": "工具搜索错误",
+    "title": "工具搜索结果",
+    "noResults": "未找到工具",
+    "found": "个找到"
+  },
+  "fileHistorySnapshotRenderer": {
+    "snapshot": "文件历史快照",
+    "update": "文件历史更新",
+    "files": "个文件被追踪",
+    "trackedFiles": "追踪的文件",
+    "noFiles": "此快照中没有被追踪的文件"
+  },
+  "progressRenderer": {
+    "types": {
+      "agent": "代理",
+      "mcp": "MCP工具",
+      "bash": "Bash",
+      "hook": "钩子",
+      "search": "搜索",
+      "query": "查询",
+      "waiting": "等待中"
+    },
+    "status": {
+      "completed": "已完成",
+      "started": "已开始",
+      "running": "运行中",
+      "error": "错误"
+    }
+  },
+  "queueOperationRenderer": {
+    "title": "队列操作",
+    "operations": {
+      "enqueue": "入队",
+      "dequeue": "出队",
+      "remove": "移除",
+      "popAll": "清空全部"
+    },
+    "descriptions": {
+      "enqueue": "已添加到队列",
+      "dequeue": "已从队列移除",
+      "remove": "项目已删除",
+      "popAll": "队列已清空"
+    }
+  },
+  "systemMessageRenderer": {
+    "title": "系统",
+    "empty": "无内容",
+    "prevented": "已阻止",
+    "hooks": "个钩子",
+    "trigger": "触发器",
+    "subtypes": {
+      "localCommand": "本地命令",
+      "stopHook": "停止钩子",
+      "turnDuration": "轮次耗时",
+      "compactBoundary": "对话已压缩",
+      "microcompactBoundary": "上下文微压缩"
+    }
+  },
+  "summaryMessageRenderer": {
+    "title": "对话摘要"
   }
 }

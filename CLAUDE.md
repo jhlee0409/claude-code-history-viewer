@@ -407,18 +407,49 @@ This is the corrected structure based on analysis of the `.jsonl` files.
 
 Currently Supported:
 
-- ✅ Text content (`type: "text"`)
+- ✅ Text content (`type: "text"`) - with citations support
 - ✅ Tool use (`type: "tool_use"`)
-- ✅ Tool results (`type: "tool_result`)
+- ✅ Tool results (`type: "tool_result"`)
 - ✅ Command messages (within text content)
+- ✅ Thinking content (`type: "thinking"`)
+- ✅ Redacted thinking (`type: "redacted_thinking"`) - encrypted by safety systems
+- ✅ Image content (`type: "image"`) - base64 and URL sources
+- ✅ Server tool use (`type: "server_tool_use"`) - e.g., web_search
+- ✅ Web search results (`type: "web_search_tool_result"`)
+- ✅ Document content (`type: "document"`) - PDF and plain text
+- ✅ Search results (`type: "search_result"`)
+- ✅ MCP tool use (`type: "mcp_tool_use"`) - Model Context Protocol tool calls
+- ✅ MCP tool result (`type: "mcp_tool_result"`) - MCP tool execution results
+- ✅ Citations - inline source references
 
-Not Yet Supported:
+2025 Beta Content Types:
+- ✅ Web fetch result (`type: "web_fetch_tool_result"`) - Full page/PDF content retrieval (beta: web-fetch-2025-09-10)
+- ✅ Code execution result (`type: "code_execution_tool_result"`) - Legacy Python execution (beta: code-execution-2025-08-25)
+- ✅ Bash execution result (`type: "bash_code_execution_tool_result"`) - Bash command execution (beta: code-execution-2025-08-25)
+- ✅ Text editor result (`type: "text_editor_code_execution_tool_result"`) - File operations (beta: code-execution-2025-08-25)
+- ✅ Tool search result (`type: "tool_search_tool_result"`) - MCP tool discovery (beta: mcp-client-2025-11-20)
 
-- ❌ Thinking type (`type: "thinking`) - currently only supported as text tags
-- ❌ Image content - structure supports it via `isImage` flag but no rendering logic
+Message-level Metadata (2025):
+- ✅ `costUSD` - API usage cost
+- ✅ `durationMs` - Response latency
 
 ### Recent Updates
 
+- **2025 Beta Content Types Support (January 2026)**:
+  - Added 5 new beta content type renderers:
+    - `WebFetchToolResultRenderer` - Web page/PDF content retrieval
+    - `CodeExecutionToolResultRenderer` - Legacy Python code execution
+    - `BashCodeExecutionToolResultRenderer` - Bash command execution
+    - `TextEditorCodeExecutionToolResultRenderer` - File view/create/edit/delete operations
+    - `ToolSearchToolResultRenderer` - MCP tool discovery results
+  - Added shared `safeStringify` utility in `src/utils/jsonUtils.ts`
+  - Memoized `ClaudeContentArrayRenderer` for performance
+- **2025 Content Types Support (December 2025)**:
+  - Added support for new content types from Claude API 2025 updates
+  - Implemented `redacted_thinking`, `server_tool_use`, `web_search_tool_result`, `document`, `search_result` renderers
+  - Added `CitationRenderer` for inline source references
+  - Added `costUSD` and `durationMs` fields to message metadata
+  - Enhanced `AssistantMessageDetails` to display cost and duration metrics
 - **Data Structure & Type Correction (June 2025)**:
   - Performed a deep analysis of `.jsonl` log files in the `~/.claude` directory to verify the exact data structure.
   - Added a `Raw Message Structure` section to this document to accurately model the nested `message` object and include assistant-specific metadata (`id`, `model`, `stop_reason`, `usage`).

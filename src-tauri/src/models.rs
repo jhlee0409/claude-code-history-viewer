@@ -30,7 +30,7 @@ pub struct RawLogEntry {
     pub timestamp: Option<String>,
     #[serde(rename = "type")]
     pub message_type: String,
-    
+
     // Fields for summary
     pub summary: Option<String>,
     #[serde(rename = "leafUuid")]
@@ -44,6 +44,46 @@ pub struct RawLogEntry {
     pub tool_use_result: Option<serde_json::Value>,
     #[serde(rename = "isSidechain")]
     pub is_sidechain: Option<bool>,
+
+    // Cost and performance metrics (2025 additions)
+    #[serde(rename = "costUSD")]
+    pub cost_usd: Option<f64>,
+    #[serde(rename = "durationMs")]
+    pub duration_ms: Option<u64>,
+
+    // File history snapshot fields (for type: "file-history-snapshot")
+    #[serde(rename = "messageId")]
+    pub message_id: Option<String>,
+    pub snapshot: Option<serde_json::Value>,
+    #[serde(rename = "isSnapshotUpdate")]
+    pub is_snapshot_update: Option<bool>,
+
+    // Progress message fields (for type: "progress")
+    pub data: Option<serde_json::Value>,
+    #[serde(rename = "toolUseID")]
+    pub tool_use_id: Option<String>,
+    #[serde(rename = "parentToolUseID")]
+    pub parent_tool_use_id: Option<String>,
+
+    // Queue operation fields (for type: "queue-operation")
+    pub operation: Option<String>,
+
+    // System message fields
+    pub subtype: Option<String>,
+    pub level: Option<String>,
+    #[serde(rename = "hookCount")]
+    pub hook_count: Option<u32>,
+    #[serde(rename = "hookInfos")]
+    pub hook_infos: Option<serde_json::Value>,
+    #[serde(rename = "stopReason")]
+    pub stop_reason_system: Option<String>,
+    #[serde(rename = "preventedContinuation")]
+    pub prevented_continuation: Option<bool>,
+    #[serde(rename = "compactMetadata")]
+    pub compact_metadata: Option<serde_json::Value>,
+    #[serde(rename = "microcompactMetadata")]
+    pub microcompact_metadata: Option<serde_json::Value>,
+    pub content: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,11 +109,52 @@ pub struct ClaudeMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub message_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<String>,
+    // Cost and performance metrics (2025 additions)
+    #[serde(rename = "costUSD", skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
+    #[serde(rename = "durationMs", skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+
+    // File history snapshot fields (for type: "file-history-snapshot")
+    #[serde(rename = "messageId", skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<serde_json::Value>,
+    #[serde(rename = "isSnapshotUpdate", skip_serializing_if = "Option::is_none")]
+    pub is_snapshot_update: Option<bool>,
+
+    // Progress message fields (for type: "progress")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
+    #[serde(rename = "toolUseID", skip_serializing_if = "Option::is_none")]
+    pub tool_use_id: Option<String>,
+    #[serde(rename = "parentToolUseID", skip_serializing_if = "Option::is_none")]
+    pub parent_tool_use_id: Option<String>,
+
+    // Queue operation fields (for type: "queue-operation")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation: Option<String>,
+
+    // System message fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtype: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub level: Option<String>,
+    #[serde(rename = "hookCount", skip_serializing_if = "Option::is_none")]
+    pub hook_count: Option<u32>,
+    #[serde(rename = "hookInfos", skip_serializing_if = "Option::is_none")]
+    pub hook_infos: Option<serde_json::Value>,
+    #[serde(rename = "stopReasonSystem", skip_serializing_if = "Option::is_none")]
+    pub stop_reason_system: Option<String>,
+    #[serde(rename = "preventedContinuation", skip_serializing_if = "Option::is_none")]
+    pub prevented_continuation: Option<bool>,
+    #[serde(rename = "compactMetadata", skip_serializing_if = "Option::is_none")]
+    pub compact_metadata: Option<serde_json::Value>,
+    #[serde(rename = "microcompactMetadata", skip_serializing_if = "Option::is_none")]
+    pub microcompact_metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -369,9 +450,29 @@ mod tests {
             is_sidechain: Some(false),
             usage: None,
             role: Some("user".to_string()),
-            message_id: None,
             model: None,
             stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
+            // File history snapshot fields
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            // Progress message fields
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            // Queue operation fields
+            operation: None,
+            // System message fields
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
         };
 
         let serialized = serde_json::to_string(&message).unwrap();
@@ -396,18 +497,40 @@ mod tests {
             is_sidechain: None,
             usage: None,
             role: None,
-            message_id: None,
             model: None,
             stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
+            // File history snapshot fields
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            // Progress message fields
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            // Queue operation fields
+            operation: None,
+            // System message fields
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
         };
 
         let serialized = serde_json::to_string(&message).unwrap();
         // Optional fields with skip_serializing_if should not appear
         assert!(!serialized.contains("usage"));
         assert!(!serialized.contains("role"));
-        assert!(!serialized.contains("message_id"));
+        assert!(!serialized.contains("messageId"));
         assert!(!serialized.contains("model"));
         assert!(!serialized.contains("stop_reason"));
+        assert!(!serialized.contains("costUSD"));
+        assert!(!serialized.contains("durationMs"));
     }
 
     #[test]
@@ -540,5 +663,368 @@ mod tests {
         let result = entry.tool_use_result.unwrap();
         assert_eq!(result["type"], "text");
         assert!(result["file"].is_object());
+    }
+
+    #[test]
+    fn test_system_message_stop_hook_summary() {
+        let json_str = r#"{
+            "uuid": "sys-uuid-123",
+            "sessionId": "session-1",
+            "timestamp": "2025-01-20T10:00:00Z",
+            "type": "system",
+            "subtype": "stop_hook_summary",
+            "hookCount": 2,
+            "hookInfos": [{"command": "bash test.sh", "output": "ok"}],
+            "stopReason": "Stop hook prevented continuation",
+            "preventedContinuation": true,
+            "level": "suggestion"
+        }"#;
+
+        let entry: RawLogEntry = serde_json::from_str(json_str).unwrap();
+        assert_eq!(entry.message_type, "system");
+        assert_eq!(entry.subtype, Some("stop_hook_summary".to_string()));
+        assert_eq!(entry.hook_count, Some(2));
+        assert!(entry.hook_infos.is_some());
+        assert_eq!(entry.stop_reason_system, Some("Stop hook prevented continuation".to_string()));
+        assert_eq!(entry.prevented_continuation, Some(true));
+        assert_eq!(entry.level, Some("suggestion".to_string()));
+    }
+
+    #[test]
+    fn test_system_message_turn_duration() {
+        let json_str = r#"{
+            "uuid": "sys-uuid-456",
+            "sessionId": "session-1",
+            "timestamp": "2025-01-20T10:01:00Z",
+            "type": "system",
+            "subtype": "turn_duration",
+            "durationMs": 321482
+        }"#;
+
+        let entry: RawLogEntry = serde_json::from_str(json_str).unwrap();
+        assert_eq!(entry.message_type, "system");
+        assert_eq!(entry.subtype, Some("turn_duration".to_string()));
+        assert_eq!(entry.duration_ms, Some(321482));
+    }
+
+    #[test]
+    fn test_system_message_microcompact_boundary() {
+        let json_str = r#"{
+            "uuid": "sys-uuid-789",
+            "sessionId": "session-1",
+            "timestamp": "2025-01-20T10:02:00Z",
+            "type": "system",
+            "subtype": "microcompact_boundary",
+            "content": "Context microcompacted",
+            "level": "info",
+            "microcompactMetadata": {
+                "trigger": "token_limit",
+                "preTokens": 50000
+            }
+        }"#;
+
+        let entry: RawLogEntry = serde_json::from_str(json_str).unwrap();
+        assert_eq!(entry.message_type, "system");
+        assert_eq!(entry.subtype, Some("microcompact_boundary".to_string()));
+        assert_eq!(entry.level, Some("info".to_string()));
+        assert!(entry.microcompact_metadata.is_some());
+
+        let metadata = entry.microcompact_metadata.unwrap();
+        assert_eq!(metadata["trigger"], "token_limit");
+        assert_eq!(metadata["preTokens"], 50000);
+    }
+
+    #[test]
+    fn test_system_message_serialization_to_claude_message() {
+        let message = ClaudeMessage {
+            uuid: "sys-uuid".to_string(),
+            parent_uuid: None,
+            session_id: "session".to_string(),
+            timestamp: "2025-01-20T10:00:00Z".to_string(),
+            message_type: "system".to_string(),
+            content: None,
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            usage: None,
+            role: None,
+            model: None,
+            stop_reason: None,
+            cost_usd: None,
+            duration_ms: Some(5000),
+            // File history snapshot fields
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            // Progress message fields
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            // Queue operation fields
+            operation: None,
+            // System message fields
+            subtype: Some("turn_duration".to_string()),
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+        };
+
+        let serialized = serde_json::to_string(&message).unwrap();
+        println!("Serialized: {}", serialized);
+
+        // Verify the system fields are included in serialization
+        assert!(serialized.contains("\"subtype\":\"turn_duration\""));
+        assert!(serialized.contains("\"durationMs\":5000"));
+
+        // Verify deserialization works
+        let deserialized: ClaudeMessage = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.subtype, Some("turn_duration".to_string()));
+        assert_eq!(deserialized.duration_ms, Some(5000));
+    }
+
+    #[test]
+    fn test_system_message_stop_hook_serialization() {
+        let message = ClaudeMessage {
+            uuid: "sys-uuid".to_string(),
+            parent_uuid: None,
+            session_id: "session".to_string(),
+            timestamp: "2025-01-20T10:00:00Z".to_string(),
+            message_type: "system".to_string(),
+            content: None,
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            usage: None,
+            role: None,
+            model: None,
+            stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
+            // File history snapshot fields
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            // Progress message fields
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            // Queue operation fields
+            operation: None,
+            // System message fields
+            subtype: Some("stop_hook_summary".to_string()),
+            level: Some("suggestion".to_string()),
+            hook_count: Some(2),
+            hook_infos: Some(json!([{"command": "test", "output": "ok"}])),
+            stop_reason_system: Some("Stop hook prevented continuation".to_string()),
+            prevented_continuation: Some(true),
+            compact_metadata: None,
+            microcompact_metadata: None,
+        };
+
+        let serialized = serde_json::to_string(&message).unwrap();
+        println!("Stop hook serialized: {}", serialized);
+
+        // Verify stop_hook_summary fields are correctly serialized
+        assert!(serialized.contains("\"subtype\":\"stop_hook_summary\""));
+        assert!(serialized.contains("\"level\":\"suggestion\""));
+        assert!(serialized.contains("\"hookCount\":2"));
+        assert!(serialized.contains("\"hookInfos\""));
+        assert!(serialized.contains("\"stopReasonSystem\":\"Stop hook prevented continuation\""));
+        assert!(serialized.contains("\"preventedContinuation\":true"));
+    }
+
+    #[test]
+    fn test_real_system_message_from_jsonl() {
+        let json_str = r#"{
+            "parentUuid": "c8004d34-1f64-453d-bff4-95e85713ec88",
+            "isSidechain": false,
+            "userType": "external",
+            "cwd": "/Users/jack/client/openapi-sync-mcp",
+            "sessionId": "219d8acc-3727-4846-981c-e4ecd7d25bd4",
+            "version": "2.1.12",
+            "gitBranch": "main",
+            "slug": "wiggly-discovering-aurora",
+            "type": "system",
+            "subtype": "stop_hook_summary",
+            "hookCount": 1,
+            "hookInfos": [{"command": "bash $HOME/.claude/hooks/stop-continuation.sh"}],
+            "hookErrors": [],
+            "preventedContinuation": true,
+            "stopReason": "Stop hook prevented continuation",
+            "hasOutput": true,
+            "level": "suggestion",
+            "timestamp": "2026-01-19T14:22:11.082Z",
+            "uuid": "1dc16651-f610-42a1-ae6e-bc8af8112443",
+            "toolUseID": "b68f7886-c292-4424-8a3f-edd447b62398"
+        }"#;
+
+        // Parse as RawLogEntry
+        let entry: RawLogEntry = serde_json::from_str(json_str).unwrap();
+        println!("=== RawLogEntry ===");
+        println!("type: {}", entry.message_type);
+        println!("subtype: {:?}", entry.subtype);
+        println!("hook_count: {:?}", entry.hook_count);
+        println!("hook_infos: {:?}", entry.hook_infos);
+        println!("stop_reason_system: {:?}", entry.stop_reason_system);
+        println!("prevented_continuation: {:?}", entry.prevented_continuation);
+        println!("level: {:?}", entry.level);
+
+        // Simulate conversion to ClaudeMessage (like in session.rs)
+        let claude_message = ClaudeMessage {
+            uuid: entry.uuid.unwrap_or_default(),
+            parent_uuid: entry.parent_uuid,
+            session_id: entry.session_id.unwrap_or_default(),
+            timestamp: entry.timestamp.unwrap_or_default(),
+            message_type: entry.message_type,
+            content: entry.message.map(|m| m.content).or(entry.content),
+            tool_use: entry.tool_use,
+            tool_use_result: entry.tool_use_result,
+            is_sidechain: entry.is_sidechain,
+            usage: None,
+            role: None,
+            model: None,
+            stop_reason: None,
+            cost_usd: entry.cost_usd,
+            duration_ms: entry.duration_ms,
+            // File history snapshot fields
+            message_id: entry.message_id,
+            snapshot: entry.snapshot,
+            is_snapshot_update: entry.is_snapshot_update,
+            // Progress message fields
+            data: entry.data,
+            tool_use_id: entry.tool_use_id,
+            parent_tool_use_id: entry.parent_tool_use_id,
+            // Queue operation fields
+            operation: entry.operation,
+            // System message fields
+            subtype: entry.subtype,
+            level: entry.level,
+            hook_count: entry.hook_count,
+            hook_infos: entry.hook_infos,
+            stop_reason_system: entry.stop_reason_system,
+            prevented_continuation: entry.prevented_continuation,
+            compact_metadata: entry.compact_metadata,
+            microcompact_metadata: entry.microcompact_metadata,
+        };
+
+        // Serialize to JSON (what gets sent to frontend)
+        let output_json = serde_json::to_string_pretty(&claude_message).unwrap();
+        println!("\n=== ClaudeMessage JSON (sent to frontend) ===");
+        println!("{}", output_json);
+
+        // Verify the important fields
+        assert_eq!(claude_message.message_type, "system");
+        assert_eq!(claude_message.subtype, Some("stop_hook_summary".to_string()));
+        assert_eq!(claude_message.hook_count, Some(1));
+        assert_eq!(claude_message.stop_reason_system, Some("Stop hook prevented continuation".to_string()));
+        assert_eq!(claude_message.prevented_continuation, Some(true));
+        assert_eq!(claude_message.level, Some("suggestion".to_string()));
+    }
+
+    #[test]
+    fn test_system_message_local_command_with_content() {
+        // Test case from actual JSONL data
+        let json_str = r#"{
+            "parentUuid": null,
+            "isSidechain": false,
+            "userType": "external",
+            "cwd": "/Users/jack/client/claude-vibe-flow",
+            "sessionId": "f2ee5680-4b03-43b4-90fb-a71c9dcd3fae",
+            "version": "2.1.2",
+            "gitBranch": "main",
+            "type": "system",
+            "subtype": "local_command",
+            "content": "<command-name>/doctor</command-name>\n            <command-message>doctor</command-message>\n            <command-args></command-args>",
+            "level": "info",
+            "timestamp": "2026-01-10T05:00:34.392Z",
+            "uuid": "2ae22857-ba21-4b94-83b5-6bb4bc56f061",
+            "isMeta": false
+        }"#;
+
+        // Parse as RawLogEntry
+        let entry: RawLogEntry = serde_json::from_str(json_str).unwrap();
+        println!("=== RawLogEntry (local_command) ===");
+        println!("type: {}", entry.message_type);
+        println!("subtype: {:?}", entry.subtype);
+        println!("content: {:?}", entry.content);
+        println!("level: {:?}", entry.level);
+
+        // Verify RawLogEntry has the content
+        assert_eq!(entry.message_type, "system");
+        assert_eq!(entry.subtype, Some("local_command".to_string()));
+        assert!(entry.content.is_some());
+
+        // Verify content is a string value
+        let content_value = entry.content.as_ref().unwrap();
+        assert!(content_value.is_string());
+        let content_str = content_value.as_str().unwrap();
+        assert!(content_str.contains("<command-name>/doctor</command-name>"));
+
+        // Simulate conversion to ClaudeMessage (like in session.rs)
+        let claude_message = ClaudeMessage {
+            uuid: entry.uuid.unwrap_or_default(),
+            parent_uuid: entry.parent_uuid,
+            session_id: entry.session_id.unwrap_or_default(),
+            timestamp: entry.timestamp.unwrap_or_default(),
+            message_type: entry.message_type,
+            content: entry.message.map(|m| m.content).or(entry.content),
+            tool_use: entry.tool_use,
+            tool_use_result: entry.tool_use_result,
+            is_sidechain: entry.is_sidechain,
+            usage: None,
+            role: None,
+            model: None,
+            stop_reason: None,
+            cost_usd: entry.cost_usd,
+            duration_ms: entry.duration_ms,
+            // File history snapshot fields
+            message_id: entry.message_id,
+            snapshot: entry.snapshot,
+            is_snapshot_update: entry.is_snapshot_update,
+            // Progress message fields
+            data: entry.data,
+            tool_use_id: entry.tool_use_id,
+            parent_tool_use_id: entry.parent_tool_use_id,
+            // Queue operation fields
+            operation: entry.operation,
+            // System message fields
+            subtype: entry.subtype,
+            level: entry.level,
+            hook_count: entry.hook_count,
+            hook_infos: entry.hook_infos,
+            stop_reason_system: entry.stop_reason_system,
+            prevented_continuation: entry.prevented_continuation,
+            compact_metadata: entry.compact_metadata,
+            microcompact_metadata: entry.microcompact_metadata,
+        };
+
+        let output_json = serde_json::to_string_pretty(&claude_message).unwrap();
+        println!("\n=== ClaudeMessage JSON (sent to frontend) ===");
+        println!("{}", output_json);
+
+        // Verify ClaudeMessage fields
+        assert_eq!(claude_message.message_type, "system");
+        assert_eq!(claude_message.subtype, Some("local_command".to_string()));
+        assert_eq!(claude_message.level, Some("info".to_string()));
+
+        // CRITICAL: Verify content is preserved and is a string
+        assert!(claude_message.content.is_some());
+        let cm_content = claude_message.content.as_ref().unwrap();
+        assert!(cm_content.is_string());
+        assert!(cm_content.as_str().unwrap().contains("<command-name>/doctor</command-name>"));
+
+        // Verify content is serialized as a JSON string (not object)
+        // Parse output_json and validate via JSON access to avoid escaping issues
+        let parsed: serde_json::Value = serde_json::from_str(&output_json).unwrap();
+        assert!(parsed["content"].is_string(), "content should be a JSON string");
+        let content_str = parsed["content"].as_str().unwrap();
+        assert!(
+            content_str.contains("<command-name>/doctor</command-name>"),
+            "content should contain the command-name tag"
+        );
     }
 }

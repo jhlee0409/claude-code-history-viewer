@@ -625,5 +625,91 @@
     "tip": "💡 설정 → 업데이트 설정에서 자동 확인을 비활성화할 수 있습니다.",
     "disableAutoCheck": "자동 확인 비활성화",
     "understood": "이해했습니다"
+  },
+  "webFetchToolResultRenderer": {
+    "error": "웹 페치 오류",
+    "title": "웹 페치 결과",
+    "retrievedAt": "가져온 시간",
+    "showContent": "콘텐츠 미리보기"
+  },
+  "codeExecutionToolResultRenderer": {
+    "error": "코드 실행 오류",
+    "title": "코드 실행 결과",
+    "noOutput": "출력 없음"
+  },
+  "bashCodeExecutionToolResultRenderer": {
+    "error": "Bash 실행 오류",
+    "title": "Bash 실행",
+    "noOutput": "출력 없음"
+  },
+  "textEditorCodeExecutionToolResultRenderer": {
+    "error": "텍스트 편집기 오류",
+    "view": "파일 보기",
+    "create": "파일 생성",
+    "delete": "파일 삭제",
+    "edit": "파일 편집",
+    "showContent": "파일 내용 보기"
+  },
+  "toolSearchToolResultRenderer": {
+    "error": "도구 검색 오류",
+    "title": "도구 검색 결과",
+    "noResults": "도구를 찾을 수 없습니다",
+    "found": "개 발견"
+  },
+  "fileHistorySnapshotRenderer": {
+    "snapshot": "파일 이력 스냅샷",
+    "update": "파일 이력 업데이트",
+    "files": "개 파일 추적됨",
+    "trackedFiles": "추적된 파일",
+    "noFiles": "이 스냅샷에 추적된 파일이 없습니다"
+  },
+  "progressRenderer": {
+    "types": {
+      "agent": "에이전트",
+      "mcp": "MCP 도구",
+      "bash": "Bash",
+      "hook": "Hook",
+      "search": "검색",
+      "query": "쿼리",
+      "waiting": "대기 중"
+    },
+    "status": {
+      "completed": "완료",
+      "started": "시작됨",
+      "running": "실행 중",
+      "error": "오류"
+    }
+  },
+  "queueOperationRenderer": {
+    "title": "대기열 작업",
+    "operations": {
+      "enqueue": "추가",
+      "dequeue": "제거",
+      "remove": "삭제",
+      "popAll": "모두 삭제"
+    },
+    "descriptions": {
+      "enqueue": "대기열에 추가됨",
+      "dequeue": "대기열에서 제거됨",
+      "remove": "항목 삭제됨",
+      "popAll": "대기열 비움"
+    }
+  },
+  "systemMessageRenderer": {
+    "title": "시스템",
+    "empty": "내용 없음",
+    "prevented": "중지됨",
+    "hooks": "개 hook",
+    "trigger": "트리거",
+    "subtypes": {
+      "localCommand": "로컬 명령",
+      "stopHook": "중지 Hook",
+      "turnDuration": "턴 소요 시간",
+      "compactBoundary": "대화 압축됨",
+      "microcompactBoundary": "컨텍스트 마이크로 압축됨"
+    }
+  },
+  "summaryMessageRenderer": {
+    "title": "대화 요약"
   }
 }

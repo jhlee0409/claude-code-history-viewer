@@ -604,5 +604,91 @@
     "tip": "💡 設定 → アップデート設定で自動確認を無効化できます。",
     "disableAutoCheck": "自動確認を無効化",
     "understood": "了解しました"
+  },
+  "webFetchToolResultRenderer": {
+    "error": "ウェブフェッチエラー",
+    "title": "ウェブフェッチ結果",
+    "retrievedAt": "取得日時",
+    "showContent": "コンテンツプレビューを表示"
+  },
+  "codeExecutionToolResultRenderer": {
+    "error": "コード実行エラー",
+    "title": "コード実行結果",
+    "noOutput": "出力なし"
+  },
+  "bashCodeExecutionToolResultRenderer": {
+    "error": "Bash実行エラー",
+    "title": "Bash実行",
+    "noOutput": "出力なし"
+  },
+  "textEditorCodeExecutionToolResultRenderer": {
+    "error": "テキストエディタエラー",
+    "view": "ファイルを表示",
+    "create": "ファイルを作成",
+    "delete": "ファイルを削除",
+    "edit": "ファイルを編集",
+    "showContent": "ファイル内容を表示"
+  },
+  "toolSearchToolResultRenderer": {
+    "error": "ツール検索エラー",
+    "title": "ツール検索結果",
+    "noResults": "ツールが見つかりません",
+    "found": "件発見"
+  },
+  "fileHistorySnapshotRenderer": {
+    "snapshot": "ファイル履歴スナップショット",
+    "update": "ファイル履歴更新",
+    "files": "ファイル追跡中",
+    "trackedFiles": "追跡中のファイル",
+    "noFiles": "このスナップショットには追跡されているファイルがありません"
+  },
+  "progressRenderer": {
+    "types": {
+      "agent": "エージェント",
+      "mcp": "MCPツール",
+      "bash": "Bash",
+      "hook": "フック",
+      "search": "検索",
+      "query": "クエリ",
+      "waiting": "待機中"
+    },
+    "status": {
+      "completed": "完了",
+      "started": "開始",
+      "running": "実行中",
+      "error": "エラー"
+    }
+  },
+  "queueOperationRenderer": {
+    "title": "キュー操作",
+    "operations": {
+      "enqueue": "追加",
+      "dequeue": "取り出し",
+      "remove": "削除",
+      "popAll": "全削除"
+    },
+    "descriptions": {
+      "enqueue": "キューに追加されました",
+      "dequeue": "キューから取り出されました",
+      "remove": "項目が削除されました",
+      "popAll": "キューがクリアされました"
+    }
+  },
+  "systemMessageRenderer": {
+    "title": "システム",
+    "empty": "内容なし",
+    "prevented": "阻止されました",
+    "hooks": "個のフック",
+    "trigger": "トリガー",
+    "subtypes": {
+      "localCommand": "ローカルコマンド",
+      "stopHook": "停止フック",
+      "turnDuration": "ターン所要時間",
+      "compactBoundary": "会話が圧縮されました",
+      "microcompactBoundary": "コンテキスト マイクロ圧縮"
+    }
+  },
+  "summaryMessageRenderer": {
+    "title": "会話の要約"
   }
 }
