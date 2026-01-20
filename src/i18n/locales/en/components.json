@@ -683,8 +683,18 @@
   "systemMessageRenderer": {
     "title": "System",
     "empty": "No content",
+    "prevented": "Prevented",
+    "hooks": "hook(s)",
+    "trigger": "Trigger",
     "subtypes": {
-      "localCommand": "Local Command"
+      "localCommand": "Local Command",
+      "stopHook": "Stop Hook",
+      "turnDuration": "Turn Duration",
+      "compactBoundary": "Conversation Compacted",
+      "microcompactBoundary": "Context Microcompacted"
     }
+  },
+  "summaryMessageRenderer": {
+    "title": "Conversation Summary"
   }
 }

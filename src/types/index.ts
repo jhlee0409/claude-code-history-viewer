@@ -493,6 +493,18 @@ export interface ClaudeMessage {
   parentToolUseID?: string;
   // Queue operation fields (for type: "queue-operation")
   operation?: QueueOperationType;
+  // System message fields (for type: "system")
+  subtype?: string;
+  level?: "info" | "warning" | "error" | "suggestion";
+  // stop_hook_summary fields
+  hookCount?: number;
+  hookInfos?: Array<{ command: string; output?: string; error?: string }>;
+  stopReasonSystem?: string; // Named differently to avoid conflict with assistant's stop_reason
+  preventedContinuation?: boolean;
+  // compact_boundary fields
+  compactMetadata?: { trigger?: string; preTokens?: number };
+  // microcompact_boundary fields
+  microcompactMetadata?: { trigger?: string; preTokens?: number };
 }
 
 export interface ClaudeProject {

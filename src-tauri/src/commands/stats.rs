@@ -451,7 +451,7 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
             session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
             timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: log_entry.message_type.clone(),
-            content: log_entry.message.map(|m| m.content),
+            content: log_entry.message.map(|m| m.content).or(log_entry.content),
             tool_use: log_entry.tool_use,
             tool_use_result: log_entry.tool_use_result,
             is_sidechain: log_entry.is_sidechain,
@@ -462,6 +462,15 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
             stop_reason,
             cost_usd: log_entry.cost_usd,
             duration_ms: log_entry.duration_ms,
+            // System message fields
+            subtype: log_entry.subtype,
+            level: log_entry.level,
+            hook_count: log_entry.hook_count,
+            hook_infos: log_entry.hook_infos,
+            stop_reason_system: log_entry.stop_reason_system,
+            prevented_continuation: log_entry.prevented_continuation,
+            compact_metadata: log_entry.compact_metadata,
+            microcompact_metadata: log_entry.microcompact_metadata,
         })
     }
 }

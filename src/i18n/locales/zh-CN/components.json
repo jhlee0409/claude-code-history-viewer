@@ -692,8 +692,18 @@
   "systemMessageRenderer": {
     "title": "系统",
     "empty": "无内容",
+    "prevented": "已阻止",
+    "hooks": "个钩子",
+    "trigger": "触发器",
     "subtypes": {
-      "localCommand": "本地命令"
+      "localCommand": "本地命令",
+      "stopHook": "停止钩子",
+      "turnDuration": "轮次耗时",
+      "compactBoundary": "对话已压缩",
+      "microcompactBoundary": "上下文微压缩"
     }
+  },
+  "summaryMessageRenderer": {
+    "title": "对话摘要"
   }
 }

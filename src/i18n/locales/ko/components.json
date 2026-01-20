@@ -698,8 +698,18 @@
   "systemMessageRenderer": {
     "title": "시스템",
     "empty": "내용 없음",
+    "prevented": "중지됨",
+    "hooks": "개 hook",
+    "trigger": "트리거",
     "subtypes": {
-      "localCommand": "로컬 명령"
+      "localCommand": "로컬 명령",
+      "stopHook": "중지 Hook",
+      "turnDuration": "턴 소요 시간",
+      "compactBoundary": "대화 압축됨",
+      "microcompactBoundary": "컨텍스트 마이크로 압축됨"
     }
+  },
+  "summaryMessageRenderer": {
+    "title": "대화 요약"
   }
 }

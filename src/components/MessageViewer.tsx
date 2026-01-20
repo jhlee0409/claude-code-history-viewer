@@ -20,6 +20,7 @@ import {
   ProgressRenderer,
   QueueOperationRenderer,
   SystemMessageRenderer,
+  SummaryMessageRenderer,
 } from "./messageRenderer";
 import {
   DropdownMenu,
@@ -85,7 +86,11 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
   }
 
   // Handle progress type with dedicated renderer
-  if (message.type === "progress" && message.data) {
+  if (message.type === "progress") {
+    // If no data, skip rendering this message entirely (progress messages without data are noise)
+    if (!message.data) {
+      return null;
+    }
     return (
       <div
         data-message-uuid={message.uuid}
@@ -123,7 +128,6 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
   // Handle system messages with enhanced renderer
   if (message.type === "system") {
     const content = typeof message.content === "string" ? message.content : undefined;
-    const rawMessage = message as { subtype?: string; level?: "info" | "warning" | "error" };
     return (
       <div
         data-message-uuid={message.uuid}
@@ -132,8 +136,34 @@ const ClaudeMessageNode = React.memo(({ message, depth, isCurrentMatch, isMatch,
         <div className="max-w-4xl mx-auto">
           <SystemMessageRenderer
             content={content}
-            subtype={rawMessage.subtype}
-            level={rawMessage.level}
+            subtype={message.subtype}
+            level={message.level}
+            hookCount={message.hookCount}
+            hookInfos={message.hookInfos}
+            stopReason={message.stopReasonSystem}
+            preventedContinuation={message.preventedContinuation}
+            durationMs={message.durationMs}
+            compactMetadata={message.compactMetadata}
+            microcompactMetadata={message.microcompactMetadata}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Handle summary messages with dedicated renderer
+  if (message.type === "summary") {
+    // summary field comes from the content in ClaudeMessage (set from RawLogEntry.summary)
+    const summaryContent = typeof message.content === "string" ? message.content : undefined;
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className="w-full px-4 py-1"
+      >
+        <div className="max-w-4xl mx-auto">
+          <SummaryMessageRenderer
+            summary={summaryContent}
+            leafUuid={message.parentUuid}
           />
         </div>
       </div>

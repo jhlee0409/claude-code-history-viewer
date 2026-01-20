@@ -86,7 +86,7 @@ pub async fn load_project_sessions(
                                     now
                                 }),
                                 message_type: log_entry.message_type,
-                                content: log_entry.message.map(|m| m.content),
+                                content: log_entry.message.map(|m| m.content).or(log_entry.content),
                                 tool_use: log_entry.tool_use,
                                 tool_use_result: log_entry.tool_use_result,
                                 is_sidechain: log_entry.is_sidechain,
@@ -97,6 +97,15 @@ pub async fn load_project_sessions(
                                 stop_reason,
                                 cost_usd: log_entry.cost_usd,
                                 duration_ms: log_entry.duration_ms,
+                                // System message fields
+                                subtype: log_entry.subtype,
+                                level: log_entry.level,
+                                hook_count: log_entry.hook_count,
+                                hook_infos: log_entry.hook_infos,
+                                stop_reason_system: log_entry.stop_reason_system,
+                                prevented_continuation: log_entry.prevented_continuation,
+                                compact_metadata: log_entry.compact_metadata,
+                                microcompact_metadata: log_entry.microcompact_metadata,
                             };
                             messages.push(claude_message);
                         }
@@ -309,7 +318,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                         
                         let summary_message = ClaudeMessage {
                             uuid,
-                            parent_uuid: None,
+                            parent_uuid: log_entry.leaf_uuid, // Link to the leaf message
                             session_id: log_entry.session_id.unwrap_or_else(|| {
                                 eprintln!("Warning: Missing session_id for summary in line {} of {}", line_num + 1, session_path);
                                 "unknown-session".to_string()
@@ -331,6 +340,15 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                             stop_reason: None,
                             cost_usd: None,
                             duration_ms: None,
+                            // System message fields (not applicable for summary)
+                            subtype: None,
+                            level: None,
+                            hook_count: None,
+                            hook_infos: None,
+                            stop_reason_system: None,
+                            prevented_continuation: None,
+                            compact_metadata: None,
+                            microcompact_metadata: None,
                         };
                         messages.push(summary_message);
                     }
@@ -370,7 +388,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                             now
                         }),
                         message_type: log_entry.message_type.clone(),
-                        content: log_entry.message.map(|m| m.content),
+                        content: log_entry.message.map(|m| m.content).or(log_entry.content),
                         tool_use: log_entry.tool_use,
                         tool_use_result: log_entry.tool_use_result,
                         is_sidechain: log_entry.is_sidechain,
@@ -381,6 +399,15 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                         stop_reason,
                         cost_usd: log_entry.cost_usd,
                         duration_ms: log_entry.duration_ms,
+                        // System message fields
+                        subtype: log_entry.subtype,
+                        level: log_entry.level,
+                        hook_count: log_entry.hook_count,
+                        hook_infos: log_entry.hook_infos,
+                        stop_reason_system: log_entry.stop_reason_system,
+                        prevented_continuation: log_entry.prevented_continuation,
+                        compact_metadata: log_entry.compact_metadata,
+                        microcompact_metadata: log_entry.microcompact_metadata,
                     };
                     messages.push(claude_message);
                 }
@@ -388,6 +415,20 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
             Err(e) => {
                 eprintln!("Failed to parse line {} in {}: {}. Line: {}", line_num + 1, session_path, e, line);
             }
+        }
+    }
+
+    // Debug: Log system messages being returned
+    #[cfg(debug_assertions)]
+    {
+        let system_msgs: Vec<_> = messages.iter()
+            .filter(|m| m.message_type == "system")
+            .collect();
+        eprintln!("📤 [load_session_messages] Returning {} messages, {} are system messages",
+            messages.len(), system_msgs.len());
+        for (i, m) in system_msgs.iter().take(5).enumerate() {
+            eprintln!("📤 [load_session_messages] System[{}]: subtype={:?} durationMs={:?} hookCount={:?} stopReasonSystem={:?}",
+                i, m.subtype, m.duration_ms, m.hook_count, m.stop_reason_system);
         }
     }
 
@@ -449,7 +490,7 @@ pub async fn load_session_messages_paginated(
                         session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
                         timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
                         message_type: log_entry.message_type.clone(),
-                        content: log_entry.message.map(|m| m.content),
+                        content: log_entry.message.map(|m| m.content).or(log_entry.content),
                         tool_use: log_entry.tool_use,
                         tool_use_result: log_entry.tool_use_result,
                         is_sidechain: log_entry.is_sidechain,
@@ -460,6 +501,15 @@ pub async fn load_session_messages_paginated(
                         stop_reason,
                         cost_usd: log_entry.cost_usd,
                         duration_ms: log_entry.duration_ms,
+                        // System message fields
+                        subtype: log_entry.subtype,
+                        level: log_entry.level,
+                        hook_count: log_entry.hook_count,
+                        hook_infos: log_entry.hook_infos,
+                        stop_reason_system: log_entry.stop_reason_system,
+                        prevented_continuation: log_entry.prevented_continuation,
+                        compact_metadata: log_entry.compact_metadata,
+                        microcompact_metadata: log_entry.microcompact_metadata,
                     };
                     all_messages.push(claude_message);
                 }
@@ -617,6 +667,15 @@ pub async fn search_messages(
                                     stop_reason: message_content.stop_reason.clone(),
                                     cost_usd: log_entry.cost_usd,
                                     duration_ms: log_entry.duration_ms,
+                                    // System message fields (not applicable for search results)
+                                    subtype: None,
+                                    level: None,
+                                    hook_count: None,
+                                    hook_infos: None,
+                                    stop_reason_system: None,
+                                    prevented_continuation: None,
+                                    compact_metadata: None,
+                                    microcompact_metadata: None,
                                 };
                                 all_messages.push(claude_message);
                             }

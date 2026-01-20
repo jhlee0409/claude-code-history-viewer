@@ -677,8 +677,18 @@
   "systemMessageRenderer": {
     "title": "システム",
     "empty": "内容なし",
+    "prevented": "阻止されました",
+    "hooks": "個のフック",
+    "trigger": "トリガー",
     "subtypes": {
-      "localCommand": "ローカルコマンド"
+      "localCommand": "ローカルコマンド",
+      "stopHook": "停止フック",
+      "turnDuration": "ターン所要時間",
+      "compactBoundary": "会話が圧縮されました",
+      "microcompactBoundary": "コンテキスト マイクロ圧縮"
     }
+  },
+  "summaryMessageRenderer": {
+    "title": "会話の要約"
   }
 }
