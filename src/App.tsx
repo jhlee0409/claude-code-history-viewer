@@ -229,13 +229,13 @@ function App() {
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
                     {isViewingGlobalStats ? (
-                      <Database className="w-4.5 h-4.5 text-accent" />
+                      <Database className="w-5 h-5 text-accent" />
                     ) : computed.isAnalyticsView ? (
-                      <BarChart3 className="w-4.5 h-4.5 text-accent" />
+                      <BarChart3 className="w-5 h-5 text-accent" />
                     ) : computed.isRecentEditsView ? (
-                      <FileEdit className="w-4.5 h-4.5 text-accent" />
+                      <FileEdit className="w-5 h-5 text-accent" />
                     ) : (
-                      <Coins className="w-4.5 h-4.5 text-accent" />
+                      <Coins className="w-5 h-5 text-accent" />
                     )}
                   </div>
                   <div>
@@ -328,20 +328,14 @@ function App() {
 
         {/* Status Bar */}
         <footer className="h-7 px-4 flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span className="font-mono tabular-nums">
-              {tComponents("project.count", { count: projects.length })}
-            </span>
+          <div className="flex items-center gap-3 font-mono tabular-nums">
+            <span>{tComponents("project.count", { count: projects.length })}</span>
             <span className="text-border">•</span>
-            <span className="font-mono tabular-nums">
-              {tComponents("session.count", { count: sessions.length })}
-            </span>
+            <span>{tComponents("session.count", { count: sessions.length })}</span>
             {selectedSession && computed.isMessagesView && (
               <>
                 <span className="text-border">•</span>
-                <span className="font-mono tabular-nums">
-                  {tComponents("message.count", { count: messages.length })}
-                </span>
+                <span>{tComponents("message.count", { count: messages.length })}</span>
               </>
             )}
           </div>
@@ -352,7 +346,7 @@ function App() {
             isLoadingMessages ||
             computed.isAnyLoading) && (
             <div className="flex items-center gap-1.5">
-              <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+              <Loader2 className="w-3 h-3 animate-spin" />
               <span>
                 {computed.isAnyLoading && tComponents("status.loadingStats")}
                 {isLoadingProjects && tComponents("status.scanning")}

@@ -5,6 +5,7 @@ import {
   MessageSquare,
   Activity,
   FileEdit,
+  Terminal,
 } from "lucide-react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
@@ -58,98 +59,144 @@ export const Header = () => {
 
   return (
     <header className="h-12 flex items-center justify-between px-4 bg-sidebar border-b border-border/50">
-      {/* Left: Logo & App Name */}
-      <div className="flex items-center gap-2">
+
+      {/* Left: Logo & Title */}
+      <div className="flex items-center gap-2.5">
         <img
           src="/app-icon.png"
           alt="Claude Code History"
           className="w-6 h-6"
         />
-        <span className="text-sm font-semibold text-foreground tracking-tight">
-          {t("appName")}
-        </span>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-semibold text-foreground">
+              {t("appName")}
+            </h1>
+            {selectedProject && (
+              <>
+                <span className="text-muted-foreground/40">/</span>
+                <span className="text-sm text-muted-foreground truncate max-w-[180px]">
+                  {selectedProject.name}
+                </span>
+              </>
+            )}
+          </div>
+          {selectedSession ? (
+            <p className="text-2xs text-muted-foreground truncate max-w-sm">
+              <span className="text-muted-foreground/60">Session:</span>{" "}
+              {selectedSession.summary ||
+                `${tComponents("session.title")} ${selectedSession.session_id.slice(-8)}`}
+            </p>
+          ) : (
+            <p className="text-2xs text-muted-foreground">{t("appDescription")}</p>
+          )}
+        </div>
       </div>
 
-      {/* Center: Navigation Tabs */}
-      <nav className="flex items-center gap-1 p-1 rounded-lg bg-muted/50">
-        {selectedSession && (
-          <NavTab
-            icon={MessageSquare}
-            label={tComponents("message.view")}
-            isActive={computed.isMessagesView}
-            onClick={() => {
-              if (!computed.isMessagesView) {
-                analyticsActions.switchToMessages();
-              }
-            }}
-          />
-        )}
-        <NavTab
-          icon={BarChart3}
-          label={tComponents("analytics.dashboard")}
-          isActive={computed.isAnalyticsView}
-          onClick={() => {
-            if (computed.isAnalyticsView) {
-              analyticsActions.switchToMessages();
-            } else {
-              handleLoadAnalytics();
-            }
-          }}
-        />
-        <NavTab
-          icon={Activity}
-          label={tMessages("tokenStats.existing")}
-          isActive={computed.isTokenStatsView}
-          isLoading={computed.isAnyLoading}
-          onClick={() => {
-            if (computed.isTokenStatsView) {
-              analyticsActions.switchToMessages();
-            } else {
-              handleLoadTokenStats();
-            }
-          }}
-          disabled={computed.isAnyLoading}
-        />
-        <NavTab
-          icon={FileEdit}
-          label={tComponents("recentEdits.title")}
-          isActive={computed.isRecentEditsView}
-          onClick={() => {
-            if (computed.isRecentEditsView) {
-              analyticsActions.switchToMessages();
-            } else {
-              handleLoadRecentEdits();
-            }
-          }}
-          disabled={computed.isAnyLoading}
-        />
-      </nav>
+      {/* Center: Quick Stats (when session selected) */}
+      {selectedSession && computed.isMessagesView && (
+        <div className="hidden lg:flex items-center gap-2">
+          <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-2xs text-muted-foreground font-mono">
+            {selectedSession.actual_session_id.slice(0, 8)}
+          </span>
+        </div>
+      )}
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1">
-        {selectedSession && (
-          <TooltipButton
-            onClick={() => refreshCurrentSession()}
-            disabled={isLoadingMessages}
-            className={cn(
-              "p-2 rounded-lg transition-colors",
-              "text-muted-foreground hover:text-foreground hover:bg-muted/80"
-            )}
-            content={tComponents("session.refresh")}
-          >
-            <RefreshCw
-              className={cn("w-4 h-4", isLoadingMessages && "animate-spin")}
+        {selectedProject && (
+          <>
+            {/* Analytics */}
+            <NavButton
+              icon={BarChart3}
+              label={tComponents("analytics.dashboard")}
+              isActive={computed.isAnalyticsView}
+              onClick={() => {
+                if (computed.isAnalyticsView) {
+                  analyticsActions.switchToMessages();
+                } else {
+                  handleLoadAnalytics();
+                }
+              }}
             />
-          </TooltipButton>
+
+            {/* Token Stats */}
+            <NavButton
+              icon={computed.isAnyLoading ? Loader2 : Activity}
+              label={tMessages("tokenStats.existing")}
+              isActive={computed.isTokenStatsView}
+              isLoading={computed.isAnyLoading}
+              onClick={() => {
+                if (computed.isTokenStatsView) {
+                  analyticsActions.switchToMessages();
+                } else {
+                  handleLoadTokenStats();
+                }
+              }}
+              disabled={computed.isAnyLoading}
+            />
+
+            {/* Recent Edits */}
+            <NavButton
+              icon={FileEdit}
+              label={tComponents("recentEdits.title")}
+              isActive={computed.isRecentEditsView}
+              onClick={() => {
+                if (computed.isRecentEditsView) {
+                  analyticsActions.switchToMessages();
+                } else {
+                  handleLoadRecentEdits();
+                }
+              }}
+              disabled={computed.isAnyLoading}
+            />
+          </>
         )}
+
+        {selectedSession && (
+          <>
+            {/* Divider */}
+            <div className="w-px h-6 bg-border mx-2" />
+
+            {/* Messages */}
+            <NavButton
+              icon={MessageSquare}
+              label={tComponents("message.view")}
+              isActive={computed.isMessagesView}
+              onClick={() => {
+                if (!computed.isMessagesView) {
+                  analyticsActions.switchToMessages();
+                }
+              }}
+            />
+
+            {/* Refresh */}
+            <TooltipButton
+              onClick={() => refreshCurrentSession()}
+              disabled={isLoadingMessages}
+              className={cn(
+                "p-2 rounded-md transition-colors",
+                "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+              content={tComponents("session.refresh")}
+            >
+              <RefreshCw
+                className={cn("w-4 h-4", isLoadingMessages && "animate-spin")}
+              />
+            </TooltipButton>
+          </>
+        )}
+
+        {/* Settings Dropdown */}
         <SettingDropdown />
       </div>
     </header>
   );
 };
 
-/* Navigation Tab Component */
-interface NavTabProps {
+/* Navigation Button Component */
+interface NavButtonProps {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   isActive?: boolean;
@@ -158,32 +205,29 @@ interface NavTabProps {
   disabled?: boolean;
 }
 
-const NavTab = ({
+const NavButton = ({
   icon: Icon,
   label,
   isActive,
   isLoading,
   onClick,
   disabled,
-}: NavTabProps) => {
+}: NavButtonProps) => {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+        "p-2 rounded-md transition-colors",
+        "text-muted-foreground",
         isActive
-          ? "bg-background text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground hover:bg-background/50",
+          ? "bg-accent/10 text-accent"
+          : "hover:bg-muted hover:text-foreground",
         disabled && "opacity-50 cursor-not-allowed"
       )}
+      content={label}
     >
-      {isLoading ? (
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-      ) : (
-        <Icon className="w-3.5 h-3.5" />
-      )}
-      <span className="hidden sm:inline">{label}</span>
-    </button>
+      <Icon className={cn("w-4 h-4", isLoading && "animate-spin")} />
+    </TooltipButton>
   );
 };
