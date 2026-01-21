@@ -2,8 +2,7 @@ import { Check } from "lucide-react";
 import { Highlight, themes } from "prism-react-renderer";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
-import { cn } from "@/lib/utils";
-import { COLORS } from "../../constants/colors";
+import { layout } from "@/components/renderers";
 
 type Props = {
   toolResult: Record<string, unknown>;
@@ -12,16 +11,14 @@ type Props = {
 export const FallbackRenderer = ({ toolResult }: Props) => {
   const { t } = useTranslation("components");
   return (
-    <Renderer
-      className={cn(COLORS.ui.background.primary, COLORS.ui.border.light)}
-    >
+    <Renderer className="bg-card border-border">
       <Renderer.Header
         title={t("toolResult.toolExecutionResult")}
-        icon={<Check className={cn(COLORS.ui.text.muted)} />}
-        titleClassName={cn(COLORS.ui.text.secondary)}
+        icon={<Check className="w-4 h-4 text-muted-foreground" />}
+        titleClassName="text-foreground/80"
       />
       <Renderer.Content>
-        <div className="text-sm">
+        <div className={layout.bodyText}>
           <Highlight
             theme={themes.vsDark}
             code={JSON.stringify(toolResult, null, 2)}
@@ -33,7 +30,7 @@ export const FallbackRenderer = ({ toolResult }: Props) => {
                 style={{
                   ...style,
                   margin: 0,
-                  fontSize: "0.75rem",
+                  fontSize: "0.8125rem",
                   padding: "0.5rem",
                 }}
               >

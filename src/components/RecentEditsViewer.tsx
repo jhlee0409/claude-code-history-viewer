@@ -19,8 +19,8 @@ import {
 import { Highlight, themes } from "prism-react-renderer";
 import { useTheme } from "@/contexts/theme";
 import type { RecentEditsResult, RecentFileEdit } from "../types";
-import { COLORS } from "../constants/colors";
 import { cn } from "@/lib/utils";
+import { layout } from "@/components/renderers";
 
 interface RecentEditsViewerProps {
   recentEdits: RecentEditsResult | null;
@@ -179,44 +179,63 @@ const FileEditItem: React.FC<{
   };
 
   return (
-    <div
-      className={cn(
-        "border rounded-lg overflow-hidden transition-all",
-        COLORS.ui.border.light,
-        COLORS.ui.background.secondary
-      )}
-    >
+    <div className="border-2 rounded-xl overflow-hidden transition-all duration-300 border-border bg-card hover:border-accent/30 hover:shadow-md">
       {/* Header */}
       <div
         className={cn(
-          "flex items-center justify-between p-3 cursor-pointer hover:bg-opacity-80 transition-colors",
+          "relative flex items-center justify-between p-4 cursor-pointer transition-all duration-300",
           edit.operation_type === "write"
-            ? "bg-green-50 dark:bg-green-950/30"
-            : "bg-blue-50 dark:bg-blue-950/30"
+            ? "bg-gradient-to-r from-green-50 to-emerald-50/50 dark:from-green-950/40 dark:to-emerald-950/20"
+            : "bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-950/40 dark:to-indigo-950/20",
+          isExpanded && "border-b border-border"
         )}
         onClick={() => setIsExpanded(!isExpanded)}
       >
+        {/* Left accent bar */}
+        <div
+          className={cn(
+            "absolute left-0 top-0 bottom-0 w-1",
+            edit.operation_type === "write" ? "bg-success" : "bg-info"
+          )}
+        />
+
         <div className="flex items-center space-x-3 min-w-0 flex-1">
           {/* Expand/Collapse icon */}
-          {isExpanded ? (
-            <ChevronDown className={cn("w-4 h-4 shrink-0", COLORS.ui.text.muted)} />
-          ) : (
-            <ChevronRight className={cn("w-4 h-4 shrink-0", COLORS.ui.text.muted)} />
-          )}
+          <div
+            className={cn(
+              "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300",
+              isExpanded ? "bg-accent/20 text-accent" : "bg-muted/50 text-muted-foreground"
+            )}
+          >
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+          </div>
 
           {/* Operation type icon */}
-          {edit.operation_type === "write" ? (
-            <FilePlus className={cn("w-4 h-4 shrink-0", COLORS.semantic.success.icon)} />
-          ) : (
-            <FileEdit className={cn("w-4 h-4 shrink-0", COLORS.semantic.info.icon)} />
-          )}
+          <div
+            className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center",
+              edit.operation_type === "write"
+                ? "bg-success/20 text-success"
+                : "bg-info/20 text-info"
+            )}
+          >
+            {edit.operation_type === "write" ? (
+              <FilePlus className="w-4 h-4" />
+            ) : (
+              <FileEdit className="w-4 h-4" />
+            )}
+          </div>
 
           {/* File name and path */}
           <div className="min-w-0 flex-1">
-            <div className={cn("font-medium truncate", COLORS.ui.text.primary)}>
+            <div className="font-semibold truncate text-foreground">
               {fileName}
             </div>
-            <div className={cn("text-xs truncate", COLORS.ui.text.muted)}>
+            <div className={`${layout.smallText} truncate text-muted-foreground mt-0.5`}>
               {edit.file_path}
             </div>
           </div>
@@ -225,14 +244,14 @@ const FileEditItem: React.FC<{
         {/* Right side info */}
         <div className="flex items-center space-x-3 shrink-0 ml-2">
           {/* Diff stats */}
-          <div className="flex items-center space-x-2 text-xs">
+          <div className={`flex items-center space-x-2 ${layout.smallText} font-mono`}>
             {edit.lines_added > 0 && (
-              <span className="text-green-600 dark:text-green-400">
+              <span className="text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded">
                 +{edit.lines_added}
               </span>
             )}
             {edit.lines_removed > 0 && (
-              <span className="text-red-600 dark:text-red-400">
+              <span className="text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded">
                 -{edit.lines_removed}
               </span>
             )}
@@ -241,10 +260,10 @@ const FileEditItem: React.FC<{
           {/* Operation badge */}
           <span
             className={cn(
-              "text-xs px-2 py-0.5 rounded-full",
+              `${layout.smallText} px-2.5 py-1 rounded-full font-medium`,
               edit.operation_type === "write"
-                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                ? "bg-success/20 text-success ring-1 ring-success/30"
+                : "bg-info/20 text-info ring-1 ring-info/30"
             )}
           >
             {edit.operation_type === "write"
@@ -253,7 +272,7 @@ const FileEditItem: React.FC<{
           </span>
 
           {/* Timestamp */}
-          <div className={cn("flex items-center space-x-1 text-xs", COLORS.ui.text.muted)}>
+          <div className={`flex items-center space-x-1.5 ${layout.smallText} text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg`}>
             <Clock className="w-3 h-3" />
             <span title={formatTimestamp(edit.timestamp)}>
               {getRelativeTime(edit.timestamp, tCommon)}
@@ -267,10 +286,10 @@ const FileEditItem: React.FC<{
               handleCopy();
             }}
             className={cn(
-              "p-1.5 rounded-md transition-colors",
+              "p-2 rounded-lg transition-all duration-200",
               copied
-                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                : "hover:bg-gray-200 dark:hover:bg-gray-700"
+                ? "bg-success/20 text-success ring-1 ring-success/30"
+                : "hover:bg-muted text-muted-foreground hover:text-foreground"
             )}
             title={t("recentEdits.copyContent")}
           >
@@ -287,14 +306,14 @@ const FileEditItem: React.FC<{
             }}
             disabled={restoreStatus === 'loading'}
             className={cn(
-              "p-1.5 rounded-md transition-colors",
+              "p-2 rounded-lg transition-all duration-200",
               restoreStatus === 'success'
-                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                ? "bg-success/20 text-success ring-1 ring-success/30"
                 : restoreStatus === 'error'
-                ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                ? "bg-destructive/20 text-destructive ring-1 ring-destructive/30"
                 : restoreStatus === 'loading'
-                ? "bg-gray-100 dark:bg-gray-800 cursor-wait"
-                : "hover:bg-gray-200 dark:hover:bg-gray-700"
+                ? "bg-muted text-muted-foreground cursor-wait"
+                : "hover:bg-muted text-muted-foreground hover:text-foreground"
             )}
             title={t("recentEdits.restoreFile")}
           >
@@ -311,7 +330,7 @@ const FileEditItem: React.FC<{
 
       {/* Error message toast */}
       {errorMessage && (
-        <div className="mx-3 mb-2 p-2 rounded-md bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 text-xs">
+        <div className={`mx-3 mb-2 p-2 rounded-md bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 ${layout.smallText}`}>
           {t("recentEdits.restoreError")}: {errorMessage}
         </div>
       )}
@@ -323,32 +342,25 @@ const FileEditItem: React.FC<{
           onClick={handleRestoreCancel}
         >
           <div
-            className={cn(
-              "rounded-lg p-6 max-w-md mx-4 shadow-xl",
-              COLORS.ui.background.primary
-            )}
+            className="rounded-lg p-6 max-w-md mx-4 shadow-xl bg-background"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className={cn("text-lg font-semibold mb-2", COLORS.ui.text.primary)}>
+            <h3 className="text-lg font-semibold mb-2 text-foreground">
               {t("recentEdits.confirmRestoreTitle")}
             </h3>
-            <p className={cn("text-sm mb-4", COLORS.ui.text.muted)}>
+            <p className={`${layout.bodyText} mb-4 text-muted-foreground`}>
               {t("recentEdits.confirmRestoreMessage", { path: edit.file_path })}
             </p>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={handleRestoreCancel}
-                className={cn(
-                  "px-4 py-2 rounded-md text-sm",
-                  "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600",
-                  COLORS.ui.text.primary
-                )}
+                className={`px-4 py-2 rounded-md ${layout.bodyText} bg-muted hover:bg-muted/80 text-foreground`}
               >
                 {t("recentEdits.cancel")}
               </button>
               <button
                 onClick={handleRestoreConfirm}
-                className="px-4 py-2 rounded-md text-sm bg-blue-600 hover:bg-blue-700 text-white"
+                className={`px-4 py-2 rounded-md ${layout.bodyText} bg-blue-600 hover:bg-blue-700 text-white`}
               >
                 {t("recentEdits.confirmRestore")}
               </button>
@@ -359,7 +371,7 @@ const FileEditItem: React.FC<{
 
       {/* Expanded content */}
       {isExpanded && (
-        <div className={cn("border-t", COLORS.ui.border.light)}>
+        <div className="border-t border-border">
           {/* Code content */}
           <div className="max-h-96 overflow-auto">
             <Highlight
@@ -379,7 +391,7 @@ const FileEditItem: React.FC<{
                   style={{
                     ...style,
                     margin: 0,
-                    fontSize: "0.75rem",
+                    fontSize: "0.8125rem",
                     lineHeight: "1.25rem",
                     padding: "0.75rem",
                   }}
@@ -415,18 +427,12 @@ const FileEditItem: React.FC<{
           </div>
 
           {/* Footer with stats */}
-          <div
-            className={cn(
-              "flex items-center justify-between px-3 py-2 text-xs border-t",
-              COLORS.ui.border.light,
-              COLORS.ui.background.secondary
-            )}
-          >
-            <div className={cn("flex items-center space-x-4", COLORS.ui.text.muted)}>
+          <div className={`flex items-center justify-between px-3 py-2 ${layout.smallText} border-t border-border bg-card`}>
+            <div className="flex items-center space-x-4 text-muted-foreground">
               <span>{lines.length} {t("recentEdits.lines")}</span>
               <span>{language}</span>
             </div>
-            <div className={cn(COLORS.ui.text.muted)}>
+            <div className="text-muted-foreground">
               {formatTimestamp(edit.timestamp)}
             </div>
           </div>
@@ -472,8 +478,8 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <Loader2 className={cn("w-8 h-8 animate-spin mb-4", COLORS.ui.text.muted)} />
-        <p className={cn("text-sm", COLORS.ui.text.muted)}>
+        <Loader2 className="w-8 h-8 animate-spin mb-4 text-muted-foreground" />
+        <p className={`${layout.bodyText} text-muted-foreground`}>
           {t("recentEdits.loading")}
         </p>
       </div>
@@ -484,7 +490,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <div className={cn("text-sm", COLORS.semantic.error.text)}>{error}</div>
+        <div className={`${layout.bodyText} text-destructive`}>{error}</div>
       </div>
     );
   }
@@ -493,11 +499,11 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   if (!recentEdits || recentEdits.files.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <File className={cn("w-12 h-12 mb-4", COLORS.ui.text.disabledDark)} />
-        <p className={cn("text-lg mb-2", COLORS.ui.text.muted)}>
+        <File className="w-12 h-12 mb-4 text-muted-foreground/50" />
+        <p className="text-lg mb-2 text-muted-foreground">
           {t("recentEdits.noEdits")}
         </p>
-        <p className={cn("text-sm", COLORS.ui.text.muted)}>
+        <p className={`${layout.bodyText} text-muted-foreground`}>
           {t("recentEdits.noEditsDescription")}
         </p>
       </div>
@@ -507,48 +513,53 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   return (
     <div className="h-full flex flex-col p-6">
       {/* Header with stats */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className={cn("text-lg font-semibold", COLORS.ui.text.primary)}>
-            {t("recentEdits.title")}
-          </h2>
-          <div className={cn("text-sm", COLORS.ui.text.muted)}>
-            {t("recentEdits.stats", {
-              files: stats.uniqueFilesCount,
-              edits: stats.totalEditsCount,
-            })}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
+              <FileEdit className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground tracking-tight">
+                {t("recentEdits.title")}
+              </h2>
+              <p className={`${layout.smallText} text-muted-foreground`}>
+                {t("recentEdits.stats", {
+                  files: stats.uniqueFilesCount,
+                  edits: stats.totalEditsCount,
+                })}
+              </p>
+            </div>
+          </div>
+          <div className={`flex items-center gap-2 ${layout.bodyText} text-accent bg-accent/10 px-3 py-1.5 rounded-full`}>
+            <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="font-medium">{stats.totalEditsCount} edits</span>
           </div>
         </div>
 
         {/* Search bar */}
         <div className="relative">
-          <Search
-            className={cn(
-              "absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4",
-              COLORS.ui.text.muted
-            )}
-          />
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center">
+            <Search className="w-4 h-4 text-muted-foreground" />
+          </div>
           <input
             type="text"
             placeholder={t("recentEdits.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={cn(
-              "w-full pl-10 pr-4 py-2 rounded-lg border text-sm",
-              COLORS.ui.border.light,
-              COLORS.ui.background.primary,
-              COLORS.ui.text.primary,
-              "focus:outline-none focus:ring-2 focus:ring-blue-500"
-            )}
+            className={`w-full pl-14 pr-4 py-3 rounded-xl border-2 ${layout.bodyText} border-border bg-card text-foreground focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20 transition-all duration-300`}
           />
         </div>
       </div>
 
       {/* File list */}
-      <div className="flex-1 overflow-auto space-y-2">
+      <div className="flex-1 overflow-auto space-y-3">
         {filteredFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8">
-            <p className={cn("text-sm", COLORS.ui.text.muted)}>
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-16 h-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
+              <Search className="w-8 h-8 text-muted-foreground/40" />
+            </div>
+            <p className={`${layout.bodyText} text-muted-foreground`}>
               {t("recentEdits.noSearchResults")}
             </p>
           </div>
@@ -560,14 +571,11 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
       </div>
 
       {/* Footer info */}
-      <div
-        className={cn(
-          "mt-4 pt-4 border-t text-xs",
-          COLORS.ui.border.light,
-          COLORS.ui.text.muted
-        )}
-      >
-        {t("recentEdits.footerInfo")}
+      <div className="mt-4 pt-4 border-t border-border/50">
+        <div className={`flex items-center gap-2 ${layout.smallText} text-muted-foreground`}>
+          <div className="w-1 h-1 rounded-full bg-accent/50" />
+          {t("recentEdits.footerInfo")}
+        </div>
       </div>
     </div>
   );

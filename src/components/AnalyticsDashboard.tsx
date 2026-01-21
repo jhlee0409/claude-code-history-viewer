@@ -25,6 +25,7 @@ import { formatTime, formatDuration } from "../utils/time";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "../store/useAppStore";
 import { useAnalytics } from "../hooks/useAnalytics";
+import { layout } from "./renderers";
 
 /**
  * Analytics Dashboard Component - Mission Control Design
@@ -123,93 +124,94 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
   // ============================================
   // METRIC CARD COMPONENT
   // ============================================
+  type MetricColorVariant = "green" | "purple" | "blue" | "amber";
+
   const MetricCard: React.FC<{
     icon: React.ElementType;
     label: string;
     value: string | number;
     subValue?: string;
     trend?: number;
-    accentColor: string;
-    glowColor: string;
-  }> = ({ icon: Icon, label, value, subValue, trend, accentColor, glowColor }) => (
-    <div
-      className={cn(
-        "group relative overflow-hidden rounded-xl",
-        "bg-card/80 backdrop-blur-sm",
-        "border border-border/50",
-        "transition-all duration-300",
-        "hover:border-border hover:shadow-lg",
-      )}
-      style={{
-        boxShadow: `inset 0 1px 0 oklch(1 0 0 / 0.05), 0 0 0 1px oklch(0 0 0 / 0.03)`,
-      }}
-    >
-      {/* Glow effect on hover */}
+    colorVariant: MetricColorVariant;
+  }> = ({ icon: Icon, label, value, subValue, trend, colorVariant }) => {
+    const colorVar = `var(--metric-${colorVariant})`;
+
+    return (
       <div
         className={cn(
-          "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500",
-          "pointer-events-none"
+          "group relative overflow-hidden rounded-xl",
+          "bg-card/80 backdrop-blur-sm",
+          "border border-border/50",
+          "transition-all duration-300",
+          "hover:border-border hover:shadow-lg",
         )}
-        style={{
-          background: `radial-gradient(ellipse at 50% 0%, ${glowColor} 0%, transparent 70%)`,
-        }}
-      />
+      >
+        {/* Glow effect on hover */}
+        <div
+          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+          style={{
+            background: `radial-gradient(ellipse at 50% 0%, color-mix(in oklch, ${colorVar} 10%, transparent), transparent 70%)`,
+            boxShadow: `var(--glow-${colorVariant})`,
+          }}
+        />
 
-      {/* Top accent line */}
-      <div
-        className="absolute top-0 left-4 right-4 h-[2px] rounded-b"
-        style={{ background: accentColor }}
-      />
+        {/* Top accent line */}
+        <div
+          className="absolute top-0 left-4 right-4 h-[2px] rounded-b"
+          style={{ backgroundColor: colorVar }}
+        />
 
-      <div className="relative p-5">
-        {/* Header row */}
-        <div className="flex items-center justify-between mb-3">
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: `${accentColor}20` }}
-          >
-            <Icon className="w-5 h-5" style={{ color: accentColor }} />
-          </div>
-          {trend !== undefined && (
+        <div className="relative p-5">
+          {/* Header row */}
+          <div className="flex items-center justify-between mb-3">
             <div
-              className={cn(
-                "flex items-center gap-0.5 px-2 py-1 rounded-full text-[10px] font-semibold tracking-wide",
-                trend > 0
-                  ? "bg-success/15 text-success"
-                  : trend < 0
-                  ? "bg-destructive/15 text-destructive"
-                  : "bg-muted text-muted-foreground"
-              )}
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              style={{ background: `color-mix(in oklch, ${colorVar} 20%, transparent)` }}
             >
-              {trend > 0 ? (
-                <ArrowUpRight className="w-3 h-3" />
-              ) : trend < 0 ? (
-                <ArrowDownRight className="w-3 h-3" />
-              ) : null}
-              {trend > 0 ? "+" : ""}{trend}%
+              <Icon className="w-5 h-5" style={{ color: colorVar }} />
+            </div>
+            {trend !== undefined && (
+              <div
+                className={cn(
+                  "flex items-center gap-0.5 px-2 py-1 rounded-full font-semibold tracking-wide",
+                  layout.smallText,
+                  trend > 0
+                    ? "bg-success/15 text-success"
+                    : trend < 0
+                    ? "bg-destructive/15 text-destructive"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {trend > 0 ? (
+                  <ArrowUpRight className="w-3 h-3" />
+                ) : trend < 0 ? (
+                  <ArrowDownRight className="w-3 h-3" />
+                ) : null}
+                {trend > 0 ? "+" : ""}{trend}%
+              </div>
+            )}
+          </div>
+
+          {/* Value */}
+          <div className="font-mono text-3xl font-bold tracking-tight text-foreground mb-1">
+            {value}
+          </div>
+
+          {/* Label */}
+          <div className={cn(layout.bodyText, "font-medium text-muted-foreground uppercase tracking-wider")}>
+            {label}
+          </div>
+
+          {/* Sub value */}
+          {subValue && (
+            <div className={cn("mt-2 text-muted-foreground/70 font-mono", layout.smallText)}>
+              {subValue}
             </div>
           )}
         </div>
-
-        {/* Value */}
-        <div className="font-mono text-3xl font-bold tracking-tight text-foreground mb-1">
-          {value}
-        </div>
-
-        {/* Label */}
-        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-          {label}
-        </div>
-
-        {/* Sub value */}
-        {subValue && (
-          <div className="mt-2 text-[10px] text-muted-foreground/70 font-mono">
-            {subValue}
-          </div>
-        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   // ============================================
   // ACTIVITY HEATMAP COMPONENT
@@ -219,14 +221,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     const hours = Array.from({ length: 24 }, (_, i) => i);
     const days = t("analytics.weekdayNames", { returnObjects: true });
 
-    // Color scale using OKLCH
+    // Color scale using CSS variables with inline styles
     const getHeatColor = (intensity: number): string => {
-      if (intensity === 0) return "oklch(0.2 0.01 260)";
-      if (intensity <= 0.2) return "oklch(0.35 0.12 145)";
-      if (intensity <= 0.4) return "oklch(0.45 0.14 145)";
-      if (intensity <= 0.6) return "oklch(0.55 0.16 145)";
-      if (intensity <= 0.8) return "oklch(0.65 0.17 145)";
-      return "oklch(0.75 0.18 145)";
+      if (intensity === 0) return "var(--heatmap-empty)";
+      if (intensity <= 0.3) return "var(--heatmap-low)";
+      if (intensity <= 0.6) return "var(--heatmap-medium)";
+      return "var(--heatmap-high)";
     };
 
     return (
@@ -237,7 +237,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
             {hours.map((hour) => (
               <div
                 key={hour}
-                className="w-5 h-5 flex items-center justify-center text-[9px] font-mono text-muted-foreground/60"
+                className="w-5 h-5 flex items-center justify-center text-[12px] font-mono text-muted-foreground/60"
               >
                 {hour % 4 === 0 ? hour.toString().padStart(2, '0') : ""}
               </div>
@@ -247,7 +247,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           {/* Heatmap grid */}
           {days.map((day, dayIndex) => (
             <div key={day} className="flex gap-[3px] mb-[3px]">
-              <div className="w-9 flex items-center justify-end pr-2 text-[9px] font-medium text-muted-foreground/70 uppercase tracking-wider">
+              <div className="w-9 flex items-center justify-end pr-2 text-[12px] font-medium text-muted-foreground/70 uppercase tracking-wider">
                 {day}
               </div>
               {hours.map((hour) => {
@@ -268,15 +268,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                           "w-5 h-5 rounded-[3px] cursor-pointer",
                           "transition-all duration-200",
                           "hover:scale-[1.3] hover:z-10 relative",
-                          intensity > 0 && "hover:ring-2 hover:ring-white/30"
+                          intensity > 0 && "hover:ring-2 hover:ring-white/30",
+                          intensity > 0.5 && "shadow-glow-green"
                         )}
-                        style={{
-                          background: heatColor,
-                          boxShadow: intensity > 0.5 ? `0 0 8px ${heatColor}` : 'none',
-                        }}
+                        style={{ backgroundColor: heatColor }}
                       />
                     </TooltipTrigger>
-                    <TooltipContent side="top" className="font-mono text-xs">
+                    <TooltipContent side="top" className={cn("font-mono", layout.smallText)}>
                       <div className="space-y-0.5">
                         <div className="font-semibold">{day} {hour}:00</div>
                         <div className="text-muted-foreground">
@@ -295,19 +293,16 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
 
           {/* Legend */}
           <div className="flex items-center gap-3 mt-4 ml-9">
-            <span className="text-[9px] font-medium text-muted-foreground/60 uppercase tracking-wider">
+            <span className={cn("font-medium text-muted-foreground/60 uppercase tracking-wider", layout.smallText)}>
               {t("analytics.legend.less")}
             </span>
             <div className="flex gap-[2px]">
-              {[0, 0.2, 0.4, 0.6, 0.8, 1].map((intensity, i) => (
-                <div
-                  key={i}
-                  className="w-4 h-4 rounded-[2px]"
-                  style={{ background: getHeatColor(intensity) }}
-                />
-              ))}
+              <div className="w-4 h-4 rounded-[2px]" style={{ backgroundColor: "var(--heatmap-empty)" }} />
+              <div className="w-4 h-4 rounded-[2px]" style={{ backgroundColor: "var(--heatmap-low)" }} />
+              <div className="w-4 h-4 rounded-[2px]" style={{ backgroundColor: "var(--heatmap-medium)" }} />
+              <div className="w-4 h-4 rounded-[2px]" style={{ backgroundColor: "var(--heatmap-high)" }} />
             </div>
-            <span className="text-[9px] font-medium text-muted-foreground/60 uppercase tracking-wider">
+            <span className={cn("font-medium text-muted-foreground/60 uppercase tracking-wider", layout.smallText)}>
               {t("analytics.legend.more")}
             </span>
           </div>
@@ -347,21 +342,21 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     const maxUsage = Math.max(...topTools.map((t) => t.usage_count), 1);
     const totalUsage = topTools.reduce((sum, t) => sum + t.usage_count, 0);
 
-    // Industrial color palette
+    // Industrial color palette using CSS variables
     const toolColors = [
-      { bg: "oklch(0.6 0.15 250)", glow: "oklch(0.6 0.15 250 / 0.3)" },
-      { bg: "oklch(0.7 0.16 145)", glow: "oklch(0.7 0.16 145 / 0.3)" },
-      { bg: "oklch(0.65 0.14 280)", glow: "oklch(0.65 0.14 280 / 0.3)" },
-      { bg: "oklch(0.75 0.18 55)", glow: "oklch(0.75 0.18 55 / 0.3)" },
-      { bg: "oklch(0.6 0.14 310)", glow: "oklch(0.6 0.14 310 / 0.3)" },
-      { bg: "oklch(0.65 0.15 170)", glow: "oklch(0.65 0.15 170 / 0.3)" },
+      { bg: "var(--metric-purple)", glow: "var(--glow-purple)" },
+      { bg: "var(--metric-green)", glow: "var(--glow-green)" },
+      { bg: "var(--metric-blue)", glow: "var(--glow-blue)" },
+      { bg: "var(--metric-amber)", glow: "var(--glow-amber)" },
+      { bg: "var(--metric-pink)", glow: "var(--metric-pink)" },
+      { bg: "var(--metric-teal)", glow: "var(--metric-teal)" },
     ];
 
     if (topTools.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
           <Wrench className="w-10 h-10 mb-3 opacity-30" />
-          <p className="text-[11px]">{t("analytics.noData")}</p>
+          <p className="text-[12px]">{t("analytics.noData")}</p>
         </div>
       );
     }
@@ -381,15 +376,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                     className="w-2.5 h-2.5 rounded-full"
                     style={{ background: color.bg, boxShadow: `0 0 6px ${color.glow}` }}
                   />
-                  <span className="text-[11px] font-medium text-foreground/80">
+                  <span className="text-[12px] font-medium text-foreground/80">
                     {getToolDisplayName(tool.tool_name)}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-mono text-[11px] font-semibold text-foreground">
+                  <span className="font-mono text-[12px] font-semibold text-foreground">
                     {tool.usage_count.toLocaleString()}
                   </span>
-                  <span className="font-mono text-[10px] text-muted-foreground w-12 text-right">
+                  <span className="font-mono text-[12px] text-muted-foreground w-12 text-right">
                     {percentage.toFixed(1)}%
                   </span>
                 </div>
@@ -441,19 +436,19 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
               const dateObj = stat.date ? new Date(stat.date) : new Date();
               const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
 
-              // Gradient colors
+              // Gradient colors using CSS variables
               const barGradient = isToday
-                ? "linear-gradient(to top, oklch(0.6 0.18 145), oklch(0.75 0.18 145))"
+                ? "linear-gradient(to top, var(--chart-green-from), var(--chart-green-to))"
                 : isWeekend
-                ? "linear-gradient(to top, oklch(0.5 0.14 280), oklch(0.65 0.14 280))"
+                ? "linear-gradient(to top, var(--chart-blue-from), var(--chart-blue-to))"
                 : stat.total_tokens > maxTokens * 0.7
-                ? "linear-gradient(to top, oklch(0.5 0.15 250), oklch(0.7 0.15 250))"
-                : "linear-gradient(to top, oklch(0.35 0.08 260), oklch(0.5 0.08 260))";
+                ? "linear-gradient(to top, var(--chart-purple-from), var(--chart-purple-to))"
+                : "linear-gradient(to top, var(--chart-muted-from), var(--chart-muted-to))";
 
               const glowColor = isToday
-                ? "oklch(0.75 0.18 145 / 0.4)"
+                ? "var(--chart-glow-green)"
                 : isWeekend
-                ? "oklch(0.65 0.14 280 / 0.3)"
+                ? "var(--chart-glow-blue)"
                 : "transparent";
 
               return (
@@ -475,7 +470,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                         {/* Value label on bar */}
                         {stat.total_tokens > 0 && height > 20 && (
                           <div className="flex items-center justify-center h-full">
-                            <span className="font-mono text-[9px] font-semibold text-white/90 drop-shadow-sm">
+                            <span className="font-mono text-[12px] font-semibold text-white/90 drop-shadow-sm">
                               {formatNumber(stat.total_tokens)}
                             </span>
                           </div>
@@ -485,7 +480,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                       {/* Date label */}
                       <div
                         className={cn(
-                          "mt-2 text-[9px] font-mono",
+                          "mt-2 text-[12px] font-mono",
                           isToday
                             ? "font-bold text-success"
                             : "text-muted-foreground/60"
@@ -513,7 +508,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
             <div className="font-mono text-lg font-bold text-foreground">
               {formatNumber(Math.round(totalTokens / 7))}
             </div>
-            <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+            <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
               {t("analytics.dailyAvgTokens")}
             </div>
           </div>
@@ -521,7 +516,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
             <div className="font-mono text-lg font-bold text-foreground">
               {Math.round(totalMessages / 7)}
             </div>
-            <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+            <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
               {t("analytics.dailyAvgMessages")}
             </div>
           </div>
@@ -530,24 +525,24 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
               {activeDays}
               <span className="text-muted-foreground/60">/7</span>
             </div>
-            <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+            <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
               {t("analytics.weeklyActiveDays")}
             </div>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-5 text-[9px]">
+        <div className="flex items-center justify-center gap-5 text-[12px]">
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded" style={{ background: "linear-gradient(to top, oklch(0.6 0.18 145), oklch(0.75 0.18 145))" }} />
+            <div className="w-3 h-3 rounded" style={{ background: "linear-gradient(to top, var(--chart-green-from), var(--chart-green-to))" }} />
             <span className="text-muted-foreground">{t("analytics.today")}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded" style={{ background: "linear-gradient(to top, oklch(0.5 0.15 250), oklch(0.7 0.15 250))" }} />
+            <div className="w-3 h-3 rounded" style={{ background: "linear-gradient(to top, var(--chart-purple-from), var(--chart-purple-to))" }} />
             <span className="text-muted-foreground">{t("analytics.highActivity")}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded" style={{ background: "linear-gradient(to top, oklch(0.5 0.14 280), oklch(0.65 0.14 280))" }} />
+            <div className="w-3 h-3 rounded" style={{ background: "linear-gradient(to top, var(--chart-blue-from), var(--chart-blue-to))" }} />
             <span className="text-muted-foreground">{t("analytics.weekend")}</span>
           </div>
         </div>
@@ -560,10 +555,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
   // ============================================
   const TokenDistributionChart = ({ distribution, total }: { distribution: { input: number; output: number; cache_creation: number; cache_read: number }; total: number }) => {
     const items = [
-      { label: "Input", value: distribution.input, color: "oklch(0.7 0.16 145)", icon: TrendingUp },
-      { label: "Output", value: distribution.output, color: "oklch(0.65 0.15 250)", icon: Zap },
-      { label: "Cache Write", value: distribution.cache_creation, color: "oklch(0.65 0.14 280)", icon: Database },
-      { label: "Cache Read", value: distribution.cache_read, color: "oklch(0.75 0.18 55)", icon: Eye },
+      { label: "Input", value: distribution.input, color: "var(--metric-green)", icon: TrendingUp },
+      { label: "Output", value: distribution.output, color: "var(--metric-purple)", icon: Zap },
+      { label: "Cache Write", value: distribution.cache_creation, color: "var(--metric-blue)", icon: Database },
+      { label: "Cache Read", value: distribution.cache_read, color: "var(--metric-amber)", icon: Eye },
     ];
 
     return (
@@ -607,13 +602,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                   >
                     <Icon className="w-3.5 h-3.5" style={{ color: item.color }} />
                   </div>
-                  <span className="text-[10px] font-medium text-foreground/70">{item.label}</span>
+                  <span className="text-[12px] font-medium text-foreground/70">{item.label}</span>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono text-[11px] font-semibold" style={{ color: item.color }}>
+                  <div className="font-mono text-[12px] font-semibold" style={{ color: item.color }}>
                     {formatNumber(item.value)}
                   </div>
-                  <div className="font-mono text-[9px] text-muted-foreground">
+                  <div className="font-mono text-[12px] text-muted-foreground">
                     {percentage.toFixed(1)}%
                   </div>
                 </div>
@@ -627,7 +622,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <div className="font-mono text-2xl font-bold text-foreground tracking-tight">
             {formatNumber(total)}
           </div>
-          <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
             {t("analytics.totalTokenUsage")}
           </div>
         </div>
@@ -638,45 +633,51 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
   // ============================================
   // SECTION CARD WRAPPER
   // ============================================
+  type SectionColorVariant = "green" | "purple" | "blue" | "amber" | "accent";
+
   const SectionCard: React.FC<{
     title: string;
     icon?: React.ElementType;
-    accentColor?: string;
+    colorVariant?: SectionColorVariant;
     children: React.ReactNode;
     className?: string;
-  }> = ({ title, icon: Icon, accentColor = "var(--accent)", children, className }) => (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-xl",
-        "bg-card/60 backdrop-blur-sm",
-        "border border-border/50",
-        className
-      )}
-    >
-      {/* Top accent line */}
+  }> = ({ title, icon: Icon, colorVariant = "accent", children, className }) => {
+    const colorVar = colorVariant === "accent" ? "var(--accent)" : `var(--metric-${colorVariant})`;
+
+    return (
       <div
-        className="absolute top-0 left-0 right-0 h-[2px]"
-        style={{ background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)` }}
-      />
+        className={cn(
+          "relative overflow-hidden rounded-xl",
+          "bg-card/60 backdrop-blur-sm",
+          "border border-border/50",
+          className
+        )}
+      >
+        {/* Top accent line */}
+        <div
+          className="absolute top-0 left-0 right-0 h-[2px]"
+          style={{ background: `linear-gradient(90deg, transparent, ${colorVar}, transparent)` }}
+        />
 
-      <div className="p-5">
-        {/* Header */}
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-4">
-          {Icon && (
-            <div
-              className="w-6 h-6 rounded-md flex items-center justify-center"
-              style={{ background: `${accentColor}15` }}
-            >
-              <Icon className="w-3.5 h-3.5" style={{ color: accentColor }} />
-            </div>
-          )}
-          {title}
-        </h3>
+        <div className="p-5">
+          {/* Header */}
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-4">
+            {Icon && (
+              <div
+                className="w-6 h-6 rounded-md flex items-center justify-center"
+                style={{ background: `color-mix(in oklch, ${colorVar} 15%, transparent)` }}
+              >
+                <Icon className="w-3.5 h-3.5" style={{ color: colorVar }} />
+              </div>
+            )}
+            {title}
+          </h3>
 
-        {children}
+          {children}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // ============================================
   // PROJECT STATS VIEW
@@ -693,7 +694,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                   <Sparkles className="w-5 h-5 text-accent animate-pulse" />
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[12px] text-muted-foreground">
                 {t("analytics.loading")}
               </p>
             </div>
@@ -718,31 +719,27 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
             label={t("analytics.totalMessages")}
             value={formatNumber(projectSummary.total_messages)}
             trend={tokenGrowth}
-            accentColor="oklch(0.65 0.15 250)"
-            glowColor="oklch(0.65 0.15 250 / 0.1)"
+            colorVariant="purple"
           />
           <MetricCard
             icon={Activity}
             label={t("analytics.totalTokens")}
             value={formatNumber(projectSummary.total_tokens)}
             subValue={`${projectSummary.total_sessions} sessions`}
-            accentColor="oklch(0.65 0.14 280)"
-            glowColor="oklch(0.65 0.14 280 / 0.1)"
+            colorVariant="blue"
           />
           <MetricCard
             icon={Clock}
             label={t("analytics.totalSessionTime")}
             value={formatDuration(projectSummary.total_session_duration)}
             subValue={`avg: ${formatDuration(projectSummary.avg_session_duration)}`}
-            accentColor="oklch(0.7 0.16 145)"
-            glowColor="oklch(0.7 0.16 145 / 0.1)"
+            colorVariant="green"
           />
           <MetricCard
             icon={Wrench}
             label={t("analytics.toolsUsed")}
             value={projectSummary.most_used_tools.length}
-            accentColor="oklch(0.75 0.18 55)"
-            glowColor="oklch(0.75 0.18 55 / 0.1)"
+            colorVariant="amber"
           />
         </div>
 
@@ -751,12 +748,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <SectionCard
             title={t("analytics.activityHeatmapTitle")}
             icon={Layers}
-            accentColor="oklch(0.7 0.16 145)"
+            colorVariant="green"
           >
             {projectSummary.activity_heatmap.length > 0 ? (
               <ActivityHeatmapComponent data={projectSummary.activity_heatmap} />
             ) : (
-              <div className="text-center py-8 text-muted-foreground text-[11px]">
+              <div className="text-center py-8 text-muted-foreground text-[12px]">
                 {t("analytics.No activity data available")}
               </div>
             )}
@@ -765,7 +762,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <SectionCard
             title={t("analytics.mostUsedToolsTitle")}
             icon={Cpu}
-            accentColor="oklch(0.65 0.15 250)"
+            colorVariant="purple"
           >
             <ToolUsageChart tools={projectSummary.most_used_tools} />
           </SectionCard>
@@ -776,7 +773,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <SectionCard
             title={t("analytics.recentActivityTrend")}
             icon={TrendingUp}
-            accentColor="oklch(0.65 0.14 280)"
+            colorVariant="blue"
           >
             <DailyTrendChart />
           </SectionCard>
@@ -786,7 +783,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
         <SectionCard
           title={t("analytics.tokenTypeDistribution")}
           icon={Database}
-          accentColor="oklch(0.75 0.18 55)"
+          colorVariant="amber"
         >
           <TokenDistributionChart
             distribution={projectSummary.token_distribution}
@@ -833,12 +830,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
         >
           {/* Glow effect */}
           <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: sessionComparison.is_above_average
-                ? "radial-gradient(ellipse at 50% 0%, oklch(0.7 0.16 145 / 0.1) 0%, transparent 60%)"
-                : "radial-gradient(ellipse at 50% 0%, oklch(0.75 0.18 55 / 0.1) 0%, transparent 60%)",
-            }}
+            className={cn(
+              "absolute inset-0 pointer-events-none",
+              sessionComparison.is_above_average
+                ? "bg-[radial-gradient(ellipse_at_50%_0%,_var(--metric-green)_/_0.1,_transparent_60%)]"
+                : "bg-[radial-gradient(ellipse_at_50%_0%,_var(--metric-amber)_/_0.1,_transparent_60%)]"
+            )}
           />
 
           <div className="relative">
@@ -849,7 +846,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
               </h3>
               <div
                 className={cn(
-                  "px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                  "px-3 py-1.5 rounded-full text-[12px] font-bold uppercase tracking-wider",
                   sessionComparison.is_above_average
                     ? "bg-success/20 text-success"
                     : "bg-warning/20 text-warning"
@@ -867,10 +864,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                 <div className="font-mono text-3xl font-bold text-foreground">
                   #{sessionComparison.rank_by_tokens}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-1">
+                <div className="text-[12px] text-muted-foreground mt-1">
                   {t("analytics.tokenRank")}
                 </div>
-                <div className="text-[9px] text-muted-foreground/70 mt-0.5">
+                <div className="text-[12px] text-muted-foreground/70 mt-0.5">
                   {t("analytics.topPercent", {
                     percent: ((sessionComparison.rank_by_tokens / (projectSummary?.total_sessions || 1)) * 100).toFixed(0),
                   })}
@@ -881,10 +878,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                 <div className="font-mono text-3xl font-bold text-foreground">
                   {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-1">
+                <div className="text-[12px] text-muted-foreground mt-1">
                   {t("analytics.projectShare")}
                 </div>
-                <div className="text-[9px] text-muted-foreground/70 mt-0.5">
+                <div className="text-[12px] text-muted-foreground/70 mt-0.5">
                   {formatNumber(sessionStats.total_tokens)} {t("analytics.tokens")}
                 </div>
               </div>
@@ -893,10 +890,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                 <div className="font-mono text-3xl font-bold text-foreground">
                   {avgTokensPerMessage.toLocaleString()}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-1">
+                <div className="text-[12px] text-muted-foreground mt-1">
                   {t("analytics.tokensPerMessage")}
                 </div>
-                <div className="text-[9px] text-muted-foreground/70 mt-0.5">
+                <div className="text-[12px] text-muted-foreground/70 mt-0.5">
                   {t("analytics.totalMessagesCount", { count: sessionStats.message_count })}
                 </div>
               </div>
@@ -905,10 +902,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                 <div className="font-mono text-3xl font-bold text-foreground">
                   {durationMinutes}<span className="text-lg text-muted-foreground">m</span>
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-1">
+                <div className="text-[12px] text-muted-foreground mt-1">
                   {t("analytics.sessionTime")}
                 </div>
-                <div className="text-[9px] text-muted-foreground/70 mt-0.5">
+                <div className="text-[12px] text-muted-foreground/70 mt-0.5">
                   {t("analytics.rank", { rank: sessionComparison.rank_by_duration })}
                 </div>
               </div>
@@ -920,7 +917,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
         <SectionCard
           title={t("analytics.tokenAnalysis")}
           icon={BarChart3}
-          accentColor="oklch(0.65 0.15 250)"
+          colorVariant="purple"
         >
           <TokenDistributionChart
             distribution={distribution}
@@ -932,38 +929,38 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
         <SectionCard
           title={t("analytics.sessionTimeline")}
           icon={Clock}
-          accentColor="oklch(0.7 0.16 145)"
+          colorVariant="green"
         >
           <div className="space-y-3">
             <div className="flex justify-between items-center p-3 rounded-lg bg-muted/30">
               <div>
-                <div className="text-[11px] font-medium text-foreground/80">
+                <div className="text-[12px] font-medium text-foreground/80">
                   {t("analytics.startTime")}
                 </div>
-                <div className="font-mono text-[10px] text-muted-foreground">
+                <div className="font-mono text-[12px] text-muted-foreground">
                   {formatTime(sessionStats.first_message_time)}
                 </div>
               </div>
               <div className="text-center px-4">
-                <div className="text-[11px] font-medium text-foreground/80">
+                <div className="text-[12px] font-medium text-foreground/80">
                   {t("analytics.duration")}
                 </div>
-                <div className="font-mono text-[10px] text-muted-foreground">
+                <div className="font-mono text-[12px] text-muted-foreground">
                   {durationMinutes}{t("analytics.minutesUnit")}
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[11px] font-medium text-foreground/80">
+                <div className="text-[12px] font-medium text-foreground/80">
                   {t("analytics.endTime")}
                 </div>
-                <div className="font-mono text-[10px] text-muted-foreground">
+                <div className="font-mono text-[12px] text-muted-foreground">
                   {formatTime(sessionStats.last_message_time)}
                 </div>
               </div>
             </div>
 
             <div className="text-center">
-              <code className="inline-block px-3 py-1.5 bg-muted/50 rounded-md font-mono text-[10px] text-muted-foreground">
+              <code className="inline-block px-3 py-1.5 bg-muted/50 rounded-md font-mono text-[12px] text-muted-foreground">
                 {t("analytics.sessionIdLabel")} {sessionStats.session_id.substring(0, 16)}...
               </code>
             </div>
@@ -990,30 +987,26 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
             label={t("analytics.totalTokens")}
             value={formatNumber(globalSummary.total_tokens)}
             subValue={`${globalSummary.total_projects} ${t("analytics.totalProjects")}`}
-            accentColor="oklch(0.65 0.14 280)"
-            glowColor="oklch(0.65 0.14 280 / 0.1)"
+            colorVariant="blue"
           />
           <MetricCard
             icon={MessageCircle}
             label={t("analytics.totalMessages")}
             value={formatNumber(globalSummary.total_messages)}
             subValue={`${t("analytics.totalSessions")}: ${globalSummary.total_sessions}`}
-            accentColor="oklch(0.65 0.15 250)"
-            glowColor="oklch(0.65 0.15 250 / 0.1)"
+            colorVariant="purple"
           />
           <MetricCard
             icon={Clock}
             label={t("analytics.sessionTime")}
             value={formatDuration(totalSessionTime)}
-            accentColor="oklch(0.7 0.16 145)"
-            glowColor="oklch(0.7 0.16 145 / 0.1)"
+            colorVariant="green"
           />
           <MetricCard
             icon={Wrench}
             label={t("analytics.toolsUsed")}
             value={globalSummary.most_used_tools.length}
-            accentColor="oklch(0.75 0.18 55)"
-            glowColor="oklch(0.75 0.18 55 / 0.1)"
+            colorVariant="amber"
           />
         </div>
 
@@ -1023,7 +1016,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
             <SectionCard
               title={t("analytics.modelDistribution")}
               icon={Cpu}
-              accentColor="oklch(0.65 0.14 280)"
+              colorVariant="blue"
             >
               <div className="space-y-3">
                 {globalSummary.model_distribution.map((model) => {
@@ -1039,14 +1032,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                   return (
                     <div key={model.model_name}>
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] font-medium text-foreground truncate max-w-[60%]">
+                        <span className="text-[12px] font-medium text-foreground truncate max-w-[60%]">
                           {model.model_name}
                         </span>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-[10px] text-muted-foreground">
+                          <span className="font-mono text-[12px] text-muted-foreground">
                             ${price.toFixed(price >= 100 ? 0 : price >= 10 ? 1 : 2)}
                           </span>
-                          <span className="font-mono text-[11px] font-semibold text-foreground">
+                          <span className="font-mono text-[12px] font-semibold text-foreground">
                             {formatNumber(model.token_count)}
                           </span>
                         </div>
@@ -1056,7 +1049,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                           className="h-full rounded-full"
                           style={{
                             width: `${percentage}%`,
-                            background: "linear-gradient(90deg, oklch(0.5 0.15 250), oklch(0.65 0.14 280))",
+                            background: "linear-gradient(90deg, var(--metric-purple), var(--metric-blue))"
                           }}
                         />
                       </div>
@@ -1070,7 +1063,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <SectionCard
             title={t("analytics.mostUsedToolsTitle")}
             icon={Wrench}
-            accentColor="oklch(0.75 0.18 55)"
+            colorVariant="amber"
           >
             <ToolUsageChart tools={globalSummary.most_used_tools} />
           </SectionCard>
@@ -1081,12 +1074,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <SectionCard
             title={t("analytics.activityHeatmapTitle")}
             icon={Layers}
-            accentColor="oklch(0.7 0.16 145)"
+            colorVariant="green"
           >
             {globalSummary.activity_heatmap.length > 0 ? (
               <ActivityHeatmapComponent data={globalSummary.activity_heatmap} />
             ) : (
-              <div className="text-center py-8 text-muted-foreground text-[11px]">
+              <div className="text-center py-8 text-muted-foreground text-[12px]">
                 {t("analytics.No activity data available")}
               </div>
             )}
@@ -1096,7 +1089,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
             <SectionCard
               title={t("analytics.topProjects")}
               icon={BarChart3}
-              accentColor="oklch(0.65 0.15 250)"
+              colorVariant="purple"
             >
               <div className="space-y-2">
                 {globalSummary.top_projects.slice(0, 8).map((project, index) => {
@@ -1112,26 +1105,26 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                       <div className="flex items-center gap-3">
                         <div
                           className={cn(
-                            "w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-bold",
+                            "w-6 h-6 rounded-md flex items-center justify-center text-[12px] font-bold",
                             index < 3 ? "text-base" : "bg-muted text-muted-foreground"
                           )}
                         >
                           {index < 3 ? medals[index] : index + 1}
                         </div>
                         <div>
-                          <p className="text-[11px] font-medium text-foreground truncate max-w-[150px]">
+                          <p className="text-[12px] font-medium text-foreground truncate max-w-[150px]">
                             {project.project_name}
                           </p>
-                          <p className="text-[9px] text-muted-foreground">
+                          <p className="text-[12px] text-muted-foreground">
                             {project.sessions} sessions • {project.messages} msgs
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-mono text-[11px] font-bold text-foreground">
+                        <p className="font-mono text-[12px] font-bold text-foreground">
                           {formatNumber(project.tokens)}
                         </p>
-                        <p className="text-[9px] text-muted-foreground">{t("analytics.tokens")}</p>
+                        <p className="text-[12px] text-muted-foreground">{t("analytics.tokens")}</p>
                       </div>
                     </div>
                   );
@@ -1177,7 +1170,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
               <h2 className="text-sm font-semibold text-foreground mb-1">
                 {t("analytics.loadingGlobalStats")}
               </h2>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[12px] text-muted-foreground">
                 {t("analytics.loadingGlobalStatsDescription")}
               </p>
             </div>
@@ -1196,17 +1189,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <div className="relative">
             <BarChart3 className="w-14 h-14 mx-auto text-muted-foreground/30" />
             <div
-              className="absolute inset-0"
-              style={{
-                background: "radial-gradient(ellipse at center, oklch(0.5 0.1 250 / 0.1) 0%, transparent 70%)",
-              }}
+              className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--metric-purple)_/_0.1,_transparent_70%)]"
             />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-foreground mb-1">
               {t("analytics.Analytics Dashboard")}
             </h2>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[12px] text-muted-foreground">
               {t("analytics.Select a project to view analytics")}
             </p>
           </div>
@@ -1225,7 +1215,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <button
             onClick={() => setActiveTab("project")}
             className={cn(
-              "px-4 py-2 rounded-md text-[11px] font-semibold transition-all duration-200",
+              "px-4 py-2 rounded-md text-[12px] font-semibold transition-all duration-200",
               activeTab === "project"
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -1236,7 +1226,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <button
             onClick={() => setActiveTab("session")}
             className={cn(
-              "px-4 py-2 rounded-md text-[11px] font-semibold transition-all duration-200",
+              "px-4 py-2 rounded-md text-[12px] font-semibold transition-all duration-200",
               activeTab === "session"
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"

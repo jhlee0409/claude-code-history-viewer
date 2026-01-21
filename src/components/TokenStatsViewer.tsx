@@ -46,27 +46,27 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
     return num.toLocaleString();
   };
 
-  // Token type colors with OKLCH
+  // Token type colors using CSS variables
   const tokenColors = {
     input: {
-      base: "oklch(0.7 0.16 145)",
-      glow: "oklch(0.7 0.16 145 / 0.3)",
-      bg: "oklch(0.7 0.16 145 / 0.1)"
+      base: "var(--metric-green)",
+      glow: "var(--glow-green)",
+      bg: "color-mix(in oklch, var(--metric-green) 10%, transparent)"
     },
     output: {
-      base: "oklch(0.65 0.15 250)",
-      glow: "oklch(0.65 0.15 250 / 0.3)",
-      bg: "oklch(0.65 0.15 250 / 0.1)"
+      base: "var(--metric-purple)",
+      glow: "var(--glow-purple)",
+      bg: "color-mix(in oklch, var(--metric-purple) 10%, transparent)"
     },
     cacheWrite: {
-      base: "oklch(0.65 0.14 280)",
-      glow: "oklch(0.65 0.14 280 / 0.3)",
-      bg: "oklch(0.65 0.14 280 / 0.1)"
+      base: "var(--metric-blue)",
+      glow: "var(--glow-blue)",
+      bg: "color-mix(in oklch, var(--metric-blue) 10%, transparent)"
     },
     cacheRead: {
-      base: "oklch(0.75 0.18 55)",
-      glow: "oklch(0.75 0.18 55 / 0.3)",
-      bg: "oklch(0.75 0.18 55 / 0.1)"
+      base: "var(--metric-amber)",
+      glow: "var(--glow-amber)",
+      bg: "color-mix(in oklch, var(--metric-amber) 10%, transparent)"
     },
   };
 
@@ -104,9 +104,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
         {/* Top gradient accent */}
         <div
           className="absolute top-0 left-0 right-0 h-[2px]"
-          style={{
-            background: "linear-gradient(90deg, oklch(0.7 0.16 145), oklch(0.65 0.15 250), oklch(0.65 0.14 280), oklch(0.75 0.18 55))",
-          }}
+          style={{ background: "linear-gradient(90deg, var(--metric-green), var(--metric-purple), var(--metric-amber))" }}
         />
 
         <div className={compact ? "p-4" : "p-5"}>
@@ -119,7 +117,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               >
                 <Hash className="w-3.5 h-3.5" style={{ color: tokenColors.input.base }} />
               </div>
-              <code className="font-mono text-[10px] px-2 py-1 rounded-md bg-muted/50 text-muted-foreground">
+              <code className="font-mono text-[12px] px-2 py-1 rounded-md bg-muted/50 text-muted-foreground">
                 {stats.session_id.substring(0, 12)}...
               </code>
             </div>
@@ -142,15 +140,15 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                       >
                         <Icon className="w-3 h-3" style={{ color: token.color.base }} />
                       </div>
-                      <span className="text-[10px] font-medium text-muted-foreground">
+                      <span className="text-[12px] font-medium text-muted-foreground">
                         {token.label}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] font-bold" style={{ color: token.color.base }}>
+                      <span className="font-mono text-[12px] font-bold" style={{ color: token.color.base }}>
                         {formatNumber(token.value)}
                       </span>
-                      <span className="font-mono text-[9px] text-muted-foreground/70 w-10 text-right">
+                      <span className="font-mono text-[12px] text-muted-foreground/70 w-10 text-right">
                         {percentage.toFixed(1)}%
                       </span>
                     </div>
@@ -177,7 +175,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               <div className="font-mono text-xl font-bold text-foreground tracking-tight">
                 {formatNumber(stats.total_tokens)}
               </div>
-              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
+              <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
                 {t("analytics.totalTokens")}
               </div>
             </div>
@@ -187,7 +185,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               <div className="font-mono text-xl font-bold text-foreground tracking-tight">
                 {stats.message_count.toLocaleString()}
               </div>
-              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
+              <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
                 {t("analytics.messages")}
               </div>
             </div>
@@ -199,14 +197,14 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                   ? Math.round(stats.total_tokens / stats.message_count).toLocaleString()
                   : "0"}
               </div>
-              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
+              <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
                 {t("analytics.avgTokensPerMessage")}
               </div>
             </div>
           </div>
 
           {/* Time Range Footer */}
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/30 text-[9px] text-muted-foreground">
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/30 text-[12px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-success" />
               {t("time.start")} {formatTime(stats.first_message_time)}
@@ -247,26 +245,22 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
     );
 
     const metrics = [
-      { label: t("analytics.totalTokens"), value: totalStats.total_tokens, color: "oklch(0.6 0.15 250)" },
+      { label: t("analytics.totalTokens"), value: totalStats.total_tokens, color: "var(--metric-purple)" },
       { label: t("analytics.inputTokens"), value: totalStats.total_input_tokens, color: tokenColors.input.base },
       { label: t("analytics.outputTokens"), value: totalStats.total_output_tokens, color: tokenColors.output.base },
       { label: t("analytics.cacheCreation"), value: totalStats.total_cache_creation_tokens, color: tokenColors.cacheWrite.base },
-      { label: t("analytics.totalMessages"), value: totalStats.message_count, color: "oklch(0.5 0.02 260)" },
+      { label: t("analytics.totalMessages"), value: totalStats.message_count, color: "var(--muted-foreground)" },
     ];
 
     return (
       <div className="space-y-6">
         {/* Project Summary Card */}
         <div
-          className="relative overflow-hidden rounded-xl border-2"
-          style={{ borderColor: "oklch(0.7 0.16 145 / 0.3)" }}
+          className="relative overflow-hidden rounded-xl border-2 border-metric-green/30"
         >
           {/* Background gradient */}
           <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: "radial-gradient(ellipse at 30% 0%, oklch(0.7 0.16 145 / 0.08) 0%, transparent 50%), radial-gradient(ellipse at 70% 100%, oklch(0.65 0.15 250 / 0.05) 0%, transparent 50%)",
-            }}
+            className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_30%_0%,_var(--metric-green)_/_0.08,_transparent_50%),_radial-gradient(ellipse_at_70%_100%,_var(--metric-purple)_/_0.05,_transparent_50%)]"
           />
 
           <div className="relative p-6">
@@ -274,15 +268,15 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             <div className="flex items-center gap-3 mb-5">
               <div
                 className="w-11 h-11 rounded-xl flex items-center justify-center"
-                style={{ background: "oklch(0.7 0.16 145 / 0.15)" }}
+                style={{ background: "color-mix(in oklch, var(--metric-green) 15%, transparent)" }}
               >
-                <Layers className="w-5 h-5" style={{ color: "oklch(0.7 0.16 145)" }} />
+                <Layers className="w-5 h-5" style={{ color: "var(--metric-green)" }} />
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-foreground">
                   {t("analytics.projectStats", { count: projectStats.length })}
                 </h3>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[12px] text-muted-foreground">
                   {t("analytics.globalOverviewDescription")}
                 </p>
               </div>
@@ -313,7 +307,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                       >
                         {formatNumber(metric.value)}
                       </div>
-                      <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mt-1">
+                      <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mt-1">
                         {metric.label}
                       </div>
                     </div>
@@ -342,10 +336,10 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-[10px] font-bold text-foreground bg-accent/10 px-2.5 py-1 rounded-full">
+                  <span className="text-[12px] font-bold text-foreground bg-accent/10 px-2.5 py-1 rounded-full">
                     {t("analytics.sessionNumber", { number: index + 1 })}
                   </span>
-                  <span className="text-[9px] text-muted-foreground font-mono">
+                  <span className="text-[12px] text-muted-foreground font-mono">
                     {formatTime(stats.last_message_time)}
                   </span>
                 </div>
@@ -354,7 +348,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             ))}
 
             {projectStats.length > 10 && (
-              <div className="text-center py-4 text-muted-foreground bg-muted/30 rounded-xl text-[11px]">
+              <div className="text-center py-4 text-muted-foreground bg-muted/30 rounded-xl text-[12px]">
                 {t("analytics.andMoreSessions", { count: projectStats.length - 10 })}
               </div>
             )}
@@ -373,16 +367,13 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
         <div className="relative mb-4">
           <BarChart3 className="w-14 h-14 text-muted-foreground/30" />
           <div
-            className="absolute inset-0"
-            style={{
-              background: "radial-gradient(ellipse at center, oklch(0.5 0.1 250 / 0.1) 0%, transparent 70%)",
-            }}
+            className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--metric-purple)_/_0.1,_transparent_70%)]"
           />
         </div>
         <p className="text-sm font-medium text-foreground mb-1">
           {t("analytics.noTokenData")}
         </p>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[12px] text-muted-foreground">
           {t("analytics.selectSessionOrLoad")}
         </p>
       </div>
@@ -399,9 +390,9 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
         <div className="flex items-center gap-3">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: "oklch(0.65 0.15 250 / 0.15)" }}
+            style={{ background: "color-mix(in oklch, var(--metric-purple) 15%, transparent)" }}
           >
-            <Sparkles className="w-4 h-4" style={{ color: "oklch(0.65 0.15 250)" }} />
+            <Sparkles className="w-4 h-4" style={{ color: "var(--metric-purple)" }} />
           </div>
           <h2 className="text-lg font-semibold text-foreground tracking-tight">
             {title}

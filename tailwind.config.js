@@ -11,13 +11,13 @@ export default {
         display: ["IBM Plex Sans", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
       },
       fontSize: {
-        "3xs": ["0.5625rem", { lineHeight: "0.75rem" }],
-        "2xs": ["0.625rem", { lineHeight: "0.875rem" }],
-        "3xl": ["1.875rem", { lineHeight: "2.25rem", letterSpacing: "-0.02em" }],
-        "4xl": ["2.25rem", { lineHeight: "2.5rem", letterSpacing: "-0.025em" }],
-        "5xl": ["3rem", { lineHeight: "1.1", letterSpacing: "-0.03em" }],
-        "6xl": ["3.75rem", { lineHeight: "1", letterSpacing: "-0.035em" }],
-        "7xl": ["4.5rem", { lineHeight: "1", letterSpacing: "-0.04em" }],
+        "3xs": ["0.625rem", { lineHeight: "0.8125rem" }],
+        "2xs": ["0.6875rem", { lineHeight: "0.9375rem" }],
+        "3xl": ["1.9375rem", { lineHeight: "2.3125rem", letterSpacing: "-0.02em" }],
+        "4xl": ["2.3125rem", { lineHeight: "2.5625rem", letterSpacing: "-0.025em" }],
+        "5xl": ["3.0625rem", { lineHeight: "1.1", letterSpacing: "-0.03em" }],
+        "6xl": ["3.8125rem", { lineHeight: "1", letterSpacing: "-0.035em" }],
+        "7xl": ["4.5625rem", { lineHeight: "1", letterSpacing: "-0.04em" }],
       },
       letterSpacing: {
         tightest: "-0.05em",
@@ -113,6 +113,22 @@ export default {
           current: "var(--highlight-current)",
           foreground: "var(--highlight-foreground)",
         },
+        /* Dashboard metric colors */
+        metric: {
+          green: "var(--metric-green)",
+          purple: "var(--metric-purple)",
+          blue: "var(--metric-blue)",
+          amber: "var(--metric-amber)",
+          pink: "var(--metric-pink)",
+          teal: "var(--metric-teal)",
+        },
+        /* Heatmap colors */
+        heatmap: {
+          empty: "var(--heatmap-empty)",
+          low: "var(--heatmap-low)",
+          medium: "var(--heatmap-medium)",
+          high: "var(--heatmap-high)",
+        },
       },
 
       /* Border Radius */
@@ -145,6 +161,10 @@ export default {
         "ring": "var(--shadow-ring)",
         "glow": "var(--shadow-glow)",
         "glow-accent": "var(--shadow-glow-accent)",
+        "glow-green": "var(--glow-green)",
+        "glow-purple": "var(--glow-purple)",
+        "glow-blue": "var(--glow-blue)",
+        "glow-amber": "var(--glow-amber)",
         "glass": "var(--glass-shadow)",
         "none": "none",
       },
@@ -271,32 +291,32 @@ export default {
     function({ addComponents }) {
       addComponents({
         '.prose-xs': {
-          fontSize: '0.6875rem',
+          fontSize: '0.75rem',
           lineHeight: '1.5',
           '& p': {
             marginTop: '0.375em',
             marginBottom: '0.375em',
           },
           '& h1': {
-            fontSize: '0.875rem',
+            fontSize: '0.9375rem',
             marginTop: '0',
             marginBottom: '0.375em',
             lineHeight: '1.3',
           },
           '& h2': {
-            fontSize: '0.8125rem',
+            fontSize: '0.875rem',
             marginTop: '0.75em',
             marginBottom: '0.375em',
             lineHeight: '1.3',
           },
           '& h3': {
-            fontSize: '0.75rem',
+            fontSize: '0.8125rem',
             marginTop: '0.75em',
             marginBottom: '0.375em',
             lineHeight: '1.4',
           },
           '& h4, & h5, & h6': {
-            fontSize: '0.6875rem',
+            fontSize: '0.75rem',
             marginTop: '0.75em',
             marginBottom: '0.375em',
           },
@@ -327,7 +347,7 @@ export default {
             color: 'var(--muted-foreground)',
           },
           '& pre': {
-            fontSize: '0.625rem',
+            fontSize: '0.6875rem',
             lineHeight: '1.4',
             marginTop: '0.5em',
             marginBottom: '0.5em',
@@ -335,7 +355,7 @@ export default {
             borderRadius: '0.25rem',
           },
           '& code': {
-            fontSize: '0.625rem',
+            fontSize: '0.6875rem',
             padding: '0.0625em 0.1875em',
             borderRadius: '0.1875rem',
           },
@@ -350,7 +370,7 @@ export default {
             marginBottom: '0.75em',
           },
           '& table': {
-            fontSize: '0.625rem',
+            fontSize: '0.6875rem',
             marginTop: '0.75em',
             marginBottom: '0.75em',
             width: '100%',
@@ -417,7 +437,7 @@ export default {
             borderRadius: '0.125rem',
           },
           '& kbd': {
-            fontSize: '0.5625rem',
+            fontSize: '0.625rem',
             fontFamily: 'var(--font-mono, ui-monospace, monospace)',
             backgroundColor: 'var(--muted)',
             border: '1px solid var(--border)',

@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * ClaudeToolResultItem - Renders tool execution results
+ *
+ * Handles different result types:
+ * - Numbered file content (with line numbers)
+ * - File search results
+ * - Generic tool results (text/array/object)
+ */
+
 import { Check, FileText, AlertTriangle, Folder, File } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
@@ -8,16 +17,23 @@ import { Highlight, themes } from "prism-react-renderer";
 import { useCopyButton } from "../../hooks/useCopyButton";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
-import { COLORS } from "../../constants/colors";
 import { HighlightedText } from "../common";
+import {
+  type IndexedRendererProps,
+  getVariantStyles,
+  hasNumberedLines,
+  extractCodeFromNumberedLines,
+  parseSystemReminders,
+  isFileSearchResult,
+  parseFilePath,
+  codeTheme,
+  safeStringify,
+  layout,
+} from "../renderers";
 
-type Props = {
+interface ClaudeToolResultItemProps extends IndexedRendererProps {
   toolResult: Record<string, unknown>;
-  index: number;
-  searchQuery?: string;
-  isCurrentMatch?: boolean;
-  currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
-};
+}
 
 export const ClaudeToolResultItem = ({
   toolResult,
@@ -25,151 +41,52 @@ export const ClaudeToolResultItem = ({
   searchQuery = "",
   isCurrentMatch = false,
   currentMatchIndex = 0,
-}: Props) => {
+}: ClaudeToolResultItemProps) => {
   const { t } = useTranslation("components");
   const { renderCopyButton } = useCopyButton();
-  const toolUseId = toolResult.tool_use_id || "";
-  const content = toolResult.content || "";
+
+  const toolUseId = (toolResult.tool_use_id as string) || "";
+  const content = toolResult.content;
   const isError = toolResult.is_error === true;
 
-  // Tool ID 렌더링 헬퍼 (검색 하이라이팅 지원)
+  // Get variant based on error state
+  const variant = isError ? "error" : "success";
+  const styles = getVariantStyles(variant);
+
+  // Tool ID with search highlighting
   const renderToolUseId = (id: string) => {
     if (!id) return null;
-    const idString = String(id);
     return searchQuery ? (
       <HighlightedText
-        text={`Tool ID: ${idString}`}
+        text={`Tool ID: ${id}`}
         searchQuery={searchQuery}
         isCurrentMatch={isCurrentMatch}
         currentMatchIndex={currentMatchIndex}
       />
     ) : (
-      <>Tool ID: {idString}</>
+      <>Tool ID: {id}</>
     );
   };
 
-  // 줄 번호가 붙은 파일 내용인지 감지하는 함수
-  const isNumberedFileContent = (text: string): boolean => {
-    if (typeof text !== "string") return false;
-
-    // 멀티라인에서 "숫자→" 패턴이 있는지 확인
-    const hasNumberedLines = /^\s*\d+→/m.test(text);
-    // 여러 줄이 있는지 확인
-    const hasMultipleLines = text.split("\n").length > 1;
-    // 최소 2개 이상의 줄 번호가 있는지 확인
-    const numberedLineCount = (text.match(/^\s*\d+→/gm) || []).length;
-
-    return hasNumberedLines && hasMultipleLines && numberedLineCount >= 2;
-  };
-
-  // system-reminder 태그와 기타 시스템 메시지를 분리하는 함수
-  const separateSystemContent = (
-    text: string
-  ): {
-    codeContent: string;
-    systemMessages: Array<{ type: string; content: string }>;
-  } => {
-    if (typeof text !== "string")
-      return { codeContent: text, systemMessages: [] };
-
-    const systemMessages: Array<{ type: string; content: string }> = [];
-    let codeContent = text;
-
-    // system-reminder 태그 추출
-    const systemReminderMatch = text.match(
-      /<system-reminder>(.*?)<\/system-reminder>/s
-    );
-    if (
-      systemReminderMatch &&
-      systemReminderMatch[0] &&
-      systemReminderMatch[1]
-    ) {
-      systemMessages.push({
-        type: "system-reminder",
-        content: systemReminderMatch[1].trim(),
-      });
-      codeContent = codeContent.replace(systemReminderMatch[0], "").trim();
-    }
-
-    return { codeContent, systemMessages };
-  };
-
-  // 줄 번호를 제거하고 원본 코드를 추출하는 함수
-  const extractCodeFromNumberedLines = (
-    text: string
-  ): { code: string; language: string; description: string } => {
-    const lines = text.split("\n");
-    const codeLines: string[] = [];
-    const descriptionLines: string[] = [];
-    let detectedLanguage = "text"; // 기본값
-
-    for (const line of lines) {
-      const match = line.match(/^\s*\d+→(.*)$/);
-      if (match && match[1] !== undefined) {
-        codeLines.push(match[1]);
-      } else if (line.trim()) {
-        // 줄 번호가 없는 줄은 설명 텍스트로 분류
-        descriptionLines.push(line.trim());
-      }
-    }
-
-    const code = codeLines.join("\n");
-    const description = descriptionLines.join(" ");
-
-    // 코드 내용으로부터 언어 감지
-    if (
-      code.includes("import ") &&
-      (code.includes("from ") || code.includes("require("))
-    ) {
-      if (
-        code.includes("type ") ||
-        code.includes("interface ") ||
-        code.includes(": string") ||
-        code.includes(": number")
-      ) {
-        detectedLanguage = "typescript";
-      } else {
-        detectedLanguage = "javascript";
-      }
-    } else if (
-      (code.includes("use ") && code.includes("struct ")) ||
-      code.includes("fn ") ||
-      code.includes("let mut ")
-    ) {
-      detectedLanguage = "rust";
-    } else if (code.includes("def ") && code.includes("import ")) {
-      detectedLanguage = "python";
-    } else if (code.includes("package ") && code.includes("public class ")) {
-      detectedLanguage = "java";
-    }
-
-    return { code, language: detectedLanguage, description };
-  };
-
-  // 시스템 메시지를 렌더링하는 함수
+  // Render system reminder messages
   const renderSystemMessages = (
-    messages: Array<{ type: string; content: string }>
+    messages: Array<{ type: string; message: string }>
   ) => {
     if (messages.length === 0) return null;
+    const warningStyles = getVariantStyles("warning");
 
     return (
       <div className="mt-3 space-y-2">
         {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            className={cn(
-              COLORS.semantic.warning.bg,
-              COLORS.semantic.warning.border
-            )}
-          >
-            <div className="flex items-center space-x-2 mb-1">
-              <AlertTriangle className={cn(COLORS.semantic.warning.icon)} />
-              <span className={cn(COLORS.semantic.warning.text)}>
+          <div key={idx} className={cn("p-2", layout.rounded, "border", warningStyles.container)}>
+            <div className={cn("flex items-center mb-1", layout.iconSpacing)}>
+              <AlertTriangle className={cn(layout.iconSize, warningStyles.icon)} />
+              <span className={cn(layout.titleText, warningStyles.title)}>
                 {msg.type?.replace("-", " ") || "System Message"}
               </span>
             </div>
-            <div className={cn(COLORS.semantic.warning.text)}>
-              {msg.content}
+            <div className={cn(layout.bodyText, warningStyles.accent)}>
+              {msg.message}
             </div>
           </div>
         ))}
@@ -177,89 +94,38 @@ export const ClaudeToolResultItem = ({
     );
   };
 
-  // 파일 검색 결과인지 감지하는 함수
-  const isFileSearchResult = (text: string): boolean => {
-    if (typeof text !== "string") return false;
-
-    const lines = text.trim().split("\n");
-    if (lines.length < 2) return false;
-
-    // "Found X files" 패턴이나 파일 경로들이 있는지 확인
-    const hasFoundPattern = /^Found \d+ files?/i.test(lines[0] ?? "");
-    const hasFilePaths = lines
-      .slice(1)
-      .some(
-        (line) =>
-          line.trim().length > 0 &&
-          (line.includes("/") || line.includes("\\")) &&
-          (line.includes(".ts") ||
-            line.includes(".js") ||
-            line.includes(".tsx") ||
-            line.includes(".jsx") ||
-            line.includes(".py") ||
-            line.includes(".java") ||
-            line.includes(".rs") ||
-            line.includes(".go") ||
-            line.includes(".php") ||
-            line.includes(".rb") ||
-            line.includes(".vue") ||
-            line.includes(".svelte"))
-      );
-
-    return hasFoundPattern || (lines.length >= 3 && hasFilePaths);
-  };
-
-  // 파일 검색 결과를 렌더링하는 함수
+  // Render file search results
   const renderFileSearchResult = (text: string) => {
     const lines = text.trim().split("\n");
     const headerLine = lines[0];
     const filePaths = lines.slice(1).filter((line) => line.trim().length > 0);
+    const infoStyles = getVariantStyles("info");
 
     return (
       <div className="space-y-2">
-        {/* 헤더 */}
-        <div
-          className={cn(
-            "flex items-center space-x-2 mb-1 p-2 rounded",
-            COLORS.semantic.info.bg,
-            COLORS.semantic.info.border
-          )}
-        >
-          <Folder className={cn("w-4 h-4", COLORS.semantic.info.icon)} />
-          <span className={cn(COLORS.semantic.info.text)}>{headerLine}</span>
+        {/* Header */}
+        <div className={cn("flex items-center mb-1 p-2 border", layout.iconSpacing, layout.rounded, infoStyles.container)}>
+          <Folder className={cn(layout.iconSize, infoStyles.icon)} />
+          <span className={cn(layout.bodyText, infoStyles.accent)}>{headerLine}</span>
         </div>
 
-        {/* 파일 목록 */}
+        {/* File list */}
         <div className="space-y-1">
           {filePaths.map((filePath, idx) => {
-            const pathParts = filePath.split("/");
-            const lastPart = pathParts[pathParts.length - 1];
-            const fileName: string = lastPart ? lastPart : filePath;
-            const directory = filePath.substring(0, filePath.lastIndexOf("/"));
+            const { directory, fileName } = parseFilePath(filePath);
 
             return (
               <div
                 key={idx}
-                className={cn(
-                  "flex items-center space-x-2 p-2 rounded",
-                  COLORS.ui.background.primary,
-                  COLORS.ui.border.medium
-                )}
+                className={cn("flex items-center p-2 bg-card border border-border", layout.iconSpacing, layout.rounded)}
               >
-                <File className={cn("w-4 h-4", COLORS.ui.text.muted)} />
+                <File className={cn(layout.iconSize, "text-muted-foreground")} />
                 <div className="flex-1 min-w-0">
-                  <div
-                    className={cn(
-                      "font-mono text-sm",
-                      COLORS.ui.text.secondary
-                    )}
-                  >
+                  <div className={cn("font-mono text-foreground/80", layout.bodyText)}>
                     {fileName}
                   </div>
                   {directory && (
-                    <div
-                      className={cn("font-mono text-xs", COLORS.ui.text.muted)}
-                    >
+                    <div className={cn("font-mono text-muted-foreground", layout.smallText)}>
                       {directory}
                     </div>
                   )}
@@ -273,81 +139,53 @@ export const ClaudeToolResultItem = ({
     );
   };
 
-  // content 처리
-  // 줄 번호가 붙은 파일 내용 처리 (우선순위 높음)
-  if (typeof content === "string" && isNumberedFileContent(content)) {
-    const { codeContent, systemMessages } = separateSystemContent(content);
-    const { code, language, description } =
-      extractCodeFromNumberedLines(codeContent);
+  // === Numbered File Content ===
+  if (typeof content === "string" && hasNumberedLines(content)) {
+    const { content: cleanContent, reminders } = parseSystemReminders(content);
+    const { code, description, language } = extractCodeFromNumberedLines(cleanContent);
 
     return (
-      <Renderer
-        className={cn(
-          COLORS.semantic.success.bg,
-          COLORS.semantic.success.border
-        )}
-        hasError={isError}
-      >
+      <Renderer className={styles.container} hasError={isError}>
         <Renderer.Header
           title={t("toolResult.fileContent")}
-          icon={
-            <FileText className={cn("w-4 h-4", COLORS.semantic.success.icon)} />
-          }
-          titleClassName={cn(COLORS.semantic.success.text)}
+          icon={<FileText className={cn(layout.iconSize, styles.icon)} />}
+          titleClassName={styles.title}
           rightContent={
-            <div className="flex items-center space-x-2">
+            <div className={cn("flex items-center", layout.iconSpacing)}>
               {renderCopyButton(code, `tool-result-code-${index}`, t("toolResult.copyCode"))}
               {toolUseId && (
-                <code
-                  className={cn(
-                    "text-xs",
-                    COLORS.ui.background.secondary,
-                    COLORS.ui.text.secondary
-                  )}
-                >
-                  {renderToolUseId(toolUseId as string)}
+                <code className={cn(layout.smallText, "px-1 bg-secondary text-foreground/80", layout.rounded)}>
+                  {renderToolUseId(toolUseId)}
                 </code>
               )}
             </div>
           }
         />
         <Renderer.Content>
-          {/* 설명 텍스트 */}
+          {/* Description */}
           {description && (
-            <div
-              className={cn(
-                COLORS.ui.background.secondary,
-                COLORS.ui.border.medium
-              )}
-            >
-              <div className={cn(COLORS.ui.text.secondary)}>{description}</div>
+            <div className={cn("p-2 bg-secondary border border-border mb-2", layout.rounded)}>
+              <div className="text-foreground/80">{description}</div>
             </div>
           )}
-          <div className="rounded-lg overflow-hidden">
-            <div
-              className={cn(
-                COLORS.ui.background.secondary,
-                COLORS.ui.border.medium
-              )}
-            >
-              <span>{language}</span>
-              <span className={cn(COLORS.ui.text.muted)}>
+
+          {/* Code block */}
+          <div className={cn("overflow-hidden", layout.rounded)}>
+            <div className={cn("flex justify-between items-center px-3 py-1 bg-secondary border-b border-border", layout.bodyText)}>
+              <span className="text-foreground/80">{language}</span>
+              <span className="text-muted-foreground">
                 {code.split("\n").length} {t("toolResult.lines")}
               </span>
             </div>
-            <Highlight
-              theme={themes.vsDark}
-              code={code}
-              language={language}
-            >
+            <Highlight theme={themes.vsDark} code={code} language={language}>
               {({ className, style, tokens, getLineProps, getTokenProps }) => (
                 <pre
                   className={className}
                   style={{
                     ...style,
                     margin: 0,
-                    fontSize: "0.875rem",
-                    lineHeight: "1.25rem",
+                    fontSize: "0.9375rem",
+                    lineHeight: codeTheme.lineHeight,
                     maxHeight: "32rem",
                     overflow: "auto",
                     padding: "1rem",
@@ -375,48 +213,29 @@ export const ClaudeToolResultItem = ({
               )}
             </Highlight>
           </div>
-          {/* 시스템 메시지들 렌더링 */}
-          {renderSystemMessages(systemMessages)}
+
+          {renderSystemMessages(reminders)}
         </Renderer.Content>
       </Renderer>
     );
   }
 
-  // 파일 검색 결과 처리 (줄 번호가 붙은 파일 내용 이후)
+  // === File Search Results ===
   if (typeof content === "string" && isFileSearchResult(content)) {
-    const { codeContent: cleanContent, systemMessages } =
-      separateSystemContent(content);
+    const { content: cleanContent, reminders } = parseSystemReminders(content);
 
     return (
-      <Renderer
-        className={cn(
-          COLORS.semantic.success.bg,
-          COLORS.semantic.success.border
-        )}
-        hasError={isError}
-      >
+      <Renderer className={styles.container} hasError={isError}>
         <Renderer.Header
           title={t("toolResult.fileSearchResult")}
-          icon={
-            <Folder className={cn("w-4 h-4", COLORS.semantic.success.icon)} />
-          }
-          titleClassName={cn(COLORS.semantic.success.text)}
+          icon={<Folder className={cn(layout.iconSize, styles.icon)} />}
+          titleClassName={styles.title}
           rightContent={
-            <div className="flex items-center space-x-2">
-              {renderCopyButton(
-                cleanContent,
-                `file-search-result-${index}`,
-                t("toolResult.copyResult")
-              )}
+            <div className={cn("flex items-center", layout.iconSpacing)}>
+              {renderCopyButton(cleanContent, `file-search-result-${index}`, t("toolResult.copyResult"))}
               {toolUseId && (
-                <code
-                  className={cn(
-                    "text-xs",
-                    COLORS.ui.background.secondary,
-                    COLORS.ui.text.secondary
-                  )}
-                >
-                  {renderToolUseId(toolUseId as string)}
+                <code className={cn(layout.smallText, "px-1 bg-secondary text-foreground/80", layout.rounded)}>
+                  {renderToolUseId(toolUseId)}
                 </code>
               )}
             </div>
@@ -424,59 +243,45 @@ export const ClaudeToolResultItem = ({
         />
         <Renderer.Content>
           {renderFileSearchResult(cleanContent)}
-          {renderSystemMessages(systemMessages)}
+          {renderSystemMessages(reminders)}
         </Renderer.Content>
       </Renderer>
     );
   }
 
-  // 기본 처리 (기존 로직)
+  // === Default Result Renderer ===
   return (
-    <Renderer
-      className={cn(COLORS.semantic.success.bg, COLORS.semantic.success.border)}
-      hasError={isError}
-    >
+    <Renderer className={styles.container} hasError={isError}>
       <Renderer.Header
         title={t("toolResult.toolExecutionResult")}
-        icon={<Check className={cn("w-4 h-4", COLORS.semantic.success.icon)} />}
-        titleClassName={cn(COLORS.semantic.success.text)}
+        icon={<Check className={cn(layout.iconSize, styles.icon)} />}
+        titleClassName={styles.title}
         rightContent={
           toolUseId && (
-            <code
-              className={cn(
-                "text-xs",
-                isError
-                  ? COLORS.semantic.error.text
-                  : COLORS.semantic.success.text
-              )}
-            >
-              {renderToolUseId(toolUseId as string)}
+            <code className={cn(layout.smallText, isError ? "text-destructive" : styles.accent)}>
+              {renderToolUseId(toolUseId)}
             </code>
           )
         }
       />
       <Renderer.Content>
-        <div className="text-sm">
+        <div className={layout.bodyText}>
           {typeof content === "string" ? (
-            <div className="prose prose-sm max-w-none">
+            <div className={layout.prose}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {content}
               </ReactMarkdown>
             </div>
           ) : Array.isArray(content) ? (
-            // 배열 내용을 처리
             <div className="space-y-2">
               {content.map((item: unknown, idx: number) => {
                 if (item && typeof item === "object") {
                   const contentItem = item as Record<string, unknown>;
 
-                  // text 타입 항목 처리
-                  if (
-                    contentItem.type === "text" &&
-                    typeof contentItem.text === "string"
-                  ) {
+                  // Text type
+                  if (contentItem.type === "text" && typeof contentItem.text === "string") {
                     return (
-                      <div key={idx} className="prose prose-sm max-w-none">
+                      <div key={idx} className={layout.prose}>
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {contentItem.text}
                         </ReactMarkdown>
@@ -484,36 +289,28 @@ export const ClaudeToolResultItem = ({
                     );
                   }
 
-                  // 기타 객체 항목 처리
+                  // Other object
                   return (
                     <pre
                       key={idx}
-                      className={cn(
-                        COLORS.ui.background.secondary,
-                        COLORS.ui.border.medium
-                      )}
+                      className={cn("p-2 bg-secondary text-foreground/80 overflow-x-auto", layout.rounded, layout.smallText)}
                     >
-                      {JSON.stringify(item, null, 2)}
+                      {safeStringify(item)}
                     </pre>
                   );
                 }
 
-                // 단순 값 처리
+                // Simple value
                 return (
-                  <div key={idx} className={cn(COLORS.ui.text.secondary)}>
+                  <div key={idx} className="text-foreground/80">
                     {String(item)}
                   </div>
                 );
               })}
             </div>
           ) : (
-            <pre
-              className={cn(
-                COLORS.ui.background.secondary,
-                COLORS.ui.border.medium
-              )}
-            >
-              {JSON.stringify(content, null, 2)}
+            <pre className={cn("p-2 bg-secondary text-foreground/80 overflow-x-auto", layout.rounded, layout.smallText)}>
+              {safeStringify(content)}
             </pre>
           )}
         </div>

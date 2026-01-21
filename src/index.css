@@ -145,6 +145,40 @@
   --chart-4: oklch(0.7 0.2 145);
   --chart-5: oklch(0.6 0.18 25);
 
+  /* === Dashboard Metrics Colors === */
+  --metric-green: oklch(0.7 0.16 145);
+  --metric-purple: oklch(0.65 0.15 250);
+  --metric-blue: oklch(0.65 0.14 280);
+  --metric-amber: oklch(0.75 0.18 55);
+  --metric-pink: oklch(0.6 0.14 310);
+  --metric-teal: oklch(0.65 0.15 170);
+
+  /* === Heatmap Colors (Activity gradient) === */
+  --heatmap-empty: oklch(0.2 0.01 260);
+  --heatmap-low: oklch(0.35 0.12 145);
+  --heatmap-medium: oklch(0.55 0.16 145);
+  --heatmap-high: oklch(0.75 0.18 145);
+
+  /* === Dashboard Glow Effects === */
+  --glow-green: 0 0 12px oklch(0.7 0.16 145 / 0.3);
+  --glow-purple: 0 0 12px oklch(0.65 0.15 250 / 0.3);
+  --glow-blue: 0 0 12px oklch(0.65 0.14 280 / 0.3);
+  --glow-amber: 0 0 12px oklch(0.75 0.18 55 / 0.3);
+
+  /* === Chart Gradient Stops (for linear gradients) === */
+  --chart-green-from: oklch(0.60 0.18 145);
+  --chart-green-to: oklch(0.75 0.18 145);
+  --chart-purple-from: oklch(0.50 0.15 250);
+  --chart-purple-to: oklch(0.70 0.15 250);
+  --chart-blue-from: oklch(0.50 0.14 280);
+  --chart-blue-to: oklch(0.65 0.14 280);
+  --chart-muted-from: oklch(0.35 0.08 260);
+  --chart-muted-to: oklch(0.50 0.08 260);
+
+  /* === Chart Glow Effects === */
+  --chart-glow-green: oklch(0.75 0.18 145 / 0.4);
+  --chart-glow-blue: oklch(0.65 0.14 280 / 0.3);
+
   /* === Sidebar (Light) === */
   --sidebar: oklch(0.97 0.005 240);
   --sidebar-foreground: oklch(0.2 0.02 260);
@@ -241,6 +275,40 @@
   --chart-4: oklch(0.75 0.22 145);
   --chart-5: oklch(0.65 0.2 25);
 
+  /* === Dashboard Metrics Colors (Dark) === */
+  --metric-green: oklch(0.75 0.18 145);
+  --metric-purple: oklch(0.70 0.16 250);
+  --metric-blue: oklch(0.70 0.15 280);
+  --metric-amber: oklch(0.80 0.18 55);
+  --metric-pink: oklch(0.65 0.15 310);
+  --metric-teal: oklch(0.70 0.16 170);
+
+  /* === Heatmap Colors (Dark) === */
+  --heatmap-empty: oklch(0.18 0.01 260);
+  --heatmap-low: oklch(0.40 0.14 145);
+  --heatmap-medium: oklch(0.60 0.17 145);
+  --heatmap-high: oklch(0.78 0.18 145);
+
+  /* === Dashboard Glow Effects (Dark) === */
+  --glow-green: 0 0 16px oklch(0.75 0.18 145 / 0.4);
+  --glow-purple: 0 0 16px oklch(0.70 0.16 250 / 0.4);
+  --glow-blue: 0 0 16px oklch(0.70 0.15 280 / 0.4);
+  --glow-amber: 0 0 16px oklch(0.80 0.18 55 / 0.4);
+
+  /* === Chart Gradient Stops (Dark - slightly brighter) === */
+  --chart-green-from: oklch(0.65 0.18 145);
+  --chart-green-to: oklch(0.80 0.18 145);
+  --chart-purple-from: oklch(0.55 0.16 250);
+  --chart-purple-to: oklch(0.75 0.16 250);
+  --chart-blue-from: oklch(0.55 0.15 280);
+  --chart-blue-to: oklch(0.70 0.15 280);
+  --chart-muted-from: oklch(0.40 0.08 260);
+  --chart-muted-to: oklch(0.55 0.08 260);
+
+  /* === Chart Glow Effects (Dark) === */
+  --chart-glow-green: oklch(0.80 0.18 145 / 0.5);
+  --chart-glow-blue: oklch(0.70 0.15 280 / 0.4);
+
   /* === Shadow Layers (Dark Theme) === */
   --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.2);
   --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.3), 0 1px 2px oklch(0 0 0 / 0.2);
@@ -275,22 +343,22 @@
   --font-family-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
-  --font-size-2xs: 0.625rem;
-  --font-size-2xs--line-height: 0.875rem;
-  --font-size-xs: 0.75rem;
-  --font-size-xs--line-height: 1rem;
-  --font-size-sm: 0.875rem;
-  --font-size-sm--line-height: 1.25rem;
-  --font-size-base: 1rem;
-  --font-size-base--line-height: 1.5rem;
-  --font-size-lg: 1.125rem;
-  --font-size-lg--line-height: 1.75rem;
-  --font-size-xl: 1.25rem;
-  --font-size-xl--line-height: 1.75rem;
-  --font-size-2xl: 1.5rem;
-  --font-size-2xl--line-height: 2rem;
-  --font-size-3xl: 1.875rem;
-  --font-size-3xl--line-height: 2.25rem;
+  --font-size-2xs: 0.6875rem;
+  --font-size-2xs--line-height: 0.9375rem;
+  --font-size-xs: 0.8125rem;
+  --font-size-xs--line-height: 1.0625rem;
+  --font-size-sm: 0.9375rem;
+  --font-size-sm--line-height: 1.3125rem;
+  --font-size-base: 1.0625rem;
+  --font-size-base--line-height: 1.5625rem;
+  --font-size-lg: 1.1875rem;
+  --font-size-lg--line-height: 1.8125rem;
+  --font-size-xl: 1.3125rem;
+  --font-size-xl--line-height: 1.8125rem;
+  --font-size-2xl: 1.5625rem;
+  --font-size-2xl--line-height: 2.0625rem;
+  --font-size-3xl: 1.9375rem;
+  --font-size-3xl--line-height: 2.3125rem;
 
   /* Radius */
   --radius-sm: var(--radius-sm);
@@ -426,7 +494,7 @@
 
   /* Prose typography overrides for compact display */
   .prose {
-    font-size: 0.6875rem !important;
+    font-size: 0.75rem !important;
     line-height: 1.5 !important;
   }
 
@@ -436,25 +504,25 @@
   }
 
   .prose h1 {
-    font-size: 0.875rem !important;
+    font-size: 0.9375rem !important;
     margin-top: 0 !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h2 {
-    font-size: 0.8125rem !important;
+    font-size: 0.875rem !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h3 {
-    font-size: 0.75rem !important;
+    font-size: 0.8125rem !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h4, .prose h5, .prose h6 {
-    font-size: 0.6875rem !important;
+    font-size: 0.75rem !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
@@ -492,7 +560,7 @@
   }
 
   .prose pre {
-    font-size: 0.625rem !important;
+    font-size: 0.6875rem !important;
     line-height: 1.4 !important;
     margin-top: 0.5em !important;
     margin-bottom: 0.5em !important;
@@ -500,7 +568,7 @@
   }
 
   .prose code {
-    font-size: 0.625rem !important;
+    font-size: 0.6875rem !important;
     padding: 0.0625em 0.1875em !important;
   }
 
@@ -511,7 +579,7 @@
   }
 
   .prose table {
-    font-size: 0.625rem !important;
+    font-size: 0.6875rem !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.75em !important;
     width: 100% !important;
@@ -604,7 +672,7 @@
   }
 
   .prose kbd {
-    font-size: 0.5625rem !important;
+    font-size: 0.625rem !important;
     font-family: var(--font-mono, ui-monospace, monospace) !important;
     background-color: var(--muted) !important;
     border: 1px solid var(--border) !important;
@@ -913,7 +981,7 @@
   }
 
   .metric-label {
-    @apply text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground;
+    @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground;
   }
 
   .metric-value {
@@ -1320,13 +1388,13 @@
 @layer utilities {
   /* === Custom Text Sizes === */
   .text-2xs {
-    font-size: 0.625rem;
-    line-height: 0.875rem;
+    font-size: 0.6875rem;
+    line-height: 0.9375rem;
   }
 
   .text-3xs {
-    font-size: 0.5625rem;
-    line-height: 0.75rem;
+    font-size: 0.625rem;
+    line-height: 0.8125rem;
   }
 
   /* === Text Wrapping === */
@@ -1400,14 +1468,14 @@
 
   /* Meta/Label text: uppercase with wide tracking */
   .text-label {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
 
   .text-label-sm {
-    font-size: 0.5625rem;
+    font-size: 0.625rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -1415,7 +1483,7 @@
 
   /* Caption text */
   .text-caption {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     line-height: 1.4;
     color: var(--muted-foreground);
   }
@@ -1423,14 +1491,14 @@
   /* Monospace data display */
   .text-data {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-feature-settings: 'tnum' on, 'zero' on;
     letter-spacing: -0.01em;
   }
 
   .text-data-lg {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 1.25rem;
+    font-size: 1.3125rem;
     font-weight: 500;
     font-feature-settings: 'tnum' on, 'zero' on;
     letter-spacing: -0.02em;
