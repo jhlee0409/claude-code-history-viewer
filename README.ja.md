@@ -7,6 +7,8 @@
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
+> ⚠️ **Beta** - 不安定または変更の可能性あり
+
 ## スクリーンショット
 
 <p align="center">
@@ -43,10 +45,6 @@ pnpm tauri:build
 ## データプライバシー
 
 ローカルでのみ実行。サーバーへのデータ送信なし。
-
-## 技術スタック
-
-Tauri v2 (Rust + React 19)、TypeScript、Zustand、Tailwind CSS 4、FlexSearch、@tanstack/react-virtual
 
 ## ライセンス
 

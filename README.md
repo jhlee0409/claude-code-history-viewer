@@ -7,6 +7,8 @@ Desktop app to browse Claude Code conversation history stored in `~/.claude`.
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
+> ⚠️ **Beta** - Things may break or change
+
 ## Screenshots
 
 <p align="center">
@@ -43,10 +45,6 @@ pnpm tauri:build
 ## Data privacy
 
 Runs locally only. No data sent to servers.
-
-## Tech stack
-
-Tauri v2 (Rust + React 19), TypeScript, Zustand, Tailwind CSS 4, FlexSearch, @tanstack/react-virtual
 
 ## License
 
