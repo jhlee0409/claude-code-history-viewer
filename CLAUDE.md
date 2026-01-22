@@ -22,12 +22,31 @@ Claude Code History Viewer is a Tauri-based desktop application that allows user
 
 ## Development Commands
 
-- `pnpm dev` - Start Vite dev server for frontend development
-- `pnpm tauri:dev` - Run full Tauri application in development mode
-- `pnpm build` - Build frontend with TypeScript checking
-- `pnpm tauri:build` - Build production desktop application
-- `pnpm lint` - Run ESLint on the codebase
-- `just sync-version` - Sync version from package.json to Cargo.toml and tauri.conf.json
+This project uses `just` (a command runner). Install with `brew install just` or `cargo install just`.
+
+### Recommended (using just)
+
+```bash
+just setup          # Install dependencies and configure build environment
+just dev            # Run full Tauri app in development mode (hot reload)
+just lint           # Run ESLint
+just tauri-build    # Build production app (macOS universal binary, Linux native)
+just test           # Run vitest in watch mode
+just test-run       # Run tests once with verbose output
+just sync-version   # Sync version from package.json to Cargo.toml and tauri.conf.json
+```
+
+### Alternative (using pnpm directly)
+
+```bash
+pnpm install                                    # Install dependencies
+pnpm exec tauri dev                             # Development mode
+pnpm exec tauri build --target universal-apple-darwin  # macOS build
+pnpm exec tauri build                           # Linux/Windows build
+pnpm dev                                        # Start Vite dev server only
+pnpm build                                      # Build frontend with TypeScript checking
+pnpm lint                                       # Run ESLint
+```
 
 ## Version Management
 
@@ -87,6 +106,12 @@ GitHub Actions가 자동으로:
 - **CI/CD**: `.github/workflows/updater-release.yml`
 
 ## Architecture
+
+### Data Flow
+
+```
+~/.claude/projects/[project]/*.jsonl → Rust Backend → Tauri IPC → React Frontend → Virtual List
+```
 
 ### Frontend (React + TypeScript)
 

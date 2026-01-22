@@ -36,8 +36,17 @@ Download for your platform from [Releases](https://github.com/jhlee0409/claude-c
 ```bash
 git clone https://github.com/jhlee0409/claude-code-history-viewer.git
 cd claude-code-history-viewer
+
+# Option 1: Using just (recommended)
+brew install just    # or: cargo install just
+just setup
+just dev             # Development
+just tauri-build     # Production build
+
+# Option 2: Using pnpm directly
 pnpm install
-pnpm tauri:build
+pnpm tauri:dev       # Development
+pnpm tauri:build     # Production build
 ```
 
 **Requirements**: Node.js 18+, pnpm, Rust toolchain
