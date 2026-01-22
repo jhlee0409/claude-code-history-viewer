@@ -12,11 +12,13 @@
 ## 截圖
 
 <p align="center">
-  <img width="49%" alt="Main Interface 1" src="https://github.com/user-attachments/assets/45719832-324c-40c3-8dfe-5c70ddffc0a9" />
-  <img width="49%" alt="Main Interface 2" src="https://github.com/user-attachments/assets/bb9fbc9d-9d78-4a95-a2ab-a1b1b763f515" />
+  <img width="49%" alt="對話記錄" src="https://github.com/user-attachments/assets/9a18304d-3f08-4563-a0e6-dd6e6dfd227e" />
+  <img width="49%" alt="分析儀表板" src="https://github.com/user-attachments/assets/0f869344-4a7c-4f1f-9de3-701af10fc255" />
 </p>
-
-<img width="720" alt="Analytics Dashboard" src="https://github.com/user-attachments/assets/77dc026c-8901-47d1-a8ca-e5235b97e945" />
+<p align="center">
+  <img width="49%" alt="Token統計" src="https://github.com/user-attachments/assets/d30f3709-1afb-4f76-8f06-1033a3cb7f4a" />
+  <img width="49%" alt="最近編輯" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
+</p>
 
 ## 功能
 
@@ -42,10 +44,36 @@ pnpm tauri:build
 
 **需求**: Node.js 18+、pnpm、Rust工具鏈
 
+## 使用方法
+
+1. 啟動應用程式
+2. 自動掃描`~/.claude`資料夾中的對話資料
+3. 在左側邊欄瀏覽專案
+4. 點擊工作階段查看訊息
+5. 使用分頁切換訊息、統計、Token分析、最近編輯
+
 ## 資料隱私
 
 僅本機執行。不向伺服器傳送資料。
 
+## 疑難排解
+
+**「找不到Claude資料」**: 確認`~/.claude`資料夾和對話記錄存在。
+
+**效能問題**: 大量對話記錄可能初始載入較慢。使用虛擬捲動處理。
+
+**更新錯誤**: 如果自動更新失敗，從[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)手動下載。
+
+## 技術堆疊
+
+- **後端**: Rust + Tauri v2
+- **前端**: React 19, TypeScript, Tailwind CSS, Zustand
+- **建置**: Vite, just
+
 ## 授權條款
 
-MIT
+MIT License - 參見[LICENSE](LICENSE)。
+
+---
+
+[提交Issue](https://github.com/jhlee0409/claude-code-history-viewer/issues)提問或回報bug。

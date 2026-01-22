@@ -12,11 +12,13 @@
 ## 截图
 
 <p align="center">
-  <img width="49%" alt="Main Interface 1" src="https://github.com/user-attachments/assets/45719832-324c-40c3-8dfe-5c70ddffc0a9" />
-  <img width="49%" alt="Main Interface 2" src="https://github.com/user-attachments/assets/bb9fbc9d-9d78-4a95-a2ab-a1b1b763f515" />
+  <img width="49%" alt="对话历史" src="https://github.com/user-attachments/assets/9a18304d-3f08-4563-a0e6-dd6e6dfd227e" />
+  <img width="49%" alt="分析仪表板" src="https://github.com/user-attachments/assets/0f869344-4a7c-4f1f-9de3-701af10fc255" />
 </p>
-
-<img width="720" alt="Analytics Dashboard" src="https://github.com/user-attachments/assets/77dc026c-8901-47d1-a8ca-e5235b97e945" />
+<p align="center">
+  <img width="49%" alt="令牌统计" src="https://github.com/user-attachments/assets/d30f3709-1afb-4f76-8f06-1033a3cb7f4a" />
+  <img width="49%" alt="最近编辑" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
+</p>
 
 ## 功能
 
@@ -42,10 +44,36 @@ pnpm tauri:build
 
 **要求**: Node.js 18+、pnpm、Rust工具链
 
+## 使用方法
+
+1. 启动应用
+2. 自动扫描`~/.claude`文件夹中的对话数据
+3. 在左侧边栏浏览项目
+4. 点击会话查看消息
+5. 使用标签页切换消息、统计、令牌分析、最近编辑
+
 ## 数据隐私
 
 仅本地运行。不向服务器发送数据。
 
+## 故障排除
+
+**"找不到Claude数据"**: 确认`~/.claude`文件夹和对话记录存在。
+
+**性能问题**: 大量对话记录可能初始加载较慢。使用虚拟滚动处理。
+
+**更新错误**: 如果自动更新失败，从[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)手动下载。
+
+## 技术栈
+
+- **后端**: Rust + Tauri v2
+- **前端**: React 19, TypeScript, Tailwind CSS, Zustand
+- **构建**: Vite, just
+
 ## 许可证
 
-MIT
+MIT License - 参见[LICENSE](LICENSE)。
+
+---
+
+[提交Issue](https://github.com/jhlee0409/claude-code-history-viewer/issues)提问或报告bug。

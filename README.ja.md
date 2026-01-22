@@ -12,11 +12,13 @@
 ## スクリーンショット
 
 <p align="center">
-  <img width="49%" alt="Main Interface 1" src="https://github.com/user-attachments/assets/45719832-324c-40c3-8dfe-5c70ddffc0a9" />
-  <img width="49%" alt="Main Interface 2" src="https://github.com/user-attachments/assets/bb9fbc9d-9d78-4a95-a2ab-a1b1b763f515" />
+  <img width="49%" alt="会話履歴" src="https://github.com/user-attachments/assets/9a18304d-3f08-4563-a0e6-dd6e6dfd227e" />
+  <img width="49%" alt="分析ダッシュボード" src="https://github.com/user-attachments/assets/0f869344-4a7c-4f1f-9de3-701af10fc255" />
 </p>
-
-<img width="720" alt="Analytics Dashboard" src="https://github.com/user-attachments/assets/77dc026c-8901-47d1-a8ca-e5235b97e945" />
+<p align="center">
+  <img width="49%" alt="トークン統計" src="https://github.com/user-attachments/assets/d30f3709-1afb-4f76-8f06-1033a3cb7f4a" />
+  <img width="49%" alt="最近の編集" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
+</p>
 
 ## 機能
 
@@ -42,10 +44,36 @@ pnpm tauri:build
 
 **要件**: Node.js 18+、pnpm、Rustツールチェーン
 
+## 使い方
+
+1. アプリを起動
+2. `~/.claude`フォルダから会話データを自動スキャン
+3. 左サイドバーでプロジェクトを閲覧
+4. セッションをクリックしてメッセージを確認
+5. タブでメッセージ、統計、トークン分析、最近の編集を切り替え
+
 ## データプライバシー
 
 ローカルでのみ実行。サーバーへのデータ送信なし。
 
+## トラブルシューティング
+
+**「Claudeデータが見つかりません」**: `~/.claude`フォルダと会話履歴があるか確認。
+
+**パフォーマンス問題**: 大量の会話履歴は初期読み込みが遅い場合あり。仮想スクロールで処理。
+
+**更新エラー**: 自動更新が失敗した場合、[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)から手動ダウンロード。
+
+## 技術スタック
+
+- **バックエンド**: Rust + Tauri v2
+- **フロントエンド**: React 19, TypeScript, Tailwind CSS, Zustand
+- **ビルド**: Vite, just
+
 ## ライセンス
 
-MIT
+MIT License - [LICENSE](LICENSE)参照。
+
+---
+
+[Issue登録](https://github.com/jhlee0409/claude-code-history-viewer/issues)で質問やバグレポート。
