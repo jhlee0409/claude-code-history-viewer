@@ -1034,7 +1034,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                     model.cache_creation_tokens,
                     model.cache_read_tokens
                   );
-                  const percentage = (model.token_count / globalSummary.total_tokens) * 100;
+                  const percentage = (model.token_count / Math.max(globalSummary.total_tokens, 1)) * 100;
 
                   return (
                     <div key={model.model_name}>
