@@ -21,6 +21,10 @@ import {
   initialAnalyticsState,
 } from "../types/analytics";
 import {
+  type UpdateSettings,
+  DEFAULT_UPDATE_SETTINGS,
+} from "../types/updateSettings";
+import {
   buildSearchIndex,
   searchMessages as searchMessagesFromIndex,
   clearSearchIndex,
@@ -50,6 +54,9 @@ interface AppStore extends AppState {
   // Global stats state
   globalSummary: GlobalStatsSummary | null;
   isLoadingGlobalStats: boolean;
+
+  // Update settings state
+  updateSettings: UpdateSettings;
 
   // Actions
   initializeApp: () => Promise<void>;
@@ -100,6 +107,12 @@ interface AppStore extends AppState {
   loadRecentEdits: (projectPath: string) => Promise<RecentEditsResult>;
   resetAnalytics: () => void;
   clearAnalyticsErrors: () => void;
+
+  // Update settings actions
+  loadUpdateSettings: () => Promise<void>;
+  setUpdateSetting: <K extends keyof UpdateSettings>(key: K, value: UpdateSettings[K]) => Promise<void>;
+  skipVersion: (version: string) => Promise<void>;
+  postponeUpdate: () => Promise<void>;
 }
 
 // 검색 매치 정보
@@ -183,6 +196,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   globalSummary: null,
   isLoadingGlobalStats: false,
 
+  // Update settings state
+  updateSettings: DEFAULT_UPDATE_SETTINGS,
+
   // Actions
   initializeApp: async () => {
     set({ isLoading: true, error: null });
@@ -195,7 +211,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
       // Try to load saved settings first
       try {
-        const store = await load("settings.json", { autoSave: false });
+        const store = await load("settings.json", { autoSave: false, defaults: {} });
         const savedPath = await store.get<string>("claudePath");
 
         if (savedPath) {
@@ -477,7 +493,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     // Save to persistent storage
     try {
-      const store = await load("settings.json", { autoSave: false });
+      const store = await load("settings.json", { autoSave: false, defaults: {} });
       await store.set("claudePath", path);
       await store.save();
     } catch (error) {
@@ -855,5 +871,46 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set(() => ({
       sessionSearch: createEmptySearchState(filterType),
     }));
+  },
+
+  // Update settings actions
+  loadUpdateSettings: async () => {
+    try {
+      const store = await load("settings.json", { autoSave: false, defaults: {} });
+      const savedSettings = await store.get<UpdateSettings>("updateSettings");
+      if (savedSettings) {
+        // Merge with defaults for compatibility with new settings
+        set({ updateSettings: { ...DEFAULT_UPDATE_SETTINGS, ...savedSettings } });
+      }
+    } catch (error) {
+      console.warn("Failed to load update settings:", error);
+    }
+  },
+
+  setUpdateSetting: async <K extends keyof UpdateSettings>(key: K, value: UpdateSettings[K]) => {
+    const { updateSettings } = get();
+    const newSettings = { ...updateSettings, [key]: value };
+    set({ updateSettings: newSettings });
+
+    // Persist to Tauri store
+    try {
+      const store = await load("settings.json", { autoSave: false, defaults: {} });
+      await store.set("updateSettings", newSettings);
+      await store.save();
+    } catch (error) {
+      console.warn("Failed to save update settings:", error);
+    }
+  },
+
+  skipVersion: async (version: string) => {
+    const { updateSettings, setUpdateSetting } = get();
+    if (!updateSettings.skippedVersions.includes(version)) {
+      await setUpdateSetting("skippedVersions", [...updateSettings.skippedVersions, version]);
+    }
+  },
+
+  postponeUpdate: async () => {
+    const { setUpdateSetting } = get();
+    await setUpdateSetting("lastPostponedAt", Date.now());
   },
 }));

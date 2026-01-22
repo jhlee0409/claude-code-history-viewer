@@ -11,9 +11,10 @@ import { layout } from "@/components/renderers";
 
 type Props = {
   toolResult: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const FileEditRenderer = ({ toolResult }: Props) => {
+export const FileEditRenderer = ({ toolResult, searchQuery }: Props) => {
   const { t } = useTranslation('components');
   const { renderCopyButton } = useCopyButton();
   const filePath =
@@ -136,6 +137,7 @@ export const FileEditRenderer = ({ toolResult }: Props) => {
                 startLine: 1,
                 totalLines: originalFile.split("\n").length,
               }}
+              searchQuery={searchQuery}
             />
           </div>
         )}

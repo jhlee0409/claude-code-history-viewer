@@ -47,7 +47,7 @@ export const ToolUseRenderer = ({
 
   const toolName = (toolUse.name as string) || "Unknown Tool";
   const toolId = (toolUse.id as string) || "";
-  const toolInput = (toolUse.input as Record<string, unknown>) || {};
+  const toolInput = (toolUse.input as Record<string, unknown>) ?? {};
 
   // Get variant styles based on tool type
   const variant = getToolVariant(toolName);

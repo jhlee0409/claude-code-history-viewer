@@ -6,12 +6,14 @@ import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   gitData: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const GitWorkflowRenderer = ({ gitData }: Props) => {
+export const GitWorkflowRenderer = ({ gitData, searchQuery }: Props) => {
   const { t } = useTranslation('components');
   const command = gitData.command || "";
   const status = gitData.status || "";
@@ -38,7 +40,12 @@ export const GitWorkflowRenderer = ({ gitData }: Props) => {
       <Renderer.Content>
         {status && (
           <div className={`mb-2 ${layout.bodyText} text-tool-git`}>
-            <span className="font-medium">{t('gitWorkflowRenderer.status')}</span> {String(status)}
+            <span className="font-medium">{t('gitWorkflowRenderer.status')}</span>{" "}
+            {searchQuery ? (
+              <HighlightedText text={String(status)} searchQuery={searchQuery} />
+            ) : (
+              String(status)
+            )}
           </div>
         )}
 
@@ -59,7 +66,11 @@ export const GitWorkflowRenderer = ({ gitData }: Props) => {
                     key={idx}
                     className={`${layout.monoText} px-2 py-1 rounded bg-tool-git/20 text-tool-git`}
                   >
-                    {String(file)}
+                    {searchQuery ? (
+                      <HighlightedText text={String(file)} searchQuery={searchQuery} />
+                    ) : (
+                      String(file)
+                    )}
                   </div>
                 ))}
               </div>
@@ -79,7 +90,11 @@ export const GitWorkflowRenderer = ({ gitData }: Props) => {
             </button>
             {showDiff && (
               <pre className={`mt-2 ${layout.monoText} p-2 rounded overflow-auto max-h-48 bg-muted text-foreground`}>
-                {String(diff)}
+                {searchQuery ? (
+                  <HighlightedText text={String(diff)} searchQuery={searchQuery} />
+                ) : (
+                  String(diff)
+                )}
               </pre>
             )}
           </div>

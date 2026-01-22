@@ -196,6 +196,7 @@ export function SimpleUpdateModal({ updater, isVisible, onClose }: SimpleUpdateM
               size="icon-sm"
               onClick={onClose}
               disabled={updater.state.isDownloading || updater.state.isInstalling}
+              aria-label={t('simpleUpdateModal.close')}
             >
               <X className="w-3.5 h-3.5" />
             </Button>

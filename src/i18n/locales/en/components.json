@@ -781,6 +781,7 @@
     "installingShort": "Installing...",
     "downloadAndInstall": "Download & Install",
     "remindLater": "Remind me in 24 hours",
-    "skipVersion": "Skip this version"
+    "skipVersion": "Skip this version",
+    "close": "Close"
   }
 }

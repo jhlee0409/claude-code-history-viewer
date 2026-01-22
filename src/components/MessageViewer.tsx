@@ -78,13 +78,17 @@ const isAgentTaskLaunchMessage = (message: ClaudeMessage): boolean => {
   return result.isAsync === true && typeof result.agentId === "string";
 };
 
-// Helper to check if a message is an agent task completion (status: "completed" + agentId, no isAsync)
+// Helper to check if a message is an agent task completion
+// Handles: status "completed"/"error", or synchronous completion (isAsync === false)
 const isAgentTaskCompletionMessage = (message: ClaudeMessage): boolean => {
   if (!message.toolUseResult || typeof message.toolUseResult !== "object") return false;
   const result = message.toolUseResult as Record<string, unknown>;
+  if (typeof result.agentId !== "string") return false;
+  // Synchronous completion (isAsync === false)
+  if (result.isAsync === false) return true;
+  // Async completion with status "completed" or "error" (and isAsync is undefined)
   return result.isAsync === undefined &&
-         result.status === "completed" &&
-         typeof result.agentId === "string";
+         (result.status === "completed" || result.status === "error");
 };
 
 // Helper to check if a message is an agent task launch (used by extractAgentTask)
@@ -169,7 +173,12 @@ const groupAgentTasks = (
         group.messageUuids.add(msg.uuid);
         const task = group.tasks.find(t => t.agentId === agentId);
         if (task) {
-          task.status = "completed";
+          // Set status based on result.status or fallback to "completed" for synchronous completions
+          if (result.status === "error") {
+            task.status = "error";
+          } else {
+            task.status = "completed";
+          }
         }
       }
     }
@@ -695,10 +704,32 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     return groupAgentTasks(uniqueMessages);
   }, [uniqueMessages]);
 
+  // Pre-compute Set of all agent task member UUIDs for O(1) membership checks
+  const agentTaskMemberUuids = useMemo(() => {
+    const memberSet = new Set<string>();
+    for (const group of agentTaskGroups.values()) {
+      for (const uuid of group.messageUuids) {
+        memberSet.add(uuid);
+      }
+    }
+    return memberSet;
+  }, [agentTaskGroups]);
+
   // Agent progress grouping (group agent_progress messages by agentId)
   const agentProgressGroups = useMemo(() => {
     return groupAgentProgressMessages(uniqueMessages);
   }, [uniqueMessages]);
+
+  // Pre-compute Set of all agent progress member UUIDs for O(1) membership checks
+  const agentProgressMemberUuids = useMemo(() => {
+    const memberSet = new Set<string>();
+    for (const group of agentProgressGroups.values()) {
+      for (const uuid of group.messageUuids) {
+        memberSet.add(uuid);
+      }
+    }
+    return memberSet;
+  }, [agentProgressGroups]);
 
   // 이전 세션 ID를 추적
   const prevSessionIdRef = useRef<string | null>(null);
@@ -920,17 +951,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // Check if this message is part of an agent task group
     const groupInfo = agentTaskGroups.get(message.uuid);
     const isGroupLeader = !!groupInfo;
-    const isGroupMember = !isGroupLeader && Array.from(agentTaskGroups.values()).some(
-      g => g.messageUuids.has(message.uuid)
-    );
+    const isGroupMember = !isGroupLeader && agentTaskMemberUuids.has(message.uuid);
 
 
     // Check if this message is part of an agent progress group
     const progressGroupInfo = agentProgressGroups.get(message.uuid);
     const isProgressGroupLeader = !!progressGroupInfo;
-    const isProgressGroupMember = !isProgressGroupLeader && Array.from(agentProgressGroups.values()).some(
-      g => g.messageUuids.has(message.uuid)
-    );
+    const isProgressGroupMember = !isProgressGroupLeader && agentProgressMemberUuids.has(message.uuid);
 
     // Get agentId for progress group leader
     const progressAgentId = isProgressGroupLeader
@@ -1170,16 +1197,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   // Check if this message is part of an agent task group
                   const groupInfo = agentTaskGroups.get(message.uuid);
                   const isGroupLeader = !!groupInfo;
-                  const isGroupMember = !isGroupLeader && Array.from(agentTaskGroups.values()).some(
-                    g => g.messageUuids.has(message.uuid)
-                  );
+                  const isGroupMember = !isGroupLeader && agentTaskMemberUuids.has(message.uuid);
 
                   // Check if this message is part of an agent progress group
                   const progressGroupInfo = agentProgressGroups.get(message.uuid);
                   const isProgressGroupLeader = !!progressGroupInfo;
-                  const isProgressGroupMember = !isProgressGroupLeader && Array.from(agentProgressGroups.values()).some(
-                    g => g.messageUuids.has(message.uuid)
-                  );
+                  const isProgressGroupMember = !isProgressGroupLeader && agentProgressMemberUuids.has(message.uuid);
 
                   // Get agentId for progress group leader
                   const progressAgentId = isProgressGroupLeader

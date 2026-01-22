@@ -3,12 +3,14 @@ import { Renderer } from "../../shared/RendererHeader";
 import { useTranslation } from 'react-i18next';
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   toolResult: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const FileListRenderer = ({ toolResult }: Props) => {
+export const FileListRenderer = ({ toolResult, searchQuery }: Props) => {
   const { t } = useTranslation('components');
   return (
     <Renderer className="bg-tool-file/10 border-tool-file/30">
@@ -37,11 +39,19 @@ export const FileListRenderer = ({ toolResult }: Props) => {
                   <FileText className={cn(layout.iconSize, "text-muted-foreground")} />
                   <div className="flex-1 min-w-0">
                     <div className={`${layout.monoText} text-foreground`}>
-                      {fileName}
+                      {searchQuery ? (
+                        <HighlightedText text={fileName} searchQuery={searchQuery} />
+                      ) : (
+                        fileName
+                      )}
                     </div>
                     {directory && (
                       <div className={`${layout.monoText} text-muted-foreground`}>
-                        {directory}
+                        {searchQuery ? (
+                          <HighlightedText text={directory} searchQuery={searchQuery} />
+                        ) : (
+                          directory
+                        )}
                       </div>
                     )}
                   </div>

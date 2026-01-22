@@ -29,7 +29,7 @@ interface ProjectTreeProps {
   isViewingGlobalStats: boolean;
   width?: number;
   isResizing?: boolean;
-  onResizeStart?: (e: React.MouseEvent) => void;
+  onResizeStart?: (e: React.MouseEvent<HTMLElement>) => void;
 }
 
 export const ProjectTree: React.FC<ProjectTreeProps> = ({

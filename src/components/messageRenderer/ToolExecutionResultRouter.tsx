@@ -86,7 +86,7 @@ export const ToolExecutionResultRouter: React.FC<
   if (typeof toolResult === "string") {
     // Check if it's an error message
     if (toolResult.startsWith("Error: ")) {
-      return <ErrorRenderer error={toolResult} />;
+      return <ErrorRenderer error={toolResult} searchQuery={searchQuery} />;
     }
 
     // Check if string content is JSONL Claude session history
@@ -104,7 +104,7 @@ export const ToolExecutionResultRouter: React.FC<
     (toolResult.type === "mcp_tool_call" || toolResult.server) &&
     (toolResult.method || toolResult.function)
   ) {
-    return <MCPRenderer mcpData={toolResult} />;
+    return <MCPRenderer mcpData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle codebase context
@@ -115,7 +115,7 @@ export const ToolExecutionResultRouter: React.FC<
     toolResult.context_window !== undefined ||
     toolResult.contextWindow !== undefined
   ) {
-    return <CodebaseContextRenderer contextData={toolResult} />;
+    return <CodebaseContextRenderer contextData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle terminal stream output
@@ -132,6 +132,7 @@ export const ToolExecutionResultRouter: React.FC<
         output={toolResult.output as string}
         timestamp={toolResult.timestamp as string}
         exitCode={toolResult.exitCode as number}
+        searchQuery={searchQuery}
       />
     );
   }
@@ -147,7 +148,7 @@ export const ToolExecutionResultRouter: React.FC<
     toolResult.diff ||
     toolResult.commit
   ) {
-    return <GitWorkflowRenderer gitData={toolResult} />;
+    return <GitWorkflowRenderer gitData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle web search results
@@ -163,15 +164,15 @@ export const ToolExecutionResultRouter: React.FC<
       typeof firstResult === "string" &&
       (firstResult.includes("I'll search") || firstResult.includes("search"))
     ) {
-      return <WebSearchRenderer searchData={toolResult} />;
+      return <WebSearchRenderer searchData={toolResult} searchQuery={searchQuery} />;
     }
     // Even without "I'll search", if it has query + results structure, treat as web search
-    return <WebSearchRenderer searchData={toolResult} />;
+    return <WebSearchRenderer searchData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle todo updates
   if (toolResult.newTodos !== undefined || toolResult.oldTodos !== undefined) {
-    return <TodoUpdateRenderer todoData={toolResult} />;
+    return <TodoUpdateRenderer todoData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle file list results
@@ -180,7 +181,7 @@ export const ToolExecutionResultRouter: React.FC<
     toolResult.filenames.length > 0 &&
     typeof toolResult.numFiles === "number"
   ) {
-    return <FileListRenderer toolResult={toolResult} />;
+    return <FileListRenderer toolResult={toolResult} searchQuery={searchQuery} />;
   }
 
   // Async agent task results are handled by MessageViewer's grouping logic
@@ -215,7 +216,7 @@ export const ToolExecutionResultRouter: React.FC<
     typeof toolResult.filePath === "string" &&
     (toolResult.oldString || toolResult.newString || toolResult.originalFile)
   ) {
-    return <FileEditRenderer toolResult={toolResult} />;
+    return <FileEditRenderer toolResult={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle structured patch results

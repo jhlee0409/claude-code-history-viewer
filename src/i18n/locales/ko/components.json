@@ -796,6 +796,7 @@
     "installingShort": "설치 중...",
     "downloadAndInstall": "다운로드 & 설치",
     "remindLater": "24시간 후 다시 알림",
-    "skipVersion": "이 버전 건너뛰기"
+    "skipVersion": "이 버전 건너뛰기",
+    "close": "닫기"
   }
 }

@@ -785,6 +785,7 @@
     "installingShort": "安装中...",
     "downloadAndInstall": "下载并安装",
     "remindLater": "24小时后提醒",
-    "skipVersion": "跳过此版本"
+    "skipVersion": "跳过此版本",
+    "close": "关闭"
   }
 }

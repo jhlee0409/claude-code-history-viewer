@@ -7,12 +7,14 @@ import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   searchData: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const WebSearchRenderer = ({ searchData }: Props) => {
+export const WebSearchRenderer = ({ searchData, searchQuery }: Props) => {
   const { t } = useTranslation('components');
   const query = typeof searchData.query === "string" ? searchData.query : "";
   const results = Array.isArray(searchData.results) ? searchData.results : [];
@@ -42,7 +44,11 @@ export const WebSearchRenderer = ({ searchData }: Props) => {
             {t('webSearchRenderer.query')}
           </div>
           <code className={`${layout.bodyText} px-2 py-1 rounded block bg-muted text-foreground`}>
-            {query}
+            {searchQuery ? (
+              <HighlightedText text={query} searchQuery={searchQuery} />
+            ) : (
+              query
+            )}
           </code>
         </div>
 

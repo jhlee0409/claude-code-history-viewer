@@ -3,12 +3,14 @@ import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { layout } from "@/components/renderers";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   todoData: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const TodoUpdateRenderer = ({ todoData }: Props) => {
+export const TodoUpdateRenderer = ({ todoData, searchQuery }: Props) => {
   const { t } = useTranslation("components");
   const newTodos = Array.isArray(todoData.newTodos) ? todoData.newTodos : [];
 
@@ -56,7 +58,11 @@ export const TodoUpdateRenderer = ({ todoData }: Props) => {
                           : "text-foreground"
                       )}
                     >
-                      {todo.content}
+                      {searchQuery ? (
+                        <HighlightedText text={todo.content} searchQuery={searchQuery} />
+                      ) : (
+                        todo.content
+                      )}
                     </span>
                     <span className={`${layout.smallText} text-muted-foreground`}>
                       ({todo.priority})

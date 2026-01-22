@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,8 @@ import {
 } from "@/components/ui";
 import { RefreshCw, Trash2, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getUpdateSettings, setUpdateSettings } from '@/utils/updateSettings';
 import { clearUpdateCache } from '@/utils/updateCache';
+import { useAppStore } from '@/store/useAppStore';
 import type { UpdateSettings } from '@/types/updateSettings';
 
 interface SimpleUpdateSettingsProps {
@@ -36,30 +36,20 @@ export function SimpleUpdateSettings({
   isCheckingForUpdates = false
 }: SimpleUpdateSettingsProps) {
   const { t } = useTranslation('components');
-  const [settings, setLocalSettings] = useState<UpdateSettings>(getUpdateSettings());
-  const [hasChanges, setHasChanges] = useState(false);
+  const { updateSettings: settings, setUpdateSetting, loadUpdateSettings } = useAppStore();
 
   useEffect(() => {
     if (isOpen) {
-      const currentSettings = getUpdateSettings();
-      setLocalSettings(currentSettings);
-      setHasChanges(false);
+      loadUpdateSettings();
     }
-  }, [isOpen]);
+  }, [isOpen, loadUpdateSettings]);
 
   const updateSetting = <K extends keyof UpdateSettings>(
     key: K,
     value: UpdateSettings[K]
   ) => {
-    const newSettings = { ...settings, [key]: value };
-    setLocalSettings(newSettings);
-    setHasChanges(true);
-  };
-
-  const handleSave = () => {
-    setUpdateSettings(settings);
-    setHasChanges(false);
-    onClose();
+    // Directly persist changes via Zustand store
+    setUpdateSetting(key, value);
   };
 
   const handleClearCache = () => {
@@ -198,15 +188,10 @@ export function SimpleUpdateSettings({
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {t('updateSettingsModal.close')}
           </Button>
-          {hasChanges && (
-            <Button onClick={handleSave}>
-              {t('updateSettingsModal.save')}
-            </Button>
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

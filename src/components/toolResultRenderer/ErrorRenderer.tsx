@@ -5,12 +5,14 @@ import remarkGfm from "remark-gfm";
 import { useTranslation } from "react-i18next";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   error: string;
+  searchQuery?: string;
 };
 
-export const ErrorRenderer = ({ error }: Props) => {
+export const ErrorRenderer = ({ error, searchQuery }: Props) => {
   const { t } = useTranslation("components");
   // Extract the error details
   const errorMessage = error.replace("Error: ", "");

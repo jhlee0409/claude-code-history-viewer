@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   command: string;
@@ -12,6 +13,7 @@ type Props = {
   output: string;
   timestamp: string;
   exitCode: number;
+  searchQuery?: string;
 };
 
 export const TerminalStreamRenderer = ({
@@ -20,6 +22,7 @@ export const TerminalStreamRenderer = ({
   output,
   timestamp,
   exitCode,
+  searchQuery,
 }: Props) => {
   const { t } = useTranslation('components');
 
@@ -76,7 +79,11 @@ export const TerminalStreamRenderer = ({
 
           {/* 출력 내용 */}
           <pre className={cn(layout.monoText, "text-foreground whitespace-pre-wrap bg-muted p-2 rounded overflow-auto max-h-80")}>
-            {String(output)}
+            {searchQuery ? (
+              <HighlightedText text={String(output)} searchQuery={searchQuery} />
+            ) : (
+              String(output)
+            )}
           </pre>
         </div>
       </Renderer.Content>

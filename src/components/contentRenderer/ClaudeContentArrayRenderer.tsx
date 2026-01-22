@@ -15,6 +15,7 @@ import { ToolUseRenderer } from "./ToolUseRenderer";
 import { ImageRenderer } from "./ImageRenderer";
 import { CommandRenderer } from "./CommandRenderer";
 import { ClaudeToolResultItem } from "../toolResultRenderer";
+import { HighlightedText } from "../common/HighlightedText";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
@@ -69,7 +70,11 @@ export const ClaudeContentArrayRenderer = ({
                   className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}
                 >
                   <div className={cn("whitespace-pre-wrap text-foreground", layout.bodyText)}>
-                    {item.text}
+                    {searchQuery ? (
+                      <HighlightedText text={item.text} searchQuery={searchQuery} />
+                    ) : (
+                      item.text
+                    )}
                   </div>
                 </div>
               );
@@ -139,6 +144,7 @@ export const ClaudeContentArrayRenderer = ({
 
           case "critical_system_reminder": {
             const reminderStyles = getVariantStyles("warning");
+            const reminderContent = typeof item.content === "string" ? item.content : JSON.stringify(item.content);
             return (
               <div
                 key={index}
@@ -150,7 +156,11 @@ export const ClaudeContentArrayRenderer = ({
                   </span>
                 </div>
                 <div className={cn("whitespace-pre-wrap", layout.bodyText, "text-foreground")}>
-                  {typeof item.content === "string" ? item.content : JSON.stringify(item.content)}
+                  {searchQuery ? (
+                    <HighlightedText text={reminderContent} searchQuery={searchQuery} />
+                  ) : (
+                    reminderContent
+                  )}
                 </div>
               </div>
             );

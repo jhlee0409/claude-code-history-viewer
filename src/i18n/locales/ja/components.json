@@ -770,6 +770,7 @@
     "installingShort": "インストール中...",
     "downloadAndInstall": "ダウンロード & インストール",
     "remindLater": "24時間後に再通知",
-    "skipVersion": "このバージョンをスキップ"
+    "skipVersion": "このバージョンをスキップ",
+    "close": "閉じる"
   }
 }

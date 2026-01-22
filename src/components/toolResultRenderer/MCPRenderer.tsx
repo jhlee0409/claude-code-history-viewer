@@ -6,12 +6,14 @@ import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   mcpData: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const MCPRenderer = ({ mcpData }: Props) => {
+export const MCPRenderer = ({ mcpData, searchQuery }: Props) => {
   const { t } = useTranslation('components');
   const server = mcpData.server || "unknown";
   const method = mcpData.method || "unknown";
@@ -60,7 +62,11 @@ export const MCPRenderer = ({ mcpData }: Props) => {
                 {t('mcpRenderer.error')}
               </div>
               <div className={`${layout.bodyText} text-destructive`}>
-                {String(error)}
+                {searchQuery ? (
+                  <HighlightedText text={String(error)} searchQuery={searchQuery} />
+                ) : (
+                  String(error)
+                )}
               </div>
             </div>
           ) : (

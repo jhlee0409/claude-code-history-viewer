@@ -6,12 +6,14 @@ import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   contextData: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const CodebaseContextRenderer = ({ contextData }: Props) => {
+export const CodebaseContextRenderer = ({ contextData, searchQuery }: Props) => {
   const { t } = useTranslation('components');
   const filesAnalyzed =
     contextData.files_analyzed || contextData.filesAnalyzed || 0;
@@ -66,7 +68,11 @@ export const CodebaseContextRenderer = ({ contextData }: Props) => {
                     key={idx}
                     className={`${layout.smallText} font-mono px-2 py-1 rounded bg-accent/20 text-accent`}
                   >
-                    {String(file)}
+                    {searchQuery ? (
+                      <HighlightedText text={String(file)} searchQuery={searchQuery} />
+                    ) : (
+                      String(file)
+                    )}
                   </div>
                 ))}
                 {relevantFiles.length > 10 && (
