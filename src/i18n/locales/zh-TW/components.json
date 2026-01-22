@@ -4,7 +4,7 @@
     "notFound": "未找到專案",
     "selectToView": "選擇專案以查看分析",
     "count": "專案：{{count}}個",
-    "globalStats": "📊 全域統計",
+    "globalStats": "全域統計",
     "globalStatsDescription": "所有專案概覽"
   },
   "session": {
@@ -102,9 +102,9 @@
     "noToolData": "沒有工具使用資料",
     "loading": "正在載入權杖統計...",
     "totalTokenUsage": "總權杖使用量",
-    "performanceInsights": "🎯 效能洞察",
-    "tokenAnalysis": "💾 權杖使用分析",
-    "sessionTimeline": "⏱️ 會話時間軸",
+    "performanceInsights": "效能洞察",
+    "tokenAnalysis": "權杖使用分析",
+    "sessionTimeline": "會話時間軸",
     "startTime": "開始時間",
     "duration": "持續時間",
     "durationMinutes": "{{minutes}}分鐘",
@@ -220,22 +220,22 @@
     "minutes": "分鐘"
   },
   "tools": {
-    "terminal": "🐚 終端機",
-    "readFile": "📖 讀取檔案",
-    "editFile": "✏️ 編輯檔案",
-    "createFile": "📝 建立檔案",
-    "multiEdit": "🔧 多重編輯",
-    "findFiles": "🔍 尋找檔案",
-    "searchText": "🔎 搜尋文字",
-    "browseDirectory": "📁 瀏覽目錄",
-    "executeTask": "🎯 執行任務",
-    "webFetch": "🌐 網頁擷取",
-    "webSearch": "🔍 網頁搜尋",
-    "notebookRead": "📚 筆記本讀取",
-    "notebookEdit": "📝 筆記本編輯",
-    "todoRead": "📋 待辦事項讀取",
-    "todoWrite": "✅ 待辦事項寫入",
-    "exitPlanMode": "🚪 退出計畫模式",
+    "terminal": "終端機",
+    "readFile": "讀取檔案",
+    "editFile": "編輯檔案",
+    "createFile": "建立檔案",
+    "multiEdit": "多重編輯",
+    "findFiles": "尋找檔案",
+    "searchText": "搜尋文字",
+    "browseDirectory": "瀏覽目錄",
+    "executeTask": "執行任務",
+    "webFetch": "網頁擷取",
+    "webSearch": "網頁搜尋",
+    "notebookRead": "筆記本讀取",
+    "notebookEdit": "筆記本編輯",
+    "todoRead": "待辦事項讀取",
+    "todoWrite": "待辦事項寫入",
+    "exitPlanMode": "退出計畫模式",
     "toolUsed": "工具使用",
     "generalConversation": "一般對話",
     "errorOccurred": "發生錯誤",
@@ -243,8 +243,8 @@
     "currentStatus": "目前狀態：",
     "fileCreate": "檔案建立",
     "createdContent": "建立的內容",
-    "taskDescription": "📋 任務描述",
-    "detailedInstructions": "💬 詳細說明",
+    "taskDescription": "任務描述",
+    "detailedInstructions": "詳細說明",
     "fileEdit": "檔案編輯",
     "removedCode": "刪除的程式碼",
     "addedCode": "新增的程式碼",
@@ -423,12 +423,25 @@
     "executionResult": "執行結果",
     "unknownContentType": "未知內容類型"
   },
+  "taskNotification": {
+    "agentTask": "代理任務",
+    "agentTasks": "並行任務",
+    "summary": "摘要",
+    "result": "結果",
+    "details": "詳情",
+    "showMore": "展開更多...",
+    "status": {
+      "completed": "已完成",
+      "running": "執行中",
+      "failed": "失敗"
+    }
+  },
   "toolUseRenderer": {
     "fileCreation": "檔案建立",
     "createdContent": "建立的內容",
     "task": "任務",
-    "taskDescription": "📋 任務描述",
-    "detailedInstructions": "💬 詳細指示",
+    "taskDescription": "任務描述",
+    "detailedInstructions": "詳細指示",
     "toolInputParameters": "工具輸入參數"
   },
   "fileContent": {
@@ -457,7 +470,9 @@
     "originalFileContent": "原始檔案內容"
   },
   "messageContentDisplay": {
-    "copyMessage": "複製訊息"
+    "copyMessage": "複製訊息",
+    "showMore": "展開更多...",
+    "showLess": "收起"
   },
   "codebaseContextRenderer": {
     "codebaseContext": "程式庫上下文",
@@ -529,7 +544,8 @@
     "image": "圖像",
     "cannotLoadImage": "無法載入圖像",
     "viewFullscreen": "全螢幕檢視",
-    "downloadImage": "下載圖像"
+    "downloadImage": "下載圖像",
+    "close": "關閉"
   },
   "upToDateNotification": {
     "upToDate": "已是最新版本",
@@ -550,19 +566,19 @@
     "os": "作業系統： {{os}} {{version}}",
     "architecture": "架構： {{arch}}",
     "sendingEmail": "發送中...",
-    "sendEmail": "📧 透過電子郵件發送",
-    "openGitHub": "🔗 在GitHub上建立問題",
+    "sendEmail": "透過電子郵件發送",
+    "openGitHub": "在GitHub上建立問題",
     "close": "✕",
     "sendError": "發送意見回馔失敗。請重試。",
-    "tips": "💡 提示：",
+    "tips": "提示：",
     "tipBugReport": "用於錯誤回報：請清晰描述重現步驟和預期行為",
     "tipFeatureRequest": "用於功能請求：請解釋您試圖解決的問題",
     "tipScreenshot": "如果您有截圖，請將其附加到電子郵件中",
     "types": {
-      "bug": "🐛 錯誤回報",
-      "feature": "✨ 功能請求",
-      "improvement": "🔧 改進建議",
-      "other": "💬 其他"
+      "bug": "錯誤回報",
+      "feature": "功能請求",
+      "improvement": "改進建議",
+      "other": "其他"
     },
     "placeholders": {
       "bug": "請詳細描述發生錯誤的情況和重現方法。",
@@ -640,7 +656,7 @@
     "benefits2": "快速存取新功能",
     "benefits3": "離線時自動停用",
     "benefits4": "可隨時在設定中變更",
-    "tip": "💡 您可以在設定 → 更新設定中停用自動檢查。",
+    "tip": "您可以在設定 → 更新設定中停用自動檢查。",
     "disableAutoCheck": "停用自動檢查",
     "understood": "我知道了"
   },
@@ -698,6 +714,18 @@
       "error": "錯誤"
     }
   },
+  "agentTaskGroup": {
+    "agent": "代理程式",
+    "parallelTasks": "並行任務",
+    "completed": "已完成",
+    "prompt": "提示:",
+    "transcript": "日誌:",
+    "copyPath": "複製完整路徑"
+  },
+  "agentProgressGroup": {
+    "agent": "代理程式",
+    "steps": "步驟"
+  },
   "queueOperationRenderer": {
     "title": "佇列操作",
     "operations": {
@@ -729,5 +757,35 @@
   },
   "summaryMessageRenderer": {
     "title": "對話摘要"
+  },
+  "claudeToolUseDisplay": {
+    "unknownTool": "未知工具"
+  },
+  "collapsibleToolResult": {
+    "terminalOutput": "終端輸出",
+    "noOutput": "無輸出",
+    "todoListUpdated": "待辦清單已更新",
+    "editsCount": "{{count}} 處編輯",
+    "result": "結果"
+  },
+  "simpleUpdateModal": {
+    "newUpdateAvailable": "有新版本可用",
+    "important": "重要",
+    "currentVersion": "目前版本",
+    "newVersion": "新版本",
+    "downloading": "下載中... {{progress}}%",
+    "installing": "安裝中... 應用程式即將重新啟動。",
+    "errorOccurred": "發生錯誤: {{error}}",
+    "hideDetails": "隱藏詳情",
+    "showDetails": "顯示詳情",
+    "releaseName": "發布名稱:",
+    "changes": "更新內容:",
+    "viewOnGitHub": "在 GitHub 上檢視",
+    "downloadingShort": "下載中...",
+    "installingShort": "安裝中...",
+    "downloadAndInstall": "下載並安裝",
+    "remindLater": "24小時後提醒",
+    "skipVersion": "跳過此版本",
+    "close": "關閉"
   }
 }

@@ -1,12 +1,21 @@
+/**
+ * BashCodeExecutionToolResultRenderer - Renders bash command execution results
+ *
+ * Displays stdout/stderr output with appropriate styling for success/error states.
+ * Supports both successful results and error conditions.
+ */
+
 import { memo } from "react";
 import { Terminal, CheckCircle, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 import type { BashCodeExecutionResult, BashCodeExecutionError } from "../../types";
+import { getVariantStyles, layout } from "@/components/renderers";
 
-type Props = {
+interface BashCodeExecutionToolResultRendererProps {
   toolUseId: string;
   content: BashCodeExecutionResult | BashCodeExecutionError;
-};
+}
 
 const isBashError = (
   content: BashCodeExecutionResult | BashCodeExecutionError
@@ -22,90 +31,114 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export const BashCodeExecutionToolResultRenderer = memo(
-  function BashCodeExecutionToolResultRenderer({ toolUseId, content }: Props) {
+  function BashCodeExecutionToolResultRenderer({
+    toolUseId,
+    content,
+  }: BashCodeExecutionToolResultRendererProps) {
     const { t } = useTranslation("components");
 
+    // Error state
     if (isBashError(content)) {
+      const errorStyles = getVariantStyles("error");
+
       return (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <div className="flex items-center space-x-2 mb-2">
-            <AlertCircle className="w-4 h-4 text-red-600" />
-            <span className="text-xs font-medium text-red-800">
-              {t("bashCodeExecutionToolResultRenderer.error", {
-                defaultValue: "Bash Execution Error",
-              })}
-            </span>
-            <span className="text-xs text-red-500 font-mono">{toolUseId}</span>
+        <div className={cn(layout.rounded, "border", errorStyles.container)}>
+          <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
+            <div className={cn("flex items-center", layout.iconGap)}>
+              <AlertCircle className={cn(layout.iconSize, errorStyles.icon)} />
+              <span className={cn(layout.titleText, errorStyles.title)}>
+                {t("bashCodeExecutionToolResultRenderer.error", {
+                  defaultValue: "Bash Execution Error",
+                })}
+              </span>
+            </div>
+            <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
+              <span className={cn(layout.monoText, errorStyles.accent)}>
+                {toolUseId}
+              </span>
+            </div>
           </div>
-          <div className="text-sm text-red-700">
-            {ERROR_MESSAGES[content.error_code] || content.error_code}
+          <div className={layout.contentPadding}>
+            <div className={cn(layout.bodyText, errorStyles.accent)}>
+              {ERROR_MESSAGES[content.error_code] || content.error_code}
+            </div>
           </div>
         </div>
       );
     }
 
+    // Success state
     const { stdout, stderr, return_code } = content;
     const isSuccess = return_code === 0;
+    const systemStyles = getVariantStyles("system");
 
     return (
-      <div className="bg-slate-50 border border-slate-300 rounded-lg p-3">
-        <div className="flex items-center space-x-2 mb-2">
-          <Terminal className="w-4 h-4 text-slate-600" />
-          {isSuccess ? (
-            <CheckCircle className="w-3 h-3 text-green-500" />
-          ) : (
-            <AlertCircle className="w-3 h-3 text-orange-500" />
-          )}
-          <span className="text-xs font-medium text-slate-800">
-            {t("bashCodeExecutionToolResultRenderer.title", {
-              defaultValue: "Bash Execution",
-            })}
-          </span>
-          <span className="text-xs text-slate-500 font-mono">{toolUseId}</span>
-          {return_code !== undefined && (
-            <span
-              className={`text-xs px-1.5 py-0.5 rounded font-mono ${
-                isSuccess
-                  ? "bg-green-100 text-green-700"
-                  : "bg-orange-100 text-orange-700"
-              }`}
-            >
-              exit: {return_code}
+      <div className={cn(layout.rounded, "border", systemStyles.container)}>
+        <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
+          <div className={cn("flex items-center", layout.iconGap)}>
+            <Terminal className={cn(layout.iconSize, systemStyles.icon)} />
+            {isSuccess ? (
+              <CheckCircle className={cn(layout.iconSizeSmall, "text-success")} />
+            ) : (
+              <AlertCircle className={cn(layout.iconSizeSmall, "text-warning")} />
+            )}
+            <span className={cn(layout.titleText, systemStyles.title)}>
+              {t("bashCodeExecutionToolResultRenderer.title", {
+                defaultValue: "Bash Execution",
+              })}
             </span>
-          )}
+          </div>
+          <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
+            <span className={cn(layout.monoText, "text-muted-foreground")}>{toolUseId}</span>
+            {return_code !== undefined && (
+              <span
+                className={cn(
+                  layout.monoText,
+                  "px-1.5 py-0.5 rounded",
+                  isSuccess
+                    ? "bg-success/20 text-success"
+                    : "bg-warning/20 text-warning"
+                )}
+              >
+                exit: {return_code}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* stdout */}
-        {stdout && (
-          <div className="mb-2">
-            <div className="flex items-center space-x-1 text-xs text-slate-500 mb-1">
-              <span className="font-mono">stdout:</span>
+        <div className={layout.contentPadding}>
+          {/* stdout */}
+          {stdout && (
+            <div className="mb-2">
+              <div className={cn("flex items-center space-x-1 mb-1", layout.smallText, "text-muted-foreground")}>
+                <span className="font-mono">stdout:</span>
+              </div>
+              <pre className={cn(layout.monoText, "bg-secondary text-success rounded p-2 overflow-x-auto whitespace-pre-wrap", layout.codeMaxHeight)}>
+                {stdout}
+              </pre>
             </div>
-            <pre className="text-xs bg-slate-900 text-green-400 rounded p-2 overflow-x-auto whitespace-pre-wrap max-h-64 font-mono">
-              {stdout}
-            </pre>
-          </div>
-        )}
+          )}
 
-        {/* stderr */}
-        {stderr && (
-          <div>
-            <div className="flex items-center space-x-1 text-xs text-orange-600 mb-1">
-              <span className="font-mono">stderr:</span>
+          {/* stderr */}
+          {stderr && (
+            <div>
+              <div className={cn("flex items-center space-x-1 mb-1", layout.smallText, "text-warning")}>
+                <span className="font-mono">stderr:</span>
+              </div>
+              <pre className={cn(layout.monoText, "bg-secondary text-destructive rounded p-2 overflow-x-auto whitespace-pre-wrap", layout.codeMaxHeight)}>
+                {stderr}
+              </pre>
             </div>
-            <pre className="text-xs bg-slate-900 text-red-400 rounded p-2 overflow-x-auto whitespace-pre-wrap max-h-64 font-mono">
-              {stderr}
-            </pre>
-          </div>
-        )}
+          )}
 
-        {!stdout && !stderr && (
-          <div className="text-xs text-slate-500 italic">
-            {t("bashCodeExecutionToolResultRenderer.noOutput", {
-              defaultValue: "No output",
-            })}
-          </div>
-        )}
+          {!stdout && !stderr && (
+            <div className={cn(layout.smallText, "text-muted-foreground italic")}>
+              {t("bashCodeExecutionToolResultRenderer.noOutput", {
+                defaultValue: "No output",
+              })}
+            </div>
+          )}
+        </div>
       </div>
     );
   }

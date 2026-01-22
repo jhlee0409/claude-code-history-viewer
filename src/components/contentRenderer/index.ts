@@ -1,5 +1,6 @@
 export { ClaudeContentArrayRenderer } from "./ClaudeContentArrayRenderer";
 export { CommandRenderer } from "./CommandRenderer";
+export { TaskNotificationRenderer, hasTaskNotification } from "./TaskNotificationRenderer";
 export { ThinkingRenderer } from "./ThinkingRenderer";
 export { ToolUseRenderer } from "./ToolUseRenderer";
 export { ImageRenderer } from "./ImageRenderer";

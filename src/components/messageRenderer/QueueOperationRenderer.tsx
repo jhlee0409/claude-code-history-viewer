@@ -1,3 +1,15 @@
+/**
+ * Queue Operation Renderer
+ *
+ * Displays queue operation information with appropriate visual styling based on operation type.
+ * Uses design tokens for consistent theming across light/dark modes.
+ *
+ * @example
+ * ```tsx
+ * <QueueOperationRenderer operation="enqueue" content="Task item" />
+ * ```
+ */
+
 import { memo } from "react";
 import {
   ListPlus,
@@ -7,6 +19,8 @@ import {
   List,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { getVariantStyles, layout } from "@/components/renderers";
+import { cn } from "@/lib/utils";
 import type { QueueOperationType } from "../../types";
 
 type Props = {
@@ -16,31 +30,23 @@ type Props = {
 
 const OPERATION_CONFIG: Record<
   QueueOperationType,
-  { icon: typeof List; color: string; bgColor: string; borderColor: string }
+  { icon: typeof List; variant: "info" | "success" | "warning" | "error" }
 > = {
   enqueue: {
     icon: ListPlus,
-    color: "text-indigo-600 dark:text-indigo-400",
-    bgColor: "bg-indigo-50 dark:bg-indigo-950/30",
-    borderColor: "border-indigo-200 dark:border-indigo-800",
+    variant: "info",
   },
   dequeue: {
     icon: ListMinus,
-    color: "text-emerald-600 dark:text-emerald-400",
-    bgColor: "bg-emerald-50 dark:bg-emerald-950/30",
-    borderColor: "border-emerald-200 dark:border-emerald-800",
+    variant: "success",
   },
   remove: {
     icon: ListX,
-    color: "text-amber-600 dark:text-amber-400",
-    bgColor: "bg-amber-50 dark:bg-amber-950/30",
-    borderColor: "border-amber-200 dark:border-amber-800",
+    variant: "warning",
   },
   popAll: {
     icon: Trash2,
-    color: "text-rose-600 dark:text-rose-400",
-    bgColor: "bg-rose-50 dark:bg-rose-950/30",
-    borderColor: "border-rose-200 dark:border-rose-800",
+    variant: "error",
   },
 };
 
@@ -52,6 +58,7 @@ export const QueueOperationRenderer = memo(function QueueOperationRenderer({
 
   const config = OPERATION_CONFIG[operation] || OPERATION_CONFIG.enqueue;
   const Icon = config.icon;
+  const styles = getVariantStyles(config.variant);
 
   const getOperationLabel = (op: QueueOperationType) => {
     const labels: Record<QueueOperationType, string> = {
@@ -75,27 +82,27 @@ export const QueueOperationRenderer = memo(function QueueOperationRenderer({
 
   return (
     <div
-      className={`${config.bgColor} border ${config.borderColor} rounded-lg p-2 text-xs`}
+      className={cn("border", layout.rounded, layout.containerPadding, layout.smallText, styles.container)}
     >
       {/* Header */}
-      <div className="flex items-center space-x-2">
-        <Icon className={`w-3.5 h-3.5 ${config.color}`} />
-        <span className={`font-medium ${config.color}`}>
+      <div className={cn("flex items-center", layout.iconSpacing)}>
+        <Icon className={cn(layout.iconSize, styles.icon)} />
+        <span className={cn("font-medium", styles.title)}>
           {t("queueOperationRenderer.title", { defaultValue: "Queue Operation" })}
         </span>
-        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${config.bgColor} ${config.color}`}>
+        <span className={cn("px-1.5 py-0.5 rounded font-medium", layout.smallText, styles.badge, styles.badgeText)}>
           {getOperationLabel(operation)}
         </span>
       </div>
 
       {/* Description */}
-      <div className="mt-1 text-gray-500 dark:text-gray-400">
+      <div className="mt-1 text-muted-foreground">
         {getOperationDescription(operation)}
       </div>
 
       {/* Content Preview */}
       {content && (
-        <div className="mt-1.5 bg-white/50 dark:bg-black/20 rounded p-1.5 font-mono text-gray-700 dark:text-gray-300 truncate">
+        <div className="mt-1.5 bg-secondary/50 rounded p-1.5 font-mono text-foreground truncate">
           {content.length > 100 ? `${content.slice(0, 100)}...` : content}
         </div>
       )}

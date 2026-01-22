@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -9,15 +9,16 @@ import { useCopyButton } from "../hooks/useCopyButton";
 import { useTheme } from "@/contexts/theme";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../shared/RendererHeader";
-import { cn } from "../utils/cn";
-import { COLORS } from "../constants/colors";
+import { layout } from "@/components/renderers";
 
 export const FileContent = ({
   fileData,
   title,
+  searchQuery,
 }: {
   fileData: Record<string, unknown>;
   title: string;
+  searchQuery?: string;
 }) => {
   const { t } = useTranslation("components");
   const { renderCopyButton } = useCopyButton();
@@ -147,6 +148,13 @@ export const FileContent = ({
   // 접기/펼치기 상태 관리
   const [isExpanded, setIsExpanded] = useState(false);
   const MAX_LINES = 20; // 최대 표시 줄 수
+
+  // 검색 쿼리가 있고 내용에 매칭되면 자동으로 펼치기
+  useEffect(() => {
+    if (searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())) {
+      setIsExpanded(true);
+    }
+  }, [searchQuery, content]);
   const contentLines = content.split("\n");
   const shouldCollapse = contentLines.length > MAX_LINES;
   const displayContent =
@@ -155,17 +163,14 @@ export const FileContent = ({
       : content;
 
   return (
-    // <Renderer className="bg-blue-50 border-blue-200">
-    <Renderer
-      className={cn(COLORS.semantic.info.bg, COLORS.semantic.info.border)}
-    >
+    <Renderer className="bg-tool-file/10 border-tool-file/30">
       <Renderer.Header
         title={title}
-        icon={<FileText className={cn("w-4 h-4", COLORS.semantic.info.icon)} />}
-        titleClassName={cn(COLORS.semantic.info.text)}
+        icon={<FileText className="w-4 h-4 text-tool-file" />}
+        titleClassName="text-tool-file"
         rightContent={
           <div className="flex items-center gap-2">
-            <span className="text-xs text-blue-600 dark:text-blue-400 truncate max-w-[250px]" title={filePath}>
+            <span className={`${layout.smallText} text-tool-file truncate max-w-[250px]`} title={filePath}>
               {filePath && formatShortPath(filePath)}
               {formatLineInfo() && (
                 <span className="ml-1.5">· {formatLineInfo()}</span>
@@ -185,17 +190,10 @@ export const FileContent = ({
       <Renderer.Content>
         {filePath && (
           <div className="mb-2">
-            <div
-              className={cn("text-xs font-medium", COLORS.semantic.info.text)}
-            >
+            <div className={`${layout.smallText} font-medium text-tool-file`}>
               {t("fileContent.filePath")}
             </div>
-            <code
-              className={cn(
-                "text-sm bg-gray-100 px-2 py-1 rounded",
-                COLORS.semantic.info.text
-              )}
-            >
+            <code className={`${layout.bodyText} bg-muted px-2 py-1 rounded text-tool-file`}>
               {filePath}
             </code>
           </div>
@@ -204,19 +202,13 @@ export const FileContent = ({
         {content && (
           <div className="mb-2">
             <div className="flex items-center justify-between mb-1">
-              <div
-                className={cn("text-xs font-medium", COLORS.semantic.info.text)}
-              >
+              <div className={`${layout.smallText} font-medium text-tool-file`}>
                 {t("fileContent.content")}
               </div>
               {shouldCollapse && (
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className={cn(
-                    "text-xs px-2 py-1 rounded transition-colors",
-                    COLORS.semantic.info.bg,
-                    COLORS.semantic.info.text
-                  )}
+                  className={`${layout.smallText} px-2 py-1 rounded transition-colors bg-tool-file/10 text-tool-file hover:bg-tool-file/20`}
                 >
                   {isExpanded ? (
                     <>
@@ -235,22 +227,16 @@ export const FileContent = ({
               )}
             </div>
             <div className="rounded-lg overflow-hidden">
-              <div
-                className={cn(
-                  "px-3 py-1 text-xs flex items-center justify-between",
-                  COLORS.semantic.info.bg,
-                  COLORS.semantic.info.text
-                )}
-              >
+              <div className={`px-3 py-1 ${layout.smallText} flex items-center justify-between bg-tool-file/10 text-tool-file`}>
                 <span>{language}</span>
                 <div className="flex items-center space-x-2">
                   {startLine > 1 && (
-                    <span className={cn(COLORS.semantic.info.text)}>
+                    <span className="text-tool-file">
                       {t("fileContent.startLine", { line: startLine })}
                     </span>
                   )}
                   {shouldCollapse && !isExpanded && (
-                    <span className={cn(COLORS.semantic.warning.text)}>
+                    <span className="text-warning">
                       {t("fileContent.showingLines", {
                         current: MAX_LINES,
                         total: contentLines.length,
@@ -260,31 +246,14 @@ export const FileContent = ({
                 </div>
               </div>
               {language === "markdown" ? (
-                <div
-                  className={cn(
-                    "p-4 prose prose-sm max-w-none",
-                    COLORS.semantic.info.bg,
-                    COLORS.semantic.info.text
-                  )}
-                >
+                <div className={`p-4 bg-tool-file/5 text-foreground ${layout.prose}`}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {displayContent}
                   </ReactMarkdown>
                 </div>
               ) : language === "text" ? (
-                <div
-                  className={cn(
-                    "p-4",
-                    COLORS.semantic.info.bg,
-                    COLORS.semantic.info.text
-                  )}
-                >
-                  <pre
-                    className={cn(
-                      "text-sm whitespace-pre-wrap font-mono",
-                      COLORS.semantic.info.text
-                    )}
-                  >
+                <div className="p-4 bg-tool-file/5 text-foreground">
+                  <pre className={`${layout.monoText} whitespace-pre-wrap text-foreground`}>
                     {displayContent}
                   </pre>
                 </div>
@@ -312,11 +281,11 @@ export const FileContent = ({
                       style={{
                         ...style,
                         margin: 0,
-                        fontSize: "0.875rem",
-                        lineHeight: "1.25rem",
+                        fontSize: "0.6875rem",
+                        lineHeight: "1.2rem",
                         maxHeight: "24rem",
                         overflow: "auto",
-                        padding: "1rem",
+                        padding: "0.75rem",
                       }}
                     >
                       {tokens.map((line, i) => (
@@ -353,19 +322,10 @@ export const FileContent = ({
               {shouldCollapse &&
                 !isExpanded &&
                 (language === "markdown" || language === "text") && (
-                  <div
-                    className={cn(
-                      "px-4 py-3 border-t",
-                      COLORS.semantic.info.bg,
-                      COLORS.semantic.info.border
-                    )}
-                  >
+                  <div className="px-4 py-3 border-t bg-tool-file/5 border-tool-file/30">
                     <button
                       onClick={() => setIsExpanded(true)}
-                      className={cn(
-                        "text-xs font-medium transition-colors",
-                        COLORS.semantic.info.text
-                      )}
+                      className={`${layout.smallText} font-medium transition-colors text-tool-file hover:text-tool-file/80`}
                     >
                       <FileText className="w-3 h-3 inline mr-1" />
                       {t("fileContent.showMoreLines", {
@@ -378,19 +338,10 @@ export const FileContent = ({
                 !isExpanded &&
                 language !== "markdown" &&
                 language !== "text" && (
-                  <div
-                    className={cn(
-                      "px-3 py-2 border-t",
-                      COLORS.semantic.info.bg,
-                      COLORS.semantic.info.border
-                    )}
-                  >
+                  <div className="px-3 py-2 border-t bg-tool-file/5 border-tool-file/30">
                     <button
                       onClick={() => setIsExpanded(true)}
-                      className={cn(
-                        "text-xs transition-colors",
-                        COLORS.semantic.info.text
-                      )}
+                      className={`${layout.smallText} transition-colors text-tool-file hover:text-tool-file/80`}
                     >
                       <FileText className="w-3 h-3 inline mr-1" />
                       {t("fileContent.showMoreLines", {

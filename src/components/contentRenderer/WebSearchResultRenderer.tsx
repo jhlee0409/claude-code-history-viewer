@@ -1,6 +1,8 @@
 import { memo } from "react";
 import { ExternalLink, Search, AlertCircle, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+import { layout } from "@/components/renderers";
 import type {
   WebSearchResultItem,
   WebSearchToolError,
@@ -30,17 +32,17 @@ export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({
 
   if (isError(content)) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-        <div className="flex items-center space-x-2 mb-2">
-          <AlertCircle className="w-4 h-4 text-red-600" />
-          <span className="text-xs font-medium text-red-800">
+      <div className={cn("bg-destructive/10 border border-destructive/30", layout.rounded, layout.containerPadding)}>
+        <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+          <AlertCircle className={cn(layout.iconSize, "text-destructive")} />
+          <span className={cn(layout.titleText, "text-destructive")}>
             {t("webSearchResultRenderer.error", {
               defaultValue: "Search Error",
             })}
           </span>
-          <span className="text-xs text-red-500 font-mono">{toolUseId}</span>
+          <span className={cn(layout.monoText, "text-destructive/70")}>{toolUseId}</span>
         </div>
-        <div className="text-sm text-red-700">
+        <div className={cn(layout.bodyText, "text-destructive")}>
           <span className="font-medium">{content.error_code}:</span>{" "}
           {content.message}
         </div>
@@ -51,43 +53,43 @@ export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({
   const results = content as WebSearchResultItem[];
 
   return (
-    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-      <div className="flex items-center space-x-2 mb-3">
-        <Search className="w-4 h-4 text-green-600" />
-        <span className="text-xs font-medium text-green-800">
+    <div className={cn("bg-tool-web/10 border border-tool-web/30", layout.rounded, layout.containerPadding)}>
+      <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+        <Search className={cn(layout.iconSize, "text-tool-web")} />
+        <span className={cn(layout.titleText, "text-foreground")}>
           {t("webSearchResultRenderer.title", {
             defaultValue: "Web Search Results",
           })}
         </span>
-        <span className="text-xs text-green-600">
+        <span className={cn(layout.smallText, "text-tool-web")}>
           ({results.length}{" "}
           {t("webSearchResultRenderer.results", { defaultValue: "results" })})
         </span>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {results.map((result) => (
           <div
             key={result.url}
-            className="bg-white border border-green-100 rounded p-2"
+            className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}
           >
             <a
               href={result.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-start space-x-2 group"
+              className={cn("flex items-start group", layout.iconSpacing)}
             >
-              <ExternalLink className="w-3 h-3 text-green-500 mt-1 flex-shrink-0" />
+              <ExternalLink className={cn(layout.iconSizeSmall, "text-tool-web mt-0.5 flex-shrink-0")} />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-green-800 group-hover:text-green-600 truncate">
+                <div className={cn(layout.bodyText, "font-medium text-foreground group-hover:text-accent truncate")}>
                   {result.title}
                 </div>
-                <div className="text-xs text-green-600 truncate">
+                <div className={cn(layout.smallText, "text-muted-foreground truncate")}>
                   {result.url}
                 </div>
                 {result.page_age && (
-                  <div className="flex items-center space-x-1 mt-1 text-xs text-green-500">
-                    <Clock className="w-3 h-3" />
+                  <div className={cn("flex items-center mt-1", layout.iconSpacing, layout.smallText, "text-muted-foreground")}>
+                    <Clock className={layout.iconSizeSmall} />
                     <span>{result.page_age}</span>
                   </div>
                 )}

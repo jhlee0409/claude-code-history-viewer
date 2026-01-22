@@ -122,13 +122,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate latest.json for Tauri updater
+      - name: Generate release notes and latest.json
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
 
-            // GitHub API로 릴리스 정보 가져오기
+            // 1. 먼저 릴리즈 노트 생성
+            console.log('📝 Generating release notes...');
+            const { data: generatedNotes } = await github.rest.repos.generateReleaseNotes({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ github.ref_name }}',
+            });
+
+            // 2. 릴리즈 노트로 릴리즈 업데이트 (아직 draft 상태 유지)
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ needs.create-release.outputs.release_id }},
+              body: generatedNotes.body,
+              draft: true, // 아직 draft 유지
+            });
+            console.log('✅ Release notes updated');
+
+            // 3. 업데이트된 릴리스 정보 가져오기
             const release = await github.rest.repos.getRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -137,10 +155,9 @@ jobs:
 
             const releaseData = release.data;
             const version = releaseData.tag_name.replace(/^v/, '');
-            const pubDate = releaseData.published_at;
+            const pubDate = new Date().toISOString(); // 현재 시간 사용
 
             console.log(`Processing release version: ${version}`);
-            console.log(`Publish date: ${pubDate}`);
             console.log(`Total assets: ${releaseData.assets.length}`);
 
             // 플랫폼별 아티팩트 매핑
@@ -217,10 +234,10 @@ jobs:
               console.log(`✅ linux-x86_64: ${linuxAppImage.asset.name}`);
             }
 
-            // Windows - x64 (NSIS installer)
+            // Windows - x64 (NSIS installer) - 더 구체적인 패턴 사용
             const windowsNsis = findAssetPair(
-              /\.exe$/,
-              /\.exe\.sig$/
+              /x64-setup\.exe$/,
+              /x64-setup\.exe\.sig$/
             );
             if (windowsNsis.asset) {
               let signature = '';
@@ -237,10 +254,11 @@ jobs:
               console.log(`✅ windows-x86_64: ${windowsNsis.asset.name}`);
             }
 
-            // latest.json 생성
+            // latest.json 생성 (실제 릴리즈 노트 포함)
+            const releaseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${{ github.ref_name }}`;
             const latestJson = {
               version: version,
-              notes: releaseData.body || '',
+              notes: `See release notes at ${releaseUrl}`,
               pub_date: pubDate,
               platforms: platforms
             };
@@ -255,25 +273,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish release with release notes
+      - name: Publish release
         uses: actions/github-script@v7
         with:
           script: |
-            // Generate release notes using GitHub's API
-            const { data: generatedNotes } = await github.rest.repos.generateReleaseNotes({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: '${{ github.ref_name }}',
-            });
-
-            // Update release with generated notes and publish (set draft to false)
+            // Publish release (set draft to false)
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: ${{ needs.create-release.outputs.release_id }},
-              body: generatedNotes.body,
               draft: false,
             });
 
-            console.log('✅ Release published with release notes');
-            console.log(generatedNotes.body);
+            console.log('✅ Release published');

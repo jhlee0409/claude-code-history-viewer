@@ -13,3 +13,5 @@ export { ContentArrayRenderer } from "./ContentArrayRenderer";
 export { ClaudeToolResultItem } from "./ClaudeToolResultItem";
 export { FileListRenderer } from "./FileListRenderer";
 export { FallbackRenderer } from "./FallbackRenderer";
+export { AgentTaskGroupRenderer } from "./AgentTaskGroupRenderer";
+export type { AgentTask } from "./AgentTaskGroupRenderer";

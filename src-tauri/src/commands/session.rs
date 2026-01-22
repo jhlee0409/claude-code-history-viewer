@@ -56,9 +56,7 @@ pub async fn load_project_sessions(
                             }
 
                             let uuid = log_entry.uuid.unwrap_or_else(|| {
-                                let new_uuid = format!("{}-line-{}", Uuid::new_v4(), line_num + 1);
-                                eprintln!("Warning: Missing UUID in line {} of {}, generated: {}", line_num + 1, file_path, new_uuid);
-                                new_uuid
+                                format!("{}-line-{}", Uuid::new_v4(), line_num + 1)
                             });
                             
                             let (role, message_id, model, stop_reason, usage) = if let Some(ref msg) = log_entry.message {
@@ -76,15 +74,8 @@ pub async fn load_project_sessions(
                             let claude_message = ClaudeMessage {
                                 uuid,
                                 parent_uuid: log_entry.parent_uuid,
-                                session_id: log_entry.session_id.unwrap_or_else(|| {
-                                    eprintln!("Warning: Missing session_id in line {} of {}", line_num + 1, file_path);
-                                    "unknown-session".to_string()
-                                }),
-                                timestamp: log_entry.timestamp.unwrap_or_else(|| {
-                                    let now = Utc::now().to_rfc3339();
-                                    eprintln!("Warning: Missing timestamp in line {} of {}, using current time: {}", line_num + 1, file_path, now);
-                                    now
-                                }),
+                                session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
+                                timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
                                 message_type: log_entry.message_type,
                                 content: log_entry.message.map(|m| m.content).or(log_entry.content),
                                 tool_use: log_entry.tool_use,
@@ -342,24 +333,13 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
             Ok(log_entry) => {
                 if log_entry.message_type == "summary" {
                     if let Some(summary_text) = log_entry.summary {
-                        let uuid = log_entry.uuid.unwrap_or_else(|| {
-                            let new_uuid = Uuid::new_v4().to_string();
-                            eprintln!("Warning: Missing UUID for summary in line {} of {}, generated: {}", line_num + 1, session_path, new_uuid);
-                            new_uuid
-                        });
-                        
+                        let uuid = log_entry.uuid.unwrap_or_else(|| Uuid::new_v4().to_string());
+
                         let summary_message = ClaudeMessage {
                             uuid,
                             parent_uuid: log_entry.leaf_uuid, // Link to the leaf message
-                            session_id: log_entry.session_id.unwrap_or_else(|| {
-                                eprintln!("Warning: Missing session_id for summary in line {} of {}", line_num + 1, session_path);
-                                "unknown-session".to_string()
-                            }),
-                            timestamp: log_entry.timestamp.unwrap_or_else(|| {
-                                let now = Utc::now().to_rfc3339();
-                                eprintln!("Warning: Missing timestamp for summary in line {} of {}, using current time: {}", line_num + 1, session_path, now);
-                                now
-                            }),
+                            session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
+                            timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
                             message_type: "summary".to_string(),
                             content: Some(serde_json::Value::String(summary_text)),
                             tool_use: None,
@@ -399,9 +379,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                     }
 
                     let uuid = log_entry.uuid.unwrap_or_else(|| {
-                        let new_uuid = format!("{}-line-{}", Uuid::new_v4(), line_num + 1);
-                        eprintln!("Warning: Missing UUID in line {} of {}, generated: {}", line_num + 1, session_path, new_uuid);
-                        new_uuid
+                        format!("{}-line-{}", Uuid::new_v4(), line_num + 1)
                     });
                     
                     let (role, message_id, model, stop_reason, usage) = if let Some(ref msg) = log_entry.message {
@@ -419,15 +397,8 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                     let claude_message = ClaudeMessage {
                         uuid,
                         parent_uuid: log_entry.parent_uuid,
-                        session_id: log_entry.session_id.unwrap_or_else(|| {
-                            eprintln!("Warning: Missing session_id in line {} of {}", line_num + 1, session_path);
-                            "unknown-session".to_string()
-                        }),
-                        timestamp: log_entry.timestamp.unwrap_or_else(|| {
-                            let now = Utc::now().to_rfc3339();
-                            eprintln!("Warning: Missing timestamp in line {} of {}, using current time: {}", line_num + 1, session_path, now);
-                            now
-                        }),
+                        session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
+                        timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
                         message_type: log_entry.message_type.clone(),
                         content: log_entry.message.map(|m| m.content).or(log_entry.content),
                         tool_use: log_entry.tool_use,

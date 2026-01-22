@@ -1,5 +1,5 @@
 import React, { useMemo, memo } from "react";
-import { cn } from "../../utils/cn";
+import { cn } from "@/lib/utils";
 
 interface HighlightedTextProps {
   text: string;

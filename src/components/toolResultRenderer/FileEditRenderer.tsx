@@ -6,14 +6,15 @@ import { useTranslation } from 'react-i18next';
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { FileContent } from "../FileContent";
 import { Renderer } from "../../shared/RendererHeader";
-import { cn } from "../../utils/cn";
-import { COLORS } from "../../constants/colors";
+import { cn } from "@/lib/utils";
+import { layout } from "@/components/renderers";
 
 type Props = {
   toolResult: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const FileEditRenderer = ({ toolResult }: Props) => {
+export const FileEditRenderer = ({ toolResult, searchQuery }: Props) => {
   const { t } = useTranslation('components');
   const { renderCopyButton } = useCopyButton();
   const filePath =
@@ -47,17 +48,15 @@ export const FileEditRenderer = ({ toolResult }: Props) => {
   };
 
   return (
-    <Renderer
-      className={cn(COLORS.tools.code.bg, COLORS.tools.code.border)}
-    >
+    <Renderer className="bg-tool-code/10 border-tool-code/30">
       <Renderer.Header
         title={t('fileEditRenderer.fileEditResult')}
-        icon={<Edit className={cn("w-4 h-4", COLORS.tools.code.icon)} />}
-        titleClassName={COLORS.tools.code.text}
+        icon={<Edit className={cn(layout.iconSize, "text-tool-code")} />}
+        titleClassName="text-foreground"
         rightContent={
-          <div className="flex items-center gap-2">
+          <div className={cn("flex items-center", layout.iconGap)}>
             {filePath && (
-              <span className="text-xs text-blue-600 dark:text-blue-400 truncate max-w-[250px]" title={filePath}>
+              <span className={cn(layout.smallText, "text-tool-code truncate max-w-[250px]")} title={filePath}>
                 {formatShortPath(filePath)}
               </span>
             )}
@@ -87,50 +86,28 @@ export const FileEditRenderer = ({ toolResult }: Props) => {
       <Renderer.Content>
         {/* 파일 경로 */}
         <div className="mb-3">
-          <div
-            className={cn("text-xs font-medium mb-1", COLORS.ui.text.tertiary)}
-          >
+          <div className={`${layout.smallText} font-medium mb-1 text-muted-foreground`}>
             {t('fileEditRenderer.filePath')}
           </div>
-          <code
-            className={cn(
-              "text-sm block",
-              COLORS.ui.background.secondary,
-              COLORS.ui.text.primary
-            )}
-          >
+          <code className={`${layout.monoText} block bg-secondary text-foreground p-1.5 rounded`}>
             {filePath}
           </code>
         </div>
 
         {/* 편집 정보 */}
-        <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
-          <div
-            className={cn(
-              "p-2 rounded border",
-              COLORS.ui.background.primary,
-              COLORS.ui.border.medium
-            )}
-          >
-            <div className={cn(COLORS.ui.text.tertiary)}>{t('fileEditRenderer.editType')}</div>
-            <div className={cn(COLORS.tools.code.text)}>
+        <div className={cn("grid grid-cols-2 mb-3", layout.iconGap, layout.smallText)}>
+          <div className={cn("border bg-card border-border", layout.containerPadding, layout.rounded)}>
+            <div className="text-muted-foreground">{t('fileEditRenderer.editType')}</div>
+            <div className="text-tool-code">
               {replaceAll ? t('fileEditRenderer.fullReplace') : t('fileEditRenderer.partialReplace')}
             </div>
           </div>
-          <div
-            className={cn(
-              "p-2 rounded border",
-              COLORS.ui.background.primary,
-              COLORS.ui.border.medium
-            )}
-          >
-            <div className={cn(COLORS.ui.text.tertiary)}>{t('fileEditRenderer.userModified')}</div>
+          <div className={cn("border bg-card border-border", layout.containerPadding, layout.rounded)}>
+            <div className="text-muted-foreground">{t('fileEditRenderer.userModified')}</div>
             <div
               className={cn(
                 "font-medium",
-                userModified
-                  ? COLORS.semantic.warning.text
-                  : COLORS.semantic.success.text
+                userModified ? "text-warning" : "text-success"
               )}
             >
               {userModified ? t('fileEditRenderer.yes') : t('fileEditRenderer.no')}
@@ -160,6 +137,7 @@ export const FileEditRenderer = ({ toolResult }: Props) => {
                 startLine: 1,
                 totalLines: originalFile.split("\n").length,
               }}
+              searchQuery={searchQuery}
             />
           </div>
         )}

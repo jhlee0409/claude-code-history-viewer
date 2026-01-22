@@ -2,6 +2,8 @@ import { memo } from "react";
 import { Globe, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { safeStringify } from "../../utils/jsonUtils";
+import { layout } from "@/components/renderers/styles";
+import { cn } from "@/lib/utils";
 
 type Props = {
   id: string;
@@ -19,9 +21,9 @@ export const ServerToolUseRenderer = memo(function ServerToolUseRenderer({
   const getIcon = () => {
     switch (name) {
       case "web_search":
-        return <Globe className="w-4 h-4 text-blue-600" />;
+        return <Globe className={cn(layout.iconSize, "text-tool-web")} />;
       default:
-        return <Wrench className="w-4 h-4 text-purple-600" />;
+        return <Wrench className={cn(layout.iconSize, "text-tool-mcp")} />;
     }
   };
 
@@ -40,33 +42,39 @@ export const ServerToolUseRenderer = memo(function ServerToolUseRenderer({
   };
 
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-      <div className="flex items-center space-x-2 mb-2">
-        {getIcon()}
-        <span className="text-xs font-medium text-blue-800">{getTitle()}</span>
-        <span className="text-xs text-blue-500 font-mono">{id}</span>
-      </div>
-      {name === "web_search" && input.query !== undefined && (
-        <div className="text-sm text-blue-700">
-          <span className="font-medium">
-            {t("serverToolUseRenderer.query", { defaultValue: "Query" })}:
-          </span>{" "}
-          {String(input.query)}
+    <div className={cn(layout.rounded, "border border-tool-web/30 bg-tool-web/10")}>
+      <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
+        <div className={cn("flex items-center", layout.iconGap)}>
+          {getIcon()}
+          <span className={cn(layout.titleText, "text-foreground")}>{getTitle()}</span>
         </div>
-      )}
-      {Object.keys(input).length > 0 &&
-        !(name === "web_search" && Object.keys(input).length === 1) && (
-          <details className="mt-2">
-            <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
-              {t("serverToolUseRenderer.showInput", {
-                defaultValue: "Show input parameters",
-              })}
-            </summary>
-            <pre className="mt-2 text-xs text-blue-700 bg-blue-100 rounded p-2 overflow-x-auto">
-              {safeStringify(input)}
-            </pre>
-          </details>
+        <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
+          <span className={cn(layout.monoText, "text-tool-web")}>{id}</span>
+        </div>
+      </div>
+      <div className={layout.contentPadding}>
+        {name === "web_search" && input.query !== undefined && (
+          <div className={cn(layout.bodyText, "text-foreground")}>
+            <span className="font-medium">
+              {t("serverToolUseRenderer.query", { defaultValue: "Query" })}:
+            </span>{" "}
+            {String(input.query)}
+          </div>
         )}
+        {Object.keys(input).length > 0 &&
+          !(name === "web_search" && Object.keys(input).length === 1) && (
+            <details className="mt-2">
+              <summary className={cn(layout.monoText, "text-tool-web cursor-pointer hover:text-tool-web/80")}>
+                {t("serverToolUseRenderer.showInput", {
+                  defaultValue: "Show input parameters",
+                })}
+              </summary>
+              <pre className={cn(layout.monoText, "mt-2 text-foreground bg-muted rounded p-2 overflow-x-auto")}>
+                {safeStringify(input)}
+              </pre>
+            </details>
+          )}
+      </div>
     </div>
   );
 });

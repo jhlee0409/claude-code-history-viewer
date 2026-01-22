@@ -36,6 +36,7 @@ export const useCopyButton = () => {
   };
 
   // 복사 버튼 렌더링 헬퍼
+  // Standardized button sizes: icon-only uses w-6 h-6, full button uses h-6
   const renderCopyButton = (
     text: string,
     id: string,
@@ -44,17 +45,20 @@ export const useCopyButton = () => {
   ) => {
     const state = copyStates[id] || "idle";
 
+    // Icon-only button: compact, consistent size
     if (iconOnly) {
       return (
         <TooltipButton
+          type="button"
+          aria-label={label}
           onClick={() => copyToClipboard(text, id)}
           disabled={state === "copying"}
-          className={`p-1 rounded transition-colors ${
+          className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
             state === "success"
-              ? "text-green-600 dark:text-green-400"
+              ? "text-success"
               : state === "error"
-              ? "text-red-600 dark:text-red-400"
-              : "text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              ? "text-destructive"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
           }`}
           content={label}
         >
@@ -71,16 +75,19 @@ export const useCopyButton = () => {
       );
     }
 
+    // Full button with text: consistent height
     return (
       <TooltipButton
+        type="button"
+        aria-label={label}
         onClick={() => copyToClipboard(text, id)}
         disabled={state === "copying"}
-        className={`flex items-center space-x-1 px-2 py-1 text-xs rounded transition-colors ${
+        className={`h-6 flex items-center gap-1 px-2 text-xs rounded transition-colors ${
           state === "success"
-            ? "bg-green-100 text-green-700"
+            ? "bg-success/20 text-success"
             : state === "error"
-            ? "bg-red-100 text-red-700"
-            : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+            ? "bg-destructive/20 text-destructive"
+            : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-muted"
         }`}
         content={label}
       >

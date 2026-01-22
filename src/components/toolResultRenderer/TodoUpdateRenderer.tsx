@@ -1,60 +1,43 @@
 import { Clipboard, Circle, CheckCircle, MinusCircle, X } from "lucide-react";
 import { Renderer } from "../../shared/RendererHeader";
-import { COLORS } from "../../constants/colors";
-import { cn } from "../../utils/cn";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import { layout } from "@/components/renderers";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   todoData: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const TodoUpdateRenderer = ({ todoData }: Props) => {
+export const TodoUpdateRenderer = ({ todoData, searchQuery }: Props) => {
   const { t } = useTranslation("components");
   const newTodos = Array.isArray(todoData.newTodos) ? todoData.newTodos : [];
 
   const getTodoStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
-        return (
-          <CheckCircle
-            className={cn("w-4 h-4", COLORS.semantic.success.icon)}
-          />
-        );
+        return <CheckCircle className={cn(layout.iconSize, "text-success")} />;
       case "in_progress":
-        return (
-          <MinusCircle
-            className={cn("w-4 h-4", COLORS.semantic.warning.icon)}
-          />
-        );
+        return <MinusCircle className={cn(layout.iconSize, "text-warning")} />;
       case "pending":
-        return <Circle className={cn("w-4 h-4", COLORS.ui.text.muted)} />;
+        return <Circle className={cn(layout.iconSize, "text-muted-foreground")} />;
       default:
-        return <X className={cn("w-4 h-4", COLORS.ui.text.muted)} />;
+        return <X className={cn(layout.iconSize, "text-muted-foreground")} />;
     }
   };
 
   return (
-    <Renderer
-      className={cn(
-        COLORS.tools.search.bg,
-        "border",
-        COLORS.tools.search.border
-      )}
-    >
+    <Renderer className="bg-tool-task/10 border-tool-task/30">
       <Renderer.Header
         title={t("tools.todoUpdate")}
-        icon={<Clipboard className={cn("w-4 h-4", COLORS.tools.search.icon)} />}
-        titleClassName={COLORS.tools.search.text}
+        icon={<Clipboard className={cn(layout.iconSize, "text-tool-task")} />}
+        titleClassName="text-tool-task"
       />
       <Renderer.Content>
         {newTodos.length > 0 && (
           <div>
-            <div
-              className={cn(
-                "text-xs font-medium mb-1",
-                COLORS.ui.text.tertiary
-              )}
-            >
+            <div className={`${layout.smallText} font-medium mb-1 text-muted-foreground`}>
               {t("tools.currentStatus")}
             </div>
             <div className="space-y-1">
@@ -65,19 +48,23 @@ export const TodoUpdateRenderer = ({ todoData }: Props) => {
                 ) => (
                   <div
                     key={idx}
-                    className="text-sm flex items-center space-x-2"
+                    className={cn("flex items-center", layout.iconSpacing, layout.bodyText)}
                   >
                     {getTodoStatusIcon(todo.status)}
                     <span
                       className={cn(
                         todo.status === "completed"
-                          ? `line-through ${COLORS.ui.text.primary}`
-                          : COLORS.ui.text.disabledDark
+                          ? "line-through text-foreground"
+                          : "text-foreground"
                       )}
                     >
-                      {todo.content}
+                      {searchQuery ? (
+                        <HighlightedText text={todo.content} searchQuery={searchQuery} />
+                      ) : (
+                        todo.content
+                      )}
                     </span>
-                    <span className={cn("text-xs", COLORS.ui.text.muted)}>
+                    <span className={`${layout.smallText} text-muted-foreground`}>
                       ({todo.priority})
                     </span>
                   </div>

@@ -9,8 +9,7 @@ import {
 
 import { Settings, RefreshCw, MessageSquare, Folder, Download, Loader2 } from "lucide-react";
 
-import { cn } from "@/utils/cn";
-import { COLORS } from "@/constants/colors";
+import { cn } from "@/lib/utils";
 
 import { useGitHubUpdater } from "@/hooks/useGitHubUpdater";
 import { useSmartUpdater } from "@/hooks/useSmartUpdater";
@@ -18,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useModal } from "@/contexts/modal";
 import { ThemeMenuGroup } from "./ThemeMenuGroup";
 import { LanguageMenuGroup } from "./LanguageMenuGroup";
+import { FilterMenuGroup } from "./FilterMenuGroup";
 
 export const SettingDropdown = () => {
   const manualUpdater = useGitHubUpdater();
@@ -34,13 +34,9 @@ export const SettingDropdown = () => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className={cn(
-              "p-2 rounded-lg transition-colors cursor-pointer relative",
-              COLORS.ui.text.disabled,
-              "hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-800"
-            )}
+            className="p-2 rounded-lg transition-colors cursor-pointer relative text-muted-foreground/50 hover:text-foreground/80 hover:bg-muted"
           >
-            <Settings className={cn("w-5 h-5", COLORS.ui.text.primary)} />
+            <Settings className="w-5 h-5 text-foreground" />
             {isCheckingForUpdates && (
               <Loader2 className="absolute -top-1 -right-1 w-3 h-3 animate-spin text-blue-500" />
             )}
@@ -52,21 +48,20 @@ export const SettingDropdown = () => {
           <DropdownMenuItem
             onClick={() => openModal("folderSelector", { mode: "change" })}
           >
-            <Folder className={cn("mr-2 h-4 w-4", COLORS.ui.text.primary)} />
+            <Folder className="mr-2 h-4 w-4 text-foreground" />
             <span>{t("settings.changeFolder")}</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => openModal("feedback")}>
-            <MessageSquare
-              className={cn("mr-2 h-4 w-4", COLORS.ui.text.primary)}
-            />
+            <MessageSquare className="mr-2 h-4 w-4 text-foreground" />
             <span>{tComponents("feedback.title")}</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => window.dispatchEvent(new Event("open-update-settings"))}>
-            <Download
-              className={cn("mr-2 h-4 w-4", COLORS.ui.text.primary)}
-            />
+            <Download className="mr-2 h-4 w-4 text-foreground" />
             <span>{t("settings.updateSettings")}</span>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <FilterMenuGroup />
+
           <DropdownMenuSeparator />
           <ThemeMenuGroup />
 
@@ -83,9 +78,8 @@ export const SettingDropdown = () => {
           >
             <RefreshCw
               className={cn(
-                "mr-2 h-4 w-4",
-                manualUpdater.state.isChecking ? "animate-spin" : "",
-                COLORS.ui.text.primary
+                "mr-2 h-4 w-4 text-foreground",
+                manualUpdater.state.isChecking && "animate-spin"
               )}
             />
             {manualUpdater.state.isChecking

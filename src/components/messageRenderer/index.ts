@@ -8,3 +8,4 @@ export { ProgressRenderer } from "./ProgressRenderer";
 export { QueueOperationRenderer } from "./QueueOperationRenderer";
 export { SystemMessageRenderer } from "./SystemMessageRenderer";
 export { SummaryMessageRenderer } from "./SummaryMessageRenderer";
+export { AgentProgressGroupRenderer } from "./AgentProgressGroupRenderer";

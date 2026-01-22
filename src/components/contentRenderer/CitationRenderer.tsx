@@ -1,6 +1,14 @@
+/**
+ * CitationRenderer Component
+ *
+ * Renders a list of citations from Claude API responses, displaying document references
+ * with their locations (character ranges, page numbers, or content blocks) and cited text.
+ */
 import { memo } from "react";
 import { Quote, FileText, Hash } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+import { layout } from "@/components/renderers";
 import type { Citation } from "../../types";
 
 type Props = {
@@ -24,7 +32,7 @@ export const CitationRenderer = memo(function CitationRenderer({
           return null;
         }
         return (
-          <span className="text-xs text-gray-500">
+          <span className={cn(layout.smallText, "text-muted-foreground")}>
             {t("citationRenderer.charLocation", {
               defaultValue: "chars {start}-{end}",
               start: citation.start_char_index,
@@ -41,7 +49,7 @@ export const CitationRenderer = memo(function CitationRenderer({
           return null;
         }
         return (
-          <span className="text-xs text-gray-500">
+          <span className={cn(layout.smallText, "text-muted-foreground")}>
             {citation.start_page_number === citation.end_page_number
               ? t("citationRenderer.singlePage", {
                   defaultValue: "page {page}",
@@ -63,7 +71,7 @@ export const CitationRenderer = memo(function CitationRenderer({
           return null;
         }
         return (
-          <span className="text-xs text-gray-500">
+          <span className={cn(layout.smallText, "text-muted-foreground")}>
             {t("citationRenderer.blockLocation", {
               defaultValue: "blocks {start}-{end}",
               start: citation.start_block_index,
@@ -80,19 +88,19 @@ export const CitationRenderer = memo(function CitationRenderer({
   const getTypeIcon = (type: Citation["type"]) => {
     switch (type) {
       case "page_location":
-        return <FileText className="w-3 h-3 text-indigo-500" />;
+        return <FileText className={cn(layout.iconSizeSmall, "text-info")} />;
       case "content_block_location":
-        return <Hash className="w-3 h-3 text-indigo-500" />;
+        return <Hash className={cn(layout.iconSizeSmall, "text-info")} />;
       default:
-        return <Quote className="w-3 h-3 text-indigo-500" />;
+        return <Quote className={cn(layout.iconSizeSmall, "text-info")} />;
     }
   };
 
   return (
-    <div className="mt-2 border-t border-indigo-100 pt-2">
-      <div className="flex items-center space-x-1 mb-2">
-        <Quote className="w-3 h-3 text-indigo-600" />
-        <span className="text-xs font-medium text-indigo-700">
+    <div className="mt-2 border-t border-info/20 pt-2">
+      <div className={cn("flex items-center mb-2", layout.iconGap)}>
+        <Quote className={cn(layout.iconSizeSmall, "text-info")} />
+        <span className={cn(layout.titleText, "text-info")}>
           {t("citationRenderer.title", { defaultValue: "Citations" })} (
           {citations.length})
         </span>
@@ -102,23 +110,23 @@ export const CitationRenderer = memo(function CitationRenderer({
         {citations.map((citation, index) => (
           <div
             key={index}
-            className="bg-indigo-50 border border-indigo-100 rounded p-2"
+            className={cn("bg-info/10 border border-info/20", layout.containerPadding, layout.rounded)}
           >
-            <div className="flex items-start space-x-2">
+            <div className={cn("flex items-start", layout.iconSpacing)}>
               {getTypeIcon(citation.type)}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2 flex-wrap">
-                  <span className="text-xs font-medium text-indigo-800">
+                <div className={cn("flex items-center flex-wrap", layout.iconSpacing)}>
+                  <span className={cn(layout.titleText, "text-info")}>
                     [{citation.document_index + 1}]
                   </span>
                   {citation.document_title && (
-                    <span className="text-xs text-indigo-600 truncate">
+                    <span className={cn(layout.smallText, "text-info truncate")}>
                       {citation.document_title}
                     </span>
                   )}
                   {getLocationInfo(citation)}
                 </div>
-                <div className="mt-1 text-sm text-indigo-700 italic line-clamp-2">
+                <div className={cn("mt-1 text-info italic line-clamp-2", layout.bodyText)}>
                   "{citation.cited_text}"
                 </div>
               </div>

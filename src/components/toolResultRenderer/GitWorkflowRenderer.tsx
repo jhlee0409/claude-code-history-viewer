@@ -4,14 +4,16 @@ import { GitBranch, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
-import { cn } from "../../utils/cn";
-import { COLORS } from "../../constants/colors";
+import { cn } from "@/lib/utils";
+import { layout } from "@/components/renderers";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   gitData: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const GitWorkflowRenderer = ({ gitData }: Props) => {
+export const GitWorkflowRenderer = ({ gitData, searchQuery }: Props) => {
   const { t } = useTranslation('components');
   const command = gitData.command || "";
   const status = gitData.status || "";
@@ -22,23 +24,14 @@ export const GitWorkflowRenderer = ({ gitData }: Props) => {
   const [showDiff, setShowDiff] = useState(false);
 
   return (
-    <Renderer
-      className={cn(
-        "bg-orange-50 dark:bg-orange-900/20",
-        "border-orange-200 dark:border-orange-800"
-      )}
-    >
+    <Renderer className="bg-tool-git/10 border-tool-git/30">
       <Renderer.Header
         title={t('gitWorkflowRenderer.gitWorkflow')}
-        icon={<GitBranch className={cn("w-4 h-4", COLORS.tools.task.icon)} />}
-        titleClassName={COLORS.tools.task.text}
+        icon={<GitBranch className={cn(layout.iconSize, "text-tool-git")} />}
+        titleClassName="text-foreground"
         rightContent={
           command && (
-            <code className={cn(
-              "text-xs px-2 py-1 rounded",
-              "bg-orange-100 dark:bg-orange-900/40",
-              COLORS.tools.task.text
-            )}>
+            <code className={`${layout.monoText} px-2 py-1 rounded bg-tool-git/20 text-tool-git`}>
               git {String(command)}
             </code>
           )
@@ -46,8 +39,13 @@ export const GitWorkflowRenderer = ({ gitData }: Props) => {
       />
       <Renderer.Content>
         {status && (
-          <div className={cn("mb-2 text-sm", COLORS.tools.task.text)}>
-            <span className="font-medium">{t('gitWorkflowRenderer.status')}</span> {String(status)}
+          <div className={`mb-2 ${layout.bodyText} text-tool-git`}>
+            <span className="font-medium">{t('gitWorkflowRenderer.status')}</span>{" "}
+            {searchQuery ? (
+              <HighlightedText text={String(status)} searchQuery={searchQuery} />
+            ) : (
+              String(status)
+            )}
           </div>
         )}
 
@@ -56,12 +54,9 @@ export const GitWorkflowRenderer = ({ gitData }: Props) => {
             <button
               type="button"
               onClick={() => setShowFiles(!showFiles)}
-              className={cn(
-                "flex items-center space-x-1 text-sm font-medium cursor-pointer",
-                COLORS.tools.task.text
-              )}
+              className={cn("flex items-center font-medium cursor-pointer text-tool-git", layout.iconSpacing, layout.bodyText)}
             >
-              <ChevronRight className={cn("w-3 h-3 transition-transform", showFiles && "rotate-90")} />
+              <ChevronRight className={cn(layout.iconSizeSmall, "transition-transform", showFiles && "rotate-90")} />
               <span>{t('gitWorkflowRenderer.changedFiles', { count: files.length })}</span>
             </button>
             {showFiles && (
@@ -69,13 +64,13 @@ export const GitWorkflowRenderer = ({ gitData }: Props) => {
                 {files.map((file, idx) => (
                   <div
                     key={idx}
-                    className={cn(
-                      "text-xs font-mono px-2 py-1 rounded",
-                      "bg-orange-100 dark:bg-orange-900/40",
-                      COLORS.tools.task.text
-                    )}
+                    className={`${layout.monoText} px-2 py-1 rounded bg-tool-git/20 text-tool-git`}
                   >
-                    {String(file)}
+                    {searchQuery ? (
+                      <HighlightedText text={String(file)} searchQuery={searchQuery} />
+                    ) : (
+                      String(file)
+                    )}
                   </div>
                 ))}
               </div>
@@ -88,21 +83,18 @@ export const GitWorkflowRenderer = ({ gitData }: Props) => {
             <button
               type="button"
               onClick={() => setShowDiff(!showDiff)}
-              className={cn(
-                "flex items-center space-x-1 text-sm font-medium cursor-pointer",
-                COLORS.tools.task.text
-              )}
+              className={cn("flex items-center font-medium cursor-pointer text-tool-git", layout.iconSpacing, layout.bodyText)}
             >
-              <ChevronRight className={cn("w-3 h-3 transition-transform", showDiff && "rotate-90")} />
+              <ChevronRight className={cn(layout.iconSizeSmall, "transition-transform", showDiff && "rotate-90")} />
               <span>{t('gitWorkflowRenderer.viewDiff')}</span>
             </button>
             {showDiff && (
-              <pre className={cn(
-                "mt-2 text-xs p-2 rounded overflow-auto max-h-48",
-                "bg-gray-100 dark:bg-gray-800",
-                COLORS.ui.text.primary
-              )}>
-                {String(diff)}
+              <pre className={`mt-2 ${layout.monoText} p-2 rounded overflow-auto max-h-48 bg-muted text-foreground`}>
+                {searchQuery ? (
+                  <HighlightedText text={String(diff)} searchQuery={searchQuery} />
+                ) : (
+                  String(diff)
+                )}
               </pre>
             )}
           </div>

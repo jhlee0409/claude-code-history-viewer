@@ -1,115 +1,120 @@
+/**
+ * ContentArrayRenderer - Renders Claude API response content arrays
+ *
+ * Displays metadata (execution time, tokens, tool usage) and content items
+ * including text, tool_use, and tool_result types.
+ */
+
 import { Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ThinkingRenderer, ToolUseRenderer } from "../contentRenderer";
 import { ClaudeToolResultItem } from "./ClaudeToolResultItem";
+import { cn } from "@/lib/utils";
+import { getVariantStyles, layout, safeStringify } from "../renderers";
 
-type Props = {
+interface ContentArrayRendererProps {
   toolResult: Record<string, unknown>;
-};
+  searchQuery?: string;
+}
 
-export const ContentArrayRenderer = ({ toolResult }: Props) => {
+export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRendererProps) => {
   const { t } = useTranslation("components");
+  const styles = getVariantStyles("info");
+
   const content = Array.isArray(toolResult.content) ? toolResult.content : [];
   const totalDurationMs =
-    typeof toolResult.totalDurationMs === "number"
-      ? toolResult.totalDurationMs
-      : null;
+    typeof toolResult.totalDurationMs === "number" ? toolResult.totalDurationMs : null;
   const totalTokens =
     typeof toolResult.totalTokens === "number" ? toolResult.totalTokens : null;
   const totalToolUseCount =
-    typeof toolResult.totalToolUseCount === "number"
-      ? toolResult.totalToolUseCount
-      : null;
+    typeof toolResult.totalToolUseCount === "number" ? toolResult.totalToolUseCount : null;
   const wasInterrupted =
-    typeof toolResult.wasInterrupted === "boolean"
-      ? toolResult.wasInterrupted
-      : null;
+    typeof toolResult.wasInterrupted === "boolean" ? toolResult.wasInterrupted : null;
   const usage =
     toolResult.usage && typeof toolResult.usage === "object"
       ? (toolResult.usage as Record<string, unknown>)
       : null;
 
   return (
-    <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
-      <div className="flex items-center space-x-2 mb-2">
-        <Bot className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-        <span className="font-medium text-indigo-800 dark:text-indigo-200">{t("contentArray.claudeApiResponse")}</span>
+    <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, styles.container)}>
+      {/* Header */}
+      <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+        <Bot className={cn(layout.iconSize, styles.icon)} />
+        <span className={cn(layout.titleText, styles.title)}>
+          {t("contentArray.claudeApiResponse")}
+        </span>
       </div>
 
-      {/* 메타데이터 정보 */}
-      <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+      {/* Metadata grid */}
+      <div className={cn("grid grid-cols-2 mb-3", layout.iconGap, layout.smallText)}>
         {totalDurationMs && (
-          <div className="bg-white dark:bg-gray-800 p-2 rounded border dark:border-gray-600">
-            <div className="text-gray-600 dark:text-gray-400">{t("contentArray.executionTime")}</div>
-            <div className="font-medium text-gray-900 dark:text-gray-100">
+          <div className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
+            <div className="text-muted-foreground">{t("contentArray.executionTime")}</div>
+            <div className="font-medium text-foreground">
               {(totalDurationMs / 1000).toFixed(2)}{t("contentArray.seconds")}
             </div>
           </div>
         )}
         {totalTokens && (
-          <div className="bg-white dark:bg-gray-800 p-2 rounded border dark:border-gray-600">
-            <div className="text-gray-600 dark:text-gray-400">{t("contentArray.totalTokens")}</div>
-            <div className="font-medium text-gray-900 dark:text-gray-100">{totalTokens.toLocaleString()}</div>
+          <div className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
+            <div className="text-muted-foreground">{t("contentArray.totalTokens")}</div>
+            <div className="font-medium text-foreground">{totalTokens.toLocaleString()}</div>
           </div>
         )}
         {totalToolUseCount && (
-          <div className="bg-white dark:bg-gray-800 p-2 rounded border dark:border-gray-600">
-            <div className="text-gray-600 dark:text-gray-400">{t("contentArray.toolUseCount")}</div>
-            <div className="font-medium text-gray-900 dark:text-gray-100">{totalToolUseCount}</div>
+          <div className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
+            <div className="text-muted-foreground">{t("contentArray.toolUseCount")}</div>
+            <div className="font-medium text-foreground">{totalToolUseCount}</div>
           </div>
         )}
         {wasInterrupted !== null && (
-          <div className="bg-white dark:bg-gray-800 p-2 rounded border dark:border-gray-600">
-            <div className="text-gray-600 dark:text-gray-400">{t("contentArray.interruptionStatus")}</div>
-            <div
-              className={`font-medium ${
-                wasInterrupted ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
-              }`}
-            >
+          <div className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
+            <div className="text-muted-foreground">{t("contentArray.interruptionStatus")}</div>
+            <div className={cn("font-medium", wasInterrupted ? "text-destructive" : "text-success")}>
               {wasInterrupted ? t("contentArray.interrupted") : t("contentArray.completed")}
             </div>
           </div>
         )}
       </div>
 
-      {/* 사용량 정보 */}
+      {/* Token usage */}
       {usage && (
         <div className="mb-3">
-          <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+          <div className={cn("text-muted-foreground mb-1", layout.titleText)}>
             {t("contentArray.tokenUsage")}
           </div>
-          <div className="bg-white dark:bg-gray-800 p-2 rounded border dark:border-gray-600 text-xs">
-            <div className="grid grid-cols-2 gap-2">
+          <div className={cn("bg-card border border-border", layout.containerPadding, layout.smallText, layout.rounded)}>
+            <div className={cn("grid grid-cols-2", layout.iconGap)}>
               {typeof usage.input_tokens === "number" && (
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">{t("contentArray.input")}</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 ml-1">
+                  <span className="text-muted-foreground">{t("contentArray.input")}</span>
+                  <span className="font-medium text-foreground ml-1">
                     {usage.input_tokens.toLocaleString()}
                   </span>
                 </div>
               )}
               {typeof usage.output_tokens === "number" && (
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">{t("contentArray.output")}</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 ml-1">
+                  <span className="text-muted-foreground">{t("contentArray.output")}</span>
+                  <span className="font-medium text-foreground ml-1">
                     {usage.output_tokens.toLocaleString()}
                   </span>
                 </div>
               )}
               {typeof usage.cache_creation_input_tokens === "number" && (
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">{t("contentArray.cacheCreation")}</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 ml-1">
+                  <span className="text-muted-foreground">{t("contentArray.cacheCreation")}</span>
+                  <span className="font-medium text-foreground ml-1">
                     {usage.cache_creation_input_tokens.toLocaleString()}
                   </span>
                 </div>
               )}
               {typeof usage.cache_read_input_tokens === "number" && (
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">{t("contentArray.cacheRead")}</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 ml-1">
+                  <span className="text-muted-foreground">{t("contentArray.cacheRead")}</span>
+                  <span className="font-medium text-foreground ml-1">
                     {usage.cache_read_input_tokens.toLocaleString()}
                   </span>
                 </div>
@@ -119,20 +124,22 @@ export const ContentArrayRenderer = ({ toolResult }: Props) => {
         </div>
       )}
 
-      {/* 콘텐츠 */}
+      {/* Content items */}
       {content.length > 0 && (
         <div>
-          <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t("contentArray.content")}</div>
-          <div className="space-y-2">
+          <div className={cn("text-muted-foreground mb-1", layout.titleText)}>
+            {t("contentArray.content")}
+          </div>
+          <div className={cn("space-y", layout.iconGap)}>
             {content.map((item: unknown, index: number) => {
               if (!item || typeof item !== "object") {
                 return (
-                  <div key={index} className="bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-600">
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <div key={index} className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
+                    <div className={cn("text-muted-foreground mb-1", layout.smallText)}>
                       {t("contentArray.typeUnknown")}
                     </div>
-                    <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                      {JSON.stringify(item, null, 2)}
+                    <pre className={cn("text-foreground/80 whitespace-pre-wrap", layout.smallText)}>
+                      {safeStringify(item)}
                     </pre>
                   </div>
                 );
@@ -143,36 +150,31 @@ export const ContentArrayRenderer = ({ toolResult }: Props) => {
               return (
                 <div
                   key={index}
-                  className="bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-600 max-h-80 overflow-y-auto"
+                  className={cn("bg-card border border-border overflow-y-auto", layout.containerPadding, layout.rounded, layout.contentMaxHeight)}
                 >
-                  {itemObj.type === "text" &&
-                    typeof itemObj.text === "string" && (
-                      <div className="prose prose-sm max-w-none prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-code:text-red-600 dark:prose-code:text-red-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-700 prose-pre:bg-gray-900 dark:prose-pre:bg-gray-800 prose-pre:text-gray-100 dark:prose-pre:text-gray-200 prose-strong:text-gray-900 dark:prose-strong:text-gray-100 prose-ul:text-gray-700 dark:prose-ul:text-gray-300 prose-ol:text-gray-700 dark:prose-ol:text-gray-300">
-                        {itemObj.text.includes("<thinking>") &&
-                        itemObj.text.includes("</thinking>") ? (
-                          <ThinkingRenderer thinking={itemObj.text} />
-                        ) : (
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {itemObj.text}
-                          </ReactMarkdown>
-                        )}
-                      </div>
-                    )}
-                  {itemObj.type === "tool_use" && (
-                    <ToolUseRenderer toolUse={itemObj} />
+                  {itemObj.type === "text" && typeof itemObj.text === "string" && (
+                    <div className={layout.prose}>
+                      {itemObj.text.includes("<thinking>") &&
+                      itemObj.text.includes("</thinking>") ? (
+                        <ThinkingRenderer thinking={itemObj.text} searchQuery={searchQuery} />
+                      ) : (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {itemObj.text}
+                        </ReactMarkdown>
+                      )}
+                    </div>
                   )}
+                  {itemObj.type === "tool_use" && <ToolUseRenderer toolUse={itemObj} />}
                   {itemObj.type === "tool_result" && (
                     <ClaudeToolResultItem toolResult={itemObj} index={index} />
                   )}
-                  {!["text", "tool_use", "tool_result"].includes(
-                    itemObj.type as string
-                  ) && (
+                  {!["text", "tool_use", "tool_result"].includes(itemObj.type as string) && (
                     <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      <div className={cn("text-muted-foreground mb-1", layout.smallText)}>
                         {t("contentArray.type")} {String(itemObj.type || "unknown")}
                       </div>
-                      <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                        {JSON.stringify(item, null, 2)}
+                      <pre className={cn("text-foreground/80 whitespace-pre-wrap", layout.smallText)}>
+                        {safeStringify(item)}
                       </pre>
                     </div>
                   )}

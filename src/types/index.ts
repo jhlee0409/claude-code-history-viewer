@@ -51,9 +51,17 @@ export interface ProgressData {
   serverName?: string;
   toolName?: string;
   elapsedTimeMs?: number;
-  message?: string;
+  message?: string | Record<string, unknown>;
   agentId?: string;
   taskId?: string;
+  // Extended fields for agent_progress
+  prompt?: string;
+  normalizedMessages?: Array<{
+    type: string;
+    message: Record<string, unknown>;
+    timestamp?: string;
+    uuid?: string;
+  }>;
 }
 
 export interface ProgressMessage {

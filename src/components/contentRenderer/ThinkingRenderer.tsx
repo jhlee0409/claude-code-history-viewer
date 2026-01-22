@@ -1,15 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect, memo } from "react";
 import { Bot, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { cn } from "../../utils/cn";
+import { cn } from "@/lib/utils";
+import { layout } from "@/components/renderers";
 
 type Props = {
   thinking: string;
+  searchQuery?: string;
 };
 
-export const ThinkingRenderer = ({ thinking }: Props) => {
+export const ThinkingRenderer = memo(function ThinkingRenderer({ thinking, searchQuery }: Props) {
   const { t } = useTranslation("components");
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // 검색 쿼리가 있고 내용에 매칭되면 자동으로 펼치기
+  useEffect(() => {
+    if (searchQuery && thinking.toLowerCase().includes(searchQuery.toLowerCase())) {
+      setIsExpanded(true);
+    }
+  }, [searchQuery, thinking]);
 
   if (!thinking) return null;
 
@@ -17,27 +26,31 @@ export const ThinkingRenderer = ({ thinking }: Props) => {
   const hasMore = thinking.length > firstLine.length || thinking.includes("\n");
 
   return (
-    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg mt-2 overflow-hidden">
+    <div className={cn("bg-thinking border border-thinking-border mt-2 overflow-hidden", layout.rounded)}>
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 text-left",
-          "hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+          "w-full flex items-center text-left",
+          layout.headerPadding,
+          layout.headerHeight,
+          layout.iconGap,
+          "hover:bg-thinking/80 transition-colors"
         )}
       >
         <ChevronRight
           className={cn(
-            "w-4 h-4 shrink-0 transition-transform duration-200 text-amber-500 dark:text-amber-400",
+            layout.iconSize,
+            "shrink-0 transition-transform duration-200 text-thinking-muted",
             isExpanded && "rotate-90"
           )}
         />
-        <Bot className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-        <span className="text-xs font-medium text-amber-800 dark:text-amber-200">
+        <Bot className={cn(layout.iconSize, "text-thinking-foreground shrink-0")} />
+        <span className={cn(layout.titleText, "text-thinking-foreground")}>
           {t("thinkingRenderer.title")}
         </span>
         {!isExpanded && (
-          <span className="text-xs text-amber-600 dark:text-amber-400 truncate italic">
+          <span className={cn(layout.smallText, "text-thinking-muted truncate italic")}>
             {firstLine}
             {hasMore && "..."}
           </span>
@@ -45,12 +58,12 @@ export const ThinkingRenderer = ({ thinking }: Props) => {
       </button>
 
       {isExpanded && (
-        <div className="px-3 pb-3">
-          <div className="text-sm text-amber-700 dark:text-amber-300 whitespace-pre-wrap">
+        <div className={layout.contentPadding}>
+          <div className={cn(layout.bodyText, "text-thinking-foreground whitespace-pre-wrap")}>
             {thinking}
           </div>
         </div>
       )}
     </div>
   );
-};
+});

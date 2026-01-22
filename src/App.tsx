@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { ProjectTree } from "./components/ProjectTree";
 import { MessageViewer } from "./components/MessageViewer";
 import { TokenStatsViewer } from "./components/TokenStatsViewer";
@@ -7,16 +8,15 @@ import { RecentEditsViewer } from "./components/RecentEditsViewer";
 import { SimpleUpdateManager } from "./components/SimpleUpdateManager";
 import { useAppStore } from "./store/useAppStore";
 import { useAnalytics } from "./hooks/useAnalytics";
+import { useResizablePanel } from "./hooks/useResizablePanel";
 
 import { useTranslation } from "react-i18next";
 import { AppErrorType, type ClaudeSession, type ClaudeProject } from "./types";
-import { AlertTriangle, Loader2, MessageSquare } from "lucide-react";
+import { AlertTriangle, Loader2, MessageSquare, Database, BarChart3, FileEdit, Coins } from "lucide-react";
 import { useLanguageStore } from "./store/useLanguageStore";
 import { type SupportedLanguage } from "./i18n";
 
 import "./App.css";
-import { cn } from "./utils/cn";
-import { COLORS } from "./constants/colors";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "./layouts/Header/SettingDropdown/ModalContainer";
 
@@ -57,52 +57,55 @@ function App() {
     actions: _analyticsActions,
     computed,
   } = useAnalytics();
-  void _analyticsActions; // Reserved for future use
+  void _analyticsActions;
 
   const { t, i18n: i18nInstance } = useTranslation("common");
   const { t: tComponents } = useTranslation("components");
   const { t: tMessages } = useTranslation("messages");
   const { language, loadLanguage } = useLanguageStore();
 
-  // Track if viewing global stats
   const [isViewingGlobalStats, setIsViewingGlobalStats] = useState(false);
 
-  // Global Stats 버튼 클릭 핸들러
+  // Sidebar resize
+  const {
+    width: sidebarWidth,
+    isResizing: isSidebarResizing,
+    handleMouseDown: handleSidebarResizeStart,
+  } = useResizablePanel({
+    defaultWidth: 256,
+    minWidth: 200,
+    maxWidth: 480,
+    storageKey: "sidebar-width",
+  });
+
   const handleGlobalStatsClick = useCallback(() => {
     setIsViewingGlobalStats(true);
-    // Clear selected project and session to show global view
     useAppStore.setState({ selectedProject: null, selectedSession: null });
-    // Switch to analytics view to show global dashboard
     setAnalyticsCurrentView("analytics");
     loadGlobalStats();
   }, [loadGlobalStats, setAnalyticsCurrentView]);
 
-  // 세션 선택 시 메시지 뷰로 전환 (기본값)
   const handleSessionSelect = async (session: ClaudeSession) => {
-    // Switch to messages view when selecting a session
+    setIsViewingGlobalStats(false);
     setAnalyticsCurrentView("messages");
     await selectSession(session);
   };
 
   useEffect(() => {
-    // 언어 설정 로드 후 앱 초기화
     const initialize = async () => {
       try {
         await loadLanguage();
       } catch (error) {
         console.error("Failed to load language:", error);
       } finally {
-        // 기본 언어로 앱 초기화 진행
         await initializeApp();
       }
     };
     initialize();
   }, [initializeApp, loadLanguage]);
 
-  // i18n 언어 변경 감지
   useEffect(() => {
     const handleLanguageChange = (lng: string) => {
-      // 스토어의 언어와 다르면 업데이트
       const currentLang = lng.startsWith("zh")
         ? lng.includes("TW") || lng.includes("HK")
           ? "zh-TW"
@@ -126,39 +129,28 @@ function App() {
     };
   }, [language, i18nInstance]);
 
-  // 프로젝트 선택 핸들러 (분석 상태 초기화 포함)
   const handleProjectSelect = useCallback(
     async (project: ClaudeProject) => {
       const wasTokenStatsOpen = computed.isTokenStatsView;
-
-      // Clear global stats view flag when selecting a project
       setIsViewingGlobalStats(false);
-
-      // 프로젝트 선택
       await selectProject(project);
 
-      // 토큰 통계 탭이 열려있었다면 유지, 아니면 기본적으로 분석 대시보드 표시
       if (wasTokenStatsOpen) {
         try {
           setAnalyticsCurrentView("tokenStats");
           await loadProjectTokenStats(project.path);
         } catch (error) {
-          console.error(
-            "Failed to auto-load token stats for new project:",
-            error
-          );
+          console.error("Failed to auto-load token stats:", error);
         }
       } else {
-        // Always show analytics dashboard when selecting a project
         try {
-          // Load analytics data using the project parameter directly (not from state)
           setAnalyticsCurrentView("analytics");
           setAnalyticsLoadingProjectSummary(true);
           const summary = await loadProjectStatsSummary(project.path);
           setAnalyticsProjectSummary(summary);
         } catch (error) {
-          console.error("Failed to auto-load analytics for new project:", error);
-          setAnalyticsProjectSummary(null); // Clear stale data
+          console.error("Failed to auto-load analytics:", error);
+          setAnalyticsProjectSummary(null);
           setAnalyticsProjectSummaryError(
             error instanceof Error ? error.message : "Failed to load project stats"
           );
@@ -179,40 +171,21 @@ function App() {
     ]
   );
 
-  // Show folder selector if needed
-
+  // Error State
   if (error && error.type !== AppErrorType.CLAUDE_FOLDER_NOT_FOUND) {
     return (
-      <div
-        className={cn(
-          "h-screen flex items-center justify-center",
-          COLORS.semantic.error.bg
-        )}
-      >
-        <div className="text-center">
-          <div className="mb-4">
-            <AlertTriangle
-              className={cn("w-12 h-12 mx-auto", COLORS.semantic.error.icon)}
-            />
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-6">
+            <AlertTriangle className="w-8 h-8 text-destructive" />
           </div>
-          <h1
-            className={cn(
-              "text-xl font-semibold mb-2",
-              COLORS.semantic.error.text
-            )}
-          >
+          <h1 className="text-xl font-semibold text-foreground mb-2">
             {t("errorOccurred")}
           </h1>
-          <p className={cn("mb-4", COLORS.semantic.error.text)}>
-            {error.message}
-          </p>
+          <p className="text-sm text-muted-foreground mb-6">{error.message}</p>
           <button
             onClick={() => window.location.reload()}
-            className={cn(
-              "px-4 py-2 rounded-lg transition-colors",
-              COLORS.semantic.error.bg,
-              COLORS.semantic.error.text
-            )}
+            className="action-btn primary"
           >
             {t("retry")}
           </button>
@@ -223,9 +196,7 @@ function App() {
 
   return (
     <>
-      <div
-        className={cn("h-screen flex flex-col", COLORS.ui.background.primary)}
-      >
+      <div className="h-screen flex flex-col bg-background">
         {/* Header */}
         <Header />
 
@@ -242,30 +213,33 @@ function App() {
             onGlobalStatsClick={handleGlobalStatsClick}
             isLoading={isLoadingProjects || isLoadingSessions}
             isViewingGlobalStats={isViewingGlobalStats}
+            width={sidebarWidth}
+            isResizing={isSidebarResizing}
+            onResizeStart={handleSidebarResizeStart}
           />
 
           {/* Main Content Area */}
-          <div className="w-full flex flex-col relative">
-            {/* Content Header - Only for Analytics/Token Stats views (Messages view has its own toolbar) */}
+          <main className="flex-1 flex flex-col min-w-0 bg-background">
+            {/* Content Header for non-message views */}
             {(computed.isTokenStatsView ||
               computed.isAnalyticsView ||
               computed.isRecentEditsView ||
               isViewingGlobalStats) && (
-              <div
-                className={cn(
-                  "p-4 border-b",
-                  COLORS.ui.background.secondary,
-                  COLORS.ui.border.light
-                )}
-              >
-                <div className="flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-border/50 bg-card/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
+                    {isViewingGlobalStats ? (
+                      <Database className="w-5 h-5 text-accent" />
+                    ) : computed.isAnalyticsView ? (
+                      <BarChart3 className="w-5 h-5 text-accent" />
+                    ) : computed.isRecentEditsView ? (
+                      <FileEdit className="w-5 h-5 text-accent" />
+                    ) : (
+                      <Coins className="w-5 h-5 text-accent" />
+                    )}
+                  </div>
                   <div>
-                    <h2
-                      className={cn(
-                        "text-lg font-semibold",
-                        COLORS.ui.text.primary
-                      )}
-                    >
+                    <h2 className="text-sm font-semibold text-foreground">
                       {isViewingGlobalStats
                         ? tComponents("analytics.globalOverview")
                         : computed.isAnalyticsView
@@ -274,26 +248,14 @@ function App() {
                         ? tComponents("recentEdits.title")
                         : tMessages("tokenStats.title")}
                     </h2>
-                    <span className={cn("text-sm", COLORS.ui.text.secondary)}>
+                    <p className="text-xs text-muted-foreground">
                       {isViewingGlobalStats
                         ? tComponents("analytics.globalOverviewDescription")
                         : computed.isRecentEditsView
                         ? tComponents("recentEdits.description")
                         : selectedSession?.summary ||
                           tComponents("session.summaryNotFound")}
-                    </span>
-                    {computed.isTokenStatsView && (
-                      <p className={cn("text-sm mt-1", COLORS.ui.text.muted)}>
-                        {tComponents("analytics.tokenUsageDetailed")}
-                      </p>
-                    )}
-                    {computed.isAnalyticsView && !isViewingGlobalStats && (
-                      <p className={cn("text-sm mt-1", COLORS.ui.text.muted)}>
-                        {selectedSession
-                          ? tComponents("analytics.projectSessionAnalysis")
-                          : tComponents("analytics.projectOverallAnalysis")}
-                      </p>
-                    )}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -302,25 +264,36 @@ function App() {
             {/* Content */}
             <div className="flex-1 overflow-hidden">
               {computed.isRecentEditsView ? (
-                <div className="h-full overflow-y-auto">
+                <OverlayScrollbarsComponent
+                  className="h-full"
+                  options={{ scrollbars: { theme: "os-theme-custom", autoHide: "leave" } }}
+                >
                   <RecentEditsViewer
                     recentEdits={analyticsState.recentEdits}
                     isLoading={analyticsState.isLoadingRecentEdits}
                     error={analyticsState.recentEditsError}
                   />
-                </div>
+                </OverlayScrollbarsComponent>
               ) : computed.isAnalyticsView || isViewingGlobalStats ? (
-                <div className="h-full overflow-y-auto">
+                <OverlayScrollbarsComponent
+                  className="h-full"
+                  options={{ scrollbars: { theme: "os-theme-custom", autoHide: "leave" } }}
+                >
                   <AnalyticsDashboard isViewingGlobalStats={isViewingGlobalStats} />
-                </div>
+                </OverlayScrollbarsComponent>
               ) : computed.isTokenStatsView ? (
-                <div className="h-full overflow-y-auto p-6 space-y-8">
-                  <TokenStatsViewer
-                    title={tMessages("tokenStats.title")}
-                    sessionStats={sessionTokenStats}
-                    projectStats={projectTokenStats}
-                  />
-                </div>
+                <OverlayScrollbarsComponent
+                  className="h-full"
+                  options={{ scrollbars: { theme: "os-theme-custom", autoHide: "leave" } }}
+                >
+                  <div className="p-6">
+                    <TokenStatsViewer
+                      title={tMessages("tokenStats.title")}
+                      sessionStats={sessionTokenStats}
+                      projectStats={projectTokenStats}
+                    />
+                  </div>
+                </OverlayScrollbarsComponent>
               ) : selectedSession ? (
                 <MessageViewer
                   messages={messages}
@@ -334,93 +307,58 @@ function App() {
                   onPrevMatch={goToPrevMatch}
                 />
               ) : (
+                /* Empty State */
                 <div className="h-full flex items-center justify-center">
-                  <div className={cn("text-center", COLORS.ui.text.muted)}>
-                    <MessageSquare
-                      className={cn(
-                        "w-16 h-16 mx-auto mb-4",
-                        COLORS.ui.text.disabledDark
-                      )}
-                    />
-                    <p className="text-lg mb-2">
+                  <div className="text-center max-w-sm mx-auto">
+                    <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
+                      <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+                    </div>
+                    <h3 className="text-lg font-medium text-foreground mb-2">
                       {tComponents("session.select")}
-                    </p>
-                    <p className="text-sm">
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
                       {tComponents("session.selectDescription")}
                     </p>
                   </div>
                 </div>
               )}
             </div>
-          </div>
+          </main>
         </div>
 
         {/* Status Bar */}
-        <div
-          className={cn(
-            "px-6 py-2 border-t",
-            COLORS.ui.background.secondary,
-            COLORS.ui.border.light
-          )}
-        >
-          <div
-            className={cn(
-              "flex items-center justify-between text-xs",
-              COLORS.ui.text.muted
+        <footer className="h-7 px-4 flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground">
+          <div className="flex items-center gap-3 font-mono tabular-nums">
+            <span>{tComponents("project.count", { count: projects.length })}</span>
+            <span className="text-border">•</span>
+            <span>{tComponents("session.count", { count: sessions.length })}</span>
+            {selectedSession && computed.isMessagesView && (
+              <>
+                <span className="text-border">•</span>
+                <span>{tComponents("message.count", { count: messages.length })}</span>
+              </>
             )}
-          >
-            <div className="flex items-center space-x-4">
-              <span>
-                {tComponents("project.count", { count: projects.length })}
-              </span>
-              <span>
-                {tComponents("session.count", { count: sessions.length })}
-              </span>
-              {selectedSession && computed.isMessagesView && (
-                <span>
-                  {tComponents("message.count", {
-                    count: messages.length,
-                  })}
-                </span>
-              )}
-              {computed.isTokenStatsView && sessionTokenStats && (
-                <span>
-                  {tComponents("analytics.currentSessionTokens", {
-                    count: sessionTokenStats.total_tokens,
-                  })}
-                </span>
-              )}
-              {computed.isAnalyticsView && analyticsState.projectSummary && (
-                <span>
-                  {tComponents("analytics.projectTokens", {
-                    count: analyticsState.projectSummary.total_tokens,
-                  })}
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center space-x-2">
-              {(isLoading ||
-                isLoadingProjects ||
-                isLoadingSessions ||
-                isLoadingMessages ||
-                computed.isAnyLoading) && (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>
-                    {computed.isAnyLoading &&
-                      tComponents("status.loadingStats")}
-                    {isLoadingProjects && tComponents("status.scanning")}
-                    {isLoadingSessions && tComponents("status.loadingSessions")}
-                    {isLoadingMessages && tComponents("status.loadingMessages")}
-                    {isLoading && tComponents("status.initializing")}
-                  </span>
-                </>
-              )}
-            </div>
           </div>
-        </div>
-        {/* Simple Update Manager */}
+
+          {(isLoading ||
+            isLoadingProjects ||
+            isLoadingSessions ||
+            isLoadingMessages ||
+            computed.isAnyLoading) && (
+            <div className="flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>
+                {computed.isAnyLoading && tComponents("status.loadingStats")}
+                {isLoadingProjects && tComponents("status.scanning")}
+                {isLoadingSessions && tComponents("status.loadingSessions")}
+                {isLoadingMessages && tComponents("status.loadingMessages")}
+                {isLoading && tComponents("status.initializing")}
+              </span>
+            </div>
+          )}
+        </footer>
+
+        {/* Update Manager */}
         <SimpleUpdateManager />
       </div>
 

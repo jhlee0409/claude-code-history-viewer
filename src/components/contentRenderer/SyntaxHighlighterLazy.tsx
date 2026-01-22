@@ -1,3 +1,10 @@
+/**
+ * LazySyntaxHighlighter - Lazy-loaded syntax highlighting component
+ *
+ * Provides code highlighting with lazy loading for better initial bundle size.
+ * Shows a skeleton loader while the syntax highlighter loads.
+ */
+
 import { lazy, Suspense } from "react";
 import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
 
@@ -21,10 +28,10 @@ export function LazySyntaxHighlighter({
     <Suspense
       fallback={
         fallback || (
-          <div className="animate-pulse bg-gray-100 dark:bg-gray-800 rounded p-4">
-            <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
-            <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/2 mb-2"></div>
-            <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-5/6"></div>
+          <div className="animate-pulse bg-secondary rounded p-4">
+            <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+            <div className="h-4 bg-muted rounded w-1/2 mb-2"></div>
+            <div className="h-4 bg-muted rounded w-5/6"></div>
           </div>
         )
       }

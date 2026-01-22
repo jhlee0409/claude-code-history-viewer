@@ -3,6 +3,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslation } from "react-i18next";
 import { formatTime } from "../../utils/time";
+import { layout } from "@/components/renderers";
+import { cn } from "@/lib/utils";
 
 type Props = {
   content: string;
@@ -32,12 +34,12 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
 
     if (chatMessages.length === 0) {
       return (
-        <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <div className="flex items-center space-x-2 mb-2">
-            <MessageCircle className="w-4 h-4" />
-            <span className="font-medium text-gray-800">{t('claudeSessionHistoryRenderer.title')}</span>
+        <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, "bg-gray-50 border-gray-200")}>
+          <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+            <MessageCircle className={layout.iconSize} />
+            <span className={cn(layout.titleText, "text-gray-800")}>{t('claudeSessionHistoryRenderer.title')}</span>
           </div>
-          <p className="text-gray-600 text-sm">
+          <p className={cn(layout.bodyText, "text-gray-600")}>
             {t('claudeSessionHistoryRenderer.noValidMessages')}
           </p>
         </div>
@@ -45,10 +47,10 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
     }
 
     return (
-      <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-        <div className="flex items-center space-x-2 mb-3">
-          <MessageCircle className="w-4 h-4" />
-          <span className="font-medium text-purple-800">
+      <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, "bg-purple-50 border-purple-200")}>
+        <div className={cn("flex items-center mb-3", layout.iconSpacing)}>
+          <MessageCircle className={layout.iconSize} />
+          <span className={cn(layout.titleText, "text-purple-800")}>
             {t('claudeSessionHistoryRenderer.messageCount', { count: chatMessages.length })}
           </span>
         </div>
@@ -56,28 +58,27 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
           {chatMessages.map((msg, index) => (
             <div
               key={index}
-              className={`p-3 rounded-lg ${
-                msg.type === "user"
+              className={cn(layout.containerPadding, layout.rounded, msg.type === "user"
                   ? "bg-blue-100 border-l-4 border-blue-400"
                   : "bg-green-100 border-l-4 border-green-400"
-              }`}
+              )}
             >
-              <div className="flex items-center space-x-2 mb-2">
+              <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
                 {msg.type === "user" ? (
-                  <User className="w-4 h-4" />
+                  <User className={layout.iconSize} />
                 ) : (
-                  <Bot className="w-4 h-4" />
+                  <Bot className={layout.iconSize} />
                 )}
-                <span className="font-medium text-sm">
+                <span className={cn(layout.titleText)}>
                   {msg.type === "user" ? t('claudeSessionHistoryRenderer.user') : t('claudeSessionHistoryRenderer.claude')}
                 </span>
                 {typeof msg.timestamp === "string" && (
-                  <span className="text-xs text-gray-500">
+                  <span className={cn(layout.smallText, "text-gray-500")}>
                     {formatTime(msg.timestamp)}
                   </span>
                 )}
               </div>
-              <div className="text-sm">
+              <div className={layout.bodyText}>
                 {typeof msg.message === "object" &&
                 msg.message !== null &&
                 "content" in msg.message ? (
@@ -101,9 +102,9 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                                 </div>
                               )}
                             {item.type === "tool_use" && (
-                              <div className="bg-gray-100 p-2 rounded text-xs">
+                              <div className={cn("bg-gray-100", layout.containerPadding, layout.rounded, layout.smallText)}>
                                 <span className="font-medium">
-                                  <Wrench className="w-4 h-4 inline mr-1" />
+                                  <Wrench className={cn(layout.iconSize, "inline mr-1")} />
                                   {typeof item.name === "string"
                                     ? item.name
                                     : "Unknown Tool"}
@@ -111,7 +112,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                                 {item.input &&
                                 typeof item.input === "object" &&
                                 item.input !== null ? (
-                                  <pre className="mt-1 text-xs overflow-x-auto">
+                                  <pre className={cn("mt-1 overflow-x-auto", layout.smallText)}>
                                     {JSON.stringify(item.input, null, 2)}
                                   </pre>
                                 ) : null}
@@ -122,12 +123,12 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                       )}
                     </div>
                   ) : msg.message.content ? (
-                    <pre className="text-xs overflow-x-auto">
+                    <pre className={cn(layout.smallText, "overflow-x-auto")}>
                       {JSON.stringify(msg.message.content, null, 2)}
                     </pre>
                   ) : null
                 ) : (
-                  <span className="text-gray-500 italic">{t('claudeSessionHistoryRenderer.noContent')}</span>
+                  <span className={cn(layout.bodyText, "text-gray-500 italic")}>{t('claudeSessionHistoryRenderer.noContent')}</span>
                 )}
               </div>
               {typeof msg.message === "object" &&
@@ -135,7 +136,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                 "usage" in msg.message &&
                 typeof msg.message.usage === "object" &&
                 msg.message.usage !== null && (
-                  <div className="mt-2 text-xs text-gray-600">
+                  <div className={cn("mt-2 text-gray-600", layout.smallText)}>
                     <span>
                       {t('claudeSessionHistoryRenderer.tokenUsage')}:{" "}
                       {"input_tokens" in msg.message.usage &&
@@ -161,17 +162,17 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
     );
   } catch {
     return (
-      <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-        <div className="flex items-center space-x-2 mb-2">
-          <X className="w-4 h-4 text-red-500" />
-          <span className="font-medium text-red-800">{t('claudeSessionHistoryRenderer.parsingError')}</span>
+      <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, "bg-red-50 border-red-200")}>
+        <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+          <X className={cn(layout.iconSize, "text-red-500")} />
+          <span className={cn(layout.titleText, "text-red-800")}>{t('claudeSessionHistoryRenderer.parsingError')}</span>
         </div>
-        <p className="text-red-600 text-sm">
+        <p className={cn(layout.bodyText, "text-red-600")}>
           {t('claudeSessionHistoryRenderer.parsingErrorDescription')}
         </p>
         <details className="mt-2">
-          <summary className="text-sm cursor-pointer">{t('claudeSessionHistoryRenderer.viewOriginalData')}</summary>
-          <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-x-auto">
+          <summary className={cn(layout.bodyText, "cursor-pointer")}>{t('claudeSessionHistoryRenderer.viewOriginalData')}</summary>
+          <pre className={cn("mt-2 bg-gray-100 overflow-x-auto", layout.containerPadding, layout.rounded, layout.smallText)}>
             {content}
           </pre>
         </details>

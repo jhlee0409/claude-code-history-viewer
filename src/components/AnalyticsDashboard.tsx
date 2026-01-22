@@ -13,19 +13,25 @@ import {
   Database,
   Eye,
   Loader2,
+  Cpu,
+  Layers,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sparkles,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import type { ToolUsageStats, ActivityHeatmap } from "../types";
 import { formatTime, formatDuration } from "../utils/time";
-import { COLORS } from "../constants/colors";
-import { cn } from "../utils/cn";
+import { cn } from "@/lib/utils";
 import { useAppStore } from "../store/useAppStore";
 import { useAnalytics } from "../hooks/useAnalytics";
+import { layout } from "./renderers";
 
 /**
- * Analytics Dashboard Component
+ * Analytics Dashboard Component - Mission Control Design
  *
- * props 전달을 최소화하고 직접 store와 hook을 사용하여 의존성을 낮춤
+ * Aesthetic: Deep industrial with glowing data visualizations
+ * Typography: JetBrains Mono for metrics, IBM Plex Sans for labels
  */
 interface AnalyticsDashboardProps {
   isViewingGlobalStats?: boolean;
@@ -38,7 +44,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
   const { t } = useTranslation("components");
   const [activeTab, setActiveTab] = useState<"project" | "session">("project");
 
-  // 컴포넌트 내부에서 사용할 데이터 정의
   const projectSummary = analyticsState.projectSummary;
   const sessionComparison = analyticsState.sessionComparison;
   const sessionStats = sessionTokenStats;
@@ -49,14 +54,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     return Math.round(((current - previous) / previous) * 100);
   };
 
-  // Format large numbers
+  // Format large numbers with precision
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
   };
 
-  // Calculate Claude API pricing based on model and token counts
+  // Calculate Claude API pricing
   const calculateModelPrice = (
     modelName: string,
     inputTokens: number,
@@ -64,7 +69,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     cacheCreationTokens: number,
     cacheReadTokens: number
   ): number => {
-    // Pricing per million tokens (MTok)
     const pricing: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
       'claude-opus-4-5': { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.50 },
       'claude-opus-4': { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.50 },
@@ -75,8 +79,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
       'claude-3-haiku': { input: 0.25, output: 1.25, cacheWrite: 0.30, cacheRead: 0.03 },
     };
 
-    // Find matching pricing tier (partial match for versioned models)
-    const defaultPricing = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 }; // default to sonnet
+    const defaultPricing = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 };
     let modelPricing = pricing['claude-sonnet-4-5'] || defaultPricing;
     for (const [key, value] of Object.entries(pricing)) {
       if (modelName.toLowerCase().includes(key)) {
@@ -85,7 +88,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
       }
     }
 
-    // Calculate cost: (tokens / 1,000,000) * price_per_MTok
     const inputCost = (inputTokens / 1000000) * modelPricing.input;
     const outputCost = (outputTokens / 1000000) * modelPricing.output;
     const cacheWriteCost = (cacheCreationTokens / 1000000) * modelPricing.cacheWrite;
@@ -94,18 +96,16 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     return inputCost + outputCost + cacheWriteCost + cacheReadCost;
   };
 
-  // 7일간의 일별 데이터 생성 (누락된 날짜 채우기)
+  // Generate 7-day daily data
   const dailyData = useMemo(() => {
     if (!projectSummary?.daily_stats) return [];
 
-    // 최근 7일 날짜 배열 생성
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - (6 - i));
       return date.toISOString().split("T")[0];
     });
 
-    // 날짜별 데이터 집계
     return last7Days.map((date) => {
       const dayStats = projectSummary?.daily_stats.find(
         (stat) => stat.date === date
@@ -121,38 +121,133 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     });
   }, [projectSummary?.daily_stats]);
 
-  // Activity heatmap component
+  // ============================================
+  // METRIC CARD COMPONENT
+  // ============================================
+  type MetricColorVariant = "green" | "purple" | "blue" | "amber";
+
+  const MetricCard: React.FC<{
+    icon: React.ElementType;
+    label: string;
+    value: string | number;
+    subValue?: string;
+    trend?: number;
+    colorVariant: MetricColorVariant;
+  }> = ({ icon: Icon, label, value, subValue, trend, colorVariant }) => {
+    const colorVar = `var(--metric-${colorVariant})`;
+
+    return (
+      <div
+        className={cn(
+          "group relative overflow-hidden rounded-xl",
+          "bg-card/80 backdrop-blur-sm",
+          "border border-border/50",
+          "transition-all duration-300",
+          "hover:border-border hover:shadow-lg",
+        )}
+      >
+        {/* Glow effect on hover */}
+        <div
+          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+          style={{
+            background: `radial-gradient(ellipse at 50% 0%, color-mix(in oklch, ${colorVar} 10%, transparent), transparent 70%)`,
+            boxShadow: `var(--glow-${colorVariant})`,
+          }}
+        />
+
+        {/* Top accent line */}
+        <div
+          className="absolute top-0 left-4 right-4 h-[2px] rounded-b"
+          style={{ backgroundColor: colorVar }}
+        />
+
+        <div className="relative p-5">
+          {/* Header row */}
+          <div className="flex items-center justify-between mb-3">
+            <div
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              style={{ background: `color-mix(in oklch, ${colorVar} 20%, transparent)` }}
+            >
+              <Icon className="w-5 h-5" style={{ color: colorVar }} />
+            </div>
+            {trend !== undefined && (
+              <div
+                className={cn(
+                  "flex items-center gap-0.5 px-2 py-1 rounded-full font-semibold tracking-wide",
+                  layout.smallText,
+                  trend > 0
+                    ? "bg-success/15 text-success"
+                    : trend < 0
+                    ? "bg-destructive/15 text-destructive"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {trend > 0 ? (
+                  <ArrowUpRight className="w-3 h-3" />
+                ) : trend < 0 ? (
+                  <ArrowDownRight className="w-3 h-3" />
+                ) : null}
+                {trend > 0 ? "+" : ""}{trend}%
+              </div>
+            )}
+          </div>
+
+          {/* Value */}
+          <div className="font-mono text-3xl font-bold tracking-tight text-foreground mb-1">
+            {value}
+          </div>
+
+          {/* Label */}
+          <div className={cn(layout.bodyText, "font-medium text-muted-foreground uppercase tracking-wider")}>
+            {label}
+          </div>
+
+          {/* Sub value */}
+          {subValue && (
+            <div className={cn("mt-2 text-muted-foreground/70 font-mono", layout.smallText)}>
+              {subValue}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ============================================
+  // ACTIVITY HEATMAP COMPONENT
+  // ============================================
   const ActivityHeatmapComponent = ({ data }: { data: ActivityHeatmap[] }) => {
     const maxActivity = Math.max(...data.map((d) => d.activity_count), 1);
     const hours = Array.from({ length: 24 }, (_, i) => i);
     const days = t("analytics.weekdayNames", { returnObjects: true });
+
+    // Color scale using CSS variables with inline styles
+    const getHeatColor = (intensity: number): string => {
+      if (intensity === 0) return "var(--heatmap-empty)";
+      if (intensity <= 0.3) return "var(--heatmap-low)";
+      if (intensity <= 0.6) return "var(--heatmap-medium)";
+      return "var(--heatmap-high)";
+    };
+
     return (
-      <div className="overflow-x-auto h-[calc(100%-30px)]">
+      <div className="overflow-x-auto">
         <div className="inline-block min-w-max">
           {/* Hour labels */}
-          <div className="flex gap-1 mb-1 ml-10">
+          <div className="flex gap-[3px] mb-1.5 ml-9">
             {hours.map((hour) => (
               <div
                 key={hour}
-                className={cn(
-                  "w-6 h-6 flex items-center justify-center text-xs",
-                  COLORS.ui.text.muted
-                )}
+                className="w-5 h-5 flex items-center justify-center text-[12px] font-mono text-muted-foreground/60"
               >
-                {hour % 3 === 0 ? hour : ""}
+                {hour % 4 === 0 ? hour.toString().padStart(2, '0') : ""}
               </div>
             ))}
           </div>
 
           {/* Heatmap grid */}
           {days.map((day, dayIndex) => (
-            <div key={day} className="flex gap-1 mb-1">
-              <div
-                className={cn(
-                  "w-6 flex items-center justify-end pr-2 text-xs",
-                  COLORS.ui.text.muted
-                )}
-              >
+            <div key={day} className="flex gap-[3px] mb-[3px]">
+              <div className="w-9 flex items-center justify-end pr-2 text-[12px] font-medium text-muted-foreground/70 uppercase tracking-wider">
                 {day}
               </div>
               {hours.map((hour) => {
@@ -163,36 +258,32 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                   ? activity.activity_count / maxActivity
                   : 0;
                 const tokens = activity?.tokens_used || 0;
+                const heatColor = getHeatColor(intensity);
 
                 return (
                   <Tooltip key={`${day}-${hour}`}>
                     <TooltipTrigger>
                       <div
                         className={cn(
-                          "w-6 h-6 rounded-sm transition-all hover:scale-125 hover:ring-2 hover:ring-white/50 cursor-pointer",
-                          intensity > 0.8
-                            ? "bg-emerald-500"
-                            : intensity > 0.6
-                            ? "bg-emerald-600"
-                            : intensity > 0.4
-                            ? "bg-emerald-700"
-                            : intensity > 0.2
-                            ? "bg-emerald-800"
-                            : intensity > 0
-                            ? "bg-emerald-900"
-                            : "bg-gray-800 dark:bg-gray-900"
+                          "w-5 h-5 rounded-[3px] cursor-pointer",
+                          "transition-all duration-200",
+                          "hover:scale-[1.3] hover:z-10 relative",
+                          intensity > 0 && "hover:ring-2 hover:ring-white/30",
+                          intensity > 0.5 && "shadow-glow-green"
                         )}
+                        style={{ backgroundColor: heatColor }}
                       />
                     </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="whitespace-pre-wrap">
-                        {t("analytics.heatmapTooltip", {
-                          day,
-                          hour,
-                          activity: activity?.activity_count || 0,
-                          tokens: formatNumber(tokens),
-                        })}
-                      </p>
+                    <TooltipContent side="top" className={cn("font-mono", layout.smallText)}>
+                      <div className="space-y-0.5">
+                        <div className="font-semibold">{day} {hour}:00</div>
+                        <div className="text-muted-foreground">
+                          {activity?.activity_count || 0} activities
+                        </div>
+                        <div className="text-muted-foreground">
+                          {formatNumber(tokens)} tokens
+                        </div>
+                      </div>
                     </TooltipContent>
                   </Tooltip>
                 );
@@ -201,18 +292,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           ))}
 
           {/* Legend */}
-          <div className="flex items-center gap-4 mt-4 ml-10">
-            <span className={cn("text-xs", COLORS.ui.text.muted)}>
+          <div className="flex items-center gap-3 mt-4 ml-9">
+            <span className={cn("font-medium text-muted-foreground/60 uppercase tracking-wider", layout.smallText)}>
               {t("analytics.legend.less")}
             </span>
-            <div className="flex gap-1">
-              <div className="w-4 h-4 bg-gray-800 dark:bg-gray-900 rounded-sm" />
-              <div className="w-4 h-4 bg-emerald-900 rounded-sm" />
-              <div className="w-4 h-4 bg-emerald-700 rounded-sm" />
-              <div className="w-4 h-4 bg-emerald-600 rounded-sm" />
-              <div className="w-4 h-4 bg-emerald-500 rounded-sm" />
+            <div className="flex gap-[2px]">
+              <div className="w-4 h-4 rounded-[2px]" style={{ backgroundColor: "var(--heatmap-empty)" }} />
+              <div className="w-4 h-4 rounded-[2px]" style={{ backgroundColor: "var(--heatmap-low)" }} />
+              <div className="w-4 h-4 rounded-[2px]" style={{ backgroundColor: "var(--heatmap-medium)" }} />
+              <div className="w-4 h-4 rounded-[2px]" style={{ backgroundColor: "var(--heatmap-high)" }} />
             </div>
-            <span className={cn("text-xs", COLORS.ui.text.muted)}>
+            <span className={cn("font-medium text-muted-foreground/60 uppercase tracking-wider", layout.smallText)}>
               {t("analytics.legend.more")}
             </span>
           </div>
@@ -221,7 +311,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     );
   };
 
-  // Tool name mapping for better display
+  // ============================================
+  // TOOL USAGE CHART COMPONENT
+  // ============================================
   const getToolDisplayName = (toolName: string): string => {
     const toolMap: Record<string, string> = {
       Bash: t("tools.terminal"),
@@ -242,111 +334,70 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
       exit_plan_mode: t("tools.exitPlanMode"),
     };
 
-    return toolMap[toolName] || `🔧 ${toolName}`;
+    return toolMap[toolName] || toolName;
   };
 
-  // Tool usage chart
   const ToolUsageChart = ({ tools }: { tools: ToolUsageStats[] }) => {
     const topTools = tools.slice(0, 6);
     const maxUsage = Math.max(...topTools.map((t) => t.usage_count), 1);
+    const totalUsage = topTools.reduce((sum, t) => sum + t.usage_count, 0);
+
+    // Industrial color palette using CSS variables
+    const toolColors = [
+      { bg: "var(--metric-purple)", glow: "var(--glow-purple)" },
+      { bg: "var(--metric-green)", glow: "var(--glow-green)" },
+      { bg: "var(--metric-blue)", glow: "var(--glow-blue)" },
+      { bg: "var(--metric-amber)", glow: "var(--glow-amber)" },
+      { bg: "var(--metric-pink)", glow: "var(--metric-pink)" },
+      { bg: "var(--metric-teal)", glow: "var(--metric-teal)" },
+    ];
 
     if (topTools.length === 0) {
       return (
-        <div className={cn("text-center py-8", COLORS.ui.text.muted)}>
-          <Wrench
-            className={cn("w-12 h-12 mx-auto mb-2", COLORS.ui.text.disabled)}
-          />
-          <p>{t("analytics.noData")}</p>
+        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+          <Wrench className="w-10 h-10 mb-3 opacity-30" />
+          <p className="text-[12px]">{t("analytics.noData")}</p>
         </div>
       );
     }
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         {topTools.map((tool, index) => {
-          const colors = [
-            {
-              bg: "bg-blue-500",
-              border: "border-blue-200",
-              text: "text-blue-700",
-            },
-            {
-              bg: "bg-green-500",
-              border: "border-green-200",
-              text: "text-green-700",
-            },
-            {
-              bg: "bg-purple-500",
-              border: "border-purple-200",
-              text: "text-purple-700",
-            },
-            {
-              bg: "bg-orange-500",
-              border: "border-orange-200",
-              text: "text-orange-700",
-            },
-            {
-              bg: "bg-pink-500",
-              border: "border-pink-200",
-              text: "text-pink-700",
-            },
-            {
-              bg: "bg-indigo-500",
-              border: "border-indigo-200",
-              text: "text-indigo-700",
-            },
-          ];
-          const color = colors[index] || colors[colors.length - 1];
+          const color = toolColors[index % toolColors.length]!;
+          const percentage = totalUsage === 0 ? 0 : (tool.usage_count / totalUsage) * 100;
+          const barWidth = (tool.usage_count / maxUsage) * 100;
 
           return (
-            <div key={tool.tool_name} className="space-y-2">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center space-x-2">
-                  <div className={cn("w-3 h-3 rounded-full", color?.bg)} />
-                  <span
-                    className={cn(
-                      "text-sm font-medium",
-                      COLORS.ui.text.secondary
-                    )}
-                  >
+            <div key={tool.tool_name} className="group">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ background: color.bg, boxShadow: `0 0 6px ${color.bg}` }}
+                  />
+                  <span className="text-[12px] font-medium text-foreground/80">
                     {getToolDisplayName(tool.tool_name)}
                   </span>
                 </div>
-                <div className="text-right">
-                  <span
-                    className={cn("text-sm font-bold", COLORS.ui.text.primary)}
-                  >
-                    {t("analytics.count", { count: tool.usage_count })}
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[12px] font-semibold text-foreground">
+                    {tool.usage_count.toLocaleString()}
                   </span>
-                  {Math.round(tool.success_rate) !== 100 && (
-                    <div className={cn("text-xs", COLORS.ui.text.muted)}>
-                      {t("analytics.successRate", {
-                        percent: Math.round(tool.success_rate),
-                      })}
-                    </div>
-                  )}
+                  <span className="font-mono text-[12px] text-muted-foreground w-12 text-right">
+                    {percentage.toFixed(1)}%
+                  </span>
                 </div>
               </div>
-              <div className="relative">
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                  <div
-                    className={cn(
-                      "h-3 rounded-full transition-all duration-500",
-                      color?.bg
-                    )}
-                    style={{ width: `${(tool.usage_count / maxUsage) * 100}%` }}
-                  />
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs font-medium text-white mix-blend-difference">
-                    {(
-                      (tool.usage_count /
-                        topTools.reduce((sum, t) => sum + t.usage_count, 0)) *
-                      100
-                    ).toFixed(1)}
-                    %
-                  </span>
-                </div>
+              <div className="relative h-2 bg-muted/50 rounded-full overflow-hidden">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-500 group-hover:brightness-110"
+                  style={{
+                    width: `${barWidth}%`,
+                    background: color.bg,
+                    boxShadow: `0 0 12px ${color.bg}`,
+                  }}
+                />
               </div>
             </div>
           );
@@ -355,877 +406,625 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     );
   };
 
-  // Project Statistics View
+  // ============================================
+  // DAILY TREND CHART
+  // ============================================
+  const DailyTrendChart = () => {
+    if (!dailyData.length) return null;
+
+    const maxTokens = Math.max(...dailyData.map((d) => d.total_tokens), 1);
+    const totalTokens = dailyData.reduce((sum, d) => sum + d.total_tokens, 0);
+    const totalMessages = dailyData.reduce((sum, d) => sum + d.message_count, 0);
+    const activeDays = dailyData.filter((d) => d.total_tokens > 0).length;
+
+    return (
+      <div className="space-y-5">
+        {/* Chart */}
+        <div className="relative h-44">
+          {/* Grid lines */}
+          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="border-t border-border/30" />
+            ))}
+          </div>
+
+          {/* Bars */}
+          <div className="absolute inset-0 flex items-end justify-between gap-2 pb-6">
+            {dailyData.map((stat) => {
+              const height = Math.max(4, (stat.total_tokens / maxTokens) * 100);
+              const isToday = stat.date === new Date().toISOString().split("T")[0];
+              const dateObj = stat.date ? new Date(stat.date) : new Date();
+              const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+
+              // Gradient colors using CSS variables
+              const barGradient = isToday
+                ? "linear-gradient(to top, var(--chart-green-from), var(--chart-green-to))"
+                : isWeekend
+                ? "linear-gradient(to top, var(--chart-blue-from), var(--chart-blue-to))"
+                : stat.total_tokens > maxTokens * 0.7
+                ? "linear-gradient(to top, var(--chart-purple-from), var(--chart-purple-to))"
+                : "linear-gradient(to top, var(--chart-muted-from), var(--chart-muted-to))";
+
+              const glowColor = isToday
+                ? "var(--chart-glow-green)"
+                : isWeekend
+                ? "var(--chart-glow-blue)"
+                : "transparent";
+
+              return (
+                <Tooltip key={stat.date}>
+                  <TooltipTrigger asChild>
+                    <div className="flex-1 flex flex-col items-center justify-end h-full group cursor-pointer">
+                      <div
+                        className={cn(
+                          "w-full rounded-t-md transition-all duration-300",
+                          "group-hover:brightness-125 group-hover:scale-[1.02]"
+                        )}
+                        style={{
+                          height: `${height}%`,
+                          minHeight: '4px',
+                          background: barGradient,
+                          boxShadow: `0 0 16px ${glowColor}`,
+                        }}
+                      >
+                        {/* Value label on bar */}
+                        {stat.total_tokens > 0 && height > 20 && (
+                          <div className="flex items-center justify-center h-full">
+                            <span className="font-mono text-[12px] font-semibold text-white/90 drop-shadow-sm">
+                              {formatNumber(stat.total_tokens)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Date label */}
+                      <div
+                        className={cn(
+                          "mt-2 text-[12px] font-mono",
+                          isToday
+                            ? "font-bold text-success"
+                            : "text-muted-foreground/60"
+                        )}
+                      >
+                        {stat.date?.slice(5).replace('-', '/')}
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="font-mono text-xs space-y-1">
+                    <div className="font-semibold">{stat.date}</div>
+                    <div>Tokens: {formatNumber(stat.total_tokens)}</div>
+                    <div>Messages: {stat.message_count}</div>
+                    <div>Sessions: {stat.session_count}</div>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Summary stats */}
+        <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border/50">
+          <div className="text-center">
+            <div className="font-mono text-lg font-bold text-foreground">
+              {formatNumber(Math.round(totalTokens / 7))}
+            </div>
+            <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
+              {t("analytics.dailyAvgTokens")}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="font-mono text-lg font-bold text-foreground">
+              {Math.round(totalMessages / 7)}
+            </div>
+            <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
+              {t("analytics.dailyAvgMessages")}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="font-mono text-lg font-bold text-foreground">
+              {activeDays}
+              <span className="text-muted-foreground/60">/7</span>
+            </div>
+            <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
+              {t("analytics.weeklyActiveDays")}
+            </div>
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center justify-center gap-5 text-[12px]">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded" style={{ background: "linear-gradient(to top, var(--chart-green-from), var(--chart-green-to))" }} />
+            <span className="text-muted-foreground">{t("analytics.today")}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded" style={{ background: "linear-gradient(to top, var(--chart-purple-from), var(--chart-purple-to))" }} />
+            <span className="text-muted-foreground">{t("analytics.highActivity")}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded" style={{ background: "linear-gradient(to top, var(--chart-blue-from), var(--chart-blue-to))" }} />
+            <span className="text-muted-foreground">{t("analytics.weekend")}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ============================================
+  // TOKEN DISTRIBUTION CHART
+  // ============================================
+  const TokenDistributionChart = ({ distribution, total }: { distribution: { input: number; output: number; cache_creation: number; cache_read: number }; total: number }) => {
+    const items = [
+      { label: t("analytics.input"), value: distribution.input, color: "var(--metric-green)", icon: TrendingUp },
+      { label: t("analytics.output"), value: distribution.output, color: "var(--metric-purple)", icon: Zap },
+      { label: t("analytics.cacheCreation"), value: distribution.cache_creation, color: "var(--metric-blue)", icon: Database },
+      { label: t("analytics.cacheRead"), value: distribution.cache_read, color: "var(--metric-amber)", icon: Eye },
+    ];
+
+    // Guard against division by zero
+    const safeTotal = Math.max(total, 1);
+
+    return (
+      <div className="space-y-4">
+        {/* Stacked bar */}
+        <div className="h-4 flex rounded-full overflow-hidden bg-muted/30">
+          {items.map((item, i) => {
+            const width = (item.value / safeTotal) * 100;
+            if (width < 0.5) return null;
+            return (
+              <Tooltip key={item.label}>
+                <TooltipTrigger asChild>
+                  <div
+                    className="h-full transition-all hover:brightness-110 cursor-pointer"
+                    style={{
+                      width: `${width}%`,
+                      background: item.color,
+                      marginLeft: i > 0 ? '1px' : 0,
+                    }}
+                  />
+                </TooltipTrigger>
+                <TooltipContent className="font-mono text-xs">
+                  <div>{item.label}: {formatNumber(item.value)} ({((item.value / safeTotal) * 100).toFixed(1)}%)</div>
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </div>
+
+        {/* Legend items */}
+        <div className="grid grid-cols-2 gap-3">
+          {items.map((item) => {
+            const Icon = item.icon;
+            const percentage = (item.value / safeTotal) * 100;
+            return (
+              <div key={item.label} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded-md flex items-center justify-center"
+                    style={{ background: `${item.color}20` }}
+                  >
+                    <Icon className="w-3.5 h-3.5" style={{ color: item.color }} />
+                  </div>
+                  <span className="text-[12px] font-medium text-foreground/70">{item.label}</span>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono text-[12px] font-semibold" style={{ color: item.color }}>
+                    {formatNumber(item.value)}
+                  </div>
+                  <div className="font-mono text-[12px] text-muted-foreground">
+                    {percentage.toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Total */}
+        <div className="pt-3 border-t border-border/50 text-center">
+          <div className="font-mono text-2xl font-bold text-foreground tracking-tight">
+            {formatNumber(total)}
+          </div>
+          <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
+            {t("analytics.totalTokenUsage")}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ============================================
+  // SECTION CARD WRAPPER
+  // ============================================
+  type SectionColorVariant = "green" | "purple" | "blue" | "amber" | "accent";
+
+  const SectionCard: React.FC<{
+    title: string;
+    icon?: React.ElementType;
+    colorVariant?: SectionColorVariant;
+    children: React.ReactNode;
+    className?: string;
+  }> = ({ title, icon: Icon, colorVariant = "accent", children, className }) => {
+    const colorVar = colorVariant === "accent" ? "var(--accent)" : `var(--metric-${colorVariant})`;
+
+    return (
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-xl",
+          "bg-card/60 backdrop-blur-sm",
+          "border border-border/50",
+          className
+        )}
+      >
+        {/* Top accent line */}
+        <div
+          className="absolute top-0 left-0 right-0 h-[2px]"
+          style={{ background: `linear-gradient(90deg, transparent, ${colorVar}, transparent)` }}
+        />
+
+        <div className="p-5">
+          {/* Header */}
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-4">
+            {Icon && (
+              <div
+                className="w-6 h-6 rounded-md flex items-center justify-center"
+                style={{ background: `color-mix(in oklch, ${colorVar} 15%, transparent)` }}
+              >
+                <Icon className="w-3.5 h-3.5" style={{ color: colorVar }} />
+              </div>
+            )}
+            {title}
+          </h3>
+
+          {children}
+        </div>
+      </div>
+    );
+  };
+
+  // ============================================
+  // PROJECT STATS VIEW
+  // ============================================
   const ProjectStatsView = () => {
-    // Show loading state while data is being fetched
     if (!projectSummary) {
       if (analyticsState.isLoadingProjectSummary) {
         return (
           <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <Loader2 className={cn("w-12 h-12 mx-auto mb-4 animate-spin", COLORS.ui.text.disabled)} />
-              <p className={cn("text-sm", COLORS.ui.text.tertiary)}>
+            <div className="text-center space-y-4">
+              <div className="relative">
+                <Loader2 className="w-12 h-12 mx-auto animate-spin text-accent/50" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-accent animate-pulse" />
+                </div>
+              </div>
+              <p className="text-[12px] text-muted-foreground">
                 {t("analytics.loading")}
               </p>
             </div>
           </div>
         );
       }
-      // If not loading and no data, return null
       return null;
     }
 
-    const lastDayStats =
-      projectSummary.daily_stats[projectSummary.daily_stats.length - 1];
-    const prevDayStats =
-      projectSummary.daily_stats[projectSummary.daily_stats.length - 2];
-
-    const tokenGrowth =
-      lastDayStats && prevDayStats
-        ? calculateGrowthRate(
-            lastDayStats.total_tokens,
-            prevDayStats.total_tokens
-          )
-        : 0;
+    const lastDayStats = projectSummary.daily_stats[projectSummary.daily_stats.length - 1];
+    const prevDayStats = projectSummary.daily_stats[projectSummary.daily_stats.length - 2];
+    const tokenGrowth = lastDayStats && prevDayStats
+      ? calculateGrowthRate(lastDayStats.total_tokens, prevDayStats.total_tokens)
+      : 0;
+    const messageGrowth = lastDayStats && prevDayStats
+      ? calculateGrowthRate(lastDayStats.message_count, prevDayStats.message_count)
+      : 0;
 
     return (
-      <div className="space-y-6">
-        {/* Overview Cards */}
+      <div className="space-y-6 animate-stagger">
+        {/* Metric Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              "bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950",
-              COLORS.semantic.info.border
-            )}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <MessageCircle
-                className={cn("w-8 h-8", COLORS.semantic.info.icon)}
-              />
-              <span
-                className={cn(
-                  "text-xs px-2 py-1 rounded",
-                  tokenGrowth > 0
-                    ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                    : tokenGrowth < 0
-                    ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
-                    : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                )}
-              >
-                {tokenGrowth > 0 ? "+" : ""}
-                {tokenGrowth}%
-              </span>
-            </div>
-            <div className={cn("text-2xl font-bold", COLORS.ui.text.primary)}>
-              {formatNumber(projectSummary.total_messages)}
-            </div>
-            <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.totalMessages")}
-            </div>
-          </div>
-
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              "bg-linear-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950",
-              COLORS.tools.search.border
-            )}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <Activity className={cn("w-8 h-8", COLORS.tools.search.icon)} />
-              <span className={cn("text-xs", COLORS.ui.text.muted)}>
-                {projectSummary.total_sessions} sessions
-              </span>
-            </div>
-            <div className={cn("text-2xl font-bold", COLORS.ui.text.primary)}>
-              {formatNumber(projectSummary.total_tokens)}
-            </div>
-            <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.totalTokens")}
-            </div>
-          </div>
-
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              "bg-linear-to-br from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950",
-              COLORS.semantic.success.border
-            )}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <Clock className={cn("w-8 h-8", COLORS.semantic.success.icon)} />
-              <span className={cn("text-xs", COLORS.ui.text.muted)}>
-                avg: {formatDuration(projectSummary.avg_session_duration)}
-              </span>
-            </div>
-            <div className={cn("text-2xl font-bold", COLORS.ui.text.primary)}>
-              {formatDuration(projectSummary.total_session_duration)}
-            </div>
-            <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.totalSessionTime")}
-            </div>
-          </div>
-
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              "bg-linear-to-br from-orange-50 to-red-50 dark:from-orange-950 dark:to-red-950",
-              COLORS.semantic.warning.border
-            )}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <Wrench className={cn("w-8 h-8", COLORS.semantic.warning.icon)} />
-            </div>
-            <div className={cn("text-2xl font-bold", COLORS.ui.text.primary)}>
-              {projectSummary.most_used_tools.length}
-            </div>
-            <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.toolsUsed")}
-            </div>
-          </div>
+          <MetricCard
+            icon={MessageCircle}
+            label={t("analytics.totalMessages")}
+            value={formatNumber(projectSummary.total_messages)}
+            trend={messageGrowth}
+            colorVariant="purple"
+          />
+          <MetricCard
+            icon={Activity}
+            label={t("analytics.totalTokens")}
+            value={formatNumber(projectSummary.total_tokens)}
+            trend={tokenGrowth}
+            subValue={`${projectSummary.total_sessions} sessions`}
+            colorVariant="blue"
+          />
+          <MetricCard
+            icon={Clock}
+            label={t("analytics.totalSessionTime")}
+            value={formatDuration(projectSummary.total_session_duration)}
+            subValue={`avg: ${formatDuration(projectSummary.avg_session_duration)}`}
+            colorVariant="green"
+          />
+          <MetricCard
+            icon={Wrench}
+            label={t("analytics.toolsUsed")}
+            value={projectSummary.most_used_tools.length}
+            colorVariant="amber"
+          />
         </div>
 
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Activity Heatmap */}
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              COLORS.ui.background.white,
-              COLORS.ui.border.medium
-            )}
+        {/* Charts Row 1 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <SectionCard
+            title={t("analytics.activityHeatmapTitle")}
+            icon={Layers}
+            colorVariant="green"
           >
-            <h3
-              className={cn(
-                "text-lg font-semibold mb-4",
-                COLORS.ui.text.primary
-              )}
-            >
-              {t("analytics.activityHeatmapTitle")}
-            </h3>
             {projectSummary.activity_heatmap.length > 0 ? (
-              <ActivityHeatmapComponent
-                data={projectSummary.activity_heatmap}
-              />
+              <ActivityHeatmapComponent data={projectSummary.activity_heatmap} />
             ) : (
-              <div className={cn("text-center py-8", COLORS.ui.text.muted)}>
+              <div className="text-center py-8 text-muted-foreground text-[12px]">
                 {t("analytics.No activity data available")}
               </div>
             )}
-          </div>
+          </SectionCard>
 
-          {/* Tool Usage */}
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              COLORS.ui.background.white,
-              COLORS.ui.border.medium
-            )}
+          <SectionCard
+            title={t("analytics.mostUsedToolsTitle")}
+            icon={Cpu}
+            colorVariant="purple"
           >
-            <h3
-              className={cn(
-                "text-lg font-semibold mb-4",
-                COLORS.ui.text.primary
-              )}
-            >
-              {t("analytics.mostUsedToolsTitle")}
-            </h3>
-            {projectSummary.most_used_tools.length > 0 ? (
-              <ToolUsageChart tools={projectSummary.most_used_tools} />
-            ) : (
-              <div className={cn("text-center py-8", COLORS.ui.text.muted)}>
-                {t("analytics.No tool usage data available")}
-              </div>
-            )}
-          </div>
+            <ToolUsageChart tools={projectSummary.most_used_tools} />
+          </SectionCard>
         </div>
 
         {/* Daily Trend Chart */}
         {projectSummary.daily_stats.length > 0 && (
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              COLORS.ui.background.white,
-              COLORS.ui.border.medium
-            )}
+          <SectionCard
+            title={t("analytics.recentActivityTrend")}
+            icon={TrendingUp}
+            colorVariant="blue"
           >
-            <h3
-              className={cn(
-                "text-lg font-semibold mb-4 flex items-center space-x-2",
-                COLORS.ui.text.primary
-              )}
-            >
-              <TrendingUp className="w-4 h-4" />
-              <span>{t("analytics.recentActivityTrend")}</span>
-            </h3>
-            <div className="space-y-4">
-              {/* Enhanced bar chart */}
-              <div className="relative h-48">
-                <div className="absolute  inset-0 flex items-end justify-between gap-1">
-                  {dailyData.map((stat) => {
-                    const maxTokens = Math.max(
-                      ...dailyData.map((s) => s.total_tokens),
-                      1
-                    );
-                    const height = Math.max(
-                      0,
-                      (stat.total_tokens / maxTokens) * 100
-                    );
-
-                    const isWeekend =
-                      new Date(stat.date || "").getDay() === 0 ||
-                      new Date(stat.date || "").getDay() === 6;
-                    const isToday =
-                      stat.date === new Date().toISOString().split("T")[0];
-
-                    return (
-                      <Tooltip key={stat.date}>
-                        <TooltipTrigger asChild>
-                          <div className="flex-1 flex flex-col items-center justify-end group relative h-full">
-                            <div
-                              className={cn(
-                                "w-full rounded-t transition-all duration-300 cursor-pointer",
-                                "hover:scale-105 hover:shadow-lg ",
-                                isToday
-                                  ? "bg-linear-to-t from-emerald-600 to-emerald-400"
-                                  : isWeekend
-                                  ? "bg-linear-to-t from-purple-600 to-purple-400"
-                                  : stat.total_tokens > maxTokens * 0.7
-                                  ? "bg-linear-to-t from-blue-600 to-blue-400"
-                                  : stat.total_tokens > maxTokens * 0.3
-                                  ? "bg-linear-to-t from-indigo-600 to-indigo-400"
-                                  : "bg-linear-to-t from-gray-500 to-gray-400"
-                              )}
-                              style={{ height: `${height}%`, minHeight: "4px" }}
-                            >
-                              {/* 사용 토큰수 */}
-                              {stat.total_tokens > 0 && (
-                                <div className="text-xs text-center absolute left-0 mb-4 right-0  flex items-center justify-center text-white">
-                                  {formatNumber(stat.total_tokens)}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Date labels for all days */}
-                            <div
-                              className={cn(
-                                "text-xs text-center absolute -bottom-4 left-0 right-0",
-                                isToday
-                                  ? "font-bold text-emerald-600"
-                                  : "text-gray-500"
-                              )}
-                            >
-                              {stat.date?.slice(5)}
-                            </div>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{stat.date}</p>
-                          <p>
-                            📊 {t("analytics.tooltipTokens")}{" "}
-                            {formatNumber(stat.total_tokens)}
-                          </p>
-                          <p>
-                            💬 {t("analytics.tooltipMessages")}{" "}
-                            {stat.message_count}
-                          </p>
-                          <p>
-                            🎯 {t("analytics.tooltipSessions")}{" "}
-                            {stat.session_count}
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Stats summary */}
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="text-center">
-                  <div
-                    className={cn("text-lg font-bold", COLORS.ui.text.primary)}
-                  >
-                    {dailyData.reduce(
-                      (sum, s) => sum + s.total_tokens,
-                      0
-                    ) > 0
-                      ? formatNumber(
-                          Math.round(
-                            dailyData.reduce(
-                              (sum, s) => sum + s.total_tokens,
-                              0
-                            ) / 7
-                          )
-                        )
-                      : "0"}
-                  </div>
-                  <div className={cn("text-xs", COLORS.ui.text.muted)}>
-                    {t("analytics.dailyAvgTokens")}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div
-                    className={cn("text-lg font-bold", COLORS.ui.text.primary)}
-                  >
-                    {Math.round(
-                      dailyData.reduce(
-                        (sum, s) => sum + s.message_count,
-                        0
-                      ) / 7
-                    )}
-                  </div>
-                  <div className={cn("text-xs", COLORS.ui.text.muted)}>
-                    {t("analytics.dailyAvgMessages")}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div
-                    className={cn("text-lg font-bold", COLORS.ui.text.primary)}
-                  >
-                    {
-                      dailyData.filter((s) => s.total_tokens > 0)
-                        .length
-                    }
-                  </div>
-                  <div className={cn("text-xs", COLORS.ui.text.muted)}>
-                    {t("analytics.weeklyActiveDays")}
-                  </div>
-                </div>
-              </div>
-
-              {/* Legend */}
-              <div className="flex items-center justify-center space-x-4 text-xs">
-                <div className="flex items-center space-x-1">
-                  <div className="w-3 h-3 bg-linear-to-t from-emerald-600 to-emerald-400 rounded" />
-                  <span className={cn(COLORS.ui.text.muted)}>
-                    {t("analytics.today")}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-3 h-3 bg-linear-to-t from-blue-600 to-blue-400 rounded" />
-                  <span className={cn(COLORS.ui.text.muted)}>
-                    {t("analytics.highActivity")}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-3 h-3 bg-linear-to-t from-purple-600 to-purple-400 rounded" />
-                  <span className={cn(COLORS.ui.text.muted)}>
-                    {t("analytics.weekend")}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+            <DailyTrendChart />
+          </SectionCard>
         )}
 
         {/* Token Distribution */}
-        <div
-          className={cn(
-            "p-6 rounded-lg border",
-            COLORS.ui.background.white,
-            COLORS.ui.border.medium
-          )}
+        <SectionCard
+          title={t("analytics.tokenTypeDistribution")}
+          icon={Database}
+          colorVariant="amber"
         >
-          <h3
-            className={cn("text-lg font-semibold mb-4", COLORS.ui.text.primary)}
-          >
-            {t("analytics.tokenTypeDistribution")}
-          </h3>
-          <div className="space-y-4">
-            {/* Token type bars */}
-            <div className="space-y-3">
-              {[
-                {
-                  label: "Input",
-                  value: projectSummary.token_distribution.input,
-                  color: COLORS.semantic.success.textDark,
-                  bgColor: "bg-green-800 dark:bg-green-300",
-                },
-                {
-                  label: "Output",
-                  value: projectSummary.token_distribution.output,
-                  color: COLORS.semantic.info.textDark,
-                  bgColor: "bg-blue-800 dark:bg-blue-300",
-                },
-                {
-                  label: "Cache Creation",
-                  value: projectSummary.token_distribution.cache_creation,
-                  color: COLORS.tools.search.text,
-                  bgColor: "bg-purple-800 dark:bg-purple-300",
-                },
-                {
-                  label: "Cache Read",
-                  value: projectSummary.token_distribution.cache_read,
-                  color: COLORS.tools.task.text,
-                  bgColor: "bg-orange-800 dark:bg-orange-300",
-                },
-              ].map((item) => {
-                const percentage =
-                  (item.value / projectSummary.total_tokens) * 100;
-
-                return (
-                  <div key={item.label} className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className={cn("text-sm", COLORS.ui.text.secondary)}>
-                        {item.label}
-                      </span>
-                      <span className={cn("text-sm font-medium", item.color)}>
-                        {formatNumber(item.value)} ({percentage.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div
-                        className={cn(
-                          "h-2 rounded-full transition-all",
-                          item.bgColor
-                        )}
-                        style={{
-                          width: `${percentage}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Total */}
-            <div
-              className={cn(
-                "pt-3 border-t text-center",
-                COLORS.ui.border.light
-              )}
-            >
-              <div className={cn("text-3xl font-bold", COLORS.ui.text.primary)}>
-                {formatNumber(projectSummary.total_tokens)}
-              </div>
-              <div className={cn("text-sm", COLORS.ui.text.muted)}>
-                {t("analytics.totalTokenUsage")}
-              </div>
-            </div>
-          </div>
-        </div>
+          <TokenDistributionChart
+            distribution={projectSummary.token_distribution}
+            total={projectSummary.total_tokens}
+          />
+        </SectionCard>
       </div>
     );
   };
 
-  // Session Statistics View
+  // ============================================
+  // SESSION STATS VIEW
+  // ============================================
   const SessionStatsView = () => {
     if (!sessionStats || !sessionComparison) return null;
 
-    const avgTokensPerMessage =
-      sessionStats.message_count > 0
-        ? Math.round(sessionStats.total_tokens / sessionStats.message_count)
-        : 0;
+    const avgTokensPerMessage = sessionStats.message_count > 0
+      ? Math.round(sessionStats.total_tokens / sessionStats.message_count)
+      : 0;
 
     const sessionDuration =
       new Date(sessionStats.last_message_time).getTime() -
       new Date(sessionStats.first_message_time).getTime();
     const durationMinutes = Math.round(sessionDuration / (1000 * 60));
 
+    const distribution = {
+      input: sessionStats.total_input_tokens,
+      output: sessionStats.total_output_tokens,
+      cache_creation: sessionStats.total_cache_creation_tokens,
+      cache_read: sessionStats.total_cache_read_tokens,
+    };
+
     return (
-      <div className="space-y-6">
-        {/* Performance Insights */}
+      <div className="space-y-6 animate-stagger">
+        {/* Performance Banner */}
         <div
           className={cn(
-            "p-6 rounded-lg border",
+            "relative overflow-hidden rounded-xl p-5",
+            "border-2",
             sessionComparison.is_above_average
-              ? "bg-linear-to-r from-emerald-50 to-green-50 dark:from-emerald-950 dark:to-green-950"
-              : "bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-950 dark:to-orange-950",
-            sessionComparison.is_above_average
-              ? COLORS.semantic.success.border
-              : COLORS.semantic.warning.border
+              ? "bg-success/5 border-success/30"
+              : "bg-warning/5 border-warning/30"
           )}
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={cn("text-lg font-semibold", COLORS.ui.text.primary)}>
-              {t("analytics.performanceInsights")}
-            </h3>
-            <div
-              className={cn(
-                "px-3 py-1 rounded-full text-xs font-medium",
-                sessionComparison.is_above_average
-                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                  : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
-              )}
-            >
-              {sessionComparison.is_above_average
-                ? t("analytics.aboveAverage")
-                : t("analytics.belowAverage")}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div
-                className={cn(
-                  "text-3xl font-bold mb-1",
-                  COLORS.ui.text.primary
-                )}
-              >
-                #{sessionComparison.rank_by_tokens}
-              </div>
-              <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-                {t("analytics.tokenRank")}
-              </div>
-              <div className={cn("text-xs mt-1", COLORS.ui.text.muted)}>
-                {t("analytics.topPercent", {
-                  percent: (
-                    (sessionComparison.rank_by_tokens /
-                      (projectSummary?.total_sessions || 1)) *
-                    100
-                  ).toFixed(0),
-                })}
-              </div>
-            </div>
-
-            <div className="text-center">
-              <div
-                className={cn(
-                  "text-3xl font-bold mb-1",
-                  COLORS.ui.text.primary
-                )}
-              >
-                {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
-              </div>
-              <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-                {t("analytics.projectShare")}
-              </div>
-              <div className={cn("text-xs mt-1", COLORS.ui.text.muted)}>
-                {t("analytics.totalLabel")}{" "}
-                {formatNumber(sessionStats.total_tokens)}{" "}
-                {t("analytics.tokens")}
-              </div>
-            </div>
-
-            <div className="text-center">
-              <div
-                className={cn(
-                  "text-3xl font-bold mb-1",
-                  COLORS.ui.text.primary
-                )}
-              >
-                {avgTokensPerMessage.toLocaleString()}
-              </div>
-              <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-                {t("analytics.tokensPerMessage")}
-              </div>
-              <div className={cn("text-xs mt-1", COLORS.ui.text.muted)}>
-                {t("analytics.totalMessagesCount", {
-                  count: sessionStats.message_count,
-                })}
-              </div>
-            </div>
-
-            <div className="text-center">
-              <div
-                className={cn(
-                  "text-3xl font-bold mb-1",
-                  COLORS.ui.text.primary
-                )}
-              >
-                {t("analytics.durationMinutes", { minutes: durationMinutes })}
-              </div>
-              <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-                {t("analytics.sessionTime")}
-              </div>
-              <div className={cn("text-xs mt-1", COLORS.ui.text.muted)}>
-                {t("analytics.rank", {
-                  rank: sessionComparison.rank_by_duration,
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Token Breakdown */}
-        <div
-          className={cn(
-            "p-6 rounded-lg border",
-            COLORS.ui.background.white,
-            COLORS.ui.border.medium
-          )}
-        >
-          <h3
-            className={cn("text-lg font-semibold mb-4", COLORS.ui.text.primary)}
-          >
-            {t("analytics.tokenAnalysis")}
-          </h3>
-
-          <div className="space-y-4">
-            {[
-              {
-                label: "Input",
-                value: sessionStats.total_input_tokens,
-                icon: TrendingUp,
-                color: COLORS.semantic.success.textDark,
-                bgColor: "bg-green-500",
-              },
-              {
-                label: "Output",
-                value: sessionStats.total_output_tokens,
-                icon: Zap,
-                color: COLORS.semantic.info.textDark,
-                bgColor: "bg-blue-500",
-              },
-              {
-                label: "Cache Creation",
-                value: sessionStats.total_cache_creation_tokens,
-                icon: Database,
-                color: COLORS.tools.search.text,
-                bgColor: "bg-purple-500",
-              },
-              {
-                label: "Cache Read",
-                value: sessionStats.total_cache_read_tokens,
-                icon: Eye,
-                color: COLORS.tools.task.text,
-                bgColor: "bg-orange-500",
-              },
-            ].map((item) => {
-              const percentage = (item.value / sessionStats.total_tokens) * 100;
-              const Icon = item.icon;
-
-              return (
-                <div key={item.label} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-2">
-                      <Icon className={cn("w-4 h-4", item.color)} />
-                      <span
-                        className={cn(
-                          "text-sm font-medium",
-                          COLORS.ui.text.secondary
-                        )}
-                      >
-                        {item.label}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className={cn("text-sm font-bold", item.color)}>
-                        {formatNumber(item.value)}
-                      </span>
-                      <span
-                        className={cn("text-xs ml-2", COLORS.ui.text.muted)}
-                      >
-                        ({percentage.toFixed(1)}%)
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div
-                      className={cn(
-                        "h-2 rounded-full transition-all",
-                        item.bgColor
-                      )}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
+          {/* Glow effect */}
           <div
             className={cn(
-              "mt-6 pt-4 border-t text-center",
-              COLORS.ui.border.light
+              "absolute inset-0 pointer-events-none",
+              sessionComparison.is_above_average
+                ? "bg-[radial-gradient(ellipse_at_50%_0%,_var(--metric-green)_/_0.1,_transparent_60%)]"
+                : "bg-[radial-gradient(ellipse_at_50%_0%,_var(--metric-amber)_/_0.1,_transparent_60%)]"
             )}
-          >
-            <div
-              className={cn("text-2xl font-bold mb-1", COLORS.ui.text.primary)}
-            >
-              {formatNumber(sessionStats.total_tokens)}
+          />
+
+          <div className="relative">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-sm font-semibold text-foreground">
+                {t("analytics.performanceInsights")}
+              </h3>
+              <div
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-[12px] font-bold uppercase tracking-wider",
+                  sessionComparison.is_above_average
+                    ? "bg-success/20 text-success"
+                    : "bg-warning/20 text-warning"
+                )}
+              >
+                {sessionComparison.is_above_average
+                  ? t("analytics.aboveAverage")
+                  : t("analytics.belowAverage")}
+              </div>
             </div>
-            <div className={cn("text-sm", COLORS.ui.text.muted)}>
-              {t("analytics.totalTokenUsageLabel")}
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+              <div className="text-center">
+                <div className="font-mono text-3xl font-bold text-foreground">
+                  #{sessionComparison.rank_by_tokens}
+                </div>
+                <div className="text-[12px] text-muted-foreground mt-1">
+                  {t("analytics.tokenRank")}
+                </div>
+                <div className="text-[12px] text-muted-foreground/70 mt-0.5">
+                  {t("analytics.topPercent", {
+                    percent: ((sessionComparison.rank_by_tokens / (projectSummary?.total_sessions || 1)) * 100).toFixed(0),
+                  })}
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="font-mono text-3xl font-bold text-foreground">
+                  {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
+                </div>
+                <div className="text-[12px] text-muted-foreground mt-1">
+                  {t("analytics.projectShare")}
+                </div>
+                <div className="text-[12px] text-muted-foreground/70 mt-0.5">
+                  {formatNumber(sessionStats.total_tokens)} {t("analytics.tokens")}
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="font-mono text-3xl font-bold text-foreground">
+                  {avgTokensPerMessage.toLocaleString()}
+                </div>
+                <div className="text-[12px] text-muted-foreground mt-1">
+                  {t("analytics.tokensPerMessage")}
+                </div>
+                <div className="text-[12px] text-muted-foreground/70 mt-0.5">
+                  {t("analytics.totalMessagesCount", { count: sessionStats.message_count })}
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className="font-mono text-3xl font-bold text-foreground">
+                  {durationMinutes}<span className="text-lg text-muted-foreground">m</span>
+                </div>
+                <div className="text-[12px] text-muted-foreground mt-1">
+                  {t("analytics.sessionTime")}
+                </div>
+                <div className="text-[12px] text-muted-foreground/70 mt-0.5">
+                  {t("analytics.rank", { rank: sessionComparison.rank_by_duration })}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Session Timeline */}
-        <div
-          className={cn(
-            "p-6 rounded-lg border",
-            COLORS.ui.background.white,
-            COLORS.ui.border.medium
-          )}
+        {/* Token Distribution */}
+        <SectionCard
+          title={t("analytics.tokenAnalysis")}
+          icon={BarChart3}
+          colorVariant="purple"
         >
-          <h3
-            className={cn("text-lg font-semibold mb-4", COLORS.ui.text.primary)}
-          >
-            {t("analytics.sessionTimeline")}
-          </h3>
+          <TokenDistributionChart
+            distribution={distribution}
+            total={sessionStats.total_tokens}
+          />
+        </SectionCard>
 
+        {/* Session Timeline */}
+        <SectionCard
+          title={t("analytics.sessionTimeline")}
+          icon={Clock}
+          colorVariant="green"
+        >
           <div className="space-y-3">
-            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="flex justify-between items-center p-3 rounded-lg bg-muted/30">
               <div>
-                <div
-                  className={cn(
-                    "text-sm font-medium",
-                    COLORS.ui.text.secondary
-                  )}
-                >
+                <div className="text-[12px] font-medium text-foreground/80">
                   {t("analytics.startTime")}
                 </div>
-                <div className={cn("text-xs", COLORS.ui.text.muted)}>
+                <div className="font-mono text-[12px] text-muted-foreground">
                   {formatTime(sessionStats.first_message_time)}
                 </div>
               </div>
-              <div className="text-center">
-                <div
-                  className={cn(
-                    "text-sm font-medium",
-                    COLORS.ui.text.secondary
-                  )}
-                >
+              <div className="text-center px-4">
+                <div className="text-[12px] font-medium text-foreground/80">
                   {t("analytics.duration")}
                 </div>
-                <div className={cn("text-xs", COLORS.ui.text.muted)}>
-                  {durationMinutes}
-                  {t("analytics.minutesUnit")}
+                <div className="font-mono text-[12px] text-muted-foreground">
+                  {durationMinutes}{t("analytics.minutesUnit")}
                 </div>
               </div>
               <div className="text-right">
-                <div
-                  className={cn(
-                    "text-sm font-medium",
-                    COLORS.ui.text.secondary
-                  )}
-                >
+                <div className="text-[12px] font-medium text-foreground/80">
                   {t("analytics.endTime")}
                 </div>
-                <div className={cn("text-xs", COLORS.ui.text.muted)}>
+                <div className="font-mono text-[12px] text-muted-foreground">
                   {formatTime(sessionStats.last_message_time)}
                 </div>
               </div>
             </div>
 
             <div className="text-center">
-              <code
-                className={cn(
-                  "inline-block px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono",
-                  COLORS.ui.text.tertiary
-                )}
-              >
-                {t("analytics.sessionIdLabel")}{" "}
-                {sessionStats.session_id.substring(0, 16)}...
+              <code className="inline-block px-3 py-1.5 bg-muted/50 rounded-md font-mono text-[12px] text-muted-foreground">
+                {t("analytics.sessionIdLabel")} {sessionStats.session_id.substring(0, 16)}...
               </code>
             </div>
           </div>
-        </div>
+        </SectionCard>
       </div>
     );
   };
 
-
-  // Global Stats View Component - matches ProjectStatsView layout
+  // ============================================
+  // GLOBAL STATS VIEW
+  // ============================================
   const GlobalStatsView = () => {
     if (!globalSummary) return null;
 
-    // Use the actual calculated session duration from backend (in minutes)
     const totalSessionTime = globalSummary.total_session_duration_minutes;
 
     return (
-      <div className="space-y-6">
-        {/* Overview Cards - Total Tokens first, then Total Messages */}
+      <div className="flex-1 p-6 overflow-auto bg-background space-y-6 animate-stagger">
+        {/* Metric Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              "bg-linear-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950",
-              COLORS.tools.search.border
-            )}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <Activity className={cn("w-8 h-8", COLORS.tools.search.icon)} />
-              <span className={cn("text-xs", COLORS.ui.text.muted)}>
-                {globalSummary.total_projects} {t("analytics.totalProjects")}
-              </span>
-            </div>
-            <div className={cn("text-2xl font-bold", COLORS.ui.text.primary)}>
-              {formatNumber(globalSummary.total_tokens)}
-            </div>
-            <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.totalTokens")}
-            </div>
-          </div>
-
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              "bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950",
-              COLORS.semantic.info.border
-            )}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <MessageCircle
-                className={cn("w-8 h-8", COLORS.semantic.info.icon)}
-              />
-              <span className={cn("text-xs", COLORS.ui.text.muted)}>
-                {t("analytics.totalSessions")}: {globalSummary.total_sessions}
-              </span>
-            </div>
-            <div className={cn("text-2xl font-bold", COLORS.ui.text.primary)}>
-              {formatNumber(globalSummary.total_messages)}
-            </div>
-            <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.totalMessages")}
-            </div>
-          </div>
-
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              "bg-linear-to-br from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950",
-              COLORS.semantic.success.border
-            )}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <Clock className={cn("w-8 h-8", COLORS.semantic.success.icon)} />
-            </div>
-            <div className={cn("text-2xl font-bold", COLORS.ui.text.primary)}>
-              {formatDuration(totalSessionTime)}
-            </div>
-            <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.sessionTime")}
-            </div>
-          </div>
-
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              "bg-linear-to-br from-orange-50 to-red-50 dark:from-orange-950 dark:to-red-950",
-              COLORS.semantic.warning.border
-            )}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <Wrench className={cn("w-8 h-8", COLORS.semantic.warning.icon)} />
-            </div>
-            <div className={cn("text-2xl font-bold", COLORS.ui.text.primary)}>
-              {globalSummary.most_used_tools.length}
-            </div>
-            <div className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.toolsUsed")}
-            </div>
-          </div>
+          <MetricCard
+            icon={Activity}
+            label={t("analytics.totalTokens")}
+            value={formatNumber(globalSummary.total_tokens)}
+            subValue={`${globalSummary.total_projects} ${t("analytics.totalProjects")}`}
+            colorVariant="blue"
+          />
+          <MetricCard
+            icon={MessageCircle}
+            label={t("analytics.totalMessages")}
+            value={formatNumber(globalSummary.total_messages)}
+            subValue={`${t("analytics.totalSessions")}: ${globalSummary.total_sessions}`}
+            colorVariant="purple"
+          />
+          <MetricCard
+            icon={Clock}
+            label={t("analytics.sessionTime")}
+            value={formatDuration(totalSessionTime)}
+            colorVariant="green"
+          />
+          <MetricCard
+            icon={Wrench}
+            label={t("analytics.toolsUsed")}
+            value={globalSummary.most_used_tools.length}
+            colorVariant="amber"
+          />
         </div>
 
-        {/* First Row: Model Distribution and Most Used Tools */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Model Distribution */}
+        {/* Model Distribution & Tool Usage */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {globalSummary.model_distribution.length > 0 && (
-            <div
-              className={cn(
-                "p-6 rounded-lg border",
-                COLORS.ui.background.white,
-                COLORS.ui.border.medium
-              )}
+            <SectionCard
+              title={t("analytics.modelDistribution")}
+              icon={Cpu}
+              colorVariant="blue"
             >
-              <h3 className={cn("text-lg font-semibold mb-4", COLORS.ui.text.primary)}>
-                {t("analytics.modelDistribution")}
-              </h3>
               <div className="space-y-3">
                 {globalSummary.model_distribution.map((model) => {
                   const price = calculateModelPrice(
@@ -1235,21 +1034,29 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                     model.cache_creation_tokens,
                     model.cache_read_tokens
                   );
+                  const percentage = (model.token_count / Math.max(globalSummary.total_tokens, 1)) * 100;
+
                   return (
                     <div key={model.model_name}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={cn("text-sm font-medium", COLORS.ui.text.primary)}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[12px] font-medium text-foreground truncate max-w-[60%]">
                           {model.model_name}
                         </span>
-                        <span className={cn("text-sm", COLORS.ui.text.secondary)}>
-                          {formatNumber(model.token_count)} tokens (${price.toFixed(price >= 100 ? 0 : price >= 10 ? 1 : 2)})
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[12px] text-muted-foreground">
+                            ${price.toFixed(price >= 100 ? 0 : price >= 10 ? 1 : 2)}
+                          </span>
+                          <span className="font-mono text-[12px] font-semibold text-foreground">
+                            {formatNumber(model.token_count)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
+                          className="h-full rounded-full"
                           style={{
-                            width: `${(model.token_count / globalSummary.total_tokens) * 100}%`,
+                            width: `${percentage}%`,
+                            background: "linear-gradient(90deg, var(--metric-purple), var(--metric-blue))"
                           }}
                         />
                       </div>
@@ -1257,155 +1064,123 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                   );
                 })}
               </div>
-            </div>
+            </SectionCard>
           )}
 
-          {/* Most Used Tools */}
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              COLORS.ui.background.white,
-              COLORS.ui.border.medium
-            )}
+          <SectionCard
+            title={t("analytics.mostUsedToolsTitle")}
+            icon={Wrench}
+            colorVariant="amber"
           >
-            <h3
-              className={cn(
-                "text-lg font-semibold mb-4",
-                COLORS.ui.text.primary
-              )}
-            >
-              {t("analytics.mostUsedToolsTitle")}
-            </h3>
-            {globalSummary.most_used_tools.length > 0 ? (
-              <ToolUsageChart tools={globalSummary.most_used_tools} />
-            ) : (
-              <div className={cn("text-center py-8", COLORS.ui.text.muted)}>
-                {t("analytics.No tool usage data available")}
-              </div>
-            )}
-          </div>
+            <ToolUsageChart tools={globalSummary.most_used_tools} />
+          </SectionCard>
         </div>
 
-        {/* Second Row: Activity Heatmap and Top Projects */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Activity Heatmap */}
-          <div
-            className={cn(
-              "p-6 rounded-lg border",
-              COLORS.ui.background.white,
-              COLORS.ui.border.medium
-            )}
+        {/* Heatmap & Top Projects */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <SectionCard
+            title={t("analytics.activityHeatmapTitle")}
+            icon={Layers}
+            colorVariant="green"
           >
-            <h3
-              className={cn(
-                "text-lg font-semibold mb-4",
-                COLORS.ui.text.primary
-              )}
-            >
-              {t("analytics.activityHeatmapTitle")}
-            </h3>
             {globalSummary.activity_heatmap.length > 0 ? (
-              <ActivityHeatmapComponent
-                data={globalSummary.activity_heatmap}
-              />
+              <ActivityHeatmapComponent data={globalSummary.activity_heatmap} />
             ) : (
-              <div className={cn("text-center py-8", COLORS.ui.text.muted)}>
+              <div className="text-center py-8 text-muted-foreground text-[12px]">
                 {t("analytics.No activity data available")}
               </div>
             )}
-          </div>
+          </SectionCard>
 
-          {/* Top Projects */}
           {globalSummary.top_projects.length > 0 && (
-            <div
-              className={cn(
-                "p-6 rounded-lg border",
-                COLORS.ui.background.white,
-                COLORS.ui.border.medium
-              )}
+            <SectionCard
+              title={t("analytics.topProjects")}
+              icon={BarChart3}
+              colorVariant="purple"
             >
-              <h3 className={cn("text-lg font-semibold mb-4", COLORS.ui.text.primary)}>
-                {t("analytics.topProjects")}
-              </h3>
-              <div className="space-y-3">
-                {globalSummary.top_projects.slice(0, 10).map((project, index) => (
-                  <div
-                    key={project.project_name}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg",
-                      "bg-gray-50 dark:bg-gray-800/50"
-                    )}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={cn(
-                          "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm",
-                          index === 0 ? "bg-yellow-500 text-white" :
-                          index === 1 ? "bg-gray-400 text-white" :
-                          index === 2 ? "bg-orange-600 text-white" :
-                          "bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
-                        )}
-                      >
-                        {index + 1}
+              <div className="space-y-2">
+                {globalSummary.top_projects.slice(0, 8).map((project, index) => {
+                  const medals = ["🥇", "🥈", "🥉"];
+                  return (
+                    <div
+                      key={project.project_name}
+                      className={cn(
+                        "flex items-center justify-between p-2.5 rounded-lg",
+                        "bg-muted/30 hover:bg-muted/50 transition-colors"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={cn(
+                            "w-6 h-6 rounded-md flex items-center justify-center text-[12px] font-bold",
+                            index < 3 ? "text-base" : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {index < 3 ? medals[index] : index + 1}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-medium text-foreground truncate max-w-[150px]">
+                            {project.project_name}
+                          </p>
+                          <p className="text-[12px] text-muted-foreground">
+                            {project.sessions} sessions • {project.messages} msgs
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className={cn("font-medium text-sm", COLORS.ui.text.primary)}>
-                          {project.project_name}
+                      <div className="text-right">
+                        <p className="font-mono text-[12px] font-bold text-foreground">
+                          {formatNumber(project.tokens)}
                         </p>
-                        <p className={cn("text-xs", COLORS.ui.text.tertiary)}>
-                          {project.sessions} sessions • {project.messages} messages
-                        </p>
+                        <p className="text-[12px] text-muted-foreground">{t("analytics.tokens")}</p>
                       </div>
                     </div>
-                    <div className={cn("text-right")}>
-                      <p className={cn("font-bold text-sm", COLORS.ui.text.primary)}>
-                        {formatNumber(project.tokens)}
-                      </p>
-                      <p className={cn("text-xs", COLORS.ui.text.tertiary)}>{t("analytics.tokens")}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </div>
+            </SectionCard>
           )}
         </div>
       </div>
     );
   };
 
-  // Auto-switch to session tab when session is selected, reset to project tab when session is cleared
+  // ============================================
+  // EFFECTS
+  // ============================================
   React.useEffect(() => {
     if (selectedSession && sessionStats && sessionComparison) {
       setActiveTab("session");
     } else {
-      // Reset to project tab when no session is selected or when switching projects
       setActiveTab("project");
     }
   }, [selectedSession, sessionStats, sessionComparison]);
 
-  // Reset to project tab when project changes
   React.useEffect(() => {
     setActiveTab("project");
   }, [selectedProject?.name]);
 
-  // Main render logic - Show Global Stats when viewing global stats or no project is selected
+  // ============================================
+  // MAIN RENDER
+  // ============================================
   if (isViewingGlobalStats || !selectedProject) {
     if (isLoadingGlobalStats) {
       return (
-        <div
-          className={cn(
-            "flex-1 p-6 flex items-center justify-center",
-            COLORS.ui.background.primary
-          )}
-        >
-          <div className="text-center">
-            <Loader2 className={cn("w-16 h-16 mx-auto mb-4 animate-spin", COLORS.ui.text.disabled)} />
-            <h2 className={cn("text-xl font-semibold mb-2", COLORS.ui.text.primary)}>
-              {t("analytics.loadingGlobalStats")}
-            </h2>
-            <p className={cn("text-sm", COLORS.ui.text.tertiary)}>
-              {t("analytics.loadingGlobalStatsDescription")}
-            </p>
+        <div className="flex-1 p-6 flex items-center justify-center bg-background">
+          <div className="text-center space-y-4">
+            <div className="relative">
+              <Loader2 className="w-14 h-14 mx-auto animate-spin text-accent/40" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-accent animate-pulse" />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground mb-1">
+                {t("analytics.loadingGlobalStats")}
+              </h2>
+              <p className="text-[12px] text-muted-foreground">
+                {t("analytics.loadingGlobalStatsDescription")}
+              </p>
+            </div>
           </div>
         </div>
       );
@@ -1416,48 +1191,41 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
     }
 
     return (
-      <div
-        className={cn(
-          "flex-1 p-6 flex items-center justify-center",
-          COLORS.ui.background.primary
-        )}
-      >
-        <div className="text-center">
-          <BarChart3
-            className={cn("w-16 h-16 mx-auto mb-4", COLORS.ui.text.disabled)}
-          />
-          <h2
-            className={cn("text-xl font-semibold mb-2", COLORS.ui.text.primary)}
-          >
-            {t("analytics.Analytics Dashboard")}
-          </h2>
-          <p className={cn("text-sm", COLORS.ui.text.tertiary)}>
-            {t("analytics.Select a project to view analytics")}
-          </p>
+      <div className="flex-1 p-6 flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <BarChart3 className="w-14 h-14 mx-auto text-muted-foreground/30" />
+            <div
+              className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--metric-purple)_/_0.1,_transparent_70%)]"
+            />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground mb-1">
+              {t("analytics.Analytics Dashboard")}
+            </h2>
+            <p className="text-[12px] text-muted-foreground">
+              {t("analytics.Select a project to view analytics")}
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Project-specific stats
   const hasSessionData = selectedSession && sessionStats && sessionComparison;
 
   return (
-    <div className={cn("flex-1 p-6 overflow-auto", COLORS.ui.background.primary)}>
-      {/* Tab Selector - Only show when session is selected */}
+    <div className="flex-1 p-6 overflow-auto bg-background">
+      {/* Tab Selector */}
       {hasSessionData && (
-        <div className="flex space-x-2 mb-6">
+        <div className="inline-flex p-1 mb-6 rounded-lg bg-muted/50 border border-border/50">
           <button
             onClick={() => setActiveTab("project")}
             className={cn(
-              "px-4 py-2 rounded-lg transition-colors font-medium",
+              "px-4 py-2 rounded-md text-[12px] font-semibold transition-all duration-200",
               activeTab === "project"
-                ? "bg-blue-500 text-white"
-                : cn(
-                    "bg-gray-200 dark:bg-gray-700",
-                    COLORS.ui.text.secondary,
-                    "hover:bg-gray-300 dark:hover:bg-gray-600"
-                  )
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             {t("analytics.projectOverview")}
@@ -1465,14 +1233,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
           <button
             onClick={() => setActiveTab("session")}
             className={cn(
-              "px-4 py-2 rounded-lg transition-colors font-medium",
+              "px-4 py-2 rounded-md text-[12px] font-semibold transition-all duration-200",
               activeTab === "session"
-                ? "bg-blue-500 text-white"
-                : cn(
-                    "bg-gray-200 dark:bg-gray-700",
-                    COLORS.ui.text.secondary,
-                    "hover:bg-gray-300 dark:hover:bg-gray-600"
-                  )
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             {t("analytics.sessionDetails")}
@@ -1480,11 +1244,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
         </div>
       )}
 
-      {/* Render based on active tab - but always show ProjectStatsView if no session data */}
       {hasSessionData && activeTab === "session" ? <SessionStatsView /> : <ProjectStatsView />}
     </div>
   );
 };
 
-// Add display name for debugging
 AnalyticsDashboard.displayName = "AnalyticsDashboard";

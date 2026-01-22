@@ -6,20 +6,23 @@ import React, {
   useMemo,
   useDeferredValue,
 } from "react";
+import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X, HelpCircle, ChevronRight, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { ClaudeMessage, ClaudeSession } from "../types";
+import type { ClaudeMessage, ClaudeSession, ProgressData } from "../types";
 import type { SearchState, SearchFilterType } from "../store/useAppStore";
 import { ClaudeContentArrayRenderer } from "./contentRenderer";
 import {
   ClaudeToolUseDisplay,
   MessageContentDisplay,
   ToolExecutionResultRouter,
+  ProgressRenderer,
+  AgentProgressGroupRenderer,
 } from "./messageRenderer";
+import { AgentTaskGroupRenderer, type AgentTask } from "./toolResultRenderer";
 import { getToolName } from "./CollapsibleToolResult";
 import { extractClaudeMessageContent } from "../utils/messageUtils";
-import { cn } from "../utils/cn";
-import { COLORS } from "../constants/colors";
+import { cn } from "@/lib/utils";
 import { formatTime, formatTimeShort } from "../utils/time";
 import { getShortModelName } from "../utils/model";
 
@@ -47,6 +50,12 @@ interface MessageNodeProps {
   searchQuery?: string;
   filterType?: SearchFilterType;
   currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
+  // Agent task grouping
+  agentTaskGroup?: AgentTask[];
+  isAgentTaskGroupMember?: boolean; // true if part of a group but not the leader
+  // Agent progress grouping
+  agentProgressGroup?: { entries: AgentProgressEntry[]; agentId: string };
+  isAgentProgressGroupMember?: boolean; // true if part of a progress group but not the leader
 }
 
 interface MessageHeaderProps {
@@ -62,6 +71,241 @@ const hasSystemCommandContent = (message: ClaudeMessage): boolean => {
          /<command-message>[\s\S]*?<\/command-message>/.test(content);
 };
 
+// Helper to check if a message is an agent task launch (isAsync: true)
+const isAgentTaskLaunchMessage = (message: ClaudeMessage): boolean => {
+  if (!message.toolUseResult || typeof message.toolUseResult !== "object") return false;
+  const result = message.toolUseResult as Record<string, unknown>;
+  return result.isAsync === true && typeof result.agentId === "string";
+};
+
+// Helper to check if a message is an agent task completion
+// Handles: status "completed"/"error", or synchronous completion (isAsync === false)
+const isAgentTaskCompletionMessage = (message: ClaudeMessage): boolean => {
+  if (!message.toolUseResult || typeof message.toolUseResult !== "object") return false;
+  const result = message.toolUseResult as Record<string, unknown>;
+  if (typeof result.agentId !== "string") return false;
+  // Synchronous completion (isAsync === false)
+  if (result.isAsync === false) return true;
+  // Async completion with status "completed" or "error" (and isAsync is undefined)
+  return result.isAsync === undefined &&
+         (result.status === "completed" || result.status === "error");
+};
+
+// Helper to check if a message is an agent task launch (used by extractAgentTask)
+const isAgentTaskMessage = (message: ClaudeMessage): boolean => {
+  return isAgentTaskLaunchMessage(message);
+};
+
+// Helper to extract agent task info from a message
+const extractAgentTask = (message: ClaudeMessage): AgentTask | null => {
+  if (!isAgentTaskMessage(message)) return null;
+  const result = message.toolUseResult as Record<string, unknown>;
+  return {
+    agentId: String(result.agentId),
+    description: String(result.description || ""),
+    status: (result.status === "completed" ? "completed" :
+             result.status === "error" ? "error" : "async_launched") as AgentTask["status"],
+    outputFile: result.outputFile ? String(result.outputFile) : undefined,
+    prompt: result.prompt ? String(result.prompt) : undefined,
+  };
+};
+
+// Group agent task messages by timestamp (within 2 seconds) - non-consecutive grouping
+// Also includes completion messages linked by agentId
+const groupAgentTasks = (
+  messages: ClaudeMessage[]
+): Map<string, { tasks: AgentTask[]; messageUuids: Set<string> }> => {
+  const groups = new Map<string, { tasks: AgentTask[]; messageUuids: Set<string> }>();
+
+  // First, extract all agent task LAUNCH messages with their timestamps
+  const agentTaskMessages: { msg: ClaudeMessage; task: AgentTask; timestamp: number }[] = [];
+  for (const msg of messages) {
+    const task = extractAgentTask(msg);
+    if (task) {
+      agentTaskMessages.push({
+        msg,
+        task,
+        timestamp: new Date(msg.timestamp).getTime(),
+      });
+    }
+  }
+
+  // Sort by timestamp to ensure proper grouping
+  agentTaskMessages.sort((a, b) => a.timestamp - b.timestamp);
+
+  // Group by timestamp proximity (within 2 seconds)
+  let currentGroup: { leaderId: string; tasks: AgentTask[]; messageUuids: Set<string>; timestamp: number } | null = null;
+
+  // Map to track agentId -> group for completion message linking
+  const agentIdToGroup = new Map<string, { tasks: AgentTask[]; messageUuids: Set<string> }>();
+
+  for (const { msg, task, timestamp } of agentTaskMessages) {
+    // Check if this task belongs to the current group (within 2 seconds)
+    if (currentGroup && Math.abs(timestamp - currentGroup.timestamp) <= 2000) {
+      currentGroup.tasks.push(task);
+      currentGroup.messageUuids.add(msg.uuid);
+      agentIdToGroup.set(task.agentId, groups.get(currentGroup.leaderId)!);
+    } else {
+      // Start a new group
+      currentGroup = {
+        leaderId: msg.uuid,
+        tasks: [task],
+        messageUuids: new Set([msg.uuid]),
+        timestamp,
+      };
+      const groupData = {
+        tasks: currentGroup.tasks,
+        messageUuids: currentGroup.messageUuids,
+      };
+      groups.set(currentGroup.leaderId, groupData);
+      agentIdToGroup.set(task.agentId, groupData);
+    }
+  }
+
+  // Now find completion messages and link them to groups by agentId
+  for (const msg of messages) {
+    if (isAgentTaskCompletionMessage(msg)) {
+      const result = msg.toolUseResult as Record<string, unknown>;
+      const agentId = String(result.agentId);
+      const group = agentIdToGroup.get(agentId);
+
+      if (group) {
+        group.messageUuids.add(msg.uuid);
+        const task = group.tasks.find(t => t.agentId === agentId);
+        if (task) {
+          // Set status based on result.status or fallback to "completed" for synchronous completions
+          if (result.status === "error") {
+            task.status = "error";
+          } else {
+            task.status = "completed";
+          }
+        }
+      }
+    }
+
+    // Handle queue-operation messages with <task-notification> tags
+    if (msg.type === "queue-operation") {
+      const content = extractClaudeMessageContent(msg);
+      if (content && typeof content === "string" && content.includes("<task-notification>")) {
+        // Extract task-id from content
+        const taskIdMatch = content.match(/<task-id>([^<]+)<\/task-id>/);
+        const taskId = taskIdMatch?.[1];
+        if (taskId) {
+          const group = agentIdToGroup.get(taskId);
+
+          if (group) {
+            group.messageUuids.add(msg.uuid);
+            const task = group.tasks.find(t => t.agentId === taskId);
+            if (task) {
+              task.status = "completed";
+            }
+          }
+        }
+      }
+    }
+
+    // Handle user messages with <task-notification> tags (batched notifications)
+    if (msg.type === "user") {
+      const content = extractClaudeMessageContent(msg);
+      if (content && typeof content === "string" && content.includes("<task-notification>")) {
+        // Extract ALL task-ids from content (may contain multiple)
+        const taskIdMatches = [...content.matchAll(/<task-id>([^<]+)<\/task-id>/g)];
+
+        for (const match of taskIdMatches) {
+          const taskId = match[1];
+          if (taskId) {
+            const group = agentIdToGroup.get(taskId);
+
+            if (group) {
+              group.messageUuids.add(msg.uuid);
+              const task = group.tasks.find(t => t.agentId === taskId);
+              if (task) {
+                task.status = "completed";
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return groups;
+};
+
+// Interface for agent progress entries
+interface AgentProgressEntry {
+  data: ProgressData;
+  timestamp: string;
+  uuid: string;
+}
+
+// Helper to check if a message is an agent progress message
+const isAgentProgressMessage = (message: ClaudeMessage): boolean => {
+  if (message.type !== "progress") return false;
+  const data = message.data as ProgressData | undefined;
+  return data?.type === "agent_progress" && typeof data?.agentId === "string";
+};
+
+// Extract agentId from a progress message
+const getAgentIdFromProgress = (message: ClaudeMessage): string | null => {
+  if (!isAgentProgressMessage(message)) return null;
+  const data = message.data as ProgressData;
+  return data.agentId || null;
+};
+
+// Group consecutive agent progress messages by agentId
+// Only groups progress messages that appear consecutively in the message list
+const groupAgentProgressMessages = (
+  messages: ClaudeMessage[]
+): Map<string, { entries: AgentProgressEntry[]; messageUuids: Set<string> }> => {
+  const groups = new Map<string, { entries: AgentProgressEntry[]; messageUuids: Set<string> }>();
+
+  let prevAgentId: string | null = null;
+  let prevWasProgress = false;
+  let currentGroup: { leaderId: string; entries: AgentProgressEntry[]; messageUuids: Set<string> } | null = null;
+
+  for (const msg of messages) {
+    const agentId = getAgentIdFromProgress(msg);
+
+    if (agentId) {
+      // This is a progress message
+      const entry: AgentProgressEntry = {
+        data: msg.data as ProgressData,
+        timestamp: msg.timestamp,
+        uuid: msg.uuid,
+      };
+
+      // Check if this continues the current group (same agentId and previous was also progress)
+      if (prevWasProgress && prevAgentId === agentId && currentGroup) {
+        // Append to current group
+        currentGroup.entries.push(entry);
+        currentGroup.messageUuids.add(msg.uuid);
+      } else {
+        // Start a new group
+        currentGroup = {
+          leaderId: msg.uuid,
+          entries: [entry],
+          messageUuids: new Set([msg.uuid]),
+        };
+        groups.set(msg.uuid, {
+          entries: currentGroup.entries,
+          messageUuids: currentGroup.messageUuids,
+        });
+      }
+
+      prevAgentId = agentId;
+      prevWasProgress = true;
+    } else {
+      // Not a progress message - reset tracking
+      prevAgentId = null;
+      prevWasProgress = false;
+      currentGroup = null;
+    }
+  }
+
+  return groups;
+};
+
 const MessageHeader = ({ message }: MessageHeaderProps) => {
   const { t } = useTranslation("components");
   const isToolResultMessage = !!message.toolUseResult && message.type === "user";
@@ -73,7 +317,7 @@ const MessageHeader = ({ message }: MessageHeaderProps) => {
 
   return (
     <div className={cn(
-      "flex items-center mb-1 text-xs text-gray-500 dark:text-gray-400",
+      "flex items-center mb-1 text-xs text-muted-foreground",
       isLeftAligned ? "justify-between" : "justify-end"
     )}>
       <div className="flex items-center gap-1.5">
@@ -91,26 +335,30 @@ const MessageHeader = ({ message }: MessageHeaderProps) => {
         <span>·</span>
         <span>{formatTimeShort(message.timestamp)}</span>
         {message.isSidechain && (
-          <span className="px-1.5 py-0.5 text-[10px] bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded-full">
+          <span className="px-1.5 py-0.5 text-xs font-mono bg-warning/20 text-warning-foreground rounded-full">
             {t("messageViewer.branch")}
           </span>
         )}
       </div>
 
       {message.type === "assistant" && message.model && (
-        <div className="relative group flex items-center gap-1">
-          <span className="text-gray-400 dark:text-gray-500">{getShortModelName(message.model)}</span>
+        <div className="relative group flex items-center gap-1.5">
+          <span className="text-muted-foreground">{getShortModelName(message.model)}</span>
           {message.usage && (
             <>
-              <HelpCircle className="w-3 h-3 cursor-help text-gray-400 dark:text-gray-500" />
-              <div className="absolute bottom-full mb-2 right-0 w-52 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded-lg p-2.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10">
+              <HelpCircle className="w-3 h-3 cursor-help text-muted-foreground" />
+              <div className={cn(
+                "absolute bottom-full mb-2 right-0 w-52 bg-popover text-popover-foreground",
+                "text-xs rounded-md p-2.5",
+                "opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10 border border-border"
+              )}>
                 <p className="mb-1"><strong>{t("assistantMessageDetails.model")}:</strong> {message.model}</p>
                 <p className="mb-1"><strong>{t("messageViewer.time")}:</strong> {formatTime(message.timestamp)}</p>
                 {message.usage.input_tokens && <p>{t("assistantMessageDetails.input")}: {message.usage.input_tokens.toLocaleString()}</p>}
                 {message.usage.output_tokens && <p>{t("assistantMessageDetails.output")}: {message.usage.output_tokens.toLocaleString()}</p>}
                 {message.usage.cache_creation_input_tokens ? <p>{t("assistantMessageDetails.cacheCreation")}: {message.usage.cache_creation_input_tokens.toLocaleString()}</p> : null}
                 {message.usage.cache_read_input_tokens ? <p>{t("assistantMessageDetails.cacheRead")}: {message.usage.cache_read_input_tokens.toLocaleString()}</p> : null}
-                <div className="absolute right-4 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800 dark:border-t-gray-700"></div>
+                <div className="absolute right-4 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-popover"></div>
               </div>
             </>
           )}
@@ -130,36 +378,31 @@ const SummaryMessage = ({ content, timestamp }: SummaryMessageProps) => {
   const { t } = useTranslation("components");
 
   return (
-    <div className={cn(
-      "rounded-lg border mx-4 my-2",
-      COLORS.semantic.info.bg,
-      COLORS.semantic.info.border
-    )}>
+    <div className="rounded-md border mx-4 my-2 bg-info/10 border-info/30">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 text-left",
-          "hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors rounded-lg"
+          "w-full flex items-center gap-1.5 px-3 py-2 h-8",
+          "text-left hover:bg-info/20 transition-colors rounded-md"
         )}
       >
         <ChevronRight
           className={cn(
-            "w-4 h-4 transition-transform flex-shrink-0",
-            COLORS.semantic.info.icon,
+            "w-4 h-4 transition-transform flex-shrink-0 text-info",
             isExpanded && "rotate-90"
           )}
         />
-        <FileText className={cn("w-4 h-4 flex-shrink-0", COLORS.semantic.info.icon)} />
-        <span className={cn("text-xs font-medium", COLORS.semantic.info.text)}>
+        <FileText className="w-4 h-4 flex-shrink-0 text-info" />
+        <span className="text-sm font-medium text-info-foreground">
           {t("messageViewer.priorContext")}
         </span>
-        <span className={cn("text-xs ml-auto", COLORS.semantic.info.icon)}>
+        <span className="text-xs ml-auto text-info">
           {formatTimeShort(timestamp)}
         </span>
       </button>
 
       {isExpanded && (
-        <div className={cn("px-3 pb-3 text-sm", COLORS.semantic.info.text)}>
+        <div className="px-3 pb-3 text-sm text-info-foreground">
           {content}
         </div>
       )}
@@ -170,6 +413,9 @@ const SummaryMessage = ({ content, timestamp }: SummaryMessageProps) => {
 const isEmptyMessage = (message: ClaudeMessage): boolean => {
   // Messages with tool use or results should be shown
   if (message.toolUse || message.toolUseResult) return false;
+
+  // Progress messages should be shown
+  if (message.type === "progress" && message.data) return false;
 
   // Check for array content (tool results, etc.)
   if (message.content && Array.isArray(message.content) && message.content.length > 0) {
@@ -197,14 +443,60 @@ const isEmptyMessage = (message: ClaudeMessage): boolean => {
   return stripped.length === 0;
 };
 
-const ClaudeMessageNode = React.memo(({ message, isCurrentMatch, isMatch, searchQuery, filterType = "content", currentMatchIndex }: MessageNodeProps) => {
+const ClaudeMessageNode = React.memo(({ message, isCurrentMatch, isMatch, searchQuery, filterType = "content", currentMatchIndex, agentTaskGroup, isAgentTaskGroupMember, agentProgressGroup, isAgentProgressGroupMember }: MessageNodeProps) => {
   if (message.isSidechain) {
     return null;
+  }
+
+  // Render hidden placeholders for group members to preserve DOM nodes for search/highlight
+  if (isAgentTaskGroupMember) {
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className="hidden"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (isAgentProgressGroupMember) {
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className="hidden"
+        aria-hidden="true"
+      />
+    );
   }
 
   // Skip empty messages (no content, or only command tags)
   if (isEmptyMessage(message)) {
     return null;
+  }
+
+  // Render grouped agent tasks
+  if (agentTaskGroup && agentTaskGroup.length > 0) {
+    return (
+      <div data-message-uuid={message.uuid} className="w-full px-4 py-2">
+        <div className="max-w-4xl mx-auto">
+          <AgentTaskGroupRenderer tasks={agentTaskGroup} timestamp={message.timestamp} />
+        </div>
+      </div>
+    );
+  }
+
+  // Render grouped agent progress (replaces individual ProgressRenderer for agent_progress)
+  if (agentProgressGroup && agentProgressGroup.entries.length > 0) {
+    return (
+      <div data-message-uuid={message.uuid} className="w-full px-4 py-2">
+        <div className="max-w-4xl mx-auto">
+          <AgentProgressGroupRenderer
+            entries={agentProgressGroup.entries}
+            agentId={agentProgressGroup.agentId}
+          />
+        </div>
+      </div>
+    );
   }
 
   // Summary messages get special collapsible rendering
@@ -219,16 +511,31 @@ const ClaudeMessageNode = React.memo(({ message, isCurrentMatch, isMatch, search
     );
   }
 
+  // Progress messages get special rendering (non-agent progress types)
+  if (message.type === "progress" && message.data) {
+    return (
+      <div data-message-uuid={message.uuid} className="w-full px-4 py-1">
+        <div className="max-w-4xl mx-auto">
+          <ProgressRenderer
+            data={message.data as ProgressData}
+            toolUseID={message.toolUseID}
+            parentToolUseID={message.parentToolUseID}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       data-message-uuid={message.uuid}
       className={cn(
         "w-full px-4 py-2 transition-colors duration-300",
-        message.isSidechain && "bg-gray-100 dark:bg-gray-800",
+        message.isSidechain && "bg-muted",
         // 현재 매치된 메시지 강조
-        isCurrentMatch && "bg-yellow-100 dark:bg-yellow-900/30 ring-2 ring-yellow-400 dark:ring-yellow-500",
+        isCurrentMatch && "bg-highlight-current ring-2 ring-warning",
         // 다른 매치 메시지 연한 강조
-        isMatch && !isCurrentMatch && "bg-yellow-50 dark:bg-yellow-900/10"
+        isMatch && !isCurrentMatch && "bg-highlight"
       )}
     >
       <div className="max-w-4xl mx-auto">
@@ -272,7 +579,7 @@ const ClaudeMessageNode = React.memo(({ message, isCurrentMatch, isMatch, search
 
           {/* Tool Result */}
           {message.toolUseResult && (
-            <ToolExecutionResultRouter toolResult={message.toolUseResult} depth={0} />
+            <ToolExecutionResultRouter toolResult={message.toolUseResult} depth={0} searchQuery={searchQuery} />
           )}
         </div>
       </div>
@@ -303,8 +610,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   onPrevMatch,
 }) => {
   const { t } = useTranslation("components");
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<OverlayScrollbarsComponentRef>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to get the scroll viewport element
+  const getScrollViewport = useCallback(() => {
+    return scrollContainerRef.current?.osInstance()?.elements().viewport ?? null;
+  }, []);
+
   // Optimistic UI: 입력 상태를 별도로 관리 (startTransition으로 비긴급 업데이트)
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -386,13 +699,45 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     return { rootMessages: roots, uniqueMessages };
   }, [displayMessages]);
 
+  // Agent task grouping
+  const agentTaskGroups = useMemo(() => {
+    return groupAgentTasks(uniqueMessages);
+  }, [uniqueMessages]);
+
+  // Pre-compute Set of all agent task member UUIDs for O(1) membership checks
+  const agentTaskMemberUuids = useMemo(() => {
+    const memberSet = new Set<string>();
+    for (const group of agentTaskGroups.values()) {
+      for (const uuid of group.messageUuids) {
+        memberSet.add(uuid);
+      }
+    }
+    return memberSet;
+  }, [agentTaskGroups]);
+
+  // Agent progress grouping (group agent_progress messages by agentId)
+  const agentProgressGroups = useMemo(() => {
+    return groupAgentProgressMessages(uniqueMessages);
+  }, [uniqueMessages]);
+
+  // Pre-compute Set of all agent progress member UUIDs for O(1) membership checks
+  const agentProgressMemberUuids = useMemo(() => {
+    const memberSet = new Set<string>();
+    for (const group of agentProgressGroups.values()) {
+      for (const uuid of group.messageUuids) {
+        memberSet.add(uuid);
+      }
+    }
+    return memberSet;
+  }, [agentProgressGroups]);
+
   // 이전 세션 ID를 추적
   const prevSessionIdRef = useRef<string | null>(null);
 
   // 맨 아래로 스크롤하는 함수
   const scrollToBottom = useCallback(() => {
-    if (scrollContainerRef.current) {
-      const element = scrollContainerRef.current;
+    const element = getScrollViewport();
+    if (element) {
       // 여러 번 시도하여 확실히 맨 아래로 이동
       const attemptScroll = (attempts = 0) => {
         element.scrollTop = element.scrollHeight;
@@ -405,7 +750,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       };
       attemptScroll();
     }
-  }, []);
+  }, [getScrollViewport]);
 
   // 새로운 세션 선택 시 스크롤을 맨 아래로 이동 (채팅 스타일)
   useEffect(() => {
@@ -433,10 +778,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // 현재 매치된 하이라이트 텍스트로 스크롤 이동
   const scrollToHighlight = useCallback((matchUuid: string | null) => {
-    if (!scrollContainerRef.current) return;
+    const viewport = getScrollViewport();
+    if (!viewport) return;
 
     // 먼저 하이라이트된 텍스트 요소를 찾음
-    const highlightElement = scrollContainerRef.current.querySelector(
+    const highlightElement = viewport.querySelector(
       '[data-search-highlight="current"]'
     );
 
@@ -451,7 +797,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
     // 하이라이트 요소가 없으면 메시지 영역으로 스크롤 (fallback)
     if (matchUuid) {
-      const messageElement = scrollContainerRef.current.querySelector(
+      const messageElement = viewport.querySelector(
         `[data-message-uuid="${matchUuid}"]`
       );
 
@@ -462,7 +808,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         });
       }
     }
-  }, []);
+  }, [getScrollViewport]);
 
   // 현재 매치 변경 시 해당 하이라이트로 스크롤
   useEffect(() => {
@@ -498,10 +844,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // 맨 위로 스크롤하는 함수
   const scrollToTop = useCallback(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    const viewport = getScrollViewport();
+    if (viewport) {
+      viewport.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, []);
+  }, [getScrollViewport]);
 
   // 스크롤 이벤트 최적화 (쓰로틀링 적용)
   useEffect(() => {
@@ -512,9 +859,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
       throttleTimer = setTimeout(() => {
         try {
-          if (scrollContainerRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } =
-              scrollContainerRef.current;
+          const viewport = getScrollViewport();
+          if (viewport) {
+            const { scrollTop, scrollHeight, clientHeight } = viewport;
             const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
             const isNearTop = scrollTop < 100;
             setShowScrollToBottom(!isNearBottom && displayMessages.length > 5);
@@ -527,24 +874,31 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       }, 100);
     };
 
-    const scrollElement = scrollContainerRef.current;
-    if (scrollElement) {
-      scrollElement.addEventListener("scroll", handleScroll, { passive: true });
-      handleScroll();
+    // Delay to ensure OverlayScrollbars is initialized
+    const timer = setTimeout(() => {
+      const scrollElement = getScrollViewport();
+      if (scrollElement) {
+        scrollElement.addEventListener("scroll", handleScroll, { passive: true });
+        handleScroll();
+      }
+    }, 100);
 
-      return () => {
-        if (throttleTimer) {
-          clearTimeout(throttleTimer);
-        }
+    return () => {
+      clearTimeout(timer);
+      if (throttleTimer) {
+        clearTimeout(throttleTimer);
+      }
+      const scrollElement = getScrollViewport();
+      if (scrollElement) {
         scrollElement.removeEventListener("scroll", handleScroll);
-      };
-    }
-  }, [displayMessages.length]);
+      }
+    };
+  }, [displayMessages.length, getScrollViewport]);
 
   if (isLoading && messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center h-full">
-        <div className="flex items-center space-x-2 text-gray-500">
+        <div className="flex items-center space-x-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span>{t("messageViewer.loadingMessages")}</span>
         </div>
@@ -554,11 +908,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-gray-500 h-full">
+      <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full">
         <div className="mb-4">
-          <MessageCircle className="w-16 h-16 mx-auto text-gray-400" />
+          <MessageCircle className="w-16 h-16 mx-auto text-muted-foreground/50" />
         </div>
-        <h3 className="text-lg font-medium mb-2">
+        <h3 className="text-lg font-medium mb-2 text-foreground">
           {t("messageViewer.noMessages")}
         </h3>
         <p className="text-sm text-center whitespace-pre-line">
@@ -594,6 +948,22 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     const isCurrentMatch = currentMatchUuid === message.uuid;
     const messageMatchIndex = isCurrentMatch ? currentMatch?.matchIndex : undefined;
 
+    // Check if this message is part of an agent task group
+    const groupInfo = agentTaskGroups.get(message.uuid);
+    const isGroupLeader = !!groupInfo;
+    const isGroupMember = !isGroupLeader && agentTaskMemberUuids.has(message.uuid);
+
+
+    // Check if this message is part of an agent progress group
+    const progressGroupInfo = agentProgressGroups.get(message.uuid);
+    const isProgressGroupLeader = !!progressGroupInfo;
+    const isProgressGroupMember = !isProgressGroupLeader && agentProgressMemberUuids.has(message.uuid);
+
+    // Get agentId for progress group leader
+    const progressAgentId = isProgressGroupLeader
+      ? getAgentIdFromProgress(message)
+      : null;
+
     // 현재 메시지를 먼저 추가하고, 자식 메시지들을 이어서 추가
     const result: React.ReactNode[] = [
       <ClaudeMessageNode
@@ -605,6 +975,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         searchQuery={sessionSearch.query}
         filterType={sessionSearch.filterType}
         currentMatchIndex={messageMatchIndex}
+        agentTaskGroup={isGroupLeader ? groupInfo.tasks : undefined}
+        isAgentTaskGroupMember={isGroupMember}
+        agentProgressGroup={isProgressGroupLeader && progressAgentId ? {
+          entries: progressGroupInfo.entries,
+          agentId: progressAgentId,
+        } : undefined}
+        isAgentProgressGroupMember={isProgressGroupMember}
       />,
     ];
 
@@ -629,8 +1006,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         role="search"
         className={cn(
           "flex items-center gap-3 px-4 py-2 border-b sticky top-0 z-10",
-          COLORS.ui.background.secondary,
-          COLORS.ui.border.light
+          "bg-secondary/50 border-border"
         )}
       >
         {/* Filter Toggle */}
@@ -642,9 +1018,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           }}
           className={cn(
             "text-xs px-2 py-1.5 rounded-md transition-colors whitespace-nowrap",
-            "hover:bg-gray-200 dark:hover:bg-gray-700",
-            "bg-gray-100 dark:bg-gray-800",
-            COLORS.ui.text.secondary
+            "hover:bg-secondary/80",
+            "bg-secondary text-secondary-foreground"
           )}
           title={t("messageViewer.filterType")}
         >
@@ -655,10 +1030,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
         {/* Search Input */}
         <div className="relative flex-1 max-w-md">
-          <Search className={cn(
-            "absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4",
-            COLORS.ui.text.muted
-          )} />
+          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             ref={searchInputRef}
             type="text"
@@ -669,16 +1041,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             aria-label={t("messageViewer.searchPlaceholder")}
             className={cn(
               "w-full pl-8 pr-8 py-1.5 rounded-md border text-sm",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500",
-              COLORS.ui.background.primary,
-              COLORS.ui.border.light,
-              COLORS.ui.text.primary
+              "focus:outline-none focus:ring-2 focus:ring-ring",
+              "bg-background border-border text-foreground"
             )}
           />
           {searchQuery && (
             isSearchPending ? (
               <div className="absolute right-2.5 top-1/2 transform -translate-y-1/2">
-                <Loader2 className={cn("w-3.5 h-3.5 animate-spin", COLORS.ui.text.muted)} />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
               </div>
             ) : (
               <button
@@ -687,8 +1057,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 aria-label="Clear search"
                 className={cn(
                   "absolute right-2 top-1/2 transform -translate-y-1/2",
-                  "p-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700",
-                  COLORS.ui.text.muted
+                  "p-0.5 rounded-full hover:bg-secondary text-muted-foreground"
                 )}
               >
                 <X className="w-3.5 h-3.5" />
@@ -699,7 +1068,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
         {/* Match Navigation */}
         {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
-          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span className="font-medium tabular-nums">
               {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
             </span>
@@ -711,7 +1080,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               title="Shift+Enter"
               className={cn(
                 "p-1 rounded transition-colors",
-                "hover:bg-gray-200 dark:hover:bg-gray-700",
+                "hover:bg-secondary",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
@@ -725,7 +1094,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               title="Enter"
               className={cn(
                 "p-1 rounded transition-colors",
-                "hover:bg-gray-200 dark:hover:bg-gray-700",
+                "hover:bg-secondary",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
             >
@@ -738,25 +1107,27 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         <div className="flex-1" />
 
         {/* Meta Info */}
-        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{messages.length} {t("messageViewer.messagesShort")}</span>
           {selectedSession?.has_tool_use && (
             <span>· {t("messageViewer.toolsUsed")}</span>
           )}
           {selectedSession?.has_errors && (
-            <span className="text-orange-500 dark:text-orange-400">· {t("messageViewer.hasErrors")}</span>
+            <span className="text-destructive">· {t("messageViewer.hasErrors")}</span>
           )}
         </div>
       </div>
 
-      <div
+      <OverlayScrollbarsComponent
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto scrollbar-thin"
-        style={{ scrollBehavior: "auto" }}
+        className="flex-1"
+        options={{
+          scrollbars: { theme: "os-theme-custom", autoHide: "leave", autoHideDelay: 400 },
+        }}
       >
         {/* 디버깅 정보 */}
         {import.meta.env.DEV && (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 p-2 text-xs text-yellow-800 dark:text-yellow-200 border-b space-y-1">
+          <div className="bg-warning/10 p-2 text-xs text-warning-foreground border-b border-warning/20 space-y-1">
             <div>
               {t("messageViewer.debugInfo.messages", {
                 current: displayMessages.length,
@@ -781,9 +1152,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         <div className="max-w-4xl mx-auto">
           {/* 검색 결과 없음 */}
           {sessionSearch.query && (!sessionSearch.matches || sessionSearch.matches.length === 0) && !sessionSearch.isSearching && (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-              <Search className="w-12 h-12 mb-4 text-gray-400" />
-              <p className="text-lg font-medium mb-2">
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Search className="w-12 h-12 mb-4 text-muted-foreground/50" />
+              <p className="text-lg font-medium mb-2 text-foreground">
                 {t("messageViewer.noSearchResults")}
               </p>
               <p className="text-sm">
@@ -795,7 +1166,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           {/* 메시지 목록 */}
           {displayMessages.length > 0 && !sessionSearch.query && (
             <div className="flex items-center justify-center py-4">
-              <div className={cn("text-sm", COLORS.ui.text.muted)}>
+              <div className="text-sm text-muted-foreground">
                 {t("messageViewer.allMessagesLoaded", {
                   count: messages.length,
                 })}
@@ -823,6 +1194,21 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   const isCurrentMatch = currentMatchUuid === message.uuid;
                   const messageMatchIndex = isCurrentMatch ? currentMatch?.matchIndex : undefined;
 
+                  // Check if this message is part of an agent task group
+                  const groupInfo = agentTaskGroups.get(message.uuid);
+                  const isGroupLeader = !!groupInfo;
+                  const isGroupMember = !isGroupLeader && agentTaskMemberUuids.has(message.uuid);
+
+                  // Check if this message is part of an agent progress group
+                  const progressGroupInfo = agentProgressGroups.get(message.uuid);
+                  const isProgressGroupLeader = !!progressGroupInfo;
+                  const isProgressGroupMember = !isProgressGroupLeader && agentProgressMemberUuids.has(message.uuid);
+
+                  // Get agentId for progress group leader
+                  const progressAgentId = isProgressGroupLeader
+                    ? getAgentIdFromProgress(message)
+                    : null;
+
                   return (
                     <ClaudeMessageNode
                       key={uniqueKey}
@@ -833,6 +1219,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                       searchQuery={sessionSearch.query}
                       filterType={sessionSearch.filterType}
                       currentMatchIndex={messageMatchIndex}
+                      agentTaskGroup={isGroupLeader ? groupInfo.tasks : undefined}
+                      isAgentTaskGroupMember={isGroupMember}
+                      agentProgressGroup={isProgressGroupLeader && progressAgentId ? {
+                        entries: progressGroupInfo.entries,
+                        agentId: progressAgentId,
+                      } : undefined}
+                      isAgentProgressGroupMember={isProgressGroupMember}
                     />
                   );
                 });
@@ -852,17 +1245,17 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   key="error-fallback"
                   className="flex items-center justify-center p-8"
                 >
-                  <div className="text-center text-red-600">
+                  <div className="text-center text-destructive">
                     <div className="text-lg font-semibold mb-2">
                       {t("messageViewer.renderError")}
                     </div>
-                    <div className="text-sm">
+                    <div className="text-sm text-destructive/80">
                       {t("messageViewer.checkConsole")}
                     </div>
                     <button
                       type="button"
                       onClick={() => window.location.reload()}
-                      className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                      className="mt-4 px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
                     >
                       {t("messageViewer.refresh")}
                     </button>
@@ -881,9 +1274,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               onClick={scrollToTop}
               className={cn(
                 "p-3 rounded-full shadow-lg transition-all duration-300",
-                "bg-blue-500/50 hover:bg-blue-600 text-white",
-                "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300",
-                "dark:bg-blue-600/50 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                "bg-accent/60 hover:bg-accent text-accent-foreground",
+                "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-accent/30"
               )}
               title={t("messageViewer.scrollToTop")}
               aria-label={t("messageViewer.scrollToTop")}
@@ -897,9 +1289,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               onClick={scrollToBottom}
               className={cn(
                 "p-3 rounded-full shadow-lg transition-all duration-300",
-                "bg-blue-500/50 hover:bg-blue-600 text-white",
-                "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300",
-                "dark:bg-blue-600/50 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                "bg-accent/60 hover:bg-accent text-accent-foreground",
+                "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-accent/30"
               )}
               title={t("messageViewer.scrollToBottom")}
               aria-label={t("messageViewer.scrollToBottom")}
@@ -908,7 +1299,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             </button>
           )}
         </div>
-      </div>
+      </OverlayScrollbarsComponent>
     </div>
   );
 };

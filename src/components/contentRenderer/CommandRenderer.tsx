@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Terminal, CheckCircle, AlertCircle, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { cn } from "../../utils/cn";
-import { COLORS } from "../../constants/colors";
+import { cn } from "@/lib/utils";
+import { layout } from "@/components/renderers";
 
 type Props = {
   text: string;
+  searchQuery?: string;
 };
 
 interface CommandGroup {
@@ -27,7 +28,7 @@ interface CaveatBlock {
   content: string;
 }
 
-export const CommandRenderer = ({ text }: Props) => {
+export const CommandRenderer = ({ text, searchQuery }: Props) => {
   const { t } = useTranslation("components");
 
   // Command 그룹 (name, message, args) 추출
@@ -128,43 +129,43 @@ export const CommandRenderer = ({ text }: Props) => {
     <div className="space-y-2">
       {/* Command Group */}
       {hasCommandGroup && (
-        <div className={cn("rounded-lg p-3 border", COLORS.tools.system.bg, COLORS.tools.system.border)}>
-          <div className="flex items-center space-x-2 mb-2">
-            <Terminal className={cn("w-4 h-4", COLORS.tools.system.icon)} />
-            <span className={cn("text-xs font-medium", COLORS.tools.system.text)}>
+        <div className={cn(layout.rounded, layout.containerPadding, "border bg-accent/10 border-accent/30")}>
+          <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+            <Terminal className={cn(layout.iconSize, "text-accent")} />
+            <span className={cn(layout.titleText, "text-accent")}>
               {t("commandRenderer.commandExecution")}
             </span>
           </div>
 
           <div className="space-y-2">
             {commandGroup.name && (
-              <div className="flex items-start space-x-2">
-                <span className={cn("text-xs font-medium mt-0.5 min-w-[40px]", COLORS.tools.system.text)}>
+              <div className={cn("flex items-start", layout.iconSpacing)}>
+                <span className={cn(layout.titleText, "mt-0.5 min-w-[40px] text-accent")}>
                   {t("commandRenderer.command")}
                 </span>
-                <code className={cn("px-2 py-1 rounded text-xs font-mono", COLORS.tools.system.bgDark, COLORS.tools.system.text)}>
+                <code className={cn("px-2 py-1", layout.rounded, layout.monoText, "bg-accent/20 text-accent")}>
                   {commandGroup.name}
                 </code>
               </div>
             )}
 
             {commandGroup.args && (
-              <div className="flex items-start space-x-2">
-                <span className={cn("text-xs font-medium mt-0.5 min-w-[40px]", COLORS.tools.system.text)}>
+              <div className={cn("flex items-start", layout.iconSpacing)}>
+                <span className={cn(layout.titleText, "mt-0.5 min-w-[40px] text-accent")}>
                   {t("commandRenderer.arguments")}
                 </span>
-                <code className={cn("px-2 py-1 rounded text-xs font-mono whitespace-pre-wrap", COLORS.tools.search.bgDark, COLORS.tools.search.text)}>
+                <code className={cn("px-2 py-1", layout.rounded, layout.monoText, "whitespace-pre-wrap bg-tool-search/20 text-tool-search")}>
                   {commandGroup.args}
                 </code>
               </div>
             )}
 
             {commandGroup.message && (
-              <div className="flex items-start space-x-2">
-                <span className={cn("text-xs font-medium mt-0.5 min-w-[40px]", COLORS.tools.system.text)}>
+              <div className={cn("flex items-start", layout.iconSpacing)}>
+                <span className={cn(layout.titleText, "mt-0.5 min-w-[40px] text-accent")}>
                   {t("commandRenderer.status")}
                 </span>
-                <span className={cn("text-sm italic", COLORS.tools.system.icon)}>
+                <span className={cn(layout.bodyText, "italic text-accent")}>
                   {commandGroup.message}
                 </span>
               </div>
@@ -176,7 +177,6 @@ export const CommandRenderer = ({ text }: Props) => {
       {/* Output Tags */}
       {outputTags.map((output, index) => {
         const isError = output.type === "stderr";
-        const colors = isError ? COLORS.semantic.error : COLORS.semantic.success;
         const Icon = isError ? AlertCircle : CheckCircle;
         const label = isError
           ? t("commandRenderer.errorOutput")
@@ -185,20 +185,27 @@ export const CommandRenderer = ({ text }: Props) => {
         return (
           <div
             key={index}
-            className={cn("rounded-lg p-3 border", colors.bg, colors.border)}
+            className={cn(
+              layout.rounded,
+              layout.containerPadding,
+              "border",
+              isError ? "bg-destructive/10 border-destructive/30" : "bg-success/10 border-success/30"
+            )}
           >
-            <div className="flex items-center space-x-2 mb-2">
-              <Icon className={cn("w-4 h-4", colors.icon)} />
-              <span className={cn("text-xs font-medium", colors.textDark)}>
+            <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+              <Icon className={cn(layout.iconSize, isError ? "text-destructive" : "text-success")} />
+              <span className={cn(layout.titleText, isError ? "text-destructive" : "text-success")}>
                 {label} ({output.name})
               </span>
             </div>
 
             <div
               className={cn(
-                "p-2 rounded max-h-80 overflow-y-auto text-sm",
-                colors.bgDark,
-                colors.text
+                layout.containerPadding,
+                layout.rounded,
+                "max-h-80 overflow-y-auto",
+                layout.bodyText,
+                isError ? "bg-destructive/5 text-destructive" : "bg-success/5 text-success"
               )}
             >
               <Markdown remarkPlugins={[remarkGfm]}>{output.content}</Markdown>
@@ -209,12 +216,12 @@ export const CommandRenderer = ({ text }: Props) => {
 
       {/* Caveats - collapsible info blocks */}
       {caveats.map((caveat, index) => (
-        <CaveatRenderer key={index} content={caveat.content} />
+        <CaveatRenderer key={index} content={caveat.content} searchQuery={searchQuery} />
       ))}
 
       {/* Remaining Text */}
       {withoutCommands && (
-        <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-code:text-red-600 dark:prose-code:text-red-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-800">
+        <div className={layout.prose}>
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {withoutCommands}
           </ReactMarkdown>
@@ -224,34 +231,44 @@ export const CommandRenderer = ({ text }: Props) => {
   );
 };
 
-const CaveatRenderer = ({ content }: { content: string }) => {
+const CaveatRenderer = ({ content, searchQuery }: { content: string; searchQuery?: string }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const { t } = useTranslation("components");
 
+  // 검색 쿼리가 있고 내용에 매칭되면 자동으로 펼치기
+  useEffect(() => {
+    if (searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())) {
+      setIsExpanded(true);
+    }
+  }, [searchQuery, content]);
+
   return (
-    <div className={cn("rounded-lg border", COLORS.semantic.info.bg, COLORS.semantic.info.border)}>
+    <div className={cn(layout.rounded, "border bg-info/10 border-info/30")}>
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 text-left",
-          "hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors rounded-lg"
+          "w-full flex items-center",
+          layout.iconGap,
+          layout.headerPadding,
+          layout.rounded,
+          "text-left hover:bg-info/20 transition-colors"
         )}
       >
         <ChevronRight
           className={cn(
-            "w-4 h-4 transition-transform",
-            COLORS.semantic.info.icon,
+            layout.iconSize,
+            "transition-transform text-info",
             isExpanded && "rotate-90"
           )}
         />
-        <Info className={cn("w-4 h-4", COLORS.semantic.info.icon)} />
-        <span className={cn("text-xs font-medium", COLORS.semantic.info.text)}>
+        <Info className={cn(layout.iconSize, "text-info")} />
+        <span className={cn(layout.titleText, "text-info")}>
           {t("commandRenderer.systemNote")}
         </span>
       </button>
 
       {isExpanded && (
-        <div className={cn("px-3 pb-3 text-xs", COLORS.semantic.info.text)}>
+        <div className={cn(layout.contentPadding, layout.smallText, "text-info")}>
           {content}
         </div>
       )}

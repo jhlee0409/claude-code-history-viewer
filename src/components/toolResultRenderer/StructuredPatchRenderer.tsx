@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { FileContent } from "../FileContent";
 import { Renderer } from "../../shared/RendererHeader";
-import { cn } from "../../utils/cn";
-import { COLORS } from "../../constants/colors";
+import { layout } from "@/components/renderers";
 
 type Props = {
   toolResult: Record<string, unknown>;
@@ -64,16 +63,14 @@ export const StructuredPatchRenderer = ({ toolResult }: Props) => {
   };
 
   return (
-    <Renderer
-      className={cn(COLORS.tools.task.bg, COLORS.tools.task.border)}
-    >
+    <Renderer className="bg-tool-code/10 border-tool-code/30">
       <Renderer.Header
         title={t("structuredPatch.fileChanges")}
-        icon={<RefreshCw className={cn("w-4 h-4", COLORS.tools.task.icon)} />}
-        titleClassName={COLORS.tools.task.text}
+        icon={<RefreshCw className="w-4 h-4 text-tool-code" />}
+        titleClassName="text-foreground"
         rightContent={
           filePath && (
-            <span className="text-xs text-blue-600 dark:text-blue-400 truncate max-w-[250px]" title={filePath}>
+            <span className={`${layout.smallText} text-tool-code truncate max-w-[250px]`} title={filePath}>
               {formatShortPath(filePath)}
             </span>
           )
@@ -82,18 +79,10 @@ export const StructuredPatchRenderer = ({ toolResult }: Props) => {
       <Renderer.Content>
         {/* 파일 경로 */}
         <div className="mb-3">
-          <div
-            className={cn("text-xs font-medium mb-1", COLORS.ui.text.tertiary)}
-          >
+          <div className={`${layout.smallText} font-medium mb-1 text-muted-foreground`}>
             {t("structuredPatch.filePath")}
           </div>
-          <code
-            className={cn(
-              "text-sm block",
-              COLORS.message.assistant.bg,
-              COLORS.message.assistant.text
-            )}
-          >
+          <code className={`${layout.monoText} block bg-secondary text-foreground p-1.5 rounded`}>
             {filePath}
           </code>
         </div>
@@ -101,18 +90,10 @@ export const StructuredPatchRenderer = ({ toolResult }: Props) => {
         {/* 변경 통계 */}
         {patches.length > 0 && (
           <div className="mb-3">
-            <div
-              className={cn("text-xs font-medium mb-1", COLORS.ui.text.tertiary)}
-            >
+            <div className={`${layout.smallText} font-medium mb-1 text-muted-foreground`}>
               {t("structuredPatch.changeStats")}
             </div>
-            <div
-              className={cn(
-                "p-2 rounded border text-xs",
-                COLORS.ui.background.primary,
-                COLORS.ui.border.medium
-              )}
-            >
+            <div className={`p-2 rounded border ${layout.smallText} bg-card border-border`}>
               {t("structuredPatch.areasChanged", { count: patches.length })}
             </div>
           </div>
@@ -131,9 +112,7 @@ export const StructuredPatchRenderer = ({ toolResult }: Props) => {
         {/* 전체 파일 내용 */}
         {content && (
           <div>
-            <div
-              className={cn("text-xs font-medium mb-2", COLORS.ui.text.tertiary)}
-            >
+            <div className={`${layout.smallText} font-medium mb-2 text-muted-foreground`}>
               {t("structuredPatch.updatedFile")}
             </div>
             <FileContent

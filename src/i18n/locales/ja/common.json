@@ -33,7 +33,11 @@
     },
     "checkUpdate": "アップデートを確認",
     "checking": "確認中...",
-    "updateSettings": "アップデート設定"
+    "updateSettings": "アップデート設定",
+    "filter": {
+      "title": "フィルター",
+      "showSystemMessages": "システムメッセージを表示"
+    }
   },
   "time": {
     "justNow": "たった今",
@@ -69,5 +73,15 @@
     "now": "今すぐアップデート",
     "download": "アップデートをダウンロード",
     "upToDate": "最新バージョンです"
+  },
+  "hooks": {
+    "noProjectSelected": "プロジェクトが選択されていません",
+    "projectSummaryLoadFailed": "プロジェクト概要の読み込みに失敗しました",
+    "sessionComparisonLoadFailed": "セッション比較の読み込みに失敗しました",
+    "recentEditsLoadFailed": "最近の編集の読み込みに失敗しました",
+    "githubApiError": "GitHub APIエラー：{{status}}",
+    "releaseInfoFetchFailed": "リリース情報を取得できませんでした",
+    "updateCheckFailed": "アップデートの確認中にエラーが発生しました",
+    "updateInstallFailed": "アップデートのインストール中にエラーが発生しました"
   }
 }

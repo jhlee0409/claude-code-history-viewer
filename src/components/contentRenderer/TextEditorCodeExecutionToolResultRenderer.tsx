@@ -1,7 +1,16 @@
+/**
+ * TextEditorCodeExecutionToolResultRenderer - Renders text editor file operation results
+ *
+ * Displays file operations (view, create, edit, delete) with appropriate styling.
+ * Supports both successful operations and error conditions with file content preview.
+ */
+
 import { memo } from "react";
 import { FileEdit, CheckCircle, AlertCircle, Eye, FilePlus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 import type { TextEditorResult, TextEditorError } from "../../types";
+import { getVariantStyles, layout } from "../renderers";
 
 type Props = {
   toolUseId: string;
@@ -33,19 +42,29 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
     const { t } = useTranslation("components");
 
     if (isTextEditorError(content)) {
+      const errorStyles = getVariantStyles("error");
+
       return (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <div className="flex items-center space-x-2 mb-2">
-            <AlertCircle className="w-4 h-4 text-red-600" />
-            <span className="text-xs font-medium text-red-800">
-              {t("textEditorCodeExecutionToolResultRenderer.error", {
-                defaultValue: "Text Editor Error",
-              })}
-            </span>
-            <span className="text-xs text-red-500 font-mono">{toolUseId}</span>
+        <div className={cn(layout.rounded, "border", errorStyles.container)}>
+          <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
+            <div className={cn("flex items-center", layout.iconGap)}>
+              <AlertCircle className={cn(layout.iconSize, errorStyles.icon)} />
+              <span className={cn(layout.titleText, errorStyles.title)}>
+                {t("textEditorCodeExecutionToolResultRenderer.error", {
+                  defaultValue: "Text Editor Error",
+                })}
+              </span>
+            </div>
+            <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
+              <span className={cn(layout.monoText, errorStyles.accent)}>
+                {toolUseId}
+              </span>
+            </div>
           </div>
-          <div className="text-sm text-red-700">
-            {ERROR_MESSAGES[content.error_code] || content.error_code}
+          <div className={layout.contentPadding}>
+            <div className={cn(layout.bodyText, errorStyles.accent)}>
+              {ERROR_MESSAGES[content.error_code] || content.error_code}
+            </div>
           </div>
         </div>
       );
@@ -53,17 +72,21 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
 
     const { operation, path, content: fileContent, success } = content;
 
+    const warningStyles = getVariantStyles("warning");
+    const successStyles = getVariantStyles("success");
+    const errorStyles = getVariantStyles("error");
+
     const getOperationIcon = () => {
       switch (operation) {
         case "view":
-          return <Eye className="w-4 h-4 text-amber-600" />;
+          return <Eye className={cn(layout.iconSize, warningStyles.icon)} />;
         case "create":
-          return <FilePlus className="w-4 h-4 text-green-600" />;
+          return <FilePlus className={cn(layout.iconSize, successStyles.icon)} />;
         case "delete":
-          return <Trash2 className="w-4 h-4 text-red-600" />;
+          return <Trash2 className={cn(layout.iconSize, errorStyles.icon)} />;
         case "edit":
         default:
-          return <FileEdit className="w-4 h-4 text-amber-600" />;
+          return <FileEdit className={cn(layout.iconSize, warningStyles.icon)} />;
       }
     };
 
@@ -96,40 +119,64 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
     };
 
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-        <div className="flex items-center space-x-2 mb-2">
-          {getOperationIcon()}
-          {success !== false ? (
-            <CheckCircle className="w-3 h-3 text-green-500" />
-          ) : (
-            <AlertCircle className="w-3 h-3 text-orange-500" />
-          )}
-          <span className="text-xs font-medium text-amber-800">
-            {getOperationLabel()}
-          </span>
-          <span className="text-xs text-amber-500 font-mono">{toolUseId}</span>
+      <div className={cn(layout.rounded, "border", warningStyles.container)}>
+        <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
+          <div className={cn("flex items-center", layout.iconGap)}>
+            {getOperationIcon()}
+            {success !== false ? (
+              <CheckCircle className={cn(layout.iconSizeSmall, "text-success")} />
+            ) : (
+              <AlertCircle className={cn(layout.iconSizeSmall, warningStyles.icon)} />
+            )}
+            <span className={cn(layout.titleText, warningStyles.title)}>
+              {getOperationLabel()}
+            </span>
+          </div>
+          <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
+            <span className={cn(layout.monoText, warningStyles.accent)}>
+              {toolUseId}
+            </span>
+          </div>
         </div>
 
-        {/* File path */}
-        {path && (
-          <div className="text-sm text-amber-700 font-mono mb-2 bg-amber-100 px-2 py-1 rounded truncate">
-            {path}
-          </div>
-        )}
+        <div className={layout.contentPadding}>
+          {/* File path */}
+          {path && (
+            <div className={cn(
+              layout.monoText,
+              "mb-2 px-2 py-1 truncate bg-warning/20",
+              layout.rounded,
+              warningStyles.accent
+            )}>
+              {path}
+            </div>
+          )}
 
-        {/* File content preview */}
-        {fileContent && (
-          <details className="mt-2">
-            <summary className="text-xs text-amber-600 cursor-pointer hover:text-amber-800">
-              {t("textEditorCodeExecutionToolResultRenderer.showContent", {
-                defaultValue: "Show file content",
-              })}
-            </summary>
-            <pre className="mt-2 text-xs text-amber-700 bg-amber-100 rounded p-2 overflow-x-auto whitespace-pre-wrap max-h-64 font-mono">
-              {truncateContent(fileContent)}
-            </pre>
-          </details>
-        )}
+          {/* File content preview */}
+          {fileContent && (
+            <details className="mt-2">
+              <summary className={cn(
+                layout.smallText,
+                "cursor-pointer hover:opacity-80",
+                warningStyles.accent
+              )}>
+                {t("textEditorCodeExecutionToolResultRenderer.showContent", {
+                  defaultValue: "Show file content",
+                })}
+              </summary>
+              <pre className={cn(
+                "mt-2 p-2 overflow-x-auto whitespace-pre-wrap",
+                layout.monoText,
+                layout.rounded,
+                layout.codeMaxHeight,
+                "bg-warning/20",
+                warningStyles.accent
+              )}>
+                {truncateContent(fileContent)}
+              </pre>
+            </details>
+          )}
+        </div>
       </div>
     );
   }

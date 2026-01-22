@@ -4,7 +4,7 @@
     "notFound": "프로젝트를 찾을 수 없습니다",
     "selectToView": "분석을 보려면 프로젝트를 선택하세요",
     "count": "프로젝트: {{count}}개",
-    "globalStats": "📊 전체 통계",
+    "globalStats": "전체 통계",
     "globalStatsDescription": "모든 프로젝트 개요"
   },
   "session": {
@@ -102,9 +102,9 @@
     "noToolData": "도구 사용 데이터가 없습니다",
     "loading": "토큰 통계 로딩 중...",
     "totalTokenUsage": "총 토큰 사용량",
-    "performanceInsights": "🎯 성능 인사이트",
-    "tokenAnalysis": "💾 토큰 사용 분석",
-    "sessionTimeline": "⏱️ 세션 타임라인",
+    "performanceInsights": "성능 인사이트",
+    "tokenAnalysis": "토큰 사용 분석",
+    "sessionTimeline": "세션 타임라인",
     "startTime": "시작 시간",
     "duration": "지속 시간",
     "durationMinutes": "{{minutes}}분",
@@ -221,22 +221,22 @@
     "minutes": "분"
   },
   "tools": {
-    "terminal": "🐚 터미널",
-    "readFile": "📖 파일 읽기",
-    "editFile": "✏️ 파일 편집",
-    "createFile": "📝 파일 생성",
-    "multiEdit": "🔧 다중 편집",
-    "findFiles": "🔍 파일 찾기",
-    "searchText": "🔎 텍스트 검색",
-    "browseDirectory": "📁 디렉토리 탐색",
-    "executeTask": "🎯 작업 실행",
-    "webFetch": "🌐 웹 가져오기",
-    "webSearch": "🔍 웹 검색",
-    "notebookRead": "📚 노트북 읽기",
-    "notebookEdit": "📝 노트북 편집",
-    "todoRead": "📋 할일 읽기",
-    "todoWrite": "✅ 할일 작성",
-    "exitPlanMode": "🚪 계획 모드 종료",
+    "terminal": "터미널",
+    "readFile": "파일 읽기",
+    "editFile": "파일 편집",
+    "createFile": "파일 생성",
+    "multiEdit": "다중 편집",
+    "findFiles": "파일 찾기",
+    "searchText": "텍스트 검색",
+    "browseDirectory": "디렉토리 탐색",
+    "executeTask": "작업 실행",
+    "webFetch": "웹 가져오기",
+    "webSearch": "웹 검색",
+    "notebookRead": "노트북 읽기",
+    "notebookEdit": "노트북 편집",
+    "todoRead": "할일 읽기",
+    "todoWrite": "할일 작성",
+    "exitPlanMode": "계획 모드 종료",
     "toolUsed": "도구 사용됨",
     "generalConversation": "일반 대화",
     "errorOccurred": "에러 발생",
@@ -244,8 +244,8 @@
     "currentStatus": "현재 상태:",
     "fileCreate": "파일 작성",
     "createdContent": "작성된 내용",
-    "taskDescription": "📋 작업 설명",
-    "detailedInstructions": "💬 상세 지시사항",
+    "taskDescription": "작업 설명",
+    "detailedInstructions": "상세 지시사항",
     "fileEdit": "파일 수정",
     "removedCode": "제거된 코드",
     "addedCode": "추가된 코드",
@@ -434,12 +434,25 @@
     "unknownContentType": "알 수 없는 콘텐츠 타입",
     "systemNote": "시스템 메모"
   },
+  "taskNotification": {
+    "agentTask": "에이전트 작업",
+    "agentTasks": "병렬 작업",
+    "summary": "요약",
+    "result": "결과",
+    "details": "상세 내용",
+    "showMore": "더 보기...",
+    "status": {
+      "completed": "완료",
+      "running": "실행 중",
+      "failed": "실패"
+    }
+  },
   "toolUseRenderer": {
     "fileCreation": "파일 작성",
     "createdContent": "작성된 내용",
     "task": "Task",
-    "taskDescription": "📋 작업 설명",
-    "detailedInstructions": "💬 상세 지시사항",
+    "taskDescription": "작업 설명",
+    "detailedInstructions": "상세 지시사항",
     "toolInputParameters": "도구 입력 매개변수"
   },
   "fileContent": {
@@ -468,7 +481,9 @@
     "originalFileContent": "원본 파일 내용"
   },
   "messageContentDisplay": {
-    "copyMessage": "메시지 복사하기"
+    "copyMessage": "메시지 복사하기",
+    "showMore": "더 보기...",
+    "showLess": "접기"
   },
   "codebaseContextRenderer": {
     "codebaseContext": "코드베이스 컨텍스트",
@@ -540,7 +555,8 @@
     "image": "이미지",
     "cannotLoadImage": "이미지를 로드할 수 없습니다",
     "viewFullscreen": "전체 화면으로 보기",
-    "downloadImage": "이미지 다운로드"
+    "downloadImage": "이미지 다운로드",
+    "close": "닫기"
   },
   "upToDateNotification": {
     "upToDate": "최신 버전입니다",
@@ -561,19 +577,19 @@
     "os": "OS: {{os}} {{version}}",
     "architecture": "아키텍처: {{arch}}",
     "sendingEmail": "전송 중...",
-    "sendEmail": "📧 이메일로 보내기",
-    "openGitHub": "🔗 GitHub에서 이슈 등록",
+    "sendEmail": "이메일로 보내기",
+    "openGitHub": "GitHub에서 이슈 등록",
     "close": "✕",
     "sendError": "피드백 전송에 실패했습니다. 다시 시도해주세요.",
-    "tips": "💡 팁:",
+    "tips": "팁:",
     "tipBugReport": "버그 신고 시: 재현 단계와 예상 동작을 명확히 적어주세요",
     "tipFeatureRequest": "기능 요청 시: 어떤 문제를 해결하려는지 설명해주세요",
     "tipScreenshot": "스크린샷이 있다면 이메일에 첨부해주세요",
     "types": {
-      "bug": "🐛 버그 신고",
-      "feature": "✨기능 요청",
-      "improvement": "🔧 개선사항",
-      "other": "💬 기타"
+      "bug": "버그 신고",
+      "feature": "기능 요청",
+      "improvement": "개선사항",
+      "other": "기타"
     },
     "placeholders": {
       "bug": "버그가 발생한 상황과 재현 방법을 자세히 설명해주세요.",
@@ -651,7 +667,7 @@
     "benefits2": "새로운 기능 빠른 접근",
     "benefits3": "오프라인 시 자동 비활성화",
     "benefits4": "설정에서 언제든 변경 가능",
-    "tip": "💡 설정 → 업데이트 설정에서 자동 확인을 비활성화할 수 있습니다.",
+    "tip": "설정 → 업데이트 설정에서 자동 확인을 비활성화할 수 있습니다.",
     "disableAutoCheck": "자동 확인 비활성화",
     "understood": "이해했습니다"
   },
@@ -709,6 +725,18 @@
       "error": "오류"
     }
   },
+  "agentTaskGroup": {
+    "agent": "에이전트",
+    "parallelTasks": "병렬 작업",
+    "completed": "완료",
+    "prompt": "프롬프트:",
+    "transcript": "트랜스크립트:",
+    "copyPath": "전체 경로 복사"
+  },
+  "agentProgressGroup": {
+    "agent": "에이전트",
+    "steps": "단계"
+  },
   "queueOperationRenderer": {
     "title": "대기열 작업",
     "operations": {
@@ -740,5 +768,35 @@
   },
   "summaryMessageRenderer": {
     "title": "대화 요약"
+  },
+  "claudeToolUseDisplay": {
+    "unknownTool": "알 수 없는 도구"
+  },
+  "collapsibleToolResult": {
+    "terminalOutput": "터미널 출력",
+    "noOutput": "출력 없음",
+    "todoListUpdated": "할 일 목록 업데이트됨",
+    "editsCount": "{{count}}개 편집",
+    "result": "결과"
+  },
+  "simpleUpdateModal": {
+    "newUpdateAvailable": "새 업데이트 사용 가능",
+    "important": "중요",
+    "currentVersion": "현재 버전",
+    "newVersion": "새 버전",
+    "downloading": "다운로드 중... {{progress}}%",
+    "installing": "설치 중... 잠시 후 앱이 재시작됩니다.",
+    "errorOccurred": "오류가 발생했습니다: {{error}}",
+    "hideDetails": "세부 정보 숨기기",
+    "showDetails": "세부 정보 보기",
+    "releaseName": "릴리스명:",
+    "changes": "변경사항:",
+    "viewOnGitHub": "GitHub에서 보기",
+    "downloadingShort": "다운로드 중...",
+    "installingShort": "설치 중...",
+    "downloadAndInstall": "다운로드 & 설치",
+    "remindLater": "24시간 후 다시 알림",
+    "skipVersion": "이 버전 건너뛰기",
+    "close": "닫기"
   }
 }

@@ -1,6 +1,8 @@
 import { memo } from "react";
 import { Server, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+import { layout } from "@/components/renderers";
 import { safeStringify } from "../../utils/jsonUtils";
 
 type Props = {
@@ -19,32 +21,32 @@ export const MCPToolUseRenderer = memo(function MCPToolUseRenderer({
   const { t } = useTranslation("components");
 
   return (
-    <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
-      <div className="flex items-center space-x-2 mb-2">
-        <Server className="w-4 h-4 text-violet-600" />
-        <span className="text-xs font-medium text-violet-800">
+    <div className={cn(layout.rounded, "bg-tool-mcp/10 border border-tool-mcp/30", layout.containerPadding)}>
+      <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+        <Server className={cn(layout.iconSize, "text-tool-mcp")} />
+        <span className={cn(layout.titleText, "text-foreground")}>
           {t("mcpToolUseRenderer.title", { defaultValue: "MCP Tool" })}
         </span>
-        <span className="text-xs text-violet-500 font-mono">{id}</span>
+        <span className={cn(layout.monoText, "text-tool-mcp")}>{id}</span>
       </div>
 
-      <div className="flex items-center space-x-2 mb-2">
-        <Wrench className="w-3 h-3 text-violet-500" />
-        <span className="text-sm text-violet-700">
+      <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+        <Wrench className={cn(layout.iconSizeSmall, "text-tool-mcp")} />
+        <span className={cn(layout.bodyText, "text-foreground")}>
           <span className="font-medium">{serverName}</span>
-          <span className="mx-1 text-violet-400">/</span>
+          <span className="mx-1 text-muted-foreground">/</span>
           <span>{toolName}</span>
         </span>
       </div>
 
       {Object.keys(input).length > 0 && (
         <details className="mt-2">
-          <summary className="text-xs text-violet-600 cursor-pointer hover:text-violet-800">
+          <summary className={cn(layout.smallText, "text-tool-mcp cursor-pointer hover:text-tool-mcp/80")}>
             {t("mcpToolUseRenderer.showInput", {
               defaultValue: "Show input parameters",
             })}
           </summary>
-          <pre className="mt-2 text-xs text-violet-700 bg-violet-100 rounded p-2 overflow-x-auto">
+          <pre className={cn("mt-2 text-foreground bg-muted p-2 overflow-x-auto", layout.monoText, layout.rounded)}>
             {safeStringify(input)}
           </pre>
         </details>

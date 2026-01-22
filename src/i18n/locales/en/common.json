@@ -33,7 +33,11 @@
     },
     "checkUpdate": "Check for Updates",
     "checking": "Checking...",
-    "updateSettings": "Update Settings"
+    "updateSettings": "Update Settings",
+    "filter": {
+      "title": "Filter",
+      "showSystemMessages": "Show System Messages"
+    }
   },
   "time": {
     "justNow": "just now",
@@ -69,5 +73,15 @@
     "now": "Update Now",
     "download": "Download Update",
     "upToDate": "You have the latest version"
+  },
+  "hooks": {
+    "noProjectSelected": "No project selected",
+    "projectSummaryLoadFailed": "Failed to load project summary",
+    "sessionComparisonLoadFailed": "Failed to load session comparison",
+    "recentEditsLoadFailed": "Failed to load recent edits",
+    "githubApiError": "GitHub API error: {{status}}",
+    "releaseInfoFetchFailed": "Failed to fetch release information",
+    "updateCheckFailed": "An error occurred while checking for updates",
+    "updateInstallFailed": "An error occurred while installing the update"
   }
 }

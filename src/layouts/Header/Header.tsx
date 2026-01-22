@@ -5,14 +5,14 @@ import {
   MessageSquare,
   Activity,
   FileEdit,
+  Terminal,
 } from "lucide-react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
 import { useAppStore } from "@/store/useAppStore";
 import { useAnalytics } from "@/hooks/useAnalytics";
 
-import { cn } from "@/utils/cn";
-import { COLORS } from "@/constants/colors";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { SettingDropdown } from "./SettingDropdown";
 
@@ -28,15 +28,10 @@ export const Header = () => {
     refreshCurrentSession,
   } = useAppStore();
 
-  const {
-    actions: analyticsActions,
-    computed,
-  } = useAnalytics();
+  const { actions: analyticsActions, computed } = useAnalytics();
 
-  // 토큰 통계 로드
   const handleLoadTokenStats = async () => {
     if (!selectedProject) return;
-
     try {
       await analyticsActions.switchToTokenStats();
     } catch (error) {
@@ -44,10 +39,8 @@ export const Header = () => {
     }
   };
 
-  // 분석 대시보드 로드
   const handleLoadAnalytics = async () => {
     if (!selectedProject) return;
-
     try {
       await analyticsActions.switchToAnalytics();
     } catch (error) {
@@ -55,10 +48,8 @@ export const Header = () => {
     }
   };
 
-  // 최근 편집 로드
   const handleLoadRecentEdits = async () => {
     if (!selectedProject) return;
-
     try {
       await analyticsActions.switchToRecentEdits();
     } catch (error) {
@@ -67,166 +58,176 @@ export const Header = () => {
   };
 
   return (
-    <header
-      className={cn(
-        "px-6 py-4 border-b",
-        COLORS.ui.background.secondary,
-        COLORS.ui.border.light
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <img
-            src="/app-icon.png"
-            alt="Claude Code History Viewer"
-            className="w-10 h-10"
-          />
-          <div className="max-w-lg">
-            <h1 className={cn("text-xl font-semibold", COLORS.ui.text.primary)}>
+    <header className="h-12 flex items-center justify-between px-4 bg-sidebar border-b border-border/50">
+
+      {/* Left: Logo & Title */}
+      <div className="flex items-center gap-2.5">
+        <img
+          src="/app-icon.png"
+          alt="Claude Code History"
+          className="w-6 h-6"
+        />
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-semibold text-foreground">
               {t("appName")}
             </h1>
-            <p className={cn("text-sm truncate", COLORS.ui.text.muted)}>
-              {selectedSession
-                ? selectedSession.summary ||
-                  `${tComponents("session.title")} ${selectedSession.session_id.slice(-8)}`
-                : selectedProject
-                ? selectedProject.name
-                : t("appDescription")}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
             {selectedProject && (
               <>
-                <TooltipButton
-                  content={tComponents("analytics.dashboard")}
-                  onClick={() => {
-                    if (computed.isAnalyticsView) {
-                      analyticsActions.switchToMessages();
-                    } else {
-                      handleLoadAnalytics();
-                    }
-                  }}
-                  className={cn(
-                    "p-2 rounded-lg transition-colors",
-                    computed.isAnalyticsView
-                      ? COLORS.semantic.info.bgDark
-                      : COLORS.ui.interactive.hover
-                  )}
-                >
-                  <BarChart3
-                    className={cn("w-5 h-5", COLORS.ui.text.primary)}
-                  />
-                </TooltipButton>
-                <TooltipButton
-                  onClick={() => {
-                    if (computed.isTokenStatsView) {
-                      analyticsActions.switchToMessages();
-                    } else {
-                      handleLoadTokenStats();
-                    }
-                  }}
-                  disabled={computed.isAnyLoading}
-                  className={cn(
-                    "p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                    computed.isTokenStatsView
-                      ? COLORS.semantic.success.bgDark
-                      : COLORS.ui.interactive.hover
-                  )}
-                  content={tMessages("tokenStats.existing")}
-                >
-                  {computed.isAnyLoading ? (
-                    <Loader2
-                      className={cn(
-                        "w-5 h-5 animate-spin",
-                        COLORS.ui.text.primary
-                      )}
-                    />
-                  ) : (
-                    <Activity
-                      className={cn("w-5 h-5", COLORS.ui.text.primary)}
-                    />
-                  )}
-                </TooltipButton>
-                <TooltipButton
-                  content={tComponents("recentEdits.title")}
-                  onClick={() => {
-                    if (computed.isRecentEditsView) {
-                      analyticsActions.switchToMessages();
-                    } else {
-                      handleLoadRecentEdits();
-                    }
-                  }}
-                  disabled={computed.isAnyLoading}
-                  className={cn(
-                    "p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                    computed.isRecentEditsView
-                      ? COLORS.semantic.warning.bgDark
-                      : COLORS.ui.interactive.hover
-                  )}
-                >
-                  <FileEdit
-                    className={cn("w-5 h-5", COLORS.ui.text.primary)}
-                  />
-                </TooltipButton>
+                <span className="text-muted-foreground/40">/</span>
+                <span className="text-sm text-muted-foreground truncate max-w-[180px]">
+                  {selectedProject.name}
+                </span>
               </>
             )}
-
-            {selectedSession && (
-              <>
-                <TooltipButton
-                  onClick={() => {
-                    if (!computed.isMessagesView) {
-                      analyticsActions.switchToMessages();
-                    }
-                  }}
-                  disabled={computed.isMessagesView}
-                  className={cn(
-                    "p-2 rounded-lg transition-colors",
-                    computed.isMessagesView
-                      ? cn(
-                          COLORS.semantic.success.bgDark,
-                          COLORS.semantic.success.text
-                        )
-                      : cn(
-                          COLORS.ui.text.disabled,
-                          "hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700"
-                        )
-                  )}
-                  content={tComponents("message.view")}
-                >
-                  <MessageSquare
-                    className={cn("w-5 h-5", COLORS.ui.text.primary)}
-                  />
-                </TooltipButton>
-                <TooltipButton
-                  onClick={() => refreshCurrentSession()}
-                  disabled={isLoadingMessages}
-                  className={cn(
-                    "p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                    COLORS.ui.text.disabled,
-                    "hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700"
-                  )}
-                  content={tComponents("session.refresh")}
-                >
-                  <RefreshCw
-                    className={cn(
-                      "w-5 h-5",
-                      isLoadingMessages ? "animate-spin" : "",
-                      COLORS.ui.text.primary
-                    )}
-                  />
-                </TooltipButton>
-              </>
-            )}
-
-            {/* // 여기 다시 드롭다운 */}
-            <SettingDropdown />
           </div>
+          {selectedSession ? (
+            <p className="text-2xs text-muted-foreground truncate max-w-sm">
+              <span className="text-muted-foreground/60">Session:</span>{" "}
+              {selectedSession.summary ||
+                `${tComponents("session.title")} ${selectedSession.session_id.slice(-8)}`}
+            </p>
+          ) : (
+            <p className="text-2xs text-muted-foreground">{t("appDescription")}</p>
+          )}
         </div>
       </div>
+
+      {/* Center: Quick Stats (when session selected) */}
+      {selectedSession && computed.isMessagesView && (
+        <div className="hidden lg:flex items-center gap-2">
+          <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-2xs text-muted-foreground font-mono">
+            {selectedSession.actual_session_id.slice(0, 8)}
+          </span>
+        </div>
+      )}
+
+      {/* Right: Actions */}
+      <div className="flex items-center gap-1">
+        {selectedProject && (
+          <>
+            {/* Analytics */}
+            <NavButton
+              icon={BarChart3}
+              label={tComponents("analytics.dashboard")}
+              isActive={computed.isAnalyticsView}
+              onClick={() => {
+                if (computed.isAnalyticsView) {
+                  analyticsActions.switchToMessages();
+                } else {
+                  handleLoadAnalytics();
+                }
+              }}
+            />
+
+            {/* Token Stats */}
+            <NavButton
+              icon={computed.isAnyLoading ? Loader2 : Activity}
+              label={tMessages("tokenStats.existing")}
+              isActive={computed.isTokenStatsView}
+              isLoading={computed.isAnyLoading}
+              onClick={() => {
+                if (computed.isTokenStatsView) {
+                  analyticsActions.switchToMessages();
+                } else {
+                  handleLoadTokenStats();
+                }
+              }}
+              disabled={computed.isAnyLoading}
+            />
+
+            {/* Recent Edits */}
+            <NavButton
+              icon={FileEdit}
+              label={tComponents("recentEdits.title")}
+              isActive={computed.isRecentEditsView}
+              onClick={() => {
+                if (computed.isRecentEditsView) {
+                  analyticsActions.switchToMessages();
+                } else {
+                  handleLoadRecentEdits();
+                }
+              }}
+              disabled={computed.isAnyLoading}
+            />
+          </>
+        )}
+
+        {selectedSession && (
+          <>
+            {/* Divider */}
+            <div className="w-px h-6 bg-border mx-2" />
+
+            {/* Messages */}
+            <NavButton
+              icon={MessageSquare}
+              label={tComponents("message.view")}
+              isActive={computed.isMessagesView}
+              onClick={() => {
+                if (!computed.isMessagesView) {
+                  analyticsActions.switchToMessages();
+                }
+              }}
+            />
+
+            {/* Refresh */}
+            <TooltipButton
+              onClick={() => refreshCurrentSession()}
+              disabled={isLoadingMessages}
+              className={cn(
+                "p-2 rounded-md transition-colors",
+                "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+              content={tComponents("session.refresh")}
+            >
+              <RefreshCw
+                className={cn("w-4 h-4", isLoadingMessages && "animate-spin")}
+              />
+            </TooltipButton>
+          </>
+        )}
+
+        {/* Settings Dropdown */}
+        <SettingDropdown />
+      </div>
     </header>
+  );
+};
+
+/* Navigation Button Component */
+interface NavButtonProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  isActive?: boolean;
+  isLoading?: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}
+
+const NavButton = ({
+  icon: Icon,
+  label,
+  isActive,
+  isLoading,
+  onClick,
+  disabled,
+}: NavButtonProps) => {
+  return (
+    <TooltipButton
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "p-2 rounded-md transition-colors",
+        "text-muted-foreground",
+        isActive
+          ? "bg-accent/10 text-accent"
+          : "hover:bg-muted hover:text-foreground",
+        disabled && "opacity-50 cursor-not-allowed"
+      )}
+      content={label}
+    >
+      <Icon className={cn("w-4 h-4", isLoading && "animate-spin")} />
+    </TooltipButton>
   );
 };

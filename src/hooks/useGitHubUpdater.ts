@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { fetch } from "@tauri-apps/plugin-http";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -37,6 +38,7 @@ export interface UseGitHubUpdaterReturn {
 }
 
 export function useGitHubUpdater(): UseGitHubUpdaterReturn {
+  const { t } = useTranslation("common");
   const [state, setState] = useState<UpdateState>({
     isChecking: false,
     hasUpdate: false,
@@ -78,7 +80,7 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          throw new Error(`GitHub API 오류: ${response.status}`);
+          throw new Error(t("hooks.githubApiError", { status: response.status }));
         }
 
         const release = (await response.json()) as GitHubRelease;
@@ -116,7 +118,7 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
       const releaseInfo = await fetchGitHubRelease();
 
       if (!releaseInfo) {
-        throw new Error("릴리즈 정보를 가져올 수 없습니다.");
+        throw new Error(t("hooks.releaseInfoFetchFailed"));
       }
       
       if (process.env.NODE_ENV === 'development') {
@@ -148,7 +150,7 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
         error:
           error instanceof Error
             ? error.message
-            : "업데이트 확인 중 오류가 발생했습니다.",
+            : t("hooks.updateCheckFailed"),
       }));
     }
   }, [fetchGitHubRelease, state.currentVersion]);
@@ -200,7 +202,7 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
         error:
           error instanceof Error
             ? error.message
-            : "업데이트 설치 중 오류가 발생했습니다.",
+            : t("hooks.updateInstallFailed"),
       }));
     }
   }, [state.updateInfo]);

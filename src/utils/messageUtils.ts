@@ -26,7 +26,7 @@ export const formatClaudeErrorOutput = (error: string) => {
       .split("\n")
       .map((line) => {
         if (line.match(/^\s*\d+:\d+\s+error/)) {
-          return `⚠️ ${line}`;
+          return `[!] ${line}`;
         }
         if (line.match(/^✖\s+\d+\s+problems/)) {
           return `\n${line}`;

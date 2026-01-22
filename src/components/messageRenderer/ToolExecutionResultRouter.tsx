@@ -21,17 +21,18 @@ import { FileContent } from "../FileContent";
 import { CommandOutputDisplay } from "./CommandOutputDisplay";
 import { formatClaudeErrorOutput } from "../../utils/messageUtils";
 import { Renderer } from "../../shared/RendererHeader";
-import { COLORS } from "../../constants/colors";
-import { cn } from "../../utils/cn";
+import { cn } from "@/lib/utils";
+import { layout } from "@/components/renderers";
 
 interface ToolExecutionResultRouterProps {
   toolResult: Record<string, unknown> | string;
   depth: number;
+  searchQuery?: string;
 }
 
 export const ToolExecutionResultRouter: React.FC<
   ToolExecutionResultRouterProps
-> = ({ toolResult }) => {
+> = ({ toolResult, searchQuery }) => {
   const { t } = useTranslation("components");
   // Helper function to check if content is JSONL Claude session history
   const isClaudeSessionHistory = (content: string): boolean => {
@@ -85,7 +86,7 @@ export const ToolExecutionResultRouter: React.FC<
   if (typeof toolResult === "string") {
     // Check if it's an error message
     if (toolResult.startsWith("Error: ")) {
-      return <ErrorRenderer error={toolResult} />;
+      return <ErrorRenderer error={toolResult} searchQuery={searchQuery} />;
     }
 
     // Check if string content is JSONL Claude session history
@@ -93,7 +94,7 @@ export const ToolExecutionResultRouter: React.FC<
       return <ClaudeSessionHistoryRenderer content={toolResult} />;
     }
 
-    return <StringRenderer result={toolResult} />;
+    return <StringRenderer result={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle Claude Code specific formats first
@@ -103,7 +104,7 @@ export const ToolExecutionResultRouter: React.FC<
     (toolResult.type === "mcp_tool_call" || toolResult.server) &&
     (toolResult.method || toolResult.function)
   ) {
-    return <MCPRenderer mcpData={toolResult} />;
+    return <MCPRenderer mcpData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle codebase context
@@ -114,7 +115,7 @@ export const ToolExecutionResultRouter: React.FC<
     toolResult.context_window !== undefined ||
     toolResult.contextWindow !== undefined
   ) {
-    return <CodebaseContextRenderer contextData={toolResult} />;
+    return <CodebaseContextRenderer contextData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle terminal stream output
@@ -131,6 +132,7 @@ export const ToolExecutionResultRouter: React.FC<
         output={toolResult.output as string}
         timestamp={toolResult.timestamp as string}
         exitCode={toolResult.exitCode as number}
+        searchQuery={searchQuery}
       />
     );
   }
@@ -146,7 +148,7 @@ export const ToolExecutionResultRouter: React.FC<
     toolResult.diff ||
     toolResult.commit
   ) {
-    return <GitWorkflowRenderer gitData={toolResult} />;
+    return <GitWorkflowRenderer gitData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle web search results
@@ -162,15 +164,15 @@ export const ToolExecutionResultRouter: React.FC<
       typeof firstResult === "string" &&
       (firstResult.includes("I'll search") || firstResult.includes("search"))
     ) {
-      return <WebSearchRenderer searchData={toolResult} />;
+      return <WebSearchRenderer searchData={toolResult} searchQuery={searchQuery} />;
     }
     // Even without "I'll search", if it has query + results structure, treat as web search
-    return <WebSearchRenderer searchData={toolResult} />;
+    return <WebSearchRenderer searchData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle todo updates
   if (toolResult.newTodos !== undefined || toolResult.oldTodos !== undefined) {
-    return <TodoUpdateRenderer todoData={toolResult} />;
+    return <TodoUpdateRenderer todoData={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle file list results
@@ -179,7 +181,17 @@ export const ToolExecutionResultRouter: React.FC<
     toolResult.filenames.length > 0 &&
     typeof toolResult.numFiles === "number"
   ) {
-    return <FileListRenderer toolResult={toolResult} />;
+    return <FileListRenderer toolResult={toolResult} searchQuery={searchQuery} />;
+  }
+
+  // Async agent task results are handled by MessageViewer's grouping logic
+  // Return null here - ClaudeMessageNode handles rendering via agentTaskGroup prop
+  // This includes both launch messages (isAsync: true) and completion messages (status: "completed")
+  if (toolResult.agentId && typeof toolResult.agentId === "string") {
+    // Launch message (isAsync: true) or completion message (status: "completed")
+    if (toolResult.isAsync === true || toolResult.status === "completed") {
+      return null;
+    }
   }
 
   // Handle file object parsing
@@ -195,7 +207,7 @@ export const ToolExecutionResultRouter: React.FC<
       return <ClaudeSessionHistoryRenderer content={fileData.content} />;
     }
 
-    return <FileContent fileData={fileData} title={t("toolResult.fileContent")} />;
+    return <FileContent fileData={fileData} title={t("toolResult.fileContent")} searchQuery={searchQuery} />;
   }
 
   // Handle file edit results
@@ -204,7 +216,7 @@ export const ToolExecutionResultRouter: React.FC<
     typeof toolResult.filePath === "string" &&
     (toolResult.oldString || toolResult.newString || toolResult.originalFile)
   ) {
-    return <FileEditRenderer toolResult={toolResult} />;
+    return <FileEditRenderer toolResult={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle structured patch results
@@ -228,7 +240,7 @@ export const ToolExecutionResultRouter: React.FC<
 
   // Handle content array with text objects (Claude API response)
   if (Array.isArray(toolResult.content) && toolResult.content.length > 0) {
-    return <ContentArrayRenderer toolResult={toolResult} />;
+    return <ContentArrayRenderer toolResult={toolResult} searchQuery={searchQuery} />;
   }
 
   // Handle direct content as string (non-chat history)
@@ -238,7 +250,7 @@ export const ToolExecutionResultRouter: React.FC<
     !toolResult.stdout &&
     !toolResult.stderr
   ) {
-    return <StringRenderer result={toolResult.content} />;
+    return <StringRenderer result={toolResult.content} searchQuery={searchQuery} />;
   }
 
   // Handle generic structured results with various properties
@@ -267,32 +279,25 @@ export const ToolExecutionResultRouter: React.FC<
 
   return (
     <Renderer
-      className={cn(COLORS.semantic.success.bg, COLORS.semantic.success.border)}
+      className="bg-success/10 border-success/30"
       hasError={hasError as boolean}
     >
       <Renderer.Header
         title={t("toolResult.toolExecutionResult")}
-        titleClassName={cn(COLORS.semantic.success.text)}
-        icon={<Check className={cn("w-4 h-4", COLORS.semantic.success.icon)} />}
+        titleClassName="text-success"
+        icon={<Check className="w-4 h-4 text-success" />}
       />
       <Renderer.Content>
         {/* 메타데이터 정보 */}
         {hasMetadata && (
-          <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+          <div className={`grid grid-cols-2 gap-2 mb-3 ${layout.smallText}`}>
             {interrupted !== null && (
-              <div
-                className={cn(
-                  COLORS.ui.background.primary,
-                  COLORS.ui.border.medium
-                )}
-              >
-                <div className={cn(COLORS.ui.text.muted)}>{t("toolResult.executionStatus")}</div>
+              <div className="p-2 rounded border bg-card border-border">
+                <div className="text-muted-foreground">{t("toolResult.executionStatus")}</div>
                 <div
                   className={cn(
                     "font-medium",
-                    interrupted
-                      ? COLORS.semantic.warning.text
-                      : COLORS.semantic.success.text
+                    interrupted ? "text-warning" : "text-success"
                   )}
                 >
                   {interrupted ? t("toolResult.interrupted") : t("toolResult.completed")}
@@ -300,17 +305,12 @@ export const ToolExecutionResultRouter: React.FC<
               </div>
             )}
             {isImage !== null && (
-              <div
-                className={cn(
-                  COLORS.ui.background.primary,
-                  COLORS.ui.border.medium
-                )}
-              >
-                <div className={cn(COLORS.ui.text.muted)}>{t("toolResult.imageResult")}</div>
+              <div className="p-2 rounded border bg-card border-border">
+                <div className="text-muted-foreground">{t("toolResult.imageResult")}</div>
                 <div
                   className={cn(
                     "font-medium",
-                    isImage ? COLORS.semantic.info.text : COLORS.ui.text.muted
+                    isImage ? "text-info" : "text-muted-foreground"
                   )}
                 >
                   {isImage ? t("toolResult.included") : t("toolResult.none")}
@@ -322,36 +322,24 @@ export const ToolExecutionResultRouter: React.FC<
 
         {stdout.length > 0 && (
           <div className="mb-2">
-            <div className={cn(COLORS.ui.text.muted)}>{t("toolResult.output")}:</div>
+            <div className="text-muted-foreground">{t("toolResult.output")}:</div>
             <CommandOutputDisplay stdout={stdout} />
           </div>
         )}
 
         {stderr.length > 0 && (
           <div className="mb-2">
-            <div className={cn(COLORS.semantic.error.text)}>{t("toolResult.error")}:</div>
-            <pre
-              className={cn(
-                "text-sm whitespace-pre-wrap bg-white p-2 rounded border max-h-96 overflow-y-auto",
-                COLORS.semantic.error.bg,
-                COLORS.semantic.error.border
-              )}
-            >
+            <div className="text-destructive">{t("toolResult.error")}:</div>
+            <pre className={`${layout.bodyText} whitespace-pre-wrap bg-destructive/5 p-2 rounded border border-destructive/30 max-h-96 overflow-y-auto text-destructive`}>
               {formatClaudeErrorOutput(stderr)}
             </pre>
           </div>
         )}
 
         {filePath.length > 0 && (
-          <div className={cn(COLORS.ui.text.muted)}>
+          <div className="text-muted-foreground">
             {t("toolResult.file")}:{" "}
-            <code
-              className={cn(
-                "px-1 rounded",
-                COLORS.ui.background.secondary,
-                COLORS.ui.text.secondary
-              )}
-            >
+            <code className="px-1 rounded bg-secondary text-foreground/80">
               {filePath}
             </code>
           </div>
@@ -359,12 +347,12 @@ export const ToolExecutionResultRouter: React.FC<
 
         {/* 출력이 없을 때 상태 표시 */}
         {!hasOutput && hasMetadata && (
-          <div className={cn(COLORS.ui.text.muted)}>{t("toolResult.noOutput")}</div>
+          <div className="text-muted-foreground">{t("toolResult.noOutput")}</div>
         )}
 
         {/* 완전히 빈 결과일 때 */}
         {!hasOutput && !hasMetadata && (
-          <div className={cn(COLORS.ui.text.muted)}>{t("toolResult.executionComplete")}</div>
+          <div className="text-muted-foreground">{t("toolResult.executionComplete")}</div>
         )}
       </Renderer.Content>
     </Renderer>

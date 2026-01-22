@@ -1,6 +1,24 @@
+/**
+ * File History Snapshot Renderer
+ *
+ * Displays file history snapshot information showing tracked files and their backup state.
+ * Uses design tokens for consistent theming across light/dark modes.
+ *
+ * @example
+ * ```tsx
+ * <FileHistorySnapshotRenderer
+ *   messageId="msg_123"
+ *   snapshot={{ trackedFileBackups: {...}, timestamp: "..." }}
+ *   isSnapshotUpdate={false}
+ * />
+ * ```
+ */
+
 import { memo } from "react";
 import { History, FileArchive, Clock, Link2, FolderArchive } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { getVariantStyles, layout } from "@/components/renderers";
+import { cn } from "@/lib/utils";
 import type { FileHistorySnapshotData } from "../../types";
 
 type Props = {
@@ -20,12 +38,14 @@ export const FileHistorySnapshotRenderer = memo(
     const trackedFilesCount = Object.keys(snapshot.trackedFileBackups || {}).length;
     const trackedFiles = Object.entries(snapshot.trackedFileBackups || {});
 
+    const styles = getVariantStyles("task");
+
     return (
-      <div className="bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded-lg p-3">
+      <div className={cn("border", layout.rounded, layout.containerPadding, styles.container)}>
         {/* Header */}
-        <div className="flex items-center space-x-2 mb-2">
-          <History className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-          <span className="text-xs font-medium text-violet-800 dark:text-violet-300">
+        <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
+          <History className={cn(layout.iconSize, styles.icon)} />
+          <span className={cn(`${layout.smallText} font-medium`, styles.title)}>
             {isSnapshotUpdate
               ? t("fileHistorySnapshotRenderer.update", {
                   defaultValue: "File History Update",
@@ -35,7 +55,7 @@ export const FileHistorySnapshotRenderer = memo(
                 })}
           </span>
           {trackedFilesCount > 0 && (
-            <span className="text-xs bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 px-1.5 py-0.5 rounded">
+            <span className={cn(`${layout.smallText} px-1.5 py-0.5 rounded`, styles.badge, styles.badgeText)}>
               {trackedFilesCount}{" "}
               {t("fileHistorySnapshotRenderer.files", {
                 defaultValue: "files tracked",
@@ -45,17 +65,17 @@ export const FileHistorySnapshotRenderer = memo(
         </div>
 
         {/* Metadata */}
-        <div className="space-y-1.5 text-xs">
+        <div className={`space-y-1.5 ${layout.smallText}`}>
           {/* Linked Message */}
-          <div className="flex items-center space-x-2 text-violet-600 dark:text-violet-400">
-            <Link2 className="w-3 h-3" />
+          <div className={cn("flex items-center", layout.iconSpacing, styles.icon)}>
+            <Link2 className={layout.iconSizeSmall} />
             <span className="font-mono truncate">{messageId}</span>
           </div>
 
           {/* Timestamp */}
           {snapshot.timestamp && (
-            <div className="flex items-center space-x-2 text-violet-600 dark:text-violet-400">
-              <Clock className="w-3 h-3" />
+            <div className={cn("flex items-center", layout.iconSpacing, styles.icon)}>
+              <Clock className={layout.iconSizeSmall} />
               <span>
                 {new Date(snapshot.timestamp).toLocaleString()}
               </span>
@@ -65,9 +85,9 @@ export const FileHistorySnapshotRenderer = memo(
 
         {/* Tracked Files List */}
         {trackedFilesCount > 0 && (
-          <div className="mt-3 pt-2 border-t border-violet-200 dark:border-violet-700">
-            <div className="flex items-center space-x-1 mb-2 text-xs text-violet-700 dark:text-violet-300">
-              <FolderArchive className="w-3 h-3" />
+          <div className="mt-3 pt-2 border-t border-task/30">
+            <div className={cn(`flex items-center mb-2 ${layout.smallText}`, layout.iconSpacing, styles.accent)}>
+              <FolderArchive className={layout.iconSizeSmall} />
               <span className="font-medium">
                 {t("fileHistorySnapshotRenderer.trackedFiles", {
                   defaultValue: "Tracked Files",
@@ -78,10 +98,10 @@ export const FileHistorySnapshotRenderer = memo(
               {trackedFiles.map(([path, entry]) => (
                 <div
                   key={path}
-                  className="flex items-center space-x-2 text-xs bg-violet-100/50 dark:bg-violet-900/30 rounded px-2 py-1"
+                  className={`flex items-center ${layout.iconSpacing} ${layout.smallText} bg-task/10 rounded px-2 py-1`}
                 >
-                  <FileArchive className="w-3 h-3 text-violet-500 dark:text-violet-400 flex-shrink-0" />
-                  <span className="font-mono text-violet-700 dark:text-violet-300 truncate">
+                  <FileArchive className={cn(layout.iconSizeSmall, "flex-shrink-0", styles.icon)} />
+                  <span className={cn("font-mono truncate", styles.title)}>
                     {typeof entry === "object" && entry?.originalPath
                       ? entry.originalPath
                       : path}
@@ -94,7 +114,7 @@ export const FileHistorySnapshotRenderer = memo(
 
         {/* Empty State */}
         {trackedFilesCount === 0 && (
-          <div className="mt-2 text-xs text-violet-500 dark:text-violet-400 italic">
+          <div className={cn(`mt-2 ${layout.smallText} italic`, styles.icon)}>
             {t("fileHistorySnapshotRenderer.noFiles", {
               defaultValue: "No files tracked in this snapshot",
             })}

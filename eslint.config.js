@@ -21,4 +21,11 @@ export default tseslint.config([
       globals: globals.browser,
     },
   },
+  {
+    // Allow exporting CVA variants alongside components (shadcn/ui pattern)
+    files: ['src/components/ui/**/*.{ts,tsx}', 'src/components/CollapsibleToolResult.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

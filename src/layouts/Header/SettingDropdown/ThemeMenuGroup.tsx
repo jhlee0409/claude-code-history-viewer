@@ -7,9 +7,7 @@ import { useTranslation } from "react-i18next";
 
 import { Sun, Moon, Laptop } from "lucide-react";
 
-import { cn } from "@/utils/cn";
 import { useTheme } from "@/contexts/theme";
-import { COLORS } from "@/constants/colors";
 
 export const ThemeMenuGroup = () => {
   const { theme, setTheme } = useTheme();
@@ -18,17 +16,17 @@ export const ThemeMenuGroup = () => {
 
   const themeItems = [
     {
-      icon: <Sun className={cn("mr-2 h-4 w-4", COLORS.ui.text.primary)} />,
+      icon: <Sun className="mr-2 h-4 w-4 text-foreground" />,
       label: t("settings.theme.light"),
       value: "light",
     },
     {
-      icon: <Moon className={cn("mr-2 h-4 w-4", COLORS.ui.text.primary)} />,
+      icon: <Moon className="mr-2 h-4 w-4 text-foreground" />,
       label: t("settings.theme.dark"),
       value: "dark",
     },
     {
-      icon: <Laptop className={cn("mr-2 h-4 w-4", COLORS.ui.text.primary)} />,
+      icon: <Laptop className="mr-2 h-4 w-4 text-foreground" />,
       label: t("settings.theme.system"),
       value: "system",
     },

@@ -1,23 +1,23 @@
 /// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { visualizer } from "rollup-plugin-visualizer";
+// import { visualizer } from "rollup-plugin-visualizer";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   plugins: [
     react(),
     tailwindcss(),
-    // Add bundle analyzer when ANALYZE env var is set
-    mode === "production" &&
-      visualizer({
-        open: true,
-        filename: "dist/bundle-stats.html",
-        gzipSize: true,
-        brotliSize: true,
-      }),
+    // Bundle analyzer disabled - uncomment to enable
+    // mode === "production" &&
+    //   visualizer({
+    //     open: true,
+    //     filename: "dist/bundle-stats.html",
+    //     gzipSize: true,
+    //     brotliSize: true,
+    //   }),
   ].filter(Boolean),
 
   build: {

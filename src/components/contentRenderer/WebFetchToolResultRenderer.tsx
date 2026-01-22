@@ -1,6 +1,16 @@
+/**
+ * WebFetchToolResultRenderer - Renders web fetch tool execution results
+ *
+ * Displays web page or PDF content retrieval results from the web_fetch beta feature.
+ * Shows URL, title, retrieved timestamp, and content preview with appropriate styling
+ * for success and error states.
+ */
+
 import { memo } from "react";
 import { Globe, FileText, Clock, AlertCircle, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+import { getVariantStyles, layout } from "../renderers";
 
 /** Web fetch result content structure */
 interface WebFetchResult {
@@ -64,17 +74,27 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
   const { t } = useTranslation("components");
 
   if (isWebFetchError(content)) {
+    const errorStyles = getVariantStyles("error");
+
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-        <div className="flex items-center space-x-2 mb-2">
-          <AlertCircle className="w-4 h-4 text-red-600" />
-          <span className="text-xs font-medium text-red-800">
-            {t("webFetchToolResultRenderer.error", { defaultValue: "Web Fetch Error" })}
-          </span>
-          <span className="text-xs text-red-500 font-mono">{toolUseId}</span>
+      <div className={cn(layout.rounded, "border", errorStyles.container)}>
+        <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
+          <div className={cn("flex items-center", layout.iconGap)}>
+            <AlertCircle className={cn(layout.iconSize, errorStyles.icon)} />
+            <span className={cn(layout.titleText, errorStyles.title)}>
+              {t("webFetchToolResultRenderer.error", { defaultValue: "Web Fetch Error" })}
+            </span>
+          </div>
+          <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
+            <span className={cn(layout.monoText, errorStyles.accent)}>
+              {toolUseId}
+            </span>
+          </div>
         </div>
-        <div className="text-sm text-red-700">
-          {ERROR_MESSAGES[content.error_code] || content.error_code}
+        <div className={layout.contentPadding}>
+          <div className={cn(layout.bodyText, errorStyles.accent)}>
+            {ERROR_MESSAGES[content.error_code] || content.error_code}
+          </div>
         </div>
       </div>
     );
@@ -99,63 +119,89 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
 
   const preview = getPreview();
   const isPDF = source?.media_type === "application/pdf";
+  const webStyles = getVariantStyles("web");
 
   return (
-    <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3">
-      <div className="flex items-center space-x-2 mb-2">
-        {isPDF ? (
-          <FileText className="w-4 h-4 text-cyan-600" />
-        ) : (
-          <Globe className="w-4 h-4 text-cyan-600" />
-        )}
-        <span className="text-xs font-medium text-cyan-800">
-          {t("webFetchToolResultRenderer.title", { defaultValue: "Web Fetch Result" })}
-        </span>
-        <span className="text-xs text-cyan-500 font-mono">{toolUseId}</span>
-      </div>
-
-      {/* URL */}
-      <div className="flex items-center space-x-2 mb-2">
-        <ExternalLink className="w-3 h-3 text-cyan-500" />
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm text-cyan-700 hover:text-cyan-900 underline truncate max-w-md"
-        >
-          {url}
-        </a>
-      </div>
-
-      {/* Title */}
-      {title && (
-        <div className="text-sm font-medium text-cyan-800 mb-2">{title}</div>
-      )}
-
-      {/* Retrieved at */}
-      {retrieved_at && (
-        <div className="flex items-center space-x-1 text-xs text-cyan-500 mb-2">
-          <Clock className="w-3 h-3" />
-          <span>
-            {t("webFetchToolResultRenderer.retrievedAt", { defaultValue: "Retrieved" })}:{" "}
-            {new Date(retrieved_at).toLocaleString()}
+    <div className={cn(layout.rounded, "border", webStyles.container)}>
+      <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
+        <div className={cn("flex items-center", layout.iconGap)}>
+          {isPDF ? (
+            <FileText className={cn(layout.iconSize, webStyles.icon)} />
+          ) : (
+            <Globe className={cn(layout.iconSize, webStyles.icon)} />
+          )}
+          <span className={cn(layout.titleText, "text-foreground")}>
+            {t("webFetchToolResultRenderer.title", { defaultValue: "Web Fetch Result" })}
           </span>
         </div>
-      )}
+        <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
+          <span className={cn(layout.monoText, webStyles.accent)}>
+            {toolUseId}
+          </span>
+        </div>
+      </div>
 
-      {/* Content preview */}
-      {preview && (
-        <details className="mt-2">
-          <summary className="text-xs text-cyan-600 cursor-pointer hover:text-cyan-800">
-            {t("webFetchToolResultRenderer.showContent", {
-              defaultValue: "Show content preview",
-            })}
-          </summary>
-          <pre className="mt-2 text-xs text-cyan-700 bg-cyan-100 rounded p-2 overflow-x-auto whitespace-pre-wrap max-h-64">
-            {preview}
-          </pre>
-        </details>
-      )}
+      <div className={layout.contentPadding}>
+        {/* URL */}
+        <div className={cn("flex items-center mb-2", layout.iconGap)}>
+          <ExternalLink className={cn(layout.iconSizeSmall, webStyles.accent)} />
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              layout.bodyText,
+              "underline truncate max-w-md",
+              webStyles.accent,
+              "hover:opacity-80"
+            )}
+          >
+            {url}
+          </a>
+        </div>
+
+        {/* Title */}
+        {title && (
+          <div className={cn(layout.bodyText, "font-medium mb-2 text-foreground")}>
+            {title}
+          </div>
+        )}
+
+        {/* Retrieved at */}
+        {retrieved_at && (
+          <div className={cn("flex items-center mb-2", layout.iconGap, layout.smallText, webStyles.accent)}>
+            <Clock className={layout.iconSizeSmall} />
+            <span>
+              {t("webFetchToolResultRenderer.retrievedAt", { defaultValue: "Retrieved" })}:{" "}
+              {new Date(retrieved_at).toLocaleString()}
+            </span>
+          </div>
+        )}
+
+        {/* Content preview */}
+        {preview && (
+          <details className="mt-2">
+            <summary className={cn(
+              layout.smallText,
+              "cursor-pointer hover:opacity-80",
+              webStyles.accent
+            )}>
+              {t("webFetchToolResultRenderer.showContent", {
+                defaultValue: "Show content preview",
+              })}
+            </summary>
+            <pre className={cn(
+              "mt-2 overflow-x-auto whitespace-pre-wrap bg-muted text-foreground",
+              layout.containerPadding,
+              layout.rounded,
+              layout.smallText,
+              layout.codeMaxHeight
+            )}>
+              {preview}
+            </pre>
+          </details>
+        )}
+      </div>
     </div>
   );
 });

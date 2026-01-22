@@ -7,10 +7,12 @@
  */
 
 import { useCallback, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import type { UseAnalyticsReturn } from "../types/analytics";
 
 export const useAnalytics = (): UseAnalyticsReturn => {
+  const { t } = useTranslation("common");
   const {
     // Store state
     analytics,
@@ -56,7 +58,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
    */
   const switchToTokenStats = useCallback(async () => {
     if (!selectedProject) {
-      throw new Error("프로젝트가 선택되지 않았습니다.");
+      throw new Error(t("hooks.noProjectSelected"));
     }
 
     try {
@@ -89,7 +91,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
    */
   const switchToAnalytics = useCallback(async () => {
     if (!selectedProject) {
-      throw new Error("프로젝트가 선택되지 않았습니다.");
+      throw new Error(t("hooks.noProjectSelected"));
     }
 
     try {
@@ -103,7 +105,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
         setAnalyticsProjectSummary(summary);
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "프로젝트 요약 로드 실패";
+          error instanceof Error ? error.message : t("hooks.projectSummaryLoadFailed");
         setAnalyticsProjectSummaryError(errorMessage);
         throw error;
       } finally {
@@ -121,7 +123,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
           setAnalyticsSessionComparison(comparison);
         } catch (error) {
           const errorMessage =
-            error instanceof Error ? error.message : "세션 비교 로드 실패";
+            error instanceof Error ? error.message : t("hooks.sessionComparisonLoadFailed");
           setAnalyticsSessionComparisonError(errorMessage);
           // 세션 비교 실패는 치명적이지 않으므로 에러를 throw하지 않음
         } finally {
@@ -153,7 +155,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
    */
   const switchToRecentEdits = useCallback(async () => {
     if (!selectedProject) {
-      throw new Error("프로젝트가 선택되지 않았습니다.");
+      throw new Error(t("hooks.noProjectSelected"));
     }
 
     try {
@@ -166,7 +168,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
         setAnalyticsRecentEdits(result);
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "최근 편집 로드 실패";
+          error instanceof Error ? error.message : t("hooks.recentEditsLoadFailed");
         setAnalyticsRecentEditsError(errorMessage);
         throw error;
       } finally {
@@ -265,7 +267,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
           setAnalyticsSessionComparison(comparison);
           setAnalyticsSessionComparisonError(null);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : "세션 비교 로드 실패";
+          const errorMessage = error instanceof Error ? error.message : t("hooks.sessionComparisonLoadFailed");
           setAnalyticsSessionComparisonError(errorMessage);
           console.error("Failed to update session comparison:", error);
         } finally {

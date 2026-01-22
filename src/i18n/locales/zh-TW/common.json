@@ -33,7 +33,11 @@
     },
     "checkUpdate": "檢查更新",
     "checking": "檢查中...",
-    "updateSettings": "更新設定"
+    "updateSettings": "更新設定",
+    "filter": {
+      "title": "篩選",
+      "showSystemMessages": "顯示系統訊息"
+    }
   },
   "time": {
     "justNow": "剛剛",
@@ -69,5 +73,15 @@
     "now": "立即更新",
     "download": "下載更新",
     "upToDate": "已是最新版本"
+  },
+  "hooks": {
+    "noProjectSelected": "未選擇專案",
+    "projectSummaryLoadFailed": "載入專案摘要失敗",
+    "sessionComparisonLoadFailed": "載入工作階段比較失敗",
+    "recentEditsLoadFailed": "載入最近編輯失敗",
+    "githubApiError": "GitHub API 錯誤：{{status}}",
+    "releaseInfoFetchFailed": "無法取得版本資訊",
+    "updateCheckFailed": "檢查更新時發生錯誤",
+    "updateInstallFailed": "安裝更新時發生錯誤"
   }
 }

@@ -1,0 +1,91 @@
+/* ============================================
+   GLOBAL SCROLLBAR STYLES
+   WebKit/Tauri Compatible
+   ============================================ */
+
+/* ============================================
+   1. OVERLAYSCROLLBARS CUSTOM THEME
+   ============================================ */
+.os-theme-custom {
+  box-sizing: border-box;
+  --os-size: 10px;
+  --os-padding-perpendicular: 2px;
+  --os-padding-axis: 2px;
+  --os-track-border-radius: 5px;
+  --os-handle-border-radius: 5px;
+  --os-handle-bg: #6366f1;
+  --os-handle-bg-hover: #818cf8;
+  --os-handle-bg-active: #a5b4fc;
+}
+
+.os-theme-custom .os-scrollbar-track {
+  background: #0d0d14;
+  border-radius: 5px;
+}
+
+.os-theme-custom .os-scrollbar-handle {
+  background: #6366f1;
+  border-radius: 5px;
+}
+
+.os-theme-custom .os-scrollbar-handle:hover {
+  background: #818cf8;
+}
+
+.os-theme-custom .os-scrollbar-handle:active {
+  background: #a5b4fc;
+}
+
+/* Light theme */
+:root:not(.dark) .os-theme-custom .os-scrollbar-track {
+  background: #e2e8f0;
+}
+
+/* ============================================
+   2. NATIVE SCROLLBAR - WebKit (Safari/Tauri)
+   ============================================ */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0d0d14;
+  border-radius: 5px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #6366f1;
+  border-radius: 5px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #818cf8;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: #a5b4fc;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Light theme native scrollbar */
+:root:not(.dark) *::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+/* ============================================
+   3. FIREFOX ONLY (via @supports)
+   ============================================ */
+@supports (scrollbar-color: auto) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #6366f1 #0d0d14;
+  }
+
+  :root:not(.dark) * {
+    scrollbar-color: #6366f1 #e2e8f0;
+  }
+}

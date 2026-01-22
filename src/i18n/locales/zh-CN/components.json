@@ -4,7 +4,7 @@
     "notFound": "未找到项目",
     "selectToView": "选择项目以查看分析",
     "count": "项目：{{count}}个",
-    "globalStats": "📊 全局统计",
+    "globalStats": "全局统计",
     "globalStatsDescription": "所有项目概览"
   },
   "session": {
@@ -102,9 +102,9 @@
     "noToolData": "没有工具使用数据",
     "loading": "正在加载令牌统计...",
     "totalTokenUsage": "总令牌使用量",
-    "performanceInsights": "🎯 性能洞察",
-    "tokenAnalysis": "💾 令牌使用分析",
-    "sessionTimeline": "⏱️ 会话时间线",
+    "performanceInsights": "性能洞察",
+    "tokenAnalysis": "令牌使用分析",
+    "sessionTimeline": "会话时间线",
     "startTime": "开始时间",
     "duration": "持续时间",
     "durationMinutes": "{{minutes}}分钟",
@@ -220,22 +220,22 @@
     "minutes": "分钟"
   },
   "tools": {
-    "terminal": "🐚 终端",
-    "readFile": "📖 读取文件",
-    "editFile": "✏️ 编辑文件",
-    "createFile": "📝 创建文件",
-    "multiEdit": "🔧 多重编辑",
-    "findFiles": "🔍 查找文件",
-    "searchText": "🔎 搜索文本",
-    "browseDirectory": "📁 浏览目录",
-    "executeTask": "🎯 执行任务",
-    "webFetch": "🌐 网页获取",
-    "webSearch": "🔍 网页搜索",
-    "notebookRead": "📚 笔记本读取",
-    "notebookEdit": "📝 笔记本编辑",
-    "todoRead": "📋 待办事项读取",
-    "todoWrite": "✅ 待办事项写入",
-    "exitPlanMode": "🚪 退出计划模式",
+    "terminal": "终端",
+    "readFile": "读取文件",
+    "editFile": "编辑文件",
+    "createFile": "创建文件",
+    "multiEdit": "多重编辑",
+    "findFiles": "查找文件",
+    "searchText": "搜索文本",
+    "browseDirectory": "浏览目录",
+    "executeTask": "执行任务",
+    "webFetch": "网页获取",
+    "webSearch": "网页搜索",
+    "notebookRead": "笔记本读取",
+    "notebookEdit": "笔记本编辑",
+    "todoRead": "待办事项读取",
+    "todoWrite": "待办事项写入",
+    "exitPlanMode": "退出计划模式",
     "toolUsed": "工具使用",
     "generalConversation": "一般对话",
     "errorOccurred": "发生错误",
@@ -243,8 +243,8 @@
     "currentStatus": "当前状态：",
     "fileCreate": "文件创建",
     "createdContent": "创建的内容",
-    "taskDescription": "📋 任务描述",
-    "detailedInstructions": "💬 详细说明",
+    "taskDescription": "任务描述",
+    "detailedInstructions": "详细说明",
     "fileEdit": "文件编辑",
     "removedCode": "删除的代码",
     "addedCode": "添加的代码",
@@ -423,12 +423,25 @@
     "executionResult": "执行结果",
     "unknownContentType": "未知内容类型"
   },
+  "taskNotification": {
+    "agentTask": "代理任务",
+    "agentTasks": "并行任务",
+    "summary": "摘要",
+    "result": "结果",
+    "details": "详情",
+    "showMore": "展开更多...",
+    "status": {
+      "completed": "已完成",
+      "running": "运行中",
+      "failed": "失败"
+    }
+  },
   "toolUseRenderer": {
     "fileCreation": "文件创建",
     "createdContent": "创建的内容",
     "task": "任务",
-    "taskDescription": "📋 任务描述",
-    "detailedInstructions": "💬 详细说明",
+    "taskDescription": "任务描述",
+    "detailedInstructions": "详细说明",
     "toolInputParameters": "工具输入参数"
   },
   "fileContent": {
@@ -457,7 +470,9 @@
     "originalFileContent": "原始文件内容"
   },
   "messageContentDisplay": {
-    "copyMessage": "复制消息"
+    "copyMessage": "复制消息",
+    "showMore": "展开更多...",
+    "showLess": "收起"
   },
   "codebaseContextRenderer": {
     "codebaseContext": "代码库上下文",
@@ -529,7 +544,8 @@
     "image": "图像",
     "cannotLoadImage": "无法加载图像",
     "viewFullscreen": "全屏查看",
-    "downloadImage": "下载图像"
+    "downloadImage": "下载图像",
+    "close": "关闭"
   },
   "upToDateNotification": {
     "upToDate": "已是最新版本",
@@ -550,19 +566,19 @@
     "os": "操作系统： {{os}} {{version}}",
     "architecture": "架构： {{arch}}",
     "sendingEmail": "发送中...",
-    "sendEmail": "📧 通过邮件发送",
-    "openGitHub": "🔗 在GitHub上创建问题",
+    "sendEmail": "通过邮件发送",
+    "openGitHub": "在GitHub上创建问题",
     "close": "✕",
     "sendError": "发送反馈失败。请重试。",
-    "tips": "💡 提示：",
+    "tips": "提示：",
     "tipBugReport": "对于错误报告：请清晰描述重现步骤和预期行为",
     "tipFeatureRequest": "对于功能请求：请解释您试图解决的问题",
     "tipScreenshot": "如果您有截图，请将其附加到邮件中",
     "types": {
-      "bug": "🐛 错误报告",
-      "feature": "✨ 功能请求",
-      "improvement": "🔧 改进建议",
-      "other": "💬 其他"
+      "bug": "错误报告",
+      "feature": "功能请求",
+      "improvement": "改进建议",
+      "other": "其他"
     },
     "placeholders": {
       "bug": "请详细描述发生错误的情况和重现方法。",
@@ -640,7 +656,7 @@
     "benefits2": "快速访问新功能",
     "benefits3": "离线时自动禁用",
     "benefits4": "可随时在设置中更改",
-    "tip": "💡 您可以在设置 → 更新设置中禁用自动检查。",
+    "tip": "您可以在设置 → 更新设置中禁用自动检查。",
     "disableAutoCheck": "禁用自动检查",
     "understood": "我知道了"
   },
@@ -698,6 +714,18 @@
       "error": "错误"
     }
   },
+  "agentTaskGroup": {
+    "agent": "代理",
+    "parallelTasks": "并行任务",
+    "completed": "已完成",
+    "prompt": "提示:",
+    "transcript": "日志:",
+    "copyPath": "复制完整路径"
+  },
+  "agentProgressGroup": {
+    "agent": "代理",
+    "steps": "步骤"
+  },
   "queueOperationRenderer": {
     "title": "队列操作",
     "operations": {
@@ -729,5 +757,35 @@
   },
   "summaryMessageRenderer": {
     "title": "对话摘要"
+  },
+  "claudeToolUseDisplay": {
+    "unknownTool": "未知工具"
+  },
+  "collapsibleToolResult": {
+    "terminalOutput": "终端输出",
+    "noOutput": "无输出",
+    "todoListUpdated": "待办列表已更新",
+    "editsCount": "{{count}} 处编辑",
+    "result": "结果"
+  },
+  "simpleUpdateModal": {
+    "newUpdateAvailable": "有新版本可用",
+    "important": "重要",
+    "currentVersion": "当前版本",
+    "newVersion": "新版本",
+    "downloading": "下载中... {{progress}}%",
+    "installing": "安装中... 应用即将重启。",
+    "errorOccurred": "发生错误: {{error}}",
+    "hideDetails": "隐藏详情",
+    "showDetails": "显示详情",
+    "releaseName": "发布名称:",
+    "changes": "更新内容:",
+    "viewOnGitHub": "在 GitHub 上查看",
+    "downloadingShort": "下载中...",
+    "installingShort": "安装中...",
+    "downloadAndInstall": "下载并安装",
+    "remindLater": "24小时后提醒",
+    "skipVersion": "跳过此版本",
+    "close": "关闭"
   }
 }

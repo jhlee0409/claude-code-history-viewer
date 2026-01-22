@@ -88,7 +88,8 @@ export function useSmartUpdater() {
       return false;
     }
 
-    const version = githubUpdater.state.releaseInfo.tag_name;
+    // v prefix 제거하여 스킵된 버전과 일치하도록 함
+    const version = githubUpdater.state.releaseInfo.tag_name.replace(/^v/, '');
     return shouldShowUpdateForVersion(version);
   }, [githubUpdater.state.hasUpdate, githubUpdater.state.releaseInfo]);
 

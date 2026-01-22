@@ -128,13 +128,14 @@ fn process_release_info(current_version: &str, release: GitHubRelease) -> Result
         .and_then(|m| m.deadline.as_ref())
         .and_then(|deadline| calculate_days_until_deadline(deadline).ok());
 
-    // 최소 버전 체크
-    let meets_minimum_version = metadata.as_ref()
+    // 최소 버전 체크: 현재 버전이 최소 버전 미만인지 확인
+    let below_minimum_version = metadata.as_ref()
         .and_then(|m| m.minimum_version.as_ref())
-        .map(|min_ver| version_is_newer_or_equal(current_version, min_ver))
-        .unwrap_or(true);
+        .map(|min_ver| version_is_newer(current_version, min_ver))
+        .unwrap_or(false);
 
-    let final_is_forced = is_forced && meets_minimum_version;
+    // 강제 업데이트: force_update가 true이고 현재 버전이 최소 버전 미만일 때
+    let final_is_forced = is_forced && below_minimum_version;
 
     // DMG 다운로드 URL 찾기 (macOS)
     let dmg_asset = release.assets.iter()
@@ -153,11 +154,12 @@ fn process_release_info(current_version: &str, release: GitHubRelease) -> Result
 }
 
 pub fn parse_metadata_from_body(body: &str) -> Option<UpdateMetadata> {
-    let re = Regex::new(r"<!-- UPDATE_METADATA\s*\n(.*?)\n-->");
+    // (?s) 플래그로 멀티라인 JSON 지원
+    let re = Regex::new(r"(?s)<!-- UPDATE_METADATA\s*\n(.*?)\n-->");
 
     if let Ok(regex) = re {
         if let Some(captures) = regex.captures(body) {
-            let json_str = captures.get(1)?.as_str();
+            let json_str = captures.get(1)?.as_str().trim();
             serde_json::from_str(json_str).ok()
         } else {
             None
@@ -268,9 +270,4 @@ pub fn version_is_newer(current: &str, latest: &str) -> bool {
             }
         }
     }
-}
-
-fn version_is_newer_or_equal(current: &str, minimum: &str) -> bool {
-    // current >= minimum: returns true if current is newer than or equal to minimum
-    !version_is_newer(current, minimum)
 }

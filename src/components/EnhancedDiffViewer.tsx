@@ -17,6 +17,7 @@ import "prismjs/components/prism-css";
 import "prismjs/components/prism-scss";
 import "prismjs/components/prism-bash";
 import { TooltipButton } from "../shared/TooltipButton";
+import { layout } from "@/components/renderers";
 
 type Props = {
   oldText: string;
@@ -168,7 +169,7 @@ export const EnhancedDiffViewer = ({
   return (
     <div className="mb-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-medium text-gray-600">
+        <div className={`${layout.smallText} font-medium text-muted-foreground`}>
           {t("diffViewer.changes")}
         </div>
         <div className="flex items-center space-x-2">
@@ -183,20 +184,20 @@ export const EnhancedDiffViewer = ({
             <div className="flex items-center space-x-1">
               <button
                 onClick={() => setViewMode("visual")}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
+                className={`px-2 py-1 ${layout.smallText} rounded transition-colors ${
                   viewMode === "visual"
-                    ? "bg-blue-100 text-blue-700 font-medium"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "bg-secondary text-foreground hover:bg-secondary/80"
                 }`}
               >
                 {t("diffViewer.visualView")}
               </button>
               <button
                 onClick={() => setViewMode("advanced")}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
+                className={`px-2 py-1 ${layout.smallText} rounded transition-colors ${
                   viewMode === "advanced"
-                    ? "bg-amber-100 text-amber-700 font-medium"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "bg-secondary text-foreground hover:bg-secondary/80"
                 }`}
               >
                 {t("diffViewer.advancedAnalysis")}
@@ -206,7 +207,7 @@ export const EnhancedDiffViewer = ({
           {viewMode === "visual" && (
             <TooltipButton
               onClick={() => setSplitView(!splitView)}
-              className="flex items-center space-x-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+              className={`flex items-center space-x-1 px-2 py-1 ${layout.smallText} bg-secondary hover:bg-secondary/80 text-foreground rounded transition-colors`}
               content={
                 splitView
                   ? t("diffViewer.switchToUnified")
@@ -241,7 +242,7 @@ export const EnhancedDiffViewer = ({
             renderContent={language !== "text" ? highlightSyntax : undefined}
             styles={{
               contentText: {
-                fontSize: "12px",
+                fontSize: "13px",
               },
             }}
           />

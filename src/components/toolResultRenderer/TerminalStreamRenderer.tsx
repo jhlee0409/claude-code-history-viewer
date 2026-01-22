@@ -3,7 +3,9 @@
 import { Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
-import { cn } from "../../utils/cn";
+import { layout } from "@/components/renderers";
+import { cn } from "@/lib/utils";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   command: string;
@@ -11,6 +13,7 @@ type Props = {
   output: string;
   timestamp: string;
   exitCode: number;
+  searchQuery?: string;
 };
 
 export const TerminalStreamRenderer = ({
@@ -19,29 +22,25 @@ export const TerminalStreamRenderer = ({
   output,
   timestamp,
   exitCode,
+  searchQuery,
 }: Props) => {
   const { t } = useTranslation('components');
 
   return (
-    <Renderer
-      className={cn(
-        "bg-gray-900 dark:bg-gray-950",
-        "border-gray-700 dark:border-gray-800"
-      )}
-    >
+    <Renderer className="bg-tool-terminal/10 border-tool-terminal/30">
       <Renderer.Header
         title={t('terminalStreamRenderer.title')}
-        icon={<Terminal className="w-4 h-4 text-green-400" />}
-        titleClassName="text-green-400"
+        icon={<Terminal className={cn(layout.iconSize, "text-tool-terminal")} />}
+        titleClassName="text-foreground"
         rightContent={
-          <div className="flex items-center space-x-2">
+          <div className={cn("flex items-center", layout.iconSpacing)}>
             {command && (
-              <code className="text-xs bg-gray-800 px-2 py-1 rounded text-green-300">
+              <code className={`${layout.monoText} bg-tool-terminal/20 px-2 py-1 rounded text-tool-terminal`}>
                 {String(command)}
               </code>
             )}
             {timestamp && (
-              <span className="text-xs text-gray-400">
+              <span className={`${layout.smallText} text-muted-foreground`}>
                 {new Date(String(timestamp)).toLocaleTimeString()}
               </span>
             )}
@@ -51,13 +50,14 @@ export const TerminalStreamRenderer = ({
       <Renderer.Content>
         <div className="relative">
           {/* 스트림 타입 표시 */}
-          <div className="flex items-center space-x-2 mb-2">
+          <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
             <span
               className={cn(
-                "text-xs px-2 py-1 rounded",
+                layout.smallText,
+                "px-2 py-1 rounded",
                 stream === "stderr"
-                  ? "bg-red-800 text-red-200"
-                  : "bg-gray-800 text-gray-300"
+                  ? "bg-destructive/20 text-destructive"
+                  : "bg-tool-terminal/20 text-tool-terminal"
               )}
             >
               {String(stream)}
@@ -65,10 +65,11 @@ export const TerminalStreamRenderer = ({
             {exitCode !== undefined && (
               <span
                 className={cn(
-                  "text-xs px-2 py-1 rounded",
+                  layout.smallText,
+                  "px-2 py-1 rounded",
                   Number(exitCode) === 0
-                    ? "bg-green-800 text-green-200"
-                    : "bg-red-800 text-red-200"
+                    ? "bg-success/20 text-success"
+                    : "bg-destructive/20 text-destructive"
                 )}
               >
                 {t('terminalStreamRenderer.exitCode')}: {String(exitCode)}
@@ -77,8 +78,12 @@ export const TerminalStreamRenderer = ({
           </div>
 
           {/* 출력 내용 */}
-          <pre className="text-sm text-gray-100 whitespace-pre-wrap bg-gray-800 p-2 rounded overflow-auto max-h-80">
-            {String(output)}
+          <pre className={cn(layout.monoText, "text-foreground whitespace-pre-wrap bg-muted p-2 rounded overflow-auto max-h-80")}>
+            {searchQuery ? (
+              <HighlightedText text={String(output)} searchQuery={searchQuery} />
+            ) : (
+              String(output)
+            )}
           </pre>
         </div>
       </Renderer.Content>

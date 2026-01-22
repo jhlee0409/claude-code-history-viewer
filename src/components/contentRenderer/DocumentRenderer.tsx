@@ -1,6 +1,19 @@
+/**
+ * DocumentRenderer Component
+ *
+ * Renders document content from Claude API, supporting multiple source types:
+ * - Base64 encoded PDFs
+ * - Plain text documents
+ * - URL-linked PDFs
+ *
+ * Uses design tokens for consistent theming and styling.
+ */
+
 import { memo } from "react";
 import { FileText, File, Link } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { getVariantStyles, layout } from "@/components/renderers";
+import { cn } from "@/lib/utils";
 import type {
   DocumentContent,
   Base64PDFSource,
@@ -33,11 +46,12 @@ const isURLPDF = (
 export const DocumentRenderer = memo(function DocumentRenderer({ document }: Props) {
   const { t } = useTranslation("components");
   const { source, title, context } = document;
+  const documentStyles = getVariantStyles("document");
 
   const getSourceInfo = () => {
     if (isBase64PDF(source)) {
       return {
-        icon: <FileText className="w-4 h-4 text-red-600" />,
+        icon: <FileText className={cn(layout.iconSize, "text-tool-document")} />,
         label: t("documentRenderer.pdf", { defaultValue: "PDF Document" }),
         preview: t("documentRenderer.base64Preview", {
           defaultValue: "Base64 encoded PDF",
@@ -46,7 +60,7 @@ export const DocumentRenderer = memo(function DocumentRenderer({ document }: Pro
     }
     if (isPlainText(source)) {
       return {
-        icon: <File className="w-4 h-4 text-gray-600" />,
+        icon: <File className={cn(layout.iconSize, "text-tool-document")} />,
         label: t("documentRenderer.plainText", {
           defaultValue: "Plain Text Document",
         }),
@@ -55,13 +69,13 @@ export const DocumentRenderer = memo(function DocumentRenderer({ document }: Pro
     }
     if (isURLPDF(source)) {
       return {
-        icon: <Link className="w-4 h-4 text-blue-600" />,
+        icon: <Link className={cn(layout.iconSize, "text-tool-document")} />,
         label: t("documentRenderer.urlPdf", { defaultValue: "PDF from URL" }),
         preview: source.url,
       };
     }
     return {
-      icon: <File className="w-4 h-4 text-gray-600" />,
+      icon: <File className={cn(layout.iconSize, "text-tool-document")} />,
       label: t("documentRenderer.unknown", { defaultValue: "Document" }),
       preview: null,
     };
@@ -70,18 +84,18 @@ export const DocumentRenderer = memo(function DocumentRenderer({ document }: Pro
   const { icon, label, preview } = getSourceInfo();
 
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-      <div className="flex items-center space-x-2 mb-2">
+    <div className={cn(documentStyles.container, "border", layout.rounded, layout.containerPadding)}>
+      <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
         {icon}
-        <span className="text-xs font-medium text-slate-700">{label}</span>
+        <span className={cn(layout.titleText, "text-foreground")}>{label}</span>
       </div>
 
       {title && (
-        <div className="text-sm font-medium text-slate-800 mb-1">{title}</div>
+        <div className={cn(layout.bodyText, "font-medium mb-1 text-foreground")}>{title}</div>
       )}
 
       {context && (
-        <div className="text-xs text-slate-600 mb-2 italic">{context}</div>
+        <div className={cn(layout.smallText, "mb-2 italic text-muted-foreground")}>{context}</div>
       )}
 
       {preview && (
@@ -91,12 +105,22 @@ export const DocumentRenderer = memo(function DocumentRenderer({ document }: Pro
               href={source.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:text-blue-800 underline break-all"
+              className={cn(
+                layout.bodyText,
+                "underline break-all",
+                documentStyles.accent,
+                "hover:opacity-80 transition-opacity"
+              )}
             >
               {source.url}
             </a>
           ) : (
-            <pre className="text-xs text-slate-600 bg-slate-100 rounded p-2 overflow-x-auto whitespace-pre-wrap">
+            <pre className={cn(
+              "overflow-x-auto whitespace-pre-wrap text-muted-foreground bg-secondary",
+              layout.containerPadding,
+              layout.smallText,
+              layout.rounded
+            )}>
               {preview}
             </pre>
           )}
@@ -104,7 +128,7 @@ export const DocumentRenderer = memo(function DocumentRenderer({ document }: Pro
       )}
 
       {document.citations?.enabled && (
-        <div className="mt-2 text-xs text-slate-500 flex items-center space-x-1">
+        <div className={cn("mt-2 flex items-center", layout.iconSpacing, layout.smallText, "text-muted-foreground")}>
           <span>
             {t("documentRenderer.citationsEnabled", {
               defaultValue: "Citations enabled",

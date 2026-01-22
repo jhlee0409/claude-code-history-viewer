@@ -4,7 +4,7 @@
     "notFound": "Project not found",
     "selectToView": "Select a project to view analytics",
     "count": "Projects: {{count}}",
-    "globalStats": "📊 Global Statistics",
+    "globalStats": "Global Statistics",
     "globalStatsDescription": "All projects overview"
   },
   "session": {
@@ -100,9 +100,9 @@
     "loading": "Loading token statistics...",
     "currentSessionTokens": "Current session tokens: {{count}}",
     "projectTokens": "Project tokens: {{count}}",
-    "performanceInsights": "🎯 Performance Insights",
-    "tokenAnalysis": "💾 Token Usage Analysis",
-    "sessionTimeline": "⏱️ Session Timeline",
+    "performanceInsights": "Performance Insights",
+    "tokenAnalysis": "Token Usage Analysis",
+    "sessionTimeline": "Session Timeline",
     "totalSessions": "Total Sessions",
     "sessionRank": "Session Rank",
     "avgSession": "Avg Session",
@@ -206,22 +206,22 @@
     "minutes": "minutes"
   },
   "tools": {
-    "terminal": "🐚 Terminal",
-    "readFile": "📖 Read File",
-    "editFile": "✏️ Edit File",
-    "createFile": "📝 Create File",
-    "multiEdit": "🔧 Multi Edit",
-    "findFiles": "🔍 Find Files",
-    "searchText": "🔎 Search Text",
-    "browseDirectory": "📁 Browse Directory",
-    "executeTask": "🎯 Execute Task",
-    "webFetch": "🌐 Web Fetch",
-    "webSearch": "🔍 Web Search",
-    "notebookRead": "📚 Notebook Read",
-    "notebookEdit": "📝 Notebook Edit",
-    "todoRead": "📋 Todo Read",
-    "todoWrite": "✅ Todo Write",
-    "exitPlanMode": "🚪 Exit Plan Mode",
+    "terminal": "Terminal",
+    "readFile": "Read File",
+    "editFile": "Edit File",
+    "createFile": "Create File",
+    "multiEdit": "Multi Edit",
+    "findFiles": "Find Files",
+    "searchText": "Search Text",
+    "browseDirectory": "Browse Directory",
+    "executeTask": "Execute Task",
+    "webFetch": "Web Fetch",
+    "webSearch": "Web Search",
+    "notebookRead": "Notebook Read",
+    "notebookEdit": "Notebook Edit",
+    "todoRead": "Todo Read",
+    "todoWrite": "Todo Write",
+    "exitPlanMode": "Exit Plan Mode",
     "toolUsed": "Tool Used",
     "generalConversation": "General Conversation",
     "errorOccurred": "Error Occurred",
@@ -229,8 +229,8 @@
     "currentStatus": "Current Status:",
     "fileCreate": "File Creation",
     "createdContent": "Created Content",
-    "taskDescription": "📋 Task Description",
-    "detailedInstructions": "💬 Detailed Instructions",
+    "taskDescription": "Task Description",
+    "detailedInstructions": "Detailed Instructions",
     "fileEdit": "File Edit",
     "removedCode": "Removed Code",
     "addedCode": "Added Code",
@@ -419,12 +419,25 @@
     "unknownContentType": "Unknown content type",
     "systemNote": "System Note"
   },
+  "taskNotification": {
+    "agentTask": "Agent Task",
+    "agentTasks": "Parallel Tasks",
+    "summary": "Summary",
+    "result": "Result",
+    "details": "Details",
+    "showMore": "Show more...",
+    "status": {
+      "completed": "completed",
+      "running": "running",
+      "failed": "failed"
+    }
+  },
   "toolUseRenderer": {
     "fileCreation": "File Creation",
     "createdContent": "Created Content",
     "task": "Task",
-    "taskDescription": "📋 Task Description",
-    "detailedInstructions": "💬 Detailed Instructions",
+    "taskDescription": "Task Description",
+    "detailedInstructions": "Detailed Instructions",
     "toolInputParameters": "Tool Input Parameters"
   },
   "fileContent": {
@@ -453,7 +466,9 @@
     "originalFileContent": "Original File Content"
   },
   "messageContentDisplay": {
-    "copyMessage": "Copy Message"
+    "copyMessage": "Copy Message",
+    "showMore": "Show more...",
+    "showLess": "Show less"
   },
   "codebaseContextRenderer": {
     "codebaseContext": "Codebase Context",
@@ -525,7 +540,8 @@
     "image": "Image",
     "cannotLoadImage": "Cannot load image",
     "viewFullscreen": "View fullscreen",
-    "downloadImage": "Download image"
+    "downloadImage": "Download image",
+    "close": "Close"
   },
   "upToDateNotification": {
     "upToDate": "Up to date",
@@ -546,19 +562,19 @@
     "os": "OS: {{os}} {{version}}",
     "architecture": "Architecture: {{arch}}",
     "sendingEmail": "Sending...",
-    "sendEmail": "📧 Send via Email",
-    "openGitHub": "🔗 Open GitHub Issue",
+    "sendEmail": "Send via Email",
+    "openGitHub": "Open GitHub Issue",
     "close": "✕",
     "sendError": "Failed to send feedback. Please try again.",
-    "tips": "💡 Tips:",
+    "tips": "Tips:",
     "tipBugReport": "For bug reports: clearly describe reproduction steps and expected behavior",
     "tipFeatureRequest": "For feature requests: explain what problem you're trying to solve",
     "tipScreenshot": "If you have screenshots, please attach them to the email",
     "types": {
-      "bug": "🐛 Bug Report",
-      "feature": "✨ Feature Request",
-      "improvement": "🔧 Improvement",
-      "other": "💬 Other"
+      "bug": "Bug Report",
+      "feature": "Feature Request",
+      "improvement": "Improvement",
+      "other": "Other"
     },
     "placeholders": {
       "bug": "Please describe the situation where the bug occurred and how to reproduce it in detail.",
@@ -636,7 +652,7 @@
     "benefits2": "Quick access to new features",
     "benefits3": "Automatically disabled when offline",
     "benefits4": "Can be changed anytime in settings",
-    "tip": "💡 You can disable auto-check in Settings → Update Settings.",
+    "tip": "You can disable auto-check in Settings → Update Settings.",
     "disableAutoCheck": "Disable Auto Check",
     "understood": "Got it"
   },
@@ -694,6 +710,18 @@
       "error": "Error"
     }
   },
+  "agentTaskGroup": {
+    "agent": "Agent",
+    "parallelTasks": "Parallel Tasks",
+    "completed": "completed",
+    "prompt": "Prompt:",
+    "transcript": "Transcript:",
+    "copyPath": "Copy full path"
+  },
+  "agentProgressGroup": {
+    "agent": "Agent",
+    "steps": "steps"
+  },
   "queueOperationRenderer": {
     "title": "Queue Operation",
     "operations": {
@@ -725,5 +753,35 @@
   },
   "summaryMessageRenderer": {
     "title": "Conversation Summary"
+  },
+  "claudeToolUseDisplay": {
+    "unknownTool": "Unknown Tool"
+  },
+  "collapsibleToolResult": {
+    "terminalOutput": "Terminal output",
+    "noOutput": "No output",
+    "todoListUpdated": "Todo list updated",
+    "editsCount": "{{count}} edit(s)",
+    "result": "Result"
+  },
+  "simpleUpdateModal": {
+    "newUpdateAvailable": "New Update Available",
+    "important": "Important",
+    "currentVersion": "Current Version",
+    "newVersion": "New Version",
+    "downloading": "Downloading... {{progress}}%",
+    "installing": "Installing... App will restart shortly.",
+    "errorOccurred": "An error occurred: {{error}}",
+    "hideDetails": "Hide Details",
+    "showDetails": "Show Details",
+    "releaseName": "Release Name:",
+    "changes": "Changes:",
+    "viewOnGitHub": "View on GitHub",
+    "downloadingShort": "Downloading...",
+    "installingShort": "Installing...",
+    "downloadAndInstall": "Download & Install",
+    "remindLater": "Remind me in 24 hours",
+    "skipVersion": "Skip this version",
+    "close": "Close"
   }
 }

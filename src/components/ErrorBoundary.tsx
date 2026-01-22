@@ -1,8 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { AlertTriangle, Mail, Copy, RefreshCw } from "lucide-react";
-import { COLORS } from "../constants/colors";
-import { cn } from "../utils/cn";
+import { AlertTriangle, Mail, Copy, RefreshCw, CheckCircle2, HelpCircle } from "lucide-react";
 import { withTranslation, type WithTranslation } from "react-i18next";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface Props extends WithTranslation {
   children: ReactNode;
@@ -127,206 +128,149 @@ ${t("error.emailTemplate.thanks", {
       `);
 
       return (
-        <div
-          className={cn(
-            "min-h-screen flex items-center justify-center p-6",
-            COLORS.ui.background.primary
-          )}
-        >
-          <div
-            className={cn(
-              "max-w-2xl w-full p-8 rounded-lg shadow-lg",
-              COLORS.ui.background.white,
-              COLORS.ui.border.light,
-              "border"
-            )}
-          >
-            <div className="text-center mb-6">
-              <AlertTriangle
-                className={cn(
-                  "w-16 h-16 mx-auto mb-4",
-                  COLORS.semantic.error.icon
-                )}
-              />
-              <h1
-                className={cn(
-                  "text-2xl font-bold mb-2",
-                  COLORS.semantic.error.textDark
-                )}
-              >
-                {t("error.unexpectedError", {
-                  defaultValue: "An unexpected error occurred",
-                })}
-              </h1>
-              <p className={cn("text-lg", COLORS.ui.text.secondary)}>
-                {t("error.apologize", {
-                  defaultValue:
-                    "We apologize for the inconvenience. Please try the following solutions to resolve the issue.",
-                })}
-              </p>
-            </div>
+        <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+          <Card className="max-w-2xl w-full shadow-lg">
+            <CardContent className="p-8">
+              {/* Header */}
+              <div className="text-center mb-6">
+                <div className="flex justify-center mb-4">
+                  <div className="rounded-full bg-destructive/10 p-4">
+                    <AlertTriangle className="h-12 w-12 text-destructive" />
+                  </div>
+                </div>
+                <h1 className="text-2xl font-bold mb-2 text-foreground">
+                  {t("error.unexpectedError", {
+                    defaultValue: "An unexpected error occurred",
+                  })}
+                </h1>
+                <p className="text-muted-foreground">
+                  {t("error.apologize", {
+                    defaultValue:
+                      "We apologize for the inconvenience. Please try the following solutions to resolve the issue.",
+                  })}
+                </p>
+              </div>
 
-            <div
-              className={cn(
-                "mb-6 p-4 rounded-lg",
-                COLORS.semantic.error.bg,
-                COLORS.semantic.error.border,
-                "border"
-              )}
-            >
-              <h2
-                className={cn(
-                  "font-semibold mb-2",
-                  COLORS.semantic.error.textDark
-                )}
-              >
-                {t("error.errorInfo", {
-                  defaultValue: "Error Information",
-                })}
-              </h2>
-              <pre
-                className={cn(
-                  "text-sm overflow-x-auto whitespace-pre-wrap",
-                  COLORS.ui.text.tertiary
-                )}
-              >
-                {this.state.error?.message || "Unknown error"}
-              </pre>
-              {this.state.error?.stack && (
-                <details className="mt-2">
-                  <summary
-                    className={cn(
-                      "cursor-pointer text-sm",
-                      COLORS.ui.text.muted
-                    )}
-                  >
-                    {t("error.viewDetails", {
-                      defaultValue: "View Details",
-                    })}
-                  </summary>
-                  <pre
-                    className={cn(
-                      "mt-2 text-xs overflow-x-auto whitespace-pre-wrap",
-                      COLORS.ui.text.muted
-                    )}
-                  >
-                    {this.state.error.stack}
+              {/* Error Details */}
+              <Alert variant="destructive" className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>
+                  {t("error.errorInfo", {
+                    defaultValue: "Error Information",
+                  })}
+                </AlertTitle>
+                <AlertDescription>
+                  <pre className="text-sm overflow-x-auto whitespace-pre-wrap mt-2">
+                    {this.state.error?.message || "Unknown error"}
                   </pre>
-                </details>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div
-                className={cn(
-                  "p-4 rounded-lg",
-                  COLORS.semantic.info.bg,
-                  COLORS.semantic.info.border,
-                  "border"
-                )}
-              >
-                <h3
-                  className={cn(
-                    "font-semibold mb-2 flex items-center",
-                    COLORS.semantic.info.textDark
+                  {this.state.error?.stack && (
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm text-destructive/80 hover:text-destructive">
+                        {t("error.viewDetails", {
+                          defaultValue: "View Details",
+                        })}
+                      </summary>
+                      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-destructive/70">
+                        {this.state.error.stack}
+                      </pre>
+                    </details>
                   )}
-                >
-                  <Mail className="w-4 h-4 mr-2" />
+                </AlertDescription>
+              </Alert>
+
+              {/* Report Error Section */}
+              <Alert variant="info" className="mb-6">
+                <Mail className="h-4 w-4" />
+                <AlertTitle>
                   {t("error.reportError", {
                     defaultValue: "Report Error",
                   })}
-                </h3>
-                <p className={cn("text-sm mb-3", COLORS.ui.text.secondary)}>
-                  {t("error.reportDescription", {
-                    defaultValue:
-                      "If this error occurs repeatedly, please report it to the email below:",
-                  })}
-                </p>
-                <div className="flex flex-col space-y-2">
-                  <a
-                    href={`mailto:relee6203@gmail.com?subject=${emailSubject}&body=${emailBody}`}
-                    className={cn(
-                      "inline-flex items-center text-sm font-medium",
-                      COLORS.semantic.info.text,
-                      "hover:underline"
-                    )}
-                  >
-                    relee6203@gmail.com
-                  </a>
-                  <button
-                    onClick={this.copyErrorDetails}
-                    className={cn(
-                      "inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                      COLORS.semantic.info.bgDark,
-                      COLORS.semantic.info.text,
-                      "hover:opacity-80"
-                    )}
-                  >
-                    <Copy className="w-4 h-4 mr-2" />
-                    {this.state.copied
-                      ? t("error.copied", {
-                          defaultValue: "Copied!",
-                        })
-                      : t("error.copyErrorInfo", {
-                          defaultValue: "Copy Error Information",
-                        })}
-                  </button>
-                </div>
-              </div>
+                </AlertTitle>
+                <AlertDescription>
+                  <p className="text-sm mb-3">
+                    {t("error.reportDescription", {
+                      defaultValue:
+                        "If this error occurs repeatedly, please report it to the email below:",
+                    })}
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <a
+                      href={`mailto:relee6203@gmail.com?subject=${emailSubject}&body=${emailBody}`}
+                      className="text-sm font-medium text-info hover:underline"
+                    >
+                      relee6203@gmail.com
+                    </a>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={this.copyErrorDetails}
+                      className="w-fit"
+                    >
+                      {this.state.copied ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                      {this.state.copied
+                        ? t("error.copied", {
+                            defaultValue: "Copied!",
+                          })
+                        : t("error.copyErrorInfo", {
+                            defaultValue: "Copy Error Information",
+                          })}
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
 
-              <div className="flex justify-center space-x-4">
-                <button
-                  onClick={this.handleReset}
-                  className={cn(
-                    "px-6 py-3 rounded-lg font-medium transition-colors flex items-center",
-                    "bg-blue-600 dark:bg-blue-500 text-white",
-                    "hover:bg-blue-700 dark:hover:bg-blue-600"
-                  )}
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
+              {/* Restart Button */}
+              <div className="flex justify-center mb-6">
+                <Button onClick={this.handleReset} size="lg">
+                  <RefreshCw className="h-4 w-4" />
                   {t("error.restartApp", {
                     defaultValue: "Restart App",
                   })}
-                </button>
+                </Button>
               </div>
-            </div>
 
-            <div
-              className={cn(
-                "mt-6 p-4 rounded-lg text-sm",
-                COLORS.ui.background.secondary
-              )}
-            >
-              <h4 className={cn("font-semibold mb-2", COLORS.ui.text.primary)}>
-                {t("error.troubleshooting", {
-                  defaultValue: "Troubleshooting",
-                })}
-              </h4>
-              <ul className={cn("space-y-1", COLORS.ui.text.secondary)}>
-                <li>
-                  •{" "}
-                  {t("error.troubleshootingSteps.restart", {
-                    defaultValue:
-                      "Try completely closing and restarting the app",
-                  })}
-                </li>
-                <li>
-                  •{" "}
-                  {t("error.troubleshootingSteps.updateVersion", {
-                    defaultValue:
-                      "Ensure you have the latest version of Claude Code History Viewer installed",
-                  })}
-                </li>
-                <li>
-                  •{" "}
-                  {t("error.troubleshootingSteps.tryOtherProject", {
-                    defaultValue:
-                      "Try opening a different project to see if the issue persists",
-                  })}
-                </li>
-              </ul>
-            </div>
-          </div>
+              {/* Troubleshooting */}
+              <Card variant="outline" className="bg-muted/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4" />
+                    {t("error.troubleshooting", {
+                      defaultValue: "Troubleshooting",
+                    })}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-muted-foreground/60">•</span>
+                      {t("error.troubleshootingSteps.restart", {
+                        defaultValue:
+                          "Try completely closing and restarting the app",
+                      })}
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-muted-foreground/60">•</span>
+                      {t("error.troubleshootingSteps.updateVersion", {
+                        defaultValue:
+                          "Ensure you have the latest version of Claude Code History Viewer installed",
+                      })}
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-muted-foreground/60">•</span>
+                      {t("error.troubleshootingSteps.tryOtherProject", {
+                        defaultValue:
+                          "Try opening a different project to see if the issue persists",
+                      })}
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
         </div>
       );
     }

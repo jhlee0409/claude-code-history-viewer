@@ -1,12 +1,92 @@
-import React from "react";
+import React, { useState, useMemo, Children, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy } from "lucide-react";
+import { Copy, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CommandRenderer, ImageRenderer } from "../contentRenderer";
+import { CommandRenderer, ImageRenderer, TaskNotificationRenderer, hasTaskNotification } from "../contentRenderer";
 import { isImageUrl, isBase64Image } from "../../utils/messageUtils";
 import { TooltipButton } from "../../shared/TooltipButton";
 import { HighlightedText } from "../common";
+import { layout } from "@/components/renderers";
+import { cn } from "@/lib/utils";
+
+const LINE_LIMIT = 3;
+const TABLE_ROW_LIMIT = 2;
+
+// Get line count and preview text
+const getTextInfo = (text: string) => {
+  const lines = text.split('\n');
+  const lineCount = lines.length;
+  const preview = lines.slice(0, LINE_LIMIT).join('\n');
+  return { lineCount, preview, needsExpand: lineCount > LINE_LIMIT };
+};
+
+// Collapsible table component for markdown
+const CollapsibleTable = ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Extract thead and tbody from children
+  const childArray = Children.toArray(children);
+  const thead = childArray.find(
+    (child) => isValidElement(child) && child.type === "thead"
+  );
+  const tbody = childArray.find(
+    (child) => isValidElement(child) && child.type === "tbody"
+  ) as React.ReactElement<{ children?: React.ReactNode }> | undefined;
+
+  // Count rows in tbody
+  let rowCount = 0;
+  if (tbody?.props?.children) {
+    rowCount = Children.count(tbody.props.children);
+  }
+
+  const needsExpand = rowCount > TABLE_ROW_LIMIT;
+
+  // Get limited rows for preview
+  const getLimitedTbody = () => {
+    if (!tbody?.props?.children || !needsExpand || isExpanded) {
+      return tbody;
+    }
+
+    const rows = Children.toArray(tbody.props.children);
+    const limitedRows = rows.slice(0, TABLE_ROW_LIMIT);
+
+    return React.cloneElement(tbody, {
+      children: limitedRows,
+    });
+  };
+
+  return (
+    <div className="relative">
+      <table {...props}>
+        {thead}
+        {getLimitedTbody()}
+      </table>
+
+      {needsExpand && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={cn(
+            "flex items-center justify-center gap-1 w-full py-1.5 mt-1",
+            "text-2xs text-muted-foreground hover:text-foreground",
+            "border-t border-border/50",
+            "transition-colors"
+          )}
+        >
+          <ChevronDown className={cn(
+            "w-3 h-3 transition-transform",
+            isExpanded && "rotate-180"
+          )} />
+          <span>
+            {isExpanded
+              ? "Show less"
+              : `Show ${rowCount - TABLE_ROW_LIMIT} more rows...`}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+};
 
 interface MessageContentDisplayProps {
   content: string | null;
@@ -24,10 +104,24 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   currentMatchIndex = 0,
 }) => {
   const { t } = useTranslation("components");
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Check if content needs expand (for both user and assistant)
+  const textInfo = useMemo(() => {
+    if (typeof content === "string") {
+      return getTextInfo(content);
+    }
+    return { lineCount: 0, preview: "", needsExpand: false };
+  }, [content]);
 
   if (!content) return null;
 
   if (typeof content === "string") {
+    // Check for task-notification tags (agent task results)
+    if (hasTaskNotification(content)) {
+      return <TaskNotificationRenderer text={content} />;
+    }
+
     // Check for actual XML command tags (not inside backticks/code)
     // Must have opening tag followed by content and closing tag
     const hasCommandTags =
@@ -77,10 +171,16 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   }
 
   if (messageType === "user") {
+    const showPreview = textInfo.needsExpand && !isExpanded && !searchQuery;
+    const displayContent = showPreview ? textInfo.preview : content;
+
     return (
       <div className="mb-3 flex justify-end">
-        <div className="max-w-xs sm:max-w-md lg:max-w-lg bg-blue-500 text-white rounded-2xl px-4 py-3 relative group shadow-sm">
-          <div className="whitespace-pre-wrap break-words text-sm">
+        <div className="max-w-xs sm:max-w-md lg:max-w-lg bg-accent text-accent-foreground rounded-2xl px-4 py-3 relative group shadow-sm">
+          <div className={cn(
+            "whitespace-pre-wrap break-words",
+            layout.bodyText
+          )}>
             {searchQuery ? (
               <HighlightedText
                 text={content}
@@ -89,28 +189,54 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
                 currentMatchIndex={currentMatchIndex}
               />
             ) : (
-              content
+              displayContent
             )}
           </div>
+
+          {/* Show more / Show less button */}
+          {textInfo.needsExpand && !searchQuery && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className={cn(
+                "flex items-center gap-1 mt-1.5 text-2xs",
+                "text-accent-foreground/70 hover:text-accent-foreground",
+                "transition-colors"
+              )}
+            >
+              <ChevronDown className={cn(
+                "w-3 h-3 transition-transform",
+                isExpanded && "rotate-180"
+              )} />
+              <span>
+                {isExpanded
+                  ? t("messageContentDisplay.showLess", { defaultValue: "Show less" })
+                  : t("messageContentDisplay.showMore", { defaultValue: "Show more..." })}
+              </span>
+            </button>
+          )}
+
           <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <TooltipButton
               onClick={() => navigator.clipboard.writeText(content)}
-              className="p-1 rounded-full transition-colors bg-blue-600 hover:bg-blue-700 text-white"
+              className="p-1 rounded-full transition-colors bg-accent/80 hover:bg-accent/60 text-accent-foreground"
               content={t("messageContentDisplay.copyMessage")}
             >
-              <Copy className="w-3 h-3" />
+              <Copy className={layout.iconSizeSmall} />
             </TooltipButton>
           </div>
         </div>
       </div>
     );
   } else if (messageType === "assistant") {
+    const showPreview = textInfo.needsExpand && !isExpanded && !searchQuery;
+    const displayContent = showPreview ? textInfo.preview : content;
+
     return (
       <div className="mb-3 flex justify-start">
-        <div className="max-w-xs sm:max-w-md lg:max-w-2xl bg-green-500/80 text-white rounded-2xl px-4 py-3 relative group shadow-sm">
+        <div className="max-w-xs sm:max-w-md lg:max-w-2xl bg-secondary text-secondary-foreground rounded-2xl px-4 py-3 relative group shadow-sm border border-border">
           {/* 검색 중일 때는 plain text로 렌더링 (성능 + 하이라이팅) */}
           {searchQuery ? (
-            <div className="whitespace-pre-wrap break-words text-sm">
+            <div className={`whitespace-pre-wrap break-words ${layout.bodyText}`}>
               <HighlightedText
                 text={content}
                 searchQuery={searchQuery}
@@ -119,19 +245,54 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
               />
             </div>
           ) : (
-            <div className="prose prose-sm max-w-none prose-headings:text-white prose-p:text-white prose-a:text-blue-200 prose-code:text-gray-900 prose-code:bg-white prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-blockquote:text-green-100 prose-blockquote:border-l-4 prose-blockquote:border-green-300 prose-blockquote:pl-4 prose-ul:text-white prose-ol:text-white prose-li:text-white">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
+            <div className={cn(
+              layout.prose,
+              "prose-headings:text-foreground prose-p:text-foreground prose-a:text-accent",
+              "prose-code:text-foreground prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded",
+              "prose-pre:bg-card prose-pre:text-foreground prose-pre:border prose-pre:border-border",
+              "prose-blockquote:text-muted-foreground prose-blockquote:border-l-4 prose-blockquote:border-accent prose-blockquote:pl-4",
+              "prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground"
+            )}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: CollapsibleTable,
+                }}
+              >
+                {displayContent}
               </ReactMarkdown>
             </div>
           )}
+
+          {/* Show more / Show less button */}
+          {textInfo.needsExpand && !searchQuery && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className={cn(
+                "flex items-center gap-1 mt-2 text-2xs",
+                "text-muted-foreground hover:text-foreground",
+                "transition-colors"
+              )}
+            >
+              <ChevronDown className={cn(
+                "w-3 h-3 transition-transform",
+                isExpanded && "rotate-180"
+              )} />
+              <span>
+                {isExpanded
+                  ? t("messageContentDisplay.showLess", { defaultValue: "Show less" })
+                  : t("messageContentDisplay.showMore", { defaultValue: "Show more..." })}
+              </span>
+            </button>
+          )}
+
           <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <TooltipButton
               onClick={() => navigator.clipboard.writeText(content)}
-              className="p-1 rounded-full transition-colors bg-green-600 hover:bg-green-700 text-white"
+              className="p-1 rounded-full transition-colors bg-muted hover:bg-muted/80 text-muted-foreground"
               content={t("messageContentDisplay.copyMessage")}
             >
-              <Copy className="w-3 h-3" />
+              <Copy className={layout.iconSizeSmall} />
             </TooltipButton>
           </div>
         </div>
@@ -141,8 +302,8 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
 
   // Fallback for other message types like 'system'
   return (
-    <div className="prose prose-sm max-w-none">
-      <div className="whitespace-pre-wrap text-gray-800">
+    <div className={layout.prose}>
+      <div className="whitespace-pre-wrap text-foreground">
         {searchQuery ? (
           <HighlightedText
             text={content}

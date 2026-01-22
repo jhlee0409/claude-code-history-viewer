@@ -5,14 +5,16 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
-import { cn } from "../../utils/cn";
-import { COLORS } from "../../constants/colors";
+import { layout } from "@/components/renderers";
+import { cn } from "@/lib/utils";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   searchData: Record<string, unknown>;
+  searchQuery?: string;
 };
 
-export const WebSearchRenderer = ({ searchData }: Props) => {
+export const WebSearchRenderer = ({ searchData, searchQuery }: Props) => {
   const { t } = useTranslation('components');
   const query = typeof searchData.query === "string" ? searchData.query : "";
   const results = Array.isArray(searchData.results) ? searchData.results : [];
@@ -22,19 +24,14 @@ export const WebSearchRenderer = ({ searchData }: Props) => {
       : null;
 
   return (
-    <Renderer
-      className={cn(
-        "bg-blue-50 dark:bg-blue-900/20",
-        "border-blue-200 dark:border-blue-800"
-      )}
-    >
+    <Renderer className="bg-tool-web/10 border-tool-web/30">
       <Renderer.Header
         title={t('webSearchRenderer.title')}
-        icon={<Globe className={cn("w-4 h-4", COLORS.semantic.info.icon)} />}
-        titleClassName={COLORS.semantic.info.text}
+        icon={<Globe className={cn(layout.iconSize, "text-tool-web")} />}
+        titleClassName="text-foreground"
         rightContent={
           durationSeconds && (
-            <span className={cn("text-xs", COLORS.semantic.info.text)}>
+            <span className={`${layout.smallText} text-tool-web`}>
               {durationSeconds.toFixed(2)}{t('webSearchRenderer.seconds')}
             </span>
           )
@@ -43,34 +40,29 @@ export const WebSearchRenderer = ({ searchData }: Props) => {
       <Renderer.Content>
         {/* 검색 정보 */}
         <div className="mb-3">
-          <div className={cn("text-xs font-medium mb-1", COLORS.ui.text.tertiary)}>
+          <div className={`${layout.smallText} font-medium mb-1 text-muted-foreground`}>
             {t('webSearchRenderer.query')}
           </div>
-          <code className={cn(
-            "text-sm px-2 py-1 rounded block",
-            "bg-gray-100 dark:bg-gray-800",
-            COLORS.ui.text.primary
-          )}>
-            {query}
+          <code className={`${layout.bodyText} px-2 py-1 rounded block bg-muted text-foreground`}>
+            {searchQuery ? (
+              <HighlightedText text={query} searchQuery={searchQuery} />
+            ) : (
+              query
+            )}
           </code>
         </div>
 
         {/* 검색 결과 */}
         {results.length > 0 && (
           <div>
-            <div className={cn("text-xs font-medium mb-2", COLORS.ui.text.tertiary)}>
+            <div className={`${layout.smallText} font-medium mb-2 text-muted-foreground`}>
               {t('webSearchRenderer.results', { count: results.length })}
             </div>
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {results.map((result: unknown, index: number) => (
                 <div
                   key={index}
-                  className={cn(
-                    "p-3 rounded border transition-colors",
-                    "bg-white dark:bg-gray-800",
-                    "border-gray-200 dark:border-gray-700",
-                    "hover:border-blue-300 dark:hover:border-blue-600"
-                  )}
+                  className="p-3 rounded border transition-colors bg-card border-border hover:border-tool-web/50"
                 >
                   {typeof result === "string" ? (
                     (() => {
@@ -98,14 +90,7 @@ export const WebSearchRenderer = ({ searchData }: Props) => {
                       }
 
                       return (
-                        <div className={cn(
-                          "prose prose-sm max-w-none",
-                          "prose-headings:text-gray-900 dark:prose-headings:text-gray-100",
-                          "prose-p:text-gray-700 dark:prose-p:text-gray-300",
-                          "prose-a:text-blue-600 dark:prose-a:text-blue-400",
-                          "prose-code:text-red-600 dark:prose-code:text-red-400",
-                          "prose-code:bg-gray-100 dark:prose-code:bg-gray-800"
-                        )}>
+                        <div className={layout.prose}>
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {result}
                           </ReactMarkdown>
@@ -129,21 +114,13 @@ export const WebSearchRenderer = ({ searchData }: Props) => {
                             {resultObj.content.map((item: unknown, idx: number) => (
                               <div key={idx}>
                                 {item && typeof item === "object" && "text" in item && typeof item.text === "string" ? (
-                                  <div className={cn(
-                                    "prose prose-sm max-w-none",
-                                    "prose-headings:text-gray-900 dark:prose-headings:text-gray-100",
-                                    "prose-p:text-gray-700 dark:prose-p:text-gray-300"
-                                  )}>
+                                  <div className={layout.prose}>
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                       {item.text}
                                     </ReactMarkdown>
                                   </div>
                                 ) : (
-                                  <pre className={cn(
-                                    "text-xs overflow-x-auto p-2 rounded",
-                                    "bg-gray-50 dark:bg-gray-900",
-                                    COLORS.ui.text.secondary
-                                  )}>
+                                  <pre className={`${layout.monoText} overflow-x-auto p-2 rounded bg-muted text-foreground/80`}>
                                     {JSON.stringify(item, null, 2)}
                                   </pre>
                                 )}
@@ -154,17 +131,13 @@ export const WebSearchRenderer = ({ searchData }: Props) => {
                       }
 
                       return (
-                        <pre className={cn(
-                          "text-xs overflow-x-auto p-2 rounded",
-                          "bg-gray-50 dark:bg-gray-900",
-                          COLORS.ui.text.secondary
-                        )}>
+                        <pre className={`${layout.monoText} overflow-x-auto p-2 rounded bg-muted text-foreground/80`}>
                           {JSON.stringify(result, null, 2)}
                         </pre>
                       );
                     })()
                   ) : (
-                    <div className={cn("text-sm italic", COLORS.ui.text.muted)}>
+                    <div className={`${layout.bodyText} italic text-muted-foreground`}>
                       {t('webSearchRenderer.unknownResultFormat')}
                     </div>
                   )}
@@ -189,18 +162,18 @@ const SearchResultItem = ({
 }) => (
   <div className="space-y-2">
     {title && (
-      <h4 className={cn("font-medium text-sm leading-tight", COLORS.ui.text.primary)}>
+      <h4 className={`font-medium ${layout.bodyText} leading-tight text-foreground`}>
         {title}
       </h4>
     )}
     {url && (
-      <div className="flex items-center space-x-2">
-        <Globe className="w-3 h-3 text-green-500 dark:text-green-400 shrink-0" />
+      <div className={cn("flex items-center", layout.iconSpacing)}>
+        <Globe className={cn(layout.iconSizeSmall, "text-tool-web shrink-0")} />
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs text-green-600 dark:text-green-400 hover:underline truncate"
+          className={`${layout.smallText} text-tool-web hover:underline truncate`}
           title={url}
         >
           {url.length > 60 ? `${url.substring(0, 60)}...` : url}
@@ -208,7 +181,7 @@ const SearchResultItem = ({
       </div>
     )}
     {description && (
-      <div className={cn("text-sm leading-relaxed", COLORS.ui.text.secondary)}>
+      <div className={`${layout.bodyText} leading-relaxed text-foreground/80`}>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {description}
         </ReactMarkdown>

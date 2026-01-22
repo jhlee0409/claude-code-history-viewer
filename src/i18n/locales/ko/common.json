@@ -33,7 +33,11 @@
     },
     "checkUpdate": "업데이트 확인",
     "checking": "확인 중...",
-    "updateSettings": "업데이트 설정"
+    "updateSettings": "업데이트 설정",
+    "filter": {
+      "title": "필터",
+      "showSystemMessages": "시스템 메시지 표시"
+    }
   },
   "time": {
     "justNow": "방금 전",
@@ -69,5 +73,15 @@
     "now": "지금 업데이트",
     "download": "업데이트 다운로드",
     "upToDate": "최신 버전입니다"
+  },
+  "hooks": {
+    "noProjectSelected": "프로젝트가 선택되지 않았습니다",
+    "projectSummaryLoadFailed": "프로젝트 요약 로드 실패",
+    "sessionComparisonLoadFailed": "세션 비교 로드 실패",
+    "recentEditsLoadFailed": "최근 편집 로드 실패",
+    "githubApiError": "GitHub API 오류: {{status}}",
+    "releaseInfoFetchFailed": "릴리즈 정보를 가져올 수 없습니다",
+    "updateCheckFailed": "업데이트 확인 중 오류가 발생했습니다",
+    "updateInstallFailed": "업데이트 설치 중 오류가 발생했습니다"
   }
 }

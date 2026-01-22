@@ -2,6 +2,7 @@ import React from 'react';
 import { HelpCircle, DollarSign, Clock } from 'lucide-react';
 import type { ClaudeMessage } from '../../types';
 import { useTranslation } from 'react-i18next';
+import { layout } from '@/components/renderers';
 
 interface AssistantMessageDetailsProps {
   message: ClaudeMessage;
@@ -28,21 +29,21 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
   }
 
   return (
-    <div className="flex items-center justify-start mt-1.5 space-x-2 text-xs text-gray-400 flex-wrap gap-y-1">
+    <div className={`flex items-center justify-start mt-1.5 ${layout.iconSpacing} ${layout.smallText} text-muted-foreground flex-wrap gap-y-1`}>
       <span>{t('assistantMessageDetails.model')}: {model}</span>
 
       {/* Cost display */}
       {costUSD !== undefined && costUSD > 0 && (
-        <span className="flex items-center space-x-1 text-green-600">
-          <DollarSign className="w-3 h-3" />
+        <span className={`flex items-center text-success ${layout.iconSpacing}`}>
+          <DollarSign className={layout.iconSizeSmall} />
           <span>{formatCost(costUSD)}</span>
         </span>
       )}
 
       {/* Duration display */}
       {durationMs !== undefined && durationMs > 0 && (
-        <span className="flex items-center space-x-1 text-blue-500">
-          <Clock className="w-3 h-3" />
+        <span className={`flex items-center text-info ${layout.iconSpacing}`}>
+          <Clock className={layout.iconSizeSmall} />
           <span>{formatDuration(durationMs)}</span>
         </span>
       )}
@@ -56,12 +57,12 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
             aria-label={t('assistantMessageDetails.tokenUsageLabel', { defaultValue: 'View token usage details' })}
             aria-describedby="token-usage-tooltip"
           >
-            <HelpCircle className="w-3.5 h-3.5" aria-hidden="true" />
+            <HelpCircle className={layout.iconSize} aria-hidden="true" />
           </button>
           <div
             id="token-usage-tooltip"
             role="tooltip"
-            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 bg-gray-800 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10"
+            className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 bg-popover text-popover-foreground ${layout.smallText} ${layout.rounded} ${layout.containerPadding} opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10 border border-border`}
           >
             <p><strong>{t('assistantMessageDetails.tokenUsage')}</strong></p>
             {usage.input_tokens ? <p>{t('assistantMessageDetails.input')}: {usage.input_tokens.toLocaleString()}</p> : null}
@@ -69,9 +70,9 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
             {usage.cache_creation_input_tokens ? <p>{t('assistantMessageDetails.cacheCreation')}: {usage.cache_creation_input_tokens.toLocaleString()}</p> : null}
             {usage.cache_read_input_tokens ? <p>{t('assistantMessageDetails.cacheRead')}: {usage.cache_read_input_tokens.toLocaleString()}</p> : null}
             {usage.service_tier ? <p>{t('assistantMessageDetails.tier')}: {usage.service_tier}</p> : null}
-            {costUSD !== undefined && <p className="mt-1 pt-1 border-t border-gray-600">{t('assistantMessageDetails.cost', { defaultValue: 'Cost' })}: {formatCost(costUSD)}</p>}
+            {costUSD !== undefined && <p className="mt-1 pt-1 border-t border-border">{t('assistantMessageDetails.cost', { defaultValue: 'Cost' })}: {formatCost(costUSD)}</p>}
             {durationMs !== undefined && <p>{t('assistantMessageDetails.duration', { defaultValue: 'Duration' })}: {formatDuration(durationMs)}</p>}
-            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800" aria-hidden="true"></div>
+            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-popover" aria-hidden="true"></div>
           </div>
         </div>
       )}
