@@ -374,7 +374,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                 <div className="flex items-center gap-2">
                   <div
                     className="w-2.5 h-2.5 rounded-full"
-                    style={{ background: color.bg, boxShadow: `0 0 6px ${color.glow}` }}
+                    style={{ background: color.bg, boxShadow: `0 0 6px ${color.bg}` }}
                   />
                   <span className="text-[12px] font-medium text-foreground/80">
                     {getToolDisplayName(tool.tool_name)}
@@ -395,7 +395,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                   style={{
                     width: `${barWidth}%`,
                     background: color.bg,
-                    boxShadow: `0 0 12px ${color.glow}`,
+                    boxShadow: `0 0 12px ${color.bg}`,
                   }}
                 />
               </div>
@@ -561,12 +561,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
       { label: "Cache Read", value: distribution.cache_read, color: "var(--metric-amber)", icon: Eye },
     ];
 
+    // Guard against division by zero
+    const safeTotal = Math.max(total, 1);
+
     return (
       <div className="space-y-4">
         {/* Stacked bar */}
         <div className="h-4 flex rounded-full overflow-hidden bg-muted/30">
           {items.map((item, i) => {
-            const width = (item.value / total) * 100;
+            const width = (item.value / safeTotal) * 100;
             if (width < 0.5) return null;
             return (
               <Tooltip key={item.label}>
@@ -581,7 +584,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
                   />
                 </TooltipTrigger>
                 <TooltipContent className="font-mono text-xs">
-                  <div>{item.label}: {formatNumber(item.value)} ({((item.value / total) * 100).toFixed(1)}%)</div>
+                  <div>{item.label}: {formatNumber(item.value)} ({((item.value / safeTotal) * 100).toFixed(1)}%)</div>
                 </TooltipContent>
               </Tooltip>
             );
@@ -592,7 +595,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ isViewin
         <div className="grid grid-cols-2 gap-3">
           {items.map((item) => {
             const Icon = item.icon;
-            const percentage = (item.value / total) * 100;
+            const percentage = (item.value / safeTotal) * 100;
             return (
               <div key={item.label} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30">
                 <div className="flex items-center gap-2">
