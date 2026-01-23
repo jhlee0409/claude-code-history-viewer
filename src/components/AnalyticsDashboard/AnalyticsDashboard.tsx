@@ -102,14 +102,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     <div className="flex-1 p-6 overflow-auto bg-background">
       {/* Tab Selector */}
       {hasSessionData && (
-        <div className="inline-flex p-1 mb-6 rounded-lg bg-muted/50 border border-border/50">
+        <div className="inline-flex p-1 mb-6 rounded-lg bg-muted/80 border border-border">
           <button
             onClick={() => setActiveTab("project")}
             className={cn(
               "px-4 py-2 rounded-md text-[12px] font-semibold transition-all duration-200",
               activeTab === "project"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-foreground/70 hover:text-foreground hover:bg-muted"
             )}
           >
             {t("analytics.projectOverview")}
@@ -119,8 +119,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             className={cn(
               "px-4 py-2 rounded-md text-[12px] font-semibold transition-all duration-200",
               activeTab === "session"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-foreground/70 hover:text-foreground hover:bg-muted"
             )}
           >
             {t("analytics.sessionDetails")}
@@ -135,10 +135,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           totalProjectSessions={projectSummary?.total_sessions}
         />
       ) : (
-        <ProjectStatsView
-          projectSummary={projectSummary}
-          isLoading={analyticsState.isLoadingProjectSummary}
-        />
+        <ProjectStatsView projectSummary={projectSummary} />
       )}
     </div>
   );
