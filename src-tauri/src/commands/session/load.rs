@@ -11,6 +11,7 @@ use walkdir::WalkDir;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use rayon::prelude::*;
+use memmap2::Mmap;
 
 /// Cache entry for a single session file (supports incremental parsing)
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -457,6 +458,7 @@ fn is_system_message_type(message_type: &str) -> bool {
 /// Fast classification of a line without full parsing
 /// Returns true if the line should be counted as a valid message
 #[inline]
+#[allow(dead_code)] // Keep for fallback and tests
 fn classify_line(line: &str, exclude_sidechain: bool) -> bool {
     if line.trim().is_empty() {
         return false;
@@ -764,6 +766,7 @@ pub async fn load_project_sessions(
 }
 
 /// Parse a single line into ClaudeMessage (with line number)
+#[allow(dead_code)] // Keep for fallback and tests
 fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> Option<ClaudeMessage> {
     if line.trim().is_empty() {
         return None;
@@ -872,23 +875,157 @@ fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> 
     })
 }
 
+/// Parse a single line using simd-json for faster parsing
+/// Returns None if the line is empty or fails to parse
+fn parse_line_simd(line_num: usize, line: &mut [u8], include_summary: bool) -> Option<ClaudeMessage> {
+    if line.iter().all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r') {
+        return None;
+    }
+
+    // Use simd_json for faster parsing
+    let log_entry: RawLogEntry = simd_json::serde::from_slice(line).ok()?;
+
+    // Skip meta messages
+    if log_entry.is_meta.unwrap_or(false) {
+        return None;
+    }
+
+    if log_entry.message_type == "summary" {
+        if !include_summary {
+            return None;
+        }
+        let summary_text = log_entry.summary?;
+        let uuid = log_entry.uuid.unwrap_or_else(|| Uuid::new_v4().to_string());
+
+        return Some(ClaudeMessage {
+            uuid,
+            parent_uuid: log_entry.leaf_uuid,
+            session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
+            timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+            message_type: "summary".to_string(),
+            content: Some(serde_json::Value::String(summary_text)),
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            usage: None,
+            role: None,
+            model: None,
+            stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+        });
+    }
+
+    // Skip entries without session_id and timestamp
+    if log_entry.session_id.is_none() && log_entry.timestamp.is_none() {
+        return None;
+    }
+
+    let uuid = log_entry.uuid.unwrap_or_else(|| {
+        format!("{}-line-{}", Uuid::new_v4(), line_num + 1)
+    });
+
+    let (role, message_id, model, stop_reason, usage) = if let Some(ref msg) = log_entry.message {
+        (
+            Some(msg.role.clone()),
+            msg.id.clone(),
+            msg.model.clone(),
+            msg.stop_reason.clone(),
+            msg.usage.clone()
+        )
+    } else {
+        (None, None, None, None, None)
+    };
+
+    Some(ClaudeMessage {
+        uuid,
+        parent_uuid: log_entry.parent_uuid,
+        session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
+        timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+        message_type: log_entry.message_type,
+        content: log_entry.message.map(|m| m.content).or(log_entry.content),
+        tool_use: log_entry.tool_use,
+        tool_use_result: log_entry.tool_use_result,
+        is_sidechain: log_entry.is_sidechain,
+        usage,
+        role,
+        model,
+        stop_reason,
+        cost_usd: log_entry.cost_usd,
+        duration_ms: log_entry.duration_ms,
+        message_id: message_id.or(log_entry.message_id),
+        snapshot: log_entry.snapshot,
+        is_snapshot_update: log_entry.is_snapshot_update,
+        data: log_entry.data,
+        tool_use_id: log_entry.tool_use_id,
+        parent_tool_use_id: log_entry.parent_tool_use_id,
+        operation: log_entry.operation,
+        subtype: log_entry.subtype,
+        level: log_entry.level,
+        hook_count: log_entry.hook_count,
+        hook_infos: log_entry.hook_infos,
+        stop_reason_system: log_entry.stop_reason_system,
+        prevented_continuation: log_entry.prevented_continuation,
+        compact_metadata: log_entry.compact_metadata,
+        microcompact_metadata: log_entry.microcompact_metadata,
+    })
+}
+
 #[tauri::command]
+#[allow(unsafe_code)] // Required for mmap performance optimization
 pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMessage>, String> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
 
-    let content = fs::read_to_string(&session_path)
-        .map_err(|e| format!("Failed to read session file: {}", e))?;
+    // Use memory-mapped file for faster I/O
+    let file = fs::File::open(&session_path)
+        .map_err(|e| format!("Failed to open session file: {}", e))?;
 
-    // Collect lines and parse in parallel
-    let lines: Vec<(usize, &str)> = content.lines().enumerate().collect();
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. No concurrent modifications expected
+    // as session files are append-only by Claude.
+    let mmap = unsafe { Mmap::map(&file) }
+        .map_err(|e| format!("Failed to memory-map session file: {}", e))?;
 
-    let mut messages: Vec<(usize, ClaudeMessage)> = lines
+    // Find line boundaries efficiently
+    let mut line_starts: Vec<usize> = vec![0];
+    for (i, &byte) in mmap.iter().enumerate() {
+        if byte == b'\n' && i + 1 < mmap.len() {
+            line_starts.push(i + 1);
+        }
+    }
+
+    // Parse lines in parallel using simd-json
+    let mut messages: Vec<(usize, ClaudeMessage)> = line_starts
         .par_iter()
-        .filter_map(|(line_num, line)| {
-            parse_line_to_message(*line_num, line, false)
+        .enumerate()
+        .filter_map(|(line_num, &start)| {
+            let end = line_starts.get(line_num + 1).map(|&e| e - 1).unwrap_or(mmap.len());
+            if start >= end {
+                return None;
+            }
+
+            // Create a mutable copy for simd-json (it requires mutable slice)
+            let mut line_bytes = mmap[start..end].to_vec();
+
+            parse_line_simd(line_num, &mut line_bytes, false)
                 .filter(|msg| !is_system_message_type(&msg.message_type))
-                .map(|msg| (*line_num, msg))
+                .map(|msg| (line_num, msg))
         })
         .collect();
 
@@ -899,14 +1036,41 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        eprintln!("📤 [load_session_messages] {} messages, {}ms elapsed (system/summary messages excluded)",
+        eprintln!("📤 [load_session_messages] {} messages, {}ms elapsed (simd-json + mmap optimized)",
             messages.len(), elapsed.as_millis());
     }
 
     Ok(messages)
 }
 
+/// Fast line classifier for simd-json (mutable slice)
+fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
+    if line.iter().all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r') {
+        return false;
+    }
+
+    // Try fast simd-json parsing with minimal struct
+    let mut line_copy = line.to_vec();
+    if let Ok(classifier) = simd_json::serde::from_slice::<LineClassifier>(&mut line_copy) {
+        if classifier.message_type == "summary" {
+            return false;
+        }
+        if is_system_message_type(&classifier.message_type) {
+            return false;
+        }
+        if classifier.is_meta.unwrap_or(false) {
+            return false;
+        }
+        if exclude_sidechain && classifier.is_sidechain.unwrap_or(false) {
+            return false;
+        }
+        return true;
+    }
+    false
+}
+
 #[tauri::command]
+#[allow(unsafe_code)] // Required for mmap performance optimization
 pub async fn load_session_messages_paginated(
     session_path: String,
     offset: usize,
@@ -916,18 +1080,41 @@ pub async fn load_session_messages_paginated(
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
 
-    // Single file read - avoid double I/O
-    let content = fs::read_to_string(&session_path)
-        .map_err(|e| format!("Failed to read session file: {}", e))?;
+    // Use memory-mapped file for faster I/O
+    let file = fs::File::open(&session_path)
+        .map_err(|e| format!("Failed to open session file: {}", e))?;
+
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. No concurrent modifications expected
+    // as session files are append-only by Claude.
+    let mmap = unsafe { Mmap::map(&file) }
+        .map_err(|e| format!("Failed to memory-map session file: {}", e))?;
 
     let exclude = exclude_sidechain.unwrap_or(false);
 
-    // Phase 1: Build valid line indices (fast classification, single pass)
-    let lines: Vec<&str> = content.lines().collect();
-    let valid_indices: Vec<usize> = lines
+    // Find line boundaries efficiently
+    let mut line_ranges: Vec<(usize, usize)> = Vec::new();
+    let mut start = 0;
+    for (i, &byte) in mmap.iter().enumerate() {
+        if byte == b'\n' {
+            if i > start {
+                line_ranges.push((start, i));
+            }
+            start = i + 1;
+        }
+    }
+    if start < mmap.len() {
+        line_ranges.push((start, mmap.len()));
+    }
+
+    // Phase 1: Build valid line indices (fast classification)
+    let valid_indices: Vec<usize> = line_ranges
         .iter()
         .enumerate()
-        .filter(|(_, line)| classify_line(line, exclude))
+        .filter(|(_, &(start, end))| {
+            let line = &mmap[start..end];
+            classify_line_fast(line, exclude)
+        })
         .map(|(idx, _)| idx)
         .collect();
 
@@ -955,14 +1142,15 @@ pub async fn load_session_messages_paginated(
         (start, end)
     };
 
-    // Phase 2: Parse only the target lines (parallel)
+    // Phase 2: Parse only the target lines (parallel with simd-json)
     let target_indices = &valid_indices[start_idx..end_idx];
     let mut parsed: Vec<(usize, ClaudeMessage)> = target_indices
         .par_iter()
-        .filter_map(|&line_idx| {
-            let line = lines[line_idx];
-            let msg = parse_line_to_message(line_idx, line, false)?;
-            Some((line_idx, msg))
+        .filter_map(|&range_idx| {
+            let (start, end) = line_ranges[range_idx];
+            let mut line_bytes = mmap[start..end].to_vec();
+            let msg = parse_line_simd(range_idx, &mut line_bytes, false)?;
+            Some((range_idx, msg))
         })
         .collect();
 
@@ -976,7 +1164,7 @@ pub async fn load_session_messages_paginated(
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        eprintln!("📊 load_session_messages_paginated performance: {}/{} messages, {}ms elapsed (optimized)",
+        eprintln!("📊 load_session_messages_paginated performance: {}/{} messages, {}ms elapsed (simd-json + mmap)",
                  messages.len(), total_count, elapsed.as_millis());
     }
 
@@ -989,19 +1177,45 @@ pub async fn load_session_messages_paginated(
 }
 
 #[tauri::command]
+#[allow(unsafe_code)] // Required for mmap performance optimization
 pub async fn get_session_message_count(
     session_path: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<usize, String> {
-    let content = fs::read_to_string(&session_path)
-        .map_err(|e| format!("Failed to read session file: {}", e))?;
+    // Use memory-mapped file for faster I/O
+    let file = fs::File::open(&session_path)
+        .map_err(|e| format!("Failed to open session file: {}", e))?;
+
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. No concurrent modifications expected
+    // as session files are append-only by Claude.
+    let mmap = unsafe { Mmap::map(&file) }
+        .map_err(|e| format!("Failed to memory-map session file: {}", e))?;
 
     let exclude = exclude_sidechain.unwrap_or(false);
 
-    // Parallel counting with fast classification (LineClassifier instead of full RawLogEntry)
-    let count: usize = content
-        .par_lines()
-        .filter(|line| classify_line(line, exclude))
+    // Find line boundaries and count valid lines
+    let mut line_ranges: Vec<(usize, usize)> = Vec::new();
+    let mut start = 0;
+    for (i, &byte) in mmap.iter().enumerate() {
+        if byte == b'\n' {
+            if i > start {
+                line_ranges.push((start, i));
+            }
+            start = i + 1;
+        }
+    }
+    if start < mmap.len() {
+        line_ranges.push((start, mmap.len()));
+    }
+
+    // Parallel counting with fast classification
+    let count: usize = line_ranges
+        .par_iter()
+        .filter(|&&(start, end)| {
+            let line = &mmap[start..end];
+            classify_line_fast(line, exclude)
+        })
         .count();
 
     Ok(count)
@@ -1123,7 +1337,7 @@ mod tests {
         let result = load_session_messages("/nonexistent/path/file.jsonl".to_string()).await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Failed to read session file"));
+        assert!(result.unwrap_err().contains("Failed to open session file"));
     }
 
     #[tokio::test]

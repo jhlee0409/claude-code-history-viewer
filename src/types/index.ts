@@ -106,6 +106,7 @@ export type {
 // ============================================================================
 export type {
   SessionTokenStats,
+  PaginatedTokenStats,
   DailyStats,
   ActivityHeatmap,
   ToolUsageStats,

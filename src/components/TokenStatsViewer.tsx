@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   BarChart3,
@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { SessionTokenStats } from "../types";
+import type { ProjectTokenStatsPagination } from "../store/slices/messageSlice";
 import { formatTime } from "../utils/time";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -32,46 +33,36 @@ import { LoadingState } from "./ui/loading";
 interface TokenStatsViewerProps {
   sessionStats?: SessionTokenStats | null;
   projectStats?: SessionTokenStats[];
+  pagination?: ProjectTokenStatsPagination;
+  onLoadMore?: () => void;
   title?: string;
   isLoading?: boolean;
 }
 
-/** Number of sessions to display initially and per "show more" click */
-const SESSIONS_PER_PAGE = 20;
-
 export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   sessionStats,
   projectStats = [],
+  pagination,
+  onLoadMore,
   title,
   isLoading = false,
 }) => {
   const { t } = useTranslation();
-  const [displayCount, setDisplayCount] = useState(SESSIONS_PER_PAGE);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  // Reset display count when project changes
-  useEffect(() => {
-    setDisplayCount(SESSIONS_PER_PAGE);
-  }, [projectStats.length]);
+  // Use projectStats directly - pagination is handled by backend
+  const displayedSessions = useMemo(() => projectStats, [projectStats]);
 
-  // Memoize displayed sessions for performance
-  const displayedSessions = useMemo(
-    () => projectStats.slice(0, displayCount),
-    [projectStats, displayCount]
-  );
+  const hasMoreSessions = pagination?.hasMore ?? false;
+  const isLoadingMore = pagination?.isLoadingMore ?? false;
+  const totalCount = pagination?.totalCount ?? projectStats.length;
+  const remainingCount = totalCount - projectStats.length;
 
-  const hasMoreSessions = displayCount < projectStats.length;
-  const remainingCount = projectStats.length - displayCount;
-
-  // Handle "Show More" click with simulated loading for smooth UX
+  // Handle "Show More" click - calls backend via onLoadMore
   const handleShowMore = useCallback(() => {
-    setIsLoadingMore(true);
-    // Small delay for visual feedback
-    requestAnimationFrame(() => {
-      setDisplayCount((prev) => Math.min(prev + SESSIONS_PER_PAGE, projectStats.length));
-      setIsLoadingMore(false);
-    });
-  }, [projectStats.length]);
+    if (onLoadMore && hasMoreSessions && !isLoadingMore) {
+      onLoadMore();
+    }
+  }, [onLoadMore, hasMoreSessions, isLoadingMore]);
 
   // Format large numbers
   const formatNumber = (num: number): string => {
@@ -363,7 +354,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               {t("analytics.sessionStatsDetail")}
             </h4>
             <span className="text-[11px] text-muted-foreground font-mono">
-              {displayCount > projectStats.length ? projectStats.length : displayCount} / {projectStats.length}
+              {projectStats.length} / {totalCount}
             </span>
           </div>
 
@@ -409,7 +400,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 ) : (
                   <>
                     <ChevronDown className="w-4 h-4" />
-                    {t("analytics.showMoreSessions", { count: Math.min(SESSIONS_PER_PAGE, remainingCount) })}
+                    {t("analytics.showMoreSessions", { count: Math.min(pagination?.limit ?? 20, remainingCount) })}
                     <span className="text-muted-foreground/70">
                       ({remainingCount} {t("analytics.remaining")})
                     </span>

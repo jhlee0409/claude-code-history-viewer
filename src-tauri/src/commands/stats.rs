@@ -445,26 +445,136 @@ pub async fn get_session_token_stats(session_path: String) -> Result<SessionToke
     })
 }
 
-#[tauri::command]
-pub async fn get_project_token_stats(project_path: String) -> Result<Vec<SessionTokenStats>, String> {
-    let mut session_stats = Vec::new();
+/// Paginated response for project token stats
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PaginatedTokenStats {
+    pub items: Vec<SessionTokenStats>,
+    pub total_count: usize,
+    pub offset: usize,
+    pub limit: usize,
+    pub has_more: bool,
+}
 
-    for entry in WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-    {
-        let session_path = entry.path().to_string_lossy().to_string();
+/// Synchronous version of session token stats extraction for parallel processing
+fn extract_session_token_stats_sync(session_path: &PathBuf) -> Option<SessionTokenStats> {
+    let file = fs::File::open(session_path).ok()?;
+    let reader = BufReader::new(file);
 
-        match get_session_token_stats(session_path).await {
-            Ok(stats) => session_stats.push(stats),
-            Err(_) => continue, 
+    let project_name = session_path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown")
+        .to_string();
+
+    let mut session_id: Option<String> = None;
+    let mut total_input_tokens = 0u32;
+    let mut total_output_tokens = 0u32;
+    let mut total_cache_creation_tokens = 0u32;
+    let mut total_cache_read_tokens = 0u32;
+    let mut message_count = 0usize;
+    let mut first_time: Option<String> = None;
+    let mut last_time: Option<String> = None;
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
+            if let Ok(message) = ClaudeMessage::try_from(log_entry) {
+                if session_id.is_none() {
+                    session_id = Some(message.session_id.clone());
+                }
+
+                message_count += 1;
+
+                let usage = extract_token_usage(&message);
+                total_input_tokens += usage.input_tokens.unwrap_or(0);
+                total_output_tokens += usage.output_tokens.unwrap_or(0);
+                total_cache_creation_tokens += usage.cache_creation_input_tokens.unwrap_or(0);
+                total_cache_read_tokens += usage.cache_read_input_tokens.unwrap_or(0);
+
+                if first_time.is_none() || message.timestamp < first_time.as_ref().unwrap().clone() {
+                    first_time = Some(message.timestamp.clone());
+                }
+                if last_time.is_none() || message.timestamp > last_time.as_ref().unwrap().clone() {
+                    last_time = Some(message.timestamp.clone());
+                }
+            }
         }
     }
 
-    session_stats.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+    let session_id = session_id?;
+    if message_count == 0 {
+        return None;
+    }
 
-    Ok(session_stats)
+    let total_tokens = total_input_tokens + total_output_tokens + total_cache_creation_tokens + total_cache_read_tokens;
+
+    Some(SessionTokenStats {
+        session_id,
+        project_name,
+        total_input_tokens,
+        total_output_tokens,
+        total_cache_creation_tokens,
+        total_cache_read_tokens,
+        total_tokens,
+        message_count,
+        first_message_time: first_time.unwrap_or_else(|| "unknown".to_string()),
+        last_message_time: last_time.unwrap_or_else(|| "unknown".to_string()),
+    })
+}
+
+#[tauri::command]
+pub async fn get_project_token_stats(
+    project_path: String,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<PaginatedTokenStats, String> {
+    let offset = offset.unwrap_or(0);
+    let limit = limit.unwrap_or(20);
+
+    // Collect all session files
+    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+        .map(|e| e.path().to_path_buf())
+        .collect();
+
+    let total_count = session_files.len();
+
+    // Process all sessions in parallel using sync function
+    let mut all_stats: Vec<SessionTokenStats> = session_files
+        .par_iter()
+        .filter_map(|path| extract_session_token_stats_sync(path))
+        .collect();
+
+    // Sort by total tokens (descending)
+    all_stats.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+
+    // Apply pagination
+    let paginated_items: Vec<SessionTokenStats> = all_stats
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .collect();
+
+    let has_more = offset + paginated_items.len() < total_count;
+
+    Ok(PaginatedTokenStats {
+        items: paginated_items,
+        total_count,
+        offset,
+        limit,
+        has_more,
+    })
 }
 
 #[tauri::command]

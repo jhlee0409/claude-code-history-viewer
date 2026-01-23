@@ -23,12 +23,10 @@ import type { DailyStatData } from "../types";
 
 interface ProjectStatsViewProps {
   projectSummary: ProjectStatsSummary | null;
-  isLoading: boolean;
 }
 
 export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
   projectSummary,
-  isLoading,
 }) => {
   const { t } = useTranslation();
 
@@ -57,20 +55,18 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
       });
   }, [projectSummary?.daily_stats]);
 
+  // 데이터가 없으면 항상 로딩 상태 표시 (뷰 전환 직후 isLoading이 false일 수 있음)
   if (!projectSummary) {
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <LoadingState
-            isLoading={true}
-            loadingMessage={t("analytics.loading")}
-            spinnerSize="lg"
-            withSparkle={true}
-          />
-        </div>
-      );
-    }
-    return null;
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <LoadingState
+          isLoading={true}
+          loadingMessage={t("analytics.loading")}
+          spinnerSize="lg"
+          withSparkle={true}
+        />
+      </div>
+    );
   }
 
   const lastDayStats = projectSummary.daily_stats[projectSummary.daily_stats.length - 1];

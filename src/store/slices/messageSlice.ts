@@ -10,6 +10,7 @@ import type {
   ClaudeSession,
   PaginationState,
   SessionTokenStats,
+  PaginatedTokenStats,
   ProjectStatsSummary,
   SessionComparison,
 } from "../../types";
@@ -22,6 +23,15 @@ import type { FullAppStore } from "./types";
 // State Interface
 // ============================================================================
 
+/** Pagination state for project token stats */
+export interface ProjectTokenStatsPagination {
+  totalCount: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+}
+
 export interface MessageSliceState {
   messages: ClaudeMessage[];
   pagination: PaginationState;
@@ -29,6 +39,7 @@ export interface MessageSliceState {
   isLoadingTokenStats: boolean;
   sessionTokenStats: SessionTokenStats | null;
   projectTokenStats: SessionTokenStats[];
+  projectTokenStatsPagination: ProjectTokenStatsPagination;
 }
 
 export interface MessageSliceActions {
@@ -36,6 +47,7 @@ export interface MessageSliceActions {
   refreshCurrentSession: () => Promise<void>;
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
+  loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
   loadProjectStatsSummary: (
     projectPath: string
   ) => Promise<ProjectStatsSummary>;
@@ -52,6 +64,8 @@ export type MessageSlice = MessageSliceState & MessageSliceActions;
 // Initial State
 // ============================================================================
 
+const TOKENS_STATS_PAGE_SIZE = 20;
+
 export const initialMessageState: MessageSliceState = {
   messages: [],
   pagination: {
@@ -65,6 +79,13 @@ export const initialMessageState: MessageSliceState = {
   isLoadingTokenStats: false,
   sessionTokenStats: null,
   projectTokenStats: [],
+  projectTokenStatsPagination: {
+    totalCount: 0,
+    offset: 0,
+    limit: TOKENS_STATS_PAGE_SIZE,
+    hasMore: false,
+    isLoadingMore: false,
+  },
 };
 
 // ============================================================================
@@ -243,13 +264,30 @@ export const createMessageSlice: StateCreator<
 
   loadProjectTokenStats: async (projectPath: string) => {
     try {
-      set({ isLoadingTokenStats: true });
+      set({
+        isLoadingTokenStats: true,
+        projectTokenStats: [], // Reset on new project load
+        projectTokenStatsPagination: {
+          ...initialMessageState.projectTokenStatsPagination,
+        },
+      });
       get().setError(null);
-      const stats = await invoke<SessionTokenStats[]>(
+
+      const response = await invoke<PaginatedTokenStats>(
         "get_project_token_stats",
-        { projectPath }
+        { projectPath, offset: 0, limit: TOKENS_STATS_PAGE_SIZE }
       );
-      set({ projectTokenStats: stats });
+
+      set({
+        projectTokenStats: response.items,
+        projectTokenStatsPagination: {
+          totalCount: response.total_count,
+          offset: response.offset,
+          limit: response.limit,
+          hasMore: response.has_more,
+          isLoadingMore: false,
+        },
+      });
     } catch (error) {
       console.error("Failed to load project token stats:", error);
       get().setError({
@@ -259,6 +297,49 @@ export const createMessageSlice: StateCreator<
       set({ projectTokenStats: [] });
     } finally {
       set({ isLoadingTokenStats: false });
+    }
+  },
+
+  loadMoreProjectTokenStats: async (projectPath: string) => {
+    const { projectTokenStatsPagination, projectTokenStats } = get();
+
+    if (!projectTokenStatsPagination.hasMore || projectTokenStatsPagination.isLoadingMore) {
+      return;
+    }
+
+    try {
+      set({
+        projectTokenStatsPagination: {
+          ...projectTokenStatsPagination,
+          isLoadingMore: true,
+        },
+      });
+
+      const nextOffset = projectTokenStatsPagination.offset + projectTokenStatsPagination.limit;
+
+      const response = await invoke<PaginatedTokenStats>(
+        "get_project_token_stats",
+        { projectPath, offset: nextOffset, limit: TOKENS_STATS_PAGE_SIZE }
+      );
+
+      set({
+        projectTokenStats: [...projectTokenStats, ...response.items],
+        projectTokenStatsPagination: {
+          totalCount: response.total_count,
+          offset: response.offset,
+          limit: response.limit,
+          hasMore: response.has_more,
+          isLoadingMore: false,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to load more project token stats:", error);
+      set({
+        projectTokenStatsPagination: {
+          ...projectTokenStatsPagination,
+          isLoadingMore: false,
+        },
+      });
     }
   },
 

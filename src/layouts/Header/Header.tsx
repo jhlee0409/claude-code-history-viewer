@@ -107,9 +107,10 @@ export const Header = () => {
           <>
             {/* Analytics */}
             <NavButton
-              icon={BarChart3}
+              icon={computed.isLoadingAnalytics ? Loader2 : BarChart3}
               label={t("analytics.dashboard")}
               isActive={computed.isAnalyticsView}
+              isLoading={computed.isLoadingAnalytics}
               onClick={() => {
                 if (computed.isAnalyticsView) {
                   analyticsActions.switchToMessages();
@@ -117,14 +118,15 @@ export const Header = () => {
                   handleLoadAnalytics();
                 }
               }}
+              disabled={computed.isLoadingAnalytics}
             />
 
             {/* Token Stats */}
             <NavButton
-              icon={computed.isAnyLoading ? Loader2 : Activity}
+              icon={computed.isLoadingTokenStats ? Loader2 : Activity}
               label={t('messages.tokenStats.existing')}
               isActive={computed.isTokenStatsView}
-              isLoading={computed.isAnyLoading}
+              isLoading={computed.isLoadingTokenStats}
               onClick={() => {
                 if (computed.isTokenStatsView) {
                   analyticsActions.switchToMessages();
@@ -132,14 +134,15 @@ export const Header = () => {
                   handleLoadTokenStats();
                 }
               }}
-              disabled={computed.isAnyLoading}
+              disabled={computed.isLoadingTokenStats}
             />
 
             {/* Recent Edits */}
             <NavButton
-              icon={FileEdit}
+              icon={computed.isLoadingRecentEdits ? Loader2 : FileEdit}
               label={t("recentEdits.title")}
               isActive={computed.isRecentEditsView}
+              isLoading={computed.isLoadingRecentEdits}
               onClick={() => {
                 if (computed.isRecentEditsView) {
                   analyticsActions.switchToMessages();
@@ -147,7 +150,7 @@ export const Header = () => {
                   handleLoadRecentEdits();
                 }
               }}
-              disabled={computed.isAnyLoading}
+              disabled={computed.isLoadingRecentEdits}
             />
           </>
         )}

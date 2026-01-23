@@ -21,6 +21,17 @@ export interface SessionTokenStats {
   last_message_time: string;
 }
 
+/**
+ * Paginated response for project token stats
+ */
+export interface PaginatedTokenStats {
+  items: SessionTokenStats[];
+  total_count: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+}
+
 // ============================================================================
 // Daily & Activity Stats
 // ============================================================================

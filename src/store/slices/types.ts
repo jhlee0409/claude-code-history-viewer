@@ -17,6 +17,7 @@ import type {
   SearchFilters,
   RecentEditsResult,
 } from "../../types";
+import type { ProjectTokenStatsPagination } from "./messageSlice";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
 import type { UpdateSettings } from "../../types/updateSettings";
 
@@ -102,6 +103,7 @@ export interface AppStoreState {
   isLoadingTokenStats: boolean;
   sessionTokenStats: SessionTokenStats | null;
   projectTokenStats: SessionTokenStats[];
+  projectTokenStatsPagination: ProjectTokenStatsPagination;
 
   // Search state
   searchQuery: string;
@@ -137,6 +139,7 @@ export interface AppStoreActions {
   refreshCurrentSession: () => Promise<void>;
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
+  loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
   loadProjectStatsSummary: (projectPath: string) => Promise<ProjectStatsSummary>;
   loadSessionComparison: (
     sessionId: string,

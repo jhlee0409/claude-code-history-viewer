@@ -111,6 +111,9 @@ export interface UseAnalyticsReturn {
     isMessagesView: boolean;
     isRecentEditsView: boolean;
     hasAnyError: boolean;
+    isLoadingAnalytics: boolean;
+    isLoadingTokenStats: boolean;
+    isLoadingRecentEdits: boolean;
     isAnyLoading: boolean;
   };
 }

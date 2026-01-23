@@ -36,6 +36,7 @@ function App() {
     error,
     sessionTokenStats,
     projectTokenStats,
+    projectTokenStatsPagination,
     sessionSearch,
     initializeApp,
     selectProject,
@@ -47,6 +48,7 @@ function App() {
     clearSessionSearch,
     loadGlobalStats,
     setAnalyticsCurrentView,
+    loadMoreProjectTokenStats,
   } = useAppStore();
 
   const {
@@ -294,6 +296,8 @@ function App() {
                       title={t('messages.tokenStats.title')}
                       sessionStats={sessionTokenStats}
                       projectStats={projectTokenStats}
+                      pagination={projectTokenStatsPagination}
+                      onLoadMore={() => selectedProject && loadMoreProjectTokenStats(selectedProject.path)}
                       isLoading={isLoadingTokenStats}
                     />
                   </div>

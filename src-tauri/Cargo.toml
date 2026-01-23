@@ -36,6 +36,8 @@ dirs = "5.0"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 walkdir = "2.3"
 rayon = "1.10"
+memmap2 = "0.9"
+simd-json = "0.14"
 tokio = { version = "1.0", features = ["full"] }
 anyhow = "1.0"
 reqwest = { version = "0.11", features = ["json"] }
@@ -100,7 +102,8 @@ opt-level = 0
 
 # Lints configuration
 [lints.rust]
-unsafe_code = "forbid"
+# Changed from "forbid" to "deny" to allow selective #[allow(unsafe_code)] for mmap performance optimizations
+unsafe_code = "deny"
 
 [lints.clippy]
 all = "warn"
