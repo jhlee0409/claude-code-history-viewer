@@ -19,6 +19,21 @@ struct LineClassifier {
     is_sidechain: Option<bool>,
 }
 
+/// System message types that should be excluded from the viewer
+/// These are internal system messages, not part of the conversation
+const SYSTEM_MESSAGE_TYPES: [&str; 4] = [
+    "progress",
+    "queue-operation",
+    "file-history-snapshot",
+    "system",
+];
+
+/// Check if a message type is a system type (should be excluded)
+#[inline]
+fn is_system_message_type(message_type: &str) -> bool {
+    SYSTEM_MESSAGE_TYPES.contains(&message_type)
+}
+
 /// Fast classification of a line without full parsing
 /// Returns true if the line should be counted as a valid message
 #[inline]
@@ -29,7 +44,12 @@ fn classify_line(line: &str, exclude_sidechain: bool) -> bool {
 
     // Fast path: try to extract just the type field
     if let Ok(classifier) = serde_json::from_str::<LineClassifier>(line) {
+        // Exclude summary messages
         if classifier.message_type == "summary" {
+            return false;
+        }
+        // Exclude system message types (progress, queue-operation, file-history-snapshot, system)
+        if is_system_message_type(&classifier.message_type) {
             return false;
         }
         if exclude_sidechain && classifier.is_sidechain.unwrap_or(false) {
@@ -229,11 +249,20 @@ fn load_session_from_file(file_path: &PathBuf, exclude_sidechain: bool) -> Optio
 
     let project_name = extract_project_name(&raw_project_name);
 
-    let message_count = if exclude_sidechain {
-        messages.iter().filter(|m| !m.is_sidechain.unwrap_or(false)).count()
-    } else {
-        messages.len()
-    };
+    // Count only non-system messages (exclude progress, queue-operation, file-history-snapshot, system)
+    let message_count = messages.iter()
+        .filter(|m| {
+            // Exclude system message types
+            if is_system_message_type(&m.message_type) {
+                return false;
+            }
+            // Optionally exclude sidechain messages
+            if exclude_sidechain && m.is_sidechain.unwrap_or(false) {
+                return false;
+            }
+            true
+        })
+        .count();
 
     // Skip sessions with 0 messages
     if message_count == 0 {
@@ -468,7 +497,8 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     let mut messages: Vec<(usize, ClaudeMessage)> = lines
         .par_iter()
         .filter_map(|(line_num, line)| {
-            parse_line_to_message(*line_num, line, true)
+            parse_line_to_message(*line_num, line, false)
+                .filter(|msg| !is_system_message_type(&msg.message_type))
                 .map(|msg| (*line_num, msg))
         })
         .collect();
@@ -480,11 +510,8 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        let system_msgs: Vec<_> = messages.iter()
-            .filter(|m| m.message_type == "system")
-            .collect();
-        eprintln!("📤 [load_session_messages] {}개 메시지, {}ms 소요, {} system messages",
-            messages.len(), elapsed.as_millis(), system_msgs.len());
+        eprintln!("📤 [load_session_messages] {}개 메시지, {}ms 소요 (system/summary messages excluded)",
+            messages.len(), elapsed.as_millis());
     }
 
     Ok(messages)
@@ -649,7 +676,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_load_session_messages_with_summary() {
+    async fn test_load_session_messages_excludes_summary() {
         let temp_dir = TempDir::new().unwrap();
 
         let content = format!(
@@ -665,14 +692,12 @@ mod tests {
 
         assert!(result.is_ok());
         let messages = result.unwrap();
-        assert_eq!(messages.len(), 3);
+        // Summary messages should be excluded
+        assert_eq!(messages.len(), 2);
 
-        // Find summary message
+        // Verify no summary message is present
         let summary_msg = messages.iter().find(|m| m.message_type == "summary");
-        assert!(summary_msg.is_some());
-        if let Some(content) = &summary_msg.unwrap().content {
-            assert_eq!(content.as_str().unwrap(), "Test conversation summary");
-        }
+        assert!(summary_msg.is_none());
     }
 
     #[tokio::test]
