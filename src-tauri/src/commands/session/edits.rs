@@ -159,11 +159,30 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
     Some(SessionEditsResult { edits, cwd_counts })
 }
 
+/// Paginated response for recent edits
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PaginatedRecentEdits {
+    pub files: Vec<RecentFileEdit>,
+    pub total_edits_count: usize,
+    pub unique_files_count: usize,
+    pub project_cwd: Option<String>,
+    pub offset: usize,
+    pub limit: usize,
+    pub has_more: bool,
+}
+
 /// Scan all JSONL files in a project and extract recent file edits/writes
 /// Returns the LATEST content for each unique file path, sorted by timestamp descending
 /// Only includes files that belong to the project's working directory
+/// Supports pagination with offset and limit parameters
 #[tauri::command]
-pub async fn get_recent_edits(project_path: String) -> Result<RecentEditsResult, String> {
+pub async fn get_recent_edits(
+    project_path: String,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<PaginatedRecentEdits, String> {
+    let offset = offset.unwrap_or(0);
+    let limit = limit.unwrap_or(20);
     // Phase 1: Collect all session files
     let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
         .into_iter()
@@ -237,11 +256,23 @@ pub async fn get_recent_edits(project_path: String) -> Result<RecentEditsResult,
     let mut files: Vec<RecentFileEdit> = latest_by_file.into_values().collect();
     files.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-    Ok(RecentEditsResult {
-        files,
+    // Apply pagination
+    let paginated_files: Vec<RecentFileEdit> = files
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .collect();
+
+    let has_more = offset + paginated_files.len() < unique_files_count;
+
+    Ok(PaginatedRecentEdits {
+        files: paginated_files,
         total_edits_count,
         unique_files_count,
         project_cwd,
+        offset,
+        limit,
+        has_more,
     })
 }
 
@@ -353,7 +384,7 @@ mod tests {
     async fn test_get_recent_edits_empty_dir() {
         let temp_dir = TempDir::new().unwrap();
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -370,7 +401,7 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","cwd":"/test/project","toolUse":{"name":"Write","input":{"file_path":"/test/project/src/main.rs","content":"fn main() {}"}}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -387,7 +418,7 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/src/lib.rs","oldString":"old","newString":"new","originalFile":"old code here"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -404,7 +435,7 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/src/mod.rs","edits":[{"old_string":"old1","new_string":"new1"},{"old_string":"old2","new_string":"new2"}],"originalFile":"old1 old2"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -421,7 +452,7 @@ mod tests {
 {"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/file.txt","oldString":"v2","newString":"v3","originalFile":"v2"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -442,7 +473,7 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"type":"create","filePath":"/test/project/new_file.rs","content":"pub fn new() {}"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -461,7 +492,7 @@ mod tests {
 {"uuid":"uuid-3","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/other/location/file3.txt","oldString":"old","newString":"new","originalFile":"old"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();

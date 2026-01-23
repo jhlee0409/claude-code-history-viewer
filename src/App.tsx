@@ -49,6 +49,7 @@ function App() {
     loadGlobalStats,
     setAnalyticsCurrentView,
     loadMoreProjectTokenStats,
+    loadMoreRecentEdits,
   } = useAppStore();
 
   const {
@@ -275,6 +276,8 @@ function App() {
                 >
                   <RecentEditsViewer
                     recentEdits={analyticsState.recentEdits}
+                    pagination={analyticsState.recentEditsPagination}
+                    onLoadMore={() => selectedProject && loadMoreRecentEdits(selectedProject.path)}
                     isLoading={analyticsState.isLoadingRecentEdits}
                     error={analyticsState.recentEditsError}
                   />

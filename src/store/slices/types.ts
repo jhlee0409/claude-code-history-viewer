@@ -168,7 +168,8 @@ export interface AppStoreActions {
   setAnalyticsRecentEdits: (edits: RecentEditsResult | null) => void;
   setAnalyticsLoadingRecentEdits: (loading: boolean) => void;
   setAnalyticsRecentEditsError: (error: string | null) => void;
-  loadRecentEdits: (projectPath: string) => Promise<RecentEditsResult>;
+  loadRecentEdits: (projectPath: string) => Promise<import("../../types").PaginatedRecentEdits>;
+  loadMoreRecentEdits: (projectPath: string) => Promise<void>;
   resetAnalytics: () => void;
   clearAnalyticsErrors: () => void;
 

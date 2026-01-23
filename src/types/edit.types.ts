@@ -30,3 +30,16 @@ export interface RecentEditsResult {
   unique_files_count: number;
   project_cwd?: string;
 }
+
+/**
+ * Paginated response for recent edits
+ */
+export interface PaginatedRecentEdits {
+  files: RecentFileEdit[];
+  total_edits_count: number;
+  unique_files_count: number;
+  project_cwd?: string;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+}

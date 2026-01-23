@@ -3,7 +3,19 @@
  * 가독성과 예측 가능성을 위한 명확한 타입 구조
  */
 
-import type { ProjectStatsSummary, SessionComparison, RecentEditsResult } from './index';
+import type { ProjectStatsSummary, SessionComparison, RecentEditsResult, RecentFileEdit } from './index';
+
+/**
+ * Pagination state for recent edits
+ */
+export interface RecentEditsPagination {
+  totalEditsCount: number;
+  uniqueFilesCount: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+}
 
 /**
  * Analytics 뷰 타입
@@ -24,6 +36,7 @@ export interface AnalyticsState {
   projectSummary: ProjectStatsSummary | null;
   sessionComparison: SessionComparison | null;
   recentEdits: RecentEditsResult | null;
+  recentEditsPagination: RecentEditsPagination;
 
   // 로딩 상태
   isLoadingProjectSummary: boolean;
@@ -73,11 +86,23 @@ export interface AnalyticsActions {
 /**
  * Analytics 초기 상태
  */
+const RECENT_EDITS_PAGE_SIZE = 20;
+
+export const initialRecentEditsPagination: RecentEditsPagination = {
+  totalEditsCount: 0,
+  uniqueFilesCount: 0,
+  offset: 0,
+  limit: RECENT_EDITS_PAGE_SIZE,
+  hasMore: false,
+  isLoadingMore: false,
+};
+
 export const initialAnalyticsState: AnalyticsState = {
   currentView: 'messages',
   projectSummary: null,
   sessionComparison: null,
   recentEdits: null,
+  recentEditsPagination: initialRecentEditsPagination,
   isLoadingProjectSummary: false,
   isLoadingSessionComparison: false,
   isLoadingRecentEdits: false,

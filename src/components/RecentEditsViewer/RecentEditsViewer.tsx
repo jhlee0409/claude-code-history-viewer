@@ -2,11 +2,12 @@
  * RecentEditsViewer Component
  *
  * Displays a list of recent file edits with search and filtering.
+ * Now supports real backend pagination.
  */
 
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { FileEdit, Search, File, ChevronDown, Loader2 } from "lucide-react";
 import { useTheme } from "@/contexts/theme";
@@ -15,35 +16,25 @@ import { LoadingState } from "@/components/ui/loading";
 import type { RecentEditsViewerProps } from "./types";
 import { FileEditItem } from "./FileEditItem";
 
-/** Number of edits to display initially and per "show more" click */
-const EDITS_PER_PAGE = 20;
-
 export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   recentEdits,
+  pagination,
+  onLoadMore,
   isLoading = false,
   error = null,
 }) => {
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
-  const [displayCount, setDisplayCount] = useState(EDITS_PER_PAGE);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  // Reset display count when data or search changes
-  useEffect(() => {
-    setDisplayCount(EDITS_PER_PAGE);
-  }, [recentEdits?.files?.length, searchQuery]);
-
-  // Handle "Show More" click
+  // Handle "Show More" click - calls backend via onLoadMore
   const handleShowMore = useCallback(() => {
-    setIsLoadingMore(true);
-    requestAnimationFrame(() => {
-      setDisplayCount((prev) => prev + EDITS_PER_PAGE);
-      setIsLoadingMore(false);
-    });
-  }, []);
+    if (onLoadMore && pagination?.hasMore && !pagination?.isLoadingMore) {
+      onLoadMore();
+    }
+  }, [onLoadMore, pagination?.hasMore, pagination?.isLoadingMore]);
 
-  // Filter files by search query
+  // Filter files by search query (client-side filtering on loaded data)
   const filteredFiles = useMemo(() => {
     if (!recentEdits?.files) return [];
     if (!searchQuery.trim()) return recentEdits.files;
@@ -56,24 +47,22 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
     );
   }, [recentEdits?.files, searchQuery]);
 
-  // Calculate stats based on filtered results
+  // Calculate stats based on pagination or filtered results
   const stats = useMemo(() => {
-    const files = filteredFiles;
-    const uniqueFilePaths = new Set(files.map((f) => f.file_path));
     return {
-      uniqueFilesCount: uniqueFilePaths.size,
-      totalEditsCount: files.length,
+      uniqueFilesCount: pagination?.uniqueFilesCount ?? recentEdits?.unique_files_count ?? 0,
+      totalEditsCount: pagination?.totalEditsCount ?? recentEdits?.total_edits_count ?? 0,
     };
-  }, [filteredFiles]);
+  }, [pagination, recentEdits]);
 
-  // Memoize displayed files for pagination
-  const displayedFiles = useMemo(
-    () => filteredFiles.slice(0, displayCount),
-    [filteredFiles, displayCount]
-  );
+  // Use filteredFiles directly - pagination is handled by backend
+  const displayedFiles = useMemo(() => filteredFiles, [filteredFiles]);
 
-  const hasMoreFiles = displayCount < filteredFiles.length;
-  const remainingCount = filteredFiles.length - displayCount;
+  // Pagination state from props
+  const hasMoreFiles = searchQuery.trim() ? false : (pagination?.hasMore ?? false);
+  const isLoadingMore = pagination?.isLoadingMore ?? false;
+  const totalUniqueFiles = pagination?.uniqueFilesCount ?? recentEdits?.unique_files_count ?? 0;
+  const remainingCount = totalUniqueFiles - (recentEdits?.files?.length ?? 0);
 
   // Loading/Error/Empty states
   if (isLoading || error || !recentEdits || recentEdits.files.length === 0) {
@@ -121,7 +110,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-muted-foreground font-mono">
-              {Math.min(displayCount, filteredFiles.length)} / {filteredFiles.length}
+              {recentEdits?.files?.length ?? 0} / {totalUniqueFiles}
             </span>
             <div
               className={`flex items-center gap-2 ${layout.bodyText} text-accent bg-accent/10 px-3 py-1.5 rounded-full`}
@@ -179,7 +168,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
                 ) : (
                   <>
                     <ChevronDown className="w-4 h-4" />
-                    {t("recentEdits.showMore", { count: Math.min(EDITS_PER_PAGE, remainingCount) })}
+                    {t("recentEdits.showMore", { count: Math.min(pagination?.limit ?? 20, remainingCount) })}
                     <span className="text-muted-foreground/70">
                       ({remainingCount} {t("analytics.remaining")})
                     </span>

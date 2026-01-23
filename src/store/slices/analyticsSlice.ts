@@ -9,11 +9,14 @@ import type {
   ProjectStatsSummary,
   SessionComparison,
   RecentEditsResult,
+  PaginatedRecentEdits,
 } from "../../types";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
-import { initialAnalyticsState } from "../../types/analytics";
+import { initialAnalyticsState, initialRecentEditsPagination } from "../../types/analytics";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
+
+const RECENT_EDITS_PAGE_SIZE = 20;
 
 // ============================================================================
 // State Interface
@@ -34,7 +37,8 @@ export interface AnalyticsSliceActions {
   setAnalyticsRecentEdits: (edits: RecentEditsResult | null) => void;
   setAnalyticsLoadingRecentEdits: (loading: boolean) => void;
   setAnalyticsRecentEditsError: (error: string | null) => void;
-  loadRecentEdits: (projectPath: string) => Promise<RecentEditsResult>;
+  loadRecentEdits: (projectPath: string) => Promise<PaginatedRecentEdits>;
+  loadMoreRecentEdits: (projectPath: string) => Promise<void>;
   resetAnalytics: () => void;
   clearAnalyticsErrors: () => void;
 }
@@ -58,7 +62,7 @@ export const createAnalyticsSlice: StateCreator<
   [],
   [],
   AnalyticsSlice
-> = (set) => ({
+> = (set, get) => ({
   ...initialAnalyticsSliceState,
 
   setAnalyticsCurrentView: (view: AnalyticsViewType) => {
@@ -152,10 +156,77 @@ export const createAnalyticsSlice: StateCreator<
   },
 
   loadRecentEdits: async (projectPath: string) => {
-    const result = await invoke<RecentEditsResult>("get_recent_edits", {
+    const result = await invoke<PaginatedRecentEdits>("get_recent_edits", {
       projectPath,
+      offset: 0,
+      limit: RECENT_EDITS_PAGE_SIZE,
     });
     return result;
+  },
+
+  loadMoreRecentEdits: async (projectPath: string) => {
+    const { analytics } = get();
+    const { recentEditsPagination, recentEdits } = analytics;
+
+    if (!recentEditsPagination.hasMore || recentEditsPagination.isLoadingMore) {
+      return;
+    }
+
+    // Set loading state
+    set((state) => ({
+      analytics: {
+        ...state.analytics,
+        recentEditsPagination: {
+          ...state.analytics.recentEditsPagination,
+          isLoadingMore: true,
+        },
+      },
+    }));
+
+    try {
+      const nextOffset = recentEditsPagination.offset + recentEditsPagination.limit;
+
+      const result = await invoke<PaginatedRecentEdits>("get_recent_edits", {
+        projectPath,
+        offset: nextOffset,
+        limit: RECENT_EDITS_PAGE_SIZE,
+      });
+
+      // Append new files to existing list
+      const existingFiles = recentEdits?.files ?? [];
+      const newFiles = [...existingFiles, ...result.files];
+
+      set((state) => ({
+        analytics: {
+          ...state.analytics,
+          recentEdits: {
+            files: newFiles,
+            total_edits_count: result.total_edits_count,
+            unique_files_count: result.unique_files_count,
+            project_cwd: result.project_cwd,
+          },
+          recentEditsPagination: {
+            totalEditsCount: result.total_edits_count,
+            uniqueFilesCount: result.unique_files_count,
+            offset: result.offset,
+            limit: result.limit,
+            hasMore: result.has_more,
+            isLoadingMore: false,
+          },
+        },
+      }));
+    } catch (error) {
+      console.error("Failed to load more recent edits:", error);
+      set((state) => ({
+        analytics: {
+          ...state.analytics,
+          recentEditsPagination: {
+            ...state.analytics.recentEditsPagination,
+            isLoadingMore: false,
+          },
+        },
+      }));
+    }
   },
 
   resetAnalytics: () => {

@@ -121,7 +121,7 @@ export type {
 // ============================================================================
 // Edit Types
 // ============================================================================
-export type { RecentFileEdit, RecentEditsResult } from "./edit.types";
+export type { RecentFileEdit, RecentEditsResult, PaginatedRecentEdits } from "./edit.types";
 
 // ============================================================================
 // Update Types

@@ -157,15 +157,19 @@ export const useAnalytics = (): UseAnalyticsReturn => {
         );
       }
 
-      // 세션 비교 로드 (선택된 세션이 있고 캐시 없으면)
+      // 세션 비교 및 세션 토큰 통계 로드 (선택된 세션이 있고 캐시 없으면)
+      // NOTE: sessionTokenStats도 함께 로드하여 탭 표시 조건(hasSessionData)을 충족
       if (selectedSession && !hasCachedSessionComparison) {
         setAnalyticsLoadingSessionComparison(true);
         promises.push(
-          loadSessionComparison(
-            selectedSession.actual_session_id,
-            selectedProject.path
-          )
-            .then((comparison) => {
+          Promise.all([
+            loadSessionComparison(
+              selectedSession.actual_session_id,
+              selectedProject.path
+            ),
+            loadSessionTokenStats(selectedSession.file_path),
+          ])
+            .then(([comparison]) => {
               setAnalyticsSessionComparison(comparison);
               return { success: true };
             })
@@ -209,6 +213,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     setAnalyticsSessionComparisonError,
     loadProjectStatsSummary,
     loadSessionComparison,
+    loadSessionTokenStats,
   ]);
 
   /**
@@ -237,7 +242,29 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     try {
       setAnalyticsLoadingRecentEdits(true);
       const result = await loadRecentEdits(selectedProject.path);
-      setAnalyticsRecentEdits(result);
+
+      // Update both the result and pagination state
+      setAnalyticsRecentEdits({
+        files: result.files,
+        total_edits_count: result.total_edits_count,
+        unique_files_count: result.unique_files_count,
+        project_cwd: result.project_cwd,
+      });
+
+      // Update pagination state via direct store update
+      useAppStore.setState((state) => ({
+        analytics: {
+          ...state.analytics,
+          recentEditsPagination: {
+            totalEditsCount: result.total_edits_count,
+            uniqueFilesCount: result.unique_files_count,
+            offset: result.offset,
+            limit: result.limit,
+            hasMore: result.has_more,
+            isLoadingMore: false,
+          },
+        },
+      }));
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : t('common.hooks.recentEditsLoadFailed');
@@ -346,28 +373,36 @@ export const useAnalytics = (): UseAnalyticsReturn => {
   /**
    * 사이드 이팩트: 세션 변경 시 analytics 데이터 자동 새로고침
    * analytics 뷰가 활성화되어 있을 때만 실행
+   * NOTE: sessionTokenStats도 함께 로드하여 탭 표시 조건(hasSessionData)을 충족
    */
   useEffect(() => {
     if (analytics.currentView === "analytics" && selectedProject && selectedSession) {
-      const updateSessionComparison = async () => {
+      const updateSessionData = async () => {
         try {
+          // sessionComparison과 sessionTokenStats를 병렬로 로드
           setAnalyticsLoadingSessionComparison(true);
-          const comparison = await loadSessionComparison(
-            selectedSession.actual_session_id,
-            selectedProject.path
-          );
+
+          const [comparison] = await Promise.all([
+            loadSessionComparison(
+              selectedSession.actual_session_id,
+              selectedProject.path
+            ),
+            // sessionTokenStats 로드 (탭 표시 조건 충족을 위해)
+            loadSessionTokenStats(selectedSession.file_path),
+          ]);
+
           setAnalyticsSessionComparison(comparison);
           setAnalyticsSessionComparisonError(null);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : t('common.hooks.sessionComparisonLoadFailed');
           setAnalyticsSessionComparisonError(errorMessage);
-          console.error("Failed to update session comparison:", error);
+          console.error("Failed to update session data:", error);
         } finally {
           setAnalyticsLoadingSessionComparison(false);
         }
       };
 
-      updateSessionComparison();
+      updateSessionData();
     }
   }, [
     selectedSession?.actual_session_id,
@@ -376,6 +411,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     selectedSession,
     analytics.currentView,
     loadSessionComparison,
+    loadSessionTokenStats,
     setAnalyticsLoadingSessionComparison,
     setAnalyticsSessionComparison,
     setAnalyticsSessionComparisonError,
