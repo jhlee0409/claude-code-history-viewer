@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   BarChart3,
@@ -12,11 +12,14 @@ import {
   Hash,
   Sparkles,
   Layers,
+  ChevronDown,
+  Loader2,
 } from "lucide-react";
 import type { SessionTokenStats } from "../types";
 import { formatTime } from "../utils/time";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { LoadingState } from "./ui/loading";
 
 /**
  * Token Stats Viewer - Mission Control Design
@@ -30,14 +33,45 @@ interface TokenStatsViewerProps {
   sessionStats?: SessionTokenStats | null;
   projectStats?: SessionTokenStats[];
   title?: string;
+  isLoading?: boolean;
 }
+
+/** Number of sessions to display initially and per "show more" click */
+const SESSIONS_PER_PAGE = 20;
 
 export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   sessionStats,
   projectStats = [],
   title,
+  isLoading = false,
 }) => {
   const { t } = useTranslation();
+  const [displayCount, setDisplayCount] = useState(SESSIONS_PER_PAGE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Reset display count when project changes
+  useEffect(() => {
+    setDisplayCount(SESSIONS_PER_PAGE);
+  }, [projectStats.length]);
+
+  // Memoize displayed sessions for performance
+  const displayedSessions = useMemo(
+    () => projectStats.slice(0, displayCount),
+    [projectStats, displayCount]
+  );
+
+  const hasMoreSessions = displayCount < projectStats.length;
+  const remainingCount = projectStats.length - displayCount;
+
+  // Handle "Show More" click with simulated loading for smooth UX
+  const handleShowMore = useCallback(() => {
+    setIsLoadingMore(true);
+    // Small delay for visual feedback
+    requestAnimationFrame(() => {
+      setDisplayCount((prev) => Math.min(prev + SESSIONS_PER_PAGE, projectStats.length));
+      setIsLoadingMore(false);
+    });
+  }, [projectStats.length]);
 
   // Format large numbers
   const formatNumber = (num: number): string => {
@@ -323,17 +357,22 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
 
         {/* Individual Sessions */}
         <div className="space-y-4">
-          <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <div className="w-1.5 h-5 rounded-full bg-accent" />
-            {t("analytics.sessionStatsDetail")}
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <div className="w-1.5 h-5 rounded-full bg-accent" />
+              {t("analytics.sessionStatsDetail")}
+            </h4>
+            <span className="text-[11px] text-muted-foreground font-mono">
+              {displayCount > projectStats.length ? projectStats.length : displayCount} / {projectStats.length}
+            </span>
+          </div>
 
           <div className="space-y-3">
-            {projectStats.slice(0, 10).map((stats, index) => (
+            {displayedSessions.map((stats, index) => (
               <div
                 key={`session-${stats.session_id}-${index}`}
                 className="animate-slide-up"
-                style={{ animationDelay: `${index * 50}ms` }}
+                style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
               >
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-[12px] font-bold text-foreground bg-accent/10 px-2.5 py-1 rounded-full">
@@ -347,10 +386,36 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               </div>
             ))}
 
-            {projectStats.length > 10 && (
-              <div className="text-center py-4 text-muted-foreground bg-muted/30 rounded-xl text-[12px]">
-                {t("analytics.andMoreSessions", { count: projectStats.length - 10 })}
-              </div>
+            {/* Show More Button */}
+            {hasMoreSessions && (
+              <button
+                onClick={handleShowMore}
+                disabled={isLoadingMore}
+                className={cn(
+                  "w-full py-4 rounded-xl text-[13px] font-medium",
+                  "bg-muted/30 hover:bg-muted/50",
+                  "border border-border/50 hover:border-border",
+                  "text-muted-foreground hover:text-foreground",
+                  "transition-all duration-200",
+                  "flex items-center justify-center gap-2",
+                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                )}
+              >
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {t("common.loading")}
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4" />
+                    {t("analytics.showMoreSessions", { count: Math.min(SESSIONS_PER_PAGE, remainingCount) })}
+                    <span className="text-muted-foreground/70">
+                      ({remainingCount} {t("analytics.remaining")})
+                    </span>
+                  </>
+                )}
+              </button>
             )}
           </div>
         </div>
@@ -384,36 +449,44 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   // MAIN RENDER
   // ============================================
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      {title && (
-        <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: "color-mix(in oklch, var(--metric-purple) 15%, transparent)" }}
-          >
-            <Sparkles className="w-4 h-4" style={{ color: "var(--metric-purple)" }} />
+    <LoadingState
+      isLoading={isLoading}
+      loadingMessage={t("analytics.loading")}
+      withSparkle
+      spinnerSize="lg"
+      minHeight="py-24"
+    >
+      <div className="space-y-6">
+        {/* Header */}
+        {title && (
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: "color-mix(in oklch, var(--metric-purple) 15%, transparent)" }}
+            >
+              <Sparkles className="w-4 h-4" style={{ color: "var(--metric-purple)" }} />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground tracking-tight">
+              {title}
+            </h2>
           </div>
-          <h2 className="text-lg font-semibold text-foreground tracking-tight">
-            {title}
-          </h2>
-        </div>
-      )}
+        )}
 
-      {/* Current Session */}
-      {sessionStats && (
-        <div>
-          <h3 className="flex items-center gap-2 text-sm font-medium text-foreground/80 mb-3">
-            <MessageSquare className="w-4 h-4 text-accent" />
-            {t("analytics.currentSession")}
-          </h3>
-          <SessionStatsCard stats={sessionStats} />
-        </div>
-      )}
+        {/* Current Session */}
+        {sessionStats && (
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-medium text-foreground/80 mb-3">
+              <MessageSquare className="w-4 h-4 text-accent" />
+              {t("analytics.currentSession")}
+            </h3>
+            <SessionStatsCard stats={sessionStats} />
+          </div>
+        )}
 
-      {/* Project Stats */}
-      {projectStats.length > 0 && renderProjectStats()}
-    </div>
+        {/* Project Stats */}
+        {projectStats.length > 0 && renderProjectStats()}
+      </div>
+    </LoadingState>
   );
 };
 

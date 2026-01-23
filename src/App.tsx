@@ -32,6 +32,7 @@ function App() {
     isLoadingProjects,
     isLoadingSessions,
     isLoadingMessages,
+    isLoadingTokenStats,
     error,
     sessionTokenStats,
     projectTokenStats,
@@ -290,6 +291,7 @@ function App() {
                       title={t('messages.tokenStats.title')}
                       sessionStats={sessionTokenStats}
                       projectStats={projectTokenStats}
+                      isLoading={isLoadingTokenStats}
                     />
                   </div>
                 </OverlayScrollbarsComponent>
