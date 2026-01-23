@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../ToolIcon";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/contexts/theme";
 
 interface ClaudeToolUseDisplayProps {
   toolUse: Record<string, unknown>;
@@ -13,6 +14,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
   toolUse,
 }) => {
   const { t } = useTranslation("components");
+  const { isDarkMode } = useTheme();
   const toolName = toolUse.name || toolUse.tool || t("claudeToolUseDisplay.unknownTool");
 
   return (
@@ -30,7 +32,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
       </div>
       <div className={cn("rounded overflow-hidden overflow-y-auto", layout.contentMaxHeight)}>
         <Highlight
-          theme={themes.vsDark}
+          theme={isDarkMode ? themes.vsDark : themes.vsLight}
           code={JSON.stringify(toolUse.parameters || toolUse, null, 2)}
           language="json"
         >

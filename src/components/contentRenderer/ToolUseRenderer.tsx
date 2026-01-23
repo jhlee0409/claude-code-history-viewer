@@ -22,6 +22,7 @@ import {
 import { ToolIcon } from "../ToolIcon";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/contexts/theme";
 import { FileEditRenderer } from "../toolResultRenderer/FileEditRenderer";
 import { HighlightedText } from "../common";
 import {
@@ -44,6 +45,7 @@ export const ToolUseRenderer = ({
   currentMatchIndex = 0,
 }: ToolUseRendererProps) => {
   const { t } = useTranslation("components");
+  const { isDarkMode } = useTheme();
 
   const toolName = (toolUse.name as string) || "Unknown Tool";
   const toolId = (toolUse.id as string) || "";
@@ -137,7 +139,7 @@ export const ToolUseRenderer = ({
             </div>
             <div className={cn(layout.rounded, "overflow-hidden", layout.contentMaxHeight, "overflow-y-auto")}>
               <Highlight
-                theme={themes.vsDark}
+                theme={isDarkMode ? themes.vsDark : themes.vsLight}
                 code={content}
                 language={language}
               >
@@ -272,7 +274,7 @@ export const ToolUseRenderer = ({
             {t("toolUseRenderer.toolInputParameters")}
           </div>
           <Highlight
-            theme={themes.vsDark}
+            theme={isDarkMode ? themes.vsDark : themes.vsLight}
             code={JSON.stringify(toolInput, null, 2)}
             language="json"
           >

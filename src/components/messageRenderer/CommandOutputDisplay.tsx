@@ -17,6 +17,7 @@ import { Terminal, Package, TestTube, Hammer, BarChart3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/contexts/theme";
 
 interface CommandOutputDisplayProps {
   stdout: string;
@@ -26,6 +27,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
   stdout,
 }) => {
   const { t } = useTranslation("components");
+  const { isDarkMode } = useTheme();
 
   // 다양한 출력 유형 감지
   const isTestOutput =
@@ -71,7 +73,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
             })}
           </div>
           <Highlight
-            theme={themes.vsDark}
+            theme={isDarkMode ? themes.vsDark : themes.vsLight}
             code={JSON.stringify(parsed, null, 2)}
             language="json"
           >

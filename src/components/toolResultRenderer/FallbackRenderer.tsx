@@ -3,6 +3,7 @@ import { Highlight, themes } from "prism-react-renderer";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
+import { useTheme } from "@/contexts/theme";
 
 type Props = {
   toolResult: Record<string, unknown>;
@@ -10,6 +11,7 @@ type Props = {
 
 export const FallbackRenderer = ({ toolResult }: Props) => {
   const { t } = useTranslation("components");
+  const { isDarkMode } = useTheme();
   return (
     <Renderer className="bg-card border-border">
       <Renderer.Header
@@ -20,7 +22,7 @@ export const FallbackRenderer = ({ toolResult }: Props) => {
       <Renderer.Content>
         <div className={layout.bodyText}>
           <Highlight
-            theme={themes.vsDark}
+            theme={isDarkMode ? themes.vsDark : themes.vsLight}
             code={JSON.stringify(toolResult, null, 2)}
             language="json"
           >

@@ -17,6 +17,7 @@ import { Highlight, themes } from "prism-react-renderer";
 import { useCopyButton } from "../../hooks/useCopyButton";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/contexts/theme";
 import { HighlightedText } from "../common";
 import {
   type IndexedRendererProps,
@@ -44,6 +45,7 @@ export const ClaudeToolResultItem = ({
 }: ClaudeToolResultItemProps) => {
   const { t } = useTranslation("components");
   const { renderCopyButton } = useCopyButton();
+  const { isDarkMode } = useTheme();
 
   const toolUseId = (toolResult.tool_use_id as string) || "";
   const content = toolResult.content;
@@ -177,7 +179,7 @@ export const ClaudeToolResultItem = ({
                 {code.split("\n").length} {t("toolResult.lines")}
               </span>
             </div>
-            <Highlight theme={themes.vsDark} code={code} language={language}>
+            <Highlight theme={isDarkMode ? themes.vsDark : themes.vsLight} code={code} language={language}>
               {({ className, style, tokens, getLineProps, getTokenProps }) => (
                 <pre
                   className={className}
