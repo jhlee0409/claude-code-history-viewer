@@ -8,6 +8,7 @@ import {
   Button,
   Badge,
 } from "@/components/ui";
+import { LoadingSpinner, LoadingProgress } from "@/components/ui/loading";
 import { ExternalLink, Download, AlertTriangle, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { UseGitHubUpdaterReturn } from '@/hooks/useGitHubUpdater';
@@ -86,19 +87,18 @@ export function SimpleUpdateModal({ updater, isVisible, onClose }: SimpleUpdateM
                   {t('simpleUpdateModal.downloading', { progress: updater.state.downloadProgress })}
                 </span>
               </div>
-              <div className="w-full bg-muted rounded-full h-1.5">
-                <div
-                  className="bg-primary h-1.5 rounded-full transition-all"
-                  style={{ width: `${updater.state.downloadProgress}%` }}
-                />
-              </div>
+              <LoadingProgress
+                progress={updater.state.downloadProgress}
+                size="md"
+                variant="default"
+              />
             </div>
           )}
 
           {/* Installing */}
           {updater.state.isInstalling && (
             <div className="flex items-center gap-2 text-xs p-2.5 bg-warning/10 border border-warning/20 rounded-md">
-              <div className="animate-spin w-3.5 h-3.5 border-2 border-warning border-t-transparent rounded-full" />
+              <LoadingSpinner size="xs" variant="default" />
               <span className="text-muted-foreground">{t('simpleUpdateModal.installing')}</span>
             </div>
           )}
@@ -161,11 +161,14 @@ export function SimpleUpdateModal({ updater, isVisible, onClose }: SimpleUpdateM
           >
             {updater.state.isDownloading ? (
               <>
-                <Download className="w-3.5 h-3.5 animate-bounce" />
+                <LoadingSpinner size="xs" variant="default" />
                 {t('simpleUpdateModal.downloadingShort')}
               </>
             ) : updater.state.isInstalling ? (
-              t('simpleUpdateModal.installingShort')
+              <>
+                <LoadingSpinner size="xs" variant="default" />
+                {t('simpleUpdateModal.installingShort')}
+              </>
             ) : (
               <>
                 <Download className="w-3.5 h-3.5" />

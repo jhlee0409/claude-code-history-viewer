@@ -68,11 +68,11 @@ pub struct GitHubAsset {
 pub async fn check_for_updates() -> Result<UpdateInfo, String> {
     let current_version = env!("CARGO_PKG_VERSION");
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10)) // 30초 → 10초로 단축
+        .timeout(std::time::Duration::from_secs(10)) // Reduced from 30s to 10s
         .build()
-        .map_err(|e| format!("HTTP 클라이언트 생성 오류: {}", e))?;
+        .map_err(|e| format!("HTTP client creation error: {}", e))?;
 
-    // 재시도 로직 (최대 2회 시도로 단축)
+    // Retry logic (max 2 attempts)
     let mut last_error = String::new();
     for attempt in 1..=2 {
         match fetch_release_info(&client).await {
@@ -82,14 +82,14 @@ pub async fn check_for_updates() -> Result<UpdateInfo, String> {
             Err(e) => {
                 last_error = e;
                 if attempt < 2 {
-                    // 재시도 전 짧은 대기 (500ms)
+                    // Short wait before retry (500ms)
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
             }
         }
     }
 
-    Err(format!("2번 시도 후 실패: {}", last_error))
+    Err(format!("Failed after 2 attempts: {}", last_error))
 }
 
 pub async fn fetch_release_info(client: &reqwest::Client) -> Result<GitHubRelease, String> {
@@ -99,18 +99,18 @@ pub async fn fetch_release_info(client: &reqwest::Client) -> Result<GitHubReleas
         .header("Accept", "application/vnd.github.v3+json")
         .send()
         .await
-        .map_err(|e| format!("네트워크 오류: {}", e))?;
+        .map_err(|e| format!("Network error: {}", e))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let error_text = response.text().await.unwrap_or_default();
-        return Err(format!("릴리즈 정보를 가져올 수 없습니다 (HTTP {}): {}", status, error_text));
+        return Err(format!("Failed to fetch release info (HTTP {}): {}", status, error_text));
     }
 
     let release: GitHubRelease = response
         .json()
         .await
-        .map_err(|e| format!("응답 해석 오류: {}", e))?;
+        .map_err(|e| format!("Response parsing error: {}", e))?;
 
     Ok(release)
 }
@@ -128,16 +128,16 @@ fn process_release_info(current_version: &str, release: GitHubRelease) -> Result
         .and_then(|m| m.deadline.as_ref())
         .and_then(|deadline| calculate_days_until_deadline(deadline).ok());
 
-    // 최소 버전 체크: 현재 버전이 최소 버전 미만인지 확인
+    // Minimum version check: verify if current version is below minimum
     let below_minimum_version = metadata.as_ref()
         .and_then(|m| m.minimum_version.as_ref())
         .map(|min_ver| version_is_newer(current_version, min_ver))
         .unwrap_or(false);
 
-    // 강제 업데이트: force_update가 true이고 현재 버전이 최소 버전 미만일 때
+    // Force update: when force_update is true and current version is below minimum
     let final_is_forced = is_forced && below_minimum_version;
 
-    // DMG 다운로드 URL 찾기 (macOS)
+    // Find DMG download URL (macOS)
     let dmg_asset = release.assets.iter()
         .find(|asset| asset.name.ends_with(".dmg"));
 
@@ -154,7 +154,7 @@ fn process_release_info(current_version: &str, release: GitHubRelease) -> Result
 }
 
 pub fn parse_metadata_from_body(body: &str) -> Option<UpdateMetadata> {
-    // (?s) 플래그로 멀티라인 JSON 지원
+    // (?s) flag enables multiline JSON support
     let re = Regex::new(r"(?s)<!-- UPDATE_METADATA\s*\n(.*?)\n-->");
 
     if let Ok(regex) = re {
@@ -171,7 +171,7 @@ pub fn parse_metadata_from_body(body: &str) -> Option<UpdateMetadata> {
 
 fn calculate_days_until_deadline(deadline: &str) -> Result<i64, String> {
     let deadline_dt = DateTime::parse_from_rfc3339(deadline)
-        .map_err(|e| format!("날짜 형식 오류: {}", e))?;
+        .map_err(|e| format!("Date format error: {}", e))?;
     let now = Utc::now();
     let duration = deadline_dt.signed_duration_since(now);
 

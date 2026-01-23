@@ -12,10 +12,10 @@ pub fn extract_project_name(raw_project_name: &str) -> String {
     }
 }
 
-/// 파일 크기로 메시지 수 추정 (더 정확한 계산)
+/// Estimate message count from file size (more accurate calculation)
 pub fn estimate_message_count_from_size(file_size: u64) -> usize {
-    // 평균적으로 JSON 메시지는 800-1200 바이트
-    // 작은 파일은 최소 1개 메시지로 처리
+    // Average JSON message is 800-1200 bytes
+    // Small files are treated as having at least 1 message
     ((file_size as f64 / 1000.0).ceil() as usize).max(1)
 }
 

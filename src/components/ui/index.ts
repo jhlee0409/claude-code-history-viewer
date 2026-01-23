@@ -19,6 +19,7 @@ export * from "./separator";
 // Feedback
 export * from "./alert";
 export * from "./skeleton";
+export * from "./loading";
 
 // Overlay
 export * from "./dialog";

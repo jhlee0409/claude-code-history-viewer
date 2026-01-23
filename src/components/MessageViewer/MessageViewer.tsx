@@ -7,9 +7,10 @@
 
 import { useRef, useCallback, useMemo, useState, useEffect } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
-import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { MessageCircle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
 
 // Local imports
 import type { MessageViewerProps } from "./types";
@@ -206,10 +207,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   if ((isLoading || isSessionTransitioning) && messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center h-full">
-        <div className="flex items-center space-x-2 text-muted-foreground">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span>{t("messageViewer.loadingMessages")}</span>
-        </div>
+        <LoadingState
+          isLoading={true}
+          loadingMessage={t("messageViewer.loadingMessages")}
+          spinnerSize="md"
+          withSparkle={false}
+        />
       </div>
     );
   }
@@ -217,17 +220,24 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // 세션이 없거나 실제로 메시지가 없는 경우에만 "No Messages" 표시
   if (messages.length === 0 && !isSessionTransitioning) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full">
-        <div className="mb-4">
-          <MessageCircle className="w-16 h-16 mx-auto text-muted-foreground/50" />
-        </div>
-        <h3 className="text-lg font-medium mb-2 text-foreground">
-          {t("messageViewer.noMessages")}
-        </h3>
-        <p className="text-sm text-center whitespace-pre-line">
-          {t("messageViewer.noMessagesDescription")}
-        </p>
-      </div>
+      <LoadingState
+        isLoading={false}
+        isEmpty={true}
+        className="flex-1 h-full"
+        emptyComponent={
+          <div className="flex flex-col items-center justify-center text-muted-foreground h-full">
+            <div className="mb-4">
+              <MessageCircle className="w-16 h-16 mx-auto text-muted-foreground/50" />
+            </div>
+            <h3 className="text-lg font-medium mb-2 text-foreground">
+              {t("messageViewer.noMessages")}
+            </h3>
+            <p className="text-sm text-center whitespace-pre-line">
+              {t("messageViewer.noMessagesDescription")}
+            </p>
+          </div>
+        }
+      />
     );
   }
 
@@ -279,7 +289,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           {searchQuery && (
             isSearchPending ? (
               <div className="absolute right-2.5 top-1/2 transform -translate-y-1/2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                <LoadingSpinner size="xs" variant="muted" />
               </div>
             ) : (
               <button
@@ -361,8 +371,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             : "opacity-0 pointer-events-none"
         )}
       >
-        <div className="flex items-center">
-          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+        <div className="flex items-center gap-2">
+          <LoadingSpinner size="sm" variant="muted" />
           <span className="text-sm text-muted-foreground">
             {t("messageViewer.loadingMessages")}
           </span>

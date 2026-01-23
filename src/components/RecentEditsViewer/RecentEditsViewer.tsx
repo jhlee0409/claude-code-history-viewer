@@ -8,9 +8,10 @@
 
 import React, { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { FileEdit, Search, File, Loader2 } from "lucide-react";
+import { FileEdit, Search, File } from "lucide-react";
 import { useTheme } from "@/contexts/theme";
 import { layout } from "@/components/renderers";
+import { LoadingState } from "@/components/ui/loading";
 import type { RecentEditsViewerProps } from "./types";
 import { FileEditItem } from "./FileEditItem";
 
@@ -46,35 +47,26 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
     };
   }, [filteredFiles]);
 
-  // Loading state
-  if (isLoading) {
+  // Loading/Error/Empty states
+  if (isLoading || error || !recentEdits || recentEdits.files.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin mb-4 text-muted-foreground" />
-        <p className={`${layout.bodyText} text-muted-foreground`}>{t("recentEdits.loading")}</p>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <div className={`${layout.bodyText} text-destructive`}>{error}</div>
-      </div>
-    );
-  }
-
-  // Empty state
-  if (!recentEdits || recentEdits.files.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <File className="w-12 h-12 mb-4 text-muted-foreground/50" />
-        <p className="text-lg mb-2 text-muted-foreground">{t("recentEdits.noEdits")}</p>
-        <p className={`${layout.bodyText} text-muted-foreground`}>
-          {t("recentEdits.noEditsDescription")}
-        </p>
-      </div>
+      <LoadingState
+        isLoading={isLoading}
+        error={error}
+        isEmpty={!recentEdits || recentEdits.files.length === 0}
+        loadingMessage={t("recentEdits.loading")}
+        spinnerSize="lg"
+        withSparkle={true}
+        emptyComponent={
+          <div className="flex flex-col items-center justify-center py-12">
+            <File className="w-12 h-12 mb-4 text-muted-foreground/50" />
+            <p className="text-lg mb-2 text-muted-foreground">{t("recentEdits.noEdits")}</p>
+            <p className={`${layout.bodyText} text-muted-foreground`}>
+              {t("recentEdits.noEditsDescription")}
+            </p>
+          </div>
+        }
+      />
     );
   }
 

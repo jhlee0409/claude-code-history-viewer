@@ -22,7 +22,7 @@ fn search_in_value(value: &serde_json::Value, query: &str) -> bool {
     }
 }
 
-/// 단일 파일에서 쿼리와 매칭되는 메시지를 검색
+/// Search for messages matching the query in a single file
 fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
     let query_lower = query.to_lowercase();
 
@@ -124,7 +124,7 @@ pub async fn search_messages(
         return Ok(vec![]);
     }
 
-    // 1. 모든 JSONL 파일 경로 수집
+    // 1. Collect all JSONL file paths
     let file_paths: Vec<PathBuf> = WalkDir::new(&projects_path)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -133,9 +133,9 @@ pub async fn search_messages(
         .collect();
 
     #[cfg(debug_assertions)]
-    eprintln!("🔍 search_messages: {}개 파일에서 검색 시작", file_paths.len());
+    eprintln!("🔍 search_messages: searching {} files", file_paths.len());
 
-    // 2. rayon을 사용한 병렬 검색
+    // 2. Parallel search using rayon
     let all_messages: Vec<ClaudeMessage> = file_paths
         .par_iter()
         .flat_map(|path| search_in_file(path, &query))
@@ -144,7 +144,7 @@ pub async fn search_messages(
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        eprintln!("📊 search_messages 성능: {}개 결과, {}ms 소요",
+        eprintln!("📊 search_messages performance: {} results, {}ms elapsed",
                  all_messages.len(), elapsed.as_millis());
     }
 

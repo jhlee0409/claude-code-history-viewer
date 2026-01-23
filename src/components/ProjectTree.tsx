@@ -16,6 +16,7 @@ import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import type { ClaudeProject, ClaudeSession } from "../types";
 import { cn } from "@/lib/utils";
 import { getLocale } from "../utils/time";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProjectTreeProps {
   projects: ClaudeProject[];
@@ -335,11 +336,16 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
                   {/* Loading State */}
                   {isExpanded && isLoading && (
-                    <div className="ml-7 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full animate-shimmer" />
-                        <div className="h-3 w-24 rounded animate-shimmer" />
-                      </div>
+                    <div className="ml-6 pl-3 border-l-2 border-accent/20 space-y-2 py-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex items-center gap-2.5 py-2 px-3">
+                          <Skeleton variant="circular" className="w-5 h-5" />
+                          <div className="flex-1 space-y-1.5">
+                            <Skeleton className="h-3 w-3/4" />
+                            <Skeleton className="h-2 w-1/2" />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 

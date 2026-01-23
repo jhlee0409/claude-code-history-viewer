@@ -8,8 +8,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { BarChart3, Loader2, Sparkles } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LoadingState } from "@/components/ui/loading";
 import { useAppStore } from "../../store/useAppStore";
 import { useAnalytics } from "../../hooks/useAnalytics";
 import type { AnalyticsDashboardProps } from "./types";
@@ -54,22 +55,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     if (isLoadingGlobalStats) {
       return (
         <div className="flex-1 p-6 flex items-center justify-center bg-background">
-          <div className="text-center space-y-4">
-            <div className="relative">
-              <Loader2 className="w-14 h-14 mx-auto animate-spin text-accent/40" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-accent animate-pulse" />
-              </div>
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-1">
-                {t("analytics.loadingGlobalStats")}
-              </h2>
-              <p className="text-[12px] text-muted-foreground">
-                {t("analytics.loadingGlobalStatsDescription")}
-              </p>
-            </div>
-          </div>
+          <LoadingState
+            isLoading={true}
+            loadingMessage={t("analytics.loadingGlobalStats")}
+            loadingSubMessage={t("analytics.loadingGlobalStatsDescription")}
+            spinnerSize="xl"
+            withSparkle={true}
+          />
         </div>
       );
     }
@@ -80,20 +72,26 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
     return (
       <div className="flex-1 p-6 flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <div className="relative">
-            <BarChart3 className="w-14 h-14 mx-auto text-muted-foreground/30" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--metric-purple)_/_0.1,_transparent_70%)]" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground mb-1">
-              {t("analytics.Analytics Dashboard")}
-            </h2>
-            <p className="text-[12px] text-muted-foreground">
-              {t("analytics.Select a project to view analytics")}
-            </p>
-          </div>
-        </div>
+        <LoadingState
+          isLoading={false}
+          isEmpty={true}
+          emptyComponent={
+            <div className="text-center space-y-4">
+              <div className="relative">
+                <BarChart3 className="w-14 h-14 mx-auto text-muted-foreground/30" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--metric-purple)_/_0.1,_transparent_70%)]" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground mb-1">
+                  {t("analytics.Analytics Dashboard")}
+                </h2>
+                <p className="text-[12px] text-muted-foreground">
+                  {t("analytics.Select a project to view analytics")}
+                </p>
+              </div>
+            </div>
+          }
+        />
       </div>
     );
   }

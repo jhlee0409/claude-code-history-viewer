@@ -551,7 +551,7 @@ pub async fn load_project_sessions(
     let mut cache = load_cache(&project_path);
     let mut cache_updated = false;
 
-    // 2. 모든 JSONL 파일 경로 수집
+    // 2. Collect all JSONL file paths
     let file_paths: Vec<PathBuf> = WalkDir::new(&project_path)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -560,7 +560,7 @@ pub async fn load_project_sessions(
         .collect();
 
     #[cfg(debug_assertions)]
-    eprintln!("🔍 load_project_sessions: {}개 파일 처리 시작", file_paths.len());
+    eprintln!("🔍 load_project_sessions: processing {} files", file_paths.len());
 
     // 3. Categorize files into: cached, incremental, full parse
     let mut strategies: Vec<FileParseStrategy> = Vec::with_capacity(file_paths.len());
@@ -622,7 +622,7 @@ pub async fn load_project_sessions(
 
     #[cfg(debug_assertions)]
     eprintln!(
-        "📦 캐시 적중: {}개, 증분 파싱: {}개, 전체 파싱: {}개",
+        "📦 Cache hits: {}, incremental parsing: {}, full parsing: {}",
         cache_hit_count, incremental_count, full_parse_count
     );
 
@@ -705,7 +705,7 @@ pub async fn load_project_sessions(
         }
     }
 
-    // 6. 정렬
+    // 6. Sort
     sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
 
     // 8. Summary propagation
@@ -736,14 +736,14 @@ pub async fn load_project_sessions(
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        println!("📊 load_project_sessions 성능: {}개 세션, {}ms 소요",
+        println!("📊 load_project_sessions performance: {} sessions, {}ms elapsed",
                  sessions.len(), elapsed.as_millis());
     }
 
     Ok(sessions)
 }
 
-/// 단일 라인을 파싱하여 ClaudeMessage로 변환 (라인 번호 포함)
+/// Parse a single line into ClaudeMessage (with line number)
 fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> Option<ClaudeMessage> {
     if line.trim().is_empty() {
         return None;
@@ -855,7 +855,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     let content = fs::read_to_string(&session_path)
         .map_err(|e| format!("Failed to read session file: {}", e))?;
 
-    // 라인을 수집하고 병렬로 파싱
+    // Collect lines and parse in parallel
     let lines: Vec<(usize, &str)> = content.lines().enumerate().collect();
 
     let mut messages: Vec<(usize, ClaudeMessage)> = lines
@@ -867,14 +867,14 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
         })
         .collect();
 
-    // 원래 순서 유지를 위해 라인 번호로 정렬
+    // Sort by line number to maintain original order
     messages.sort_by_key(|(line_num, _)| *line_num);
     let messages: Vec<ClaudeMessage> = messages.into_iter().map(|(_, msg)| msg).collect();
 
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        eprintln!("📤 [load_session_messages] {}개 메시지, {}ms 소요 (system/summary messages excluded)",
+        eprintln!("📤 [load_session_messages] {} messages, {}ms elapsed (system/summary messages excluded)",
             messages.len(), elapsed.as_millis());
     }
 
@@ -951,7 +951,7 @@ pub async fn load_session_messages_paginated(
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        eprintln!("📊 load_session_messages_paginated 성능: {}개/{}개 메시지, {}ms 소요 (최적화됨)",
+        eprintln!("📊 load_session_messages_paginated performance: {}/{} messages, {}ms elapsed (optimized)",
                  messages.len(), total_count, elapsed.as_millis());
     }
 

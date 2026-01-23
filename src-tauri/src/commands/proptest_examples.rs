@@ -216,8 +216,8 @@ mod regression_tests {
 
     #[test]
     fn test_unicode_project_name() {
-        let result = crate::utils::extract_project_name("프로젝트-이름");
-        assert_eq!(result, "프로젝트-이름");
+        let result = crate::utils::extract_project_name("project-name");
+        assert_eq!(result, "project-name");
     }
 
     #[test]

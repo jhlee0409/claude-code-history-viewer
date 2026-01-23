@@ -12,7 +12,8 @@ import { useResizablePanel } from "./hooks/useResizablePanel";
 
 import { useTranslation } from "react-i18next";
 import { AppErrorType, type ClaudeSession, type ClaudeProject } from "./types";
-import { AlertTriangle, Loader2, MessageSquare, Database, BarChart3, FileEdit, Coins } from "lucide-react";
+import { AlertTriangle, MessageSquare, Database, BarChart3, FileEdit, Coins } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/loading";
 import { useLanguageStore } from "./store/useLanguageStore";
 import { type SupportedLanguage } from "./i18n";
 
@@ -344,7 +345,7 @@ function App() {
             isLoadingMessages ||
             computed.isAnyLoading) && (
             <div className="flex items-center gap-1.5">
-              <Loader2 className="w-3 h-3 animate-spin" />
+              <LoadingSpinner size="xs" variant="muted" />
               <span>
                 {computed.isAnyLoading && t("status.loadingStats")}
                 {isLoadingProjects && t("status.scanning")}

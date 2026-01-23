@@ -6,7 +6,8 @@
 
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageCircle, Activity, Clock, Wrench, Layers, Cpu, TrendingUp, Database, Loader2, Sparkles } from "lucide-react";
+import { MessageCircle, Activity, Clock, Wrench, Layers, Cpu, TrendingUp, Database } from "lucide-react";
+import { LoadingState } from "@/components/ui/loading";
 import type { ProjectStatsSummary } from "../../../types";
 import { formatDuration } from "../../../utils/time";
 import {
@@ -60,15 +61,12 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
     if (isLoading) {
       return (
         <div className="flex items-center justify-center h-full">
-          <div className="text-center space-y-4">
-            <div className="relative">
-              <Loader2 className="w-12 h-12 mx-auto animate-spin text-accent/50" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-accent animate-pulse" />
-              </div>
-            </div>
-            <p className="text-[12px] text-muted-foreground">{t("analytics.loading")}</p>
-          </div>
+          <LoadingState
+            isLoading={true}
+            loadingMessage={t("analytics.loading")}
+            spinnerSize="lg"
+            withSparkle={true}
+          />
         </div>
       );
     }
