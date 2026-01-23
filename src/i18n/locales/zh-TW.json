@@ -641,6 +641,7 @@
   "recentEdits.searchPlaceholder": "按檔案路徑或內容搜尋...",
   "recentEdits.stats": "{{files}}個檔案，{{edits}}次編輯",
   "recentEdits.title": "最近編輯",
+  "recentEdits.showMore": "顯示更多 {{count}} 個",
   "messages.hasMore": "還有更多：{{status}}",
   "messages.messageInfo": "訊息：{{current}}則 / {{total}}則",
   "messages.noMessages": "沒有訊息",

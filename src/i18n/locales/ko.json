@@ -641,6 +641,7 @@
   "recentEdits.searchPlaceholder": "파일 경로 또는 내용으로 검색...",
   "recentEdits.stats": "{{files}}개 파일, {{edits}}개 편집",
   "recentEdits.title": "최근 편집",
+  "recentEdits.showMore": "{{count}}개 더 보기",
   "messages.hasMore": "더 있음: {{status}}",
   "messages.messageInfo": "메시지: {{current}}개 / {{total}}개",
   "messages.noMessages": "메시지가 없습니다",

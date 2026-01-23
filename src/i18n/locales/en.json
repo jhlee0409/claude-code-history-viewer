@@ -641,6 +641,7 @@
   "recentEdits.searchPlaceholder": "Search by file path or content...",
   "recentEdits.stats": "{{files}} files, {{edits}} total edits",
   "recentEdits.title": "Recent Edits",
+  "recentEdits.showMore": "Show {{count}} more",
   "messages.hasMore": "Has More: {{status}}",
   "messages.messageInfo": "Messages: {{current}}/{{total}}",
   "messages.noMessages": "No messages",

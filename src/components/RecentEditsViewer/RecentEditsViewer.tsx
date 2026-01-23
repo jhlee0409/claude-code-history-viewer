@@ -6,14 +6,17 @@
 
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { FileEdit, Search, File } from "lucide-react";
+import { FileEdit, Search, File, ChevronDown, Loader2 } from "lucide-react";
 import { useTheme } from "@/contexts/theme";
 import { layout } from "@/components/renderers";
 import { LoadingState } from "@/components/ui/loading";
 import type { RecentEditsViewerProps } from "./types";
 import { FileEditItem } from "./FileEditItem";
+
+/** Number of edits to display initially and per "show more" click */
+const EDITS_PER_PAGE = 20;
 
 export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   recentEdits,
@@ -23,6 +26,22 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
+  const [displayCount, setDisplayCount] = useState(EDITS_PER_PAGE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Reset display count when data or search changes
+  useEffect(() => {
+    setDisplayCount(EDITS_PER_PAGE);
+  }, [recentEdits?.files?.length, searchQuery]);
+
+  // Handle "Show More" click
+  const handleShowMore = useCallback(() => {
+    setIsLoadingMore(true);
+    requestAnimationFrame(() => {
+      setDisplayCount((prev) => prev + EDITS_PER_PAGE);
+      setIsLoadingMore(false);
+    });
+  }, []);
 
   // Filter files by search query
   const filteredFiles = useMemo(() => {
@@ -46,6 +65,15 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
       totalEditsCount: files.length,
     };
   }, [filteredFiles]);
+
+  // Memoize displayed files for pagination
+  const displayedFiles = useMemo(
+    () => filteredFiles.slice(0, displayCount),
+    [filteredFiles, displayCount]
+  );
+
+  const hasMoreFiles = displayCount < filteredFiles.length;
+  const remainingCount = filteredFiles.length - displayCount;
 
   // Loading/Error/Empty states
   if (isLoading || error || !recentEdits || recentEdits.files.length === 0) {
@@ -91,11 +119,16 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
               </p>
             </div>
           </div>
-          <div
-            className={`flex items-center gap-2 ${layout.bodyText} text-accent bg-accent/10 px-3 py-1.5 rounded-full`}
-          >
-            <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-            <span className="font-medium">{stats.totalEditsCount} edits</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-muted-foreground font-mono">
+              {Math.min(displayCount, filteredFiles.length)} / {filteredFiles.length}
+            </span>
+            <div
+              className={`flex items-center gap-2 ${layout.bodyText} text-accent bg-accent/10 px-3 py-1.5 rounded-full`}
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              <span className="font-medium">{stats.totalEditsCount} edits</span>
+            </div>
           </div>
         </div>
 
@@ -126,9 +159,35 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
             </p>
           </div>
         ) : (
-          filteredFiles.map((edit, index) => (
-            <FileEditItem key={`${edit.file_path}-${index}`} edit={edit} isDarkMode={isDarkMode} />
-          ))
+          <>
+            {displayedFiles.map((edit, index) => (
+              <FileEditItem key={`${edit.file_path}-${index}`} edit={edit} isDarkMode={isDarkMode} />
+            ))}
+
+            {/* Show More Button */}
+            {hasMoreFiles && (
+              <button
+                onClick={handleShowMore}
+                disabled={isLoadingMore}
+                className="w-full py-4 rounded-xl text-[13px] font-medium bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border text-muted-foreground hover:text-foreground transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {t("common.loading")}
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4" />
+                    {t("recentEdits.showMore", { count: Math.min(EDITS_PER_PAGE, remainingCount) })}
+                    <span className="text-muted-foreground/70">
+                      ({remainingCount} {t("analytics.remaining")})
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
+          </>
         )}
       </div>
 

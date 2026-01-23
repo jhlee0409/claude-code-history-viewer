@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-01-23T18:33:56.558Z
- * 총 키 개수: 742
+ * 생성 시간: 2026-01-23T18:39:49.947Z
+ * 총 키 개수: 743
  */
 
 /**
@@ -647,6 +647,7 @@ export type TranslationKey =
   | 'recentEdits.searchPlaceholder'
   | 'recentEdits.stats'
   | 'recentEdits.title'
+  | 'recentEdits.showMore'
   | 'messages.hasMore'
   | 'messages.messageInfo'
   | 'messages.noMessages'
@@ -1647,7 +1648,8 @@ export type RecentEditsKeys =
   | 'restoreFile'
   | 'searchPlaceholder'
   | 'stats'
-  | 'title';
+  | 'title'
+  | 'showMore';
 
 /**
  * messages 네임스페이스 키

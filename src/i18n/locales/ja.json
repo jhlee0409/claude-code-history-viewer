@@ -641,6 +641,7 @@
   "recentEdits.searchPlaceholder": "ファイルパスまたは内容で検索...",
   "recentEdits.stats": "{{files}}ファイル、{{edits}}件の編集",
   "recentEdits.title": "最近の編集",
+  "recentEdits.showMore": "さらに{{count}}件を表示",
   "messages.hasMore": "さらにある：{{status}}",
   "messages.messageInfo": "メッセージ：{{current}}件 / {{total}}件",
   "messages.noMessages": "メッセージがありません",
