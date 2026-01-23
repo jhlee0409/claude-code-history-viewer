@@ -21,6 +21,8 @@ interface UseScrollNavigationOptions {
   virtualizer?: Virtualizer<HTMLElement, Element> | null;
   /** Function to get scroll index for a UUID (handles group member resolution) */
   getScrollIndex?: (uuid: string) => number | null;
+  /** Whether the scroll element is ready (OverlayScrollbars initialized) */
+  scrollElementReady?: boolean;
 }
 
 interface UseScrollNavigationReturn {
@@ -42,6 +44,7 @@ export const useScrollNavigation = ({
   isLoading,
   virtualizer,
   getScrollIndex,
+  scrollElementReady = false,
 }: UseScrollNavigationOptions): UseScrollNavigationReturn => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -178,6 +181,11 @@ export const useScrollNavigation = ({
       scrollTimeoutRef.current = null;
     }
 
+    // 스크롤 요소가 준비되지 않았으면 대기
+    if (!scrollElementReady) {
+      return;
+    }
+
     // 메시지가 있고 로딩 완료되고 현재 세션에 대해 스크롤이 안된 상태일 때
     if (
       messagesLength > 0 &&
@@ -185,19 +193,18 @@ export const useScrollNavigation = ({
       selectedSessionId &&
       scrollReadyForSessionId !== selectedSessionId
     ) {
-      // 스크롤 실행 및 완료 대기
+      // RAF를 사용하여 렌더링 완료 후 스크롤 (2프레임 대기)
       requestAnimationFrame(() => {
-        scrollToBottom();
-
-        // 스크롤 완료 대기 후 해당 세션에 대해 준비 완료 표시
-        scrollTimeoutRef.current = setTimeout(() => {
+        requestAnimationFrame(() => {
           scrollToBottom();
 
+          // 스크롤 완료 대기 후 해당 세션에 대해 준비 완료 표시
           scrollTimeoutRef.current = setTimeout(() => {
+            scrollToBottom();
             // 현재 세션 ID를 준비 완료로 표시
             setScrollReadyForSessionId(selectedSessionId);
-          }, 200);
-        }, 200);
+          }, 100);
+        });
       });
     }
 
@@ -207,7 +214,7 @@ export const useScrollNavigation = ({
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [messagesLength, isLoading, selectedSessionId, scrollReadyForSessionId, scrollToBottom]);
+  }, [messagesLength, isLoading, selectedSessionId, scrollReadyForSessionId, scrollToBottom, scrollElementReady]);
 
   // 현재 매치 변경 시 해당 하이라이트로 스크롤
   useEffect(() => {

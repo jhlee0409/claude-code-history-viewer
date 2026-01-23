@@ -176,6 +176,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     isLoading,
     virtualizer,
     getScrollIndex,
+    scrollElementReady,
   });
 
   // 검색어 초기화 핸들러
@@ -199,9 +200,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     }
   }, [onNextMatch, onPrevMatch, handleClearSearch]);
 
-  // 세션 전환 중인지 확인 (세션 ID 불일치 = 아직 스크롤/로딩 완료 안됨)
+  // 세션 전환 중인지 확인 (스크롤 요소 미준비 또는 세션 ID 불일치)
   const isSessionTransitioning = selectedSession?.session_id &&
-    scrollReadyForSessionId !== selectedSession?.session_id;
+    (!scrollElementReady || scrollReadyForSessionId !== selectedSession?.session_id);
 
   // 로딩 중이거나 세션 전환 중일 때 로딩 표시
   if ((isLoading || isSessionTransitioning) && messages.length === 0) {
@@ -420,6 +421,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           </div>
         )}
 
+        {/* 스크롤 준비 중 로딩 오버레이 */}
+        {flattenedMessages.length > 0 && scrollElementReady &&
+         scrollReadyForSessionId !== selectedSession?.session_id && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+            <LoadingSpinner size="sm" variant="muted" />
+          </div>
+        )}
+
         {/* 가상화된 메시지 렌더링 */}
         {flattenedMessages.length > 0 && scrollElementReady && (
           <div
@@ -427,6 +436,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               height: totalSize,
               width: "100%",
               position: "relative",
+              // 스크롤 준비 완료 전까지 투명하게 처리하여 점프 현상 방지
+              opacity: scrollReadyForSessionId === selectedSession?.session_id ? 1 : 0,
+              transition: "opacity 150ms ease-in",
             }}
           >
             {virtualRows.map((virtualRow) => {
