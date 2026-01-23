@@ -20,7 +20,7 @@ export const FileContent = ({
   title: string;
   searchQuery?: string;
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const { renderCopyButton } = useCopyButton();
   const { isDarkMode } = useTheme();
   const content = typeof fileData.content === "string" ? fileData.content : "";

@@ -15,7 +15,7 @@ import { hasSystemCommandContent } from "../helpers/messageHelpers";
 import type { MessageHeaderProps } from "../types";
 
 export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const isToolResultMessage = !!message.toolUseResult && message.type === "user";
   const isSystemContent = hasSystemCommandContent(message);
   const toolName = isToolResultMessage

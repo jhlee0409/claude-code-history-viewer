@@ -37,7 +37,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   projectStats = [],
   title,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   // Format large numbers
   const formatNumber = (num: number): string => {

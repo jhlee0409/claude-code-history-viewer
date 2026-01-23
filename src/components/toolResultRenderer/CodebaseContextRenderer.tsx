@@ -21,7 +21,7 @@ export const CodebaseContextRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
   const filesAnalyzed =
     contextData.files_analyzed || contextData.filesAnalyzed || 0;
   const contextWindow =

@@ -11,7 +11,7 @@ type Props = {
 export const RedactedThinkingRenderer = memo(function RedactedThinkingRenderer({
   data,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   return (
     <div className={cn(layout.rounded, "border border-border bg-muted")}>

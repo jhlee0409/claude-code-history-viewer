@@ -21,7 +21,7 @@ const formatCost = (usd: number): string => {
 };
 
 export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = ({ message }) => {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
   const { model, usage, type, costUSD, durationMs } = message;
 
   if (type !== 'assistant' || !model) {

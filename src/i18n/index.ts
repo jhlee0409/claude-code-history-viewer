@@ -2,25 +2,12 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-import enCommon from './locales/en/common.json';
-import enComponents from './locales/en/components.json';
-import enMessages from './locales/en/messages.json';
-
-import koCommon from './locales/ko/common.json';
-import koComponents from './locales/ko/components.json';
-import koMessages from './locales/ko/messages.json';
-
-import jaCommon from './locales/ja/common.json';
-import jaComponents from './locales/ja/components.json';
-import jaMessages from './locales/ja/messages.json';
-
-import zhCNCommon from './locales/zh-CN/common.json';
-import zhCNComponents from './locales/zh-CN/components.json';
-import zhCNMessages from './locales/zh-CN/messages.json';
-
-import zhTWCommon from './locales/zh-TW/common.json';
-import zhTWComponents from './locales/zh-TW/components.json';
-import zhTWMessages from './locales/zh-TW/messages.json';
+// 평탄화된 단일 JSON 파일 import
+import en from './locales/en.json';
+import ko from './locales/ko.json';
+import ja from './locales/ja.json';
+import zhCN from './locales/zh-CN.json';
+import zhTW from './locales/zh-TW.json';
 
 export const supportedLanguages = {
   en: 'English',
@@ -42,32 +29,13 @@ export const languageLocaleMap: Record<string, string> = {
   'zh-MO': 'zh-MO',
 };
 
+// 단일 네임스페이스 구조
 const resources = {
-  en: {
-    common: enCommon,
-    components: enComponents,
-    messages: enMessages,
-  },
-  ko: {
-    common: koCommon,
-    components: koComponents,
-    messages: koMessages,
-  },
-  ja: {
-    common: jaCommon,
-    components: jaComponents,
-    messages: jaMessages,
-  },
-  'zh-CN': {
-    common: zhCNCommon,
-    components: zhCNComponents,
-    messages: zhCNMessages,
-  },
-  'zh-TW': {
-    common: zhTWCommon,
-    components: zhTWComponents,
-    messages: zhTWMessages,
-  },
+  en: { translation: en },
+  ko: { translation: ko },
+  ja: { translation: ja },
+  'zh-CN': { translation: zhCN },
+  'zh-TW': { translation: zhTW },
 };
 
 i18n
@@ -76,8 +44,8 @@ i18n
   .init({
     resources,
     fallbackLng: 'en',
-    defaultNS: 'common',
-    ns: ['common', 'components', 'messages'],
+    defaultNS: 'translation',
+    ns: ['translation'],
 
     interpolation: {
       escapeValue: false,
@@ -85,8 +53,12 @@ i18n
 
     detection: {
       order: ['localStorage', 'navigator', 'htmlTag'],
-      caches: ['localStorage'], // localStorage에 저장
+      caches: ['localStorage'],
     },
   });
 
 export default i18n;
+
+// 타입 및 훅 re-export
+export { useAppTranslation } from './useAppTranslation';
+export type { TranslationKey, TranslationPrefix } from './types.generated';

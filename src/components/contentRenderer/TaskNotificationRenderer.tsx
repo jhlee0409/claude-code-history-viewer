@@ -209,7 +209,7 @@ const getPreviewLines = (text: string, lineCount: number = 3): string => {
 };
 
 export const TaskNotificationRenderer = ({ text }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const [isGroupExpanded, setIsGroupExpanded] = useState(true); // Default open
   const [expandedTaskIndices, setExpandedTaskIndices] = useState<Set<number>>(new Set());
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false); // Details collapsed by default

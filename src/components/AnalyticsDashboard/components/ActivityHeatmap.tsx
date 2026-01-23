@@ -17,7 +17,7 @@ interface ActivityHeatmapProps {
 }
 
 export const ActivityHeatmapComponent: React.FC<ActivityHeatmapProps> = ({ data }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const maxActivity = Math.max(...data.map((d) => d.activity_count), 1);
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const days = t("analytics.weekdayNames", { returnObjects: true }) as string[];

@@ -21,7 +21,7 @@ export interface UseNativeUpdaterReturn {
 }
 
 export function useNativeUpdater(): UseNativeUpdaterReturn {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation();
   const [state, setState] = useState<UpdateState>({
     isChecking: false,
     hasUpdate: false,
@@ -51,7 +51,7 @@ export function useNativeUpdater(): UseNativeUpdaterReturn {
         error:
           error instanceof Error
             ? error.message
-            : t("error.updateCheckFailed", "Failed to check for updates"),
+            : t('common.error.updateCheckFailed', "Failed to check for updates"),
       }));
     }
   }, [t]);
@@ -97,7 +97,7 @@ export function useNativeUpdater(): UseNativeUpdaterReturn {
         error:
           error instanceof Error
             ? error.message
-            : t("error.updateInstallFailed", "Failed to install update"),
+            : t('common.error.updateInstallFailed', "Failed to install update"),
       }));
     }
   }, [state.updateInfo, t]);

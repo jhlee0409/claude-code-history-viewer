@@ -35,7 +35,7 @@ export function SimpleUpdateSettings({
   onManualCheck,
   isCheckingForUpdates = false
 }: SimpleUpdateSettingsProps) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
   const { updateSettings: settings, setUpdateSetting, loadUpdateSettings } = useAppStore();
 
   useEffect(() => {

@@ -26,11 +26,11 @@ export function FolderSelector({
   mode = "notFound",
   onClose,
 }: FolderSelectorProps) {
+  const { t } = useTranslation();
   const [selectedPath, setSelectedPath] = useState<string>("");
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string>("");
 
-  const { t: tComponents } = useTranslation("components");
   const isChangeMode = mode === "change";
 
   const handleSelectFolder = async () => {
@@ -38,7 +38,7 @@ export function FolderSelector({
       const selected = await open({
         directory: true,
         multiple: false,
-        title: tComponents("folderPicker.selectFolderTitle"),
+        title: t("folderPicker.selectFolderTitle"),
       });
 
       if (selected && typeof selected === "string") {
@@ -47,8 +47,8 @@ export function FolderSelector({
         await validateAndSelectFolder(selected);
       }
     } catch (err) {
-      console.error(tComponents("folderPicker.folderSelectError"), err);
-      setValidationError(tComponents("folderPicker.folderSelectErrorDetails"));
+      console.error(t("folderPicker.folderSelectError"), err);
+      setValidationError(t("folderPicker.folderSelectErrorDetails"));
     }
   };
 
@@ -62,10 +62,10 @@ export function FolderSelector({
       if (isValid) {
         onFolderSelected(path);
       } else {
-        setValidationError(tComponents("folderPicker.invalidFolder"));
+        setValidationError(t("folderPicker.invalidFolder"));
       }
     } catch {
-      setValidationError(tComponents("folderPicker.validationError"));
+      setValidationError(t("folderPicker.validationError"));
     } finally {
       setIsValidating(false);
     }
@@ -84,13 +84,13 @@ export function FolderSelector({
       <div className="space-y-2">
         <h1 className="text-2xl font-bold text-foreground">
           {isChangeMode
-            ? tComponents("folderPicker.change")
-            : tComponents("folderPicker.notFound")}
+            ? t("folderPicker.change")
+            : t("folderPicker.notFound")}
         </h1>
         <p className="text-muted-foreground">
           {isChangeMode
-            ? tComponents("folderPicker.newFolder")
-            : tComponents("folderPicker.homeNotFound")}
+            ? t("folderPicker.newFolder")
+            : t("folderPicker.homeNotFound")}
         </p>
       </div>
 
@@ -103,8 +103,8 @@ export function FolderSelector({
       >
         <Folder className="h-4 w-4" />
         {isValidating
-          ? tComponents("folderPicker.validating")
-          : tComponents("folderPicker.selectButton")}
+          ? t("folderPicker.validating")
+          : t("folderPicker.selectButton")}
       </Button>
 
       {/* Selected Path */}
@@ -112,7 +112,7 @@ export function FolderSelector({
         <Alert variant="default" className="text-left">
           <CheckCircle2 className="h-4 w-4" />
           <AlertDescription className="truncate">
-            {tComponents("folderPicker.selectedPath")} {selectedPath}
+            {t("folderPicker.selectedPath")} {selectedPath}
           </AlertDescription>
         </Alert>
       )}
@@ -130,12 +130,12 @@ export function FolderSelector({
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <HelpCircle className="h-4 w-4" />
-            {tComponents("folderPicker.help")}
+            {t("folderPicker.help")}
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <p className="text-sm text-muted-foreground whitespace-pre-line">
-            {tComponents("folderPicker.helpDetails")}
+            {t("folderPicker.helpDetails")}
           </p>
         </CardContent>
       </Card>
@@ -148,9 +148,9 @@ export function FolderSelector({
       <Dialog open={true} onOpenChange={(open) => !open && onClose?.()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="sr-only">
-            <DialogTitle>{tComponents("folderPicker.change")}</DialogTitle>
+            <DialogTitle>{t("folderPicker.change")}</DialogTitle>
             <DialogDescription>
-              {tComponents("folderPicker.newFolder")}
+              {t("folderPicker.newFolder")}
             </DialogDescription>
           </DialogHeader>
           {content}
@@ -176,7 +176,7 @@ export function FolderSelector({
             className="absolute left-4 top-4"
           >
             <ArrowLeft className="h-4 w-4" />
-            {tComponents("folderPicker.backButton")}
+            {t("folderPicker.backButton")}
           </Button>
         )}
         <CardContent className="pt-12 pb-8 px-8">

@@ -25,7 +25,7 @@ export const SummaryMessageRenderer = memo(function SummaryMessageRenderer({
   summary,
   leafUuid,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   if (!summary) {
     return null;

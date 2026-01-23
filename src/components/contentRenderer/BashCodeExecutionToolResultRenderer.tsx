@@ -35,7 +35,7 @@ export const BashCodeExecutionToolResultRenderer = memo(
     toolUseId,
     content,
   }: BashCodeExecutionToolResultRendererProps) {
-    const { t } = useTranslation("components");
+    const { t } = useTranslation();
 
     // Error state
     if (isBashError(content)) {

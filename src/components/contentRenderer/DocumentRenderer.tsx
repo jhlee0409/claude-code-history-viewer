@@ -44,7 +44,7 @@ const isURLPDF = (
 };
 
 export const DocumentRenderer = memo(function DocumentRenderer({ document }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const { source, title, context } = document;
   const documentStyles = getVariantStyles("document");
 

@@ -11,7 +11,7 @@ type Props = {
 };
 
 export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
   try {
     // Split by lines and filter out empty lines
     const lines = content.split("\n").filter((line) => line.trim());

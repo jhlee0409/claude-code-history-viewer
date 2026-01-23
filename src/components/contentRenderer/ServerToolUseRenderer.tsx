@@ -16,7 +16,7 @@ export const ServerToolUseRenderer = memo(function ServerToolUseRenderer({
   name,
   input,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   const getIcon = () => {
     switch (name) {

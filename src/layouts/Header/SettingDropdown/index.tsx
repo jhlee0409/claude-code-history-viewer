@@ -22,9 +22,8 @@ import { FilterMenuGroup } from "./FilterMenuGroup";
 export const SettingDropdown = () => {
   const manualUpdater = useGitHubUpdater();
   const smartUpdater = useSmartUpdater();
-  const { t } = useTranslation("common");
-  const { t: tComponents } = useTranslation("components");
-  const { openModal } = useModal();
+  const { t } = useTranslation();
+    const { openModal } = useModal();
 
   // 자동 또는 수동 업데이트 체크 중인지 확인
   const isCheckingForUpdates = manualUpdater.state.isChecking || smartUpdater.state.isChecking;
@@ -43,21 +42,21 @@ export const SettingDropdown = () => {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>{t("settings.title")}</DropdownMenuLabel>
+          <DropdownMenuLabel>{t('common.settings.title')}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => openModal("folderSelector", { mode: "change" })}
           >
             <Folder className="mr-2 h-4 w-4 text-foreground" />
-            <span>{t("settings.changeFolder")}</span>
+            <span>{t('common.settings.changeFolder')}</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => openModal("feedback")}>
             <MessageSquare className="mr-2 h-4 w-4 text-foreground" />
-            <span>{tComponents("feedback.title")}</span>
+            <span>{t("feedback.title")}</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => window.dispatchEvent(new Event("open-update-settings"))}>
+          <DropdownMenuItem onClick={() => window.dispatchEvent(new Event('common.open-update-settings'))}>
             <Download className="mr-2 h-4 w-4 text-foreground" />
-            <span>{t("settings.updateSettings")}</span>
+            <span>{t('common.settings.updateSettings')}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <FilterMenuGroup />
@@ -71,7 +70,7 @@ export const SettingDropdown = () => {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
-              window.dispatchEvent(new Event("manual-update-check"));
+              window.dispatchEvent(new Event('common.manual-update-check'));
               manualUpdater.checkForUpdates(true); // 강제 체크
             }}
             disabled={manualUpdater.state.isChecking}
@@ -83,8 +82,8 @@ export const SettingDropdown = () => {
               )}
             />
             {manualUpdater.state.isChecking
-              ? t("settings.checking")
-              : t("settings.checkUpdate")}
+              ? t('common.settings.checking')
+              : t('common.settings.checkUpdate')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

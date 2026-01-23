@@ -94,7 +94,7 @@ export const CollapsibleToolResult = ({
   defaultExpanded,
   searchQuery,
 }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const toolName = getToolName(toolUse, toolResult, t);
   const shouldExpandByDefault = defaultExpanded ?? isSmallResult(toolResult);
   const [isExpanded, setIsExpanded] = useState(shouldExpandByDefault);

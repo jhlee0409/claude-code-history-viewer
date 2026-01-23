@@ -15,7 +15,7 @@ type Props = {
 };
 
 export const StringRenderer = ({ result, searchQuery }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   // 파일 트리나 디렉토리 구조인지 확인
   const isFileTree =
     result.includes("/") &&

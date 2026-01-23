@@ -51,7 +51,7 @@ export const CodeExecutionToolResultRenderer = memo(function CodeExecutionToolRe
   toolUseId,
   content,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   // Error state
   if (isCodeExecutionError(content)) {

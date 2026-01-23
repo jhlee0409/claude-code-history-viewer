@@ -15,7 +15,7 @@ interface UpdateIntroModalProps {
 }
 
 export function UpdateIntroModal({ isOpen, onClose }: UpdateIntroModalProps) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
 
   const handleUnderstood = () => {
     setUpdateSettings({

@@ -10,7 +10,7 @@ type Props = {
 };
 
 export const StructuredPatchRenderer = ({ toolResult }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const filePath =
     typeof toolResult.filePath === "string" ? toolResult.filePath : "";
   const content =

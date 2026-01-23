@@ -127,7 +127,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
   compactMetadata,
   microcompactMetadata,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   const subtypeKey = subtype as SystemSubtype;
   const config = SUBTYPE_CONFIG[subtypeKey] || LEVEL_CONFIG[level] || LEVEL_CONFIG.info;

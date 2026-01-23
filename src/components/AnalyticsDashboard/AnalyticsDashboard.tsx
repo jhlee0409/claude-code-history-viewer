@@ -18,7 +18,7 @@ import { ProjectStatsView, SessionStatsView, GlobalStatsView } from "./views";
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   isViewingGlobalStats = false,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const {
     selectedProject,
     selectedSession,

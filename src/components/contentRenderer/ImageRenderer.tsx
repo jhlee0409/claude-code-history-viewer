@@ -19,7 +19,7 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
   imageUrl,
   alt = "Claude generated image",
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);

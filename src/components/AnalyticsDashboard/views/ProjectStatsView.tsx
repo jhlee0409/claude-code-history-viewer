@@ -29,7 +29,7 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
   projectSummary,
   isLoading,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   // Generate 7-day daily data
   const dailyData = useMemo((): DailyStatData[] => {

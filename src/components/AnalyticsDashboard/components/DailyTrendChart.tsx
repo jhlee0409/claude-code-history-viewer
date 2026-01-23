@@ -16,7 +16,7 @@ interface DailyTrendChartProps {
 }
 
 export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   if (!dailyData.length) return null;
 

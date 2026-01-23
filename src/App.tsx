@@ -59,10 +59,8 @@ function App() {
   } = useAnalytics();
   void _analyticsActions;
 
-  const { t, i18n: i18nInstance } = useTranslation("common");
-  const { t: tComponents } = useTranslation("components");
-  const { t: tMessages } = useTranslation("messages");
-  const { language, loadLanguage } = useLanguageStore();
+  const { t, i18n: i18nInstance } = useTranslation();
+      const { language, loadLanguage } = useLanguageStore();
 
   const [isViewingGlobalStats, setIsViewingGlobalStats] = useState(false);
 
@@ -110,7 +108,7 @@ function App() {
         ? lng.includes("TW") || lng.includes("HK")
           ? "zh-TW"
           : "zh-CN"
-        : lng.split("-")[0];
+        : lng.split('common.-')[0];
 
       if (
         currentLang &&
@@ -180,14 +178,14 @@ function App() {
             <AlertTriangle className="w-8 h-8 text-destructive" />
           </div>
           <h1 className="text-xl font-semibold text-foreground mb-2">
-            {t("errorOccurred")}
+            {t('common.errorOccurred')}
           </h1>
           <p className="text-sm text-muted-foreground mb-6">{error.message}</p>
           <button
             onClick={() => window.location.reload()}
             className="action-btn primary"
           >
-            {t("retry")}
+            {t('common.retry')}
           </button>
         </div>
       </div>
@@ -241,20 +239,20 @@ function App() {
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">
                       {isViewingGlobalStats
-                        ? tComponents("analytics.globalOverview")
+                        ? t("analytics.globalOverview")
                         : computed.isAnalyticsView
-                        ? tComponents("analytics.dashboard")
+                        ? t("analytics.dashboard")
                         : computed.isRecentEditsView
-                        ? tComponents("recentEdits.title")
-                        : tMessages("tokenStats.title")}
+                        ? t("recentEdits.title")
+                        : t('messages.tokenStats.title')}
                     </h2>
                     <p className="text-xs text-muted-foreground">
                       {isViewingGlobalStats
-                        ? tComponents("analytics.globalOverviewDescription")
+                        ? t("analytics.globalOverviewDescription")
                         : computed.isRecentEditsView
-                        ? tComponents("recentEdits.description")
+                        ? t("recentEdits.description")
                         : selectedSession?.summary ||
-                          tComponents("session.summaryNotFound")}
+                          t("session.summaryNotFound")}
                     </p>
                   </div>
                 </div>
@@ -288,7 +286,7 @@ function App() {
                 >
                   <div className="p-6">
                     <TokenStatsViewer
-                      title={tMessages("tokenStats.title")}
+                      title={t('messages.tokenStats.title')}
                       sessionStats={sessionTokenStats}
                       projectStats={projectTokenStats}
                     />
@@ -314,10 +312,10 @@ function App() {
                       <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
                     </div>
                     <h3 className="text-lg font-medium text-foreground mb-2">
-                      {tComponents("session.select")}
+                      {t("session.select")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      {tComponents("session.selectDescription")}
+                      {t("session.selectDescription")}
                     </p>
                   </div>
                 </div>
@@ -329,13 +327,13 @@ function App() {
         {/* Status Bar */}
         <footer className="h-7 px-4 flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground">
           <div className="flex items-center gap-3 font-mono tabular-nums">
-            <span>{tComponents("project.count", { count: projects.length })}</span>
+            <span>{t("project.count", { count: projects.length })}</span>
             <span className="text-border">•</span>
-            <span>{tComponents("session.count", { count: sessions.length })}</span>
+            <span>{t("session.count", { count: sessions.length })}</span>
             {selectedSession && computed.isMessagesView && (
               <>
                 <span className="text-border">•</span>
-                <span>{tComponents("message.count", { count: messages.length })}</span>
+                <span>{t("message.count", { count: messages.length })}</span>
               </>
             )}
           </div>
@@ -348,11 +346,11 @@ function App() {
             <div className="flex items-center gap-1.5">
               <Loader2 className="w-3 h-3 animate-spin" />
               <span>
-                {computed.isAnyLoading && tComponents("status.loadingStats")}
-                {isLoadingProjects && tComponents("status.scanning")}
-                {isLoadingSessions && tComponents("status.loadingSessions")}
-                {isLoadingMessages && tComponents("status.loadingMessages")}
-                {isLoading && tComponents("status.initializing")}
+                {computed.isAnyLoading && t("status.loadingStats")}
+                {isLoadingProjects && t("status.scanning")}
+                {isLoadingSessions && t("status.loadingSessions")}
+                {isLoadingMessages && t("status.loadingMessages")}
+                {isLoading && t("status.initializing")}
               </span>
             </div>
           )}

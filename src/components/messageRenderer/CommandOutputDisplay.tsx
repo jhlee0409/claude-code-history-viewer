@@ -26,7 +26,7 @@ interface CommandOutputDisplayProps {
 export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
   stdout,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const { isDarkMode } = useTheme();
 
   // 다양한 출력 유형 감지

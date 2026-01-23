@@ -134,6 +134,129 @@ GitHub Actions가 자동으로:
   - `search_messages` - Searches across all messages
 - **Data Structure**: Reads JSONL files containing conversation history from `~/.claude/projects/`
 
+## i18n Structure (Internationalization)
+
+### File Structure
+
+```
+src/i18n/
+├── index.ts                # i18n configuration
+├── useAppTranslation.ts    # Type-safe custom hook
+├── types.generated.ts      # Auto-generated types (DO NOT EDIT)
+└── locales/
+    ├── en.json             # English (726 keys)
+    ├── ko.json             # Korean (726 keys)
+    ├── ja.json             # Japanese (726 keys)
+    ├── zh-CN.json          # Simplified Chinese (726 keys)
+    └── zh-TW.json          # Traditional Chinese (726 keys)
+```
+
+### Key Structure (Flat with Dot Notation)
+
+All keys use dot notation with prefixes for categorization:
+
+```json
+{
+  "common.appName": "Claude Code History Viewer",
+  "common.loading": "Loading...",
+  "analytics.dashboard": "Analytics Dashboard",
+  "session.title": "Session:",
+  "message.user": "User",
+  "tools.terminal": "Terminal",
+  "error.unexpected": "An unexpected error occurred"
+}
+```
+
+### Key Prefixes
+
+| Prefix | Usage | Example |
+|--------|-------|---------|
+| `common.` | Common UI (buttons, actions, states) | `common.loading`, `common.cancel` |
+| `analytics.` | Analytics/statistics | `analytics.dashboard`, `analytics.tokenUsage` |
+| `session.` | Session related | `session.title`, `session.loading` |
+| `project.` | Project related | `project.count`, `project.notFound` |
+| `message.` | Message viewer | `message.user`, `message.claude` |
+| `tools.` | Tool names | `tools.terminal`, `tools.readFile` |
+| `toolResult.` | Tool results | `toolResult.output`, `toolResult.error` |
+| `error.` | Error messages | `error.unexpected`, `error.sorry` |
+| `settings.` | Settings screen | `settings.title`, `settings.theme.light` |
+| `update.` | Update related | `update.available`, `update.downloading` |
+| `feedback.` | Feedback | `feedback.title`, `feedback.send` |
+
+### Usage in Components
+
+```typescript
+import { useTranslation } from 'react-i18next';
+
+const MyComponent = () => {
+  const { t } = useTranslation();
+
+  return (
+    <div>
+      <h1>{t('common.appName')}</h1>
+      <p>{t('session.title')}</p>
+      <button>{t('common.cancel')}</button>
+    </div>
+  );
+};
+```
+
+### i18n Scripts
+
+```bash
+pnpm run generate:i18n-types  # Regenerate types after adding keys
+pnpm run i18n:flatten         # Merge and flatten JSON files
+pnpm run i18n:sync            # Sync keys across all languages
+```
+
+### Adding New Messages
+
+1. **Add key to all 5 language files** with the appropriate prefix:
+   ```json
+   // en.json
+   { "feature.newKey": "New feature text" }
+
+   // ko.json
+   { "feature.newKey": "새 기능 텍스트" }
+   // ... repeat for ja.json, zh-CN.json, zh-TW.json
+   ```
+
+2. **Regenerate types**:
+   ```bash
+   pnpm run generate:i18n-types
+   ```
+
+3. **Verify key count** (all languages must have same count):
+   ```bash
+   for f in src/i18n/locales/*.json; do echo "$f: $(jq 'keys | length' $f)"; done
+   ```
+
+### Adding New Language
+
+1. Copy `en.json` to new language file (e.g., `es.json`)
+2. Translate all values
+3. Add language to `src/i18n/index.ts`:
+   ```typescript
+   import es from './locales/es.json';
+
+   export const supportedLanguages = {
+     // ... existing
+     es: 'Español',
+   };
+
+   const resources = {
+     // ... existing
+     es: { translation: es },
+   };
+   ```
+
+### Key Sync Verification
+
+```bash
+# Check for missing keys (comparing to English)
+diff <(jq -r 'keys[]' en.json | sort) <(jq -r 'keys[]' ko.json | sort)
+```
+
 ## Raw Message Structure
 
 The application reads `.jsonl` files where each line is a JSON object representing a single message. The core structure is as follows:

@@ -23,7 +23,7 @@ interface GlobalStatsViewProps {
 }
 
 export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const totalSessionTime = globalSummary.total_session_duration_minutes;
 
   return (

@@ -118,7 +118,7 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
   entries,
   agentId,
 }: AgentProgressGroupRendererProps) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const styles = getVariantStyles("info");
 

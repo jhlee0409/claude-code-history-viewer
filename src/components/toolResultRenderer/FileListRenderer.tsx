@@ -18,7 +18,7 @@ export const FileListRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
   return (
     <Renderer className="bg-tool-file/10 border-tool-file/30">
       <Renderer.Header

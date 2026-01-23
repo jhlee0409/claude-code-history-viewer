@@ -14,7 +14,7 @@ export function UpToDateNotification({
   onClose,
   isVisible,
 }: UpToDateNotificationProps) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   // 3초 후 자동으로 사라지기
   useEffect(() => {

@@ -71,7 +71,7 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
   toolUseId,
   content,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   if (isWebFetchError(content)) {
     const errorStyles = getVariantStyles("error");

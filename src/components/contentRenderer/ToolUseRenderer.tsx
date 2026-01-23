@@ -44,7 +44,7 @@ export const ToolUseRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: ToolUseRendererProps) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const { isDarkMode } = useTheme();
 
   const toolName = (toolUse.name as string) || "Unknown Tool";

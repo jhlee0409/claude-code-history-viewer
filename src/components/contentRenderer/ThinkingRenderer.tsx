@@ -18,7 +18,7 @@ export const ThinkingRenderer = memo(function ThinkingRenderer({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
   // 검색 쿼리가 있고 내용에 매칭되면 자동으로 펼치기

@@ -20,7 +20,7 @@ export const ErrorRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   // Extract the error details
   const errorMessage = error.replace("Error: ", "");
 

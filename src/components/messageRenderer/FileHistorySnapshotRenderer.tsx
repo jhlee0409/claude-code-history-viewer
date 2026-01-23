@@ -33,7 +33,7 @@ export const FileHistorySnapshotRenderer = memo(
     snapshot,
     isSnapshotUpdate,
   }: Props) {
-    const { t } = useTranslation("components");
+    const { t } = useTranslation();
 
     const trackedFilesCount = Object.keys(snapshot.trackedFileBackups || {}).length;
     const trackedFiles = Object.entries(snapshot.trackedFileBackups || {});

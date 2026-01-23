@@ -17,10 +17,8 @@ import { useTranslation } from "react-i18next";
 import { SettingDropdown } from "./SettingDropdown";
 
 export const Header = () => {
-  const { t } = useTranslation("common");
-  const { t: tComponents } = useTranslation("components");
-  const { t: tMessages } = useTranslation("messages");
-
+  const { t } = useTranslation();
+    
   const {
     selectedProject,
     selectedSession,
@@ -70,7 +68,7 @@ export const Header = () => {
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-semibold text-foreground">
-              {t("appName")}
+              {t('common.appName')}
             </h1>
             {selectedProject && (
               <>
@@ -85,10 +83,10 @@ export const Header = () => {
             <p className="text-2xs text-muted-foreground truncate max-w-sm">
               <span className="text-muted-foreground/60">Session:</span>{" "}
               {selectedSession.summary ||
-                `${tComponents("session.title")} ${selectedSession.session_id.slice(-8)}`}
+                `${t("session.title")} ${selectedSession.session_id.slice(-8)}`}
             </p>
           ) : (
-            <p className="text-2xs text-muted-foreground">{t("appDescription")}</p>
+            <p className="text-2xs text-muted-foreground">{t('common.appDescription')}</p>
           )}
         </div>
       </div>
@@ -110,7 +108,7 @@ export const Header = () => {
             {/* Analytics */}
             <NavButton
               icon={BarChart3}
-              label={tComponents("analytics.dashboard")}
+              label={t("analytics.dashboard")}
               isActive={computed.isAnalyticsView}
               onClick={() => {
                 if (computed.isAnalyticsView) {
@@ -124,7 +122,7 @@ export const Header = () => {
             {/* Token Stats */}
             <NavButton
               icon={computed.isAnyLoading ? Loader2 : Activity}
-              label={tMessages("tokenStats.existing")}
+              label={t('messages.tokenStats.existing')}
               isActive={computed.isTokenStatsView}
               isLoading={computed.isAnyLoading}
               onClick={() => {
@@ -140,7 +138,7 @@ export const Header = () => {
             {/* Recent Edits */}
             <NavButton
               icon={FileEdit}
-              label={tComponents("recentEdits.title")}
+              label={t("recentEdits.title")}
               isActive={computed.isRecentEditsView}
               onClick={() => {
                 if (computed.isRecentEditsView) {
@@ -162,7 +160,7 @@ export const Header = () => {
             {/* Messages */}
             <NavButton
               icon={MessageSquare}
-              label={tComponents("message.view")}
+              label={t("message.view")}
               isActive={computed.isMessagesView}
               onClick={() => {
                 if (!computed.isMessagesView) {
@@ -179,7 +177,7 @@ export const Header = () => {
                 "p-2 rounded-md transition-colors",
                 "text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
-              content={tComponents("session.refresh")}
+              content={t("session.refresh")}
             >
               <RefreshCw
                 className={cn("w-4 h-4", isLoadingMessages && "animate-spin")}

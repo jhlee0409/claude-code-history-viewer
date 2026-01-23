@@ -20,7 +20,7 @@ interface ContentArrayRendererProps {
 }
 
 export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRendererProps) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const styles = getVariantStyles("info");
 
   const content = Array.isArray(toolResult.content) ? toolResult.content : [];

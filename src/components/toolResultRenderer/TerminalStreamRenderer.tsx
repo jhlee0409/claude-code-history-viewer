@@ -28,7 +28,7 @@ export const TerminalStreamRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
 
   return (
     <Renderer className="bg-tool-terminal/10 border-tool-terminal/30">

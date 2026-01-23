@@ -24,7 +24,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
   sessionComparison,
   totalProjectSessions = 1,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   const avgTokensPerMessage =
     sessionStats.message_count > 0

@@ -25,7 +25,7 @@ const TOOL_COLORS = [
 ];
 
 export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const topTools = tools.slice(0, 6);
   const maxUsage = Math.max(...topTools.map((t) => t.usage_count), 1);
   const totalUsage = topTools.reduce((sum, t) => sum + t.usage_count, 0);

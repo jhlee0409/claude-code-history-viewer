@@ -10,7 +10,10 @@
     "tauri:build": "tauri build",
     "lint": "eslint src",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "generate:i18n-types": "node scripts/generate-i18n-types.mjs",
+    "i18n:flatten": "node scripts/flatten-i18n.mjs",
+    "i18n:sync": "node scripts/sync-i18n-keys.mjs"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.12",

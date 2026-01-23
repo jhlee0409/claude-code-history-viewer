@@ -19,7 +19,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   isLoading = false,
   error = null,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
 

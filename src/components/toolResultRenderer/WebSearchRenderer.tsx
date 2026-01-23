@@ -23,7 +23,7 @@ export const WebSearchRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
   const query = typeof searchData.query === "string" ? searchData.query : "";
   const results = Array.isArray(searchData.results) ? searchData.results : [];
   const durationSeconds =

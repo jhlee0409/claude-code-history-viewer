@@ -39,7 +39,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
     toolUseId,
     content,
   }: Props) {
-    const { t } = useTranslation("components");
+    const { t } = useTranslation();
 
     if (isTextEditorError(content)) {
       const errorStyles = getVariantStyles("error");

@@ -54,7 +54,7 @@ export const QueueOperationRenderer = memo(function QueueOperationRenderer({
   operation,
   content,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   const config = OPERATION_CONFIG[operation] || OPERATION_CONFIG.enqueue;
   const Icon = config.icon;

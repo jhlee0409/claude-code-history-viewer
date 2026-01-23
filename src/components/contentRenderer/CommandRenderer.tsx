@@ -37,7 +37,7 @@ export const CommandRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   // Command 그룹 (name, message, args) 추출
   const commandNameRegex = /<command-name>\s*(.*?)\s*<\/command-name>/gs;
@@ -286,7 +286,7 @@ const CaveatRenderer = ({
   currentMatchIndex = 0,
 }: CaveatRendererProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   // 검색 쿼리가 있고 내용에 매칭되면 자동으로 펼치기
   useEffect(() => {

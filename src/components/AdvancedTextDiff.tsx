@@ -27,7 +27,7 @@ export const AdvancedTextDiff = ({
   diffMode = "lines",
   title,
 }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const [currentMode, setCurrentMode] = useState<DiffMode>(diffMode);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -201,5 +201,4 @@ export const AdvancedTextDiff = ({
     </div>
   );
 };
-
 

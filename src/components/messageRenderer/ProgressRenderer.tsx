@@ -67,7 +67,7 @@ export const ProgressRenderer = memo(function ProgressRenderer({
   data,
   toolUseID,
 }: ProgressRendererProps) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   const config = PROGRESS_CONFIG[data.type] || PROGRESS_CONFIG.agent_progress;
   const styles = getVariantStyles(config.variant);

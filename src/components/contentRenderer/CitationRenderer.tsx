@@ -18,7 +18,7 @@ type Props = {
 export const CitationRenderer = memo(function CitationRenderer({
   citations,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   if (!citations || citations.length === 0) return null;
 

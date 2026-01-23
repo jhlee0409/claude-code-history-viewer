@@ -13,7 +13,7 @@ interface ClaudeToolUseDisplayProps {
 export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
   toolUse,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const toolName = toolUse.name || toolUse.tool || t("claudeToolUseDisplay.unknownTool");
 

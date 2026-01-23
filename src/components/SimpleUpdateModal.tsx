@@ -20,7 +20,7 @@ interface SimpleUpdateModalProps {
 }
 
 export function SimpleUpdateModal({ updater, isVisible, onClose }: SimpleUpdateModalProps) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
 
   if (!updater.state.releaseInfo || !updater.state.hasUpdate) return null;

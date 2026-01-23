@@ -20,7 +20,7 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
   distribution,
   total,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   const items = [
     { label: t("analytics.input"), value: distribution.input, color: "var(--metric-green)", icon: TrendingUp },

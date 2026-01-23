@@ -28,7 +28,7 @@ export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({
   toolUseId,
   content,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   if (isError(content)) {
     return (

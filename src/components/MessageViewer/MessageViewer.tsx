@@ -34,7 +34,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   onNextMatch,
   onPrevMatch,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const scrollContainerRef = useRef<OverlayScrollbarsComponentRef>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 

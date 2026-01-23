@@ -103,7 +103,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Check if content needs expand (for both user and assistant)

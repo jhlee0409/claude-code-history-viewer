@@ -80,7 +80,7 @@ const RendererHeader = ({
   rightContent,
 }: RendererHeaderProps) => {
   const { isOpen, toggle, hasError, enableToggle } = useContext(ContentContext);
-  const { t } = useTranslation("common");
+  const { t } = useTranslation();
 
   if (!enableToggle) {
     return (
@@ -98,7 +98,7 @@ const RendererHeader = ({
               hasError && "text-destructive"
             )}
           >
-            {`${title} ${hasError ? t("errorOccurred") : ""}`}
+            {`${title} ${hasError ? t('common.errorOccurred') : ""}`}
           </span>
         </div>
         <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
@@ -138,7 +138,7 @@ const RendererHeader = ({
             hasError && "text-destructive"
           )}
         >
-          {`${title} ${hasError ? t("errorOccurred") : ""}`}
+          {`${title} ${hasError ? t('common.errorOccurred') : ""}`}
         </span>
       </div>
       <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>

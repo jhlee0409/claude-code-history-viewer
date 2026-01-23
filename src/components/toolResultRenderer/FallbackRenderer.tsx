@@ -10,7 +10,7 @@ type Props = {
 };
 
 export const FallbackRenderer = ({ toolResult }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   return (
     <Renderer className="bg-card border-border">

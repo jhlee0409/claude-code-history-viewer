@@ -43,7 +43,7 @@ export const ClaudeContentArrayRenderer = ({
   currentMatchIndex = 0,
   skipToolResults = false,
 }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   if (!Array.isArray(content) || content.length === 0) {
     return null;
   }

@@ -8,7 +8,7 @@ interface CopyState {
 }
 
 export const useCopyButton = () => {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
   // 클립보드 복사 상태 관리
   const [copyStates, setCopyStates] = useState<CopyState>({});
 

@@ -51,7 +51,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 export const ToolSearchToolResultRenderer = memo(
   function ToolSearchToolResultRenderer({ toolUseId, content }: Props) {
-    const { t } = useTranslation("components");
+    const { t } = useTranslation();
 
     if (isToolSearchError(content)) {
       const errorStyles = getVariantStyles("error");

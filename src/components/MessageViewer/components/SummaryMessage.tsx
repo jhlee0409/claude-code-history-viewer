@@ -13,7 +13,7 @@ import type { SummaryMessageProps } from "../types";
 
 export const SummaryMessage: React.FC<SummaryMessageProps> = ({ content, timestamp }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   return (
     <div className="rounded-md border mx-4 my-2 bg-info/10 border-info/30">

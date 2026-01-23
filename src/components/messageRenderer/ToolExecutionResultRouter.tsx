@@ -40,7 +40,7 @@ export const ToolExecutionResultRouter: React.FC<
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   // Helper function to check if content is JSONL Claude session history
   const isClaudeSessionHistory = (content: string): boolean => {
     try {

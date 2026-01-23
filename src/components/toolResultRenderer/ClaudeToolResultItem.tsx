@@ -43,7 +43,7 @@ export const ClaudeToolResultItem = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: ClaudeToolResultItemProps) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const { renderCopyButton } = useCopyButton();
   const { isDarkMode } = useTheme();
 

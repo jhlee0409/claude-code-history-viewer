@@ -9,11 +9,11 @@ import { useTranslation } from "react-i18next";
 
 export const LanguageMenuGroup = () => {
   const { language, setLanguage } = useLanguageStore();
-  const { t } = useTranslation("common");
+  const { t } = useTranslation();
 
   return (
     <>
-      <DropdownMenuLabel>{t("settings.language.title")}</DropdownMenuLabel>
+      <DropdownMenuLabel>{t('common.settings.language.title')}</DropdownMenuLabel>
       <DropdownMenuRadioGroup
         value={language}
         onValueChange={(value) => setLanguage(value as SupportedLanguage)}

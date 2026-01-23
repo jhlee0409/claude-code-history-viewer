@@ -69,7 +69,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const config = STATUS_CONFIG[task.status] || STATUS_CONFIG.async_launched;
   const StatusIcon = config.icon;
@@ -169,7 +169,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
 export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
   tasks,
 }: AgentTaskGroupRendererProps) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const styles = getVariantStyles("task");

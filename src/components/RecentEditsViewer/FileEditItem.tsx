@@ -27,8 +27,8 @@ import type { FileEditItemProps, RestoreStatus } from "./types";
 import { getLanguageFromPath, formatTimestamp, getRelativeTime } from "./utils";
 
 export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) => {
-  const { t } = useTranslation("components");
-  const { t: tCommon } = useTranslation("common");
+  const { t } = useTranslation();
+  const { t: tCommon } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<RestoreStatus>("idle");

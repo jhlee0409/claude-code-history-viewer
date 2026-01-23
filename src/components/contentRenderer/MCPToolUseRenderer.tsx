@@ -18,7 +18,7 @@ export const MCPToolUseRenderer = memo(function MCPToolUseRenderer({
   toolName,
   input,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   return (
     <div className={cn(layout.rounded, "bg-tool-mcp/10 border border-tool-mcp/30", layout.containerPadding)}>

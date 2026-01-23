@@ -18,7 +18,7 @@ export const TodoUpdateRenderer = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const newTodos = Array.isArray(todoData.newTodos) ? todoData.newTodos : [];
 
   const getTodoStatusIcon = (status: string) => {

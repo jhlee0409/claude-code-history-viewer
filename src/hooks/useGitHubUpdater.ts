@@ -38,7 +38,7 @@ export interface UseGitHubUpdaterReturn {
 }
 
 export function useGitHubUpdater(): UseGitHubUpdaterReturn {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation();
   const [state, setState] = useState<UpdateState>({
     isChecking: false,
     hasUpdate: false,
@@ -80,7 +80,7 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          throw new Error(t("hooks.githubApiError", { status: response.status }));
+          throw new Error(t('common.hooks.githubApiError', { status: response.status }));
         }
 
         const release = (await response.json()) as GitHubRelease;
@@ -118,7 +118,7 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
       const releaseInfo = await fetchGitHubRelease();
 
       if (!releaseInfo) {
-        throw new Error(t("hooks.releaseInfoFetchFailed"));
+        throw new Error(t('common.hooks.releaseInfoFetchFailed'));
       }
       
       if (process.env.NODE_ENV === 'development') {
@@ -150,7 +150,7 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
         error:
           error instanceof Error
             ? error.message
-            : t("hooks.updateCheckFailed"),
+            : t('common.hooks.updateCheckFailed'),
       }));
     }
   }, [fetchGitHubRelease, state.currentVersion]);
@@ -202,7 +202,7 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
         error:
           error instanceof Error
             ? error.message
-            : t("hooks.updateInstallFailed"),
+            : t('common.hooks.updateInstallFailed'),
       }));
     }
   }, [state.updateInfo]);

@@ -15,7 +15,7 @@ type Props = {
 };
 
 export const FileEditRenderer = ({ toolResult, searchQuery }: Props) => {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation();
   const { renderCopyButton } = useCopyButton();
   const filePath =
     typeof toolResult.filePath === "string" ? toolResult.filePath : "";

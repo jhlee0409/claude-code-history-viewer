@@ -41,7 +41,7 @@ interface FeedbackModalProps {
 }
 
 export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const [feedbackType, setFeedbackType] = useState<string>("bug");
   const [subject, setSubject] = useState<string>("");
   const [body, setBody] = useState<string>("");

@@ -23,7 +23,7 @@ export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
   content,
   isError = false,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
 
   if (isError) {
     const getErrorMessage = (): string => {

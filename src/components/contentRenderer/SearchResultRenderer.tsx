@@ -24,7 +24,7 @@ type Props = {
 export const SearchResultRenderer = memo(function SearchResultRenderer({
   searchResult,
 }: Props) {
-  const { t } = useTranslation("components");
+  const { t } = useTranslation();
   const { title, source, content } = searchResult;
   const searchStyles = getVariantStyles("search");
 

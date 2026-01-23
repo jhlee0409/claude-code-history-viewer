@@ -12,29 +12,29 @@ import { useTheme } from "@/contexts/theme";
 export const ThemeMenuGroup = () => {
   const { theme, setTheme } = useTheme();
 
-  const { t } = useTranslation("common");
+  const { t } = useTranslation();
 
   const themeItems = [
     {
       icon: <Sun className="mr-2 h-4 w-4 text-foreground" />,
-      label: t("settings.theme.light"),
+      label: t('common.settings.theme.light'),
       value: "light",
     },
     {
       icon: <Moon className="mr-2 h-4 w-4 text-foreground" />,
-      label: t("settings.theme.dark"),
+      label: t('common.settings.theme.dark'),
       value: "dark",
     },
     {
       icon: <Laptop className="mr-2 h-4 w-4 text-foreground" />,
-      label: t("settings.theme.system"),
+      label: t('common.settings.theme.system'),
       value: "system",
     },
   ];
 
   return (
     <>
-      <DropdownMenuLabel>{t("settings.theme.title")}</DropdownMenuLabel>
+      <DropdownMenuLabel>{t('common.settings.theme.title')}</DropdownMenuLabel>
       <DropdownMenuRadioGroup
         value={theme}
         onValueChange={(value) => {
