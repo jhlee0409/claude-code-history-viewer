@@ -85,6 +85,10 @@ pub struct RawLogEntry {
     #[serde(rename = "microcompactMetadata")]
     pub microcompact_metadata: Option<serde_json::Value>,
     pub content: Option<serde_json::Value>,
+
+    // Meta message flag (internal/command-related messages)
+    #[serde(rename = "isMeta")]
+    pub is_meta: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

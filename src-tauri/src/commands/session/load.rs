@@ -40,7 +40,7 @@ struct SessionMetadataCache {
     entries: HashMap<String, CachedSessionMetadata>,
 }
 
-const CACHE_VERSION: u32 = 3;
+const CACHE_VERSION: u32 = 4;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -770,6 +770,11 @@ fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> 
     }
 
     let log_entry: RawLogEntry = serde_json::from_str(line).ok()?;
+
+    // Skip meta messages (internal/command-related messages)
+    if log_entry.is_meta.unwrap_or(false) {
+        return None;
+    }
 
     if log_entry.message_type == "summary" {
         if !include_summary {

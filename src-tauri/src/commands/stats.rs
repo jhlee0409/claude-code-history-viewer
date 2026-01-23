@@ -601,65 +601,140 @@ pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectSt
     Ok(summary)
 }
 
+/// Lightweight session stats for comparison (parallel processing)
+#[derive(Clone)]
+struct SessionComparisonStats {
+    session_id: String,
+    total_tokens: u32,
+    message_count: usize,
+    duration_seconds: i64,
+}
+
+/// Process a single session file for comparison stats (lightweight)
+fn process_session_file_for_comparison(session_path: &PathBuf) -> Option<SessionComparisonStats> {
+    let file = fs::File::open(session_path).ok()?;
+    let reader = BufReader::new(file);
+
+    let mut session_id: Option<String> = None;
+    let mut total_tokens: u32 = 0;
+    let mut message_count: usize = 0;
+    let mut first_time: Option<DateTime<Utc>> = None;
+    let mut last_time: Option<DateTime<Utc>> = None;
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
+            if let Ok(message) = ClaudeMessage::try_from(log_entry) {
+                if session_id.is_none() {
+                    session_id = Some(message.session_id.clone());
+                }
+
+                message_count += 1;
+
+                let usage = extract_token_usage(&message);
+                total_tokens += usage.input_tokens.unwrap_or(0)
+                    + usage.output_tokens.unwrap_or(0)
+                    + usage.cache_creation_input_tokens.unwrap_or(0)
+                    + usage.cache_read_input_tokens.unwrap_or(0);
+
+                if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
+                    let timestamp = timestamp.with_timezone(&Utc);
+                    if first_time.is_none() || timestamp < first_time.unwrap() {
+                        first_time = Some(timestamp);
+                    }
+                    if last_time.is_none() || timestamp > last_time.unwrap() {
+                        last_time = Some(timestamp);
+                    }
+                }
+            }
+        }
+    }
+
+    let duration_seconds = match (first_time, last_time) {
+        (Some(first), Some(last)) => (last - first).num_seconds(),
+        _ => 0,
+    };
+
+    Some(SessionComparisonStats {
+        session_id: session_id?,
+        total_tokens,
+        message_count,
+        duration_seconds,
+    })
+}
+
 #[tauri::command]
 pub async fn get_session_comparison(
     session_id: String,
     project_path: String,
 ) -> Result<SessionComparison, String> {
-    let all_sessions = get_project_token_stats(project_path).await?;
-    
+    // Phase 1: Collect all session files
+    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+        .map(|e| e.path().to_path_buf())
+        .collect();
+
+    // Phase 2: Process all session files in parallel (lightweight processing)
+    let all_sessions: Vec<SessionComparisonStats> = session_files
+        .par_iter()
+        .filter_map(|path| process_session_file_for_comparison(path))
+        .collect();
+
     let target_session = all_sessions
         .iter()
         .find(|s| s.session_id == session_id)
         .ok_or("Session not found in project")?;
-    
+
     let total_project_tokens: u32 = all_sessions.iter().map(|s| s.total_tokens).sum();
     let total_project_messages: usize = all_sessions.iter().map(|s| s.message_count).sum();
-    
+
     let percentage_of_project_tokens = if total_project_tokens > 0 {
         (target_session.total_tokens as f32 / total_project_tokens as f32) * 100.0
     } else {
         0.0
     };
-    
+
     let percentage_of_project_messages = if total_project_messages > 0 {
         (target_session.message_count as f32 / total_project_messages as f32) * 100.0
     } else {
         0.0
     };
-    
-    let rank_by_tokens = all_sessions
+
+    // Sort by tokens to find rank
+    let mut sessions_by_tokens = all_sessions.clone();
+    sessions_by_tokens.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+
+    let rank_by_tokens = sessions_by_tokens
         .iter()
         .position(|s| s.session_id == session_id)
         .unwrap_or(0) + 1;
-    
+
+    // Sort by duration to find rank
     let mut sessions_by_duration = all_sessions.clone();
-    sessions_by_duration.sort_by(|a, b| {
-        let a_duration = chrono::DateTime::parse_from_rfc3339(&a.last_message_time)
-            .ok()
-            .zip(chrono::DateTime::parse_from_rfc3339(&a.first_message_time).ok())
-            .map(|(end, start)| (end - start).num_seconds())
-            .unwrap_or(0);
-        let b_duration = chrono::DateTime::parse_from_rfc3339(&b.last_message_time)
-            .ok()
-            .zip(chrono::DateTime::parse_from_rfc3339(&b.first_message_time).ok())
-            .map(|(end, start)| (end - start).num_seconds())
-            .unwrap_or(0);
-        b_duration.cmp(&a_duration)
-    });
-    
+    sessions_by_duration.sort_by(|a, b| b.duration_seconds.cmp(&a.duration_seconds));
+
     let rank_by_duration = sessions_by_duration
         .iter()
         .position(|s| s.session_id == session_id)
         .unwrap_or(0) + 1;
-    
+
     let avg_tokens = if !all_sessions.is_empty() {
         total_project_tokens / all_sessions.len() as u32
     } else {
         0
     };
     let is_above_average = target_session.total_tokens > avg_tokens;
-    
+
     Ok(SessionComparison {
         session_id,
         percentage_of_project_tokens,
@@ -958,6 +1033,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            is_meta: None,
         };
 
         let result = ClaudeMessage::try_from(raw);
@@ -1016,6 +1092,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            is_meta: None,
         };
 
         let result = ClaudeMessage::try_from(raw);
@@ -1066,6 +1143,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            is_meta: None,
         };
 
         let result = ClaudeMessage::try_from(raw);
@@ -1113,6 +1191,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            is_meta: None,
         };
 
         let result = ClaudeMessage::try_from(raw);
@@ -1160,6 +1239,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            is_meta: None,
         };
 
         // Should succeed with timestamp even without session_id
