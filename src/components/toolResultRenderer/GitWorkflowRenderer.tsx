@@ -11,9 +11,16 @@ import { HighlightedText } from "../common/HighlightedText";
 type Props = {
   gitData: Record<string, unknown>;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 };
 
-export const GitWorkflowRenderer = ({ gitData, searchQuery }: Props) => {
+export const GitWorkflowRenderer = ({
+  gitData,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: Props) => {
   const { t } = useTranslation('components');
   const command = gitData.command || "";
   const status = gitData.status || "";
@@ -42,7 +49,12 @@ export const GitWorkflowRenderer = ({ gitData, searchQuery }: Props) => {
           <div className={`mb-2 ${layout.bodyText} text-tool-git`}>
             <span className="font-medium">{t('gitWorkflowRenderer.status')}</span>{" "}
             {searchQuery ? (
-              <HighlightedText text={String(status)} searchQuery={searchQuery} />
+              <HighlightedText
+                text={String(status)}
+                searchQuery={searchQuery}
+                isCurrentMatch={isCurrentMatch}
+                currentMatchIndex={currentMatchIndex}
+              />
             ) : (
               String(status)
             )}
@@ -67,7 +79,12 @@ export const GitWorkflowRenderer = ({ gitData, searchQuery }: Props) => {
                     className={`${layout.monoText} px-2 py-1 rounded bg-tool-git/20 text-tool-git`}
                   >
                     {searchQuery ? (
-                      <HighlightedText text={String(file)} searchQuery={searchQuery} />
+                      <HighlightedText
+                        text={String(file)}
+                        searchQuery={searchQuery}
+                        isCurrentMatch={isCurrentMatch}
+                        currentMatchIndex={currentMatchIndex}
+                      />
                     ) : (
                       String(file)
                     )}
@@ -91,7 +108,12 @@ export const GitWorkflowRenderer = ({ gitData, searchQuery }: Props) => {
             {showDiff && (
               <pre className={`mt-2 ${layout.monoText} p-2 rounded overflow-auto max-h-48 bg-muted text-foreground`}>
                 {searchQuery ? (
-                  <HighlightedText text={String(diff)} searchQuery={searchQuery} />
+                  <HighlightedText
+                    text={String(diff)}
+                    searchQuery={searchQuery}
+                    isCurrentMatch={isCurrentMatch}
+                    currentMatchIndex={currentMatchIndex}
+                  />
                 ) : (
                   String(diff)
                 )}

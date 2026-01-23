@@ -71,7 +71,12 @@ export const ClaudeContentArrayRenderer = ({
                 >
                   <div className={cn("whitespace-pre-wrap text-foreground", layout.bodyText)}>
                     {searchQuery ? (
-                      <HighlightedText text={item.text} searchQuery={searchQuery} />
+                      <HighlightedText
+                        text={item.text}
+                        searchQuery={searchQuery}
+                        isCurrentMatch={isCurrentMatch}
+                        currentMatchIndex={currentMatchIndex}
+                      />
                     ) : (
                       item.text
                     )}
@@ -103,7 +108,15 @@ export const ClaudeContentArrayRenderer = ({
 
           case "thinking":
             if (typeof item.thinking === "string") {
-              return <ThinkingRenderer key={index} thinking={item.thinking} searchQuery={searchQuery} />;
+              return (
+                <ThinkingRenderer
+                  key={index}
+                  thinking={item.thinking}
+                  searchQuery={searchQuery}
+                  isCurrentMatch={isCurrentMatch}
+                  currentMatchIndex={currentMatchIndex}
+                />
+              );
             }
             return null;
 
@@ -157,7 +170,12 @@ export const ClaudeContentArrayRenderer = ({
                 </div>
                 <div className={cn("whitespace-pre-wrap", layout.bodyText, "text-foreground")}>
                   {searchQuery ? (
-                    <HighlightedText text={reminderContent} searchQuery={searchQuery} />
+                    <HighlightedText
+                      text={reminderContent}
+                      searchQuery={searchQuery}
+                      isCurrentMatch={isCurrentMatch}
+                      currentMatchIndex={currentMatchIndex}
+                    />
                   ) : (
                     reminderContent
                   )}

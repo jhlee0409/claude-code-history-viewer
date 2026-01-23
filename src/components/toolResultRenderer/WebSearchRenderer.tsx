@@ -12,9 +12,16 @@ import { HighlightedText } from "../common/HighlightedText";
 type Props = {
   searchData: Record<string, unknown>;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 };
 
-export const WebSearchRenderer = ({ searchData, searchQuery }: Props) => {
+export const WebSearchRenderer = ({
+  searchData,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: Props) => {
   const { t } = useTranslation('components');
   const query = typeof searchData.query === "string" ? searchData.query : "";
   const results = Array.isArray(searchData.results) ? searchData.results : [];
@@ -45,7 +52,12 @@ export const WebSearchRenderer = ({ searchData, searchQuery }: Props) => {
           </div>
           <code className={`${layout.bodyText} px-2 py-1 rounded block bg-muted text-foreground`}>
             {searchQuery ? (
-              <HighlightedText text={query} searchQuery={searchQuery} />
+              <HighlightedText
+                text={query}
+                searchQuery={searchQuery}
+                isCurrentMatch={isCurrentMatch}
+                currentMatchIndex={currentMatchIndex}
+              />
             ) : (
               query
             )}

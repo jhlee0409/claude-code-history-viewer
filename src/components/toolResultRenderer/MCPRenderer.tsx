@@ -11,9 +11,16 @@ import { HighlightedText } from "../common/HighlightedText";
 type Props = {
   mcpData: Record<string, unknown>;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 };
 
-export const MCPRenderer = ({ mcpData, searchQuery }: Props) => {
+export const MCPRenderer = ({
+  mcpData,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: Props) => {
   const { t } = useTranslation('components');
   const server = mcpData.server || "unknown";
   const method = mcpData.method || "unknown";
@@ -63,7 +70,12 @@ export const MCPRenderer = ({ mcpData, searchQuery }: Props) => {
               </div>
               <div className={`${layout.bodyText} text-destructive`}>
                 {searchQuery ? (
-                  <HighlightedText text={String(error)} searchQuery={searchQuery} />
+                  <HighlightedText
+                    text={String(error)}
+                    searchQuery={searchQuery}
+                    isCurrentMatch={isCurrentMatch}
+                    currentMatchIndex={currentMatchIndex}
+                  />
                 ) : (
                   String(error)
                 )}

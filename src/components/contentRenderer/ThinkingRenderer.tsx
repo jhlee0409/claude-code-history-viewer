@@ -3,13 +3,21 @@ import { Bot, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   thinking: string;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 };
 
-export const ThinkingRenderer = memo(function ThinkingRenderer({ thinking, searchQuery }: Props) {
+export const ThinkingRenderer = memo(function ThinkingRenderer({
+  thinking,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: Props) {
   const { t } = useTranslation("components");
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -60,7 +68,16 @@ export const ThinkingRenderer = memo(function ThinkingRenderer({ thinking, searc
       {isExpanded && (
         <div className={layout.contentPadding}>
           <div className={cn(layout.bodyText, "text-thinking-foreground whitespace-pre-wrap")}>
-            {thinking}
+            {searchQuery ? (
+              <HighlightedText
+                text={thinking}
+                searchQuery={searchQuery}
+                isCurrentMatch={isCurrentMatch}
+                currentMatchIndex={currentMatchIndex}
+              />
+            ) : (
+              thinking
+            )}
           </div>
         </div>
       )}

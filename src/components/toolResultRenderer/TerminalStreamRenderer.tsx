@@ -14,6 +14,8 @@ type Props = {
   timestamp: string;
   exitCode: number;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 };
 
 export const TerminalStreamRenderer = ({
@@ -23,6 +25,8 @@ export const TerminalStreamRenderer = ({
   timestamp,
   exitCode,
   searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
 }: Props) => {
   const { t } = useTranslation('components');
 
@@ -80,7 +84,12 @@ export const TerminalStreamRenderer = ({
           {/* 출력 내용 */}
           <pre className={cn(layout.monoText, "text-foreground whitespace-pre-wrap bg-muted p-2 rounded overflow-auto max-h-80")}>
             {searchQuery ? (
-              <HighlightedText text={String(output)} searchQuery={searchQuery} />
+              <HighlightedText
+                text={String(output)}
+                searchQuery={searchQuery}
+                isCurrentMatch={isCurrentMatch}
+                currentMatchIndex={currentMatchIndex}
+              />
             ) : (
               String(output)
             )}

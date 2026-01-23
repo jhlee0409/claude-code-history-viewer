@@ -239,7 +239,7 @@ const extractUuidFromResult = (item: string | EnrichedResult): string => {
 // FlexSearch Document 인덱스 생성 헬퍼
 const createFlexSearchIndex = (): FlexSearchDocumentIndex => {
   return new FlexSearch.Document({
-    tokenize: "forward", // 접두사 매칭 지원
+    tokenize: "full", // 전체 substring 매칭 지원 (단어 중간도 검색)
     cache: 100, // 최근 100개 쿼리 캐시
     document: {
       id: "uuid",

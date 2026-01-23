@@ -6,10 +6,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
+import { HighlightedText } from "../common/HighlightedText";
 
 type Props = {
   text: string;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 };
 
 interface CommandGroup {
@@ -28,7 +31,12 @@ interface CaveatBlock {
   content: string;
 }
 
-export const CommandRenderer = ({ text, searchQuery }: Props) => {
+export const CommandRenderer = ({
+  text,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: Props) => {
   const { t } = useTranslation("components");
 
   // Command 그룹 (name, message, args) 추출
@@ -144,7 +152,16 @@ export const CommandRenderer = ({ text, searchQuery }: Props) => {
                   {t("commandRenderer.command")}
                 </span>
                 <code className={cn("px-2 py-1", layout.rounded, layout.monoText, "bg-accent/20 text-accent")}>
-                  {commandGroup.name}
+                  {searchQuery ? (
+                    <HighlightedText
+                      text={commandGroup.name}
+                      searchQuery={searchQuery}
+                      isCurrentMatch={isCurrentMatch}
+                      currentMatchIndex={currentMatchIndex}
+                    />
+                  ) : (
+                    commandGroup.name
+                  )}
                 </code>
               </div>
             )}
@@ -155,7 +172,16 @@ export const CommandRenderer = ({ text, searchQuery }: Props) => {
                   {t("commandRenderer.arguments")}
                 </span>
                 <code className={cn("px-2 py-1", layout.rounded, layout.monoText, "whitespace-pre-wrap bg-tool-search/20 text-tool-search")}>
-                  {commandGroup.args}
+                  {searchQuery ? (
+                    <HighlightedText
+                      text={commandGroup.args}
+                      searchQuery={searchQuery}
+                      isCurrentMatch={isCurrentMatch}
+                      currentMatchIndex={currentMatchIndex}
+                    />
+                  ) : (
+                    commandGroup.args
+                  )}
                 </code>
               </div>
             )}
@@ -166,7 +192,16 @@ export const CommandRenderer = ({ text, searchQuery }: Props) => {
                   {t("commandRenderer.status")}
                 </span>
                 <span className={cn(layout.bodyText, "italic text-accent")}>
-                  {commandGroup.message}
+                  {searchQuery ? (
+                    <HighlightedText
+                      text={commandGroup.message}
+                      searchQuery={searchQuery}
+                      isCurrentMatch={isCurrentMatch}
+                      currentMatchIndex={currentMatchIndex}
+                    />
+                  ) : (
+                    commandGroup.message
+                  )}
                 </span>
               </div>
             )}
@@ -216,7 +251,13 @@ export const CommandRenderer = ({ text, searchQuery }: Props) => {
 
       {/* Caveats - collapsible info blocks */}
       {caveats.map((caveat, index) => (
-        <CaveatRenderer key={index} content={caveat.content} searchQuery={searchQuery} />
+        <CaveatRenderer
+          key={index}
+          content={caveat.content}
+          searchQuery={searchQuery}
+          isCurrentMatch={isCurrentMatch}
+          currentMatchIndex={currentMatchIndex}
+        />
       ))}
 
       {/* Remaining Text */}
@@ -231,7 +272,19 @@ export const CommandRenderer = ({ text, searchQuery }: Props) => {
   );
 };
 
-const CaveatRenderer = ({ content, searchQuery }: { content: string; searchQuery?: string }) => {
+interface CaveatRendererProps {
+  content: string;
+  searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
+}
+
+const CaveatRenderer = ({
+  content,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: CaveatRendererProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const { t } = useTranslation("components");
 
@@ -269,7 +322,16 @@ const CaveatRenderer = ({ content, searchQuery }: { content: string; searchQuery
 
       {isExpanded && (
         <div className={cn(layout.contentPadding, layout.smallText, "text-info")}>
-          {content}
+          {searchQuery ? (
+            <HighlightedText
+              text={content}
+              searchQuery={searchQuery}
+              isCurrentMatch={isCurrentMatch}
+              currentMatchIndex={currentMatchIndex}
+            />
+          ) : (
+            content
+          )}
         </div>
       )}
     </div>

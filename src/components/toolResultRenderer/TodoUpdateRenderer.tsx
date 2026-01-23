@@ -8,9 +8,16 @@ import { HighlightedText } from "../common/HighlightedText";
 type Props = {
   todoData: Record<string, unknown>;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 };
 
-export const TodoUpdateRenderer = ({ todoData, searchQuery }: Props) => {
+export const TodoUpdateRenderer = ({
+  todoData,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: Props) => {
   const { t } = useTranslation("components");
   const newTodos = Array.isArray(todoData.newTodos) ? todoData.newTodos : [];
 
@@ -59,7 +66,12 @@ export const TodoUpdateRenderer = ({ todoData, searchQuery }: Props) => {
                       )}
                     >
                       {searchQuery ? (
-                        <HighlightedText text={todo.content} searchQuery={searchQuery} />
+                        <HighlightedText
+                          text={todo.content}
+                          searchQuery={searchQuery}
+                          isCurrentMatch={isCurrentMatch}
+                          currentMatchIndex={currentMatchIndex}
+                        />
                       ) : (
                         todo.content
                       )}

@@ -28,11 +28,18 @@ interface ToolExecutionResultRouterProps {
   toolResult: Record<string, unknown> | string;
   depth: number;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 }
 
 export const ToolExecutionResultRouter: React.FC<
   ToolExecutionResultRouterProps
-> = ({ toolResult, searchQuery }) => {
+> = ({
+  toolResult,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}) => {
   const { t } = useTranslation("components");
   // Helper function to check if content is JSONL Claude session history
   const isClaudeSessionHistory = (content: string): boolean => {
@@ -86,7 +93,14 @@ export const ToolExecutionResultRouter: React.FC<
   if (typeof toolResult === "string") {
     // Check if it's an error message
     if (toolResult.startsWith("Error: ")) {
-      return <ErrorRenderer error={toolResult} searchQuery={searchQuery} />;
+      return (
+        <ErrorRenderer
+          error={toolResult}
+          searchQuery={searchQuery}
+          isCurrentMatch={isCurrentMatch}
+          currentMatchIndex={currentMatchIndex}
+        />
+      );
     }
 
     // Check if string content is JSONL Claude session history
@@ -104,7 +118,14 @@ export const ToolExecutionResultRouter: React.FC<
     (toolResult.type === "mcp_tool_call" || toolResult.server) &&
     (toolResult.method || toolResult.function)
   ) {
-    return <MCPRenderer mcpData={toolResult} searchQuery={searchQuery} />;
+    return (
+      <MCPRenderer
+        mcpData={toolResult}
+        searchQuery={searchQuery}
+        isCurrentMatch={isCurrentMatch}
+        currentMatchIndex={currentMatchIndex}
+      />
+    );
   }
 
   // Handle codebase context
@@ -115,7 +136,14 @@ export const ToolExecutionResultRouter: React.FC<
     toolResult.context_window !== undefined ||
     toolResult.contextWindow !== undefined
   ) {
-    return <CodebaseContextRenderer contextData={toolResult} searchQuery={searchQuery} />;
+    return (
+      <CodebaseContextRenderer
+        contextData={toolResult}
+        searchQuery={searchQuery}
+        isCurrentMatch={isCurrentMatch}
+        currentMatchIndex={currentMatchIndex}
+      />
+    );
   }
 
   // Handle terminal stream output
@@ -133,6 +161,8 @@ export const ToolExecutionResultRouter: React.FC<
         timestamp={toolResult.timestamp as string}
         exitCode={toolResult.exitCode as number}
         searchQuery={searchQuery}
+        isCurrentMatch={isCurrentMatch}
+        currentMatchIndex={currentMatchIndex}
       />
     );
   }
@@ -148,7 +178,14 @@ export const ToolExecutionResultRouter: React.FC<
     toolResult.diff ||
     toolResult.commit
   ) {
-    return <GitWorkflowRenderer gitData={toolResult} searchQuery={searchQuery} />;
+    return (
+      <GitWorkflowRenderer
+        gitData={toolResult}
+        searchQuery={searchQuery}
+        isCurrentMatch={isCurrentMatch}
+        currentMatchIndex={currentMatchIndex}
+      />
+    );
   }
 
   // Handle web search results
@@ -164,7 +201,14 @@ export const ToolExecutionResultRouter: React.FC<
       typeof firstResult === "string" &&
       (firstResult.includes("I'll search") || firstResult.includes("search"))
     ) {
-      return <WebSearchRenderer searchData={toolResult} searchQuery={searchQuery} />;
+      return (
+        <WebSearchRenderer
+          searchData={toolResult}
+          searchQuery={searchQuery}
+          isCurrentMatch={isCurrentMatch}
+          currentMatchIndex={currentMatchIndex}
+        />
+      );
     }
     // Even without "I'll search", if it has query + results structure, treat as web search
     return <WebSearchRenderer searchData={toolResult} searchQuery={searchQuery} />;
@@ -172,7 +216,14 @@ export const ToolExecutionResultRouter: React.FC<
 
   // Handle todo updates
   if (toolResult.newTodos !== undefined || toolResult.oldTodos !== undefined) {
-    return <TodoUpdateRenderer todoData={toolResult} searchQuery={searchQuery} />;
+    return (
+      <TodoUpdateRenderer
+        todoData={toolResult}
+        searchQuery={searchQuery}
+        isCurrentMatch={isCurrentMatch}
+        currentMatchIndex={currentMatchIndex}
+      />
+    );
   }
 
   // Handle file list results
@@ -181,7 +232,14 @@ export const ToolExecutionResultRouter: React.FC<
     toolResult.filenames.length > 0 &&
     typeof toolResult.numFiles === "number"
   ) {
-    return <FileListRenderer toolResult={toolResult} searchQuery={searchQuery} />;
+    return (
+      <FileListRenderer
+        toolResult={toolResult}
+        searchQuery={searchQuery}
+        isCurrentMatch={isCurrentMatch}
+        currentMatchIndex={currentMatchIndex}
+      />
+    );
   }
 
   // Async agent task results are handled by MessageViewer's grouping logic

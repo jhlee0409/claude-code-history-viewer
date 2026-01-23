@@ -11,9 +11,16 @@ import { HighlightedText } from "../common/HighlightedText";
 type Props = {
   contextData: Record<string, unknown>;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 };
 
-export const CodebaseContextRenderer = ({ contextData, searchQuery }: Props) => {
+export const CodebaseContextRenderer = ({
+  contextData,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: Props) => {
   const { t } = useTranslation('components');
   const filesAnalyzed =
     contextData.files_analyzed || contextData.filesAnalyzed || 0;
@@ -69,7 +76,12 @@ export const CodebaseContextRenderer = ({ contextData, searchQuery }: Props) => 
                     className={`${layout.smallText} font-mono px-2 py-1 rounded bg-accent/20 text-accent`}
                   >
                     {searchQuery ? (
-                      <HighlightedText text={String(file)} searchQuery={searchQuery} />
+                      <HighlightedText
+                        text={String(file)}
+                        searchQuery={searchQuery}
+                        isCurrentMatch={isCurrentMatch}
+                        currentMatchIndex={currentMatchIndex}
+                      />
                     ) : (
                       String(file)
                     )}

@@ -8,9 +8,16 @@ import { HighlightedText } from "../common/HighlightedText";
 type Props = {
   toolResult: Record<string, unknown>;
   searchQuery?: string;
+  isCurrentMatch?: boolean;
+  currentMatchIndex?: number;
 };
 
-export const FileListRenderer = ({ toolResult, searchQuery }: Props) => {
+export const FileListRenderer = ({
+  toolResult,
+  searchQuery,
+  isCurrentMatch = false,
+  currentMatchIndex = 0,
+}: Props) => {
   const { t } = useTranslation('components');
   return (
     <Renderer className="bg-tool-file/10 border-tool-file/30">
@@ -40,7 +47,12 @@ export const FileListRenderer = ({ toolResult, searchQuery }: Props) => {
                   <div className="flex-1 min-w-0">
                     <div className={`${layout.monoText} text-foreground`}>
                       {searchQuery ? (
-                        <HighlightedText text={fileName} searchQuery={searchQuery} />
+                        <HighlightedText
+                          text={fileName}
+                          searchQuery={searchQuery}
+                          isCurrentMatch={isCurrentMatch}
+                          currentMatchIndex={currentMatchIndex}
+                        />
                       ) : (
                         fileName
                       )}
@@ -48,7 +60,12 @@ export const FileListRenderer = ({ toolResult, searchQuery }: Props) => {
                     {directory && (
                       <div className={`${layout.monoText} text-muted-foreground`}>
                         {searchQuery ? (
-                          <HighlightedText text={directory} searchQuery={searchQuery} />
+                          <HighlightedText
+                            text={directory}
+                            searchQuery={searchQuery}
+                            isCurrentMatch={isCurrentMatch}
+                            currentMatchIndex={currentMatchIndex}
+                          />
                         ) : (
                           directory
                         )}
