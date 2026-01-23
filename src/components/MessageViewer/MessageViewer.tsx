@@ -359,26 +359,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         </div>
       </div>
 
-      {/* 스크롤 초기화 대기 중 - 완전 불투명 오버레이 (스크롤 컨테이너 외부) */}
-      {/* 세션 ID 불일치 시 즉시 표시 (messages 비어있어도) */}
-      <div
-        className={cn(
-          "absolute inset-0 flex items-center justify-center bg-background z-20",
-          "transition-opacity duration-150",
-          // 세션이 있고, 아직 해당 세션에 대해 스크롤이 완료되지 않았으면 오버레이 표시
-          selectedSession?.session_id && scrollReadyForSessionId !== selectedSession?.session_id
-            ? "opacity-100"
-            : "opacity-0 pointer-events-none"
-        )}
-      >
-        <div className="flex items-center gap-2">
-          <LoadingSpinner size="sm" variant="muted" />
-          <span className="text-sm text-muted-foreground">
-            {t("messageViewer.loadingMessages")}
-          </span>
-        </div>
-      </div>
-
       <OverlayScrollbarsComponent
         ref={scrollContainerRef}
         className="flex-1"

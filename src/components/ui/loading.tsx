@@ -61,21 +61,23 @@ const LoadingSpinner = React.forwardRef<HTMLDivElement, LoadingSpinnerProps>(
 
     if (withSparkle) {
       return (
-        <div ref={ref} className={cn("relative", className)} {...props}>
+        <div
+          ref={ref}
+          className={cn("relative inline-flex items-center justify-center", sizeConfig.spinner, className)}
+          {...props}
+        >
           <Icon
-            className={cn(sizeConfig.spinner, colorClass, "animate-spin opacity-40")}
+            className={cn("absolute", sizeConfig.spinner, colorClass, "animate-spin opacity-40")}
           />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Sparkles
-              className={cn(sizeConfig.sparkle, colorClass, "animate-pulse")}
-            />
-          </div>
+          <Sparkles
+            className={cn("absolute", sizeConfig.sparkle, colorClass, "animate-pulse")}
+          />
         </div>
       );
     }
 
     return (
-      <div ref={ref} className={cn("flex items-center justify-center", className)} {...props}>
+      <div ref={ref} className={cn("inline-flex items-center justify-center", className)} {...props}>
         <Icon className={cn(sizeConfig.spinner, colorClass, "animate-spin")} />
       </div>
     );
