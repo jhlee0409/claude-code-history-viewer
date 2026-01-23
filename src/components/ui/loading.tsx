@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Skeleton, SkeletonText } from "./skeleton";
+import i18n from "@/i18n";
 
 // ============================================
 // LOADING SPINNER
@@ -436,7 +437,7 @@ const LoadingState = React.forwardRef<HTMLDivElement, LoadingStateProps>(
                 />
               </svg>
             </div>
-            <p className="text-sm text-muted-foreground">No data available</p>
+            <p className="text-sm text-muted-foreground">{i18n.t("common.noDataAvailable")}</p>
           </div>
         </div>
       );

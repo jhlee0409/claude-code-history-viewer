@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-01-23T15:37:18.535Z
- * 총 키 개수: 726
+ * 생성 시간: 2026-01-23T18:33:56.558Z
+ * 총 키 개수: 742
  */
 
 /**
@@ -90,6 +90,8 @@ export type TranslationKey =
   | 'analytics.activityTooltip'
   | 'analytics.Analytics Dashboard'
   | 'analytics.andMoreSessions'
+  | 'analytics.remaining'
+  | 'analytics.showMoreSessions'
   | 'analytics.Avg Session Time'
   | 'analytics.avgSession'
   | 'analytics.avgSessionTime'
@@ -738,7 +740,21 @@ export type TranslationKey =
   | 'webFetchToolResultRenderer.error'
   | 'webFetchToolResultRenderer.retrievedAt'
   | 'webFetchToolResultRenderer.showContent'
-  | 'webFetchToolResultRenderer.title';
+  | 'webFetchToolResultRenderer.title'
+  | 'citationRenderer.charLocation'
+  | 'citationRenderer.singlePage'
+  | 'citationRenderer.pageRange'
+  | 'citationRenderer.blockLocation'
+  | 'citationRenderer.title'
+  | 'claudeContentArrayRenderer.systemReminder'
+  | 'claudeContentArrayRenderer.unknownContentType'
+  | 'commandOutputDisplay.jsonOutput'
+  | 'commandOutputDisplay.testResults'
+  | 'commandOutputDisplay.buildOutput'
+  | 'commandOutputDisplay.packageManagement'
+  | 'commandOutputDisplay.tableOutput'
+  | 'commandOutputDisplay.terminalOutput'
+  | 'common.noDataAvailable';
 
 /**
  * 사용 가능한 접두사 목록
@@ -750,11 +766,14 @@ export type TranslationPrefix =
   | 'analytics'
   | 'assistantMessageDetails'
   | 'bashCodeExecutionToolResultRenderer'
+  | 'citationRenderer'
+  | 'claudeContentArrayRenderer'
   | 'claudeSessionHistoryRenderer'
   | 'claudeToolUseDisplay'
   | 'codeExecutionToolResultRenderer'
   | 'codebaseContextRenderer'
   | 'collapsibleToolResult'
+  | 'commandOutputDisplay'
   | 'commandRenderer'
   | 'common'
   | 'contentArray'
@@ -872,7 +891,8 @@ export type CommonKeys =
   | 'update.now'
   | 'update.skip'
   | 'update.upToDate'
-  | 'view';
+  | 'view'
+  | 'noDataAvailable';
 
 /**
  * analytics 네임스페이스 키
@@ -886,6 +906,8 @@ export type AnalyticsKeys =
   | 'activityTooltip'
   | 'Analytics Dashboard'
   | 'andMoreSessions'
+  | 'remaining'
+  | 'showMoreSessions'
   | 'Avg Session Time'
   | 'avgSession'
   | 'avgSessionTime'
@@ -1800,4 +1822,32 @@ export type WebFetchToolResultRendererKeys =
   | 'retrievedAt'
   | 'showContent'
   | 'title';
+
+/**
+ * citationRenderer 네임스페이스 키
+ */
+export type CitationRendererKeys =
+  | 'charLocation'
+  | 'singlePage'
+  | 'pageRange'
+  | 'blockLocation'
+  | 'title';
+
+/**
+ * claudeContentArrayRenderer 네임스페이스 키
+ */
+export type ClaudeContentArrayRendererKeys =
+  | 'systemReminder'
+  | 'unknownContentType';
+
+/**
+ * commandOutputDisplay 네임스페이스 키
+ */
+export type CommandOutputDisplayKeys =
+  | 'jsonOutput'
+  | 'testResults'
+  | 'buildOutput'
+  | 'packageManagement'
+  | 'tableOutput'
+  | 'terminalOutput';
 

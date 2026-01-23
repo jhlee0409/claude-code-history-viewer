@@ -62,11 +62,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       const locale = getLocale(currentLanguage);
 
       if (diffMins < 60) {
-        return t("common:time.minutesAgo", "{{count}}m", { count: diffMins });
+        return t("common.time.minutesAgo", { count: diffMins });
       } else if (diffHours < 24) {
-        return t("common:time.hoursAgo", "{{count}}h", { count: diffHours });
+        return t("common.time.hoursAgo", { count: diffHours });
       } else if (diffDays < 7) {
-        return t("common:time.daysAgo", "{{count}}d", { count: diffDays });
+        return t("common.time.daysAgo", { count: diffDays });
       } else {
         return date.toLocaleDateString(locale, {
           month: "short",
