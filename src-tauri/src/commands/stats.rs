@@ -6,6 +6,320 @@ use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use walkdir::WalkDir;
 use chrono::{DateTime, Datelike, Timelike, Utc};
+use rayon::prelude::*;
+
+/// Intermediate stats collected from a single session file (for parallel processing)
+#[derive(Default)]
+struct SessionFileStats {
+    total_messages: u32,
+    total_tokens: u64,
+    token_distribution: TokenDistribution,
+    tool_usage: HashMap<String, (u32, u32)>, // (usage_count, success_count)
+    daily_stats: HashMap<String, DailyStats>,
+    activity_data: HashMap<(u8, u8), (u32, u64)>, // (hour, day) -> (count, tokens)
+    model_usage: HashMap<String, (u32, u64, u64, u64, u64, u64)>, // model -> (msg_count, total, input, output, cache_create, cache_read)
+    session_duration_minutes: u64,
+    first_message: Option<DateTime<Utc>>,
+    last_message: Option<DateTime<Utc>>,
+    project_name: String,
+}
+
+/// Process a single session file and return aggregated stats
+fn process_session_file_for_global_stats(session_path: &PathBuf) -> Option<SessionFileStats> {
+    let file = fs::File::open(session_path).ok()?;
+    let reader = BufReader::new(file);
+
+    let project_name = session_path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown")
+        .to_string();
+
+    let mut stats = SessionFileStats {
+        project_name,
+        ..Default::default()
+    };
+
+    let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
+            if let Ok(message) = ClaudeMessage::try_from(log_entry) {
+                stats.total_messages = stats.total_messages.saturating_add(1);
+
+                if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
+                    let timestamp = timestamp.with_timezone(&Utc);
+                    session_timestamps.push(timestamp);
+
+                    // Track first/last message
+                    if stats.first_message.is_none() || timestamp < stats.first_message.unwrap() {
+                        stats.first_message = Some(timestamp);
+                    }
+                    if stats.last_message.is_none() || timestamp > stats.last_message.unwrap() {
+                        stats.last_message = Some(timestamp);
+                    }
+
+                    let hour = timestamp.hour() as u8;
+                    let day = timestamp.weekday().num_days_from_sunday() as u8;
+                    let usage = extract_token_usage(&message);
+                    let tokens = usage.input_tokens.unwrap_or(0) as u64
+                        + usage.output_tokens.unwrap_or(0) as u64
+                        + usage.cache_creation_input_tokens.unwrap_or(0) as u64
+                        + usage.cache_read_input_tokens.unwrap_or(0) as u64;
+                    let input_tokens = usage.input_tokens.unwrap_or(0) as u64;
+                    let output_tokens = usage.output_tokens.unwrap_or(0) as u64;
+                    let cache_creation_tokens = usage.cache_creation_input_tokens.unwrap_or(0) as u64;
+                    let cache_read_tokens = usage.cache_read_input_tokens.unwrap_or(0) as u64;
+
+                    stats.total_tokens += tokens;
+
+                    // Activity data
+                    let activity_entry = stats.activity_data.entry((hour, day)).or_insert((0, 0));
+                    activity_entry.0 += 1;
+                    activity_entry.1 += tokens;
+
+                    // Daily stats
+                    let date = timestamp.format("%Y-%m-%d").to_string();
+                    let daily_entry = stats.daily_stats.entry(date.clone()).or_insert_with(|| DailyStats {
+                        date, ..Default::default()
+                    });
+                    daily_entry.total_tokens += tokens;
+                    daily_entry.input_tokens += input_tokens;
+                    daily_entry.output_tokens += output_tokens;
+                    daily_entry.message_count += 1;
+
+                    // Token distribution
+                    stats.token_distribution.input += input_tokens;
+                    stats.token_distribution.output += output_tokens;
+                    stats.token_distribution.cache_creation += cache_creation_tokens;
+                    stats.token_distribution.cache_read += cache_read_tokens;
+
+                    // Model usage
+                    if let Some(model_name) = &message.model {
+                        let model_entry = stats.model_usage.entry(model_name.clone()).or_insert((0, 0, 0, 0, 0, 0));
+                        model_entry.0 += 1;
+                        model_entry.1 += tokens;
+                        model_entry.2 += input_tokens;
+                        model_entry.3 += output_tokens;
+                        model_entry.4 += cache_creation_tokens;
+                        model_entry.5 += cache_read_tokens;
+                    }
+                }
+
+                // Tool usage from assistant content
+                if message.message_type == "assistant" {
+                    if let Some(content) = &message.content {
+                        if let Some(content_array) = content.as_array() {
+                            for item in content_array {
+                                if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
+                                    if item_type == "tool_use" {
+                                        if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
+                                            let tool_entry = stats.tool_usage.entry(name.to_string()).or_insert((0, 0));
+                                            tool_entry.0 += 1;
+                                            tool_entry.1 += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Tool usage from explicit tool_use field
+                if let Some(tool_use) = &message.tool_use {
+                    if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
+                        let tool_entry = stats.tool_usage.entry(name.to_string()).or_insert((0, 0));
+                        tool_entry.0 += 1;
+                        if let Some(result) = &message.tool_use_result {
+                            let is_error = result.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false);
+                            if !is_error {
+                                tool_entry.1 += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Calculate session duration
+    const SESSION_BREAK_THRESHOLD_MINUTES: i64 = 120;
+
+    if session_timestamps.len() >= 2 {
+        session_timestamps.sort();
+        let mut current_period_start = session_timestamps[0];
+        let mut total_active_minutes = 0u64;
+
+        for i in 0..session_timestamps.len() - 1 {
+            let current = session_timestamps[i];
+            let next = session_timestamps[i + 1];
+            let gap_minutes = (next - current).num_minutes();
+
+            if gap_minutes > SESSION_BREAK_THRESHOLD_MINUTES {
+                let period_duration = (current - current_period_start).num_minutes();
+                total_active_minutes += period_duration.max(1) as u64;
+                current_period_start = next;
+            }
+        }
+
+        let last_timestamp = session_timestamps[session_timestamps.len() - 1];
+        let final_period = (last_timestamp - current_period_start).num_minutes();
+        total_active_minutes += final_period.max(1) as u64;
+
+        stats.session_duration_minutes = total_active_minutes;
+    } else if session_timestamps.len() == 1 {
+        stats.session_duration_minutes = 1;
+    }
+
+    Some(stats)
+}
+
+/// Intermediate stats collected from a single session file (for project stats)
+#[derive(Default)]
+struct ProjectSessionFileStats {
+    total_messages: u32,
+    token_distribution: TokenDistribution,
+    tool_usage: HashMap<String, (u32, u32)>,
+    daily_stats: HashMap<String, DailyStats>,
+    activity_data: HashMap<(u8, u8), (u32, u64)>,
+    session_duration_minutes: u32,
+    session_dates: HashSet<String>,
+    timestamps: Vec<DateTime<Utc>>,
+}
+
+/// Process a single session file for project stats
+fn process_session_file_for_project_stats(session_path: &PathBuf) -> Option<ProjectSessionFileStats> {
+    let file = fs::File::open(session_path).ok()?;
+    let reader = BufReader::new(file);
+
+    let mut stats = ProjectSessionFileStats::default();
+    let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
+            if let Ok(message) = ClaudeMessage::try_from(log_entry) {
+                stats.total_messages += 1;
+
+                if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
+                    let timestamp = timestamp.with_timezone(&Utc);
+                    session_timestamps.push(timestamp);
+
+                    let hour = timestamp.hour() as u8;
+                    let day = timestamp.weekday().num_days_from_sunday() as u8;
+                    let usage = extract_token_usage(&message);
+                    let tokens = usage.input_tokens.unwrap_or(0)
+                        + usage.output_tokens.unwrap_or(0)
+                        + usage.cache_creation_input_tokens.unwrap_or(0)
+                        + usage.cache_read_input_tokens.unwrap_or(0);
+
+                    let activity_entry = stats.activity_data.entry((hour, day)).or_insert((0, 0));
+                    activity_entry.0 += 1;
+                    activity_entry.1 += tokens as u64;
+
+                    let date = timestamp.format("%Y-%m-%d").to_string();
+                    stats.session_dates.insert(date.clone());
+
+                    let daily_entry = stats.daily_stats.entry(date.clone()).or_insert_with(|| DailyStats {
+                        date, ..Default::default()
+                    });
+                    daily_entry.total_tokens += tokens as u64;
+                    daily_entry.input_tokens += usage.input_tokens.unwrap_or(0) as u64;
+                    daily_entry.output_tokens += usage.output_tokens.unwrap_or(0) as u64;
+                    daily_entry.message_count += 1;
+
+                    stats.token_distribution.input += usage.input_tokens.unwrap_or(0) as u64;
+                    stats.token_distribution.output += usage.output_tokens.unwrap_or(0) as u64;
+                    stats.token_distribution.cache_creation += usage.cache_creation_input_tokens.unwrap_or(0) as u64;
+                    stats.token_distribution.cache_read += usage.cache_read_input_tokens.unwrap_or(0) as u64;
+                }
+
+                // Tool usage from assistant content
+                if message.message_type == "assistant" {
+                    if let Some(content) = &message.content {
+                        if let Some(content_array) = content.as_array() {
+                            for item in content_array {
+                                if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
+                                    if item_type == "tool_use" {
+                                        if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
+                                            let tool_entry = stats.tool_usage.entry(name.to_string()).or_insert((0, 0));
+                                            tool_entry.0 += 1;
+                                            tool_entry.1 += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Tool usage from explicit tool_use field
+                if let Some(tool_use) = &message.tool_use {
+                    if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
+                        let tool_entry = stats.tool_usage.entry(name.to_string()).or_insert((0, 0));
+                        tool_entry.0 += 1;
+                        if let Some(result) = &message.tool_use_result {
+                            let is_error = result.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false);
+                            if !is_error {
+                                tool_entry.1 += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Calculate session duration
+    const SESSION_BREAK_THRESHOLD_MINUTES: i64 = 120;
+
+    if session_timestamps.len() >= 2 {
+        session_timestamps.sort();
+        let mut current_period_start = session_timestamps[0];
+        let mut session_total_minutes = 0u32;
+
+        for i in 0..session_timestamps.len() - 1 {
+            let current = session_timestamps[i];
+            let next = session_timestamps[i + 1];
+            let gap_minutes = (next - current).num_minutes();
+
+            if gap_minutes > SESSION_BREAK_THRESHOLD_MINUTES {
+                let period_duration = (current - current_period_start).num_minutes();
+                session_total_minutes += period_duration.max(1) as u32;
+                current_period_start = next;
+            }
+        }
+
+        let last = session_timestamps[session_timestamps.len() - 1];
+        let final_period = (last - current_period_start).num_minutes();
+        session_total_minutes += final_period.max(1) as u32;
+
+        stats.session_duration_minutes = session_total_minutes;
+    } else if session_timestamps.len() == 1 {
+        stats.session_duration_minutes = 1;
+    }
+
+    stats.timestamps = session_timestamps;
+    Some(stats)
+}
 
 fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
     if let Some(usage) = &message.usage {
@@ -161,8 +475,24 @@ pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectSt
         .unwrap_or("Unknown")
         .to_string();
 
+    // Phase 1: Collect all session files
+    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+        .map(|e| e.path().to_path_buf())
+        .collect();
+
+    // Phase 2: Process all session files in parallel
+    let file_stats: Vec<ProjectSessionFileStats> = session_files
+        .par_iter()
+        .filter_map(|path| process_session_file_for_project_stats(path))
+        .collect();
+
+    // Phase 3: Aggregate results
     let mut summary = ProjectStatsSummary::default();
     summary.project_name = project_name;
+    summary.total_sessions = file_stats.len();
 
     let mut session_durations: Vec<u32> = Vec::new();
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
@@ -170,138 +500,56 @@ pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectSt
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
     let mut session_dates: HashSet<String> = HashSet::new();
 
-    for entry in WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-    {
-        summary.total_sessions += 1;
-        let session_path = entry.path();
-        let file = fs::File::open(session_path).map_err(|e| e.to_string())?;
-        let reader = BufReader::new(file);
+    for stats in file_stats {
+        summary.total_messages += stats.total_messages as usize;
 
-        let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
-        let mut session_has_messages = false;
+        // Aggregate token distribution
+        summary.token_distribution.input += stats.token_distribution.input;
+        summary.token_distribution.output += stats.token_distribution.output;
+        summary.token_distribution.cache_creation += stats.token_distribution.cache_creation;
+        summary.token_distribution.cache_read += stats.token_distribution.cache_read;
 
-        for line in reader.lines() {
-            let line = line.map_err(|e| e.to_string())?;
-            if line.trim().is_empty() {
-                continue;
-            }
-
-            if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
-                if let Ok(message) = ClaudeMessage::try_from(log_entry) {
-                    summary.total_messages += 1;
-                    session_has_messages = true;
-
-                    if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
-                        let timestamp = timestamp.with_timezone(&Utc);
-
-                        // Collect timestamp for session duration calculation
-                        session_timestamps.push(timestamp);
-
-                        let hour = timestamp.hour() as u8;
-                        let day = timestamp.weekday().num_days_from_sunday() as u8;
-                        let usage = extract_token_usage(&message);
-                        let tokens = usage.input_tokens.unwrap_or(0)
-                            + usage.output_tokens.unwrap_or(0)
-                            + usage.cache_creation_input_tokens.unwrap_or(0)
-                            + usage.cache_read_input_tokens.unwrap_or(0);
-
-                        let activity_entry = activity_map.entry((hour, day)).or_insert((0, 0));
-                        activity_entry.0 += 1;
-                        activity_entry.1 += tokens as u64;
-
-                        let date = timestamp.format("%Y-%m-%d").to_string();
-                        session_dates.insert(date.clone());
-
-                        let daily_entry = daily_stats_map.entry(date.clone()).or_insert_with(|| DailyStats {
-                            date, ..Default::default()
-                        });
-
-                        daily_entry.total_tokens += tokens as u64;
-                        daily_entry.input_tokens += usage.input_tokens.unwrap_or(0) as u64;
-                        daily_entry.output_tokens += usage.output_tokens.unwrap_or(0) as u64;
-                        daily_entry.message_count += 1;
-
-                        summary.token_distribution.input += usage.input_tokens.unwrap_or(0) as u64;
-                        summary.token_distribution.output += usage.output_tokens.unwrap_or(0) as u64;
-                        summary.token_distribution.cache_creation += usage.cache_creation_input_tokens.unwrap_or(0) as u64;
-                        summary.token_distribution.cache_read += usage.cache_read_input_tokens.unwrap_or(0) as u64;
-                    }
-
-                    if message.message_type == "assistant" {
-                        if let Some(content) = &message.content {
-                            if let Some(content_array) = content.as_array() {
-                                for item in content_array {
-                                    if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                                        if item_type == "tool_use" {
-                                            if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
-                                                let tool_entry = tool_usage_map.entry(name.to_string()).or_insert((0, 0));
-                                                tool_entry.0 += 1;
-                                                tool_entry.1 += 1;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(tool_use) = &message.tool_use {
-                        if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
-                            let tool_entry = tool_usage_map.entry(name.to_string()).or_insert((0, 0));
-                            tool_entry.0 += 1;
-                            if let Some(result) = &message.tool_use_result {
-                                let is_error = result.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false);
-                                if !is_error {
-                                    tool_entry.1 += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        // Aggregate tool usage
+        for (name, (usage, success)) in stats.tool_usage {
+            let entry = tool_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
         }
 
-        // Calculate session duration using new algorithm (split at long breaks)
-        const SESSION_BREAK_THRESHOLD_MINUTES: i64 = 120; // 2 hours - increased from 60 min
-
-        if session_timestamps.len() >= 2 {
-            session_timestamps.sort();
-
-            let mut current_period_start = session_timestamps[0];
-            let mut session_total_minutes = 0u32;
-
-            for i in 0..session_timestamps.len() - 1 {
-                let current = session_timestamps[i];
-                let next = session_timestamps[i + 1];
-                let gap_minutes = (next - current).num_minutes();
-
-                if gap_minutes > SESSION_BREAK_THRESHOLD_MINUTES {
-                    // Close current period
-                    let period_duration = (current - current_period_start).num_minutes();
-                    session_total_minutes += period_duration.max(1) as u32;
-                    current_period_start = next;
-                }
-            }
-
-            // Close final period
-            let last = session_timestamps[session_timestamps.len() - 1];
-            let final_period = (last - current_period_start).num_minutes();
-            session_total_minutes += final_period.max(1) as u32;
-
-            session_durations.push(session_total_minutes);
-        } else if session_timestamps.len() == 1 {
-            session_durations.push(1); // Single message = 1 minute
+        // Aggregate daily stats
+        for (date, daily) in stats.daily_stats {
+            let entry = daily_stats_map.entry(date.clone()).or_insert_with(|| DailyStats {
+                date, ..Default::default()
+            });
+            entry.total_tokens += daily.total_tokens;
+            entry.input_tokens += daily.input_tokens;
+            entry.output_tokens += daily.output_tokens;
+            entry.message_count += daily.message_count;
         }
 
-        if session_has_messages && !session_timestamps.is_empty() {
-            let date = session_timestamps[0].format("%Y-%m-%d").to_string();
+        // Aggregate activity data
+        for ((hour, day), (count, tokens)) in stats.activity_data {
+            let entry = activity_map.entry((hour, day)).or_insert((0, 0));
+            entry.0 += count;
+            entry.1 += tokens;
+        }
+
+        // Aggregate session dates
+        session_dates.extend(stats.session_dates);
+
+        // Collect session duration
+        if stats.session_duration_minutes > 0 {
+            session_durations.push(stats.session_duration_minutes);
+        }
+
+        // Add first date from timestamps if session has messages
+        if !stats.timestamps.is_empty() {
+            let date = stats.timestamps[0].format("%Y-%m-%d").to_string();
             session_dates.insert(date);
         }
     }
 
+    // Phase 4: Finalize daily stats
     for (date, daily_stat) in daily_stats_map.iter_mut() {
         daily_stat.session_count = session_dates.iter().filter(|&d| d == date).count();
         daily_stat.active_hours = if daily_stat.message_count > 0 {
@@ -492,15 +740,9 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
         return Err("Projects directory not found".to_string());
     }
 
-    let mut summary = GlobalStatsSummary::default();
-
-    let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
-    let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
-    let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
-    let mut model_usage_map: HashMap<String, (u32, u64, u64, u64, u64, u64)> = HashMap::new(); // (message_count, total_tokens, input_tokens, output_tokens, cache_creation, cache_read)
-    let mut project_stats_map: HashMap<String, (u32, u32, u64)> = HashMap::new();
-    let mut global_first_message: Option<DateTime<Utc>> = None;
-    let mut global_last_message: Option<DateTime<Utc>> = None;
+    // Phase 1: Collect all session files and their project names
+    let mut session_files: Vec<PathBuf> = Vec::new();
+    let mut project_names: HashSet<String> = HashSet::new();
 
     for project_entry in fs::read_dir(&projects_path).map_err(|e| e.to_string())? {
         let project_entry = project_entry.map_err(|e| e.to_string())?;
@@ -515,179 +757,103 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
             .and_then(|n| n.to_str())
             .unwrap_or("Unknown")
             .to_string();
-
-        summary.total_projects += 1;
-
-        let mut project_sessions = 0u32;
-        let mut project_messages = 0u32;
-        let mut project_tokens = 0u64;
+        project_names.insert(project_name);
 
         for entry in WalkDir::new(&project_path)
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         {
-            summary.total_sessions += 1;
-            project_sessions += 1;
-
-            let session_path = entry.path();
-            let file = match fs::File::open(session_path) {
-                Ok(f) => f,
-                Err(_) => continue,
-            };
-            let reader = BufReader::new(file);
-
-            let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
-
-            for line in reader.lines() {
-                let line = match line {
-                    Ok(l) => l,
-                    Err(_) => continue,
-                };
-
-                if line.trim().is_empty() {
-                    continue;
-                }
-
-                if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
-                    if let Ok(message) = ClaudeMessage::try_from(log_entry) {
-                        summary.total_messages += 1;
-                        project_messages += 1;
-
-                        if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
-                            let timestamp = timestamp.with_timezone(&Utc);
-
-                            // Collect timestamp for active time calculation
-                            session_timestamps.push(timestamp);
-
-                            if global_first_message.is_none() || timestamp < global_first_message.unwrap() {
-                                global_first_message = Some(timestamp);
-                            }
-                            if global_last_message.is_none() || timestamp > global_last_message.unwrap() {
-                                global_last_message = Some(timestamp);
-                            }
-
-                            let hour = timestamp.hour() as u8;
-                            let day = timestamp.weekday().num_days_from_sunday() as u8;
-                            let usage = extract_token_usage(&message);
-                            let tokens = usage.input_tokens.unwrap_or(0) as u64
-                                + usage.output_tokens.unwrap_or(0) as u64
-                                + usage.cache_creation_input_tokens.unwrap_or(0) as u64
-                                + usage.cache_read_input_tokens.unwrap_or(0) as u64;
-                            let input_tokens = usage.input_tokens.unwrap_or(0) as u64;
-                            let output_tokens = usage.output_tokens.unwrap_or(0) as u64;
-                            let cache_creation_tokens = usage.cache_creation_input_tokens.unwrap_or(0) as u64;
-                            let cache_read_tokens = usage.cache_read_input_tokens.unwrap_or(0) as u64;
-
-                            summary.total_tokens += tokens;
-                            project_tokens += tokens;
-
-                            let activity_entry = activity_map.entry((hour, day)).or_insert((0, 0));
-                            activity_entry.0 += 1;
-                            activity_entry.1 += tokens;
-
-                            let date = timestamp.format("%Y-%m-%d").to_string();
-                            let daily_entry = daily_stats_map.entry(date.clone()).or_insert_with(|| DailyStats {
-                                date, ..Default::default()
-                            });
-
-                            daily_entry.total_tokens += tokens as u64;
-                            daily_entry.input_tokens += usage.input_tokens.unwrap_or(0) as u64;
-                            daily_entry.output_tokens += usage.output_tokens.unwrap_or(0) as u64;
-                            daily_entry.message_count += 1;
-
-                            summary.token_distribution.input += usage.input_tokens.unwrap_or(0) as u64;
-                            summary.token_distribution.output += usage.output_tokens.unwrap_or(0) as u64;
-                            summary.token_distribution.cache_creation += usage.cache_creation_input_tokens.unwrap_or(0) as u64;
-                            summary.token_distribution.cache_read += usage.cache_read_input_tokens.unwrap_or(0) as u64;
-
-                            if let Some(model_name) = &message.model {
-                                let model_entry = model_usage_map.entry(model_name.clone()).or_insert((0, 0, 0, 0, 0, 0));
-                                model_entry.0 += 1; // message_count
-                                model_entry.1 += tokens; // total_tokens
-                                model_entry.2 += input_tokens; // input_tokens
-                                model_entry.3 += output_tokens; // output_tokens
-                                model_entry.4 += cache_creation_tokens; // cache_creation_tokens
-                                model_entry.5 += cache_read_tokens; // cache_read_tokens
-                            }
-                        }
-
-                        if message.message_type == "assistant" {
-                            if let Some(content) = &message.content {
-                                if let Some(content_array) = content.as_array() {
-                                    for item in content_array {
-                                        if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                                            if item_type == "tool_use" {
-                                                if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
-                                                    let tool_entry = tool_usage_map.entry(name.to_string()).or_insert((0, 0));
-                                                    tool_entry.0 += 1;
-                                                    tool_entry.1 += 1;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(tool_use) = &message.tool_use {
-                            if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
-                                let tool_entry = tool_usage_map.entry(name.to_string()).or_insert((0, 0));
-                                tool_entry.0 += 1;
-                                if let Some(result) = &message.tool_use_result {
-                                    let is_error = result.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false);
-                                    if !is_error {
-                                        tool_entry.1 += 1;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Calculate session time by counting time spans between messages
-            // Split sessions at breaks >120 minutes (overnight, long breaks, etc.)
-            const SESSION_BREAK_THRESHOLD_MINUTES: i64 = 120;
-
-            if session_timestamps.len() >= 2 {
-                session_timestamps.sort();
-
-                // Track active periods (split at long breaks)
-                let mut current_period_start = session_timestamps[0];
-                let mut total_active_minutes = 0u64;
-
-                for i in 0..session_timestamps.len() - 1 {
-                    let current = session_timestamps[i];
-                    let next = session_timestamps[i + 1];
-                    let gap_minutes = (next - current).num_minutes();
-
-                    // If gap >60 minutes, it's a session break (lunch, pause, etc.)
-                    if gap_minutes > SESSION_BREAK_THRESHOLD_MINUTES {
-                        // Close current active period
-                        let period_duration = (current - current_period_start).num_minutes();
-                        total_active_minutes += period_duration.max(1) as u64; // Minimum 1 minute
-
-                        // Start new active period after the break
-                        current_period_start = next;
-                    }
-                }
-
-                // Close final active period
-                let last_timestamp = session_timestamps[session_timestamps.len() - 1];
-                let final_period = (last_timestamp - current_period_start).num_minutes();
-                total_active_minutes += final_period.max(1) as u64;
-
-                summary.total_session_duration_minutes += total_active_minutes;
-            } else if session_timestamps.len() == 1 {
-                // Single message session = 1 minute minimum
-                summary.total_session_duration_minutes += 1;
-            }
+            session_files.push(entry.path().to_path_buf());
         }
-
-        project_stats_map.insert(project_name, (project_sessions, project_messages, project_tokens));
     }
 
+    // Phase 2: Process all session files in parallel
+    let file_stats: Vec<SessionFileStats> = session_files
+        .par_iter()
+        .filter_map(|path| process_session_file_for_global_stats(path))
+        .collect();
+
+    // Phase 3: Aggregate results
+    let mut summary = GlobalStatsSummary::default();
+    summary.total_projects = project_names.len() as u32;
+    summary.total_sessions = file_stats.len() as u32;
+
+    let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
+    let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
+    let mut model_usage_map: HashMap<String, (u32, u64, u64, u64, u64, u64)> = HashMap::new();
+    let mut project_stats_map: HashMap<String, (u32, u32, u64)> = HashMap::new();
+    let mut global_first_message: Option<DateTime<Utc>> = None;
+    let mut global_last_message: Option<DateTime<Utc>> = None;
+
+    for stats in file_stats {
+        summary.total_messages += stats.total_messages;
+        summary.total_tokens += stats.total_tokens;
+        summary.total_session_duration_minutes += stats.session_duration_minutes;
+
+        // Aggregate token distribution
+        summary.token_distribution.input += stats.token_distribution.input;
+        summary.token_distribution.output += stats.token_distribution.output;
+        summary.token_distribution.cache_creation += stats.token_distribution.cache_creation;
+        summary.token_distribution.cache_read += stats.token_distribution.cache_read;
+
+        // Aggregate tool usage
+        for (name, (usage, success)) in stats.tool_usage {
+            let entry = tool_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
+        }
+
+        // Aggregate daily stats
+        for (date, daily) in stats.daily_stats {
+            let entry = daily_stats_map.entry(date.clone()).or_insert_with(|| DailyStats {
+                date, ..Default::default()
+            });
+            entry.total_tokens += daily.total_tokens;
+            entry.input_tokens += daily.input_tokens;
+            entry.output_tokens += daily.output_tokens;
+            entry.message_count += daily.message_count;
+        }
+
+        // Aggregate activity data
+        for ((hour, day), (count, tokens)) in stats.activity_data {
+            let entry = activity_map.entry((hour, day)).or_insert((0, 0));
+            entry.0 += count;
+            entry.1 += tokens;
+        }
+
+        // Aggregate model usage
+        for (model, (msg_count, total, input, output, cache_create, cache_read)) in stats.model_usage {
+            let entry = model_usage_map.entry(model).or_insert((0, 0, 0, 0, 0, 0));
+            entry.0 += msg_count;
+            entry.1 += total;
+            entry.2 += input;
+            entry.3 += output;
+            entry.4 += cache_create;
+            entry.5 += cache_read;
+        }
+
+        // Aggregate project stats
+        let project_entry = project_stats_map.entry(stats.project_name).or_insert((0, 0, 0));
+        project_entry.0 += 1; // sessions
+        project_entry.1 += stats.total_messages as u32; // messages
+        project_entry.2 += stats.total_tokens; // tokens
+
+        // Track global first/last message
+        if let Some(first) = stats.first_message {
+            if global_first_message.is_none() || first < global_first_message.unwrap() {
+                global_first_message = Some(first);
+            }
+        }
+        if let Some(last) = stats.last_message {
+            if global_last_message.is_none() || last > global_last_message.unwrap() {
+                global_last_message = Some(last);
+            }
+        }
+    }
+
+    // Phase 4: Build final summary structures
     summary.most_used_tools = tool_usage_map
         .into_iter()
         .map(|(name, (usage, success))| ToolUsageStats {

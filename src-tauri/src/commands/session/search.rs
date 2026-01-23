@@ -2,10 +2,112 @@
 
 use crate::models::*;
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use walkdir::WalkDir;
 use chrono::Utc;
 use uuid::Uuid;
+use rayon::prelude::*;
+
+/// Recursively search for a query within a serde_json::Value
+/// Returns true if the query is found in any string value.
+/// This avoids the expensive JSON serialization that was previously used.
+#[inline]
+fn search_in_value(value: &serde_json::Value, query: &str) -> bool {
+    match value {
+        serde_json::Value::String(s) => s.to_lowercase().contains(query),
+        serde_json::Value::Array(arr) => arr.iter().any(|item| search_in_value(item, query)),
+        serde_json::Value::Object(obj) => obj.values().any(|val| search_in_value(val, query)),
+        _ => false, // Numbers, booleans, null don't contain searchable text
+    }
+}
+
+/// 단일 파일에서 쿼리와 매칭되는 메시지를 검색
+fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
+    let query_lower = query.to_lowercase();
+
+    let file = match fs::File::open(file_path) {
+        Ok(f) => f,
+        Err(_) => return Vec::new(),
+    };
+    // Pre-allocate with small capacity (most searches find few matches)
+    let mut results = Vec::with_capacity(8);
+    let reader = BufReader::new(file);
+
+    for (line_num, line_result) in reader.lines().enumerate() {
+        let line = match line_result {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let log_entry: RawLogEntry = match serde_json::from_str(&line) {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+
+        if log_entry.message_type != "user" && log_entry.message_type != "assistant" {
+            continue;
+        }
+
+        let message_content = match &log_entry.message {
+            Some(mc) => mc,
+            None => continue,
+        };
+
+        // Use recursive search to avoid JSON serialization overhead
+        let matches = match &message_content.content {
+            serde_json::Value::String(s) => s.to_lowercase().contains(&query_lower),
+            serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                search_in_value(&message_content.content, &query_lower)
+            }
+            _ => false,
+        };
+
+        if !matches {
+            continue;
+        }
+
+        let claude_message = ClaudeMessage {
+            uuid: log_entry.uuid.unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1)),
+            parent_uuid: log_entry.parent_uuid,
+            session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
+            timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+            message_type: log_entry.message_type,
+            content: Some(message_content.content.clone()),
+            tool_use: log_entry.tool_use,
+            tool_use_result: log_entry.tool_use_result,
+            is_sidechain: log_entry.is_sidechain,
+            usage: message_content.usage.clone(),
+            role: Some(message_content.role.clone()),
+            model: message_content.model.clone(),
+            stop_reason: message_content.stop_reason.clone(),
+            cost_usd: log_entry.cost_usd,
+            duration_ms: log_entry.duration_ms,
+            message_id: message_content.id.clone(),
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+        };
+        results.push(claude_message);
+    }
+
+    results
+}
 
 #[tauri::command]
 pub async fn search_messages(
@@ -13,73 +115,37 @@ pub async fn search_messages(
     query: String,
     _filters: serde_json::Value
 ) -> Result<Vec<ClaudeMessage>, String> {
+    #[cfg(debug_assertions)]
+    let start_time = std::time::Instant::now();
+
     let projects_path = PathBuf::from(&claude_path).join("projects");
-    let mut all_messages = Vec::new();
 
     if !projects_path.exists() {
         return Ok(vec![]);
     }
 
-    for entry in WalkDir::new(&projects_path)
+    // 1. 모든 JSONL 파일 경로 수집
+    let file_paths: Vec<PathBuf> = WalkDir::new(&projects_path)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-    {
-        if let Ok(content) = fs::read_to_string(entry.path()) {
-            for (line_num, line) in content.lines().enumerate() {
-                if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(line) {
-                    if log_entry.message_type == "user" || log_entry.message_type == "assistant" {
-                        if let Some(message_content) = &log_entry.message {
-                            let content_str = match &message_content.content {
-                                serde_json::Value::String(s) => s.clone(),
-                                serde_json::Value::Array(arr) => serde_json::to_string(arr).unwrap_or_default(),
-                                _ => "".to_string(),
-                            };
+        .map(|e| e.path().to_path_buf())
+        .collect();
 
-                            if content_str.to_lowercase().contains(&query.to_lowercase()) {
-                                let claude_message = ClaudeMessage {
-                                    uuid: log_entry.uuid.unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1)),
-                                    parent_uuid: log_entry.parent_uuid,
-                                    session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
-                                    timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
-                                    message_type: log_entry.message_type,
-                                    content: Some(message_content.content.clone()),
-                                    tool_use: log_entry.tool_use,
-                                    tool_use_result: log_entry.tool_use_result,
-                                    is_sidechain: log_entry.is_sidechain,
-                                    usage: message_content.usage.clone(),
-                                    role: Some(message_content.role.clone()),
-                                    model: message_content.model.clone(),
-                                    stop_reason: message_content.stop_reason.clone(),
-                                    cost_usd: log_entry.cost_usd,
-                                    duration_ms: log_entry.duration_ms,
-                                    // File history snapshot fields (not applicable for search results)
-                                    message_id: message_content.id.clone(),
-                                    snapshot: None,
-                                    is_snapshot_update: None,
-                                    // Progress message fields (not applicable for search results)
-                                    data: None,
-                                    tool_use_id: None,
-                                    parent_tool_use_id: None,
-                                    // Queue operation fields (not applicable for search results)
-                                    operation: None,
-                                    // System message fields (not applicable for search results)
-                                    subtype: None,
-                                    level: None,
-                                    hook_count: None,
-                                    hook_infos: None,
-                                    stop_reason_system: None,
-                                    prevented_continuation: None,
-                                    compact_metadata: None,
-                                    microcompact_metadata: None,
-                                };
-                                all_messages.push(claude_message);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    #[cfg(debug_assertions)]
+    eprintln!("🔍 search_messages: {}개 파일에서 검색 시작", file_paths.len());
+
+    // 2. rayon을 사용한 병렬 검색
+    let all_messages: Vec<ClaudeMessage> = file_paths
+        .par_iter()
+        .flat_map(|path| search_in_file(path, &query))
+        .collect();
+
+    #[cfg(debug_assertions)]
+    {
+        let elapsed = start_time.elapsed();
+        eprintln!("📊 search_messages 성능: {}개 결과, {}ms 소요",
+                 all_messages.len(), elapsed.as_millis());
     }
 
     Ok(all_messages)

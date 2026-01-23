@@ -1,6 +1,6 @@
-mod models;
-mod commands;
-mod utils;
+pub mod models;
+pub mod commands;
+pub mod utils;
 
 use crate::commands::{project::*, session::*, stats::*, update::*, secure_update::*, feedback::*};
 
