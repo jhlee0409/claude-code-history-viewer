@@ -54,7 +54,7 @@ export const SettingDropdown = () => {
             <MessageSquare className="mr-2 h-4 w-4 text-foreground" />
             <span>{t("feedback.title")}</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => window.dispatchEvent(new Event('common.open-update-settings'))}>
+          <DropdownMenuItem onClick={() => window.dispatchEvent(new Event('open-update-settings'))}>
             <Download className="mr-2 h-4 w-4 text-foreground" />
             <span>{t('common.settings.updateSettings')}</span>
           </DropdownMenuItem>
@@ -70,7 +70,7 @@ export const SettingDropdown = () => {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
-              window.dispatchEvent(new Event('common.manual-update-check'));
+              window.dispatchEvent(new Event('manual-update-check'));
               manualUpdater.checkForUpdates(true); // 강제 체크
             }}
             disabled={manualUpdater.state.isChecking}
