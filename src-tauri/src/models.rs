@@ -7,6 +7,9 @@ mod message;
 mod session;
 mod stats;
 
+#[cfg(test)]
+mod snapshot_tests;
+
 // Re-export all types for backward compatibility
 pub use edit::*;
 pub use message::*;

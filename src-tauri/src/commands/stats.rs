@@ -912,3 +912,483 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
 
     Ok(summary)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_try_from_raw_log_entry_user_message() {
+        let raw = RawLogEntry {
+            uuid: Some("test-uuid".to_string()),
+            parent_uuid: Some("parent-uuid".to_string()),
+            session_id: Some("session-123".to_string()),
+            timestamp: Some("2025-06-26T10:00:00Z".to_string()),
+            message_type: "user".to_string(),
+            summary: None,
+            leaf_uuid: None,
+            message: Some(MessageContent {
+                role: "user".to_string(),
+                content: json!("Hello, Claude!"),
+                id: None,
+                model: None,
+                stop_reason: None,
+                usage: None,
+            }),
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: Some(false),
+            cwd: Some("/home/user/project".to_string()),
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+            content: None,
+        };
+
+        let result = ClaudeMessage::try_from(raw);
+        assert!(result.is_ok());
+
+        let msg = result.unwrap();
+        assert_eq!(msg.uuid, "test-uuid");
+        assert_eq!(msg.session_id, "session-123");
+        assert_eq!(msg.message_type, "user");
+        assert_eq!(msg.role, Some("user".to_string()));
+    }
+
+    #[test]
+    fn test_try_from_raw_log_entry_assistant_message() {
+        let raw = RawLogEntry {
+            uuid: Some("assistant-uuid".to_string()),
+            parent_uuid: None,
+            session_id: Some("session-123".to_string()),
+            timestamp: Some("2025-06-26T10:01:00Z".to_string()),
+            message_type: "assistant".to_string(),
+            summary: None,
+            leaf_uuid: None,
+            message: Some(MessageContent {
+                role: "assistant".to_string(),
+                content: json!([{"type": "text", "text": "Hello!"}]),
+                id: Some("msg_123".to_string()),
+                model: Some("claude-opus-4-20250514".to_string()),
+                stop_reason: Some("end_turn".to_string()),
+                usage: Some(TokenUsage {
+                    input_tokens: Some(100),
+                    output_tokens: Some(50),
+                    cache_creation_input_tokens: Some(20),
+                    cache_read_input_tokens: Some(10),
+                    service_tier: Some("standard".to_string()),
+                }),
+            }),
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            cwd: None,
+            cost_usd: Some(0.005),
+            duration_ms: Some(1500),
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+            content: None,
+        };
+
+        let result = ClaudeMessage::try_from(raw);
+        assert!(result.is_ok());
+
+        let msg = result.unwrap();
+        assert_eq!(msg.message_type, "assistant");
+        assert_eq!(msg.model, Some("claude-opus-4-20250514".to_string()));
+        assert_eq!(msg.stop_reason, Some("end_turn".to_string()));
+        assert_eq!(msg.cost_usd, Some(0.005));
+        assert_eq!(msg.duration_ms, Some(1500));
+
+        let usage = msg.usage.unwrap();
+        assert_eq!(usage.input_tokens, Some(100));
+        assert_eq!(usage.output_tokens, Some(50));
+    }
+
+    #[test]
+    fn test_try_from_raw_log_entry_summary_fails() {
+        let raw = RawLogEntry {
+            uuid: None,
+            parent_uuid: None,
+            session_id: None,
+            timestamp: None,
+            message_type: "summary".to_string(),
+            summary: Some("This is a summary".to_string()),
+            leaf_uuid: Some("leaf-123".to_string()),
+            message: None,
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            cwd: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+            content: None,
+        };
+
+        let result = ClaudeMessage::try_from(raw);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Summary"));
+    }
+
+    #[test]
+    fn test_try_from_raw_log_entry_missing_session_and_timestamp_fails() {
+        let raw = RawLogEntry {
+            uuid: Some("uuid".to_string()),
+            parent_uuid: None,
+            session_id: None,
+            timestamp: None,
+            message_type: "user".to_string(),
+            summary: None,
+            leaf_uuid: None,
+            message: Some(MessageContent {
+                role: "user".to_string(),
+                content: json!("Hello"),
+                id: None,
+                model: None,
+                stop_reason: None,
+                usage: None,
+            }),
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            cwd: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+            content: None,
+        };
+
+        let result = ClaudeMessage::try_from(raw);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Missing"));
+    }
+
+    #[test]
+    fn test_try_from_raw_log_entry_with_only_timestamp() {
+        let raw = RawLogEntry {
+            uuid: None,
+            parent_uuid: None,
+            session_id: None,
+            timestamp: Some("2025-06-26T10:00:00Z".to_string()),
+            message_type: "user".to_string(),
+            summary: None,
+            leaf_uuid: None,
+            message: Some(MessageContent {
+                role: "user".to_string(),
+                content: json!("Hello"),
+                id: None,
+                model: None,
+                stop_reason: None,
+                usage: None,
+            }),
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            cwd: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+            content: None,
+        };
+
+        // Should succeed with timestamp even without session_id
+        let result = ClaudeMessage::try_from(raw);
+        assert!(result.is_ok());
+
+        let msg = result.unwrap();
+        assert_eq!(msg.session_id, "unknown-session");
+    }
+
+    #[test]
+    fn test_extract_token_usage_from_usage_field() {
+        let msg = ClaudeMessage {
+            uuid: "uuid".to_string(),
+            parent_uuid: None,
+            session_id: "session".to_string(),
+            timestamp: "2025-01-01T00:00:00Z".to_string(),
+            message_type: "assistant".to_string(),
+            content: None,
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            usage: Some(TokenUsage {
+                input_tokens: Some(100),
+                output_tokens: Some(50),
+                cache_creation_input_tokens: Some(20),
+                cache_read_input_tokens: Some(10),
+                service_tier: Some("standard".to_string()),
+            }),
+            role: Some("assistant".to_string()),
+            model: None,
+            stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+        };
+
+        let usage = extract_token_usage(&msg);
+        assert_eq!(usage.input_tokens, Some(100));
+        assert_eq!(usage.output_tokens, Some(50));
+        assert_eq!(usage.cache_creation_input_tokens, Some(20));
+        assert_eq!(usage.cache_read_input_tokens, Some(10));
+    }
+
+    #[test]
+    fn test_extract_token_usage_from_content() {
+        let msg = ClaudeMessage {
+            uuid: "uuid".to_string(),
+            parent_uuid: None,
+            session_id: "session".to_string(),
+            timestamp: "2025-01-01T00:00:00Z".to_string(),
+            message_type: "assistant".to_string(),
+            content: Some(json!({
+                "usage": {
+                    "input_tokens": 200,
+                    "output_tokens": 100,
+                    "service_tier": "premium"
+                }
+            })),
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            usage: None,
+            role: None,
+            model: None,
+            stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+        };
+
+        let usage = extract_token_usage(&msg);
+        assert_eq!(usage.input_tokens, Some(200));
+        assert_eq!(usage.output_tokens, Some(100));
+        assert_eq!(usage.service_tier, Some("premium".to_string()));
+    }
+
+    #[test]
+    fn test_extract_token_usage_from_tool_use_result() {
+        let msg = ClaudeMessage {
+            uuid: "uuid".to_string(),
+            parent_uuid: None,
+            session_id: "session".to_string(),
+            timestamp: "2025-01-01T00:00:00Z".to_string(),
+            message_type: "user".to_string(),
+            content: None,
+            tool_use: None,
+            tool_use_result: Some(json!({
+                "usage": {
+                    "input_tokens": 150,
+                    "output_tokens": 75
+                }
+            })),
+            is_sidechain: None,
+            usage: None,
+            role: None,
+            model: None,
+            stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+        };
+
+        let usage = extract_token_usage(&msg);
+        assert_eq!(usage.input_tokens, Some(150));
+        assert_eq!(usage.output_tokens, Some(75));
+    }
+
+    #[test]
+    fn test_extract_token_usage_from_total_tokens() {
+        let msg = ClaudeMessage {
+            uuid: "uuid".to_string(),
+            parent_uuid: None,
+            session_id: "session".to_string(),
+            timestamp: "2025-01-01T00:00:00Z".to_string(),
+            message_type: "assistant".to_string(),
+            content: None,
+            tool_use: None,
+            tool_use_result: Some(json!({
+                "totalTokens": 500
+            })),
+            is_sidechain: None,
+            usage: None,
+            role: None,
+            model: None,
+            stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+        };
+
+        let usage = extract_token_usage(&msg);
+        // For assistant messages, totalTokens goes to output_tokens
+        assert_eq!(usage.output_tokens, Some(500));
+    }
+
+    #[test]
+    fn test_extract_token_usage_empty() {
+        let msg = ClaudeMessage {
+            uuid: "uuid".to_string(),
+            parent_uuid: None,
+            session_id: "session".to_string(),
+            timestamp: "2025-01-01T00:00:00Z".to_string(),
+            message_type: "user".to_string(),
+            content: None,
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            usage: None,
+            role: None,
+            model: None,
+            stop_reason: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+        };
+
+        let usage = extract_token_usage(&msg);
+        assert!(usage.input_tokens.is_none());
+        assert!(usage.output_tokens.is_none());
+    }
+}

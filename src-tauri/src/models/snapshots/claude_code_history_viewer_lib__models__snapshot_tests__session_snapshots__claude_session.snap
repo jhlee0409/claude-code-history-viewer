@@ -1,0 +1,17 @@
+---
+source: src/models/snapshot_tests.rs
+expression: session
+---
+{
+  "session_id": "session-xyz",
+  "actual_session_id": "actual-session-xyz",
+  "file_path": "/path/to/session.jsonl",
+  "project_name": "test-project",
+  "message_count": 100,
+  "first_message_time": "2025-01-01T00:00:00Z",
+  "last_message_time": "2025-01-01T12:00:00Z",
+  "last_modified": "2025-01-01T12:00:00Z",
+  "has_tool_use": true,
+  "has_errors": false,
+  "summary": "Test conversation summary"
+}

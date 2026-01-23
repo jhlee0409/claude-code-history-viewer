@@ -1,0 +1,39 @@
+---
+source: src/models/snapshot_tests.rs
+expression: message
+---
+{
+  "uuid": "test-uuid-tool",
+  "parentUuid": null,
+  "sessionId": "session-abc",
+  "timestamp": "2025-01-01T12:00:02Z",
+  "type": "assistant",
+  "content": [
+    {
+      "id": "toolu_123",
+      "input": {
+        "file_path": "/path/to/file.rs"
+      },
+      "name": "Read",
+      "type": "tool_use"
+    }
+  ],
+  "toolUse": {
+    "input": {
+      "file_path": "/path/to/file.rs"
+    },
+    "name": "Read"
+  },
+  "toolUseResult": null,
+  "isSidechain": null,
+  "usage": {
+    "input_tokens": 200,
+    "output_tokens": 100,
+    "cache_creation_input_tokens": null,
+    "cache_read_input_tokens": null,
+    "service_tier": null
+  },
+  "role": "assistant",
+  "model": "claude-opus-4-20250514",
+  "stop_reason": "tool_use"
+}

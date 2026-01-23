@@ -1,0 +1,16 @@
+---
+source: src/models/snapshot_tests.rs
+expression: message
+---
+{
+  "uuid": "test-uuid-1234",
+  "parentUuid": null,
+  "sessionId": "session-abc",
+  "timestamp": "2025-01-01T12:00:00Z",
+  "type": "user",
+  "content": "Hello, Claude!",
+  "toolUse": null,
+  "toolUseResult": null,
+  "isSidechain": false,
+  "role": "user"
+}

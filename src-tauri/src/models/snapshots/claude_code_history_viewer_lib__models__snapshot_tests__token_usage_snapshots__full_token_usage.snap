@@ -1,0 +1,11 @@
+---
+source: src/models/snapshot_tests.rs
+expression: usage
+---
+{
+  "input_tokens": 1000,
+  "output_tokens": 500,
+  "cache_creation_input_tokens": 200,
+  "cache_read_input_tokens": 100,
+  "service_tier": "premium"
+}

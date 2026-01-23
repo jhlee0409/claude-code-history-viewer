@@ -2,6 +2,9 @@ pub mod models;
 pub mod commands;
 pub mod utils;
 
+#[cfg(test)]
+pub mod test_utils;
+
 use crate::commands::{project::*, session::*, stats::*, update::*, secure_update::*, feedback::*};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

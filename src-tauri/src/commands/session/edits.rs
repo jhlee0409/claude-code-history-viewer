@@ -2,163 +2,191 @@
 
 use crate::models::*;
 use std::collections::HashMap;
+use std::fs;
+use std::io::{BufRead, BufReader};
+use std::path::PathBuf;
 use walkdir::WalkDir;
+use rayon::prelude::*;
+
+/// Intermediate result from processing a single session file (for parallel processing)
+struct SessionEditsResult {
+    edits: Vec<RecentFileEdit>,
+    cwd_counts: HashMap<String, usize>,
+}
+
+/// Process a single session file and extract edit information
+fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsResult> {
+    let file = fs::File::open(file_path).ok()?;
+    let reader = BufReader::new(file);
+
+    let mut edits: Vec<RecentFileEdit> = Vec::with_capacity(16);
+    let mut cwd_counts: HashMap<String, usize> = HashMap::new();
+
+    for line_result in reader.lines() {
+        let line = match line_result {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let log_entry: RawLogEntry = match serde_json::from_str(&line) {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+
+        // Extract common fields
+        let timestamp = log_entry.timestamp.clone().unwrap_or_default();
+        let session_id = log_entry.session_id.clone().unwrap_or_else(|| "unknown".to_string());
+        let cwd = log_entry.cwd.clone();
+
+        // Track cwd frequency to determine project directory
+        if let Some(cwd_path) = cwd.as_ref() {
+            *cwd_counts.entry(cwd_path.to_string()).or_insert(0) += 1;
+        }
+
+        // Process tool use results for Edit and Write operations
+        if let Some(tool_use_result) = &log_entry.tool_use_result {
+            // Handle Write/Create tool results (type: "create")
+            if tool_use_result.get("type").and_then(|v| v.as_str()) == Some("create") {
+                if let (Some(file_path_str), Some(content)) = (
+                    tool_use_result.get("filePath").and_then(|v| v.as_str()),
+                    tool_use_result.get("content").and_then(|v| v.as_str())
+                ) {
+                    edits.push(RecentFileEdit {
+                        file_path: file_path_str.to_string(),
+                        timestamp: timestamp.clone(),
+                        session_id: session_id.clone(),
+                        operation_type: "write".to_string(),
+                        content_after_change: content.to_string(),
+                        original_content: None,
+                        lines_added: content.lines().count(),
+                        lines_removed: 0,
+                        cwd: cwd.clone(),
+                    });
+                }
+            }
+
+            // Handle Edit tool results
+            if let Some(file_path_val) = tool_use_result.get("filePath") {
+                if let Some(file_path_str) = file_path_val.as_str() {
+                    if let Some(edits_arr_val) = tool_use_result.get("edits") {
+                        // Multi-edit format
+                        if let Some(original) = tool_use_result.get("originalFile").and_then(|v| v.as_str()) {
+                            let mut content = original.to_string();
+                            let mut lines_added = 0usize;
+                            let mut lines_removed = 0usize;
+
+                            if let Some(edits_arr) = edits_arr_val.as_array() {
+                                for edit in edits_arr {
+                                    if let (Some(old_str), Some(new_str)) = (
+                                        edit.get("old_string").and_then(|v| v.as_str()),
+                                        edit.get("new_string").and_then(|v| v.as_str())
+                                    ) {
+                                        content = content.replacen(old_str, new_str, 1);
+                                        lines_removed += old_str.lines().count();
+                                        lines_added += new_str.lines().count();
+                                    }
+                                }
+                            }
+
+                            edits.push(RecentFileEdit {
+                                file_path: file_path_str.to_string(),
+                                timestamp: timestamp.clone(),
+                                session_id: session_id.clone(),
+                                operation_type: "edit".to_string(),
+                                content_after_change: content,
+                                original_content: Some(original.to_string()),
+                                lines_added,
+                                lines_removed,
+                                cwd: cwd.clone(),
+                            });
+                        }
+                    } else if let (Some(old_str), Some(new_str)) = (
+                        tool_use_result.get("oldString").and_then(|v| v.as_str()),
+                        tool_use_result.get("newString").and_then(|v| v.as_str())
+                    ) {
+                        // Single edit format
+                        if let Some(original) = tool_use_result.get("originalFile").and_then(|v| v.as_str()) {
+                            let content = original.replacen(old_str, new_str, 1);
+
+                            edits.push(RecentFileEdit {
+                                file_path: file_path_str.to_string(),
+                                timestamp: timestamp.clone(),
+                                session_id: session_id.clone(),
+                                operation_type: "edit".to_string(),
+                                content_after_change: content,
+                                original_content: Some(original.to_string()),
+                                lines_added: new_str.lines().count(),
+                                lines_removed: old_str.lines().count(),
+                                cwd: cwd.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also check tool_use for Write operations
+        if let Some(tool_use) = &log_entry.tool_use {
+            if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
+                if name == "Write" {
+                    if let Some(input) = tool_use.get("input") {
+                        if let (Some(path), Some(content)) = (
+                            input.get("file_path").and_then(|v| v.as_str()),
+                            input.get("content").and_then(|v| v.as_str())
+                        ) {
+                            edits.push(RecentFileEdit {
+                                file_path: path.to_string(),
+                                timestamp: timestamp.clone(),
+                                session_id: session_id.clone(),
+                                operation_type: "write".to_string(),
+                                content_after_change: content.to_string(),
+                                original_content: None,
+                                lines_added: content.lines().count(),
+                                lines_removed: 0,
+                                cwd: cwd.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Some(SessionEditsResult { edits, cwd_counts })
+}
 
 /// Scan all JSONL files in a project and extract recent file edits/writes
 /// Returns the LATEST content for each unique file path, sorted by timestamp descending
 /// Only includes files that belong to the project's working directory
 #[tauri::command]
 pub async fn get_recent_edits(project_path: String) -> Result<RecentEditsResult, String> {
-    let mut all_edits: Vec<RecentFileEdit> = Vec::new();
-    let mut cwd_counts: HashMap<String, usize> = HashMap::new();
-
-    // Scan all JSONL files in the project directory
-    for entry in WalkDir::new(&project_path)
+    // Phase 1: Collect all session files
+    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-    {
-        let file_path = entry.path();
+        .map(|e| e.path().to_path_buf())
+        .collect();
 
-        if let Ok(file) = std::fs::File::open(file_path) {
-            use std::io::{BufRead, BufReader};
-            let reader = BufReader::new(file);
+    // Phase 2: Process files in parallel
+    let file_results: Vec<SessionEditsResult> = session_files
+        .par_iter()
+        .filter_map(|path| process_session_file_for_edits(path))
+        .collect();
 
-            for line_result in reader.lines() {
-                if let Ok(line) = line_result {
-                    if line.trim().is_empty() { continue; }
+    // Phase 3: Aggregate results with pre-allocated capacity
+    let total_edits_estimate: usize = file_results.iter().map(|r| r.edits.len()).sum();
+    let mut all_edits: Vec<RecentFileEdit> = Vec::with_capacity(total_edits_estimate);
+    let mut cwd_counts: HashMap<String, usize> = HashMap::new();
 
-                    if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
-                        // Extract common fields
-                        let timestamp = log_entry.timestamp.clone().unwrap_or_default();
-                        let session_id = log_entry.session_id.clone().unwrap_or_else(|| "unknown".to_string());
-                        let cwd = log_entry.cwd.clone();
-
-                        // Track cwd frequency to determine project directory
-                        if let Some(cwd_path) = cwd.as_ref() {
-                            *cwd_counts.entry(cwd_path.to_string()).or_insert(0) += 1;
-                        }
-
-                        // Process tool use results for Edit and Write operations
-                        if let Some(tool_use_result) = &log_entry.tool_use_result {
-
-                            // Handle Write/Create tool results (type: "create")
-                            // Format: { "type": "create", "filePath": "...", "content": "full content", ... }
-                            if tool_use_result.get("type").and_then(|v| v.as_str()) == Some("create") {
-                                if let (Some(file_path_str), Some(content)) = (
-                                    tool_use_result.get("filePath").and_then(|v| v.as_str()),
-                                    tool_use_result.get("content").and_then(|v| v.as_str())
-                                ) {
-                                    all_edits.push(RecentFileEdit {
-                                        file_path: file_path_str.to_string(),
-                                        timestamp: timestamp.clone(),
-                                        session_id: session_id.clone(),
-                                        operation_type: "write".to_string(),
-                                        content_after_change: content.to_string(),
-                                        original_content: None,
-                                        lines_added: content.lines().count(),
-                                        lines_removed: 0,
-                                        cwd: cwd.clone(),
-                                    });
-                                }
-                            }
-
-                            // Handle Edit tool results
-                            // Format: { "filePath": "...", "oldString": "...", "newString": "...", "originalFile": "full content", ... }
-                            if let Some(file_path_val) = tool_use_result.get("filePath") {
-                                if let Some(file_path_str) = file_path_val.as_str() {
-                                    // Check if this is an Edit result (has edits array or oldString/newString)
-                                    if let Some(edits) = tool_use_result.get("edits") {
-                                        // Multi-edit format (uses "originalFile" not "originalFileContents")
-                                        if let Some(original) = tool_use_result.get("originalFile").and_then(|v| v.as_str()) {
-                                            let mut content = original.to_string();
-                                            let mut lines_added = 0usize;
-                                            let mut lines_removed = 0usize;
-
-                                            if let Some(edits_arr) = edits.as_array() {
-                                                for edit in edits_arr {
-                                                    if let (Some(old_str), Some(new_str)) = (
-                                                        edit.get("old_string").and_then(|v| v.as_str()),
-                                                        edit.get("new_string").and_then(|v| v.as_str())
-                                                    ) {
-                                                        content = content.replacen(old_str, new_str, 1);
-                                                        lines_removed += old_str.lines().count();
-                                                        lines_added += new_str.lines().count();
-                                                    }
-                                                }
-                                            }
-
-                                            all_edits.push(RecentFileEdit {
-                                                file_path: file_path_str.to_string(),
-                                                timestamp: timestamp.clone(),
-                                                session_id: session_id.clone(),
-                                                operation_type: "edit".to_string(),
-                                                content_after_change: content,
-                                                original_content: Some(original.to_string()),
-                                                lines_added,
-                                                lines_removed,
-                                                cwd: cwd.clone(),
-                                            });
-                                        }
-                                    } else if let (Some(old_str), Some(new_str)) = (
-                                        tool_use_result.get("oldString").and_then(|v| v.as_str()),
-                                        tool_use_result.get("newString").and_then(|v| v.as_str())
-                                    ) {
-                                        // Single edit format with oldString/newString
-                                        // Only include if we have originalFile (needed for full file reconstruction)
-                                        if let Some(original) = tool_use_result.get("originalFile").and_then(|v| v.as_str()) {
-                                            let content = original.replacen(old_str, new_str, 1);
-
-                                            all_edits.push(RecentFileEdit {
-                                                file_path: file_path_str.to_string(),
-                                                timestamp: timestamp.clone(),
-                                                session_id: session_id.clone(),
-                                                operation_type: "edit".to_string(),
-                                                content_after_change: content,
-                                                original_content: Some(original.to_string()),
-                                                lines_added: new_str.lines().count(),
-                                                lines_removed: old_str.lines().count(),
-                                                cwd: cwd.clone(),
-                                            });
-                                        }
-                                        // Skip edits without originalFile - we can't reconstruct full file
-                                    }
-                                }
-                            }
-
-                            // NOTE: toolUseResult.file is for READ operations (often truncated)
-                            // We do NOT capture those - only Edit results with originalFile
-                            // and Write results with type: "create"
-                        }
-
-                        // Also check tool_use for Write operations (input has file_path and content)
-                        if let Some(tool_use) = &log_entry.tool_use {
-                            if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
-                                if name == "Write" {
-                                    if let Some(input) = tool_use.get("input") {
-                                        if let (Some(path), Some(content)) = (
-                                            input.get("file_path").and_then(|v| v.as_str()),
-                                            input.get("content").and_then(|v| v.as_str())
-                                        ) {
-                                            all_edits.push(RecentFileEdit {
-                                                file_path: path.to_string(),
-                                                timestamp: timestamp.clone(),
-                                                session_id: session_id.clone(),
-                                                operation_type: "write".to_string(),
-                                                content_after_change: content.to_string(),
-                                                original_content: None,
-                                                lines_added: content.lines().count(),
-                                                lines_removed: 0,
-                                                cwd: cwd.clone(),
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+    for result in file_results {
+        all_edits.extend(result.edits);
+        for (cwd, count) in result.cwd_counts {
+            *cwd_counts.entry(cwd).or_insert(0) += count;
         }
     }
 
@@ -251,4 +279,195 @@ pub async fn restore_file(file_path: String, content: String) -> Result<(), Stri
     fs::write(path, content).map_err(|e| format!("Failed to write file: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs::File;
+    use std::io::Write;
+
+    fn create_test_jsonl_file(dir: &TempDir, filename: &str, content: &str) -> PathBuf {
+        let file_path = dir.path().join(filename);
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        file_path
+    }
+
+    // Test restore_file security validations
+    #[tokio::test]
+    async fn test_restore_file_rejects_null_bytes() {
+        let result = restore_file("/tmp/test\0file.txt".to_string(), "content".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("null bytes"));
+    }
+
+    #[tokio::test]
+    async fn test_restore_file_rejects_relative_path() {
+        let result = restore_file("relative/path/file.txt".to_string(), "content".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("absolute path"));
+    }
+
+    #[tokio::test]
+    async fn test_restore_file_rejects_path_traversal() {
+        let result = restore_file("/tmp/../etc/passwd".to_string(), "content".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("path traversal"));
+    }
+
+    #[tokio::test]
+    async fn test_restore_file_success() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test_restore.txt");
+
+        let result = restore_file(
+            file_path.to_string_lossy().to_string(),
+            "restored content".to_string()
+        ).await;
+
+        assert!(result.is_ok());
+
+        // Verify file content
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "restored content");
+    }
+
+    #[tokio::test]
+    async fn test_restore_file_creates_parent_dirs() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("nested/dir/file.txt");
+
+        let result = restore_file(
+            file_path.to_string_lossy().to_string(),
+            "content".to_string()
+        ).await;
+
+        assert!(result.is_ok());
+        assert!(file_path.exists());
+    }
+
+    // Test get_recent_edits
+    #[tokio::test]
+    async fn test_get_recent_edits_empty_dir() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let edits_result = result.unwrap();
+        assert!(edits_result.files.is_empty());
+        assert_eq!(edits_result.total_edits_count, 0);
+        assert_eq!(edits_result.unique_files_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_recent_edits_with_write_operation() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a JSONL file with Write tool usage
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","cwd":"/test/project","toolUse":{"name":"Write","input":{"file_path":"/test/project/src/main.rs","content":"fn main() {}"}}}"#;
+        create_test_jsonl_file(&temp_dir, "session.jsonl", content);
+
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let edits_result = result.unwrap();
+        assert_eq!(edits_result.files.len(), 1);
+        assert_eq!(edits_result.files[0].file_path, "/test/project/src/main.rs");
+        assert_eq!(edits_result.files[0].operation_type, "write");
+    }
+
+    #[tokio::test]
+    async fn test_get_recent_edits_with_edit_operation() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a JSONL file with Edit tool result
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/src/lib.rs","oldString":"old","newString":"new","originalFile":"old code here"}}"#;
+        create_test_jsonl_file(&temp_dir, "session.jsonl", content);
+
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let edits_result = result.unwrap();
+        assert_eq!(edits_result.files.len(), 1);
+        assert_eq!(edits_result.files[0].file_path, "/test/project/src/lib.rs");
+        assert_eq!(edits_result.files[0].operation_type, "edit");
+    }
+
+    #[tokio::test]
+    async fn test_get_recent_edits_with_multi_edit() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a JSONL file with multi-edit result
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/src/mod.rs","edits":[{"old_string":"old1","new_string":"new1"},{"old_string":"old2","new_string":"new2"}],"originalFile":"old1 old2"}}"#;
+        create_test_jsonl_file(&temp_dir, "session.jsonl", content);
+
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let edits_result = result.unwrap();
+        assert_eq!(edits_result.files.len(), 1);
+        assert_eq!(edits_result.files[0].content_after_change, "new1 new2");
+    }
+
+    #[tokio::test]
+    async fn test_get_recent_edits_keeps_latest_per_file() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Two edits to the same file
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/file.txt","oldString":"v1","newString":"v2","originalFile":"v1"}}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/file.txt","oldString":"v2","newString":"v3","originalFile":"v2"}}"#;
+        create_test_jsonl_file(&temp_dir, "session.jsonl", content);
+
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let edits_result = result.unwrap();
+
+        // Should have only 1 file (latest version)
+        assert_eq!(edits_result.unique_files_count, 1);
+        // But total edits count should be 2
+        assert_eq!(edits_result.total_edits_count, 2);
+        // Latest edit should be v3
+        assert_eq!(edits_result.files[0].content_after_change, "v3");
+    }
+
+    #[tokio::test]
+    async fn test_get_recent_edits_with_create_type() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // File with "type": "create" in toolUseResult
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"type":"create","filePath":"/test/project/new_file.rs","content":"pub fn new() {}"}}"#;
+        create_test_jsonl_file(&temp_dir, "session.jsonl", content);
+
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let edits_result = result.unwrap();
+        assert_eq!(edits_result.files.len(), 1);
+        assert_eq!(edits_result.files[0].operation_type, "write");
+        assert_eq!(edits_result.files[0].content_after_change, "pub fn new() {}");
+    }
+
+    #[tokio::test]
+    async fn test_get_recent_edits_filters_by_project_cwd() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // One edit in project, one outside
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/file1.txt","oldString":"old","newString":"new","originalFile":"old"}}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/file2.txt","oldString":"old","newString":"new","originalFile":"old"}}
+{"uuid":"uuid-3","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/other/location/file3.txt","oldString":"old","newString":"new","originalFile":"old"}}"#;
+        create_test_jsonl_file(&temp_dir, "session.jsonl", content);
+
+        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string()).await;
+
+        assert!(result.is_ok());
+        let edits_result = result.unwrap();
+
+        // Should only have files within /test/project (the most common cwd)
+        assert_eq!(edits_result.unique_files_count, 2);
+        assert_eq!(edits_result.project_cwd, Some("/test/project".to_string()));
+    }
 }

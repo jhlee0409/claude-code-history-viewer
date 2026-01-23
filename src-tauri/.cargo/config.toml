@@ -1,0 +1,36 @@
+# Cargo build configuration for optimal testing experience
+# See: https://doc.rust-lang.org/cargo/reference/config.html
+
+[build]
+# Use all available CPU cores for compilation
+jobs = -1
+
+[target.x86_64-apple-darwin]
+# Faster linking on macOS Intel
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.aarch64-apple-darwin]
+# Apple Silicon optimizations
+rustflags = ["-C", "target-cpu=native"]
+
+# Environment variables for testing
+[env]
+# Enable backtraces in tests
+RUST_BACKTRACE = "1"
+# Log level for tests
+RUST_LOG = "debug"
+
+# Aliases for common test commands
+[alias]
+# Run all tests with nextest (faster parallel execution)
+t = "nextest run"
+# Run tests with coverage
+tcov = "llvm-cov nextest --lcov --output-path lcov.info"
+# Run clippy with all features
+lint = "clippy --all-targets --all-features -- -D warnings"
+# Run mutation testing
+mutants = "mutants --test-tool nextest"
+# Run benchmarks
+bench-all = "bench --all-features"
+# Check formatting
+fmt-check = "fmt --all -- --check"

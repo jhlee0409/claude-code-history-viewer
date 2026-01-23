@@ -1,0 +1,10 @@
+---
+source: src/models/snapshot_tests.rs
+expression: stats
+---
+{
+  "tool_name": "Read",
+  "usage_count": 150,
+  "success_rate": 98.5,
+  "avg_execution_time": 250.0
+}

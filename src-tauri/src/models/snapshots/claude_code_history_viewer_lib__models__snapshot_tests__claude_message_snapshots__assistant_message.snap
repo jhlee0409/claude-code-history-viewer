@@ -1,0 +1,33 @@
+---
+source: src/models/snapshot_tests.rs
+expression: message
+---
+{
+  "uuid": "test-uuid-5678",
+  "parentUuid": "test-uuid-1234",
+  "sessionId": "session-abc",
+  "timestamp": "2025-01-01T12:00:01Z",
+  "type": "assistant",
+  "content": [
+    {
+      "text": "Hello! How can I help you today?",
+      "type": "text"
+    }
+  ],
+  "toolUse": null,
+  "toolUseResult": null,
+  "isSidechain": false,
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 50,
+    "cache_creation_input_tokens": 20,
+    "cache_read_input_tokens": 10,
+    "service_tier": "standard"
+  },
+  "role": "assistant",
+  "model": "claude-opus-4-20250514",
+  "stop_reason": "end_turn",
+  "costUSD": 0.005,
+  "durationMs": 1500,
+  "messageId": "msg_test123"
+}

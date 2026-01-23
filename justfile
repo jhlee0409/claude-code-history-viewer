@@ -105,3 +105,73 @@ issue ISSUE_NUMBER:
 # List open issues
 issues:
     gh issue list --state open --limit 20
+
+# ===== Rust Testing Commands =====
+
+# Run Rust tests with cargo test
+rust-test:
+    cd src-tauri && cargo test
+
+# Run Rust tests with nextest (faster, parallel)
+rust-nextest:
+    cd src-tauri && cargo nextest run
+
+# Run Rust tests with coverage
+rust-coverage:
+    cd src-tauri && cargo llvm-cov nextest --html
+
+# Open Rust coverage report
+rust-coverage-open:
+    cd src-tauri && cargo llvm-cov nextest --html --open
+
+# Run Rust tests in CI profile
+rust-test-ci:
+    cd src-tauri && cargo nextest run --profile ci
+
+# Run Rust clippy lints
+rust-lint:
+    cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings
+
+# Check Rust formatting
+rust-fmt-check:
+    cd src-tauri && cargo fmt --all -- --check
+
+# Format Rust code
+rust-fmt:
+    cd src-tauri && cargo fmt --all
+
+# Run Rust benchmarks
+rust-bench:
+    cd src-tauri && cargo bench
+
+# Run Rust security audit
+rust-audit:
+    cd src-tauri && cargo audit
+
+# Run all Rust checks (lint, format, test)
+rust-check-all: rust-fmt-check rust-lint rust-test
+
+# Watch and run Rust tests on changes
+rust-watch:
+    cd src-tauri && cargo watch -x test
+
+# Generate Rust documentation
+rust-doc:
+    cd src-tauri && cargo doc --no-deps --document-private-items --open
+
+# Run property-based tests only
+rust-proptest:
+    cd src-tauri && cargo test proptest
+
+# Review snapshot changes (insta)
+rust-snapshot-review:
+    cd src-tauri && cargo insta review
+
+# Install Rust testing tools
+rust-tools-install:
+    cargo install cargo-nextest --locked
+    cargo install cargo-llvm-cov --locked
+    cargo install cargo-watch --locked
+    cargo install cargo-audit --locked
+    cargo install cargo-insta --locked
+    cargo install cargo-mutants --locked

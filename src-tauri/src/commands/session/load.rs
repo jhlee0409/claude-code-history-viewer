@@ -2,13 +2,111 @@
 
 use crate::models::*;
 use crate::utils::extract_project_name;
+use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::PathBuf;
+use std::time::SystemTime;
 use walkdir::WalkDir;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use rayon::prelude::*;
+
+/// Cache entry for a single session file (supports incremental parsing)
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct CachedSessionMetadata {
+    /// File modification time (as Unix timestamp)
+    modified_time: u64,
+    /// File size in bytes (for detecting append-only changes)
+    file_size: u64,
+    /// Last byte offset processed (for incremental parsing)
+    last_byte_offset: u64,
+    /// Cached session data (None if file had no valid messages)
+    session: Option<ClaudeSession>,
+    /// Number of sidechain messages (for filtering adjustment)
+    sidechain_count: usize,
+    /// Whether tool_use was detected (for incremental updates)
+    has_tool_use: bool,
+    /// Whether errors were detected (for incremental updates)
+    has_errors: bool,
+}
+
+/// Session metadata cache file structure
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct SessionMetadataCache {
+    /// Version for cache invalidation on format changes
+    version: u32,
+    /// Map of file path -> cached metadata
+    entries: HashMap<String, CachedSessionMetadata>,
+}
+
+const CACHE_VERSION: u32 = 3;
+
+/// Get the cache file path for a project
+fn get_cache_path(project_path: &str) -> PathBuf {
+    PathBuf::from(project_path).join(".session_cache.json")
+}
+
+/// Load cache from disk
+fn load_cache(project_path: &str) -> SessionMetadataCache {
+    let cache_path = get_cache_path(project_path);
+    if let Ok(content) = fs::read_to_string(&cache_path) {
+        if let Ok(cache) = serde_json::from_str::<SessionMetadataCache>(&content) {
+            if cache.version == CACHE_VERSION {
+                return cache;
+            }
+        }
+    }
+    SessionMetadataCache::default()
+}
+
+/// Save cache to disk (best effort, errors are ignored)
+fn save_cache(project_path: &str, cache: &SessionMetadataCache) {
+    let cache_path = get_cache_path(project_path);
+    if let Ok(content) = serde_json::to_string(cache) {
+        let _ = fs::File::create(&cache_path)
+            .and_then(|mut f| f.write_all(content.as_bytes()));
+    }
+}
+
+/// Get file modification time as Unix timestamp
+fn get_modified_time(path: &PathBuf) -> Option<u64> {
+    path.metadata()
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+}
+
+/// Get file size in bytes
+fn get_file_size(path: &PathBuf) -> Option<u64> {
+    path.metadata().ok().map(|m| m.len())
+}
+
+/// Data needed for incremental parsing continuation
+#[derive(Clone)]
+struct IncrementalParseState {
+    /// Byte offset to start reading from
+    start_offset: u64,
+    /// Previous message count
+    message_count: usize,
+    /// Previous sidechain count
+    sidechain_count: usize,
+    /// Previous last timestamp
+    last_timestamp: Option<String>,
+    /// Already detected tool_use
+    has_tool_use: bool,
+    /// Already detected errors
+    has_errors: bool,
+    /// Session ID (already known)
+    session_id: Option<String>,
+    /// First timestamp (already known)
+    first_timestamp: Option<String>,
+    /// Summary (already known)
+    summary: Option<String>,
+    /// First user content (already known)
+    first_user_content: Option<String>,
+}
 
 /// Minimal struct for fast line classification (avoids full parsing)
 #[derive(serde::Deserialize)]
@@ -17,6 +115,312 @@ struct LineClassifier {
     message_type: String,
     #[serde(rename = "isSidechain")]
     is_sidechain: Option<bool>,
+}
+
+/// Minimal struct for extracting session metadata without full message parsing
+#[derive(serde::Deserialize)]
+struct SessionMetadataEntry {
+    #[serde(rename = "type")]
+    message_type: String,
+    #[serde(rename = "sessionId")]
+    session_id: Option<String>,
+    timestamp: Option<String>,
+    #[serde(rename = "isSidechain")]
+    is_sidechain: Option<bool>,
+    summary: Option<String>,
+    #[serde(rename = "toolUse")]
+    tool_use: Option<serde_json::Value>,
+    #[serde(rename = "toolUseResult")]
+    tool_use_result: Option<serde_json::Value>,
+    message: Option<SessionMetadataMessage>,
+}
+
+#[derive(serde::Deserialize)]
+struct SessionMetadataMessage {
+    content: Option<serde_json::Value>,
+}
+
+/// Minimal classifier for fast line counting (smaller than SessionMetadataEntry)
+#[derive(serde::Deserialize)]
+struct QuickLineClassifier {
+    #[serde(rename = "type")]
+    message_type: String,
+    #[serde(rename = "sessionId")]
+    session_id: Option<String>,
+    timestamp: Option<String>,
+    #[serde(rename = "isSidechain")]
+    is_sidechain: Option<bool>,
+}
+
+/// Fast session metadata extraction result
+struct SessionExtractionResult {
+    session: ClaudeSession,
+    sidechain_count: usize,
+    /// Final byte offset after parsing (for incremental updates)
+    final_byte_offset: u64,
+    /// Whether tool_use was detected
+    has_tool_use: bool,
+    /// Whether errors were detected
+    has_errors: bool,
+}
+
+/// Fast session metadata extraction with two-phase parsing:
+/// Phase 1: Extract essential metadata from first ~50 lines
+/// Phase 2: Count remaining messages with minimal parsing
+/// Always extracts total count (without sidechain filtering) for caching purposes
+fn extract_session_metadata_from_file(file_path: &PathBuf) -> Option<SessionExtractionResult> {
+    extract_session_metadata_internal(file_path, None)
+}
+
+/// Incremental session metadata extraction - only parses new content from given offset
+fn extract_session_metadata_incremental(
+    file_path: &PathBuf,
+    state: IncrementalParseState,
+) -> Option<SessionExtractionResult> {
+    extract_session_metadata_internal(file_path, Some(state))
+}
+
+/// Internal extraction function that supports both full and incremental parsing
+fn extract_session_metadata_internal(
+    file_path: &PathBuf,
+    incremental_state: Option<IncrementalParseState>,
+) -> Option<SessionExtractionResult> {
+    let metadata = file_path.metadata().ok();
+    let file_size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+    let last_modified = metadata.as_ref()
+        .and_then(|m| m.modified().ok())
+        .map(|t| {
+            let dt: DateTime<Utc> = t.into();
+            dt.to_rfc3339()
+        })
+        .unwrap_or_else(|| Utc::now().to_rfc3339());
+
+    let mut file = fs::File::open(file_path).ok()?;
+    let file_path_str = file_path.to_string_lossy().to_string();
+
+    // Initialize from incremental state or start fresh
+    let (start_offset, mut message_count, mut sidechain_count, mut first_timestamp,
+         mut last_timestamp, mut actual_session_id, mut session_summary,
+         mut has_tool_use, mut has_errors, mut first_user_content) =
+        if let Some(ref state) = incremental_state {
+            (
+                state.start_offset,
+                state.message_count,
+                state.sidechain_count,
+                state.first_timestamp.clone(),
+                state.last_timestamp.clone(),
+                state.session_id.clone(),
+                state.summary.clone(),
+                state.has_tool_use,
+                state.has_errors,
+                state.first_user_content.clone(),
+            )
+        } else {
+            (0u64, 0usize, 0usize, None, None, None, None, false, false, None)
+        };
+
+    // Seek to start position for incremental parsing
+    if start_offset > 0 {
+        if file.seek(SeekFrom::Start(start_offset)).is_err() {
+            return None;
+        }
+    }
+
+    // Use larger buffer for better I/O performance on large files
+    let reader = BufReader::with_capacity(64 * 1024, file);
+
+    // For incremental parsing, we skip the metadata collection phase
+    // since we already have it from the previous parse
+    let is_incremental = incremental_state.is_some();
+    let mut metadata_complete = is_incremental;
+    let mut lines_processed = 0usize;
+    const METADATA_PHASE_LINES: usize = 100; // Full parse first N lines
+
+    for line_result in reader.lines() {
+        let line = match line_result {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        lines_processed += 1;
+
+        // Phase 1: Full metadata extraction for first N lines (skip if incremental)
+        if !metadata_complete && lines_processed <= METADATA_PHASE_LINES {
+            if let Ok(entry) = serde_json::from_str::<SessionMetadataEntry>(&line) {
+                // Handle summary messages
+                if entry.message_type == "summary" {
+                    if session_summary.is_none() {
+                        session_summary = entry.summary;
+                    }
+                    continue;
+                }
+
+                // Skip system message types
+                if is_system_message_type(&entry.message_type) {
+                    continue;
+                }
+
+                // Need timestamp or session_id to be valid
+                if entry.session_id.is_none() && entry.timestamp.is_none() {
+                    continue;
+                }
+
+                // Track sidechain messages separately
+                let is_sidechain = entry.is_sidechain.unwrap_or(false);
+                if is_sidechain {
+                    sidechain_count += 1;
+                }
+                message_count += 1;
+
+                // Track timestamps
+                if let Some(ref ts) = entry.timestamp {
+                    if first_timestamp.is_none() {
+                        first_timestamp = Some(ts.clone());
+                    }
+                    last_timestamp = Some(ts.clone());
+                }
+
+                // Track session ID
+                if actual_session_id.is_none() {
+                    if let Some(ref sid) = entry.session_id {
+                        actual_session_id = Some(sid.clone());
+                    }
+                }
+
+                // Check for tool use
+                if !has_tool_use {
+                    if entry.tool_use.is_some() || entry.tool_use_result.is_some() {
+                        has_tool_use = true;
+                    } else if entry.message_type == "assistant" {
+                        if let Some(ref msg) = entry.message {
+                            if let Some(ref content) = msg.content {
+                                if let Some(arr) = content.as_array() {
+                                    for item in arr {
+                                        if item.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
+                                            has_tool_use = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Check for errors
+                if !has_errors {
+                    if let Some(ref result) = entry.tool_use_result {
+                        if let Some(stderr) = result.get("stderr") {
+                            if !stderr.as_str().unwrap_or("").is_empty() {
+                                has_errors = true;
+                            }
+                        }
+                    }
+                }
+
+                // Extract first user message for summary fallback
+                if first_user_content.is_none() && entry.message_type == "user" {
+                    if let Some(ref msg) = entry.message {
+                        if let Some(ref content) = msg.content {
+                            first_user_content = extract_user_text(content);
+                        }
+                    }
+                }
+
+                // Check if we have all essential metadata
+                if actual_session_id.is_some() && first_timestamp.is_some()
+                    && (first_user_content.is_some() || session_summary.is_some())
+                {
+                    metadata_complete = true;
+                }
+            }
+            continue;
+        }
+
+        // Phase 2: Fast counting with minimal parsing
+        if let Ok(classifier) = serde_json::from_str::<QuickLineClassifier>(&line) {
+            // Skip summary
+            if classifier.message_type == "summary" {
+                // Still capture summary if we don't have one
+                if session_summary.is_none() {
+                    if let Ok(entry) = serde_json::from_str::<SessionMetadataEntry>(&line) {
+                        session_summary = entry.summary;
+                    }
+                }
+                continue;
+            }
+
+            // Skip system message types
+            if is_system_message_type(&classifier.message_type) {
+                continue;
+            }
+
+            // Need timestamp or session_id to be valid
+            if classifier.session_id.is_none() && classifier.timestamp.is_none() {
+                continue;
+            }
+
+            // Track sidechain messages separately
+            let is_sidechain = classifier.is_sidechain.unwrap_or(false);
+            if is_sidechain {
+                sidechain_count += 1;
+            }
+            message_count += 1;
+
+            // Update last timestamp
+            if let Some(ts) = classifier.timestamp {
+                last_timestamp = Some(ts);
+            }
+
+            // Quick tool_use check via string search (faster than full parse)
+            if !has_tool_use && (line.contains("\"toolUse\"") || line.contains("\"toolUseResult\"") || line.contains("\"tool_use\"")) {
+                has_tool_use = true;
+            }
+
+            // Quick error check via string search
+            if !has_errors && line.contains("\"stderr\"") && !line.contains("\"stderr\":\"\"") {
+                has_errors = true;
+            }
+        }
+    }
+
+    if message_count == 0 {
+        return None;
+    }
+
+    let raw_project_name = file_path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown")
+        .to_string();
+
+    let project_name = extract_project_name(&raw_project_name);
+    let final_summary = session_summary.or(first_user_content);
+
+    Some(SessionExtractionResult {
+        session: ClaudeSession {
+            session_id: file_path_str.clone(),
+            actual_session_id: actual_session_id.unwrap_or_else(|| "unknown-session".to_string()),
+            file_path: file_path_str,
+            project_name,
+            message_count,
+            first_message_time: first_timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+            last_message_time: last_timestamp.clone().unwrap_or_else(|| Utc::now().to_rfc3339()),
+            last_modified,
+            has_tool_use,
+            has_errors,
+            summary: final_summary,
+        },
+        sidechain_count,
+        final_byte_offset: file_size,
+        has_tool_use,
+        has_errors,
+    })
 }
 
 /// System message types that should be excluded from the viewer
@@ -123,199 +527,14 @@ fn extract_user_text(content: &serde_json::Value) -> Option<String> {
     }
 }
 
-/// 단일 JSONL 파일에서 세션 정보를 추출
-fn load_session_from_file(file_path: &PathBuf, exclude_sidechain: bool) -> Option<ClaudeSession> {
-    let metadata = file_path.metadata().ok();
-    let last_modified = metadata.as_ref()
-        .and_then(|m| m.modified().ok())
-        .map(|t| {
-            let dt: DateTime<Utc> = t.into();
-            dt.to_rfc3339()
-        })
-        .unwrap_or_else(|| Utc::now().to_rfc3339());
-
-    // Pre-allocate based on file size (estimate ~2KB per message)
-    let estimated_capacity = metadata
-        .map(|m| std::cmp::max(16, m.len() as usize / 2048))
-        .unwrap_or(64);
-
-    let file = fs::File::open(file_path).ok()?;
-    let reader = BufReader::new(file);
-    let mut messages: Vec<ClaudeMessage> = Vec::with_capacity(estimated_capacity);
-    let mut session_summary: Option<String> = None;
-    let file_path_str = file_path.to_string_lossy().to_string();
-
-    for (line_num, line_result) in reader.lines().enumerate() {
-        let line = match line_result {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
-
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        match serde_json::from_str::<RawLogEntry>(&line) {
-            Ok(log_entry) => {
-                if log_entry.message_type == "summary" {
-                    if session_summary.is_none() {
-                        session_summary = log_entry.summary;
-                    }
-                } else {
-                    if log_entry.session_id.is_none() && log_entry.timestamp.is_none() {
-                        continue;
-                    }
-
-                    let uuid = log_entry.uuid.unwrap_or_else(|| {
-                        format!("{}-line-{}", Uuid::new_v4(), line_num + 1)
-                    });
-
-                    let (role, message_id, model, stop_reason, usage) = if let Some(ref msg) = log_entry.message {
-                        (
-                            Some(msg.role.clone()),
-                            msg.id.clone(),
-                            msg.model.clone(),
-                            msg.stop_reason.clone(),
-                            msg.usage.clone()
-                        )
-                    } else {
-                        (None, None, None, None, None)
-                    };
-
-                    let claude_message = ClaudeMessage {
-                        uuid,
-                        parent_uuid: log_entry.parent_uuid,
-                        session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
-                        timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
-                        message_type: log_entry.message_type,
-                        content: log_entry.message.map(|m| m.content).or(log_entry.content),
-                        tool_use: log_entry.tool_use,
-                        tool_use_result: log_entry.tool_use_result,
-                        is_sidechain: log_entry.is_sidechain,
-                        usage,
-                        role,
-                        model,
-                        stop_reason,
-                        cost_usd: log_entry.cost_usd,
-                        duration_ms: log_entry.duration_ms,
-                        message_id: message_id.or(log_entry.message_id),
-                        snapshot: log_entry.snapshot,
-                        is_snapshot_update: log_entry.is_snapshot_update,
-                        data: log_entry.data,
-                        tool_use_id: log_entry.tool_use_id,
-                        parent_tool_use_id: log_entry.parent_tool_use_id,
-                        operation: log_entry.operation,
-                        subtype: log_entry.subtype,
-                        level: log_entry.level,
-                        hook_count: log_entry.hook_count,
-                        hook_infos: log_entry.hook_infos,
-                        stop_reason_system: log_entry.stop_reason_system,
-                        prevented_continuation: log_entry.prevented_continuation,
-                        compact_metadata: log_entry.compact_metadata,
-                        microcompact_metadata: log_entry.microcompact_metadata,
-                    };
-                    messages.push(claude_message);
-                }
-            },
-            Err(_e) => {
-                // 파싱 에러는 무시 (병렬 처리 시 로깅 복잡)
-            }
-        }
-    }
-
-    if messages.is_empty() {
-        return None;
-    }
-
-    // Extract actual session ID from messages
-    let actual_session_id = messages.iter()
-        .find_map(|m| {
-            if m.session_id != "unknown-session" {
-                Some(m.session_id.clone())
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| "unknown-session".to_string());
-
-    let session_id = file_path_str.clone();
-
-    let raw_project_name = file_path
-        .parent()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .unwrap_or("Unknown")
-        .to_string();
-
-    let project_name = extract_project_name(&raw_project_name);
-
-    // Count only non-system messages (exclude progress, queue-operation, file-history-snapshot, system)
-    let message_count = messages.iter()
-        .filter(|m| {
-            // Exclude system message types
-            if is_system_message_type(&m.message_type) {
-                return false;
-            }
-            // Optionally exclude sidechain messages
-            if exclude_sidechain && m.is_sidechain.unwrap_or(false) {
-                return false;
-            }
-            true
-        })
-        .count();
-
-    // Skip sessions with 0 messages
-    if message_count == 0 {
-        return None;
-    }
-
-    let first_message_time = messages[0].timestamp.clone();
-    let last_message_time = messages.last().unwrap().timestamp.clone();
-
-    let has_tool_use = messages.iter().any(|m| {
-        if m.message_type == "assistant" {
-            if let Some(content) = &m.content {
-                if let Some(content_array) = content.as_array() {
-                    for item in content_array {
-                        if item.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        m.tool_use.is_some() || m.tool_use_result.is_some()
-    });
-
-    let has_errors = messages.iter().any(|m| {
-        if let Some(result) = &m.tool_use_result {
-            if let Some(stderr) = result.get("stderr") {
-                return !stderr.as_str().unwrap_or("").is_empty();
-            }
-        }
-        false
-    });
-
-    // Find first genuine user message for summary fallback
-    let final_summary = session_summary.or_else(|| {
-        messages.iter()
-            .filter(|m| m.message_type == "user")
-            .find_map(|m| m.content.as_ref().and_then(extract_user_text))
-    });
-
-    Some(ClaudeSession {
-        session_id,
-        actual_session_id,
-        file_path: file_path_str,
-        project_name,
-        message_count,
-        first_message_time,
-        last_message_time,
-        last_modified,
-        has_tool_use,
-        has_errors,
-        summary: final_summary,
-    })
+/// Categorization of how to handle a file
+enum FileParseStrategy {
+    /// Use cached data as-is (file unchanged)
+    UseCached(ClaudeSession, usize), // (session, sidechain_count)
+    /// File grew - use incremental parsing from offset
+    Incremental(PathBuf, IncrementalParseState),
+    /// Full reparse needed (new file or file shrunk/modified in place)
+    FullParse(PathBuf),
 }
 
 #[tauri::command]
@@ -328,7 +547,11 @@ pub async fn load_project_sessions(
 
     let exclude = exclude_sidechain.unwrap_or(false);
 
-    // 1. 모든 JSONL 파일 경로 수집
+    // 1. Load existing cache
+    let mut cache = load_cache(&project_path);
+    let mut cache_updated = false;
+
+    // 2. 모든 JSONL 파일 경로 수집
     let file_paths: Vec<PathBuf> = WalkDir::new(&project_path)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -339,19 +562,154 @@ pub async fn load_project_sessions(
     #[cfg(debug_assertions)]
     eprintln!("🔍 load_project_sessions: {}개 파일 처리 시작", file_paths.len());
 
-    // 2. rayon을 사용한 병렬 처리
-    let mut sessions: Vec<ClaudeSession> = file_paths
-        .par_iter()
-        .filter_map(|path| load_session_from_file(path, exclude))
+    // 3. Categorize files into: cached, incremental, full parse
+    let mut strategies: Vec<FileParseStrategy> = Vec::with_capacity(file_paths.len());
+    #[cfg(debug_assertions)]
+    let mut cache_hit_count = 0usize;
+    #[cfg(debug_assertions)]
+    let mut incremental_count = 0usize;
+    #[cfg(debug_assertions)]
+    let mut full_parse_count = 0usize;
+
+    for path in &file_paths {
+        let path_str = path.to_string_lossy().to_string();
+        let current_size = get_file_size(path).unwrap_or(0);
+        let current_mtime = get_modified_time(path);
+
+        if let Some(cached) = cache.entries.get(&path_str) {
+            // Check if file hasn't changed at all
+            if Some(cached.modified_time) == current_mtime && cached.file_size == current_size {
+                if let Some(ref session) = cached.session {
+                    #[cfg(debug_assertions)]
+                    { cache_hit_count += 1; }
+                    strategies.push(FileParseStrategy::UseCached(
+                        session.clone(),
+                        cached.sidechain_count,
+                    ));
+                    continue;
+                }
+            }
+
+            // Check if file grew (append-only) - use incremental parsing
+            if current_size > cached.file_size && cached.session.is_some() {
+                let session = cached.session.as_ref().unwrap();
+                #[cfg(debug_assertions)]
+                { incremental_count += 1; }
+                strategies.push(FileParseStrategy::Incremental(
+                    path.clone(),
+                    IncrementalParseState {
+                        start_offset: cached.last_byte_offset,
+                        message_count: session.message_count,
+                        sidechain_count: cached.sidechain_count,
+                        last_timestamp: Some(session.last_message_time.clone()),
+                        has_tool_use: cached.has_tool_use,
+                        has_errors: cached.has_errors,
+                        session_id: Some(session.actual_session_id.clone()),
+                        first_timestamp: Some(session.first_message_time.clone()),
+                        summary: session.summary.clone(),
+                        first_user_content: session.summary.clone(),
+                    },
+                ));
+                continue;
+            }
+        }
+
+        // New file or file was modified (not just appended) - full parse
+        #[cfg(debug_assertions)]
+        { full_parse_count += 1; }
+        strategies.push(FileParseStrategy::FullParse(path.clone()));
+    }
+
+    #[cfg(debug_assertions)]
+    eprintln!(
+        "📦 캐시 적중: {}개, 증분 파싱: {}개, 전체 파싱: {}개",
+        cache_hit_count, incremental_count, full_parse_count
+    );
+
+    // 4. Process strategies in parallel
+    let results: Vec<(FileParseStrategy, Option<SessionExtractionResult>)> = strategies
+        .into_par_iter()
+        .map(|strategy| {
+            match &strategy {
+                FileParseStrategy::UseCached(_, _) => (strategy, None),
+                FileParseStrategy::Incremental(path, state) => {
+                    let result = extract_session_metadata_incremental(path, state.clone());
+                    (strategy, result)
+                }
+                FileParseStrategy::FullParse(path) => {
+                    let result = extract_session_metadata_from_file(path);
+                    (strategy, result)
+                }
+            }
+        })
         .collect();
 
-    // 3. 정렬
+    // 5. Process results and update cache
+    let mut sessions: Vec<ClaudeSession> = Vec::with_capacity(results.len());
+
+    for (strategy, result_opt) in results {
+        match strategy {
+            FileParseStrategy::UseCached(session, sidechain_count) => {
+                let mut session_clone = session;
+                if exclude {
+                    session_clone.message_count = session_clone.message_count.saturating_sub(sidechain_count);
+                    if session_clone.message_count == 0 {
+                        continue;
+                    }
+                }
+                sessions.push(session_clone);
+            }
+            FileParseStrategy::Incremental(path, _) | FileParseStrategy::FullParse(path) => {
+                let path_str = path.to_string_lossy().to_string();
+                let mtime = get_modified_time(&path).unwrap_or(0);
+                let file_size = get_file_size(&path).unwrap_or(0);
+
+                let (session_for_cache, sidechain_count, byte_offset, has_tool_use, has_errors) =
+                    match &result_opt {
+                        Some(result) => (
+                            Some(result.session.clone()),
+                            result.sidechain_count,
+                            result.final_byte_offset,
+                            result.has_tool_use,
+                            result.has_errors,
+                        ),
+                        None => (None, 0, 0, false, false),
+                    };
+
+                cache.entries.insert(
+                    path_str,
+                    CachedSessionMetadata {
+                        modified_time: mtime,
+                        file_size,
+                        last_byte_offset: byte_offset,
+                        session: session_for_cache,
+                        sidechain_count,
+                        has_tool_use,
+                        has_errors,
+                    },
+                );
+                cache_updated = true;
+
+                if let Some(result) = result_opt {
+                    let mut session = result.session;
+                    if exclude {
+                        session.message_count =
+                            session.message_count.saturating_sub(result.sidechain_count);
+                        if session.message_count == 0 {
+                            continue;
+                        }
+                    }
+                    sessions.push(session);
+                }
+            }
+        }
+    }
+
+    // 6. 정렬
     sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
 
-    // 4. Summary propagation
-    // Multiple JSONL files can share the same actual_session_id,
-    // but only some files contain a summary message.
-    let mut summary_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    // 8. Summary propagation
+    let mut summary_map: HashMap<String, String> = HashMap::new();
 
     for session in &sessions {
         if let Some(ref summary) = session.summary {
@@ -367,6 +725,12 @@ pub async fn load_project_sessions(
                 session.summary = Some(summary.clone());
             }
         }
+    }
+
+    // 9. Save updated cache
+    if cache_updated {
+        cache.version = CACHE_VERSION;
+        save_cache(&project_path, &cache);
     }
 
     #[cfg(debug_assertions)]
@@ -1035,6 +1399,47 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_incremental_parsing_on_file_append() {
+        use std::io::Write;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Initial content with 2 messages
+        let initial_content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello"}}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{"role":"assistant","content":"Hi there"}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, initial_content).unwrap();
+
+        // First load - creates cache
+        let result1 = load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None
+        ).await.unwrap();
+        assert_eq!(result1.len(), 1);
+        assert_eq!(result1[0].message_count, 2);
+
+        // Append more messages to the file
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file_path)
+            .unwrap();
+        writeln!(file, r#"{{"uuid":"uuid-3","sessionId":"session-1","timestamp":"2025-06-26T10:02:00Z","type":"user","message":{{"role":"user","content":"How are you?"}}}}"#).unwrap();
+        writeln!(file, r#"{{"uuid":"uuid-4","sessionId":"session-1","timestamp":"2025-06-26T10:03:00Z","type":"assistant","message":{{"role":"assistant","content":"I'm doing great!"}}}}"#).unwrap();
+        drop(file);
+
+        // Second load - should use incremental parsing
+        let result2 = load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None
+        ).await.unwrap();
+        assert_eq!(result2.len(), 1);
+        assert_eq!(result2[0].message_count, 4); // 2 original + 2 appended
+        assert_eq!(result2[0].last_message_time, "2025-06-26T10:03:00Z");
     }
 
     #[tokio::test]

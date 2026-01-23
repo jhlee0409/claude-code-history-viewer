@@ -1,0 +1,16 @@
+---
+source: src/models/snapshot_tests.rs
+expression: stats
+---
+{
+  "session_id": "session-stats",
+  "project_name": "stats-project",
+  "total_input_tokens": 5000,
+  "total_output_tokens": 2500,
+  "total_cache_creation_tokens": 1000,
+  "total_cache_read_tokens": 500,
+  "total_tokens": 9000,
+  "message_count": 50,
+  "first_message_time": "2025-01-01T08:00:00Z",
+  "last_message_time": "2025-01-01T17:00:00Z"
+}

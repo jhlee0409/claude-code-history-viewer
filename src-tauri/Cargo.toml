@@ -45,10 +45,73 @@ sha2 = "0.10.8"
 hex = "0.4.3"
 
 [dev-dependencies]
+# Core testing utilities
 tempfile = "3.10.1"
-criterion = { version = "0.5", features = ["html_reports"] }
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+
+# Benchmarking
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# Property-based testing (QuickCheck-style)
+proptest = "1.4"
+
+# Parameterized tests & fixtures
+rstest = "0.18"
+
+# Snapshot testing
+insta = { version = "1.34", features = ["json", "redactions"] }
+
+# Mocking framework
+mockall = "0.12"
+
+# Test assertions with better error messages
+pretty_assertions = "1.4"
+assert_matches = "1.5"
+
+# Fake data generation
+fake = { version = "2.9", features = ["derive"] }
+
+# Test utilities
+test-case = "3.3"
+once_cell = "1.19"
+
+# Async testing utilities
+async-std = { version = "1.12", features = ["attributes"] }
+futures = "0.3"
 
 [[bench]]
 name = "performance"
 harness = false
+
+# Profile for faster test compilation
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.test]
+opt-level = 1  # Faster test execution
+debug = true
+
+# Profile for release builds with debug symbols (for coverage)
+[profile.coverage]
+inherits = "test"
+debug = true
+opt-level = 0
+
+# Lints configuration
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+# Allow certain lints that are too strict for this project
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

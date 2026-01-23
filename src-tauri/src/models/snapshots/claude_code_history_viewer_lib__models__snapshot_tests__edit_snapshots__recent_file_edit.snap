@@ -1,0 +1,15 @@
+---
+source: src/models/snapshot_tests.rs
+expression: edit
+---
+{
+  "file_path": "/path/to/edited/file.rs",
+  "timestamp": "2025-01-15T14:30:00Z",
+  "session_id": "session-edit",
+  "operation_type": "edit",
+  "content_after_change": "fn main() {\n    println!(\"Hello!\");\n}",
+  "original_content": "fn main() {}",
+  "lines_added": 3,
+  "lines_removed": 1,
+  "cwd": "/path/to"
+}

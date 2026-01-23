@@ -1,0 +1,22 @@
+---
+source: src/models/snapshot_tests.rs
+expression: result
+---
+{
+  "files": [
+    {
+      "file_path": "/file1.rs",
+      "timestamp": "2025-01-15T14:30:00Z",
+      "session_id": "session-1",
+      "operation_type": "edit",
+      "content_after_change": "content1",
+      "original_content": null,
+      "lines_added": 5,
+      "lines_removed": 2,
+      "cwd": "/project"
+    }
+  ],
+  "total_edits_count": 10,
+  "unique_files_count": 3,
+  "project_cwd": "/project"
+}
