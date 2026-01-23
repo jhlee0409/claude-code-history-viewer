@@ -127,9 +127,12 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     const hasCachedSessionComparison =
       selectedSession &&
       analytics.sessionComparison?.session_id === selectedSession.actual_session_id;
+    const hasCachedSessionTokenStats =
+      selectedSession &&
+      sessionTokenStats?.session_id === selectedSession.actual_session_id;
 
     // 모든 데이터가 캐시되어 있으면 로드 스킵
-    if (hasCachedProjectSummary && (!selectedSession || hasCachedSessionComparison)) {
+    if (hasCachedProjectSummary && (!selectedSession || (hasCachedSessionComparison && hasCachedSessionTokenStats))) {
       return;
     }
 
@@ -157,32 +160,42 @@ export const useAnalytics = (): UseAnalyticsReturn => {
         );
       }
 
-      // 세션 비교 및 세션 토큰 통계 로드 (선택된 세션이 있고 캐시 없으면)
+      // 세션 데이터 로드 (캐시 없는 것만)
       // NOTE: sessionTokenStats도 함께 로드하여 탭 표시 조건(hasSessionData)을 충족
-      if (selectedSession && !hasCachedSessionComparison) {
-        setAnalyticsLoadingSessionComparison(true);
-        promises.push(
-          Promise.all([
+      if (selectedSession && (!hasCachedSessionComparison || !hasCachedSessionTokenStats)) {
+        const sessionPromises: Promise<unknown>[] = [];
+
+        if (!hasCachedSessionComparison) {
+          sessionPromises.push(
             loadSessionComparison(
               selectedSession.actual_session_id,
               selectedProject.path
-            ),
-            loadSessionTokenStats(selectedSession.file_path),
-          ])
-            .then(([comparison]) => {
+            ).then((comparison) => {
               setAnalyticsSessionComparison(comparison);
-              return { success: true };
             })
-            .catch((error) => {
-              const errorMessage =
-                error instanceof Error ? error.message : t('common.hooks.sessionComparisonLoadFailed');
-              setAnalyticsSessionComparisonError(errorMessage);
-              return { success: false, error };
-            })
-            .finally(() => {
-              setAnalyticsLoadingSessionComparison(false);
-            })
-        );
+          );
+        }
+
+        if (!hasCachedSessionTokenStats) {
+          sessionPromises.push(loadSessionTokenStats(selectedSession.file_path));
+        }
+
+        if (sessionPromises.length > 0) {
+          setAnalyticsLoadingSessionComparison(true);
+          promises.push(
+            Promise.all(sessionPromises)
+              .then(() => ({ success: true }))
+              .catch((error) => {
+                const errorMessage =
+                  error instanceof Error ? error.message : t('common.hooks.sessionComparisonLoadFailed');
+                setAnalyticsSessionComparisonError(errorMessage);
+                return { success: false, error };
+              })
+              .finally(() => {
+                setAnalyticsLoadingSessionComparison(false);
+              })
+          );
+        }
       }
 
       // 모든 작업을 병렬로 실행
@@ -376,23 +389,47 @@ export const useAnalytics = (): UseAnalyticsReturn => {
    * NOTE: sessionTokenStats도 함께 로드하여 탭 표시 조건(hasSessionData)을 충족
    */
   useEffect(() => {
+    // 로딩 중이면 스킵 (중복 호출 방지)
+    if (analytics.isLoadingSessionComparison || isLoadingTokenStats) {
+      return;
+    }
+
     if (analytics.currentView === "analytics" && selectedProject && selectedSession) {
+      // 캐시 확인: 이미 로드된 데이터면 스킵
+      const hasCachedSessionComparison =
+        analytics.sessionComparison?.session_id === selectedSession.actual_session_id;
+      const hasCachedSessionTokenStats =
+        sessionTokenStats?.session_id === selectedSession.actual_session_id;
+
+      // 둘 다 캐시되어 있으면 로드 스킵
+      if (hasCachedSessionComparison && hasCachedSessionTokenStats) {
+        return;
+      }
+
       const updateSessionData = async () => {
         try {
-          // sessionComparison과 sessionTokenStats를 병렬로 로드
           setAnalyticsLoadingSessionComparison(true);
 
-          const [comparison] = await Promise.all([
-            loadSessionComparison(
-              selectedSession.actual_session_id,
-              selectedProject.path
-            ),
-            // sessionTokenStats 로드 (탭 표시 조건 충족을 위해)
-            loadSessionTokenStats(selectedSession.file_path),
-          ]);
+          const promises: Promise<unknown>[] = [];
 
-          setAnalyticsSessionComparison(comparison);
-          setAnalyticsSessionComparisonError(null);
+          // 캐시 없는 것만 로드
+          if (!hasCachedSessionComparison) {
+            promises.push(
+              loadSessionComparison(
+                selectedSession.actual_session_id,
+                selectedProject.path
+              ).then((comparison) => {
+                setAnalyticsSessionComparison(comparison);
+                setAnalyticsSessionComparisonError(null);
+              })
+            );
+          }
+
+          if (!hasCachedSessionTokenStats) {
+            promises.push(loadSessionTokenStats(selectedSession.file_path));
+          }
+
+          await Promise.all(promises);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : t('common.hooks.sessionComparisonLoadFailed');
           setAnalyticsSessionComparisonError(errorMessage);
@@ -409,7 +446,11 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     selectedProject?.path,
     selectedProject,
     selectedSession,
+    sessionTokenStats?.session_id,
     analytics.currentView,
+    analytics.sessionComparison?.session_id,
+    analytics.isLoadingSessionComparison,
+    isLoadingTokenStats,
     loadSessionComparison,
     loadSessionTokenStats,
     setAnalyticsLoadingSessionComparison,
@@ -421,7 +462,20 @@ export const useAnalytics = (): UseAnalyticsReturn => {
    * 사이드 이팩트: 토큰 통계 뷰에서 세션 변경 시 세션 토큰 통계 자동 새로고침
    */
   useEffect(() => {
+    // 로딩 중이면 스킵 (중복 호출 방지)
+    if (isLoadingTokenStats) {
+      return;
+    }
+
     if (analytics.currentView === "tokenStats" && selectedSession) {
+      // 캐시 확인: 이미 로드된 데이터면 스킵
+      const hasCachedSessionTokenStats =
+        sessionTokenStats?.session_id === selectedSession.actual_session_id;
+
+      if (hasCachedSessionTokenStats) {
+        return;
+      }
+
       const updateSessionTokenStats = async () => {
         try {
           await loadSessionTokenStats(selectedSession.file_path);
@@ -433,10 +487,12 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       updateSessionTokenStats();
     }
   }, [
-    selectedSession?.session_id,
+    selectedSession?.actual_session_id,
     selectedSession?.file_path,
     selectedSession,
+    sessionTokenStats?.session_id,
     analytics.currentView,
+    isLoadingTokenStats,
     loadSessionTokenStats,
   ]);
 
