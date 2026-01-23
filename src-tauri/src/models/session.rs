@@ -1,0 +1,55 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClaudeProject {
+    pub name: String,
+    pub path: String,
+    pub session_count: usize,
+    pub message_count: usize,
+    pub last_modified: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClaudeSession {
+    pub session_id: String,  // Unique ID based on file path
+    pub actual_session_id: String,  // Actual session ID from the messages
+    pub file_path: String,
+    pub project_name: String,
+    pub message_count: usize,
+    pub first_message_time: String,
+    pub last_message_time: String,
+    pub last_modified: String,
+    pub has_tool_use: bool,
+    pub has_errors: bool,
+    pub summary: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_claude_session_serialization() {
+        let session = ClaudeSession {
+            session_id: "/path/to/file.jsonl".to_string(),
+            actual_session_id: "actual-session-id".to_string(),
+            file_path: "/path/to/file.jsonl".to_string(),
+            project_name: "my-project".to_string(),
+            message_count: 42,
+            first_message_time: "2025-06-01T10:00:00Z".to_string(),
+            last_message_time: "2025-06-01T12:00:00Z".to_string(),
+            last_modified: "2025-06-01T12:00:00Z".to_string(),
+            has_tool_use: true,
+            has_errors: false,
+            summary: Some("Test conversation".to_string()),
+        };
+
+        let serialized = serde_json::to_string(&session).unwrap();
+        let deserialized: ClaudeSession = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.project_name, "my-project");
+        assert_eq!(deserialized.message_count, 42);
+        assert!(deserialized.has_tool_use);
+        assert!(!deserialized.has_errors);
+    }
+}

@@ -1,7 +1,8 @@
+//! Session loading functions
+
 use crate::models::*;
 use crate::utils::extract_project_name;
 use std::fs;
-use std::path::PathBuf;
 use walkdir::WalkDir;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -21,7 +22,7 @@ pub async fn load_project_sessions(
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
     {
         let file_path = entry.path().to_string_lossy().to_string();
-        
+
         let last_modified = if let Ok(metadata) = entry.metadata() {
             if let Ok(modified) = metadata.modified() {
                 let dt: DateTime<Utc> = modified.into();
@@ -32,7 +33,7 @@ pub async fn load_project_sessions(
         } else {
             Utc::now().to_rfc3339()
         };
-        
+
         // 파일을 스트리밍으로 읽어서 메모리 사용량 줄이기
         if let Ok(file) = std::fs::File::open(entry.path()) {
             use std::io::{BufRead, BufReader};
@@ -47,7 +48,7 @@ pub async fn load_project_sessions(
                     match serde_json::from_str::<RawLogEntry>(&line) {
                     Ok(log_entry) => {
                         if log_entry.message_type == "summary" {
-                            if session_summary.is_none() { 
+                            if session_summary.is_none() {
                                 session_summary = log_entry.summary;
                             }
                         } else {
@@ -58,7 +59,7 @@ pub async fn load_project_sessions(
                             let uuid = log_entry.uuid.unwrap_or_else(|| {
                                 format!("{}-line-{}", Uuid::new_v4(), line_num + 1)
                             });
-                            
+
                             let (role, message_id, model, stop_reason, usage) = if let Some(ref msg) = log_entry.message {
                                 (
                                     Some(msg.role.clone()),
@@ -70,7 +71,7 @@ pub async fn load_project_sessions(
                             } else {
                                 (None, None, None, None, None)
                             };
-                            
+
                             let claude_message = ClaudeMessage {
                                 uuid,
                                 parent_uuid: log_entry.parent_uuid,
@@ -134,10 +135,10 @@ pub async fn load_project_sessions(
                         }
                     })
                     .unwrap_or_else(|| "unknown-session".to_string());
-                
+
                 // Create unique session ID based on file path
                 let session_id = file_path.clone();
-                
+
                 let raw_project_name = entry.path()
                     .parent()
                     .and_then(|p| p.file_name())
@@ -285,10 +286,10 @@ pub async fn load_project_sessions(
     // 1. First pass: Collect all existing summaries mapped by actual_session_id
     // 2. Second pass: Apply collected summaries to any session that's missing one
     // This provides a better user experience by showing the same summary for related sessions.
-    
+
     // Create a map of actual_session_id to summary
     let mut summary_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-    
+
     // First pass: collect all summaries
     for session in &sessions {
         if let Some(ref summary) = session.summary {
@@ -297,7 +298,7 @@ pub async fn load_project_sessions(
             }
         }
     }
-    
+
     // Second pass: apply summaries to sessions that don't have them
     for session in &mut sessions {
         if session.summary.is_none() || session.summary.as_ref().map(|s| s.is_empty()).unwrap_or(false) {
@@ -381,7 +382,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                     let uuid = log_entry.uuid.unwrap_or_else(|| {
                         format!("{}-line-{}", Uuid::new_v4(), line_num + 1)
                     });
-                    
+
                     let (role, message_id, model, stop_reason, usage) = if let Some(ref msg) = log_entry.message {
                         (
                             Some(msg.role.clone()),
@@ -393,7 +394,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
                     } else {
                         (None, None, None, None, None)
                     };
-                    
+
                     let claude_message = ClaudeMessage {
                         uuid,
                         parent_uuid: log_entry.parent_uuid,
@@ -467,32 +468,32 @@ pub async fn load_session_messages_paginated(
     let start_time = std::time::Instant::now();
     use std::io::{BufRead, BufReader};
     use std::fs::File;
-    
+
     let file = File::open(&session_path)
         .map_err(|e| format!("Failed to open session file: {}", e))?;
     let reader = BufReader::new(file);
-    
+
     // First pass: collect all messages to get total count and support reverse ordering
     let mut all_messages: Vec<ClaudeMessage> = Vec::new();
-    
+
     for (line_num, line_result) in reader.lines().enumerate() {
         let line = line_result.map_err(|e| format!("Failed to read line: {}", e))?;
-        
+
         if line.trim().is_empty() {
             continue;
         }
-        
+
         match serde_json::from_str::<RawLogEntry>(&line) {
             Ok(log_entry) => {
                 if log_entry.message_type != "summary" {
                     if log_entry.session_id.is_none() && log_entry.timestamp.is_none() {
                         continue;
                     }
-                    
+
                     if exclude_sidechain.unwrap_or(false) && log_entry.is_sidechain.unwrap_or(false) {
                         continue;
                     }
-                    
+
                     let (role, message_id, model, stop_reason, usage) = if let Some(ref msg) = log_entry.message {
                         (
                             Some(msg.role.clone()),
@@ -504,7 +505,7 @@ pub async fn load_session_messages_paginated(
                     } else {
                         (None, None, None, None, None)
                     };
-                    
+
                     let claude_message = ClaudeMessage {
                         uuid: log_entry.uuid.unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1)),
                         parent_uuid: log_entry.parent_uuid,
@@ -551,10 +552,10 @@ pub async fn load_session_messages_paginated(
     }
 
     let total_count = all_messages.len();
-    
+
     #[cfg(debug_assertions)]
     eprintln!("Pagination Debug - Total: {}, Offset: {}, Limit: {}", total_count, offset, limit);
-    
+
     // Chat-style pagination: offset=0 means we want the newest messages (at the end)
     // offset=100 means we want messages starting 100 from the newest
     if total_count == 0 {
@@ -567,20 +568,20 @@ pub async fn load_session_messages_paginated(
             next_offset: 0,
         });
     }
-    
+
     // Calculate how many messages are already loaded (from newest)
     let already_loaded = offset;
 
     // Calculate remaining messages that can be loaded
     let remaining_messages = total_count.saturating_sub(already_loaded);
-    
+
     // Actual messages to load: minimum of limit and remaining messages
     let messages_to_load = std::cmp::min(limit, remaining_messages);
-    
+
     #[cfg(debug_assertions)]
-    eprintln!("Load calculation: total={}, already_loaded={}, remaining={}, will_load={}", 
+    eprintln!("Load calculation: total={}, already_loaded={}, remaining={}, will_load={}",
               total_count, already_loaded, remaining_messages, messages_to_load);
-    
+
     let (start_idx, end_idx) = if remaining_messages == 0 {
         // No more messages to load
         #[cfg(debug_assertions)]
@@ -594,18 +595,18 @@ pub async fn load_session_messages_paginated(
         eprintln!("Loading messages: start={}, end={} (will load {} messages)", start, end, messages_to_load);
         (start, end)
     };
-    
+
     // Get the slice of messages we need
     let messages: Vec<ClaudeMessage> = all_messages
         .into_iter()
         .skip(start_idx)
         .take(end_idx - start_idx)
         .collect();
-    
+
     // has_more is true if there are still older messages to load
     let has_more = start_idx > 0;
     let next_offset = offset + messages.len();
-    
+
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
@@ -613,7 +614,7 @@ pub async fn load_session_messages_paginated(
     }
     #[cfg(debug_assertions)]
     eprintln!("Result: {} messages returned, has_more={}, next_offset={}", messages.len(), has_more, next_offset);
-    
+
     Ok(MessagePage {
         messages,
         total_count,
@@ -631,12 +632,12 @@ pub async fn get_session_message_count(
         .map_err(|e| format!("Failed to read session file: {}", e))?;
 
     let mut count = 0;
-    
+
     for line in content.lines() {
         if line.trim().is_empty() {
             continue;
         }
-        
+
         if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(line) {
             if log_entry.message_type != "summary" {
                 if exclude_sidechain.unwrap_or(false) && log_entry.is_sidechain.unwrap_or(false) {
@@ -650,341 +651,13 @@ pub async fn get_session_message_count(
     Ok(count)
 }
 
-#[tauri::command]
-pub async fn search_messages(
-    claude_path: String,
-    query: String,
-    _filters: serde_json::Value
-) -> Result<Vec<ClaudeMessage>, String> {
-    let projects_path = PathBuf::from(&claude_path).join("projects");
-    let mut all_messages = Vec::new();
-
-    if !projects_path.exists() {
-        return Ok(vec![]);
-    }
-
-    for entry in WalkDir::new(&projects_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-    {
-        if let Ok(content) = fs::read_to_string(entry.path()) {
-            for (line_num, line) in content.lines().enumerate() {
-                if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(line) {
-                    if log_entry.message_type == "user" || log_entry.message_type == "assistant" {
-                        if let Some(message_content) = &log_entry.message {
-                            let content_str = match &message_content.content {
-                                serde_json::Value::String(s) => s.clone(),
-                                serde_json::Value::Array(arr) => serde_json::to_string(arr).unwrap_or_default(),
-                                _ => "".to_string(),
-                            };
-
-                            if content_str.to_lowercase().contains(&query.to_lowercase()) {
-                                let claude_message = ClaudeMessage {
-                                    uuid: log_entry.uuid.unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1)),
-                                    parent_uuid: log_entry.parent_uuid,
-                                    session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
-                                    timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
-                                    message_type: log_entry.message_type,
-                                    content: Some(message_content.content.clone()),
-                                    tool_use: log_entry.tool_use,
-                                    tool_use_result: log_entry.tool_use_result,
-                                    is_sidechain: log_entry.is_sidechain,
-                                    usage: message_content.usage.clone(),
-                                    role: Some(message_content.role.clone()),
-                                    model: message_content.model.clone(),
-                                    stop_reason: message_content.stop_reason.clone(),
-                                    cost_usd: log_entry.cost_usd,
-                                    duration_ms: log_entry.duration_ms,
-                                    // File history snapshot fields (not applicable for search results)
-                                    message_id: message_content.id.clone(),
-                                    snapshot: None,
-                                    is_snapshot_update: None,
-                                    // Progress message fields (not applicable for search results)
-                                    data: None,
-                                    tool_use_id: None,
-                                    parent_tool_use_id: None,
-                                    // Queue operation fields (not applicable for search results)
-                                    operation: None,
-                                    // System message fields (not applicable for search results)
-                                    subtype: None,
-                                    level: None,
-                                    hook_count: None,
-                                    hook_infos: None,
-                                    stop_reason_system: None,
-                                    prevented_continuation: None,
-                                    compact_metadata: None,
-                                    microcompact_metadata: None,
-                                };
-                                all_messages.push(claude_message);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(all_messages)
-}
-
-/// Scan all JSONL files in a project and extract recent file edits/writes
-/// Returns the LATEST content for each unique file path, sorted by timestamp descending
-/// Only includes files that belong to the project's working directory
-#[tauri::command]
-pub async fn get_recent_edits(project_path: String) -> Result<crate::models::RecentEditsResult, String> {
-    use std::collections::HashMap;
-
-    let mut all_edits: Vec<crate::models::RecentFileEdit> = Vec::new();
-    let mut cwd_counts: HashMap<String, usize> = HashMap::new();
-
-    // Scan all JSONL files in the project directory
-    for entry in WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-    {
-        let file_path = entry.path();
-
-        if let Ok(file) = std::fs::File::open(file_path) {
-            use std::io::{BufRead, BufReader};
-            let reader = BufReader::new(file);
-
-            for line_result in reader.lines() {
-                if let Ok(line) = line_result {
-                    if line.trim().is_empty() { continue; }
-
-                    if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
-                        // Extract common fields
-                        let timestamp = log_entry.timestamp.clone().unwrap_or_default();
-                        let session_id = log_entry.session_id.clone().unwrap_or_else(|| "unknown".to_string());
-                        let cwd = log_entry.cwd.clone();
-
-                        // Track cwd frequency to determine project directory
-                        if let Some(cwd_path) = cwd.as_ref() {
-                            *cwd_counts.entry(cwd_path.to_string()).or_insert(0) += 1;
-                        }
-
-                        // Process tool use results for Edit and Write operations
-                        if let Some(tool_use_result) = &log_entry.tool_use_result {
-
-                            // Handle Write/Create tool results (type: "create")
-                            // Format: { "type": "create", "filePath": "...", "content": "full content", ... }
-                            if tool_use_result.get("type").and_then(|v| v.as_str()) == Some("create") {
-                                if let (Some(file_path_str), Some(content)) = (
-                                    tool_use_result.get("filePath").and_then(|v| v.as_str()),
-                                    tool_use_result.get("content").and_then(|v| v.as_str())
-                                ) {
-                                    all_edits.push(crate::models::RecentFileEdit {
-                                        file_path: file_path_str.to_string(),
-                                        timestamp: timestamp.clone(),
-                                        session_id: session_id.clone(),
-                                        operation_type: "write".to_string(),
-                                        content_after_change: content.to_string(),
-                                        original_content: None,
-                                        lines_added: content.lines().count(),
-                                        lines_removed: 0,
-                                        cwd: cwd.clone(),
-                                    });
-                                }
-                            }
-
-                            // Handle Edit tool results
-                            // Format: { "filePath": "...", "oldString": "...", "newString": "...", "originalFile": "full content", ... }
-                            if let Some(file_path_val) = tool_use_result.get("filePath") {
-                                if let Some(file_path_str) = file_path_val.as_str() {
-                                    // Check if this is an Edit result (has edits array or oldString/newString)
-                                    if let Some(edits) = tool_use_result.get("edits") {
-                                        // Multi-edit format (uses "originalFile" not "originalFileContents")
-                                        if let Some(original) = tool_use_result.get("originalFile").and_then(|v| v.as_str()) {
-                                            let mut content = original.to_string();
-                                            let mut lines_added = 0usize;
-                                            let mut lines_removed = 0usize;
-
-                                            if let Some(edits_arr) = edits.as_array() {
-                                                for edit in edits_arr {
-                                                    if let (Some(old_str), Some(new_str)) = (
-                                                        edit.get("old_string").and_then(|v| v.as_str()),
-                                                        edit.get("new_string").and_then(|v| v.as_str())
-                                                    ) {
-                                                        content = content.replacen(old_str, new_str, 1);
-                                                        lines_removed += old_str.lines().count();
-                                                        lines_added += new_str.lines().count();
-                                                    }
-                                                }
-                                            }
-
-                                            all_edits.push(crate::models::RecentFileEdit {
-                                                file_path: file_path_str.to_string(),
-                                                timestamp: timestamp.clone(),
-                                                session_id: session_id.clone(),
-                                                operation_type: "edit".to_string(),
-                                                content_after_change: content,
-                                                original_content: Some(original.to_string()),
-                                                lines_added,
-                                                lines_removed,
-                                                cwd: cwd.clone(),
-                                            });
-                                        }
-                                    } else if let (Some(old_str), Some(new_str)) = (
-                                        tool_use_result.get("oldString").and_then(|v| v.as_str()),
-                                        tool_use_result.get("newString").and_then(|v| v.as_str())
-                                    ) {
-                                        // Single edit format with oldString/newString
-                                        // Only include if we have originalFile (needed for full file reconstruction)
-                                        if let Some(original) = tool_use_result.get("originalFile").and_then(|v| v.as_str()) {
-                                            let content = original.replacen(old_str, new_str, 1);
-
-                                            all_edits.push(crate::models::RecentFileEdit {
-                                                file_path: file_path_str.to_string(),
-                                                timestamp: timestamp.clone(),
-                                                session_id: session_id.clone(),
-                                                operation_type: "edit".to_string(),
-                                                content_after_change: content,
-                                                original_content: Some(original.to_string()),
-                                                lines_added: new_str.lines().count(),
-                                                lines_removed: old_str.lines().count(),
-                                                cwd: cwd.clone(),
-                                            });
-                                        }
-                                        // Skip edits without originalFile - we can't reconstruct full file
-                                    }
-                                }
-                            }
-
-                            // NOTE: toolUseResult.file is for READ operations (often truncated)
-                            // We do NOT capture those - only Edit results with originalFile
-                            // and Write results with type: "create"
-                        }
-
-                        // Also check tool_use for Write operations (input has file_path and content)
-                        if let Some(tool_use) = &log_entry.tool_use {
-                            if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
-                                if name == "Write" {
-                                    if let Some(input) = tool_use.get("input") {
-                                        if let (Some(path), Some(content)) = (
-                                            input.get("file_path").and_then(|v| v.as_str()),
-                                            input.get("content").and_then(|v| v.as_str())
-                                        ) {
-                                            all_edits.push(crate::models::RecentFileEdit {
-                                                file_path: path.to_string(),
-                                                timestamp: timestamp.clone(),
-                                                session_id: session_id.clone(),
-                                                operation_type: "write".to_string(),
-                                                content_after_change: content.to_string(),
-                                                original_content: None,
-                                                lines_added: content.lines().count(),
-                                                lines_removed: 0,
-                                                cwd: cwd.clone(),
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Find the most common cwd (project directory)
-    let project_cwd = cwd_counts
-        .into_iter()
-        .max_by_key(|(_, count)| *count)
-        .map(|(cwd, _)| cwd);
-
-    // Filter edits to only include files within the project directory
-    // Use case-insensitive comparison on Windows for path matching
-    let filtered_edits: Vec<crate::models::RecentFileEdit> = if let Some(ref cwd) = project_cwd {
-        #[cfg(target_os = "windows")]
-        let cwd_normalized = cwd.to_lowercase();
-        #[cfg(not(target_os = "windows"))]
-        let cwd_normalized = cwd.clone();
-
-        all_edits
-            .into_iter()
-            .filter(|edit| {
-                #[cfg(target_os = "windows")]
-                let file_path_normalized = edit.file_path.to_lowercase();
-                #[cfg(not(target_os = "windows"))]
-                let file_path_normalized = edit.file_path.clone();
-
-                file_path_normalized.starts_with(&cwd_normalized)
-            })
-            .collect()
-    } else {
-        all_edits
-    };
-
-    let total_edits_count = filtered_edits.len();
-
-    // Sort by timestamp descending (newest first)
-    let mut sorted_edits = filtered_edits;
-    sorted_edits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
-    // Group by file_path and keep only the LATEST edit for each file
-    let mut latest_by_file: HashMap<String, crate::models::RecentFileEdit> = HashMap::new();
-    for edit in sorted_edits {
-        latest_by_file.entry(edit.file_path.clone()).or_insert(edit);
-    }
-
-    let unique_files_count = latest_by_file.len();
-
-    // Convert to Vec and sort by timestamp descending
-    let mut files: Vec<crate::models::RecentFileEdit> = latest_by_file.into_values().collect();
-    files.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
-    Ok(crate::models::RecentEditsResult {
-        files,
-        total_edits_count,
-        unique_files_count,
-        project_cwd,
-    })
-}
-
-/// Restore a file by writing content to the specified path
-/// Security: Validates path to prevent path traversal attacks
-#[tauri::command]
-pub async fn restore_file(file_path: String, content: String) -> Result<(), String> {
-    use std::fs;
-    use std::path::Path;
-
-    // Security validation: reject paths with null bytes
-    if file_path.contains('\0') {
-        return Err("Invalid file path: contains null bytes".to_string());
-    }
-
-    // Security validation: reject relative paths (must be absolute)
-    let path = Path::new(&file_path);
-    if !path.is_absolute() {
-        return Err("Invalid file path: must be an absolute path".to_string());
-    }
-
-    // Security validation: reject paths with parent traversal segments
-    for component in path.components() {
-        if let std::path::Component::ParentDir = component {
-            return Err("Invalid file path: path traversal not allowed".to_string());
-        }
-    }
-
-    // Create parent directories if they don't exist
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create directories: {}", e))?;
-    }
-
-    // Write the content to the file
-    fs::write(path, content).map_err(|e| format!("Failed to write file: {}", e))?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
     use std::fs::File;
     use std::io::Write;
+    use std::path::PathBuf;
 
     fn create_test_jsonl_file(dir: &TempDir, filename: &str, content: &str) -> PathBuf {
         let file_path = dir.path().join(filename);
@@ -1251,105 +924,6 @@ mod tests {
             Some(true)
         ).await.unwrap();
         assert_eq!(count_filtered, 2);
-    }
-
-    #[tokio::test]
-    async fn test_search_messages_basic() {
-        let temp_dir = TempDir::new().unwrap();
-        let projects_dir = temp_dir.path().join("projects");
-        let project_dir = projects_dir.join("test-project");
-        std::fs::create_dir_all(&project_dir).unwrap();
-
-        let content = format!(
-            "{}\n{}\n",
-            create_sample_user_message("uuid-1", "session-1", "Hello Rust programming"),
-            create_sample_assistant_message("uuid-2", "session-1", "Rust is great!")
-        );
-
-        let _file_path = create_test_jsonl_file(&TempDir::new_in(&project_dir).unwrap(), "test.jsonl", &content);
-
-        // Create file directly in project dir
-        let file_path = project_dir.join("test.jsonl");
-        let mut file = File::create(&file_path).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-
-        let result = search_messages(
-            temp_dir.path().to_string_lossy().to_string(),
-            "Rust".to_string(),
-            serde_json::json!({})
-        ).await;
-
-        assert!(result.is_ok());
-        let messages = result.unwrap();
-        assert_eq!(messages.len(), 2); // Both messages contain "Rust"
-    }
-
-    #[tokio::test]
-    async fn test_search_messages_case_insensitive() {
-        let temp_dir = TempDir::new().unwrap();
-        let projects_dir = temp_dir.path().join("projects");
-        let project_dir = projects_dir.join("test-project");
-        std::fs::create_dir_all(&project_dir).unwrap();
-
-        let content = format!(
-            "{}\n",
-            create_sample_user_message("uuid-1", "session-1", "HELLO World")
-        );
-
-        let file_path = project_dir.join("test.jsonl");
-        let mut file = File::create(&file_path).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-
-        let result = search_messages(
-            temp_dir.path().to_string_lossy().to_string(),
-            "hello".to_string(), // lowercase
-            serde_json::json!({})
-        ).await;
-
-        assert!(result.is_ok());
-        let messages = result.unwrap();
-        assert_eq!(messages.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_search_messages_no_results() {
-        let temp_dir = TempDir::new().unwrap();
-        let projects_dir = temp_dir.path().join("projects");
-        let project_dir = projects_dir.join("test-project");
-        std::fs::create_dir_all(&project_dir).unwrap();
-
-        let content = format!(
-            "{}\n",
-            create_sample_user_message("uuid-1", "session-1", "Hello World")
-        );
-
-        let file_path = project_dir.join("test.jsonl");
-        let mut file = File::create(&file_path).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-
-        let result = search_messages(
-            temp_dir.path().to_string_lossy().to_string(),
-            "nonexistent".to_string(),
-            serde_json::json!({})
-        ).await;
-
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_search_messages_empty_projects_dir() {
-        let temp_dir = TempDir::new().unwrap();
-        // Don't create projects directory
-
-        let result = search_messages(
-            temp_dir.path().to_string_lossy().to_string(),
-            "test".to_string(),
-            serde_json::json!({})
-        ).await;
-
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
     }
 
     #[tokio::test]
