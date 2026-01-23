@@ -1,3 +1,43 @@
+use memchr::memchr_iter;
+
+/// Find line boundaries in a memory-mapped buffer using memchr (SIMD-accelerated)
+/// Returns a vector of (start, end) byte positions for each line
+/// Empty lines are skipped
+#[inline]
+pub fn find_line_ranges(data: &[u8]) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::with_capacity(data.len() / 500); // Estimate ~500 bytes per line
+    let mut start = 0;
+
+    for pos in memchr_iter(b'\n', data) {
+        if pos > start {
+            ranges.push((start, pos));
+        }
+        start = pos + 1;
+    }
+
+    // Handle last line without trailing newline
+    if start < data.len() {
+        ranges.push((start, data.len()));
+    }
+
+    ranges
+}
+
+/// Find line start positions (for compatibility with existing load.rs patterns)
+/// Returns positions where each line starts
+#[inline]
+pub fn find_line_starts(data: &[u8]) -> Vec<usize> {
+    let mut starts = Vec::with_capacity(data.len() / 500 + 1);
+    starts.push(0);
+
+    for pos in memchr_iter(b'\n', data) {
+        if pos + 1 < data.len() {
+            starts.push(pos + 1);
+        }
+    }
+
+    starts
+}
 
 pub fn extract_project_name(raw_project_name: &str) -> String {
     if raw_project_name.starts_with('-') {
@@ -22,6 +62,74 @@ pub fn estimate_message_count_from_size(file_size: u64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ===== Line Utils Tests =====
+
+    #[test]
+    fn test_find_line_ranges_empty() {
+        let data = b"";
+        let ranges = find_line_ranges(data);
+        assert!(ranges.is_empty());
+    }
+
+    #[test]
+    fn test_find_line_ranges_single_line_no_newline() {
+        let data = b"hello world";
+        let ranges = find_line_ranges(data);
+        assert_eq!(ranges, vec![(0, 11)]);
+    }
+
+    #[test]
+    fn test_find_line_ranges_single_line_with_newline() {
+        let data = b"hello world\n";
+        let ranges = find_line_ranges(data);
+        assert_eq!(ranges, vec![(0, 11)]);
+    }
+
+    #[test]
+    fn test_find_line_ranges_multiple_lines() {
+        let data = b"line1\nline2\nline3";
+        let ranges = find_line_ranges(data);
+        assert_eq!(ranges, vec![(0, 5), (6, 11), (12, 17)]);
+    }
+
+    #[test]
+    fn test_find_line_ranges_with_empty_lines() {
+        let data = b"line1\n\nline3\n";
+        let ranges = find_line_ranges(data);
+        // Empty lines are skipped (start == end after newline)
+        assert_eq!(ranges, vec![(0, 5), (7, 12)]);
+    }
+
+    #[test]
+    fn test_find_line_ranges_only_newlines() {
+        let data = b"\n\n\n";
+        let ranges = find_line_ranges(data);
+        assert!(ranges.is_empty());
+    }
+
+    #[test]
+    fn test_find_line_starts_empty() {
+        let data = b"";
+        let starts = find_line_starts(data);
+        assert_eq!(starts, vec![0]);
+    }
+
+    #[test]
+    fn test_find_line_starts_single_line() {
+        let data = b"hello";
+        let starts = find_line_starts(data);
+        assert_eq!(starts, vec![0]);
+    }
+
+    #[test]
+    fn test_find_line_starts_multiple_lines() {
+        let data = b"line1\nline2\nline3";
+        let starts = find_line_starts(data);
+        assert_eq!(starts, vec![0, 6, 12]);
+    }
+
+    // ===== Project Name Tests =====
 
     #[test]
     fn test_extract_project_name_with_prefix() {

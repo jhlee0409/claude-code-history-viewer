@@ -1,12 +1,13 @@
 //! File edit and restore functions
 
 use crate::models::*;
+use crate::utils::find_line_ranges;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use walkdir::WalkDir;
 use rayon::prelude::*;
+use memmap2::Mmap;
 
 /// Intermediate result from processing a single session file (for parallel processing)
 struct SessionEditsResult {
@@ -15,24 +16,25 @@ struct SessionEditsResult {
 }
 
 /// Process a single session file and extract edit information
+#[allow(unsafe_code)] // Required for mmap performance optimization
 fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsResult> {
     let file = fs::File::open(file_path).ok()?;
-    let reader = BufReader::new(file);
+
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. Session files are append-only.
+    let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
     let mut edits: Vec<RecentFileEdit> = Vec::with_capacity(16);
     let mut cwd_counts: HashMap<String, usize> = HashMap::new();
 
-    for line_result in reader.lines() {
-        let line = match line_result {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
+    // Use SIMD-accelerated line detection
+    let line_ranges = find_line_ranges(&mmap);
 
-        if line.trim().is_empty() {
-            continue;
-        }
+    for (start, end) in line_ranges {
+        // simd-json requires mutable slice
+        let mut line_bytes = mmap[start..end].to_vec();
 
-        let log_entry: RawLogEntry = match serde_json::from_str(&line) {
+        let log_entry: RawLogEntry = match simd_json::serde::from_slice(&mut line_bytes) {
             Ok(entry) => entry,
             Err(_) => continue,
         };

@@ -1,13 +1,14 @@
 //! Session search functions
 
 use crate::models::*;
+use crate::utils::find_line_ranges;
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use walkdir::WalkDir;
 use chrono::Utc;
 use uuid::Uuid;
 use rayon::prelude::*;
+use memmap2::Mmap;
 
 /// Recursively search for a query within a serde_json::Value
 /// Returns true if the query is found in any string value.
@@ -23,6 +24,7 @@ fn search_in_value(value: &serde_json::Value, query: &str) -> bool {
 }
 
 /// Search for messages matching the query in a single file
+#[allow(unsafe_code)] // Required for mmap performance optimization
 fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
     let query_lower = query.to_lowercase();
 
@@ -30,21 +32,25 @@ fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
         Ok(f) => f,
         Err(_) => return Vec::new(),
     };
+
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. Session files are append-only.
+    let mmap = match unsafe { Mmap::map(&file) } {
+        Ok(m) => m,
+        Err(_) => return Vec::new(),
+    };
+
+    // Use SIMD-accelerated line detection
+    let line_ranges = find_line_ranges(&mmap);
+
     // Pre-allocate with small capacity (most searches find few matches)
     let mut results = Vec::with_capacity(8);
-    let reader = BufReader::new(file);
 
-    for (line_num, line_result) in reader.lines().enumerate() {
-        let line = match line_result {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
+    for (line_num, (start, end)) in line_ranges.iter().enumerate() {
+        // simd-json requires mutable slice
+        let mut line_bytes = mmap[*start..*end].to_vec();
 
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        let log_entry: RawLogEntry = match serde_json::from_str(&line) {
+        let log_entry: RawLogEntry = match simd_json::serde::from_slice(&mut line_bytes) {
             Ok(entry) => entry,
             Err(_) => continue,
         };

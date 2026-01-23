@@ -1,12 +1,20 @@
 use crate::models::*;
 use crate::commands::session::load_session_messages;
+use crate::utils::find_line_ranges;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use walkdir::WalkDir;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use rayon::prelude::*;
+use memmap2::Mmap;
+
+/// Parse a line using simd-json (requires mutable slice)
+/// Returns None if parsing fails
+#[inline]
+fn parse_raw_log_entry_simd(line: &mut [u8]) -> Option<RawLogEntry> {
+    simd_json::serde::from_slice(line).ok()
+}
 
 /// Intermediate stats collected from a single session file (for parallel processing)
 #[derive(Default)]
@@ -25,9 +33,13 @@ struct SessionFileStats {
 }
 
 /// Process a single session file and return aggregated stats
+#[allow(unsafe_code)] // Required for mmap performance optimization
 fn process_session_file_for_global_stats(session_path: &PathBuf) -> Option<SessionFileStats> {
     let file = fs::File::open(session_path).ok()?;
-    let reader = BufReader::new(file);
+
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. Session files are append-only.
+    let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
     let project_name = session_path
         .parent()
@@ -43,17 +55,14 @@ fn process_session_file_for_global_stats(session_path: &PathBuf) -> Option<Sessi
 
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
 
-    for line in reader.lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
+    // Use SIMD-accelerated line detection
+    let line_ranges = find_line_ranges(&mmap);
 
-        if line.trim().is_empty() {
-            continue;
-        }
+    for (start, end) in line_ranges {
+        // simd-json requires mutable slice
+        let mut line_bytes = mmap[start..end].to_vec();
 
-        if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
+        if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
             if let Ok(message) = ClaudeMessage::try_from(log_entry) {
                 stats.total_messages = stats.total_messages.saturating_add(1);
 
@@ -198,24 +207,25 @@ struct ProjectSessionFileStats {
 }
 
 /// Process a single session file for project stats
+#[allow(unsafe_code)] // Required for mmap performance optimization
 fn process_session_file_for_project_stats(session_path: &PathBuf) -> Option<ProjectSessionFileStats> {
     let file = fs::File::open(session_path).ok()?;
-    let reader = BufReader::new(file);
+
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. Session files are append-only.
+    let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
     let mut stats = ProjectSessionFileStats::default();
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
 
-    for line in reader.lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
+    // Use SIMD-accelerated line detection
+    let line_ranges = find_line_ranges(&mmap);
 
-        if line.trim().is_empty() {
-            continue;
-        }
+    for (start, end) in line_ranges {
+        // simd-json requires mutable slice
+        let mut line_bytes = mmap[start..end].to_vec();
 
-        if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
+        if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
             if let Ok(message) = ClaudeMessage::try_from(log_entry) {
                 stats.total_messages += 1;
 
@@ -456,9 +466,13 @@ pub struct PaginatedTokenStats {
 }
 
 /// Synchronous version of session token stats extraction for parallel processing
+#[allow(unsafe_code)] // Required for mmap performance optimization
 fn extract_session_token_stats_sync(session_path: &PathBuf) -> Option<SessionTokenStats> {
     let file = fs::File::open(session_path).ok()?;
-    let reader = BufReader::new(file);
+
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. Session files are append-only.
+    let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
     let project_name = session_path
         .parent()
@@ -476,17 +490,14 @@ fn extract_session_token_stats_sync(session_path: &PathBuf) -> Option<SessionTok
     let mut first_time: Option<String> = None;
     let mut last_time: Option<String> = None;
 
-    for line in reader.lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
+    // Use SIMD-accelerated line detection
+    let line_ranges = find_line_ranges(&mmap);
 
-        if line.trim().is_empty() {
-            continue;
-        }
+    for (start, end) in line_ranges {
+        // simd-json requires mutable slice
+        let mut line_bytes = mmap[start..end].to_vec();
 
-        if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
+        if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
             if let Ok(message) = ClaudeMessage::try_from(log_entry) {
                 if session_id.is_none() {
                     session_id = Some(message.session_id.clone());
@@ -721,9 +732,13 @@ struct SessionComparisonStats {
 }
 
 /// Process a single session file for comparison stats (lightweight)
+#[allow(unsafe_code)] // Required for mmap performance optimization
 fn process_session_file_for_comparison(session_path: &PathBuf) -> Option<SessionComparisonStats> {
     let file = fs::File::open(session_path).ok()?;
-    let reader = BufReader::new(file);
+
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. Session files are append-only.
+    let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
     let mut session_id: Option<String> = None;
     let mut total_tokens: u32 = 0;
@@ -731,17 +746,14 @@ fn process_session_file_for_comparison(session_path: &PathBuf) -> Option<Session
     let mut first_time: Option<DateTime<Utc>> = None;
     let mut last_time: Option<DateTime<Utc>> = None;
 
-    for line in reader.lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
+    // Use SIMD-accelerated line detection
+    let line_ranges = find_line_ranges(&mmap);
 
-        if line.trim().is_empty() {
-            continue;
-        }
+    for (start, end) in line_ranges {
+        // simd-json requires mutable slice
+        let mut line_bytes = mmap[start..end].to_vec();
 
-        if let Ok(log_entry) = serde_json::from_str::<RawLogEntry>(&line) {
+        if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
             if let Ok(message) = ClaudeMessage::try_from(log_entry) {
                 if session_id.is_none() {
                     session_id = Some(message.session_id.clone());

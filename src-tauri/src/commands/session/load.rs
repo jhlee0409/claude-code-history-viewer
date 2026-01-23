@@ -1,7 +1,7 @@
 //! Session loading functions
 
 use crate::models::*;
-use crate::utils::extract_project_name;
+use crate::utils::{extract_project_name, find_line_ranges, find_line_starts};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
@@ -1002,13 +1002,8 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     let mmap = unsafe { Mmap::map(&file) }
         .map_err(|e| format!("Failed to memory-map session file: {}", e))?;
 
-    // Find line boundaries efficiently
-    let mut line_starts: Vec<usize> = vec![0];
-    for (i, &byte) in mmap.iter().enumerate() {
-        if byte == b'\n' && i + 1 < mmap.len() {
-            line_starts.push(i + 1);
-        }
-    }
+    // Find line boundaries efficiently using SIMD-accelerated memchr
+    let line_starts = find_line_starts(&mmap);
 
     // Parse lines in parallel using simd-json
     let mut messages: Vec<(usize, ClaudeMessage)> = line_starts
@@ -1092,20 +1087,8 @@ pub async fn load_session_messages_paginated(
 
     let exclude = exclude_sidechain.unwrap_or(false);
 
-    // Find line boundaries efficiently
-    let mut line_ranges: Vec<(usize, usize)> = Vec::new();
-    let mut start = 0;
-    for (i, &byte) in mmap.iter().enumerate() {
-        if byte == b'\n' {
-            if i > start {
-                line_ranges.push((start, i));
-            }
-            start = i + 1;
-        }
-    }
-    if start < mmap.len() {
-        line_ranges.push((start, mmap.len()));
-    }
+    // Find line boundaries efficiently using SIMD-accelerated memchr
+    let line_ranges = find_line_ranges(&mmap);
 
     // Phase 1: Build valid line indices (fast classification)
     let valid_indices: Vec<usize> = line_ranges
@@ -1194,20 +1177,8 @@ pub async fn get_session_message_count(
 
     let exclude = exclude_sidechain.unwrap_or(false);
 
-    // Find line boundaries and count valid lines
-    let mut line_ranges: Vec<(usize, usize)> = Vec::new();
-    let mut start = 0;
-    for (i, &byte) in mmap.iter().enumerate() {
-        if byte == b'\n' {
-            if i > start {
-                line_ranges.push((start, i));
-            }
-            start = i + 1;
-        }
-    }
-    if start < mmap.len() {
-        line_ranges.push((start, mmap.len()));
-    }
+    // Find line boundaries and count valid lines using SIMD-accelerated memchr
+    let line_ranges = find_line_ranges(&mmap);
 
     // Parallel counting with fast classification
     let count: usize = line_ranges
