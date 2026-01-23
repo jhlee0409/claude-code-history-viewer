@@ -115,6 +115,8 @@ struct LineClassifier {
     message_type: String,
     #[serde(rename = "isSidechain")]
     is_sidechain: Option<bool>,
+    #[serde(rename = "isMeta")]
+    is_meta: Option<bool>,
 }
 
 /// Minimal struct for extracting session metadata without full message parsing
@@ -127,6 +129,8 @@ struct SessionMetadataEntry {
     timestamp: Option<String>,
     #[serde(rename = "isSidechain")]
     is_sidechain: Option<bool>,
+    #[serde(rename = "isMeta")]
+    is_meta: Option<bool>,
     summary: Option<String>,
     #[serde(rename = "toolUse")]
     tool_use: Option<serde_json::Value>,
@@ -150,6 +154,8 @@ struct QuickLineClassifier {
     timestamp: Option<String>,
     #[serde(rename = "isSidechain")]
     is_sidechain: Option<bool>,
+    #[serde(rename = "isMeta")]
+    is_meta: Option<bool>,
 }
 
 /// Fast session metadata extraction result
@@ -269,6 +275,11 @@ fn extract_session_metadata_internal(
                     continue;
                 }
 
+                // Skip meta messages (internal/command-related messages)
+                if entry.is_meta.unwrap_or(false) {
+                    continue;
+                }
+
                 // Track sidechain messages separately
                 let is_sidechain = entry.is_sidechain.unwrap_or(false);
                 if is_sidechain {
@@ -364,6 +375,11 @@ fn extract_session_metadata_internal(
                 continue;
             }
 
+            // Skip meta messages (internal/command-related messages)
+            if classifier.is_meta.unwrap_or(false) {
+                continue;
+            }
+
             // Track sidechain messages separately
             let is_sidechain = classifier.is_sidechain.unwrap_or(false);
             if is_sidechain {
@@ -454,6 +470,10 @@ fn classify_line(line: &str, exclude_sidechain: bool) -> bool {
         }
         // Exclude system message types (progress, queue-operation, file-history-snapshot, system)
         if is_system_message_type(&classifier.message_type) {
+            return false;
+        }
+        // Exclude meta messages (internal/command-related messages)
+        if classifier.is_meta.unwrap_or(false) {
             return false;
         }
         if exclude_sidechain && classifier.is_sidechain.unwrap_or(false) {
