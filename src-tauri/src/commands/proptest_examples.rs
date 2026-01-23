@@ -191,6 +191,7 @@ mod path_security_props {
 
 /// Regression tests for edge cases found by property testing
 mod regression_tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

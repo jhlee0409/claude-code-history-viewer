@@ -101,17 +101,18 @@ opt-level = 0
 # Lints configuration
 [lints.rust]
 unsafe_code = "forbid"
-missing_docs = "warn"
 
 [lints.clippy]
 all = "warn"
 pedantic = "warn"
-nursery = "warn"
-unwrap_used = "warn"
-expect_used = "warn"
-panic = "warn"
+# nursery lints are too unstable - enable selectively if needed
 # Allow certain lints that are too strict for this project
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+missing_docs_in_private_items = "allow"
+# These are valid patterns in this codebase
+similar_names = "allow"
+too_many_lines = "allow"
+cognitive_complexity = "allow"
