@@ -7,6 +7,7 @@ import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { HighlightedText } from "../common/HighlightedText";
+import { safeStringify } from "@/utils/jsonUtils";
 
 type Props = {
   mcpData: Record<string, unknown>;
@@ -57,7 +58,7 @@ export const MCPRenderer = ({
             </button>
             {showParams && (
               <pre className={`mt-1 p-2 rounded ${layout.monoText} overflow-auto bg-tool-mcp/20 text-foreground`}>
-                {JSON.stringify(params, null, 2)}
+                {safeStringify(params, 2)}
               </pre>
             )}
           </div>
@@ -93,7 +94,7 @@ export const MCPRenderer = ({
               </button>
               {showResult && (
                 <pre className={`mt-1 p-2 rounded ${layout.monoText} overflow-auto bg-muted text-foreground`}>
-                  {JSON.stringify(result, null, 2)}
+                  {safeStringify(result, 2)}
                 </pre>
               )}
             </div>

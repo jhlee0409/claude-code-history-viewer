@@ -211,7 +211,14 @@ export const ToolExecutionResultRouter: React.FC<
       );
     }
     // Even without "I'll search", if it has query + results structure, treat as web search
-    return <WebSearchRenderer searchData={toolResult} searchQuery={searchQuery} />;
+    return (
+      <WebSearchRenderer
+        searchData={toolResult}
+        searchQuery={searchQuery}
+        isCurrentMatch={isCurrentMatch}
+        currentMatchIndex={currentMatchIndex}
+      />
+    );
   }
 
   // Handle todo updates
