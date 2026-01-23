@@ -29,6 +29,8 @@ interface UseScrollNavigationReturn {
   scrollToTop: () => void;
   scrollToBottom: () => void;
   getScrollViewport: () => HTMLElement | null;
+  /** Session ID for which scroll is ready (compare with current session) */
+  scrollReadyForSessionId: string | null;
 }
 
 export const useScrollNavigation = ({
@@ -43,7 +45,9 @@ export const useScrollNavigation = ({
 }: UseScrollNavigationOptions): UseScrollNavigationReturn => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
-  const prevSessionIdRef = useRef<string | null>(null);
+  // 스크롤이 완료된 세션 ID (현재 세션과 비교하여 오버레이 표시 여부 결정)
+  const [scrollReadyForSessionId, setScrollReadyForSessionId] = useState<string | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Helper to get the scroll viewport element
   const getScrollViewport = useCallback(() => {
@@ -52,14 +56,31 @@ export const useScrollNavigation = ({
 
   // 맨 아래로 스크롤하는 함수
   const scrollToBottom = useCallback(() => {
+    const element = getScrollViewport();
+
     // Use virtualizer if available
     if (virtualizer && messagesLength > 0) {
+      // First, scroll to last index
       virtualizer.scrollToIndex(messagesLength - 1, { align: "end" });
+
+      // Then, ensure we're truly at the bottom using DOM scroll
+      // This compensates for height estimation inaccuracies
+      if (element) {
+        // Wait for virtualizer to render, then force scroll to absolute bottom
+        setTimeout(() => {
+          element.scrollTop = element.scrollHeight;
+          // Retry if not at bottom (height estimation may cause slight offset)
+          setTimeout(() => {
+            if (element.scrollTop < element.scrollHeight - element.clientHeight - 5) {
+              element.scrollTop = element.scrollHeight;
+            }
+          }, 50);
+        }, 50);
+      }
       return;
     }
 
     // Fallback to DOM-based scrolling
-    const element = getScrollViewport();
     if (element) {
       // 여러 번 시도하여 확실히 맨 아래로 이동
       const attemptScroll = (attempts = 0) => {
@@ -148,22 +169,45 @@ export const useScrollNavigation = ({
     }
   }, [getScrollViewport, virtualizer, getScrollIndex]);
 
-  // 새로운 세션 선택 시 스크롤을 맨 아래로 이동 (채팅 스타일)
+  // 메시지 로드 완료 후 스크롤 실행
+  // scrollReadyForSessionId !== selectedSessionId 면 스크롤 필요
   useEffect(() => {
-    // 세션이 실제로 변경되었고, 메시지가 로드된 경우에만 실행
-    if (
-      selectedSessionId &&
-      prevSessionIdRef.current !== selectedSessionId &&
-      messagesLength > 0 &&
-      !isLoading
-    ) {
-      // 이전 세션 ID 업데이트
-      prevSessionIdRef.current = selectedSessionId;
-
-      // DOM이 완전히 업데이트된 후 스크롤 실행
-      setTimeout(() => scrollToBottom(), 100);
+    // 이전 타이머 정리
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = null;
     }
-  }, [selectedSessionId, messagesLength, isLoading, scrollToBottom]);
+
+    // 메시지가 있고 로딩 완료되고 현재 세션에 대해 스크롤이 안된 상태일 때
+    if (
+      messagesLength > 0 &&
+      !isLoading &&
+      selectedSessionId &&
+      scrollReadyForSessionId !== selectedSessionId
+    ) {
+      // 스크롤 실행 및 완료 대기
+      requestAnimationFrame(() => {
+        scrollToBottom();
+
+        // 스크롤 완료 대기 후 해당 세션에 대해 준비 완료 표시
+        scrollTimeoutRef.current = setTimeout(() => {
+          scrollToBottom();
+
+          scrollTimeoutRef.current = setTimeout(() => {
+            // 현재 세션 ID를 준비 완료로 표시
+            setScrollReadyForSessionId(selectedSessionId);
+          }, 200);
+        }, 200);
+      });
+    }
+
+    // 클린업
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [messagesLength, isLoading, selectedSessionId, scrollReadyForSessionId, scrollToBottom]);
 
   // 현재 매치 변경 시 해당 하이라이트로 스크롤
   useEffect(() => {
@@ -227,5 +271,6 @@ export const useScrollNavigation = ({
     scrollToTop,
     scrollToBottom,
     getScrollViewport,
+    scrollReadyForSessionId,
   };
 };

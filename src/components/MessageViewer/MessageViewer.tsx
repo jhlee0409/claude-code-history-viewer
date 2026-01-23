@@ -165,6 +165,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     showScrollToBottom,
     scrollToTop,
     scrollToBottom,
+    scrollReadyForSessionId,
   } = useScrollNavigation({
     scrollContainerRef,
     currentMatchUuid,
@@ -197,7 +198,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     }
   }, [onNextMatch, onPrevMatch, handleClearSearch]);
 
-  if (isLoading && messages.length === 0) {
+  // 세션 전환 중인지 확인 (세션 ID 불일치 = 아직 스크롤/로딩 완료 안됨)
+  const isSessionTransitioning = selectedSession?.session_id &&
+    scrollReadyForSessionId !== selectedSession?.session_id;
+
+  // 로딩 중이거나 세션 전환 중일 때 로딩 표시
+  if ((isLoading || isSessionTransitioning) && messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center h-full">
         <div className="flex items-center space-x-2 text-muted-foreground">
@@ -208,7 +214,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     );
   }
 
-  if (messages.length === 0) {
+  // 세션이 없거나 실제로 메시지가 없는 경우에만 "No Messages" 표시
+  if (messages.length === 0 && !isSessionTransitioning) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full">
         <div className="mb-4">
@@ -342,6 +349,26 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         </div>
       </div>
 
+      {/* 스크롤 초기화 대기 중 - 완전 불투명 오버레이 (스크롤 컨테이너 외부) */}
+      {/* 세션 ID 불일치 시 즉시 표시 (messages 비어있어도) */}
+      <div
+        className={cn(
+          "absolute inset-0 flex items-center justify-center bg-background z-20",
+          "transition-opacity duration-150",
+          // 세션이 있고, 아직 해당 세션에 대해 스크롤이 완료되지 않았으면 오버레이 표시
+          selectedSession?.session_id && scrollReadyForSessionId !== selectedSession?.session_id
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none"
+        )}
+      >
+        <div className="flex items-center">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          <span className="text-sm text-muted-foreground">
+            {t("messageViewer.loadingMessages")}
+          </span>
+        </div>
+      </div>
+
       <OverlayScrollbarsComponent
         ref={scrollContainerRef}
         className="flex-1"
@@ -374,6 +401,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             <div>
               Virtual: flat={flattenedMessages.length} | rows={virtualRows.length} | size={totalSize}px | ready={scrollElementReady ? "Y" : "N"}
             </div>
+            <div>
+              Overlay: scrollReady={scrollReadyForSessionId?.slice(-8) ?? "null"} | current={selectedSession?.session_id?.slice(-8) ?? "null"} | show={selectedSession?.session_id && scrollReadyForSessionId !== selectedSession?.session_id ? "Y" : "N"}
+            </div>
           </div>
         )}
         {/* 검색 결과 없음 */}
@@ -397,16 +427,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 count: messages.length,
               })}
             </div>
-          </div>
-        )}
-
-        {/* 스크롤 초기화 대기 중 */}
-        {flattenedMessages.length > 0 && !scrollElementReady && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            <span className="text-sm text-muted-foreground">
-              {t("messageViewer.loadingMessages")}
-            </span>
           </div>
         )}
 
