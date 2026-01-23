@@ -47,19 +47,13 @@ function App() {
     clearSessionSearch,
     loadGlobalStats,
     setAnalyticsCurrentView,
-    setAnalyticsLoadingProjectSummary,
-    loadProjectStatsSummary,
-    setAnalyticsProjectSummary,
-    setAnalyticsProjectSummaryError,
-    loadProjectTokenStats,
   } = useAppStore();
 
   const {
     state: analyticsState,
-    actions: _analyticsActions,
+    actions: analyticsActions,
     computed,
   } = useAnalytics();
-  void _analyticsActions;
 
   const { t, i18n: i18nInstance } = useTranslation();
       const { language, loadLanguage } = useLanguageStore();
@@ -88,6 +82,16 @@ function App() {
   const handleSessionSelect = async (session: ClaudeSession) => {
     setIsViewingGlobalStats(false);
     setAnalyticsCurrentView("messages");
+
+    // 글로벌 통계에서 돌아올 때 세션의 프로젝트를 복원
+    const currentProject = useAppStore.getState().selectedProject;
+    if (!currentProject || currentProject.name !== session.project_name) {
+      const project = projects.find((p) => p.name === session.project_name);
+      if (project) {
+        await selectProject(project);
+      }
+    }
+
     await selectSession(session);
   };
 
@@ -131,43 +135,42 @@ function App() {
 
   const handleProjectSelect = useCallback(
     async (project: ClaudeProject) => {
+      const currentProject = useAppStore.getState().selectedProject;
+
+      // 같은 프로젝트를 다시 클릭하면 닫기 (토글)
+      if (currentProject?.path === project.path) {
+        useAppStore.setState({ selectedProject: null, selectedSession: null, sessions: [] });
+        analyticsActions.clearAll();
+        return;
+      }
+
       const wasTokenStatsOpen = computed.isTokenStatsView;
       setIsViewingGlobalStats(false);
+
+      // 이전 프로젝트의 캐시 초기화
+      analyticsActions.clearAll();
+
       await selectProject(project);
 
+      // 이전 뷰 유지하면서 새 프로젝트 데이터 로드
       if (wasTokenStatsOpen) {
         try {
-          setAnalyticsCurrentView("tokenStats");
-          await loadProjectTokenStats(project.path);
+          await analyticsActions.switchToTokenStats();
         } catch (error) {
           console.error("Failed to auto-load token stats:", error);
         }
       } else {
         try {
-          setAnalyticsCurrentView("analytics");
-          setAnalyticsLoadingProjectSummary(true);
-          const summary = await loadProjectStatsSummary(project.path);
-          setAnalyticsProjectSummary(summary);
+          await analyticsActions.switchToAnalytics();
         } catch (error) {
           console.error("Failed to auto-load analytics:", error);
-          setAnalyticsProjectSummary(null);
-          setAnalyticsProjectSummaryError(
-            error instanceof Error ? error.message : "Failed to load project stats"
-          );
-        } finally {
-          setAnalyticsLoadingProjectSummary(false);
         }
       }
     },
     [
       computed.isTokenStatsView,
       selectProject,
-      setAnalyticsCurrentView,
-      loadProjectTokenStats,
-      setAnalyticsLoadingProjectSummary,
-      loadProjectStatsSummary,
-      setAnalyticsProjectSummary,
-      setAnalyticsProjectSummaryError,
+      analyticsActions,
     ]
   );
 
