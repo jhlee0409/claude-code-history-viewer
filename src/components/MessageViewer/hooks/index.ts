@@ -6,3 +6,4 @@
 
 export { useSearchState } from "./useSearchState";
 export { useScrollNavigation } from "./useScrollNavigation";
+export { useMessageVirtualization } from "./useMessageVirtualization";

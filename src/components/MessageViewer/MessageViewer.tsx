@@ -2,25 +2,24 @@
  * MessageViewer Component
  *
  * Main component for displaying conversation messages with search and navigation.
+ * Uses @tanstack/react-virtual for efficient rendering of large message lists.
  */
 
-import React, { useRef, useCallback, useMemo } from "react";
+import { useRef, useCallback, useMemo, useState, useEffect } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import { Loader2, MessageCircle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import type { ClaudeMessage } from "../../types";
 
 // Local imports
 import type { MessageViewerProps } from "./types";
-import { ClaudeMessageNode } from "./components/ClaudeMessageNode";
+import { VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
 import { useSearchState } from "./hooks/useSearchState";
 import { useScrollNavigation } from "./hooks/useScrollNavigation";
+import { useMessageVirtualization } from "./hooks/useMessageVirtualization";
 import {
   groupAgentTasks,
   groupAgentProgressMessages,
-  getAgentIdFromProgress,
-  getParentUuid,
 } from "./helpers";
 
 export const MessageViewer: React.FC<MessageViewerProps> = ({
@@ -37,6 +36,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const { t } = useTranslation();
   const scrollContainerRef = useRef<OverlayScrollbarsComponentRef>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Track when OverlayScrollbars is initialized
+  const [scrollElementReady, setScrollElementReady] = useState(false);
 
   // Search state management
   const {
@@ -68,45 +70,15 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   const currentMatchUuid = currentMatch?.messageUuid ?? null;
 
-  // Scroll navigation
-  const {
-    showScrollToTop,
-    showScrollToBottom,
-    scrollToTop,
-    scrollToBottom,
-  } = useScrollNavigation({
-    scrollContainerRef,
-    currentMatchUuid,
-    currentMatchIndex: sessionSearch.currentMatchIndex,
-    messagesLength: messages.length,
-    selectedSessionId: selectedSession?.session_id,
-    isLoading,
-  });
-
   // 카카오톡 스타일: 항상 전체 메시지 표시 (필터링 없음)
   const displayMessages = messages;
 
-  // 메시지 트리 구조 메모이제이션 (성능 최적화)
-  const { rootMessages, uniqueMessages } = useMemo(() => {
-    if (displayMessages.length === 0) {
-      return { rootMessages: [], uniqueMessages: [] };
-    }
-
-    // 중복 제거
-    const uniqueMessages = Array.from(
+  // Deduplicate messages for grouping
+  const uniqueMessages = useMemo(() => {
+    if (displayMessages.length === 0) return [];
+    return Array.from(
       new Map(displayMessages.map((msg) => [msg.uuid, msg])).values()
     );
-
-    // 루트 메시지 찾기
-    const roots: ClaudeMessage[] = [];
-    uniqueMessages.forEach((msg) => {
-      const parentUuid = getParentUuid(msg);
-      if (!parentUuid) {
-        roots.push(msg);
-      }
-    });
-
-    return { rootMessages: roots, uniqueMessages };
   }, [displayMessages]);
 
   // Agent task grouping
@@ -141,6 +113,69 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     return memberSet;
   }, [agentProgressGroups]);
 
+  // Helper to get scroll element from OverlayScrollbars
+  // Include scrollElementReady to force virtualizer update when ready
+  const getScrollElement = useCallback(() => {
+    return scrollContainerRef.current?.osInstance()?.elements().viewport ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollElementReady]);
+
+  // Wait for OverlayScrollbars to initialize
+  useEffect(() => {
+    const checkScrollElement = () => {
+      const element = scrollContainerRef.current?.osInstance()?.elements().viewport;
+      if (element && !scrollElementReady) {
+        setScrollElementReady(true);
+      }
+    };
+
+    // Check immediately
+    checkScrollElement();
+
+    // Also check after a short delay (OverlayScrollbars may need time to init)
+    const timer = setTimeout(checkScrollElement, 100);
+    // Check again after a longer delay as a fallback
+    const timer2 = setTimeout(checkScrollElement, 300);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(timer2);
+    };
+  }, [scrollElementReady, selectedSession?.session_id]);
+
+  // Virtual scrolling
+  const {
+    virtualizer,
+    flattenedMessages,
+    virtualRows,
+    totalSize,
+    getScrollIndex,
+  } = useMessageVirtualization({
+    messages: displayMessages,
+    agentTaskGroups,
+    agentTaskMemberUuids,
+    agentProgressGroups,
+    agentProgressMemberUuids,
+    getScrollElement,
+  });
+
+  // Scroll navigation with virtualizer support
+  const {
+    showScrollToTop,
+    showScrollToBottom,
+    scrollToTop,
+    scrollToBottom,
+  } = useScrollNavigation({
+    scrollContainerRef,
+    currentMatchUuid,
+    currentMatchIndex: sessionSearch.currentMatchIndex,
+    messagesLength: flattenedMessages.length,
+    selectedSessionId: selectedSession?.session_id,
+    isLoading,
+    virtualizer,
+    getScrollIndex,
+  });
+
   // 검색어 초기화 핸들러
   const handleClearSearch = useCallback(() => {
     handleClearSearchState();
@@ -161,154 +196,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       handleClearSearch();
     }
   }, [onNextMatch, onPrevMatch, handleClearSearch]);
-
-  // Render message tree recursively
-  const renderMessageTree = useCallback((
-    message: ClaudeMessage,
-    depth = 0,
-    visitedIds = new Set<string>(),
-    keyPrefix = ""
-  ): React.ReactNode[] => {
-    // 순환 참조 방지
-    if (visitedIds.has(message.uuid)) {
-      console.warn(`Circular reference detected for message: ${message.uuid}`);
-      return [];
-    }
-
-    visitedIds.add(message.uuid);
-    const children = displayMessages.filter((m) => {
-      const parentUuid = getParentUuid(m);
-      return parentUuid === message.uuid;
-    });
-
-    // 고유한 키 생성
-    const uniqueKey = keyPrefix ? `${keyPrefix}-${message.uuid}` : message.uuid;
-
-    // 검색 매치 상태 확인
-    const isMatch = matchedUuids.has(message.uuid);
-    const isCurrentMatch = currentMatchUuid === message.uuid;
-    const messageMatchIndex = isCurrentMatch ? currentMatch?.matchIndex : undefined;
-
-    // Check if this message is part of an agent task group
-    const groupInfo = agentTaskGroups.get(message.uuid);
-    const isGroupLeader = !!groupInfo;
-    const isGroupMember = !isGroupLeader && agentTaskMemberUuids.has(message.uuid);
-
-    // Check if this message is part of an agent progress group
-    const progressGroupInfo = agentProgressGroups.get(message.uuid);
-    const isProgressGroupLeader = !!progressGroupInfo;
-    const isProgressGroupMember = !isProgressGroupLeader && agentProgressMemberUuids.has(message.uuid);
-
-    // Get agentId for progress group leader
-    const progressAgentId = isProgressGroupLeader
-      ? getAgentIdFromProgress(message)
-      : null;
-
-    // 현재 메시지를 먼저 추가하고, 자식 메시지들을 이어서 추가
-    const result: React.ReactNode[] = [
-      <ClaudeMessageNode
-        key={uniqueKey}
-        message={message}
-        depth={depth}
-        isMatch={isMatch}
-        isCurrentMatch={isCurrentMatch}
-        searchQuery={sessionSearch.query}
-        filterType={sessionSearch.filterType}
-        currentMatchIndex={messageMatchIndex}
-        agentTaskGroup={isGroupLeader ? groupInfo.tasks : undefined}
-        isAgentTaskGroupMember={isGroupMember}
-        agentProgressGroup={isProgressGroupLeader && progressAgentId ? {
-          entries: progressGroupInfo.entries,
-          agentId: progressAgentId,
-        } : undefined}
-        isAgentProgressGroupMember={isProgressGroupMember}
-      />,
-    ];
-
-    // 자식 메시지들을 재귀적으로 추가 (depth 증가)
-    children.forEach((child, index) => {
-      const childNodes = renderMessageTree(
-        child,
-        depth + 1,
-        new Set(visitedIds),
-        `${uniqueKey}-child-${index}`
-      );
-      result.push(...childNodes);
-    });
-
-    return result;
-  }, [
-    displayMessages,
-    matchedUuids,
-    currentMatchUuid,
-    currentMatch,
-    sessionSearch.query,
-    sessionSearch.filterType,
-    agentTaskGroups,
-    agentTaskMemberUuids,
-    agentProgressGroups,
-    agentProgressMemberUuids,
-  ]);
-
-  // Render flat message list
-  const renderFlatMessages = useCallback(() => {
-    return uniqueMessages.map((message, index) => {
-      const uniqueKey =
-        message.uuid && message.uuid !== "unknown-session"
-          ? `${message.uuid}-${index}`
-          : `fallback-${index}-${message.timestamp}-${message.type}`;
-
-      const isMatch = matchedUuids.has(message.uuid);
-      const isCurrentMatch = currentMatchUuid === message.uuid;
-      const messageMatchIndex = isCurrentMatch ? currentMatch?.matchIndex : undefined;
-
-      // Check if this message is part of an agent task group
-      const groupInfo = agentTaskGroups.get(message.uuid);
-      const isGroupLeader = !!groupInfo;
-      const isGroupMember = !isGroupLeader && agentTaskMemberUuids.has(message.uuid);
-
-      // Check if this message is part of an agent progress group
-      const progressGroupInfo = agentProgressGroups.get(message.uuid);
-      const isProgressGroupLeader = !!progressGroupInfo;
-      const isProgressGroupMember = !isProgressGroupLeader && agentProgressMemberUuids.has(message.uuid);
-
-      // Get agentId for progress group leader
-      const progressAgentId = isProgressGroupLeader
-        ? getAgentIdFromProgress(message)
-        : null;
-
-      return (
-        <ClaudeMessageNode
-          key={uniqueKey}
-          message={message}
-          depth={0}
-          isMatch={isMatch}
-          isCurrentMatch={isCurrentMatch}
-          searchQuery={sessionSearch.query}
-          filterType={sessionSearch.filterType}
-          currentMatchIndex={messageMatchIndex}
-          agentTaskGroup={isGroupLeader ? groupInfo.tasks : undefined}
-          isAgentTaskGroupMember={isGroupMember}
-          agentProgressGroup={isProgressGroupLeader && progressAgentId ? {
-            entries: progressGroupInfo.entries,
-            agentId: progressAgentId,
-          } : undefined}
-          isAgentProgressGroupMember={isProgressGroupMember}
-        />
-      );
-    });
-  }, [
-    uniqueMessages,
-    matchedUuids,
-    currentMatchUuid,
-    currentMatch,
-    sessionSearch.query,
-    sessionSearch.filterType,
-    agentTaskGroups,
-    agentTaskMemberUuids,
-    agentProgressGroups,
-    agentProgressMemberUuids,
-  ]);
 
   if (isLoading && messages.length === 0) {
     return (
@@ -484,80 +371,78 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   ?.slice(0, 20),
               })}
             </div>
+            <div>
+              Virtual: flat={flattenedMessages.length} | rows={virtualRows.length} | size={totalSize}px | ready={scrollElementReady ? "Y" : "N"}
+            </div>
           </div>
         )}
-        <div className="max-w-4xl mx-auto">
-          {/* 검색 결과 없음 */}
-          {sessionSearch.query && (!sessionSearch.matches || sessionSearch.matches.length === 0) && !sessionSearch.isSearching && (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Search className="w-12 h-12 mb-4 text-muted-foreground/50" />
-              <p className="text-lg font-medium mb-2 text-foreground">
-                {t("messageViewer.noSearchResults")}
-              </p>
-              <p className="text-sm">
-                {t("messageViewer.tryDifferentKeyword")}
-              </p>
+        {/* 검색 결과 없음 */}
+        {sessionSearch.query && (!sessionSearch.matches || sessionSearch.matches.length === 0) && !sessionSearch.isSearching && (
+          <div className="max-w-4xl mx-auto flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Search className="w-12 h-12 mb-4 text-muted-foreground/50" />
+            <p className="text-lg font-medium mb-2 text-foreground">
+              {t("messageViewer.noSearchResults")}
+            </p>
+            <p className="text-sm">
+              {t("messageViewer.tryDifferentKeyword")}
+            </p>
+          </div>
+        )}
+
+        {/* 메시지 목록 헤더 */}
+        {displayMessages.length > 0 && !sessionSearch.query && (
+          <div className="max-w-4xl mx-auto flex items-center justify-center py-4">
+            <div className="text-sm text-muted-foreground">
+              {t("messageViewer.allMessagesLoaded", {
+                count: messages.length,
+              })}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* 메시지 목록 */}
-          {displayMessages.length > 0 && !sessionSearch.query && (
-            <div className="flex items-center justify-center py-4">
-              <div className="text-sm text-muted-foreground">
-                {t("messageViewer.allMessagesLoaded", {
-                  count: messages.length,
-                })}
-              </div>
-            </div>
-          )}
+        {/* 스크롤 초기화 대기 중 */}
+        {flattenedMessages.length > 0 && !scrollElementReady && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            <span className="text-sm text-muted-foreground">
+              {t("messageViewer.loadingMessages")}
+            </span>
+          </div>
+        )}
 
-          {/* 메시지 렌더링 */}
-          {displayMessages.length > 0 && (() => {
-            try {
-              if (rootMessages.length > 0) {
-                // 트리 구조 렌더링
-                return rootMessages
-                  .map((message) => renderMessageTree(message, 0, new Set()))
-                  .flat();
-              } else {
-                // 평면 구조 렌더링
-                return renderFlatMessages();
-              }
-            } catch (error) {
-              console.error("Message rendering error:", error);
-              console.error("Message state when error occurred:", {
-                displayMessagesLength: displayMessages.length,
-                rootMessagesLength: rootMessages.length,
-                firstMessage: displayMessages[0],
-                lastMessage: displayMessages[displayMessages.length - 1],
-              });
+        {/* 가상화된 메시지 렌더링 */}
+        {flattenedMessages.length > 0 && scrollElementReady && (
+          <div
+            style={{
+              height: totalSize,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualRows.map((virtualRow) => {
+              const item = flattenedMessages[virtualRow.index];
+              if (!item) return null;
 
-              // 에러 발생 시 안전한 fallback 렌더링
+              const isMatch = matchedUuids.has(item.message.uuid);
+              const isCurrentMatch = currentMatchUuid === item.message.uuid;
+              const messageMatchIndex = isCurrentMatch ? currentMatch?.matchIndex : undefined;
+
               return (
-                <div
-                  key="error-fallback"
-                  className="flex items-center justify-center p-8"
-                >
-                  <div className="text-center text-destructive">
-                    <div className="text-lg font-semibold mb-2">
-                      {t("messageViewer.renderError")}
-                    </div>
-                    <div className="text-sm text-destructive/80">
-                      {t("messageViewer.checkConsole")}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.location.reload()}
-                      className="mt-4 px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
-                    >
-                      {t("messageViewer.refresh")}
-                    </button>
-                  </div>
-                </div>
+                <VirtualizedMessageRow
+                  key={virtualRow.key}
+                  ref={virtualizer.measureElement}
+                  virtualRow={virtualRow}
+                  item={item}
+                  isMatch={isMatch}
+                  isCurrentMatch={isCurrentMatch}
+                  searchQuery={sessionSearch.query}
+                  filterType={sessionSearch.filterType}
+                  currentMatchIndex={messageMatchIndex}
+                />
               );
-            }
-          })()}
-        </div>
+            })}
+          </div>
+        )}
 
         {/* Floating scroll buttons */}
         <div className="fixed bottom-10 right-2 flex flex-col gap-2 z-50">

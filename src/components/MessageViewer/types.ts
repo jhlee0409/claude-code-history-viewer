@@ -84,3 +84,25 @@ export interface AgentProgressGroupResult {
 
 export const SEARCH_MIN_CHARS = 2;
 export const SCROLL_HIGHLIGHT_DELAY_MS = 100;
+
+// ============================================================================
+// Virtual Scrolling Types
+// ============================================================================
+
+export interface FlattenedMessage {
+  message: ClaudeMessage;
+  depth: number;
+  originalIndex: number;
+  /** True if this message is the first (leader) of an agent task group */
+  isGroupLeader: boolean;
+  /** True if this message is a non-leader member of an agent task group */
+  isGroupMember: boolean;
+  /** True if this message is the first (leader) of an agent progress group */
+  isProgressGroupLeader: boolean;
+  /** True if this message is a non-leader member of an agent progress group */
+  isProgressGroupMember: boolean;
+  /** Agent tasks for group leader */
+  agentTaskGroup?: AgentTask[];
+  /** Agent progress data for group leader */
+  agentProgressGroup?: AgentProgressGroup;
+}

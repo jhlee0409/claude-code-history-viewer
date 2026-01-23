@@ -1,0 +1,154 @@
+/**
+ * useMessageVirtualization Hook
+ *
+ * Provides virtual scrolling capabilities for the message viewer
+ * using @tanstack/react-virtual.
+ */
+
+import { useMemo, useCallback } from "react";
+import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
+import type { ClaudeMessage } from "../../../types";
+import type {
+  FlattenedMessage,
+  AgentTaskGroupResult,
+  AgentProgressGroupResult,
+} from "../types";
+import {
+  flattenMessageTree,
+  buildUuidToIndexMap,
+  findGroupLeaderIndex,
+} from "../helpers/flattenMessageTree";
+import {
+  estimateMessageHeight,
+  VIRTUALIZER_OVERSCAN,
+  MIN_ROW_HEIGHT,
+} from "../helpers/heightEstimation";
+
+interface UseMessageVirtualizationOptions {
+  messages: ClaudeMessage[];
+  agentTaskGroups: Map<string, AgentTaskGroupResult>;
+  agentTaskMemberUuids: Set<string>;
+  agentProgressGroups: Map<string, AgentProgressGroupResult>;
+  agentProgressMemberUuids: Set<string>;
+  getScrollElement: () => HTMLElement | null;
+}
+
+interface UseMessageVirtualizationReturn {
+  virtualizer: ReturnType<typeof useVirtualizer<HTMLElement, Element>>;
+  flattenedMessages: FlattenedMessage[];
+  uuidToIndexMap: Map<string, number>;
+  virtualRows: VirtualItem[];
+  totalSize: number;
+  /** Scroll to a specific message by UUID */
+  scrollToMessage: (uuid: string) => void;
+  /** Get index for a UUID (handles group member -> leader resolution) */
+  getScrollIndex: (uuid: string) => number | null;
+}
+
+export const useMessageVirtualization = ({
+  messages,
+  agentTaskGroups,
+  agentTaskMemberUuids,
+  agentProgressGroups,
+  agentProgressMemberUuids,
+  getScrollElement,
+}: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
+  // Flatten message tree with group information
+  const flattenedMessages = useMemo(
+    () =>
+      flattenMessageTree({
+        messages,
+        agentTaskGroups,
+        agentTaskMemberUuids,
+        agentProgressGroups,
+        agentProgressMemberUuids,
+      }),
+    [
+      messages,
+      agentTaskGroups,
+      agentTaskMemberUuids,
+      agentProgressGroups,
+      agentProgressMemberUuids,
+    ]
+  );
+
+  // UUID to index map for quick lookups
+  const uuidToIndexMap = useMemo(
+    () => buildUuidToIndexMap(flattenedMessages),
+    [flattenedMessages]
+  );
+
+  // Height estimation function
+  const estimateSize = useCallback(
+    (index: number) => {
+      const item = flattenedMessages[index];
+      if (!item) return MIN_ROW_HEIGHT;
+      return estimateMessageHeight(item);
+    },
+    [flattenedMessages]
+  );
+
+  // Initialize virtualizer
+  const virtualizer = useVirtualizer({
+    count: flattenedMessages.length,
+    getScrollElement,
+    estimateSize,
+    overscan: VIRTUALIZER_OVERSCAN,
+    // Enable dynamic measurement
+    measureElement: (element) => {
+      if (!element) return MIN_ROW_HEIGHT;
+      const height = element.getBoundingClientRect().height;
+      return height > 0 ? height : MIN_ROW_HEIGHT;
+    },
+  });
+
+  // Get scroll index for a UUID (resolves group members to their leaders)
+  const getScrollIndex = useCallback(
+    (uuid: string): number | null => {
+      // Direct lookup
+      const directIndex = uuidToIndexMap.get(uuid);
+      if (directIndex !== undefined) {
+        const item = flattenedMessages[directIndex];
+        // If this is a group member, find the leader instead
+        if (item?.isGroupMember || item?.isProgressGroupMember) {
+          const leaderIndex = findGroupLeaderIndex(
+            uuid,
+            flattenedMessages,
+            agentTaskGroups,
+            agentProgressGroups
+          );
+          return leaderIndex ?? directIndex;
+        }
+        return directIndex;
+      }
+      return null;
+    },
+    [
+      uuidToIndexMap,
+      flattenedMessages,
+      agentTaskGroups,
+      agentProgressGroups,
+    ]
+  );
+
+  // Scroll to message by UUID
+  const scrollToMessage = useCallback(
+    (uuid: string) => {
+      const index = getScrollIndex(uuid);
+      if (index !== null) {
+        virtualizer.scrollToIndex(index, { align: "center" });
+      }
+    },
+    [getScrollIndex, virtualizer]
+  );
+
+  return {
+    virtualizer,
+    flattenedMessages,
+    uuidToIndexMap,
+    virtualRows: virtualizer.getVirtualItems(),
+    totalSize: virtualizer.getTotalSize(),
+    scrollToMessage,
+    getScrollIndex,
+  };
+};

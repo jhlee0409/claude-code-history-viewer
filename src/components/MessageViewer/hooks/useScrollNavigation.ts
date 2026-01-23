@@ -2,10 +2,12 @@
  * useScrollNavigation Hook
  *
  * Manages scroll behavior and navigation in the message viewer.
+ * Supports both DOM-based scrolling and virtualizer-based scrolling.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
+import type { Virtualizer } from "@tanstack/react-virtual";
 import { SCROLL_HIGHLIGHT_DELAY_MS } from "../types";
 
 interface UseScrollNavigationOptions {
@@ -15,6 +17,10 @@ interface UseScrollNavigationOptions {
   messagesLength: number;
   selectedSessionId?: string;
   isLoading: boolean;
+  /** Optional virtualizer instance for virtual scrolling */
+  virtualizer?: Virtualizer<HTMLElement, Element> | null;
+  /** Function to get scroll index for a UUID (handles group member resolution) */
+  getScrollIndex?: (uuid: string) => number | null;
 }
 
 interface UseScrollNavigationReturn {
@@ -32,6 +38,8 @@ export const useScrollNavigation = ({
   messagesLength,
   selectedSessionId,
   isLoading,
+  virtualizer,
+  getScrollIndex,
 }: UseScrollNavigationOptions): UseScrollNavigationReturn => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -44,6 +52,13 @@ export const useScrollNavigation = ({
 
   // 맨 아래로 스크롤하는 함수
   const scrollToBottom = useCallback(() => {
+    // Use virtualizer if available
+    if (virtualizer && messagesLength > 0) {
+      virtualizer.scrollToIndex(messagesLength - 1, { align: "end" });
+      return;
+    }
+
+    // Fallback to DOM-based scrolling
     const element = getScrollViewport();
     if (element) {
       // 여러 번 시도하여 확실히 맨 아래로 이동
@@ -58,18 +73,51 @@ export const useScrollNavigation = ({
       };
       attemptScroll();
     }
-  }, [getScrollViewport]);
+  }, [getScrollViewport, virtualizer, messagesLength]);
 
   // 맨 위로 스크롤하는 함수
   const scrollToTop = useCallback(() => {
+    // Use virtualizer if available
+    if (virtualizer) {
+      virtualizer.scrollToIndex(0, { align: "start" });
+      return;
+    }
+
+    // Fallback to DOM-based scrolling
     const viewport = getScrollViewport();
     if (viewport) {
       viewport.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [getScrollViewport]);
+  }, [getScrollViewport, virtualizer]);
 
   // 현재 매치된 하이라이트 텍스트로 스크롤 이동
   const scrollToHighlight = useCallback((matchUuid: string | null) => {
+    if (!matchUuid) return;
+
+    // Use virtualizer if available
+    if (virtualizer && getScrollIndex) {
+      const index = getScrollIndex(matchUuid);
+      if (index !== null) {
+        virtualizer.scrollToIndex(index, { align: "center" });
+        // After virtualizer scrolls, try to find the highlight element
+        setTimeout(() => {
+          const viewport = getScrollViewport();
+          if (!viewport) return;
+          const highlightElement = viewport.querySelector(
+            '[data-search-highlight="current"]'
+          );
+          if (highlightElement) {
+            highlightElement.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }
+        }, 100);
+        return;
+      }
+    }
+
+    // Fallback to DOM-based scrolling
     const viewport = getScrollViewport();
     if (!viewport) return;
 
@@ -88,19 +136,17 @@ export const useScrollNavigation = ({
     }
 
     // 하이라이트 요소가 없으면 메시지 영역으로 스크롤 (fallback)
-    if (matchUuid) {
-      const messageElement = viewport.querySelector(
-        `[data-message-uuid="${matchUuid}"]`
-      );
+    const messageElement = viewport.querySelector(
+      `[data-message-uuid="${matchUuid}"]`
+    );
 
-      if (messageElement) {
-        messageElement.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
-      }
+    if (messageElement) {
+      messageElement.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
     }
-  }, [getScrollViewport]);
+  }, [getScrollViewport, virtualizer, getScrollIndex]);
 
   // 새로운 세션 선택 시 스크롤을 맨 아래로 이동 (채팅 스타일)
   useEffect(() => {

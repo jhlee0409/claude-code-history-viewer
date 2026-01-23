@@ -23,3 +23,15 @@ export {
   isEmptyMessage,
   getParentUuid,
 } from "./messageHelpers";
+
+export {
+  flattenMessageTree,
+  buildUuidToIndexMap,
+  findGroupLeaderIndex,
+} from "./flattenMessageTree";
+
+export {
+  estimateMessageHeight,
+  VIRTUALIZER_OVERSCAN,
+  MIN_ROW_HEIGHT,
+} from "./heightEstimation";
