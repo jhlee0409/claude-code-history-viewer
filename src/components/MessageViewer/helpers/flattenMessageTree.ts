@@ -21,6 +21,8 @@ interface FlattenOptions {
   agentTaskMemberUuids: Set<string>;
   agentProgressGroups: Map<string, AgentProgressGroupResult>;
   agentProgressMemberUuids: Set<string>;
+  /** Message UUIDs to hide (only used when in capture mode) */
+  hiddenMessageIds?: string[];
 }
 
 /**
@@ -33,7 +35,10 @@ export function flattenMessageTree({
   agentTaskMemberUuids,
   agentProgressGroups,
   agentProgressMemberUuids,
+  hiddenMessageIds = [],
 }: FlattenOptions): FlattenedMessage[] {
+  // Create a Set for O(1) lookup of hidden messages
+  const hiddenSet = new Set(hiddenMessageIds);
   if (messages.length === 0) {
     return [];
   }
@@ -58,24 +63,26 @@ export function flattenMessageTree({
 
   // If no root messages exist, treat all messages as flat list
   if (rootMessages.length === 0) {
-    return uniqueMessages.map((message, index) =>
-      createFlattenedMessage(
-        message,
-        0,
-        index,
-        agentTaskGroups,
-        agentTaskMemberUuids,
-        agentProgressGroups,
-        agentProgressMemberUuids
-      )
-    );
+    return uniqueMessages
+      .filter((message) => !hiddenSet.has(message.uuid))
+      .map((message, index) =>
+        createFlattenedMessage(
+          message,
+          0,
+          index,
+          agentTaskGroups,
+          agentTaskMemberUuids,
+          agentProgressGroups,
+          agentProgressMemberUuids
+        )
+      );
   }
 
   // DFS traversal to flatten tree
   const result: FlattenedMessage[] = [];
   const visited = new Set<string>();
 
-  function traverse(message: ClaudeMessage, depth: number): void {
+  function traverse(message: ClaudeMessage, depth: number, skipDueToHiddenParent = false): void {
     if (visited.has(message.uuid)) {
       console.warn(`Circular reference detected for message: ${message.uuid}`);
       return;
@@ -83,22 +90,28 @@ export function flattenMessageTree({
 
     visited.add(message.uuid);
 
-    result.push(
-      createFlattenedMessage(
-        message,
-        depth,
-        result.length,
-        agentTaskGroups,
-        agentTaskMemberUuids,
-        agentProgressGroups,
-        agentProgressMemberUuids
-      )
-    );
+    // Check if this message or its parent is hidden
+    const isHidden = hiddenSet.has(message.uuid) || skipDueToHiddenParent;
 
-    // Traverse children
+    // Only add to result if not hidden
+    if (!isHidden) {
+      result.push(
+        createFlattenedMessage(
+          message,
+          depth,
+          result.length,
+          agentTaskGroups,
+          agentTaskMemberUuids,
+          agentProgressGroups,
+          agentProgressMemberUuids
+        )
+      );
+    }
+
+    // Traverse children (skip children if this message is hidden)
     const children = childrenMap.get(message.uuid) ?? [];
     for (const child of children) {
-      traverse(child, depth + 1);
+      traverse(child, depth + 1, isHidden);
     }
   }
 
@@ -110,12 +123,14 @@ export function flattenMessageTree({
   // Fallback: If tree traversal resulted in significantly fewer messages,
   // some messages might be orphaned (parent UUID points to non-existent message).
   // In this case, add remaining unvisited messages at depth 0.
-  if (result.length < uniqueMessages.length * 0.9) {
+  // Note: Account for hidden messages when calculating threshold
+  const nonHiddenCount = uniqueMessages.filter(m => !hiddenSet.has(m.uuid)).length;
+  if (result.length < nonHiddenCount * 0.9) {
     console.warn(
-      `[flattenMessageTree] Tree traversal found ${result.length}/${uniqueMessages.length} messages. Adding orphaned messages.`
+      `[flattenMessageTree] Tree traversal found ${result.length}/${nonHiddenCount} messages. Adding orphaned messages.`
     );
     for (const msg of uniqueMessages) {
-      if (!visited.has(msg.uuid)) {
+      if (!visited.has(msg.uuid) && !hiddenSet.has(msg.uuid)) {
         result.push(
           createFlattenedMessage(
             msg,

@@ -754,5 +754,12 @@
   "commandOutputDisplay.packageManagement": "패키지 관리",
   "commandOutputDisplay.tableOutput": "테이블 출력",
   "commandOutputDisplay.terminalOutput": "터미널 출력",
-  "common.noDataAvailable": "데이터 없음"
+  "common.noDataAvailable": "데이터 없음",
+  "captureMode.enter": "캡쳐 모드",
+  "captureMode.active": "캡쳐 모드",
+  "captureMode.done": "완료",
+  "captureMode.hiddenCount": "{{count}}개 숨김",
+  "captureMode.restoreAll": "모두 복원",
+  "captureMode.hideBlock": "이 블록 숨기기",
+  "captureMode.tooltip": "스크린샷용 메시지 블록 숨기기"
 }

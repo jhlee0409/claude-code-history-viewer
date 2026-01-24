@@ -754,5 +754,12 @@
   "commandOutputDisplay.packageManagement": "パッケージ管理",
   "commandOutputDisplay.tableOutput": "テーブル出力",
   "commandOutputDisplay.terminalOutput": "ターミナル出力",
-  "common.noDataAvailable": "データがありません"
+  "common.noDataAvailable": "データがありません",
+  "captureMode.enter": "キャプチャモード",
+  "captureMode.active": "キャプチャモード",
+  "captureMode.done": "完了",
+  "captureMode.hiddenCount": "{{count}}件非表示",
+  "captureMode.restoreAll": "すべて復元",
+  "captureMode.hideBlock": "このブロックを非表示",
+  "captureMode.tooltip": "スクリーンショット用にメッセージブロックを非表示"
 }

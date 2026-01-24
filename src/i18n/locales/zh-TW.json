@@ -754,5 +754,12 @@
   "commandOutputDisplay.packageManagement": "套件管理",
   "commandOutputDisplay.tableOutput": "表格輸出",
   "commandOutputDisplay.terminalOutput": "終端機輸出",
-  "common.noDataAvailable": "無可用資料"
+  "common.noDataAvailable": "無可用資料",
+  "captureMode.enter": "截圖模式",
+  "captureMode.active": "截圖模式",
+  "captureMode.done": "完成",
+  "captureMode.hiddenCount": "已隱藏 {{count}} 個",
+  "captureMode.restoreAll": "全部恢復",
+  "captureMode.hideBlock": "隱藏此區塊",
+  "captureMode.tooltip": "隱藏訊息區塊以便截圖"
 }

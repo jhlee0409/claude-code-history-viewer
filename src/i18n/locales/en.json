@@ -754,5 +754,12 @@
   "commandOutputDisplay.packageManagement": "Package Management",
   "commandOutputDisplay.tableOutput": "Table Output",
   "commandOutputDisplay.terminalOutput": "Terminal Output",
-  "common.noDataAvailable": "No data available"
+  "common.noDataAvailable": "No data available",
+  "captureMode.enter": "Capture Mode",
+  "captureMode.active": "Capture Mode",
+  "captureMode.done": "Done",
+  "captureMode.hiddenCount": "{{count}} hidden",
+  "captureMode.restoreAll": "Restore All",
+  "captureMode.hideBlock": "Hide this block",
+  "captureMode.tooltip": "Hide message blocks for screenshots"
 }

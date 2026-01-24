@@ -5,6 +5,8 @@
  */
 
 import React from "react";
+import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProgressData } from "../../../types";
 import { ClaudeContentArrayRenderer } from "../../contentRenderer";
@@ -33,7 +35,24 @@ export const ClaudeMessageNode = React.memo(({
   isAgentTaskGroupMember,
   agentProgressGroup,
   isAgentProgressGroupMember,
+  isCaptureMode,
+  onHideMessage,
 }: MessageNodeProps) => {
+  const { t } = useTranslation();
+
+  // Capture mode X button component
+  const CaptureHideButton = isCaptureMode && onHideMessage ? (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onHideMessage(message.uuid);
+      }}
+      className="absolute top-2 right-2 z-10 p-1.5 bg-destructive/90 hover:bg-destructive text-white rounded-full shadow-md transition-colors"
+      title={t("captureMode.hideBlock")}
+    >
+      <X className="w-3.5 h-3.5" />
+    </button>
+  ) : null;
   if (message.isSidechain) {
     return null;
   }
@@ -67,7 +86,8 @@ export const ClaudeMessageNode = React.memo(({
   // Render grouped agent tasks
   if (agentTaskGroup && agentTaskGroup.length > 0) {
     return (
-      <div data-message-uuid={message.uuid} className="w-full px-4 py-2">
+      <div data-message-uuid={message.uuid} className="relative w-full px-4 py-2">
+        {CaptureHideButton}
         <div className="max-w-4xl mx-auto">
           <AgentTaskGroupRenderer tasks={agentTaskGroup} timestamp={message.timestamp} />
         </div>
@@ -78,7 +98,8 @@ export const ClaudeMessageNode = React.memo(({
   // Render grouped agent progress (replaces individual ProgressRenderer for agent_progress)
   if (agentProgressGroup && agentProgressGroup.entries.length > 0) {
     return (
-      <div data-message-uuid={message.uuid} className="w-full px-4 py-2">
+      <div data-message-uuid={message.uuid} className="relative w-full px-4 py-2">
+        {CaptureHideButton}
         <div className="max-w-4xl mx-auto">
           <AgentProgressGroupRenderer
             entries={agentProgressGroup.entries}
@@ -95,7 +116,8 @@ export const ClaudeMessageNode = React.memo(({
       ? message.content
       : "";
     return (
-      <div data-message-uuid={message.uuid} className="max-w-4xl mx-auto">
+      <div data-message-uuid={message.uuid} className="relative max-w-4xl mx-auto">
+        {CaptureHideButton}
         <SummaryMessage content={summaryContent} timestamp={message.timestamp} />
       </div>
     );
@@ -104,7 +126,8 @@ export const ClaudeMessageNode = React.memo(({
   // Progress messages get special rendering (non-agent progress types)
   if (message.type === "progress" && message.data) {
     return (
-      <div data-message-uuid={message.uuid} className="w-full px-4 py-1">
+      <div data-message-uuid={message.uuid} className="relative w-full px-4 py-1">
+        {CaptureHideButton}
         <div className="max-w-4xl mx-auto">
           <ProgressRenderer
             data={message.data as ProgressData}
@@ -120,7 +143,7 @@ export const ClaudeMessageNode = React.memo(({
     <div
       data-message-uuid={message.uuid}
       className={cn(
-        "w-full px-4 py-2 transition-colors duration-300",
+        "relative w-full px-4 py-2 transition-colors duration-300",
         message.isSidechain && "bg-muted",
         // 현재 매치된 메시지 강조
         isCurrentMatch && "bg-highlight-current ring-2 ring-warning",
@@ -128,6 +151,7 @@ export const ClaudeMessageNode = React.memo(({
         isMatch && !isCurrentMatch && "bg-highlight"
       )}
     >
+      {CaptureHideButton}
       <div className="max-w-4xl mx-auto">
         {/* Compact message header */}
         <MessageHeader message={message} />

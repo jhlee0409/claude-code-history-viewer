@@ -31,6 +31,10 @@ interface UseMessageVirtualizationOptions {
   agentProgressGroups: Map<string, AgentProgressGroupResult>;
   agentProgressMemberUuids: Set<string>;
   getScrollElement: () => HTMLElement | null;
+  /** Message UUIDs to hide (only applied when in capture mode) */
+  hiddenMessageIds?: string[];
+  /** Whether capture mode is active */
+  isCaptureMode?: boolean;
 }
 
 interface UseMessageVirtualizationReturn {
@@ -52,7 +56,12 @@ export const useMessageVirtualization = ({
   agentProgressGroups,
   agentProgressMemberUuids,
   getScrollElement,
+  hiddenMessageIds = [],
+  isCaptureMode = false,
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
+  // Only apply hidden filter when in capture mode (hybrid approach)
+  const effectiveHiddenIds = isCaptureMode ? hiddenMessageIds : [];
+
   // Flatten message tree with group information
   const flattenedMessages = useMemo(
     () => {
@@ -64,8 +73,9 @@ export const useMessageVirtualization = ({
           agentTaskMemberUuids,
           agentProgressGroups,
           agentProgressMemberUuids,
+          hiddenMessageIds: effectiveHiddenIds,
         });
-        console.log(`[useMessageVirtualization] flattenMessageTree: ${messages.length} → ${result.length} items, ${(performance.now() - start).toFixed(1)}ms`);
+        console.log(`[useMessageVirtualization] flattenMessageTree: ${messages.length} → ${result.length} items (${effectiveHiddenIds.length} hidden), ${(performance.now() - start).toFixed(1)}ms`);
         return result;
       }
       return flattenMessageTree({
@@ -74,6 +84,7 @@ export const useMessageVirtualization = ({
         agentTaskMemberUuids,
         agentProgressGroups,
         agentProgressMemberUuids,
+        hiddenMessageIds: effectiveHiddenIds,
       });
     },
     [
@@ -82,6 +93,7 @@ export const useMessageVirtualization = ({
       agentTaskMemberUuids,
       agentProgressGroups,
       agentProgressMemberUuids,
+      effectiveHiddenIds,
     ]
   );
 

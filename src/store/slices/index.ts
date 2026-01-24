@@ -73,3 +73,14 @@ export type {
   MetadataSliceActions,
 } from "./metadataSlice";
 export { createMetadataSlice, initialMetadataState } from "./metadataSlice";
+
+// Capture Mode Slice
+export type {
+  CaptureModeSlice,
+  CaptureModeSliceState,
+  CaptureModeSliceActions,
+} from "./captureModeSlice";
+export {
+  createCaptureModeSlice,
+  initialCaptureModeState,
+} from "./captureModeSlice";

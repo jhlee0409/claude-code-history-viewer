@@ -38,6 +38,9 @@ export interface MessageNodeProps {
   // Agent progress grouping
   agentProgressGroup?: AgentProgressGroup;
   isAgentProgressGroupMember?: boolean;
+  // Capture mode
+  isCaptureMode?: boolean;
+  onHideMessage?: (uuid: string) => void;
 }
 
 export interface MessageHeaderProps {

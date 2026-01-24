@@ -19,6 +19,9 @@ interface VirtualizedMessageRowProps {
   searchQuery?: string;
   filterType?: SearchFilterType;
   currentMatchIndex?: number;
+  // Capture mode
+  isCaptureMode?: boolean;
+  onHideMessage?: (uuid: string) => void;
 }
 
 /**
@@ -36,6 +39,8 @@ export const VirtualizedMessageRow = forwardRef<
     searchQuery,
     filterType,
     currentMatchIndex,
+    isCaptureMode,
+    onHideMessage,
   },
   ref
 ) {
@@ -94,6 +99,8 @@ export const VirtualizedMessageRow = forwardRef<
         isAgentTaskGroupMember={false}
         agentProgressGroup={agentProgressGroup}
         isAgentProgressGroupMember={false}
+        isCaptureMode={isCaptureMode}
+        onHideMessage={onHideMessage}
       />
     </div>
   );

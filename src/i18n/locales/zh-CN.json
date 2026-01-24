@@ -754,5 +754,12 @@
   "commandOutputDisplay.packageManagement": "包管理",
   "commandOutputDisplay.tableOutput": "表格输出",
   "commandOutputDisplay.terminalOutput": "终端输出",
-  "common.noDataAvailable": "无可用数据"
+  "common.noDataAvailable": "无可用数据",
+  "captureMode.enter": "截图模式",
+  "captureMode.active": "截图模式",
+  "captureMode.done": "完成",
+  "captureMode.hiddenCount": "已隐藏 {{count}} 个",
+  "captureMode.restoreAll": "全部恢复",
+  "captureMode.hideBlock": "隐藏此块",
+  "captureMode.tooltip": "隐藏消息块以便截图"
 }

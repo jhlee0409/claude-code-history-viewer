@@ -132,6 +132,10 @@ export interface AppStoreState {
   isMetadataLoaded: boolean;
   isMetadataLoading: boolean;
   metadataError: string | null;
+
+  // Capture mode state
+  isCaptureMode: boolean;
+  hiddenMessageIds: string[];
 }
 
 export interface AppStoreActions {
@@ -216,6 +220,15 @@ export interface AppStoreActions {
   ) => string | undefined;
   isProjectHidden: (projectPath: string) => boolean;
   clearMetadataError: () => void;
+
+  // Capture mode actions
+  enterCaptureMode: () => void;
+  exitCaptureMode: () => void;
+  hideMessage: (uuid: string) => void;
+  showMessage: (uuid: string) => void;
+  restoreAllMessages: () => void;
+  isMessageHidden: (uuid: string) => boolean;
+  getHiddenCount: () => number;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;

@@ -7,7 +7,7 @@
 
 import { useRef, useCallback, useMemo, useState, useEffect } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
-import { MessageCircle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
@@ -15,6 +15,7 @@ import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
 // Local imports
 import type { MessageViewerProps } from "./types";
 import { VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
+import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
 import { useSearchState } from "./hooks/useSearchState";
 import { useScrollNavigation } from "./hooks/useScrollNavigation";
 import { useMessageVirtualization } from "./hooks/useMessageVirtualization";
@@ -22,6 +23,7 @@ import {
   groupAgentTasks,
   groupAgentProgressMessages,
 } from "./helpers";
+import { useAppStore } from "../../store/useAppStore";
 
 export const MessageViewer: React.FC<MessageViewerProps> = ({
   messages,
@@ -40,6 +42,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // Track when OverlayScrollbars is initialized
   const [scrollElementReady, setScrollElementReady] = useState(false);
+
+  // Capture mode state
+  const {
+    isCaptureMode,
+    hiddenMessageIds,
+    enterCaptureMode,
+    hideMessage,
+  } = useAppStore();
 
   // Search state management
   const {
@@ -177,6 +187,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     agentProgressGroups,
     agentProgressMemberUuids,
     getScrollElement,
+    hiddenMessageIds,
+    isCaptureMode,
   });
 
   // Scroll navigation with virtualizer support
@@ -367,6 +379,23 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         {/* Spacer */}
         <div className="flex-1" />
 
+        {/* Capture Mode Button */}
+        {!isCaptureMode && (
+          <button
+            type="button"
+            onClick={enterCaptureMode}
+            className={cn(
+              "flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-md transition-colors",
+              "hover:bg-secondary/80",
+              "bg-secondary text-secondary-foreground"
+            )}
+            title={t("captureMode.tooltip")}
+          >
+            <Camera className="w-3.5 h-3.5" />
+            {t("captureMode.enter")}
+          </button>
+        )}
+
         {/* Meta Info */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{messages.length} {t("messageViewer.messagesShort")}</span>
@@ -378,6 +407,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           )}
         </div>
       </div>
+
+      {/* Capture Mode Toolbar */}
+      {isCaptureMode && <CaptureModeToolbar />}
 
       <OverlayScrollbarsComponent
         ref={scrollContainerRef}
@@ -479,6 +511,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   searchQuery={sessionSearch.query}
                   filterType={sessionSearch.filterType}
                   currentMatchIndex={messageMatchIndex}
+                  isCaptureMode={isCaptureMode}
+                  onHideMessage={hideMessage}
                 />
               );
             })}
