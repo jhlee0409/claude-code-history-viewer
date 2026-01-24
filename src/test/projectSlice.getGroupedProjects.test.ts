@@ -4,13 +4,16 @@
  */
 import { describe, it, expect } from "vitest";
 import type { ClaudeProject } from "../types";
-import { detectWorktreeGroups } from "../utils/worktreeUtils";
+import {
+  detectWorktreeGroups,
+  detectWorktreeGroupsHybrid,
+} from "../utils/worktreeUtils";
 
 // Since we can't easily test the full Zustand store with all its dependencies,
-// we test the detectWorktreeGroups function directly, which is what getGroupedProjects uses.
-// The store's getGroupedProjects is essentially:
-// if (!worktreeGrouping) return { groups: [], ungrouped: projects }
-// return detectWorktreeGroups(projects)
+// we test the detectWorktreeGroups and detectWorktreeGroupsHybrid functions directly.
+// The store's getGroupedProjects uses the hybrid version which combines:
+// 1. Git-based grouping (100% accurate when git info is available)
+// 2. Heuristic-based grouping (fallback for projects without git info)
 
 // Helper to create mock ClaudeProject
 function createMockProject(overrides: Partial<ClaudeProject> = {}): ClaudeProject {
@@ -164,6 +167,22 @@ describe("getGroupedProjects logic", () => {
       expect(result.groups[0].parent.message_count).toBe(100);
       expect(result.groups[0].children[0].session_count).toBe(2);
       expect(result.groups[0].children[0].message_count).toBe(25);
+    });
+  });
+
+  describe("detectWorktreeGroupsHybrid", () => {
+    it("should use heuristic grouping when git info is not available", () => {
+      const projects = [
+        createMockProject({ name: "my-app", path: "/Users/jack/my-app" }),
+        createMockProject({ name: "my-app", path: "/tmp/feature-branch/my-app" }),
+      ];
+
+      const result = detectWorktreeGroupsHybrid(projects);
+
+      // Should fall back to heuristic grouping
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].parent.path).toBe("/Users/jack/my-app");
+      expect(result.groups[0].children).toHaveLength(1);
     });
   });
 

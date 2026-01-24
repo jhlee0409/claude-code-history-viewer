@@ -43,6 +43,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   const [editValue, setEditValue] = useState("");
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const ignoreBlurRef = useRef<boolean>(false);
 
   // Use the hooks for display name and metadata actions
   const displayName = useSessionDisplayName(session.session_id, session.summary);
@@ -163,7 +164,13 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                onBlur={saveCustomName}
+                onBlur={() => {
+                  if (ignoreBlurRef.current) {
+                    ignoreBlurRef.current = false;
+                    return;
+                  }
+                  saveCustomName();
+                }}
                 placeholder={t(
                   "session.renamePlaceholder",
                   "Enter session name..."
@@ -177,6 +184,9 @@ export const SessionItem: React.FC<SessionItemProps> = ({
               />
               <button
                 type="button"
+                onMouseDown={() => {
+                  ignoreBlurRef.current = true;
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
                   saveCustomName();
@@ -188,6 +198,9 @@ export const SessionItem: React.FC<SessionItemProps> = ({
               </button>
               <button
                 type="button"
+                onMouseDown={() => {
+                  ignoreBlurRef.current = true;
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
                   cancelEditing();
@@ -210,8 +223,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                 onDoubleClick={handleDoubleClick}
                 title={t("session.rename", "Double-click to rename")}
               >
-                {displayName ||
-                  t("components:session.summaryNotFound", "No summary")}
+                {displayName || t("session.summaryNotFound", "No summary")}
               </span>
 
               {/* Context Menu for Rename */}

@@ -166,6 +166,7 @@ function flattenWithPlaceholders(
 
   const result: FlattenedMessage[] = [];
   let pendingHiddenUuids: string[] = [];
+  let visibleMessageIndex = 0;
 
   for (const message of messages) {
     if (hiddenSet.has(message.uuid)) {
@@ -183,18 +184,19 @@ function flattenWithPlaceholders(
         pendingHiddenUuids = [];
       }
 
-      // Add visible message
+      // Add visible message with correct originalIndex
       result.push(
         createFlattenedMessage(
           message,
           0,
-          result.length,
+          visibleMessageIndex,
           agentTaskGroups,
           agentTaskMemberUuids,
           agentProgressGroups,
           agentProgressMemberUuids
         )
       );
+      visibleMessageIndex++;
     }
   }
 

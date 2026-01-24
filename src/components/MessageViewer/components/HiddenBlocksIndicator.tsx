@@ -159,7 +159,7 @@ export function HiddenBlocksIndicator({
               style={{
                 top: badgePosition.top + 12,
                 left: badgePosition.left,
-                zIndex: 9999,
+                zIndex: Z_INDEX.DROPDOWN,
               }}
             >
               {/* Restore all button */}
@@ -177,7 +177,9 @@ export function HiddenBlocksIndicator({
                   )}
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span className="font-medium">Restore all ({count})</span>
+                  <span className="font-medium">
+                    {t("captureMode.restoreAll")} ({count})
+                  </span>
                 </button>
               )}
 

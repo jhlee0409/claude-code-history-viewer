@@ -75,14 +75,30 @@ pub fn estimate_message_count_from_size(file_size: u64) -> usize {
 ///
 /// Claude stores sessions in ~/.claude/projects/ with the project path encoded:
 /// - `/Users/jack/.claude/projects/-Users-jack-my-project` → `/Users/jack/my-project`
-/// - `/Users/jack/.claude/projects/-tmp-feature-my-project` → `/tmp/feature/my-project`
+/// - `/Users/jack/.claude/projects/-tmp-feature-my-project` → `/tmp/feature-my-project`
+///
+/// Note: Only the leading dash and path separators are encoded. Dashes within
+/// path segment names (like "my-project") are preserved.
 pub fn decode_project_path(session_storage_path: &str) -> String {
     const MARKER: &str = ".claude/projects/";
     if let Some(marker_pos) = session_storage_path.find(MARKER) {
         let encoded = &session_storage_path[marker_pos + MARKER.len()..];
         if encoded.starts_with('-') {
-            // "-Users-jack-my-project" -> "/Users/jack/my-project"
-            return encoded.replace('-', "/");
+            // Claude encodes paths by replacing "/" with "-"
+            // The encoding uses splitn(4, '-') to extract the last part as project name
+            // So "-Users-jack-my-project" has 4 parts: ["", "Users", "jack", "my-project"]
+            // We reconstruct as: "/" + "Users" + "/" + "jack" + "/" + "my-project"
+            let parts: Vec<&str> = encoded.splitn(4, '-').collect();
+            if parts.len() >= 4 {
+                // parts[0] is empty (before leading dash)
+                // parts[1..3] are path segments
+                // parts[3] is the remaining path (may contain dashes that are part of the name)
+                return format!("/{}/{}/{}", parts[1], parts[2], parts[3]);
+            } else if parts.len() == 3 {
+                return format!("/{}/{}", parts[1], parts[2]);
+            } else if parts.len() == 2 {
+                return format!("/{}", parts[1]);
+            }
         }
     }
     session_storage_path.to_string()
@@ -306,7 +322,7 @@ mod tests {
     fn test_decode_project_path_session_storage() {
         assert_eq!(
             decode_project_path("/Users/jack/.claude/projects/-Users-jack-my-project"),
-            "/Users/jack/my/project"
+            "/Users/jack/my-project"
         );
     }
 
@@ -314,7 +330,7 @@ mod tests {
     fn test_decode_project_path_tmp() {
         assert_eq!(
             decode_project_path("/Users/jack/.claude/projects/-tmp-feature-my-project"),
-            "/tmp/feature/my/project"
+            "/tmp/feature/my-project"
         );
     }
 

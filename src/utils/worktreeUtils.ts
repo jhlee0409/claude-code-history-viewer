@@ -135,11 +135,15 @@ export function detectWorktreeGroups(
   }
 
   // Build a map of project names to regular projects for quick lookup
-  const nameToRegularProject = new Map<string, ClaudeProject>();
+  // Multiple projects can have the same name (e.g., /Users/jack/work/my-project and /Users/jack/personal/my-project)
+  const nameToRegularProjects = new Map<string, ClaudeProject[]>();
   for (const project of regularProjects) {
     const name = extractProjectName(project.path);
     if (name) {
-      nameToRegularProject.set(name, project);
+      if (!nameToRegularProjects.has(name)) {
+        nameToRegularProjects.set(name, []);
+      }
+      nameToRegularProjects.get(name)!.push(project);
     }
   }
 
@@ -152,10 +156,11 @@ export function detectWorktreeGroups(
 
   for (const tmpProject of tmpProjects) {
     const tmpName = extractProjectName(tmpProject.path);
-    const parentProject = nameToRegularProject.get(tmpName);
+    const candidates = nameToRegularProjects.get(tmpName);
 
-    if (parentProject) {
-      // Found a parent for this worktree
+    if (candidates && candidates.length > 0 && candidates[0]) {
+      // If multiple candidates, pick the first one (could be improved with path ancestry matching)
+      const parentProject: ClaudeProject = candidates[0];
       const parentPath = parentProject.path;
 
       if (!groupMap.has(parentPath)) {
