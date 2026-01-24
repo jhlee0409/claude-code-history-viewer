@@ -10,6 +10,10 @@ import type { ClaudeProject, ClaudeSession, AppError } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
+import {
+  detectWorktreeGroups,
+  type WorktreeGroupingResult,
+} from "../../utils/worktreeUtils";
 
 // ============================================================================
 // State Interface
@@ -35,6 +39,7 @@ export interface ProjectSliceActions {
   setError: (error: AppError | null) => void;
   setSelectedSession: (session: ClaudeSession | null) => void;
   setSessions: (sessions: ClaudeSession[]) => void;
+  getGroupedProjects: () => WorktreeGroupingResult;
 }
 
 export type ProjectSlice = ProjectSliceState & ProjectSliceActions;
@@ -211,5 +216,17 @@ export const createProjectSlice: StateCreator<
 
   setSessions: (sessions: ClaudeSession[]) => {
     set({ sessions });
+  },
+
+  getGroupedProjects: () => {
+    const { projects, userMetadata } = get();
+    const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
+
+    if (!worktreeGrouping) {
+      // When grouping is disabled, return all projects as ungrouped
+      return { groups: [], ungrouped: projects };
+    }
+
+    return detectWorktreeGroups(projects);
   },
 });

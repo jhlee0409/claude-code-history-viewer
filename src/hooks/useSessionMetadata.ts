@@ -111,12 +111,13 @@ export const useSessionDisplayName = (
   sessionId: string,
   fallbackSummary?: string
 ): string | undefined => {
-  const getSessionDisplayName = useAppStore(
-    (state) => state.getSessionDisplayName
+  // Subscribe to the specific session's customName to trigger re-renders
+  const customName = useAppStore(
+    (state) => state.userMetadata.sessions[sessionId]?.customName
   );
 
   return useMemo(
-    () => getSessionDisplayName(sessionId, fallbackSummary),
-    [getSessionDisplayName, sessionId, fallbackSummary]
+    () => customName || fallbackSummary,
+    [customName, fallbackSummary]
   );
 };

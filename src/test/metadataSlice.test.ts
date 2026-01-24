@@ -6,20 +6,13 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { create } from "zustand";
-import type {
-  UserMetadata,
-  SessionMetadata,
-  ProjectMetadata,
-  UserSettings,
-} from "../types";
+import type { UserMetadata } from "../types";
 import { DEFAULT_USER_METADATA } from "../types";
 import {
   createMetadataSlice,
   initialMetadataState,
   type MetadataSlice,
-  type MetadataSliceState,
 } from "../store/slices/metadataSlice";
-import type { FullAppStore } from "../store/slices/types";
 
 // ============================================================================
 // Mock Tauri API

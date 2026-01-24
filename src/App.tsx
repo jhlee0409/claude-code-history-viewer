@@ -51,6 +51,9 @@ function App() {
     setAnalyticsCurrentView,
     loadMoreProjectTokenStats,
     loadMoreRecentEdits,
+    userMetadata,
+    updateUserSettings,
+    getGroupedProjects,
   } = useAppStore();
 
   const {
@@ -82,6 +85,14 @@ function App() {
     setAnalyticsCurrentView("analytics");
     loadGlobalStats();
   }, [loadGlobalStats, setAnalyticsCurrentView]);
+
+  // Worktree grouping
+  const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
+  const { groups: worktreeGroups, ungrouped: ungroupedProjects } = getGroupedProjects();
+
+  const handleWorktreeGroupingToggle = useCallback(() => {
+    updateUserSettings({ worktreeGrouping: !worktreeGrouping });
+  }, [worktreeGrouping, updateUserSettings]);
 
   const handleSessionSelect = async (session: ClaudeSession) => {
     setIsViewingGlobalStats(false);
@@ -225,6 +236,10 @@ function App() {
             width={sidebarWidth}
             isResizing={isSidebarResizing}
             onResizeStart={handleSidebarResizeStart}
+            worktreeGrouping={worktreeGrouping}
+            worktreeGroups={worktreeGroups}
+            ungroupedProjects={ungroupedProjects}
+            onWorktreeGroupingToggle={handleWorktreeGroupingToggle}
           />
 
           {/* Main Content Area */}
