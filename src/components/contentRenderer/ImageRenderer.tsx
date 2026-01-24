@@ -5,6 +5,7 @@
  * Handles both base64-encoded images and external URLs.
  */
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Image, ZoomIn, Download, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -157,10 +158,11 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
         </div>
       </div>
 
-      {/* 모달 */}
-      {isModalOpen && (
+      {/* 모달 - createPortal로 document.body에 직접 렌더링하여 부모 스타일 영향 방지 */}
+      {isModalOpen && createPortal(
         <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/90 flex items-center justify-center p-4"
+          style={{ zIndex: 9999 }}
           onClick={closeModal}
           role="dialog"
           aria-modal="true"
@@ -176,8 +178,9 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
               className={cn(
                 "absolute top-4 right-4 bg-background/90 rounded-full",
                 layout.containerPadding,
-                "hover:bg-background transition-all z-10 shadow-md"
+                "hover:bg-background transition-all shadow-lg"
               )}
+              style={{ zIndex: 10000 }}
               aria-label={t("imageRenderer.close")}
             >
               <X className={cn(layout.iconSize, "text-foreground/80")} />
@@ -189,8 +192,9 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
               className={cn(
                 "absolute top-4 right-16 bg-background/90 rounded-full",
                 layout.containerPadding,
-                "hover:bg-background transition-all z-10 shadow-md"
+                "hover:bg-background transition-all shadow-lg"
               )}
+              style={{ zIndex: 10000 }}
               aria-label={t("imageRenderer.downloadImage")}
             >
               <Download className={cn(layout.iconSize, "text-foreground/80")} />
@@ -200,11 +204,12 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({
             <img
               src={imageUrl}
               alt={alt}
-              className={cn("max-w-[90vw] max-h-[90vh] object-contain", layout.rounded)}
+              className={cn("max-w-[95vw] max-h-[95vh] object-contain", layout.rounded)}
               onClick={closeModal}
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
