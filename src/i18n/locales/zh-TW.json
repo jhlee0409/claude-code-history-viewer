@@ -230,6 +230,8 @@
   "project.title": "專案：",
   "project.worktreeGrouping": "分組工作樹",
   "project.worktrees": "工作樹",
+  "project.worktreeGroup": "工作樹組",
+  "project.main": "主分支",
   "project.hide": "隱藏專案",
   "project.unhide": "顯示專案",
   "project.hiddenPatterns": "隱藏模式",

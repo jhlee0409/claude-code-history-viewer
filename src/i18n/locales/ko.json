@@ -230,6 +230,8 @@
   "project.title": "프로젝트:",
   "project.worktreeGrouping": "워크트리 그룹화",
   "project.worktrees": "워크트리",
+  "project.worktreeGroup": "워크트리 그룹",
+  "project.main": "메인",
   "project.hide": "프로젝트 숨기기",
   "project.unhide": "프로젝트 표시",
   "project.hiddenPatterns": "숨김 패턴",

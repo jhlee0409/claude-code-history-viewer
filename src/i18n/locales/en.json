@@ -230,6 +230,8 @@
   "project.title": "Project:",
   "project.worktreeGrouping": "Group worktrees",
   "project.worktrees": "Worktrees",
+  "project.worktreeGroup": "Worktree group",
+  "project.main": "main",
   "project.hide": "Hide project",
   "project.unhide": "Show project",
   "project.hiddenPatterns": "Hidden patterns",

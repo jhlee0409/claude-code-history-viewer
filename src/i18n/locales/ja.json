@@ -230,6 +230,8 @@
   "project.title": "プロジェクト：",
   "project.worktreeGrouping": "ワークツリーをグループ化",
   "project.worktrees": "ワークツリー",
+  "project.worktreeGroup": "ワークツリーグループ",
+  "project.main": "メイン",
   "project.hide": "プロジェクトを非表示",
   "project.unhide": "プロジェクトを表示",
   "project.hiddenPatterns": "非表示パターン",
