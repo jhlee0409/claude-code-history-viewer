@@ -19,7 +19,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -33,9 +33,8 @@
       --color-accent: #D97757;
       --color-accent-hover: #C4684A;
       --color-border: #E7E5E4;
-      --font-sans: 'IBM Plex Sans', -apple-system, sans-serif;
+      --font-sans: 'Noto Sans', 'Noto Sans KR', -apple-system, sans-serif;
       --font-mono: 'IBM Plex Mono', monospace;
-      --font-serif: 'Newsreader', Georgia, serif;
     }
 
     * {
@@ -189,16 +188,16 @@
     }
 
     .hero h1 {
-      font-size: clamp(36px, 5vw, 52px);
-      line-height: 1.1;
-      margin-bottom: 20px;
+      font-size: clamp(40px, 6vw, 56px);
+      line-height: 1.05;
+      margin-bottom: 24px;
       letter-spacing: -0.03em;
+      font-weight: 600;
     }
 
     .hero h1 .accent {
-      font-family: var(--font-serif);
-      font-style: italic;
-      font-weight: 400;
+      color: var(--color-accent);
+      font-weight: 500;
     }
 
     .hero-subtitle {
@@ -584,7 +583,7 @@
           <span>Open Source Desktop App</span>
         </div>
         <h1 class="animate-fade-up animate-delay-1" data-i18n="hero.title">
-          Browse your Claude Code <span class="accent">history</span>
+          Claude Code<br><span class="accent">History Viewer</span>
         </h1>
         <p class="hero-subtitle animate-fade-up animate-delay-2" data-i18n="hero.subtitle">
           A desktop app to explore, search, and analyze your Claude Code conversation history stored locally.
@@ -736,8 +735,8 @@
 
     const translations = {
       en: {
-        'hero.title': 'Browse your Claude Code <span class="accent">history</span>',
-        'hero.subtitle': 'A desktop app to explore, search, and analyze your Claude Code conversation history stored locally.',
+        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
+        'hero.subtitle': 'Explore, search, and analyze your Claude Code conversation history stored locally.',
         'hero.download': 'Download for macOS',
         'hero.otherPlatforms': 'Other platforms',
         'hero.privacy': '100% Local',
@@ -758,8 +757,8 @@
         'download.allReleases': 'All releases'
       },
       ko: {
-        'hero.title': 'Claude Code <span class="accent">히스토리</span> 탐색',
-        'hero.subtitle': '로컬에 저장된 Claude Code 대화 기록을 탐색하고 분석하는 데스크톱 앱입니다.',
+        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
+        'hero.subtitle': '로컬에 저장된 Claude Code 대화 기록을 탐색하고 분석하세요.',
         'hero.download': 'macOS 다운로드',
         'hero.otherPlatforms': '다른 플랫폼',
         'hero.privacy': '100% 로컬',
@@ -780,8 +779,8 @@
         'download.allReleases': '모든 릴리즈'
       },
       ja: {
-        'hero.title': 'Claude Codeの<span class="accent">履歴</span>を閲覧',
-        'hero.subtitle': 'ローカルに保存されたClaude Codeの会話履歴を探索・分析するデスクトップアプリ。',
+        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
+        'hero.subtitle': 'ローカルに保存されたClaude Codeの会話履歴を探索・分析。',
         'hero.download': 'macOS版をダウンロード',
         'hero.otherPlatforms': '他のプラットフォーム',
         'hero.privacy': '100%ローカル',
@@ -802,8 +801,8 @@
         'download.allReleases': 'すべてのリリース'
       },
       'zh-CN': {
-        'hero.title': '浏览 Claude Code <span class="accent">历史记录</span>',
-        'hero.subtitle': '一款用于探索、搜索和分析本地存储的 Claude Code 对话历史的桌面应用。',
+        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
+        'hero.subtitle': '探索、搜索和分析本地存储的 Claude Code 对话历史。',
         'hero.download': '下载 macOS 版',
         'hero.otherPlatforms': '其他平台',
         'hero.privacy': '100% 本地',
@@ -824,8 +823,8 @@
         'download.allReleases': '所有版本'
       },
       'zh-TW': {
-        'hero.title': '瀏覽 Claude Code <span class="accent">歷史記錄</span>',
-        'hero.subtitle': '一款用於探索、搜尋和分析本地儲存的 Claude Code 對話歷史的桌面應用。',
+        'hero.title': 'Claude Code<br><span class="accent">History Viewer</span>',
+        'hero.subtitle': '探索、搜尋和分析本地儲存的 Claude Code 對話歷史。',
         'hero.download': '下載 macOS 版',
         'hero.otherPlatforms': '其他平台',
         'hero.privacy': '100% 本地',
