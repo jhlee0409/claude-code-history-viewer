@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code History Viewer</title>
+  <meta name="description" content="Desktop app to browse Claude Code conversation history. View analytics, search messages, and track token usage.">
+  <meta name="keywords" content="Claude, Claude Code, conversation history, desktop app, analytics">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Claude Code History Viewer">
+  <meta property="og:description" content="Desktop app to browse Claude Code conversation history">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://jhlee0409.github.io/claude-code-history-viewer/">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/app-icon.png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root {
+      --color-bg: #FAF8F5;
+      --color-bg-alt: #F3EFE9;
+      --color-text: #1C1917;
+      --color-text-muted: #78716C;
+      --color-accent: #D97757;
+      --color-accent-hover: #C4684A;
+      --color-border: #E7E5E4;
+      --font-sans: 'IBM Plex Sans', -apple-system, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+      --font-serif: 'Newsreader', Georgia, serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.5;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* Subtle grain texture */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.03;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* Typography */
+    h1, h2, h3 {
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    /* Navigation */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(250, 248, 245, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--color-text);
+    }
+
+    .nav-brand img {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+    }
+
+    .nav-brand span {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .lang-select {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: transparent;
+      border: 1px solid var(--color-border);
+      padding: 6px 10px;
+      border-radius: 0;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .lang-select:hover {
+      border-color: var(--color-text-muted);
+    }
+
+    .nav-link {
+      color: var(--color-text-muted);
+      transition: color 0.2s;
+    }
+
+    .nav-link:hover {
+      color: var(--color-text);
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 140px 24px 80px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+
+    @media (max-width: 900px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 48px;
+      }
+    }
+
+    .hero-content {
+      max-width: 520px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-accent);
+      margin-bottom: 24px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--color-accent);
+    }
+
+    .hero h1 {
+      font-size: clamp(36px, 5vw, 52px);
+      line-height: 1.1;
+      margin-bottom: 20px;
+      letter-spacing: -0.03em;
+    }
+
+    .hero h1 .accent {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-weight: 400;
+    }
+
+    .hero-subtitle {
+      font-size: 17px;
+      color: var(--color-text-muted);
+      line-height: 1.6;
+      margin-bottom: 32px;
+      max-width: 420px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--color-text);
+      color: var(--color-bg);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 14px 24px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary:hover {
+      background: var(--color-accent);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      text-decoration: none;
+      padding: 14px 0;
+      transition: color 0.2s;
+    }
+
+    .btn-secondary:hover {
+      color: var(--color-text);
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hero-meta span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Hero Screenshot */
+    .hero-visual {
+      position: relative;
+    }
+
+    .hero-screenshot {
+      width: 100%;
+      border-radius: 8px;
+      box-shadow:
+        0 2px 4px rgba(0,0,0,0.02),
+        0 8px 16px rgba(0,0,0,0.04),
+        0 24px 48px rgba(0,0,0,0.06);
+      transform: perspective(1000px) rotateY(-3deg);
+      transition: transform 0.4s ease;
+    }
+
+    .hero-screenshot:hover {
+      transform: perspective(1000px) rotateY(0deg);
+    }
+
+    /* Screenshots Section */
+    .screenshots {
+      padding: 64px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .screenshots-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 700px) {
+      .screenshots-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .screenshot-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 4px;
+    }
+
+    .screenshot-card img {
+      width: 100%;
+      display: block;
+      transition: transform 0.4s ease;
+    }
+
+    .screenshot-card:hover img {
+      transform: scale(1.02);
+    }
+
+    /* Features Section */
+    .features {
+      padding: 80px 24px;
+      background: var(--color-bg-alt);
+      border-top: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .features-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 28px;
+      margin-bottom: 48px;
+      max-width: 400px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--color-border);
+      border: 1px solid var(--color-border);
+    }
+
+    @media (max-width: 900px) {
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 500px) {
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .feature-card {
+      background: var(--color-bg);
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-accent);
+    }
+
+    .feature-card h3 {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      color: var(--color-text-muted);
+      line-height: 1.5;
+    }
+
+    /* Download Section */
+    .download {
+      padding: 80px 24px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .download-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .download-header h2 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .download-header p {
+      color: var(--color-text-muted);
+    }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 600px) {
+      .download-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .download-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 24px;
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      text-decoration: none;
+      color: var(--color-text);
+      transition: all 0.2s;
+    }
+
+    .download-card:hover {
+      border-color: var(--color-accent);
+      background: var(--color-bg);
+    }
+
+    .download-card svg {
+      width: 32px;
+      height: 32px;
+      margin-bottom: 16px;
+      color: var(--color-text-muted);
+    }
+
+    .download-card strong {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .download-card span {
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+
+    .download-footer {
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+
+    .download-footer a {
+      color: var(--color-accent);
+      text-decoration: none;
+    }
+
+    .download-footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Footer */
+    footer {
+      padding: 48px 24px;
+      border-top: 1px solid var(--color-border);
+    }
+
+    .footer-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    @media (max-width: 600px) {
+      .footer-inner {
+        flex-direction: column;
+        gap: 16px;
+      }
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .footer-links a {
+      color: var(--color-text-muted);
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--color-text);
+    }
+
+    .footer-copy {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+
+    /* Animations */
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-fade-up {
+      animation: fadeUp 0.6s ease-out forwards;
+    }
+
+    .animate-delay-1 { animation-delay: 0.1s; opacity: 0; }
+    .animate-delay-2 { animation-delay: 0.2s; opacity: 0; }
+    .animate-delay-3 { animation-delay: 0.3s; opacity: 0; }
+    .animate-delay-4 { animation-delay: 0.4s; opacity: 0; }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="nav-brand">
+        <img src="assets/app-icon.png" alt="Logo">
+        <span>claude-code-history-viewer</span>
+      </a>
+      <div class="nav-actions">
+        <select id="lang-select" class="lang-select">
+          <option value="en">EN</option>
+          <option value="ko">KO</option>
+          <option value="ja">JA</option>
+          <option value="zh-CN">ZH</option>
+          <option value="zh-TW">TW</option>
+        </select>
+        <a href="https://github.com/jhlee0409/claude-code-history-viewer" target="_blank" class="nav-link">
+          <i data-lucide="github" style="width:20px;height:20px"></i>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-grid">
+      <div class="hero-content">
+        <div class="hero-badge animate-fade-up">
+          <i data-lucide="terminal" style="width:12px;height:12px"></i>
+          <span>Open Source Desktop App</span>
+        </div>
+        <h1 class="animate-fade-up animate-delay-1" data-i18n="hero.title">
+          Browse your Claude Code <span class="accent">history</span>
+        </h1>
+        <p class="hero-subtitle animate-fade-up animate-delay-2" data-i18n="hero.subtitle">
+          A desktop app to explore, search, and analyze your Claude Code conversation history stored locally.
+        </p>
+        <div class="hero-actions animate-fade-up animate-delay-3">
+          <a id="download-primary" href="#" class="btn-primary">
+            <i data-lucide="download" style="width:16px;height:16px"></i>
+            <span data-i18n="hero.download">Download for macOS</span>
+          </a>
+          <a href="#downloads" class="btn-secondary">
+            <span data-i18n="hero.otherPlatforms">Other platforms</span>
+            <i data-lucide="arrow-right" style="width:14px;height:14px"></i>
+          </a>
+        </div>
+        <div class="hero-meta animate-fade-up animate-delay-4">
+          <span>
+            <i data-lucide="lock" style="width:12px;height:12px"></i>
+            <span data-i18n="hero.privacy">100% Local</span>
+          </span>
+          <span>
+            <i data-lucide="code-2" style="width:12px;height:12px"></i>
+            <span data-i18n="hero.free">MIT License</span>
+          </span>
+          <span>
+            <i data-lucide="github" style="width:12px;height:12px"></i>
+            <span>Open Source</span>
+          </span>
+        </div>
+      </div>
+      <div class="hero-visual animate-fade-up animate-delay-2">
+        <img src="https://github.com/user-attachments/assets/9a18304d-3f08-4563-a0e6-dd6e6dfd227e"
+             alt="Conversation History"
+             class="hero-screenshot">
+      </div>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section class="screenshots">
+    <div class="screenshots-grid">
+      <div class="screenshot-card">
+        <img src="https://github.com/user-attachments/assets/0f869344-4a7c-4f1f-9de3-701af10fc255" alt="Analytics Dashboard">
+      </div>
+      <div class="screenshot-card">
+        <img src="https://github.com/user-attachments/assets/d30f3709-1afb-4f76-8f06-1033a3cb7f4a" alt="Token Statistics">
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features">
+    <div class="features-inner">
+      <div class="section-label" data-i18n="features.label">Capabilities</div>
+      <h2 class="section-title" data-i18n="features.title">Everything you need to explore your conversations</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i data-lucide="folder-tree" style="width:24px;height:24px"></i>
+          </div>
+          <h3 data-i18n="features.browse.title">Browse</h3>
+          <p data-i18n="features.browse.desc">Navigate conversations by project and session with an intuitive tree view.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i data-lucide="search" style="width:24px;height:24px"></i>
+          </div>
+          <h3 data-i18n="features.search.title">Search</h3>
+          <p data-i18n="features.search.desc">Full-text search across all conversations with instant results.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i data-lucide="bar-chart-3" style="width:24px;height:24px"></i>
+          </div>
+          <h3 data-i18n="features.analytics.title">Analytics</h3>
+          <p data-i18n="features.analytics.desc">Token usage statistics and API cost calculation at a glance.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i data-lucide="history" style="width:24px;height:24px"></i>
+          </div>
+          <h3 data-i18n="features.edits.title">Recent Edits</h3>
+          <p data-i18n="features.edits.desc">View file modification history and restore previous versions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- More Screenshots -->
+  <section class="screenshots">
+    <div class="screenshots-grid">
+      <div class="screenshot-card">
+        <img src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" alt="Recent Edits">
+      </div>
+      <div class="screenshot-card">
+        <img src="https://github.com/user-attachments/assets/9a18304d-3f08-4563-a0e6-dd6e6dfd227e" alt="Message View">
+      </div>
+    </div>
+  </section>
+
+  <!-- Download Section -->
+  <section id="downloads" class="download">
+    <div class="download-header">
+      <div class="section-label">Get Started</div>
+      <h2 data-i18n="download.title">Download</h2>
+      <p data-i18n="download.subtitle">Available for macOS, Windows, and Linux</p>
+    </div>
+    <div class="download-grid">
+      <a id="download-macos" href="#" class="download-card">
+        <i data-lucide="apple"></i>
+        <strong>macOS</strong>
+        <span>Universal Binary</span>
+      </a>
+      <a id="download-windows" href="#" class="download-card">
+        <i data-lucide="monitor"></i>
+        <strong>Windows</strong>
+        <span>x64 Installer</span>
+      </a>
+      <a id="download-linux" href="#" class="download-card">
+        <i data-lucide="terminal"></i>
+        <strong>Linux</strong>
+        <span>AppImage / deb</span>
+      </a>
+    </div>
+    <div class="download-footer">
+      <span data-i18n="download.version">Latest</span>: <span id="latest-version">—</span>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/jhlee0409/claude-code-history-viewer/releases" target="_blank" data-i18n="download.allReleases">All releases</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-links">
+        <a href="https://github.com/jhlee0409/claude-code-history-viewer" target="_blank">
+          <i data-lucide="github" style="width:18px;height:18px"></i>
+        </a>
+        <a href="https://github.com/jhlee0409/claude-code-history-viewer/issues" target="_blank">
+          <i data-lucide="message-circle" style="width:18px;height:18px"></i>
+        </a>
+      </div>
+      <div class="footer-copy">MIT License © 2025</div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>
+    lucide.createIcons();
+
+    const translations = {
+      en: {
+        'hero.title': 'Browse your Claude Code <span class="accent">history</span>',
+        'hero.subtitle': 'A desktop app to explore, search, and analyze your Claude Code conversation history stored locally.',
+        'hero.download': 'Download for macOS',
+        'hero.otherPlatforms': 'Other platforms',
+        'hero.privacy': '100% Local',
+        'hero.free': 'MIT License',
+        'features.label': 'Capabilities',
+        'features.title': 'Everything you need to explore your conversations',
+        'features.browse.title': 'Browse',
+        'features.browse.desc': 'Navigate conversations by project and session with an intuitive tree view.',
+        'features.search.title': 'Search',
+        'features.search.desc': 'Full-text search across all conversations with instant results.',
+        'features.analytics.title': 'Analytics',
+        'features.analytics.desc': 'Token usage statistics and API cost calculation at a glance.',
+        'features.edits.title': 'Recent Edits',
+        'features.edits.desc': 'View file modification history and restore previous versions.',
+        'download.title': 'Download',
+        'download.subtitle': 'Available for macOS, Windows, and Linux',
+        'download.version': 'Latest',
+        'download.allReleases': 'All releases'
+      },
+      ko: {
+        'hero.title': 'Claude Code <span class="accent">히스토리</span> 탐색',
+        'hero.subtitle': '로컬에 저장된 Claude Code 대화 기록을 탐색하고 분석하는 데스크톱 앱입니다.',
+        'hero.download': 'macOS 다운로드',
+        'hero.otherPlatforms': '다른 플랫폼',
+        'hero.privacy': '100% 로컬',
+        'hero.free': 'MIT 라이선스',
+        'features.label': '주요 기능',
+        'features.title': '대화 기록 탐색에 필요한 모든 것',
+        'features.browse.title': '탐색',
+        'features.browse.desc': '직관적인 트리 뷰로 프로젝트와 세션별 대화를 탐색합니다.',
+        'features.search.title': '검색',
+        'features.search.desc': '모든 대화에서 즉시 결과를 보여주는 전체 텍스트 검색.',
+        'features.analytics.title': '분석',
+        'features.analytics.desc': '토큰 사용량 통계와 API 비용을 한눈에 확인.',
+        'features.edits.title': '최근 수정',
+        'features.edits.desc': '파일 수정 이력 확인 및 이전 버전 복원.',
+        'download.title': '다운로드',
+        'download.subtitle': 'macOS, Windows, Linux 지원',
+        'download.version': '최신 버전',
+        'download.allReleases': '모든 릴리즈'
+      },
+      ja: {
+        'hero.title': 'Claude Codeの<span class="accent">履歴</span>を閲覧',
+        'hero.subtitle': 'ローカルに保存されたClaude Codeの会話履歴を探索・分析するデスクトップアプリ。',
+        'hero.download': 'macOS版をダウンロード',
+        'hero.otherPlatforms': '他のプラットフォーム',
+        'hero.privacy': '100%ローカル',
+        'hero.free': 'MITライセンス',
+        'features.label': '機能',
+        'features.title': '会話を探索するために必要なすべて',
+        'features.browse.title': '閲覧',
+        'features.browse.desc': '直感的なツリービューでプロジェクトとセッション別に会話を閲覧。',
+        'features.search.title': '検索',
+        'features.search.desc': 'すべての会話を横断する全文検索で即座に結果を表示。',
+        'features.analytics.title': '分析',
+        'features.analytics.desc': 'トークン使用統計とAPIコストを一目で確認。',
+        'features.edits.title': '最近の編集',
+        'features.edits.desc': 'ファイル変更履歴の確認と以前のバージョンの復元。',
+        'download.title': 'ダウンロード',
+        'download.subtitle': 'macOS、Windows、Linux対応',
+        'download.version': '最新版',
+        'download.allReleases': 'すべてのリリース'
+      },
+      'zh-CN': {
+        'hero.title': '浏览 Claude Code <span class="accent">历史记录</span>',
+        'hero.subtitle': '一款用于探索、搜索和分析本地存储的 Claude Code 对话历史的桌面应用。',
+        'hero.download': '下载 macOS 版',
+        'hero.otherPlatforms': '其他平台',
+        'hero.privacy': '100% 本地',
+        'hero.free': 'MIT 许可证',
+        'features.label': '功能',
+        'features.title': '探索对话所需的一切',
+        'features.browse.title': '浏览',
+        'features.browse.desc': '通过直观的树形视图按项目和会话浏览对话。',
+        'features.search.title': '搜索',
+        'features.search.desc': '跨所有对话的全文搜索，即时显示结果。',
+        'features.analytics.title': '分析',
+        'features.analytics.desc': '一目了然的令牌使用统计和 API 成本计算。',
+        'features.edits.title': '最近编辑',
+        'features.edits.desc': '查看文件修改历史并恢复以前的版本。',
+        'download.title': '下载',
+        'download.subtitle': '支持 macOS、Windows 和 Linux',
+        'download.version': '最新版本',
+        'download.allReleases': '所有版本'
+      },
+      'zh-TW': {
+        'hero.title': '瀏覽 Claude Code <span class="accent">歷史記錄</span>',
+        'hero.subtitle': '一款用於探索、搜尋和分析本地儲存的 Claude Code 對話歷史的桌面應用。',
+        'hero.download': '下載 macOS 版',
+        'hero.otherPlatforms': '其他平台',
+        'hero.privacy': '100% 本地',
+        'hero.free': 'MIT 授權',
+        'features.label': '功能',
+        'features.title': '探索對話所需的一切',
+        'features.browse.title': '瀏覽',
+        'features.browse.desc': '透過直觀的樹狀視圖按專案和對話瀏覽對話。',
+        'features.search.title': '搜尋',
+        'features.search.desc': '跨所有對話的全文搜尋，即時顯示結果。',
+        'features.analytics.title': '分析',
+        'features.analytics.desc': '一目了然的令牌使用統計和 API 成本計算。',
+        'features.edits.title': '最近編輯',
+        'features.edits.desc': '查看檔案修改歷史並還原以前的版本。',
+        'download.title': '下載',
+        'download.subtitle': '支援 macOS、Windows 和 Linux',
+        'download.version': '最新版本',
+        'download.allReleases': '所有版本'
+      }
+    };
+
+    function applyTranslations(lang) {
+      const t = translations[lang] || translations.en;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (t[key]) {
+          if (key === 'hero.title') {
+            el.innerHTML = t[key];
+          } else {
+            el.textContent = t[key];
+          }
+        }
+      });
+      document.documentElement.lang = lang;
+      localStorage.setItem('lang', lang);
+    }
+
+    const langSelect = document.getElementById('lang-select');
+    langSelect.addEventListener('change', (e) => applyTranslations(e.target.value));
+
+    const savedLang = localStorage.getItem('lang') || navigator.language.split('-')[0];
+    const initialLang = Object.keys(translations).includes(savedLang) ? savedLang :
+                        Object.keys(translations).includes(navigator.language) ? navigator.language : 'en';
+    langSelect.value = initialLang;
+    applyTranslations(initialLang);
+
+    async function fetchLatestRelease() {
+      try {
+        const response = await fetch('https://api.github.com/repos/jhlee0409/claude-code-history-viewer/releases/latest');
+        const data = await response.json();
+
+        document.getElementById('latest-version').textContent = data.tag_name || 'v1.0.0';
+
+        const assets = data.assets || [];
+        const macosAsset = assets.find(a => a.name.includes('.dmg') || (a.name.includes('universal') && a.name.includes('.app')));
+        const windowsAsset = assets.find(a => a.name.includes('.msi') || a.name.includes('.exe'));
+        const linuxAsset = assets.find(a => a.name.includes('.AppImage') || a.name.includes('.deb'));
+
+        if (macosAsset) {
+          document.getElementById('download-macos').href = macosAsset.browser_download_url;
+          document.getElementById('download-primary').href = macosAsset.browser_download_url;
+        }
+        if (windowsAsset) document.getElementById('download-windows').href = windowsAsset.browser_download_url;
+        if (linuxAsset) document.getElementById('download-linux').href = linuxAsset.browser_download_url;
+
+        const platform = navigator.platform.toLowerCase();
+        if (platform.includes('win') && windowsAsset) {
+          document.getElementById('download-primary').href = windowsAsset.browser_download_url;
+          const btn = document.querySelector('[data-i18n="hero.download"]');
+          btn.textContent = btn.textContent.replace('macOS', 'Windows');
+        } else if (platform.includes('linux') && linuxAsset) {
+          document.getElementById('download-primary').href = linuxAsset.browser_download_url;
+          const btn = document.querySelector('[data-i18n="hero.download"]');
+          btn.textContent = btn.textContent.replace('macOS', 'Linux');
+        }
+      } catch (error) {
+        const releasesUrl = 'https://github.com/jhlee0409/claude-code-history-viewer/releases';
+        document.getElementById('download-macos').href = releasesUrl;
+        document.getElementById('download-windows').href = releasesUrl;
+        document.getElementById('download-linux').href = releasesUrl;
+        document.getElementById('download-primary').href = releasesUrl;
+      }
+    }
+
+    fetchLatestRelease();
+  </script>
+</body>
+</html>
