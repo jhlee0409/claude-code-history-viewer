@@ -149,8 +149,8 @@ pub async fn update_session_metadata(
     update: SessionMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    // Mutate and persist while holding the lock to prevent race conditions
-    let metadata_to_return = {
+    // Perform quick in-memory mutation while holding lock, then release
+    let metadata_to_save = {
         let mut cached = state
             .metadata
             .lock()
@@ -165,13 +165,16 @@ pub async fn update_session_metadata(
             metadata.sessions.insert(session_id, update);
         }
 
-        // Save to disk while holding the lock to ensure atomicity
-        save_metadata_to_disk(metadata)?;
-
         metadata.clone()
-    }; // Lock is released here after both mutation and persistence
+    }; // Lock released here
 
-    Ok(metadata_to_return)
+    // Perform blocking file I/O off the async runtime
+    let metadata_clone = metadata_to_save.clone();
+    tauri::async_runtime::spawn_blocking(move || save_metadata_to_disk(&metadata_clone))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    Ok(metadata_to_save)
 }
 
 /// Update metadata for a specific project
@@ -184,8 +187,8 @@ pub async fn update_project_metadata(
     // Validate that project path is absolute
     validate_absolute_path(&project_path)?;
 
-    // Mutate and persist while holding the lock to prevent race conditions
-    let metadata_to_return = {
+    // Perform quick in-memory mutation while holding lock, then release
+    let metadata_to_save = {
         let mut cached = state
             .metadata
             .lock()
@@ -200,13 +203,16 @@ pub async fn update_project_metadata(
             metadata.projects.insert(project_path, update);
         }
 
-        // Save to disk while holding the lock to ensure atomicity
-        save_metadata_to_disk(metadata)?;
-
         metadata.clone()
-    }; // Lock is released here after both mutation and persistence
+    }; // Lock released here
 
-    Ok(metadata_to_return)
+    // Perform blocking file I/O off the async runtime
+    let metadata_clone = metadata_to_save.clone();
+    tauri::async_runtime::spawn_blocking(move || save_metadata_to_disk(&metadata_clone))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    Ok(metadata_to_save)
 }
 
 /// Update global user settings
@@ -215,8 +221,8 @@ pub async fn update_user_settings(
     settings: UserSettings,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    // Mutate and persist while holding the lock to prevent race conditions
-    let metadata_to_return = {
+    // Perform quick in-memory mutation while holding lock, then release
+    let metadata_to_save = {
         let mut cached = state
             .metadata
             .lock()
@@ -225,13 +231,16 @@ pub async fn update_user_settings(
         let metadata = cached.get_or_insert_with(UserMetadata::new);
         metadata.settings = settings;
 
-        // Save to disk while holding the lock to ensure atomicity
-        save_metadata_to_disk(metadata)?;
-
         metadata.clone()
-    }; // Lock is released here after both mutation and persistence
+    }; // Lock released here
 
-    Ok(metadata_to_return)
+    // Perform blocking file I/O off the async runtime
+    let metadata_clone = metadata_to_save.clone();
+    tauri::async_runtime::spawn_blocking(move || save_metadata_to_disk(&metadata_clone))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    Ok(metadata_to_save)
 }
 
 /// Check if a project should be hidden based on metadata
