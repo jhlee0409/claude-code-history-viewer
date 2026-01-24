@@ -20,19 +20,19 @@ export const getToolName = (
     const r = toolResult as Record<string, unknown>;
 
     // Sub-agent/Task result
-    if (r.agentId || r.totalDurationMs) return "Task";
+    if ("agentId" in r || "totalDurationMs" in r) return "Task";
 
     // File read result
-    if (r.file) return "Read";
+    if ("file" in r) return "Read";
 
     // Command result
     if ("stdout" in r || "stderr" in r) return "Bash";
 
     // Edit result
-    if (r.edits || r.oldString || r.newString) return "Edit";
+    if ("edits" in r || "oldString" in r || "newString" in r) return "Edit";
 
     // Todo result
-    if (r.oldTodos || r.newTodos) return "TodoWrite";
+    if ("oldTodos" in r || "newTodos" in r) return "TodoWrite";
   }
 
   return t ? t("collapsibleToolResult.result") : "Result";

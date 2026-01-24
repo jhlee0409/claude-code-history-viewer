@@ -17,12 +17,15 @@ import {
 
 // Helper to create mock ClaudeProject
 function createMockProject(overrides: Partial<ClaudeProject> = {}): ClaudeProject {
+  const path = overrides.path ?? "/Users/test/test-project";
   return {
     name: overrides.name ?? "test-project",
-    path: overrides.path ?? "/Users/test/test-project",
+    path,
+    actual_path: overrides.actual_path ?? path,
     session_count: overrides.session_count ?? 1,
     message_count: overrides.message_count ?? 10,
-    lastModified: overrides.lastModified ?? new Date().toISOString(),
+    last_modified: overrides.last_modified ?? new Date().toISOString(),
+    git_info: overrides.git_info ?? null,
   };
 }
 

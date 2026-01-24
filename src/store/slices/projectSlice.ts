@@ -245,8 +245,8 @@ export const createProjectSlice: StateCreator<
     const { projects, userMetadata, isProjectHidden } = get();
     const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
 
-    // Filter out hidden projects first
-    const visibleProjects = projects.filter((p) => !isProjectHidden(p.path));
+    // Filter out hidden projects first (use actual_path for pattern matching)
+    const visibleProjects = projects.filter((p) => !isProjectHidden(p.actual_path));
 
     if (!worktreeGrouping) {
       // When grouping is disabled, return all visible projects as ungrouped
@@ -259,7 +259,7 @@ export const createProjectSlice: StateCreator<
     // Also filter hidden projects from worktree children
     result.groups = result.groups.map((group) => ({
       ...group,
-      children: group.children.filter((child) => !isProjectHidden(child.path)),
+      children: group.children.filter((child) => !isProjectHidden(child.actual_path)),
     }));
 
     return result;
@@ -268,8 +268,8 @@ export const createProjectSlice: StateCreator<
   getDirectoryGroupedProjects: () => {
     const { projects, isProjectHidden } = get();
 
-    // Filter out hidden projects first
-    const visibleProjects = projects.filter((p) => !isProjectHidden(p.path));
+    // Filter out hidden projects first (use actual_path for pattern matching)
+    const visibleProjects = projects.filter((p) => !isProjectHidden(p.actual_path));
 
     return groupProjectsByDirectory(visibleProjects);
   },

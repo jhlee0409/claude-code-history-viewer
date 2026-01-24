@@ -17,12 +17,15 @@ import type { ClaudeProject } from "../types";
 
 // Helper to create mock ClaudeProject
 function createMockProject(overrides: Partial<ClaudeProject> = {}): ClaudeProject {
+  const path = overrides.path ?? "/Users/test/test-project";
   return {
     name: overrides.name ?? "test-project",
-    path: overrides.path ?? "/Users/test/test-project",
+    path,
+    actual_path: overrides.actual_path ?? path,
     session_count: overrides.session_count ?? 1,
     message_count: overrides.message_count ?? 10,
-    lastModified: overrides.lastModified ?? new Date().toISOString(),
+    last_modified: overrides.last_modified ?? new Date().toISOString(),
+    git_info: overrides.git_info ?? null,
   };
 }
 
@@ -466,12 +469,14 @@ describe("detectWorktreeGroupsByGit", () => {
     const mainRepo = createMockProject({
       name: "myproject",
       path: "/Users/jack/.claude/projects/-Users-jack-myproject",
+      actual_path: "/Users/jack/myproject",
     });
     mainRepo.git_info = { worktree_type: "main" };
 
     const linkedWorktree = createMockProject({
       name: "myproject",
       path: "/Users/jack/.claude/projects/-tmp-feature-myproject",
+      actual_path: "/tmp/feature/myproject",
     });
     linkedWorktree.git_info = {
       worktree_type: "linked",
@@ -491,6 +496,7 @@ describe("detectWorktreeGroupsByGit", () => {
     const notGitProject = createMockProject({
       name: "no-git",
       path: "/Users/jack/.claude/projects/-Users-jack-no-git",
+      actual_path: "/Users/jack/no-git",
     });
     notGitProject.git_info = { worktree_type: "not_git" };
 
@@ -505,6 +511,7 @@ describe("detectWorktreeGroupsByGit", () => {
     const linkedWorktree = createMockProject({
       name: "orphan",
       path: "/Users/jack/.claude/projects/-tmp-feature-orphan",
+      actual_path: "/tmp/feature/orphan",
     });
     linkedWorktree.git_info = {
       worktree_type: "linked",
@@ -521,12 +528,14 @@ describe("detectWorktreeGroupsByGit", () => {
     const mainRepo = createMockProject({
       name: "main",
       path: "/Users/jack/.claude/projects/-Users-jack-main",
+      actual_path: "/Users/jack/main",
     });
     mainRepo.git_info = { worktree_type: "main" };
 
     const worktree1 = createMockProject({
       name: "main",
       path: "/Users/jack/.claude/projects/-tmp-feature1-main",
+      actual_path: "/tmp/feature1/main",
     });
     worktree1.git_info = {
       worktree_type: "linked",
@@ -536,6 +545,7 @@ describe("detectWorktreeGroupsByGit", () => {
     const worktree2 = createMockProject({
       name: "main",
       path: "/Users/jack/.claude/projects/-tmp-feature2-main",
+      actual_path: "/tmp/feature2/main",
     });
     worktree2.git_info = {
       worktree_type: "linked",
@@ -556,12 +566,14 @@ describe("detectWorktreeGroupsHybrid", () => {
     const mainRepo = createMockProject({
       name: "gitproject",
       path: "/Users/jack/.claude/projects/-Users-jack-gitproject",
+      actual_path: "/Users/jack/gitproject",
     });
     mainRepo.git_info = { worktree_type: "main" };
 
     const linkedWorktree = createMockProject({
       name: "gitproject",
       path: "/Users/jack/.claude/projects/-tmp-feature-gitproject",
+      actual_path: "/tmp/feature/gitproject",
     });
     linkedWorktree.git_info = {
       worktree_type: "linked",
@@ -572,11 +584,13 @@ describe("detectWorktreeGroupsHybrid", () => {
     const heuristicParent = createMockProject({
       name: "legacyproject",
       path: "/Users/jack/.claude/projects/-Users-jack-legacyproject",
+      actual_path: "/Users/jack/legacyproject",
     });
 
     const heuristicWorktree = createMockProject({
       name: "legacyproject",
       path: "/Users/jack/.claude/projects/-tmp-branch-legacyproject",
+      actual_path: "/tmp/branch/legacyproject",
     });
 
     const result = detectWorktreeGroupsHybrid([
@@ -595,6 +609,7 @@ describe("detectWorktreeGroupsHybrid", () => {
     const mainRepo = createMockProject({
       name: "myproject",
       path: "/Users/jack/.claude/projects/-Users-jack-myproject",
+      actual_path: "/Users/jack/myproject",
     });
     mainRepo.git_info = { worktree_type: "main" };
 
@@ -602,6 +617,7 @@ describe("detectWorktreeGroupsHybrid", () => {
     const linkedWorktree = createMockProject({
       name: "myproject",
       path: "/Users/jack/.claude/projects/-tmp-feature-myproject",
+      actual_path: "/tmp/feature/myproject",
     });
     linkedWorktree.git_info = {
       worktree_type: "linked",
@@ -619,12 +635,14 @@ describe("detectWorktreeGroupsHybrid", () => {
     const parent = createMockProject({
       name: "noinfo",
       path: "/Users/jack/.claude/projects/-Users-jack-noinfo",
+      actual_path: "/Users/jack/noinfo",
     });
     // No git_info
 
     const worktree = createMockProject({
       name: "noinfo",
       path: "/Users/jack/.claude/projects/-tmp-feature-noinfo",
+      actual_path: "/tmp/feature/noinfo",
     });
     // No git_info
 

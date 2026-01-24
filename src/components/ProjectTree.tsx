@@ -743,7 +743,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   </button>
 
                   {/* Sessions List */}
-                  {isExpanded && sessions.length > 0 && !isLoading && (
+                  {isExpanded && isSelected && sessions.length > 0 && !isLoading && (
                     <div className="ml-6 pl-3 border-l-2 border-accent/20 space-y-1 py-2">
                       {sessions.map((session) => (
                         <SessionItem
