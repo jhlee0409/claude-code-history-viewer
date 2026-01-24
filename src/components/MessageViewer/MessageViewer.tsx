@@ -49,6 +49,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     hiddenMessageIds,
     enterCaptureMode,
     hideMessage,
+    showMessage,
+    restoreMessages,
   } = useAppStore();
 
   // Search state management
@@ -275,35 +277,51 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   return (
     <div className="relative flex-1 h-full flex flex-col">
-      {/* Compact Toolbar */}
+      {/* Search Toolbar - Editorial aesthetic */}
       <div
         role="search"
         className={cn(
-          "flex items-center gap-3 px-4 py-2 border-b sticky top-0 z-10",
-          "bg-secondary/50 border-border"
+          "flex items-center gap-3 px-4 py-2.5 border-b sticky top-0 z-10",
+          "bg-gradient-to-r from-zinc-900/95 via-zinc-800/95 to-zinc-900/95",
+          "backdrop-blur-sm border-zinc-700/50"
         )}
       >
-        {/* Filter Toggle */}
-        <button
-          type="button"
-          onClick={() => {
-            onFilterTypeChange(sessionSearch.filterType === "content" ? "toolId" : "content");
-          }}
-          className={cn(
-            "text-xs px-2 py-1.5 rounded-md transition-colors whitespace-nowrap",
-            "hover:bg-secondary/80",
-            "bg-secondary text-secondary-foreground"
-          )}
-          title={t("messageViewer.filterType")}
-        >
-          {sessionSearch.filterType === "content"
-            ? t("messageViewer.filterContent")
-            : t("messageViewer.filterToolId")}
-        </button>
+        {/* Filter Toggle - Segmented control style */}
+        <div className="flex items-center bg-zinc-800/60 rounded-lg p-0.5 border border-zinc-700/40">
+          <button
+            type="button"
+            onClick={() => onFilterTypeChange("content")}
+            className={cn(
+              "text-xs px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
+              sessionSearch.filterType === "content"
+                ? "bg-zinc-600/80 text-zinc-100 shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200"
+            )}
+            title={t("messageViewer.filterType")}
+          >
+            {t("messageViewer.filterContent")}
+          </button>
+          <button
+            type="button"
+            onClick={() => onFilterTypeChange("toolId")}
+            className={cn(
+              "text-xs px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
+              sessionSearch.filterType === "toolId"
+                ? "bg-zinc-600/80 text-zinc-100 shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200"
+            )}
+            title={t("messageViewer.filterType")}
+          >
+            {t("messageViewer.filterToolId")}
+          </button>
+        </div>
 
-        {/* Search Input */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        {/* Search Input - Glass morphism */}
+        <div className="relative flex-1 group">
+          <Search className={cn(
+            "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4",
+            "text-zinc-500 group-focus-within:text-zinc-300 transition-colors"
+          )} />
           <input
             ref={searchInputRef}
             type="text"
@@ -313,14 +331,16 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             placeholder={t("messageViewer.searchPlaceholder")}
             aria-label={t("messageViewer.searchPlaceholder")}
             className={cn(
-              "w-full pl-8 pr-8 py-1.5 rounded-md border text-sm",
-              "focus:outline-none focus:ring-2 focus:ring-ring",
-              "bg-background border-border text-foreground"
+              "w-full pl-9 pr-9 py-2 rounded-lg text-sm",
+              "bg-zinc-800/50 border border-zinc-700/50",
+              "text-zinc-100 placeholder:text-zinc-500",
+              "focus:outline-none focus:ring-1 focus:ring-zinc-500/50 focus:border-zinc-500/70",
+              "transition-all duration-200"
             )}
           />
           {searchQuery && (
             isSearchPending ? (
-              <div className="absolute right-2.5 top-1/2 transform -translate-y-1/2">
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                 <LoadingSpinner size="xs" variant="muted" />
               </div>
             ) : (
@@ -329,8 +349,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 onClick={handleClearSearch}
                 aria-label="Clear search"
                 className={cn(
-                  "absolute right-2 top-1/2 transform -translate-y-1/2",
-                  "p-0.5 rounded-full hover:bg-secondary text-muted-foreground"
+                  "absolute right-2.5 top-1/2 transform -translate-y-1/2",
+                  "p-1 rounded-md text-zinc-500",
+                  "hover:bg-zinc-700/50 hover:text-zinc-300",
+                  "transition-all duration-150"
                 )}
               >
                 <X className="w-3.5 h-3.5" />
@@ -339,45 +361,44 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           )}
         </div>
 
-        {/* Match Navigation */}
+        {/* Match Navigation - Enhanced touch targets */}
         {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span className="font-medium tabular-nums">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-mono tabular-nums text-zinc-300 bg-zinc-700/50 px-2 py-1 rounded-md border border-zinc-600/30">
               {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
             </span>
-            <button
-              type="button"
-              onClick={onPrevMatch}
-              disabled={sessionSearch.matches.length === 0}
-              aria-label="Previous match (Shift+Enter)"
-              title="Shift+Enter"
-              className={cn(
-                "p-1 rounded transition-colors",
-                "hover:bg-secondary",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
-              )}
-            >
-              <ChevronUp className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={onNextMatch}
-              disabled={sessionSearch.matches.length === 0}
-              aria-label="Next match (Enter)"
-              title="Enter"
-              className={cn(
-                "p-1 rounded transition-colors",
-                "hover:bg-secondary",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
-              )}
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-0.5 bg-zinc-800/60 rounded-lg p-0.5 border border-zinc-700/40">
+              <button
+                type="button"
+                onClick={onPrevMatch}
+                disabled={sessionSearch.matches.length === 0}
+                aria-label="Previous match (Shift+Enter)"
+                title="Shift+Enter"
+                className={cn(
+                  "p-1.5 rounded-md transition-all duration-150",
+                  "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60",
+                  "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                )}
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={onNextMatch}
+                disabled={sessionSearch.matches.length === 0}
+                aria-label="Next match (Enter)"
+                title="Enter"
+                className={cn(
+                  "p-1.5 rounded-md transition-all duration-150",
+                  "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60",
+                  "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                )}
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
-
-        {/* Spacer */}
-        <div className="flex-1" />
 
         {/* Capture Mode Button - Editorial style entry point */}
         {!isCaptureMode && (
@@ -385,11 +406,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             type="button"
             onClick={enterCaptureMode}
             className={cn(
-              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md",
+              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg",
               "transition-all duration-200",
-              "bg-zinc-800 hover:bg-zinc-700",
+              "bg-zinc-700/60 hover:bg-zinc-600/70",
               "text-zinc-300 hover:text-zinc-100",
-              "border border-zinc-700/50 hover:border-zinc-600/50",
+              "border border-zinc-600/50 hover:border-zinc-500/50",
               "shadow-sm hover:shadow-md"
             )}
             title={t("captureMode.tooltip")}
@@ -399,14 +420,20 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           </button>
         )}
 
-        {/* Meta Info */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{messages.length} {t("messageViewer.messagesShort")}</span>
+        {/* Meta Info - Subtle pill style */}
+        <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+          <span className="bg-zinc-800/40 px-2 py-0.5 rounded-full">
+            {messages.length} {t("messageViewer.messagesShort")}
+          </span>
           {selectedSession?.has_tool_use && (
-            <span>· {t("messageViewer.toolsUsed")}</span>
+            <span className="bg-zinc-800/40 px-2 py-0.5 rounded-full">
+              {t("messageViewer.toolsUsed")}
+            </span>
           )}
           {selectedSession?.has_errors && (
-            <span className="text-destructive">· {t("messageViewer.hasErrors")}</span>
+            <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
+              {t("messageViewer.hasErrors")}
+            </span>
           )}
         </div>
       </div>
@@ -499,8 +526,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               const item = flattenedMessages[virtualRow.index];
               if (!item) return null;
 
-              const isMatch = matchedUuids.has(item.message.uuid);
-              const isCurrentMatch = currentMatchUuid === item.message.uuid;
+              // Hidden placeholders don't have search match info
+              const isMessage = item.type === "message";
+              const isMatch = isMessage && matchedUuids.has(item.message.uuid);
+              const isCurrentMatch = isMessage && currentMatchUuid === item.message.uuid;
               const messageMatchIndex = isCurrentMatch ? currentMatch?.matchIndex : undefined;
 
               return (
@@ -516,6 +545,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   currentMatchIndex={messageMatchIndex}
                   isCaptureMode={isCaptureMode}
                   onHideMessage={hideMessage}
+                  onRestoreOne={showMessage}
+                  onRestoreAll={restoreMessages}
                 />
               );
             })}

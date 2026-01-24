@@ -24,8 +24,8 @@ import { MessageHeader } from "./MessageHeader";
 import { SummaryMessage } from "./SummaryMessage";
 import type { MessageNodeProps } from "../types";
 
-// Capture mode hover background style
-const CAPTURE_HOVER_BG = "group-hover:bg-red-500/5 group-hover:ring-1 group-hover:ring-red-500/20";
+// Capture mode hover background style (uses named group to avoid conflicts)
+const CAPTURE_HOVER_BG = "group-hover/capture:bg-red-500/5 group-hover/capture:ring-1 group-hover/capture:ring-red-500/20";
 
 export const ClaudeMessageNode = React.memo(({
   message,
@@ -62,9 +62,9 @@ export const ClaudeMessageNode = React.memo(({
         "hover:shadow-lg hover:shadow-red-500/20",
         // Text/icon
         "text-zinc-400 hover:text-white",
-        // Animation - appears on group hover
-        "opacity-0 group-hover:opacity-100",
-        "translate-y-1 group-hover:translate-y-0",
+        // Animation - appears on capture mode group hover only
+        "opacity-0 group-hover/capture:opacity-100",
+        "translate-y-1 group-hover/capture:translate-y-0",
         "transition-all duration-200 ease-out"
       )}
       title={t("captureMode.hideBlock")}

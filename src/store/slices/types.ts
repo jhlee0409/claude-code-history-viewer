@@ -226,6 +226,7 @@ export interface AppStoreActions {
   exitCaptureMode: () => void;
   hideMessage: (uuid: string) => void;
   showMessage: (uuid: string) => void;
+  restoreMessages: (uuids: string[]) => void;
   restoreAllMessages: () => void;
   isMessageHidden: (uuid: string) => boolean;
   getHiddenCount: () => number;

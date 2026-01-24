@@ -92,7 +92,9 @@ export const SCROLL_HIGHLIGHT_DELAY_MS = 100;
 // Virtual Scrolling Types
 // ============================================================================
 
-export interface FlattenedMessage {
+/** Regular message item in flattened list */
+export interface FlattenedMessageItem {
+  type: "message";
   message: ClaudeMessage;
   depth: number;
   originalIndex: number;
@@ -109,3 +111,15 @@ export interface FlattenedMessage {
   /** Agent progress data for group leader */
   agentProgressGroup?: AgentProgressGroup;
 }
+
+/** Placeholder indicating hidden blocks in capture mode */
+export interface HiddenBlocksPlaceholder {
+  type: "hidden-placeholder";
+  /** Number of consecutive hidden blocks */
+  hiddenCount: number;
+  /** UUIDs of hidden messages (for potential restore) */
+  hiddenUuids: string[];
+}
+
+/** Union type for all items in the flattened list */
+export type FlattenedMessage = FlattenedMessageItem | HiddenBlocksPlaceholder;

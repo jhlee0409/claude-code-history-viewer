@@ -3,6 +3,7 @@
  *
  * Wrapper component for virtualized message rendering.
  * Uses forwardRef to support dynamic height measurement.
+ * Handles both regular messages and hidden block placeholders.
  */
 
 import { forwardRef } from "react";
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { SearchFilterType } from "../../../store/useAppStore";
 import type { FlattenedMessage } from "../types";
 import { ClaudeMessageNode } from "./ClaudeMessageNode";
+import { HiddenBlocksIndicator } from "./HiddenBlocksIndicator";
 
 interface VirtualizedMessageRowProps {
   virtualRow: VirtualItem;
@@ -23,6 +25,8 @@ interface VirtualizedMessageRowProps {
   // Capture mode
   isCaptureMode?: boolean;
   onHideMessage?: (uuid: string) => void;
+  onRestoreOne?: (uuid: string) => void;
+  onRestoreAll?: (uuids: string[]) => void;
 }
 
 /**
@@ -42,9 +46,36 @@ export const VirtualizedMessageRow = forwardRef<
     currentMatchIndex,
     isCaptureMode,
     onHideMessage,
+    onRestoreOne,
+    onRestoreAll,
   },
   ref
 ) {
+  // Handle hidden blocks placeholder
+  if (item.type === "hidden-placeholder") {
+    return (
+      <div
+        ref={ref}
+        data-index={virtualRow.index}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          transform: `translateY(${virtualRow.start}px)`,
+        }}
+      >
+        <HiddenBlocksIndicator
+          count={item.hiddenCount}
+          hiddenUuids={item.hiddenUuids}
+          onRestoreOne={onRestoreOne}
+          onRestoreAll={onRestoreAll}
+        />
+      </div>
+    );
+  }
+
+  // Regular message item
   const {
     message,
     depth,
@@ -80,7 +111,7 @@ export const VirtualizedMessageRow = forwardRef<
     <div
       ref={ref}
       data-index={virtualRow.index}
-      className={cn(isCaptureMode && "group")}
+      className={cn(isCaptureMode && "group/capture")}
       style={{
         position: "absolute",
         top: 0,

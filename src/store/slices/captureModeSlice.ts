@@ -28,6 +28,8 @@ export interface CaptureModeSliceActions {
   hideMessage: (uuid: string) => void;
   /** Remove a message from the hidden list */
   showMessage: (uuid: string) => void;
+  /** Restore multiple messages by their UUIDs */
+  restoreMessages: (uuids: string[]) => void;
   /** Clear all hidden messages */
   restoreAllMessages: () => void;
   /** Check if a message is hidden (only returns true when in capture mode) */
@@ -78,6 +80,14 @@ export const createCaptureModeSlice: StateCreator<
     const { hiddenMessageIds } = get();
     set({
       hiddenMessageIds: hiddenMessageIds.filter((id) => id !== uuid),
+    });
+  },
+
+  restoreMessages: (uuids: string[]) => {
+    const { hiddenMessageIds } = get();
+    const uuidSet = new Set(uuids);
+    set({
+      hiddenMessageIds: hiddenMessageIds.filter((id) => !uuidSet.has(id)),
     });
   },
 
