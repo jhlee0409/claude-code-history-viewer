@@ -65,3 +65,11 @@ export {
   createGlobalStatsSlice,
   initialGlobalStatsState,
 } from "./globalStatsSlice";
+
+// Metadata Slice
+export type {
+  MetadataSlice,
+  MetadataSliceState,
+  MetadataSliceActions,
+} from "./metadataSlice";
+export { createMetadataSlice, initialMetadataState } from "./metadataSlice";

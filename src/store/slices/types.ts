@@ -16,6 +16,10 @@ import type {
   GlobalStatsSummary,
   SearchFilters,
   RecentEditsResult,
+  UserMetadata,
+  SessionMetadata,
+  ProjectMetadata,
+  UserSettings,
 } from "../../types";
 import type { ProjectTokenStatsPagination } from "./messageSlice";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
@@ -122,6 +126,12 @@ export interface AppStoreState {
   // Global stats state
   globalSummary: GlobalStatsSummary | null;
   isLoadingGlobalStats: boolean;
+
+  // Metadata state
+  userMetadata: UserMetadata;
+  isMetadataLoaded: boolean;
+  isMetadataLoading: boolean;
+  metadataError: string | null;
 }
 
 export interface AppStoreActions {
@@ -187,6 +197,25 @@ export interface AppStoreActions {
   // Global stats actions
   loadGlobalStats: () => Promise<void>;
   clearGlobalStats: () => void;
+
+  // Metadata actions
+  loadMetadata: () => Promise<void>;
+  saveMetadata: () => Promise<void>;
+  updateSessionMetadata: (
+    sessionId: string,
+    update: Partial<SessionMetadata>
+  ) => Promise<void>;
+  updateProjectMetadata: (
+    projectPath: string,
+    update: Partial<ProjectMetadata>
+  ) => Promise<void>;
+  updateUserSettings: (update: Partial<UserSettings>) => Promise<void>;
+  getSessionDisplayName: (
+    sessionId: string,
+    fallbackSummary?: string
+  ) => string | undefined;
+  isProjectHidden: (projectPath: string) => boolean;
+  clearMetadataError: () => void;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;

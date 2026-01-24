@@ -139,3 +139,21 @@ export type {
 // ============================================================================
 export { AppErrorType } from "./error.types";
 export type { AppError } from "./error.types";
+
+// ============================================================================
+// Metadata Types
+// ============================================================================
+export type {
+  SessionMetadata,
+  ProjectMetadata,
+  UserSettings,
+  UserMetadata,
+} from "./metadata.types";
+export {
+  METADATA_SCHEMA_VERSION,
+  DEFAULT_USER_METADATA,
+  isSessionMetadataEmpty,
+  isProjectMetadataEmpty,
+  getSessionDisplayName,
+  isProjectHidden,
+} from "./metadata.types";

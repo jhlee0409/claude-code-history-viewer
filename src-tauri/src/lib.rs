@@ -7,6 +7,11 @@ pub mod test_utils;
 
 use crate::commands::{
     feedback::{get_system_info, open_github_issues, send_feedback},
+    metadata::{
+        get_metadata_folder_path, get_session_display_name, is_project_hidden, load_user_metadata,
+        save_user_metadata, update_project_metadata, update_session_metadata, update_user_settings,
+        MetadataState,
+    },
     project::{get_claude_folder_path, scan_projects, validate_claude_folder},
     session::{
         get_recent_edits, get_session_message_count, load_project_sessions, load_session_messages,
@@ -43,6 +48,7 @@ pub fn run() {
             builder.plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build());
     }
     builder
+        .manage(MetadataState::default())
         .invoke_handler(tauri::generate_handler![
             get_claude_folder_path,
             validate_claude_folder,
@@ -61,7 +67,16 @@ pub fn run() {
             get_global_stats_summary,
             send_feedback,
             get_system_info,
-            open_github_issues
+            open_github_issues,
+            // Metadata commands
+            get_metadata_folder_path,
+            load_user_metadata,
+            save_user_metadata,
+            update_session_metadata,
+            update_project_metadata,
+            update_user_settings,
+            is_project_hidden,
+            get_session_display_name
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

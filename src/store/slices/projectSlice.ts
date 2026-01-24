@@ -102,6 +102,7 @@ export const createProjectSlice: StateCreator<
           });
           if (isValid) {
             set({ claudePath: savedPath });
+            await get().loadMetadata();
             await get().scanProjects();
             return;
           }
@@ -113,6 +114,7 @@ export const createProjectSlice: StateCreator<
       // Try default path
       const claudePath = await invoke<string>("get_claude_folder_path");
       set({ claudePath });
+      await get().loadMetadata();
       await get().scanProjects();
     } catch (error) {
       console.error("Failed to initialize app:", error);
