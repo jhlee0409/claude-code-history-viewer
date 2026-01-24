@@ -12,6 +12,9 @@ import {
   getWorktreeLabel,
   detectWorktreeGroupsByGit,
   detectWorktreeGroupsHybrid,
+  getParentDirectory,
+  toDisplayPath,
+  groupProjectsByDirectory,
 } from "../utils/worktreeUtils";
 import type { ClaudeProject } from "../types";
 
@@ -557,6 +560,271 @@ describe("detectWorktreeGroupsByGit", () => {
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0].children).toHaveLength(2);
     expect(result.ungrouped).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// Directory-based Grouping Tests
+// ============================================================================
+
+describe("getParentDirectory", () => {
+  it("should extract parent directory from standard path", () => {
+    expect(getParentDirectory("/Users/jack/client/my-project")).toBe(
+      "/Users/jack/client"
+    );
+  });
+
+  it("should extract parent from deeply nested path", () => {
+    expect(getParentDirectory("/Users/jack/code/work/clients/acme/project")).toBe(
+      "/Users/jack/code/work/clients/acme"
+    );
+  });
+
+  it("should return / for root-level path", () => {
+    expect(getParentDirectory("/project")).toBe("/");
+  });
+
+  it("should return / for single segment", () => {
+    expect(getParentDirectory("project")).toBe("/");
+  });
+
+  it("should handle tmp paths", () => {
+    expect(getParentDirectory("/tmp/feature-branch/my-project")).toBe(
+      "/tmp/feature-branch"
+    );
+  });
+
+  it("should handle Linux home paths", () => {
+    expect(getParentDirectory("/home/user/projects/app")).toBe(
+      "/home/user/projects"
+    );
+  });
+
+  it("should handle paths with trailing content", () => {
+    expect(getParentDirectory("/Users/jack/client/project-name")).toBe(
+      "/Users/jack/client"
+    );
+  });
+});
+
+describe("toDisplayPath", () => {
+  it("should convert macOS home path to ~", () => {
+    expect(toDisplayPath("/Users/jack/client")).toBe("~/client");
+  });
+
+  it("should convert Linux home path to ~", () => {
+    expect(toDisplayPath("/home/user/projects")).toBe("~/projects");
+  });
+
+  it("should not modify tmp paths", () => {
+    expect(toDisplayPath("/tmp/worktree")).toBe("/tmp/worktree");
+  });
+
+  it("should not modify private tmp paths", () => {
+    expect(toDisplayPath("/private/tmp/feature")).toBe("/private/tmp/feature");
+  });
+
+  it("should handle deeply nested home paths", () => {
+    expect(toDisplayPath("/Users/jack/code/work/clients")).toBe(
+      "~/code/work/clients"
+    );
+  });
+
+  it("should use explicit homePath when provided", () => {
+    expect(toDisplayPath("/custom/home/projects", "/custom/home")).toBe(
+      "~/projects"
+    );
+  });
+
+  it("should not modify path if homePath doesn't match", () => {
+    expect(toDisplayPath("/other/path/projects", "/Users/jack")).toBe(
+      "/other/path/projects"
+    );
+  });
+
+  it("should handle Windows paths with forward slashes", () => {
+    // Note: Windows paths are not currently supported, returned as-is
+    expect(toDisplayPath("C:/Users/jack/Documents")).toBe("C:/Users/jack/Documents");
+  });
+
+  it("should handle Windows paths with backslashes", () => {
+    // Note: Windows paths are not currently supported, returned as-is
+    expect(toDisplayPath("C:\\Users\\jack\\Documents")).toBe("C:\\Users\\jack\\Documents");
+  });
+});
+
+describe("groupProjectsByDirectory", () => {
+  it("should return empty result for empty project list", () => {
+    const result = groupProjectsByDirectory([]);
+    expect(result.groups).toEqual([]);
+    expect(result.ungrouped).toEqual([]);
+  });
+
+  it("should group projects in same directory", () => {
+    const projects = [
+      createMockProject({
+        name: "project-a",
+        path: "/path/a",
+        actual_path: "/Users/jack/client/project-a",
+      }),
+      createMockProject({
+        name: "project-b",
+        path: "/path/b",
+        actual_path: "/Users/jack/client/project-b",
+      }),
+    ];
+
+    const result = groupProjectsByDirectory(projects);
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].name).toBe("client");
+    expect(result.groups[0].path).toBe("/Users/jack/client");
+    expect(result.groups[0].displayPath).toBe("~/client");
+    expect(result.groups[0].projects).toHaveLength(2);
+  });
+
+  it("should create separate groups for different directories", () => {
+    const projects = [
+      createMockProject({
+        name: "frontend",
+        path: "/path/a",
+        actual_path: "/Users/jack/client/frontend",
+      }),
+      createMockProject({
+        name: "backend",
+        path: "/path/b",
+        actual_path: "/Users/jack/server/backend",
+      }),
+      createMockProject({
+        name: "shared",
+        path: "/path/c",
+        actual_path: "/Users/jack/libs/shared",
+      }),
+    ];
+
+    const result = groupProjectsByDirectory(projects);
+
+    expect(result.groups).toHaveLength(3);
+    expect(result.groups.map((g) => g.name).sort()).toEqual(["client", "libs", "server"]);
+  });
+
+  it("should sort projects within groups alphabetically", () => {
+    const projects = [
+      createMockProject({
+        name: "zebra",
+        path: "/path/z",
+        actual_path: "/Users/jack/client/zebra",
+      }),
+      createMockProject({
+        name: "apple",
+        path: "/path/a",
+        actual_path: "/Users/jack/client/apple",
+      }),
+      createMockProject({
+        name: "mango",
+        path: "/path/m",
+        actual_path: "/Users/jack/client/mango",
+      }),
+    ];
+
+    const result = groupProjectsByDirectory(projects);
+
+    expect(result.groups[0].projects.map((p) => p.name)).toEqual([
+      "apple",
+      "mango",
+      "zebra",
+    ]);
+  });
+
+  it("should sort groups by path", () => {
+    const projects = [
+      createMockProject({
+        name: "z-project",
+        path: "/path/z",
+        actual_path: "/Users/jack/z-folder/z-project",
+      }),
+      createMockProject({
+        name: "a-project",
+        path: "/path/a",
+        actual_path: "/Users/jack/a-folder/a-project",
+      }),
+    ];
+
+    const result = groupProjectsByDirectory(projects);
+
+    expect(result.groups[0].name).toBe("a-folder");
+    expect(result.groups[1].name).toBe("z-folder");
+  });
+
+  it("should handle mixed regular and tmp projects", () => {
+    const projects = [
+      createMockProject({
+        name: "main-app",
+        path: "/path/a",
+        actual_path: "/Users/jack/client/main-app",
+      }),
+      createMockProject({
+        name: "worktree-app",
+        path: "/path/b",
+        actual_path: "/tmp/feature/worktree-app",
+      }),
+    ];
+
+    const result = groupProjectsByDirectory(projects);
+
+    expect(result.groups).toHaveLength(2);
+    const groupNames = result.groups.map((g) => g.name);
+    expect(groupNames).toContain("client");
+    expect(groupNames).toContain("feature");
+  });
+
+  it("should handle projects at root level", () => {
+    const projects = [
+      createMockProject({
+        name: "root-project",
+        path: "/path/r",
+        actual_path: "/root-project",
+      }),
+    ];
+
+    const result = groupProjectsByDirectory(projects);
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].name).toBe("/");
+    expect(result.groups[0].path).toBe("/");
+  });
+
+  it("should preserve project metadata in groups", () => {
+    const projects = [
+      createMockProject({
+        name: "my-project",
+        path: "/Users/jack/.claude/projects/-Users-jack-client-my-project",
+        actual_path: "/Users/jack/client/my-project",
+        session_count: 5,
+        message_count: 100,
+      }),
+    ];
+
+    const result = groupProjectsByDirectory(projects);
+
+    expect(result.groups[0].projects[0].session_count).toBe(5);
+    expect(result.groups[0].projects[0].message_count).toBe(100);
+  });
+
+  it("should handle deeply nested directories", () => {
+    const projects = [
+      createMockProject({
+        name: "deep-project",
+        path: "/path/d",
+        actual_path: "/Users/jack/code/work/clients/acme/apps/deep-project",
+      }),
+    ];
+
+    const result = groupProjectsByDirectory(projects);
+
+    expect(result.groups[0].name).toBe("apps");
+    expect(result.groups[0].path).toBe("/Users/jack/code/work/clients/acme/apps");
+    expect(result.groups[0].displayPath).toBe("~/code/work/clients/acme/apps");
   });
 });
 
