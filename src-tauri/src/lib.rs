@@ -5,7 +5,7 @@ pub mod utils;
 #[cfg(test)]
 pub mod test_utils;
 
-use crate::commands::{project::*, session::*, stats::*, update::*, secure_update::*, feedback::*};
+use crate::commands::{project::*, session::*, stats::*, feedback::*};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -34,9 +34,6 @@ pub fn run() {
             get_project_stats_summary,
             get_session_comparison,
             get_global_stats_summary,
-            check_for_updates,
-            check_for_updates_secure,
-            verify_download_integrity,
             send_feedback,
             get_system_info,
             open_github_issues

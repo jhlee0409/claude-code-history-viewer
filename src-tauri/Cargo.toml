@@ -41,11 +41,7 @@ simd-json = "0.14"
 memchr = "2.7"
 tokio = { version = "1.0", features = ["full"] }
 anyhow = "1.0"
-reqwest = { version = "0.11", features = ["json"] }
-regex = "1.0"
 urlencoding = "2.1"
-sha2 = "0.10.8"
-hex = "0.4.3"
 
 [dev-dependencies]
 # Core testing utilities
