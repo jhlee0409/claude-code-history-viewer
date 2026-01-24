@@ -39,6 +39,8 @@ export interface UserSettings {
   hiddenPatterns?: string[];
   /** Whether to automatically group worktrees under their parent repos */
   worktreeGrouping?: boolean;
+  /** Whether user has explicitly set worktree grouping (prevents auto-override) */
+  worktreeGroupingUserSet?: boolean;
 }
 
 /** Root structure for all user metadata */

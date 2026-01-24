@@ -162,6 +162,24 @@ export const createProjectSlice: StateCreator<
         );
       }
       set({ projects });
+
+      // Auto-enable worktree grouping if worktrees are detected
+      // Only auto-enable if user has never explicitly set the preference
+      const { userMetadata, updateUserSettings } = get();
+      const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
+      const userHasSet = userMetadata?.settings?.worktreeGroupingUserSet ?? false;
+      if (!worktreeGrouping && !userHasSet && projects.length > 0) {
+        const { groups } = detectWorktreeGroupsHybrid(projects);
+        if (groups.length > 0) {
+          // Worktrees detected - auto-enable grouping
+          await updateUserSettings({ worktreeGrouping: true });
+          if (import.meta.env.DEV) {
+            console.log(
+              `[Worktree] Auto-enabled grouping: ${groups.length} groups detected`
+            );
+          }
+        }
+      }
     } catch (error) {
       console.error("Failed to scan projects:", error);
       set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });

@@ -94,7 +94,10 @@ function App() {
   const { groups: worktreeGroups, ungrouped: ungroupedProjects } = getGroupedProjects();
 
   const handleWorktreeGroupingToggle = useCallback(() => {
-    updateUserSettings({ worktreeGrouping: !worktreeGrouping });
+    updateUserSettings({
+      worktreeGrouping: !worktreeGrouping,
+      worktreeGroupingUserSet: true, // Mark as explicitly set by user
+    });
   }, [worktreeGrouping, updateUserSettings]);
 
   const handleSessionSelect = async (session: ClaudeSession) => {
