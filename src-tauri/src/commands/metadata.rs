@@ -39,7 +39,8 @@ fn get_user_data_path() -> Result<PathBuf, String> {
 fn ensure_metadata_folder() -> Result<PathBuf, String> {
     let folder = get_metadata_folder()?;
     if !folder.exists() {
-        fs::create_dir_all(&folder).map_err(|e| format!("Failed to create metadata folder: {}", e))?;
+        fs::create_dir_all(&folder)
+            .map_err(|e| format!("Failed to create metadata folder: {e}"))?;
     }
     Ok(folder)
 }
@@ -59,8 +60,8 @@ pub fn load_user_metadata(state: State<'_, MetadataState>) -> Result<UserMetadat
 
     let metadata = if path.exists() {
         let content =
-            fs::read_to_string(&path).map_err(|e| format!("Failed to read metadata file: {}", e))?;
-        serde_json::from_str(&content).map_err(|e| format!("Failed to parse metadata: {}", e))?
+            fs::read_to_string(&path).map_err(|e| format!("Failed to read metadata file: {e}"))?;
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse metadata: {e}"))?
     } else {
         UserMetadata::new()
     };
@@ -69,7 +70,7 @@ pub fn load_user_metadata(state: State<'_, MetadataState>) -> Result<UserMetadat
     let mut cached = state
         .metadata
         .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+        .map_err(|e| format!("Failed to lock metadata: {e}"))?;
     *cached = Some(metadata.clone());
 
     Ok(metadata)
@@ -87,23 +88,23 @@ pub fn save_user_metadata(
     // Write to temp file first (atomic write pattern)
     let temp_path = path.with_extension("json.tmp");
     let content = serde_json::to_string_pretty(&metadata)
-        .map_err(|e| format!("Failed to serialize metadata: {}", e))?;
+        .map_err(|e| format!("Failed to serialize metadata: {e}"))?;
 
-    let mut file = fs::File::create(&temp_path)
-        .map_err(|e| format!("Failed to create temp file: {}", e))?;
+    let mut file =
+        fs::File::create(&temp_path).map_err(|e| format!("Failed to create temp file: {e}"))?;
     file.write_all(content.as_bytes())
-        .map_err(|e| format!("Failed to write temp file: {}", e))?;
+        .map_err(|e| format!("Failed to write temp file: {e}"))?;
     file.sync_all()
-        .map_err(|e| format!("Failed to sync temp file: {}", e))?;
+        .map_err(|e| format!("Failed to sync temp file: {e}"))?;
 
     // Rename temp file to actual file (atomic on most filesystems)
-    fs::rename(&temp_path, &path).map_err(|e| format!("Failed to rename temp file: {}", e))?;
+    fs::rename(&temp_path, &path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
 
     // Update cache
     let mut cached = state
         .metadata
         .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+        .map_err(|e| format!("Failed to lock metadata: {e}"))?;
     *cached = Some(metadata);
 
     Ok(())
@@ -121,7 +122,7 @@ pub fn update_session_metadata(
         let mut cached = state
             .metadata
             .lock()
-            .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+            .map_err(|e| format!("Failed to lock metadata: {e}"))?;
 
         let metadata = cached.get_or_insert_with(UserMetadata::new);
 
@@ -152,7 +153,7 @@ pub fn update_project_metadata(
         let mut cached = state
             .metadata
             .lock()
-            .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+            .map_err(|e| format!("Failed to lock metadata: {e}"))?;
 
         let metadata = cached.get_or_insert_with(UserMetadata::new);
 
@@ -182,7 +183,7 @@ pub fn update_user_settings(
         let mut cached = state
             .metadata
             .lock()
-            .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+            .map_err(|e| format!("Failed to lock metadata: {e}"))?;
 
         let metadata = cached.get_or_insert_with(UserMetadata::new);
         metadata.settings = settings;
@@ -204,7 +205,7 @@ pub fn is_project_hidden(
     let cached = state
         .metadata
         .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+        .map_err(|e| format!("Failed to lock metadata: {e}"))?;
 
     let is_hidden = cached
         .as_ref()
@@ -224,7 +225,7 @@ pub fn get_session_display_name(
     let cached = state
         .metadata
         .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+        .map_err(|e| format!("Failed to lock metadata: {e}"))?;
 
     let display_name = cached
         .as_ref()

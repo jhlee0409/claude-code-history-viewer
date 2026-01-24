@@ -36,7 +36,7 @@ fn default_version() -> u32 {
 }
 
 impl UserMetadata {
-    /// Create a new UserMetadata with default values
+    /// Create a new `UserMetadata` with default values
     pub fn new() -> Self {
         Self {
             version: METADATA_SCHEMA_VERSION,
@@ -53,9 +53,7 @@ impl UserMetadata {
 
     /// Get mutable session metadata, creating if not exists
     pub fn get_session_mut(&mut self, session_id: &str) -> &mut SessionMetadata {
-        self.sessions
-            .entry(session_id.to_string())
-            .or_insert_with(SessionMetadata::default)
+        self.sessions.entry(session_id.to_string()).or_default()
     }
 
     /// Get project metadata, returning None if not found
@@ -65,9 +63,7 @@ impl UserMetadata {
 
     /// Get mutable project metadata, creating if not exists
     pub fn get_project_mut(&mut self, project_path: &str) -> &mut ProjectMetadata {
-        self.projects
-            .entry(project_path.to_string())
-            .or_insert_with(ProjectMetadata::default)
+        self.projects.entry(project_path.to_string()).or_default()
     }
 
     /// Check if a project should be hidden based on settings
