@@ -49,7 +49,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
 
         // Track cwd frequency to determine project directory
         if let Some(cwd_path) = cwd.as_ref() {
-            *cwd_counts.entry(cwd_path.to_string()).or_insert(0) += 1;
+            *cwd_counts.entry(cwd_path.clone()).or_insert(0) += 1;
         }
 
         // Process tool use results for Edit and Write operations

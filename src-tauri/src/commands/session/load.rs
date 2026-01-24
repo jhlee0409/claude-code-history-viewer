@@ -634,28 +634,29 @@ pub async fn load_project_sessions(
             }
 
             // Check if file grew (append-only) - use incremental parsing
-            if current_size > cached.file_size && cached.session.is_some() {
-                let session = cached.session.as_ref().unwrap();
-                #[cfg(debug_assertions)]
-                {
-                    incremental_count += 1;
+            if current_size > cached.file_size {
+                if let Some(session) = cached.session.as_ref() {
+                    #[cfg(debug_assertions)]
+                    {
+                        incremental_count += 1;
+                    }
+                    strategies.push(FileParseStrategy::Incremental(
+                        path.clone(),
+                        IncrementalParseState {
+                            start_offset: cached.last_byte_offset,
+                            message_count: session.message_count,
+                            sidechain_count: cached.sidechain_count,
+                            last_timestamp: Some(session.last_message_time.clone()),
+                            has_tool_use: cached.has_tool_use,
+                            has_errors: cached.has_errors,
+                            session_id: Some(session.actual_session_id.clone()),
+                            first_timestamp: Some(session.first_message_time.clone()),
+                            summary: session.summary.clone(),
+                            first_user_content: session.summary.clone(),
+                        },
+                    ));
+                    continue;
                 }
-                strategies.push(FileParseStrategy::Incremental(
-                    path.clone(),
-                    IncrementalParseState {
-                        start_offset: cached.last_byte_offset,
-                        message_count: session.message_count,
-                        sidechain_count: cached.sidechain_count,
-                        last_timestamp: Some(session.last_message_time.clone()),
-                        has_tool_use: cached.has_tool_use,
-                        has_errors: cached.has_errors,
-                        session_id: Some(session.actual_session_id.clone()),
-                        first_timestamp: Some(session.first_message_time.clone()),
-                        summary: session.summary.clone(),
-                        first_user_content: session.summary.clone(),
-                    },
-                ));
-                continue;
             }
         }
 
