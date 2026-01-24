@@ -193,7 +193,8 @@ mod project_snapshots {
     fn snapshot_claude_project() {
         let project = ClaudeProject {
             name: "my-awesome-project".to_string(),
-            path: "/Users/test/.claude/projects/my-awesome-project".to_string(),
+            path: "/Users/test/.claude/projects/-Users-test-my-awesome-project".to_string(),
+            actual_path: "/Users/test/my-awesome-project".to_string(),
             session_count: 42,
             message_count: 1337,
             last_modified: "2025-01-15T10:30:00Z".to_string(),

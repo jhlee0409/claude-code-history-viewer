@@ -27,10 +27,13 @@ export interface GitInfo {
 
 export interface ClaudeProject {
   name: string;
+  /** Claude session storage path (e.g., "~/.claude/projects/-Users-jack-client-my-project") */
   path: string;
+  /** Decoded actual filesystem path (e.g., "/Users/jack/client/my-project") */
+  actual_path: string;
   session_count: number;
   message_count: number;
-  lastModified: string;
+  last_modified: string;
   /** Git worktree 정보 */
   git_info?: GitInfo;
 }

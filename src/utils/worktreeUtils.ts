@@ -224,8 +224,8 @@ export function detectWorktreeGroupsByGit(
 
   for (const project of projects) {
     if (project.git_info?.worktree_type === "main") {
-      const actualPath = decodeProjectPath(project.path);
-      mainReposByPath.set(actualPath, project);
+      // Use actual_path from backend (correctly decoded via filesystem checks)
+      mainReposByPath.set(project.actual_path, project);
     }
   }
 

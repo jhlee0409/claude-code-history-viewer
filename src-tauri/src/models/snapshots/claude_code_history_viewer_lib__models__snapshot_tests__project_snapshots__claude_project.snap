@@ -1,10 +1,12 @@
 ---
 source: src/models/snapshot_tests.rs
+assertion_line: 204
 expression: project
 ---
 {
   "name": "my-awesome-project",
-  "path": "/Users/test/.claude/projects/my-awesome-project",
+  "path": "/Users/test/.claude/projects/-Users-test-my-awesome-project",
+  "actual_path": "/Users/test/my-awesome-project",
   "session_count": 42,
   "message_count": 1337,
   "last_modified": "2025-01-15T10:30:00Z"
