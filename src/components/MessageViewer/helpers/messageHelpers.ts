@@ -20,7 +20,13 @@ export const hasSystemCommandContent = (message: ClaudeMessage): boolean => {
 };
 
 /**
- * Check if a message is empty (no content, or only command tags)
+ * Check if a message is empty (no meaningful content to display)
+ *
+ * Messages with command-name tags are NOT empty - they should be rendered
+ * as command indicators (e.g., "/clear", "/help").
+ *
+ * Messages with ONLY local-command-caveat, stdout, stderr, or empty command output
+ * ARE considered empty because they have no user-visible content.
  */
 export const isEmptyMessage = (message: ClaudeMessage): boolean => {
   // Messages with tool use or results should be shown
@@ -42,11 +48,13 @@ export const isEmptyMessage = (message: ClaudeMessage): boolean => {
   // Non-string content that exists
   if (typeof content !== "string") return false;
 
-  // Strip command tags and check if anything remains
+  // Messages with command-name tags should be shown (rendered by CommandRenderer)
+  if (/<command-name>[\s\S]*?<\/command-name>/.test(content)) {
+    return false;
+  }
+
+  // Strip system-only tags and check if anything meaningful remains
   const stripped = content
-    .replace(/<command-name>[\s\S]*?<\/command-name>/g, "")
-    .replace(/<command-message>[\s\S]*?<\/command-message>/g, "")
-    .replace(/<command-args>[\s\S]*?<\/command-args>/g, "")
     .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g, "")
     .replace(/<[^>]*(?:stdout|output)[^>]*>[\s\S]*?<\/[^>]*>/g, "")
     .replace(/<[^>]*(?:stderr|error)[^>]*>[\s\S]*?<\/[^>]*>/g, "")

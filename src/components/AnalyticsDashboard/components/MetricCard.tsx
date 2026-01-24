@@ -1,13 +1,12 @@
 /**
  * MetricCard Component
  *
- * Displays a single metric with icon, value, trend, and optional sub-value.
+ * Clean metric card with accent border and clear hierarchy.
  */
 
 import React from "react";
-import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { layout } from "../../renderers";
 import type { MetricCardProps } from "../types";
 
 export const MetricCard: React.FC<MetricCardProps> = ({
@@ -23,74 +22,66 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-xl",
+        "group relative overflow-hidden",
+        "rounded-lg",
         "bg-card/80 backdrop-blur-sm",
-        "border border-border/50",
+        "border border-border/40",
         "transition-all duration-300",
-        "hover:border-border hover:shadow-lg"
+        "hover:bg-card hover:border-border/60"
       )}
     >
-      {/* Glow effect on hover */}
-      <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-        style={{
-          background: `radial-gradient(ellipse at 50% 0%, color-mix(in oklch, ${colorVar} 10%, transparent), transparent 70%)`,
-          boxShadow: `var(--glow-${colorVariant})`,
-        }}
-      />
-
-      {/* Top accent line */}
-      <div
-        className="absolute top-0 left-4 right-4 h-[2px] rounded-b"
-        style={{ backgroundColor: colorVar }}
-      />
-
-      <div className="relative p-5">
-        {/* Header row */}
-        <div className="flex items-center justify-between mb-3">
+      <div className="relative p-5 flex flex-col h-full">
+        {/* Top row: Icon + Trend */}
+        <div className="flex items-start justify-between mb-3">
           <div
             className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: `color-mix(in oklch, ${colorVar} 20%, transparent)` }}
+            style={{
+              background: `color-mix(in oklch, ${colorVar} 15%, transparent)`,
+            }}
           >
             <Icon className="w-5 h-5" style={{ color: colorVar }} />
           </div>
+
+          {/* Trend indicator */}
           {trend !== undefined && (
             <div
               className={cn(
-                "flex items-center gap-0.5 px-2 py-1 rounded-full font-semibold tracking-wide",
-                layout.smallText,
+                "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold",
                 trend > 0
-                  ? "bg-success/15 text-success"
+                  ? "bg-success/10 text-success"
                   : trend < 0
-                  ? "bg-destructive/15 text-destructive"
-                  : "bg-muted text-muted-foreground"
+                    ? "bg-destructive/10 text-destructive"
+                    : "bg-muted text-muted-foreground"
               )}
             >
               {trend > 0 ? (
                 <ArrowUpRight className="w-3 h-3" />
               ) : trend < 0 ? (
                 <ArrowDownRight className="w-3 h-3" />
-              ) : null}
-              {trend > 0 ? "+" : ""}
-              {trend}%
+              ) : (
+                <Minus className="w-3 h-3" />
+              )}
+              <span>{Math.abs(trend)}%</span>
             </div>
           )}
         </div>
 
         {/* Value */}
-        <div className="font-mono text-3xl font-bold tracking-tight text-foreground mb-1">
+        <div className="font-mono text-3xl font-bold tracking-tight text-foreground mb-1 tabular-nums">
           {value}
         </div>
 
         {/* Label */}
-        <div className={cn(layout.bodyText, "font-medium text-muted-foreground uppercase tracking-wider")}>
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-auto">
           {label}
         </div>
 
         {/* Sub value */}
         {subValue && (
-          <div className={cn("mt-2 text-muted-foreground/70 font-mono", layout.smallText)}>
-            {subValue}
+          <div className="mt-3 pt-3 border-t border-border/30">
+            <div className="font-mono text-[11px] text-muted-foreground/70">
+              {subValue}
+            </div>
           </div>
         )}
       </div>

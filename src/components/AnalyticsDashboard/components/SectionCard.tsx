@@ -1,7 +1,7 @@
 /**
  * SectionCard Component
  *
- * A card wrapper for dashboard sections with colored accent.
+ * Clean card container with subtle accent border.
  */
 
 import React from "react";
@@ -20,31 +20,32 @@ export const SectionCard: React.FC<SectionCardProps> = ({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl",
-        "bg-card/60 backdrop-blur-sm",
-        "border border-border/50",
+        "relative overflow-hidden",
+        "rounded-lg",
+        "bg-card/80 backdrop-blur-sm",
+        "border border-border/40",
+        "transition-all duration-300",
+        "hover:bg-card hover:border-border/60",
         className
       )}
     >
-      {/* Top accent line */}
-      <div
-        className="absolute top-0 left-0 right-0 h-[2px]"
-        style={{ background: `linear-gradient(90deg, transparent, ${colorVar}, transparent)` }}
-      />
-
       <div className="p-5">
         {/* Header */}
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-4">
+        <div className="flex items-center gap-3 mb-4">
           {Icon && (
             <div
-              className="w-6 h-6 rounded-md flex items-center justify-center"
-              style={{ background: `color-mix(in oklch, ${colorVar} 15%, transparent)` }}
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{
+                background: `color-mix(in oklch, ${colorVar} 15%, transparent)`,
+              }}
             >
-              <Icon className="w-3.5 h-3.5" style={{ color: colorVar }} />
+              <Icon className="w-4 h-4" style={{ color: colorVar }} />
             </div>
           )}
-          {title}
-        </h3>
+          <h3 className="text-[11px] font-bold text-foreground/90 uppercase tracking-[0.12em] truncate flex-1">
+            {title}
+          </h3>
+        </div>
 
         {children}
       </div>

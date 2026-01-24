@@ -1,12 +1,13 @@
 /**
  * ToolUsageChart Component
  *
- * Displays horizontal bar chart of tool usage statistics.
+ * Clean ranked list with progress bars.
  */
 
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Wrench } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ToolUsageStats } from "../../../types";
 import { getToolDisplayName } from "../utils";
 
@@ -14,14 +15,14 @@ interface ToolUsageChartProps {
   tools: ToolUsageStats[];
 }
 
-// Industrial color palette using CSS variables
+// Rotating color palette
 const TOOL_COLORS = [
-  { bg: "var(--metric-purple)", glow: "var(--glow-purple)" },
-  { bg: "var(--metric-green)", glow: "var(--glow-green)" },
-  { bg: "var(--metric-blue)", glow: "var(--glow-blue)" },
-  { bg: "var(--metric-amber)", glow: "var(--glow-amber)" },
-  { bg: "var(--metric-pink)", glow: "var(--metric-pink)" },
-  { bg: "var(--metric-teal)", glow: "var(--metric-teal)" },
+  "var(--metric-purple)",
+  "var(--metric-green)",
+  "var(--metric-blue)",
+  "var(--metric-amber)",
+  "var(--metric-pink)",
+  "var(--metric-teal)",
 ];
 
 export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
@@ -32,54 +33,83 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
 
   if (topTools.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-        <Wrench className="w-10 h-10 mb-3 opacity-30" />
-        <p className="text-[12px]">{t("analytics.noData")}</p>
+      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+        <Wrench className="w-10 h-10 opacity-20" />
+        <p className="text-[10px] uppercase tracking-wider mt-3">{t("analytics.noData")}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {topTools.map((tool, index) => {
         const color = TOOL_COLORS[index % TOOL_COLORS.length]!;
         const percentage = totalUsage === 0 ? 0 : (tool.usage_count / totalUsage) * 100;
         const barWidth = (tool.usage_count / maxUsage) * 100;
 
         return (
-          <div key={tool.tool_name} className="group">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ background: color.bg, boxShadow: `0 0 6px ${color.bg}` }}
-                />
-                <span className="text-[12px] font-medium text-foreground/80">
+          <div
+            key={tool.tool_name}
+            className={cn(
+              "flex items-center gap-3 p-2.5 rounded-md",
+              "transition-colors duration-200",
+              "hover:bg-muted/30"
+            )}
+          >
+            {/* Rank */}
+            <div
+              className="w-5 text-[10px] font-bold tabular-nums"
+              style={{ color: index < 3 ? color : "var(--muted-foreground)" }}
+            >
+              {index + 1}
+            </div>
+
+            {/* Tool info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline justify-between mb-1">
+                <span className="text-[11px] font-medium text-foreground/90 truncate pr-2">
                   {getToolDisplayName(tool.tool_name, t)}
                 </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-[12px] font-semibold text-foreground">
+                <span
+                  className="font-mono text-[11px] font-semibold tabular-nums shrink-0"
+                  style={{ color }}
+                >
                   {tool.usage_count.toLocaleString()}
                 </span>
-                <span className="font-mono text-[12px] text-muted-foreground w-12 text-right">
-                  {percentage.toFixed(1)}%
-                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${barWidth}%`,
+                    backgroundColor: color,
+                    opacity: 0.8,
+                  }}
+                />
               </div>
             </div>
-            <div className="relative h-2 bg-muted/50 rounded-full overflow-hidden">
-              <div
-                className="absolute inset-y-0 left-0 rounded-full transition-all duration-500 group-hover:brightness-110"
-                style={{
-                  width: `${barWidth}%`,
-                  background: color.bg,
-                  boxShadow: `0 0 12px ${color.bg}`,
-                }}
-              />
+
+            {/* Percentage */}
+            <div className="w-12 text-right shrink-0">
+              <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                {percentage.toFixed(1)}%
+              </span>
             </div>
           </div>
         );
       })}
+
+      {/* Total footer */}
+      <div className="flex items-center justify-between pt-3 mt-2 border-t border-border/30">
+        <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+          Total Usage
+        </span>
+        <span className="font-mono text-sm font-semibold text-foreground tabular-nums">
+          {totalUsage.toLocaleString()}
+        </span>
+      </div>
     </div>
   );
 };
