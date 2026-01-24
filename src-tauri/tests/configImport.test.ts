@@ -21,7 +21,8 @@ describe('Tauri Configuration Import Tests', () => {
 
   it('should maintain product information when imported', () => {
     expect(tauriConfig.productName).toBe('Claude Code History Viewer');
-    expect(tauriConfig.version).toBe('1.0.0-beta.4');
+    // Version should match semver format (stable or prerelease)
+    expect(tauriConfig.version).toMatch(/^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$/);
     expect(tauriConfig.identifier).toBe('com.claude.history-viewer');
   });
 
