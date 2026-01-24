@@ -4,7 +4,6 @@
  * Handles analytics dashboard state and recent edits.
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import type {
   ProjectStatsSummary,
   SessionComparison,
@@ -15,6 +14,8 @@ import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
 import { initialAnalyticsState } from "../../types/analytics";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
+import { fetchRecentEdits } from "../../services/analyticsApi";
+import { canLoadMore, getNextOffset } from "../../utils/pagination";
 
 const RECENT_EDITS_PAGE_SIZE = 20;
 
@@ -156,19 +157,17 @@ export const createAnalyticsSlice: StateCreator<
   },
 
   loadRecentEdits: async (projectPath: string) => {
-    const result = await invoke<PaginatedRecentEdits>("get_recent_edits", {
-      projectPath,
+    return fetchRecentEdits(projectPath, {
       offset: 0,
       limit: RECENT_EDITS_PAGE_SIZE,
     });
-    return result;
   },
 
   loadMoreRecentEdits: async (projectPath: string) => {
     const { analytics } = get();
     const { recentEditsPagination, recentEdits } = analytics;
 
-    if (!recentEditsPagination.hasMore || recentEditsPagination.isLoadingMore) {
+    if (!canLoadMore(recentEditsPagination)) {
       return;
     }
 
@@ -184,10 +183,9 @@ export const createAnalyticsSlice: StateCreator<
     }));
 
     try {
-      const nextOffset = recentEditsPagination.offset + recentEditsPagination.limit;
+      const nextOffset = getNextOffset(recentEditsPagination);
 
-      const result = await invoke<PaginatedRecentEdits>("get_recent_edits", {
-        projectPath,
+      const result = await fetchRecentEdits(projectPath, {
         offset: nextOffset,
         limit: RECENT_EDITS_PAGE_SIZE,
       });

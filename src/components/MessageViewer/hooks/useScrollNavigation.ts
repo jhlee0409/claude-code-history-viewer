@@ -202,17 +202,24 @@ export const useScrollNavigation = ({
       selectedSessionId &&
       scrollReadyForSessionId !== selectedSessionId
     ) {
-      // RAF를 사용하여 렌더링 완료 후 스크롤 (2프레임 대기)
+      if (import.meta.env.DEV) {
+        console.log(`[useScrollNavigation] Starting scroll for session ${selectedSessionId?.slice(-8)}, messages: ${messagesLength}`);
+      }
+
+      // 즉시 준비 완료 표시하여 UI 표시 (스크롤은 별도로 진행)
+      setScrollReadyForSessionId(selectedSessionId);
+
+      // RAF 2프레임 후 스크롤 (virtualizer 렌더링 대기)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           scrollToBottom();
-
-          // 스크롤 완료 대기 후 해당 세션에 대해 준비 완료 표시
+          // 스크롤 보정을 위한 짧은 지연 후 재시도
           scrollTimeoutRef.current = setTimeout(() => {
             scrollToBottom();
-            // 현재 세션 ID를 준비 완료로 표시
-            setScrollReadyForSessionId(selectedSessionId);
-          }, 100);
+            if (import.meta.env.DEV) {
+              console.log(`[useScrollNavigation] Scroll complete for session ${selectedSessionId?.slice(-8)}`);
+            }
+          }, 50);
         });
       });
     }

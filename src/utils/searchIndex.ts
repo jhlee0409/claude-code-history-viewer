@@ -15,6 +15,8 @@ const hasStringProperty = (obj: Record<string, unknown>, key: string): boolean =
 };
 
 // 검색 가능한 텍스트 추출 (content 검색용)
+const MAX_TEXT_LENGTH = 10000; // 최대 10KB만 인덱싱 (텍스트용)
+
 const extractSearchableText = (message: ClaudeMessage): string => {
   const parts: string[] = [];
 
@@ -30,13 +32,18 @@ const extractSearchableText = (message: ClaudeMessage): string => {
           } else if (isRecord(item)) {
             const itemType = item.type as string | undefined;
 
-            // text content
-            if (hasStringProperty(item, "text")) {
-              parts.push(item.text as string);
+            // Skip image content (base64 data is not searchable)
+            if (itemType === "image") {
+              continue;
             }
-            // thinking content
+
+            // text content (길이 제한)
+            if (hasStringProperty(item, "text")) {
+              parts.push((item.text as string).slice(0, MAX_TEXT_LENGTH));
+            }
+            // thinking content (길이 제한)
             if (hasStringProperty(item, "thinking")) {
-              parts.push(item.thinking as string);
+              parts.push((item.thinking as string).slice(0, MAX_TEXT_LENGTH));
             }
             // tool_use: name
             if (itemType === "tool_use" && hasStringProperty(item, "name")) {
@@ -139,20 +146,21 @@ const extractSearchableText = (message: ClaudeMessage): string => {
       parts.push(message.toolUse.name as string);
     }
 
-    // toolUseResult 추출
+    // toolUseResult 추출 (큰 내용은 처음 부분만 인덱싱)
+    const MAX_CONTENT_LENGTH = 5000; // 최대 5KB만 인덱싱
     if (message.toolUseResult) {
       const result = message.toolUseResult;
       if (typeof result === "string") {
-        parts.push(result);
+        parts.push(result.slice(0, MAX_CONTENT_LENGTH));
       } else if (isRecord(result)) {
         if (hasStringProperty(result, "stdout")) {
-          parts.push(result.stdout as string);
+          parts.push((result.stdout as string).slice(0, MAX_CONTENT_LENGTH));
         }
         if (hasStringProperty(result, "stderr")) {
-          parts.push(result.stderr as string);
+          parts.push((result.stderr as string).slice(0, MAX_CONTENT_LENGTH));
         }
         if (hasStringProperty(result, "content")) {
-          parts.push(result.content as string);
+          parts.push((result.content as string).slice(0, MAX_CONTENT_LENGTH));
         }
       }
     }
@@ -262,7 +270,7 @@ class MessageSearchIndex {
     this.toolIdIndex = createFlexSearchIndex();
   }
 
-  // 인덱스 구축 (메시지 로드 시 1회 호출)
+  // 인덱스 구축 (메시지 로드 시 1회 호출) - 청크 단위 비동기 처리
   build(messages: ClaudeMessage[]): void {
     // 기존 인덱스 클리어
     this.clear();
@@ -270,36 +278,60 @@ class MessageSearchIndex {
     // 메시지 원본 저장
     this.messages = messages;
 
-    // 새 인덱스 구축
-    messages.forEach((message, index) => {
-      // Content 인덱스
-      const text = extractSearchableText(message);
-      if (text.trim()) {
-        this.contentIndex.add({
-          uuid: message.uuid,
-          messageIndex: index,
-          text: text.toLowerCase(), // 대소문자 무시
-        });
+    // 청크 단위로 비동기 인덱싱 시작
+    this.buildAsync(messages);
+  }
+
+  // 비동기 청크 인덱싱 (메인 스레드 차단 방지)
+  private buildAsync(messages: ClaudeMessage[]): void {
+    const CHUNK_SIZE = 20; // 한 번에 처리할 메시지 수
+    let currentIndex = 0;
+
+    const processChunk = () => {
+      const endIndex = Math.min(currentIndex + CHUNK_SIZE, messages.length);
+
+      for (let i = currentIndex; i < endIndex; i++) {
+        const message = messages[i];
+
+        // Content 인덱스
+        const text = extractSearchableText(message);
+        if (text.trim()) {
+          this.contentIndex.add({
+            uuid: message.uuid,
+            messageIndex: i,
+            text: text.toLowerCase(),
+          });
+        }
+
+        // Tool ID 인덱스
+        const toolIds = extractToolIds(message);
+        if (toolIds.trim()) {
+          this.toolIdIndex.add({
+            uuid: message.uuid,
+            messageIndex: i,
+            text: toolIds.toLowerCase(),
+          });
+        }
+
+        this.messageMap.set(message.uuid, i);
       }
 
-      // Tool ID 인덱스
-      const toolIds = extractToolIds(message);
-      if (toolIds.trim()) {
-        this.toolIdIndex.add({
-          uuid: message.uuid,
-          messageIndex: index,
-          text: toolIds.toLowerCase(),
-        });
+      currentIndex = endIndex;
+
+      if (currentIndex < messages.length) {
+        // 다음 청크를 다음 프레임에 처리
+        setTimeout(processChunk, 0);
+      } else {
+        // 완료
+        this.isBuilt = true;
+        if (import.meta.env.DEV) {
+          console.log(`[SearchIndex] Built index for ${messages.length} messages`);
+        }
       }
+    };
 
-      this.messageMap.set(message.uuid, index);
-    });
-
-    this.isBuilt = true;
-
-    if (import.meta.env.DEV) {
-      console.log(`[SearchIndex] Built index for ${messages.length} messages`);
-    }
+    // 첫 청크 시작
+    processChunk();
   }
 
   // 메시지 내 모든 매치 위치 찾기

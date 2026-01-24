@@ -4,13 +4,17 @@
  * Clean session analytics with performance metrics and timeline.
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { BarChart3, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
 import type { SessionTokenStats, SessionComparison } from "../../../types";
 import { formatTime } from "../../../utils/time";
 import { SectionCard, TokenDistributionChart } from "../components";
-import { formatNumber } from "../utils";
+import {
+  formatNumber,
+  calculateSessionMetrics,
+  calculateSessionComparisonMetrics,
+} from "../utils";
 
 interface SessionStatsViewProps {
   sessionStats: SessionTokenStats;
@@ -25,25 +29,17 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  const avgTokensPerMessage =
-    sessionStats.message_count > 0
-      ? Math.round(sessionStats.total_tokens / sessionStats.message_count)
-      : 0;
+  // Memoized session metrics calculation
+  const { avgTokensPerMessage, durationMinutes, distribution } = useMemo(
+    () => calculateSessionMetrics(sessionStats),
+    [sessionStats]
+  );
 
-  const sessionDuration =
-    new Date(sessionStats.last_message_time).getTime() -
-    new Date(sessionStats.first_message_time).getTime();
-  const durationMinutes = Math.round(sessionDuration / (1000 * 60));
-
-  const distribution = {
-    input: sessionStats.total_input_tokens,
-    output: sessionStats.total_output_tokens,
-    cache_creation: sessionStats.total_cache_creation_tokens,
-    cache_read: sessionStats.total_cache_read_tokens,
-  };
-
-  const isAboveAverage = sessionComparison.is_above_average;
-  const statusColor = isAboveAverage ? "var(--metric-green)" : "var(--metric-amber)";
+  // Memoized comparison metrics calculation
+  const { isAboveAverage, statusColor, percentile } = useMemo(
+    () => calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
+    [sessionComparison, totalProjectSessions]
+  );
 
   return (
     <div className="space-y-6">
@@ -137,9 +133,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {totalProjectSessions > 0
-                  ? (100 - (sessionComparison.rank_by_tokens / totalProjectSessions) * 100).toFixed(0)
-                  : 0}%
+                {percentile}%
               </div>
               <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
                 of {totalProjectSessions} sessions

@@ -4,18 +4,13 @@
  */
 
 import type { ProjectStatsSummary, SessionComparison, RecentEditsResult } from './index';
+import type { RecentEditsPaginationState } from '../utils/pagination';
 
 /**
  * Pagination state for recent edits
+ * Re-exported from pagination utilities for backwards compatibility
  */
-export interface RecentEditsPagination {
-  totalEditsCount: number;
-  uniqueFilesCount: number;
-  offset: number;
-  limit: number;
-  hasMore: boolean;
-  isLoadingMore: boolean;
-}
+export type RecentEditsPagination = RecentEditsPaginationState;
 
 /**
  * Analytics 뷰 타입
@@ -86,16 +81,10 @@ export interface AnalyticsActions {
 /**
  * Analytics 초기 상태
  */
-const RECENT_EDITS_PAGE_SIZE = 20;
+import { createInitialRecentEditsPagination } from '../utils/pagination';
 
-export const initialRecentEditsPagination: RecentEditsPagination = {
-  totalEditsCount: 0,
-  uniqueFilesCount: 0,
-  offset: 0,
-  limit: RECENT_EDITS_PAGE_SIZE,
-  hasMore: false,
-  isLoadingMore: false,
-};
+export const initialRecentEditsPagination: RecentEditsPagination =
+  createInitialRecentEditsPagination();
 
 export const initialAnalyticsState: AnalyticsState = {
   currentView: 'messages',

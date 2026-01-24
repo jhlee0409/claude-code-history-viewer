@@ -16,7 +16,7 @@ import {
   ActivityHeatmapComponent,
   ToolUsageChart,
 } from "../components";
-import { formatNumber, calculateModelPrice } from "../utils";
+import { formatNumber, calculateModelMetrics, getRankMedal, hasMedal } from "../utils";
 
 interface GlobalStatsViewProps {
   globalSummary: GlobalStatsSummary;
@@ -64,15 +64,15 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
           <SectionCard title={t("analytics.modelDistribution")} icon={Cpu} colorVariant="blue">
             <div className="space-y-3">
               {globalSummary.model_distribution.map((model) => {
-                const price = calculateModelPrice(
+                const { percentage, formattedPrice, formattedTokens } = calculateModelMetrics(
                   model.model_name,
+                  model.token_count,
                   model.input_tokens,
                   model.output_tokens,
                   model.cache_creation_tokens,
-                  model.cache_read_tokens
+                  model.cache_read_tokens,
+                  globalSummary.total_tokens
                 );
-                const percentage =
-                  (model.token_count / Math.max(globalSummary.total_tokens, 1)) * 100;
 
                 return (
                   <div key={model.model_name}>
@@ -82,10 +82,10 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-[12px] text-muted-foreground">
-                          ${price.toFixed(price >= 100 ? 0 : price >= 10 ? 1 : 2)}
+                          {formattedPrice}
                         </span>
                         <span className="font-mono text-[12px] font-semibold text-foreground">
-                          {formatNumber(model.token_count)}
+                          {formattedTokens}
                         </span>
                       </div>
                     </div>
@@ -127,7 +127,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
           <SectionCard title={t("analytics.topProjects")} icon={BarChart3} colorVariant="purple">
             <div className="space-y-2">
               {globalSummary.top_projects.slice(0, 8).map((project, index) => {
-                const medals = ["🥇", "🥈", "🥉"];
+                const medal = getRankMedal(index);
                 return (
                   <div
                     key={project.project_name}
@@ -140,10 +140,10 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                       <div
                         className={cn(
                           "w-6 h-6 rounded-md flex items-center justify-center text-[12px] font-bold",
-                          index < 3 ? "text-base" : "bg-muted text-muted-foreground"
+                          hasMedal(index) ? "text-base" : "bg-muted text-muted-foreground"
                         )}
                       >
-                        {index < 3 ? medals[index] : index + 1}
+                        {medal ?? index + 1}
                       </div>
                       <div>
                         <p className="text-[12px] font-medium text-foreground truncate max-w-[150px]">

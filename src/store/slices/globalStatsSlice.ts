@@ -4,11 +4,11 @@
  * Handles global statistics across all projects.
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import type { GlobalStatsSummary } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
+import { fetchGlobalStatsSummary } from "../../services/analyticsApi";
 
 // ============================================================================
 // State Interface
@@ -55,10 +55,7 @@ export const createGlobalStatsSlice: StateCreator<
     get().setError(null);
 
     try {
-      const summary = await invoke<GlobalStatsSummary>(
-        "get_global_stats_summary",
-        { claudePath }
-      );
+      const summary = await fetchGlobalStatsSummary(claudePath);
       set({ globalSummary: summary });
     } catch (error) {
       console.error("Failed to load global stats:", error);

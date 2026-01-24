@@ -18,8 +18,7 @@ import {
   DailyTrendChart,
   TokenDistributionChart,
 } from "../components";
-import { calculateGrowthRate, formatNumber } from "../utils";
-import type { DailyStatData } from "../types";
+import { formatNumber, generateLast7DaysData, extractProjectGrowth } from "../utils";
 
 interface ProjectStatsViewProps {
   projectSummary: ProjectStatsSummary | null;
@@ -30,30 +29,11 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  // Generate 7-day daily data
-  const dailyData = useMemo((): DailyStatData[] => {
-    if (!projectSummary?.daily_stats) return [];
-
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (6 - i));
-      return date.toISOString().split("T")[0];
-    });
-
-    return last7Days
-      .filter((date): date is string => date !== undefined)
-      .map((date) => {
-        const dayStats = projectSummary?.daily_stats.find((stat) => stat.date === date);
-
-        return {
-          date,
-          total_tokens: dayStats?.total_tokens || 0,
-          message_count: dayStats?.message_count || 0,
-          session_count: dayStats?.session_count || 0,
-          active_hours: dayStats?.active_hours || 0,
-        };
-      });
-  }, [projectSummary?.daily_stats]);
+  // Generate 7-day daily data using utility function
+  const dailyData = useMemo(
+    () => generateLast7DaysData(projectSummary?.daily_stats),
+    [projectSummary?.daily_stats]
+  );
 
   // 데이터가 없으면 항상 로딩 상태 표시 (뷰 전환 직후 isLoading이 false일 수 있음)
   if (!projectSummary) {
@@ -69,16 +49,8 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
     );
   }
 
-  const lastDayStats = projectSummary.daily_stats[projectSummary.daily_stats.length - 1];
-  const prevDayStats = projectSummary.daily_stats[projectSummary.daily_stats.length - 2];
-  const tokenGrowth =
-    lastDayStats && prevDayStats
-      ? calculateGrowthRate(lastDayStats.total_tokens, prevDayStats.total_tokens)
-      : 0;
-  const messageGrowth =
-    lastDayStats && prevDayStats
-      ? calculateGrowthRate(lastDayStats.message_count, prevDayStats.message_count)
-      : 0;
+  // Calculate growth metrics using utility function
+  const { tokenGrowth, messageGrowth } = extractProjectGrowth(projectSummary);
 
   return (
     <div className="space-y-6 animate-stagger">

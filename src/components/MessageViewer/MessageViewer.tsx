@@ -84,6 +84,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // Agent task grouping
   const agentTaskGroups = useMemo(() => {
+    if (import.meta.env.DEV && uniqueMessages.length > 0) {
+      const start = performance.now();
+      const result = groupAgentTasks(uniqueMessages);
+      console.log(`[MessageViewer] groupAgentTasks: ${uniqueMessages.length} messages, ${(performance.now() - start).toFixed(1)}ms`);
+      return result;
+    }
     return groupAgentTasks(uniqueMessages);
   }, [uniqueMessages]);
 
@@ -123,24 +129,37 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // Wait for OverlayScrollbars to initialize
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    const maxAttempts = 50; // 최대 50번 시도 (약 500ms)
+    const checkInterval = 10; // 10ms 간격
+    const startTime = import.meta.env.DEV ? performance.now() : 0;
+
     const checkScrollElement = () => {
       const element = scrollContainerRef.current?.osInstance()?.elements().viewport;
       if (element && !scrollElementReady) {
+        if (import.meta.env.DEV) {
+          console.log(`[MessageViewer] scrollElementReady after ${attempts} attempts, ${(performance.now() - startTime).toFixed(1)}ms`);
+        }
         setScrollElementReady(true);
+        return;
+      }
+
+      attempts++;
+      if (attempts < maxAttempts) {
+        timeoutId = setTimeout(checkScrollElement, checkInterval);
+      } else if (import.meta.env.DEV) {
+        console.warn(`[MessageViewer] scrollElement not ready after ${maxAttempts} attempts (${maxAttempts * checkInterval}ms)`);
       }
     };
 
     // Check immediately
     checkScrollElement();
 
-    // Also check after a short delay (OverlayScrollbars may need time to init)
-    const timer = setTimeout(checkScrollElement, 100);
-    // Check again after a longer delay as a fallback
-    const timer2 = setTimeout(checkScrollElement, 300);
-
     return () => {
-      clearTimeout(timer);
-      clearTimeout(timer2);
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [scrollElementReady, selectedSession?.session_id]);
 
@@ -438,7 +457,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               position: "relative",
               // 스크롤 준비 완료 전까지 투명하게 처리하여 점프 현상 방지
               opacity: scrollReadyForSessionId === selectedSession?.session_id ? 1 : 0,
-              transition: "opacity 150ms ease-in",
+              transition: "opacity 50ms ease-in",
             }}
           >
             {virtualRows.map((virtualRow) => {

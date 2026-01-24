@@ -55,14 +55,27 @@ export const useMessageVirtualization = ({
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
   // Flatten message tree with group information
   const flattenedMessages = useMemo(
-    () =>
-      flattenMessageTree({
+    () => {
+      if (import.meta.env.DEV && messages.length > 0) {
+        const start = performance.now();
+        const result = flattenMessageTree({
+          messages,
+          agentTaskGroups,
+          agentTaskMemberUuids,
+          agentProgressGroups,
+          agentProgressMemberUuids,
+        });
+        console.log(`[useMessageVirtualization] flattenMessageTree: ${messages.length} → ${result.length} items, ${(performance.now() - start).toFixed(1)}ms`);
+        return result;
+      }
+      return flattenMessageTree({
         messages,
         agentTaskGroups,
         agentTaskMemberUuids,
         agentProgressGroups,
         agentProgressMemberUuids,
-      }),
+      });
+    },
     [
       messages,
       agentTaskGroups,

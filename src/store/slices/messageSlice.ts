@@ -10,7 +10,6 @@ import type {
   ClaudeSession,
   PaginationState,
   SessionTokenStats,
-  PaginatedTokenStats,
   ProjectStatsSummary,
   SessionComparison,
 } from "../../types";
@@ -18,19 +17,25 @@ import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import { buildSearchIndex, clearSearchIndex } from "../../utils/searchIndex";
 import type { FullAppStore } from "./types";
+import {
+  fetchSessionTokenStats,
+  fetchProjectTokenStats,
+  fetchProjectStatsSummary,
+  fetchSessionComparison,
+} from "../../services/analyticsApi";
+import {
+  type ProjectTokenStatsPaginationState,
+  createInitialPaginationWithCount,
+  canLoadMore,
+  getNextOffset,
+} from "../../utils/pagination";
 
 // ============================================================================
 // State Interface
 // ============================================================================
 
 /** Pagination state for project token stats */
-export interface ProjectTokenStatsPagination {
-  totalCount: number;
-  offset: number;
-  limit: number;
-  hasMore: boolean;
-  isLoadingMore: boolean;
-}
+export type ProjectTokenStatsPagination = ProjectTokenStatsPaginationState;
 
 export interface MessageSliceState {
   messages: ClaudeMessage[];
@@ -79,13 +84,7 @@ export const initialMessageState: MessageSliceState = {
   isLoadingTokenStats: false,
   sessionTokenStats: null,
   projectTokenStats: [],
-  projectTokenStatsPagination: {
-    totalCount: 0,
-    offset: 0,
-    limit: TOKENS_STATS_PAGE_SIZE,
-    hasMore: false,
-    isLoadingMore: false,
-  },
+  projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
 };
 
 // ============================================================================
@@ -152,9 +151,7 @@ export const createMessageSlice: StateCreator<
         );
       }
 
-      // Build FlexSearch index
-      buildSearchIndex(filteredMessages);
-
+      // Update state first to allow UI to render immediately
       set({
         messages: filteredMessages,
         pagination: {
@@ -166,6 +163,18 @@ export const createMessageSlice: StateCreator<
         },
         isLoadingMessages: false,
       });
+
+      // Build FlexSearch index asynchronously after UI renders
+      // The buildSearchIndex now internally uses chunked async processing
+      if ("requestIdleCallback" in window) {
+        (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(() => {
+          buildSearchIndex(filteredMessages);
+        });
+      } else {
+        setTimeout(() => {
+          buildSearchIndex(filteredMessages);
+        }, 0);
+      }
     } catch (error) {
       console.error("Failed to load session messages:", error);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
@@ -214,19 +223,13 @@ export const createMessageSlice: StateCreator<
             await get().loadSessionTokenStats(selectedSession.file_path);
           }
         } else if (analytics.currentView === "analytics") {
-          const projectSummary = await invoke<ProjectStatsSummary>(
-            "get_project_stats_summary",
-            { projectPath: selectedProject.path }
-          );
+          const projectSummary = await fetchProjectStatsSummary(selectedProject.path);
           get().setAnalyticsProjectSummary(projectSummary);
 
           if (selectedSession) {
-            const sessionComparison = await invoke<SessionComparison>(
-              "get_session_comparison",
-              {
-                sessionId: selectedSession.actual_session_id,
-                projectPath: selectedProject.path,
-              }
+            const sessionComparison = await fetchSessionComparison(
+              selectedSession.actual_session_id,
+              selectedProject.path
             );
             get().setAnalyticsSessionComparison(sessionComparison);
           }
@@ -246,14 +249,8 @@ export const createMessageSlice: StateCreator<
     try {
       set({ isLoadingTokenStats: true });
       get().setError(null);
-      const start = performance.now();
-      const stats = await invoke<SessionTokenStats>("get_session_token_stats", {
-        sessionPath,
-      });
-      const duration = performance.now() - start;
-      if (import.meta.env.DEV) {
-        console.log(`[Performance] loadSessionTokenStats: ${duration.toFixed(1)}ms`);
-      }
+
+      const stats = await fetchSessionTokenStats(sessionPath);
       set({ sessionTokenStats: stats });
     } catch (error) {
       console.error("Failed to load session token stats:", error);
@@ -278,15 +275,10 @@ export const createMessageSlice: StateCreator<
       });
       get().setError(null);
 
-      const start = performance.now();
-      const response = await invoke<PaginatedTokenStats>(
-        "get_project_token_stats",
-        { projectPath, offset: 0, limit: TOKENS_STATS_PAGE_SIZE }
-      );
-      const duration = performance.now() - start;
-      if (import.meta.env.DEV) {
-        console.log(`[Performance] loadProjectTokenStats: ${duration.toFixed(1)}ms (${response.total_count} sessions)`);
-      }
+      const response = await fetchProjectTokenStats(projectPath, {
+        offset: 0,
+        limit: TOKENS_STATS_PAGE_SIZE,
+      });
 
       set({
         projectTokenStats: response.items,
@@ -313,7 +305,7 @@ export const createMessageSlice: StateCreator<
   loadMoreProjectTokenStats: async (projectPath: string) => {
     const { projectTokenStatsPagination, projectTokenStats } = get();
 
-    if (!projectTokenStatsPagination.hasMore || projectTokenStatsPagination.isLoadingMore) {
+    if (!canLoadMore(projectTokenStatsPagination)) {
       return;
     }
 
@@ -325,12 +317,12 @@ export const createMessageSlice: StateCreator<
         },
       });
 
-      const nextOffset = projectTokenStatsPagination.offset + projectTokenStatsPagination.limit;
+      const nextOffset = getNextOffset(projectTokenStatsPagination);
 
-      const response = await invoke<PaginatedTokenStats>(
-        "get_project_token_stats",
-        { projectPath, offset: nextOffset, limit: TOKENS_STATS_PAGE_SIZE }
-      );
+      const response = await fetchProjectTokenStats(projectPath, {
+        offset: nextOffset,
+        limit: TOKENS_STATS_PAGE_SIZE,
+      });
 
       set({
         projectTokenStats: [...projectTokenStats, ...response.items],
@@ -354,29 +346,11 @@ export const createMessageSlice: StateCreator<
   },
 
   loadProjectStatsSummary: async (projectPath: string) => {
-    const start = performance.now();
-    const summary = await invoke<ProjectStatsSummary>(
-      "get_project_stats_summary",
-      { projectPath }
-    );
-    const duration = performance.now() - start;
-    if (import.meta.env.DEV) {
-      console.log(`[Performance] loadProjectStatsSummary: ${duration.toFixed(1)}ms (${summary.total_sessions} sessions)`);
-    }
-    return summary;
+    return fetchProjectStatsSummary(projectPath);
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {
-    const start = performance.now();
-    const comparison = await invoke<SessionComparison>(
-      "get_session_comparison",
-      { sessionId, projectPath }
-    );
-    const duration = performance.now() - start;
-    if (import.meta.env.DEV) {
-      console.log(`[Performance] loadSessionComparison: ${duration.toFixed(1)}ms`);
-    }
-    return comparison;
+    return fetchSessionComparison(sessionId, projectPath);
   },
 
   clearTokenStats: () => {
