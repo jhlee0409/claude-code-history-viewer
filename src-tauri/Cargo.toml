@@ -1,6 +1,6 @@
 [package]
 name = "claude-code-history-viewer"
-version = "1.0.0"
+version = "1.1.0"
 description = "Claude Code 대화 기록을 탐색하고 분석하는 데스크톱 애플리케이션"
 authors = ["JaeHyeok Lee"]
 license = "MIT"

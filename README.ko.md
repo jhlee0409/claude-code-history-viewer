@@ -2,7 +2,9 @@
 
 `~/.claude`에 저장된 Claude Code 대화 기록을 탐색하는 데스크톱 앱.
 
-![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)
+🌐 [웹사이트](https://jhlee0409.github.io/claude-code-history-viewer/) | 📦 [다운로드](https://github.com/jhlee0409/claude-code-history-viewer/releases)
+
+![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
@@ -54,7 +56,9 @@ pnpm tauri:build
 
 ## 데이터 프라이버시
 
-로컬에서만 실행. 서버로 데이터 전송 없음.
+로컬에서만 실행. 대화 데이터는 서버로 전송되지 않습니다.
+
+익명 사용 통계(앱 실행, 기능 사용)는 앱 개선을 위해 [Aptabase](https://aptabase.com/)를 통해 수집됩니다. 대화 내용이나 개인정보는 추적되지 않습니다.
 
 ## 문제 해결
 

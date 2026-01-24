@@ -2,7 +2,9 @@
 
 Desktop app to browse Claude Code conversation history stored in `~/.claude`.
 
-![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)
+🌐 [Website](https://jhlee0409.github.io/claude-code-history-viewer/) | 📦 [Download](https://github.com/jhlee0409/claude-code-history-viewer/releases)
+
+![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
@@ -61,7 +63,9 @@ pnpm tauri:build     # Production build
 
 ## Data privacy
 
-Runs locally only. No data sent to servers.
+Runs locally only. No conversation data sent to servers.
+
+Anonymous usage analytics (app launches, feature usage) are collected via [Aptabase](https://aptabase.com/) to improve the app. No conversation content or personal information is tracked.
 
 ## Troubleshooting
 

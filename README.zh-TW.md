@@ -2,7 +2,9 @@
 
 瀏覽儲存在`~/.claude`中的Claude Code對話記錄的桌面應用。
 
-![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)
+🌐 [網站](https://jhlee0409.github.io/claude-code-history-viewer/) | 📦 [下載](https://github.com/jhlee0409/claude-code-history-viewer/releases)
+
+![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
@@ -54,7 +56,9 @@ pnpm tauri:build
 
 ## 資料隱私
 
-僅本機執行。不向伺服器傳送資料。
+僅本機執行。對話資料不會傳送到伺服器。
+
+匿名使用統計（應用啟動、功能使用）透過[Aptabase](https://aptabase.com/)收集以改進應用。不會追蹤對話內容或個人資訊。
 
 ## 疑難排解
 
