@@ -379,20 +379,23 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Capture Mode Button */}
+        {/* Capture Mode Button - Editorial style entry point */}
         {!isCaptureMode && (
           <button
             type="button"
             onClick={enterCaptureMode}
             className={cn(
-              "flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-md transition-colors",
-              "hover:bg-secondary/80",
-              "bg-secondary text-secondary-foreground"
+              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md",
+              "transition-all duration-200",
+              "bg-zinc-800 hover:bg-zinc-700",
+              "text-zinc-300 hover:text-zinc-100",
+              "border border-zinc-700/50 hover:border-zinc-600/50",
+              "shadow-sm hover:shadow-md"
             )}
             title={t("captureMode.tooltip")}
           >
             <Camera className="w-3.5 h-3.5" />
-            {t("captureMode.enter")}
+            <span className="font-medium">{t("captureMode.enter")}</span>
           </button>
         )}
 
