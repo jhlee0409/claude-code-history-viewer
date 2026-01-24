@@ -6,6 +6,13 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCachedUpdateResult, setCachedUpdateResult } from "../utils/updateCache";
 
+// Configuration constants
+const REPO_OWNER = 'jhlee0409';
+const REPO_NAME = 'claude-code-history-viewer';
+const GITHUB_API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`;
+const GITHUB_RELEASE_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag`;
+const API_TIMEOUT_MS = 10000;
+
 export interface GitHubRelease {
   tag_name: string;
   name: string;
@@ -61,21 +68,17 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
   const fetchGitHubRelease =
     useCallback(async (): Promise<GitHubRelease | null> => {
       try {
-        // AbortController로 타임아웃 제어 (10초)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-        const response = await fetch(
-          "https://api.github.com/repos/jhlee0409/claude-code-history-viewer/releases/latest",
-          {
-            method: "GET",
-            headers: {
-              Accept: "application/vnd.github.v3+json",
-              "User-Agent": "Claude-Code-History-Viewer",
-            },
-            signal: controller.signal,
-          }
-        );
+        const response = await fetch(GITHUB_API_URL, {
+          method: "GET",
+          headers: {
+            Accept: "application/vnd.github.v3+json",
+            "User-Agent": "Claude-Code-History-Viewer",
+          },
+          signal: controller.signal,
+        });
 
         clearTimeout(timeoutId);
 
@@ -87,13 +90,13 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
         return release;
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          console.warn("GitHub API 요청 타임아웃 (10초)");
+          console.warn(`GitHub API request timeout (${API_TIMEOUT_MS}ms)`);
         } else {
-          console.error("GitHub 릴리즈 정보 가져오기 실패:", error);
+          console.error("Failed to fetch GitHub release info:", error);
         }
         return null;
       }
-    }, []);
+    }, [t]);
 
   const checkForUpdates = useCallback(async (forceCheck: boolean = false) => {
     try {
@@ -137,7 +140,7 @@ export function useGitHubUpdater(): UseGitHubUpdaterReturn {
           name: `v${update.version}`,
           body: '',
           published_at: new Date().toISOString(),
-          html_url: `https://github.com/jhlee0409/claude-code-history-viewer/releases/tag/v${update.version}`,
+          html_url: `${GITHUB_RELEASE_URL}/v${update.version}`,
           assets: [],
         };
       }

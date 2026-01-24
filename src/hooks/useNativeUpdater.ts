@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useTranslation } from "react-i18next";
+
+const AUTO_CHECK_DELAY_MS = 5000;
 
 export interface UpdateState {
   isChecking: boolean;
@@ -59,6 +61,10 @@ export function useNativeUpdater(): UseNativeUpdaterReturn {
   const downloadAndInstall = useCallback(async () => {
     if (!state.updateInfo) return;
 
+    // Track cumulative download progress
+    let contentLength = 0;
+    let downloaded = 0;
+
     try {
       setState((prev) => ({ ...prev, isDownloading: true, error: null }));
 
@@ -66,16 +72,18 @@ export function useNativeUpdater(): UseNativeUpdaterReturn {
       await state.updateInfo.downloadAndInstall((event) => {
         switch (event.event) {
           case "Started":
+            contentLength = event.data.contentLength ?? 0;
+            downloaded = 0;
             setState((prev) => ({ ...prev, downloadProgress: 0 }));
             break;
-          case "Progress":
-            setState((prev) => ({
-              ...prev,
-              downloadProgress: Math.round(
-                (event.data.chunkLength / (event.data.chunkLength || 1)) * 100
-              ),
-            }));
+          case "Progress": {
+            downloaded += event.data.chunkLength;
+            const progress = contentLength > 0
+              ? Math.round((downloaded / contentLength) * 100)
+              : 0;
+            setState((prev) => ({ ...prev, downloadProgress: progress }));
             break;
+          }
           case "Finished":
             setState((prev) => ({
               ...prev,
@@ -114,8 +122,10 @@ export function useNativeUpdater(): UseNativeUpdaterReturn {
   // 앱 시작 시 자동으로 업데이트 확인 (5초 후)
   useEffect(() => {
     const timer = setTimeout(() => {
-      checkForUpdates();
-    }, 5000);
+      checkForUpdates().catch(() => {
+        // 자동 체크 실패는 무시 (다음 시작 시 재시도)
+      });
+    }, AUTO_CHECK_DELAY_MS);
 
     return () => clearTimeout(timer);
   }, [checkForUpdates]);

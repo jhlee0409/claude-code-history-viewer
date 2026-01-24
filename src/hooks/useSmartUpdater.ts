@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useGitHubUpdater } from './useGitHubUpdater';
-import { 
-  getUpdateSettings, 
-  shouldCheckForUpdates, 
+import {
+  getUpdateSettings,
+  shouldCheckForUpdates,
   shouldShowUpdateForVersion,
-  isOnline 
+  isOnline
 } from '@/utils/updateSettings';
+
+// Timing constants (in milliseconds)
+const INTRO_MODAL_DELAY_MS = 2000;
+const AUTO_CHECK_DELAY_MS = 5000;
+const POST_INTRO_CHECK_DELAY_MS = 1000;
 
 export function useSmartUpdater() {
   const githubUpdater = useGitHubUpdater();
@@ -16,12 +21,12 @@ export function useSmartUpdater() {
   useEffect(() => {
     const settings = getUpdateSettings();
     if (!settings.hasSeenIntroduction && !introModalShown) {
-      // 앱 시작 후 2초 후에 안내 모달 표시 (UX 개선)
+      // 앱 시작 후 잠시 후에 안내 모달 표시 (UX 개선)
       const timer = setTimeout(() => {
         setShowIntroModal(true);
         setIntroModalShown(true);
-      }, 2000);
-      
+      }, INTRO_MODAL_DELAY_MS);
+
       return () => clearTimeout(timer);
     }
   }, [introModalShown]);
@@ -61,25 +66,14 @@ export function useSmartUpdater() {
       return;
     }
 
-    let delay = 5000; // 기본 5초
-
-    // 체크 주기에 따른 지연 시간 조정
-    switch (settings.checkInterval) {
-      case 'startup':
-        delay = 5000; // 5초
-        break;
-      case 'daily':
-        // 마지막 체크가 24시간 전인지 확인
-        // (구현 복잡성으로 인해 startup과 동일하게 처리)
-        delay = 5000;
-        break;
-      case 'weekly':
-        // 주간 체크는 첫 실행 시만
-        delay = 5000;
-        break;
-      case 'never':
-        return; // 체크하지 않음
+    // 체크 주기에 따른 처리 (never인 경우 조기 반환)
+    if (settings.checkInterval === 'never') {
+      return;
     }
+
+    // TODO: daily/weekly 체크 시 마지막 체크 시간과 비교하여 실제 주기 적용
+    // 현재는 모든 interval에서 동일한 지연 시간 사용
+    const delay = AUTO_CHECK_DELAY_MS;
 
     const timer = setTimeout(() => {
       smartCheckForUpdates();
@@ -101,13 +95,13 @@ export function useSmartUpdater() {
 
   const handleIntroClose = useCallback(() => {
     setShowIntroModal(false);
-    
+
     // 안내를 본 후 자동 체크가 활성화되어 있다면 잠시 후 체크
     const settings = getUpdateSettings();
     if (settings.autoCheck) {
       setTimeout(() => {
         smartCheckForUpdates();
-      }, 1000);
+      }, POST_INTRO_CHECK_DELAY_MS);
     }
   }, [smartCheckForUpdates]);
 
