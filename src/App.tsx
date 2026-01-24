@@ -54,6 +54,9 @@ function App() {
     userMetadata,
     updateUserSettings,
     getGroupedProjects,
+    hideProject,
+    unhideProject,
+    isProjectHidden,
   } = useAppStore();
 
   const {
@@ -240,6 +243,9 @@ function App() {
             worktreeGroups={worktreeGroups}
             ungroupedProjects={ungroupedProjects}
             onWorktreeGroupingToggle={handleWorktreeGroupingToggle}
+            onHideProject={hideProject}
+            onUnhideProject={unhideProject}
+            isProjectHidden={isProjectHidden}
           />
 
           {/* Main Content Area */}

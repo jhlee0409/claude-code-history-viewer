@@ -14,8 +14,14 @@ import { cn } from "@/lib/utils";
 import { getLocale } from "../utils/time";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionItem } from "./SessionItem";
+import { ProjectContextMenu } from "./ProjectContextMenu";
 import type { WorktreeGroup } from "../utils/worktreeUtils";
 import { getWorktreeLabel } from "../utils/worktreeUtils";
+
+interface ContextMenuState {
+  project: ClaudeProject;
+  position: { x: number; y: number };
+}
 
 interface ProjectTreeProps {
   projects: ClaudeProject[];
@@ -35,6 +41,10 @@ interface ProjectTreeProps {
   worktreeGroups?: WorktreeGroup[];
   ungroupedProjects?: ClaudeProject[];
   onWorktreeGroupingToggle?: () => void;
+  // Project visibility props
+  onHideProject?: (projectPath: string) => void;
+  onUnhideProject?: (projectPath: string) => void;
+  isProjectHidden?: (projectPath: string) => boolean;
 }
 
 export const ProjectTree: React.FC<ProjectTreeProps> = ({
@@ -53,12 +63,32 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   worktreeGroups = [],
   ungroupedProjects,
   onWorktreeGroupingToggle,
+  onHideProject,
+  onUnhideProject,
+  isProjectHidden,
 }) => {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const { t, i18n } = useTranslation();
 
   // Use ungroupedProjects if provided (when grouping enabled), else use all projects
   const displayProjects = ungroupedProjects ?? projects;
+
+  // Context menu handlers
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, project: ClaudeProject) => {
+      e.preventDefault();
+      setContextMenu({
+        project,
+        position: { x: e.clientX, y: e.clientY },
+      });
+    },
+    []
+  );
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
 
   const formatTimeAgo = (dateStr: string) => {
     try {
@@ -224,6 +254,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                       onProjectSelect(group.parent);
                       toggleProject(group.parent.path);
                     }}
+                    onContextMenu={(e) => handleContextMenu(e, group.parent)}
                     className={cn(
                       "w-full px-4 py-2.5 flex items-center gap-2.5",
                       "text-left transition-all duration-300",
@@ -299,6 +330,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                                   onProjectSelect(child);
                                   toggleProject(child.path);
                                 }}
+                                onContextMenu={(e) => handleContextMenu(e, child)}
                                 className={cn(
                                   "w-full px-2 py-1.5 flex items-center gap-2",
                                   "text-left transition-all duration-200 rounded-md",
@@ -441,6 +473,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                       onProjectSelect(project);
                       toggleProject(project.path);
                     }}
+                    onContextMenu={(e) => handleContextMenu(e, project)}
                     className={cn(
                       "w-full px-4 py-2.5 flex items-center gap-2.5",
                       "text-left transition-all duration-300",
@@ -549,6 +582,18 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             isResizing && "bg-accent/30"
           )}
           onMouseDown={onResizeStart}
+        />
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && onHideProject && onUnhideProject && isProjectHidden && (
+        <ProjectContextMenu
+          project={contextMenu.project}
+          position={contextMenu.position}
+          onClose={closeContextMenu}
+          onHide={onHideProject}
+          onUnhide={onUnhideProject}
+          isHidden={isProjectHidden(contextMenu.project.path)}
         />
       )}
     </aside>

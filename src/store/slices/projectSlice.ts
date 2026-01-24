@@ -219,15 +219,26 @@ export const createProjectSlice: StateCreator<
   },
 
   getGroupedProjects: () => {
-    const { projects, userMetadata } = get();
+    const { projects, userMetadata, isProjectHidden } = get();
     const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
 
+    // Filter out hidden projects first
+    const visibleProjects = projects.filter((p) => !isProjectHidden(p.path));
+
     if (!worktreeGrouping) {
-      // When grouping is disabled, return all projects as ungrouped
-      return { groups: [], ungrouped: projects };
+      // When grouping is disabled, return all visible projects as ungrouped
+      return { groups: [], ungrouped: visibleProjects };
     }
 
     // Use hybrid detection: git-based (100% accurate) + heuristic fallback
-    return detectWorktreeGroupsHybrid(projects);
+    const result = detectWorktreeGroupsHybrid(visibleProjects);
+
+    // Also filter hidden projects from worktree children
+    result.groups = result.groups.map((group) => ({
+      ...group,
+      children: group.children.filter((child) => !isProjectHidden(child.path)),
+    }));
+
+    return result;
   },
 });

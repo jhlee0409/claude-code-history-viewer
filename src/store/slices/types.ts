@@ -219,6 +219,10 @@ export interface AppStoreActions {
     fallbackSummary?: string
   ) => string | undefined;
   isProjectHidden: (projectPath: string) => boolean;
+  hideProject: (projectPath: string) => Promise<void>;
+  unhideProject: (projectPath: string) => Promise<void>;
+  addHiddenPattern: (pattern: string) => Promise<void>;
+  removeHiddenPattern: (pattern: string) => Promise<void>;
   clearMetadataError: () => void;
 
   // Capture mode actions
