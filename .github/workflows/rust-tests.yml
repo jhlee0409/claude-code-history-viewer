@@ -18,7 +18,7 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  # Quick format and lint check
+  # Quick format and lint check (runs in parallel with test)
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
@@ -40,6 +40,12 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
       - name: Check formatting
         working-directory: src-tauri
         run: cargo fmt --all -- --check
@@ -48,15 +54,15 @@ jobs:
         working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-  # Main test job with nextest
+  # Main test job - runs in parallel with lint
+  # PR: Ubuntu only, Main: Ubuntu + macOS
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
-    needs: lint
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest"]') }}
         rust: [stable]
 
     steps:
@@ -99,11 +105,11 @@ jobs:
           path: src-tauri/target/nextest/ci/junit.xml
           retention-days: 7
 
-  # Test coverage report
+  # Code coverage - main branch only
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    needs: lint
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
@@ -155,12 +161,11 @@ jobs:
           path: src-tauri/lcov.info
           retention-days: 7
 
-  # Benchmark tests (optional, only on main)
+  # Benchmark tests - main branch only
   benchmark:
     name: Benchmarks
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    needs: test
     steps:
       - uses: actions/checkout@v4
 
@@ -194,28 +199,27 @@ jobs:
           path: src-tauri/target/criterion
           retention-days: 30
 
-  # Security audit
+  # Security audit - main branch only (weekly via schedule recommended)
   security:
     name: Security Audit
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-
       - name: Run security audit
-        working-directory: src-tauri
-        run: cargo audit
-        continue-on-error: true
+        uses: rustsec/audit-check@v2
+        with:
+          working-directory: src-tauri
 
-  # Documentation check
+  # Documentation check - main branch only
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
@@ -231,6 +235,12 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
 
       - name: Check documentation
         working-directory: src-tauri
