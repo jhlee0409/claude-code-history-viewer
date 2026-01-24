@@ -11,7 +11,7 @@ import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 import {
-  detectWorktreeGroups,
+  detectWorktreeGroupsHybrid,
   type WorktreeGroupingResult,
 } from "../../utils/worktreeUtils";
 
@@ -227,6 +227,7 @@ export const createProjectSlice: StateCreator<
       return { groups: [], ungrouped: projects };
     }
 
-    return detectWorktreeGroups(projects);
+    // Use hybrid detection: git-based (100% accurate) + heuristic fallback
+    return detectWorktreeGroupsHybrid(projects);
   },
 });

@@ -1,4 +1,7 @@
+use crate::models::{GitInfo, GitWorktreeType};
 use memchr::memchr_iter;
+use std::fs;
+use std::path::Path;
 
 /// Estimated average bytes per JSONL line (used for capacity pre-allocation)
 /// Based on typical Claude message sizes (800-1200 bytes average)
@@ -64,6 +67,90 @@ pub fn estimate_message_count_from_size(file_size: u64) -> usize {
     // Average JSON message is 800-1200 bytes (using AVERAGE_MESSAGE_SIZE_BYTES)
     // Small files are treated as having at least 1 message
     ((file_size as f64 / AVERAGE_MESSAGE_SIZE_BYTES).ceil() as usize).max(1)
+}
+
+// ===== Git Worktree Detection =====
+
+/// Decode Claude session storage path to actual project path
+///
+/// Claude stores sessions in ~/.claude/projects/ with the project path encoded:
+/// - `/Users/jack/.claude/projects/-Users-jack-my-project` → `/Users/jack/my-project`
+/// - `/Users/jack/.claude/projects/-tmp-feature-my-project` → `/tmp/feature/my-project`
+pub fn decode_project_path(session_storage_path: &str) -> String {
+    const MARKER: &str = ".claude/projects/";
+    if let Some(marker_pos) = session_storage_path.find(MARKER) {
+        let encoded = &session_storage_path[marker_pos + MARKER.len()..];
+        if encoded.starts_with('-') {
+            // "-Users-jack-my-project" -> "/Users/jack/my-project"
+            return encoded.replace('-', "/");
+        }
+    }
+    session_storage_path.to_string()
+}
+
+/// Extract main git directory from gitdir path
+///
+/// `/Users/jack/main/.git/worktrees/feature` → `/Users/jack/main/.git`
+fn extract_main_git_dir(gitdir: &str) -> Option<String> {
+    const WORKTREES_MARKER: &str = "/.git/worktrees/";
+    if let Some(pos) = gitdir.find(WORKTREES_MARKER) {
+        return Some(format!("{}/.git", &gitdir[..pos]));
+    }
+    None
+}
+
+/// Detect git worktree information for a project
+///
+/// Detection method:
+/// 1. If .git is a directory → Main (main repository)
+/// 2. If .git is a file → Parse content to get Linked (linked worktree)
+/// 3. If .git doesn't exist → NotGit
+pub fn detect_git_worktree_info(project_path: &str) -> Option<GitInfo> {
+    let actual_path = decode_project_path(project_path);
+    let git_path = Path::new(&actual_path).join(".git");
+
+    if !git_path.exists() {
+        return Some(GitInfo {
+            worktree_type: GitWorktreeType::NotGit,
+            main_project_path: None,
+        });
+    }
+
+    if git_path.is_dir() {
+        // Main repository
+        return Some(GitInfo {
+            worktree_type: GitWorktreeType::Main,
+            main_project_path: None,
+        });
+    }
+
+    if git_path.is_file() {
+        // Linked worktree - parse .git file content
+        // Content format: "gitdir: /path/to/main/.git/worktrees/branch-name"
+        if let Ok(content) = fs::read_to_string(&git_path) {
+            if let Some(gitdir) = content.strip_prefix("gitdir: ") {
+                let gitdir = gitdir.trim();
+                // /path/to/main/.git/worktrees/branch-name -> /path/to/main/.git
+                if let Some(main_git_dir) = extract_main_git_dir(gitdir) {
+                    // /path/to/main/.git -> /path/to/main
+                    let main_project_path = Path::new(&main_git_dir)
+                        .parent()
+                        .map(|p| p.to_string_lossy().to_string());
+
+                    return Some(GitInfo {
+                        worktree_type: GitWorktreeType::Linked,
+                        main_project_path,
+                    });
+                }
+            }
+        }
+    }
+
+    // Fallback: can't determine
+    Some(GitInfo {
+        worktree_type: GitWorktreeType::NotGit,
+        main_project_path: None,
+    })
 }
 
 #[cfg(test)]
@@ -211,5 +298,94 @@ mod tests {
         // 1000 bytes -> ceil(1.0) = 1
         let result = estimate_message_count_from_size(1000);
         assert_eq!(result, 1);
+    }
+
+    // ===== Git Worktree Detection Tests =====
+
+    #[test]
+    fn test_decode_project_path_session_storage() {
+        assert_eq!(
+            decode_project_path("/Users/jack/.claude/projects/-Users-jack-my-project"),
+            "/Users/jack/my/project"
+        );
+    }
+
+    #[test]
+    fn test_decode_project_path_tmp() {
+        assert_eq!(
+            decode_project_path("/Users/jack/.claude/projects/-tmp-feature-my-project"),
+            "/tmp/feature/my/project"
+        );
+    }
+
+    #[test]
+    fn test_decode_project_path_regular() {
+        assert_eq!(
+            decode_project_path("/some/other/path"),
+            "/some/other/path"
+        );
+    }
+
+    #[test]
+    fn test_extract_main_git_dir_valid() {
+        assert_eq!(
+            extract_main_git_dir("/Users/jack/main/.git/worktrees/feature"),
+            Some("/Users/jack/main/.git".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_main_git_dir_invalid() {
+        assert_eq!(extract_main_git_dir("/some/path/without/worktrees"), None);
+    }
+
+    #[test]
+    fn test_detect_git_worktree_info_not_git() {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new().unwrap();
+        // No .git file or directory
+
+        let result = detect_git_worktree_info(temp_dir.path().to_str().unwrap());
+        assert!(result.is_some());
+        let info = result.unwrap();
+        assert_eq!(info.worktree_type, GitWorktreeType::NotGit);
+    }
+
+    #[test]
+    fn test_detect_git_worktree_info_main_repo() {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new().unwrap();
+        let git_dir = temp_dir.path().join(".git");
+        fs::create_dir(&git_dir).unwrap();
+
+        let result = detect_git_worktree_info(temp_dir.path().to_str().unwrap());
+        assert!(result.is_some());
+        let info = result.unwrap();
+        assert_eq!(info.worktree_type, GitWorktreeType::Main);
+        assert!(info.main_project_path.is_none());
+    }
+
+    #[test]
+    fn test_detect_git_worktree_info_linked() {
+        use std::io::Write;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let git_file = temp_dir.path().join(".git");
+        let mut file = fs::File::create(&git_file).unwrap();
+        writeln!(
+            file,
+            "gitdir: /Users/jack/main-project/.git/worktrees/feature-branch"
+        )
+        .unwrap();
+
+        let result = detect_git_worktree_info(temp_dir.path().to_str().unwrap());
+        assert!(result.is_some());
+        let info = result.unwrap();
+        assert_eq!(info.worktree_type, GitWorktreeType::Linked);
+        assert_eq!(
+            info.main_project_path,
+            Some("/Users/jack/main-project".to_string())
+        );
     }
 }

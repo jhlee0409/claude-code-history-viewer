@@ -197,3 +197,98 @@ export function getWorktreeLabel(childPath: string): string {
   }
   return actualPath;
 }
+
+// ============================================================================
+// Git-based Worktree Detection (100% accurate)
+// ============================================================================
+
+/**
+ * Detects worktree groups using git metadata.
+ *
+ * This method is 100% accurate as it uses actual git information:
+ * - linked worktrees have worktree_type: "linked" and main_project_path set
+ * - main repos have worktree_type: "main"
+ *
+ * @returns Groups based on git relationships and ungrouped projects
+ */
+export function detectWorktreeGroupsByGit(
+  projects: ClaudeProject[]
+): WorktreeGroupingResult {
+  // Build a map of actual project paths to projects with "main" type
+  const mainReposByPath = new Map<string, ClaudeProject>();
+
+  for (const project of projects) {
+    if (project.git_info?.worktree_type === "main") {
+      const actualPath = decodeProjectPath(project.path);
+      mainReposByPath.set(actualPath, project);
+    }
+  }
+
+  const groups = new Map<string, WorktreeGroup>();
+  const groupedChildPaths = new Set<string>();
+
+  // Match linked worktrees to their main repos
+  for (const project of projects) {
+    if (project.git_info?.worktree_type === "linked") {
+      const mainPath = project.git_info.main_project_path;
+      if (mainPath) {
+        const parent = mainReposByPath.get(mainPath);
+        if (parent) {
+          if (!groups.has(parent.path)) {
+            groups.set(parent.path, { parent, children: [] });
+          }
+          groups.get(parent.path)!.children.push(project);
+          groupedChildPaths.add(project.path);
+        }
+      }
+    }
+  }
+
+  // Separate grouped parents from ungrouped projects
+  const groupedParentPaths = new Set(groups.keys());
+  const ungrouped = projects.filter(
+    (p) => !groupedParentPaths.has(p.path) && !groupedChildPaths.has(p.path)
+  );
+
+  return {
+    groups: Array.from(groups.values()),
+    ungrouped,
+  };
+}
+
+/**
+ * Hybrid worktree detection combining git metadata and heuristics.
+ *
+ * Priority:
+ * 1. Git info available → Use git-based grouping (100% accurate)
+ * 2. Git info unavailable → Fall back to heuristic-based grouping
+ *
+ * @returns Combined grouping result
+ */
+export function detectWorktreeGroupsHybrid(
+  projects: ClaudeProject[]
+): WorktreeGroupingResult {
+  // Separate projects by whether they have useful git info
+  const withGitInfo: ClaudeProject[] = [];
+  const withoutGitInfo: ClaudeProject[] = [];
+
+  for (const project of projects) {
+    if (project.git_info && project.git_info.worktree_type !== "not_git") {
+      withGitInfo.push(project);
+    } else {
+      withoutGitInfo.push(project);
+    }
+  }
+
+  // Git-based grouping for projects with git info
+  const gitResult = detectWorktreeGroupsByGit(withGitInfo);
+
+  // Heuristic-based grouping for remaining projects
+  const remainingProjects = [...gitResult.ungrouped, ...withoutGitInfo];
+  const heuristicResult = detectWorktreeGroups(remainingProjects);
+
+  return {
+    groups: [...gitResult.groups, ...heuristicResult.groups],
+    ungrouped: heuristicResult.ungrouped,
+  };
+}

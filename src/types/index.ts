@@ -95,6 +95,8 @@ export type {
 // Session Types
 // ============================================================================
 export type {
+  GitWorktreeType,
+  GitInfo,
   ClaudeProject,
   ClaudeSession,
   SearchFilters,

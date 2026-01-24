@@ -9,6 +9,19 @@ import type { SessionTokenStats } from "./stats.types";
 import type { AppError } from "./error.types";
 
 // ============================================================================
+// Git Types
+// ============================================================================
+
+export type GitWorktreeType = "main" | "linked" | "not_git";
+
+export interface GitInfo {
+  /** 워크트리 유형 */
+  worktree_type: GitWorktreeType;
+  /** 메인 레포의 프로젝트 경로 (링크드 워크트리인 경우) */
+  main_project_path?: string;
+}
+
+// ============================================================================
 // Project & Session
 // ============================================================================
 
@@ -18,6 +31,8 @@ export interface ClaudeProject {
   session_count: number;
   message_count: number;
   lastModified: string;
+  /** Git worktree 정보 */
+  git_info?: GitInfo;
 }
 
 export interface ClaudeSession {

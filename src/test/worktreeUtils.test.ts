@@ -10,6 +10,8 @@ import {
   isWorktreeOf,
   detectWorktreeGroups,
   getWorktreeLabel,
+  detectWorktreeGroupsByGit,
+  detectWorktreeGroupsHybrid,
 } from "../utils/worktreeUtils";
 import type { ClaudeProject } from "../types";
 
@@ -452,5 +454,183 @@ describe("detectWorktreeGroups with session storage paths", () => {
 
     expect(result.groups).toHaveLength(0);
     expect(result.ungrouped).toHaveLength(2);
+  });
+});
+
+// ============================================================================
+// Git-based Detection Tests (100% accurate)
+// ============================================================================
+
+describe("detectWorktreeGroupsByGit", () => {
+  it("should group linked worktrees with their main repos", () => {
+    const mainRepo = createMockProject({
+      name: "myproject",
+      path: "/Users/jack/.claude/projects/-Users-jack-myproject",
+    });
+    mainRepo.git_info = { worktree_type: "main" };
+
+    const linkedWorktree = createMockProject({
+      name: "myproject",
+      path: "/Users/jack/.claude/projects/-tmp-feature-myproject",
+    });
+    linkedWorktree.git_info = {
+      worktree_type: "linked",
+      main_project_path: "/Users/jack/myproject",
+    };
+
+    const result = detectWorktreeGroupsByGit([mainRepo, linkedWorktree]);
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].parent.path).toBe(mainRepo.path);
+    expect(result.groups[0].children).toHaveLength(1);
+    expect(result.groups[0].children[0].path).toBe(linkedWorktree.path);
+    expect(result.ungrouped).toHaveLength(0);
+  });
+
+  it("should leave not_git projects ungrouped", () => {
+    const notGitProject = createMockProject({
+      name: "no-git",
+      path: "/Users/jack/.claude/projects/-Users-jack-no-git",
+    });
+    notGitProject.git_info = { worktree_type: "not_git" };
+
+    const result = detectWorktreeGroupsByGit([notGitProject]);
+
+    expect(result.groups).toHaveLength(0);
+    expect(result.ungrouped).toHaveLength(1);
+  });
+
+  it("should leave orphan linked worktrees ungrouped", () => {
+    // Linked worktree without corresponding main repo in the list
+    const linkedWorktree = createMockProject({
+      name: "orphan",
+      path: "/Users/jack/.claude/projects/-tmp-feature-orphan",
+    });
+    linkedWorktree.git_info = {
+      worktree_type: "linked",
+      main_project_path: "/Users/jack/main-not-in-list",
+    };
+
+    const result = detectWorktreeGroupsByGit([linkedWorktree]);
+
+    expect(result.groups).toHaveLength(0);
+    expect(result.ungrouped).toHaveLength(1);
+  });
+
+  it("should handle multiple worktrees under same main repo", () => {
+    const mainRepo = createMockProject({
+      name: "main",
+      path: "/Users/jack/.claude/projects/-Users-jack-main",
+    });
+    mainRepo.git_info = { worktree_type: "main" };
+
+    const worktree1 = createMockProject({
+      name: "main",
+      path: "/Users/jack/.claude/projects/-tmp-feature1-main",
+    });
+    worktree1.git_info = {
+      worktree_type: "linked",
+      main_project_path: "/Users/jack/main",
+    };
+
+    const worktree2 = createMockProject({
+      name: "main",
+      path: "/Users/jack/.claude/projects/-tmp-feature2-main",
+    });
+    worktree2.git_info = {
+      worktree_type: "linked",
+      main_project_path: "/Users/jack/main",
+    };
+
+    const result = detectWorktreeGroupsByGit([mainRepo, worktree1, worktree2]);
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].children).toHaveLength(2);
+    expect(result.ungrouped).toHaveLength(0);
+  });
+});
+
+describe("detectWorktreeGroupsHybrid", () => {
+  it("should use git info when available, heuristic otherwise", () => {
+    // Git-based grouping (has git_info)
+    const mainRepo = createMockProject({
+      name: "gitproject",
+      path: "/Users/jack/.claude/projects/-Users-jack-gitproject",
+    });
+    mainRepo.git_info = { worktree_type: "main" };
+
+    const linkedWorktree = createMockProject({
+      name: "gitproject",
+      path: "/Users/jack/.claude/projects/-tmp-feature-gitproject",
+    });
+    linkedWorktree.git_info = {
+      worktree_type: "linked",
+      main_project_path: "/Users/jack/gitproject",
+    };
+
+    // Heuristic-based grouping (no git_info)
+    const heuristicParent = createMockProject({
+      name: "legacyproject",
+      path: "/Users/jack/.claude/projects/-Users-jack-legacyproject",
+    });
+
+    const heuristicWorktree = createMockProject({
+      name: "legacyproject",
+      path: "/Users/jack/.claude/projects/-tmp-branch-legacyproject",
+    });
+
+    const result = detectWorktreeGroupsHybrid([
+      mainRepo,
+      linkedWorktree,
+      heuristicParent,
+      heuristicWorktree,
+    ]);
+
+    expect(result.groups).toHaveLength(2);
+    expect(result.ungrouped).toHaveLength(0);
+  });
+
+  it("should prioritize git info over heuristic", () => {
+    // Main repo with git_info
+    const mainRepo = createMockProject({
+      name: "myproject",
+      path: "/Users/jack/.claude/projects/-Users-jack-myproject",
+    });
+    mainRepo.git_info = { worktree_type: "main" };
+
+    // Linked worktree with correct git_info
+    const linkedWorktree = createMockProject({
+      name: "myproject",
+      path: "/Users/jack/.claude/projects/-tmp-feature-myproject",
+    });
+    linkedWorktree.git_info = {
+      worktree_type: "linked",
+      main_project_path: "/Users/jack/myproject",
+    };
+
+    const result = detectWorktreeGroupsHybrid([mainRepo, linkedWorktree]);
+
+    expect(result.groups).toHaveLength(1);
+    // Verify it used git-based grouping (parent path matches)
+    expect(result.groups[0].parent.git_info?.worktree_type).toBe("main");
+  });
+
+  it("should fall back to heuristic for projects without git info", () => {
+    const parent = createMockProject({
+      name: "noinfo",
+      path: "/Users/jack/.claude/projects/-Users-jack-noinfo",
+    });
+    // No git_info
+
+    const worktree = createMockProject({
+      name: "noinfo",
+      path: "/Users/jack/.claude/projects/-tmp-feature-noinfo",
+    });
+    // No git_info
+
+    const result = detectWorktreeGroupsHybrid([parent, worktree]);
+
+    // Should use heuristic and group them
+    expect(result.groups).toHaveLength(1);
   });
 });

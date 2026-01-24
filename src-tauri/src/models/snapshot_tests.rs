@@ -197,6 +197,7 @@ mod project_snapshots {
             session_count: 42,
             message_count: 1337,
             last_modified: "2025-01-15T10:30:00Z".to_string(),
+            git_info: None,
         };
 
         assert_json_snapshot!("claude_project", project);

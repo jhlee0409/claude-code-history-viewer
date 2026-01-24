@@ -1,5 +1,5 @@
 use crate::models::ClaudeProject;
-use crate::utils::{estimate_message_count_from_size, extract_project_name};
+use crate::utils::{detect_git_worktree_info, estimate_message_count_from_size, extract_project_name};
 use chrono::{DateTime, Utc};
 use std::fs;
 use std::path::PathBuf;
@@ -103,12 +103,16 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             })
             .unwrap_or_else(|| Utc::now().to_rfc3339());
 
+        // Detect git worktree information
+        let git_info = detect_git_worktree_info(&project_path);
+
         projects.push(ClaudeProject {
             name: project_name,
             path: project_path,
             session_count,
             message_count,
             last_modified: last_modified_str,
+            git_info,
         });
     }
 
