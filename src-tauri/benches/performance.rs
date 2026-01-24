@@ -91,7 +91,7 @@ fn generate_project_structure(
     fs::create_dir_all(&project_dir).expect("Failed to create project directory");
 
     for i in 0..session_count {
-        let filename = format!("session_{}.jsonl", i);
+        let filename = format!("session_{i}.jsonl");
         let session_path = project_dir.join(&filename);
         let mut file = File::create(&session_path).expect("Failed to create session file");
 
@@ -99,7 +99,12 @@ fn generate_project_structure(
 
         for j in 0..messages_per_session {
             let uuid = Uuid::new_v4().to_string();
-            let timestamp = format!("2025-01-{:02}T{:02}:{:02}:00.000Z", (j % 28) + 1, j % 24, j % 60);
+            let timestamp = format!(
+                "2025-01-{:02}T{:02}:{:02}:00.000Z",
+                (j % 28) + 1,
+                j % 24,
+                j % 60
+            );
 
             let entry = if j % 2 == 0 {
                 json!({
@@ -153,7 +158,7 @@ fn generate_project_with_edits(
     let cwd = "/Users/test/project";
 
     for i in 0..session_count {
-        let filename = format!("session_{}.jsonl", i);
+        let filename = format!("session_{i}.jsonl");
         let session_path = project_dir.join(&filename);
         let mut file = File::create(&session_path).expect("Failed to create session file");
 
@@ -161,7 +166,12 @@ fn generate_project_with_edits(
 
         for j in 0..edits_per_session {
             let uuid = Uuid::new_v4().to_string();
-            let timestamp = format!("2025-01-{:02}T{:02}:{:02}:00.000Z", (j % 28) + 1, j % 24, j % 60);
+            let timestamp = format!(
+                "2025-01-{:02}T{:02}:{:02}:00.000Z",
+                (j % 28) + 1,
+                j % 24,
+                j % 60
+            );
             let file_path = format!("{}/src/file_{}.rs", cwd, j % 10);
 
             // Create a mix of edit and write operations
@@ -238,7 +248,7 @@ fn bench_load_session_messages(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let mut group = c.benchmark_group("load_session_messages");
 
-    for size in [100, 500, 1000, 5000].iter() {
+    for size in &[100, 500, 1000, 5000] {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = generate_sample_jsonl(&temp_dir, "test.jsonl", *size);
         let path_str = file_path.to_string_lossy().to_string();
@@ -269,7 +279,7 @@ fn bench_load_session_messages_paginated(c: &mut Criterion) {
     let file_path = generate_sample_jsonl(&temp_dir, "test.jsonl", 1000);
     let path_str = file_path.to_string_lossy().to_string();
 
-    for page_size in [50, 100, 200].iter() {
+    for page_size in &[50, 100, 200] {
         group.throughput(Throughput::Elements(*page_size as u64));
         group.bench_with_input(
             BenchmarkId::new("page_size", page_size),
@@ -291,7 +301,7 @@ fn bench_load_session_messages_paginated(c: &mut Criterion) {
     }
 
     // Test pagination at different offsets
-    for offset in [0, 100, 500, 900].iter() {
+    for offset in &[0, 100, 500, 900] {
         group.bench_with_input(
             BenchmarkId::new("offset", offset),
             offset,
@@ -319,7 +329,7 @@ fn bench_get_session_message_count(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let mut group = c.benchmark_group("get_session_message_count");
 
-    for size in [100, 500, 1000, 5000].iter() {
+    for size in &[100, 500, 1000, 5000] {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = generate_sample_jsonl(&temp_dir, "test.jsonl", *size);
         let path_str = file_path.to_string_lossy().to_string();
@@ -350,14 +360,14 @@ fn bench_search_messages(c: &mut Criterion) {
     let base_path = generate_project_structure(&temp_dir, 10, 100); // 10 sessions, 100 msgs each
 
     // Search queries of varying complexity
-    let queries = vec![
+    let queries = [
         ("simple", "Message"),
         ("number", "42"),
         ("not_found", "xyznonexistent"),
         ("partial", "sess"),
     ];
 
-    for (name, query) in queries.iter() {
+    for (name, query) in &queries {
         group.bench_with_input(BenchmarkId::new("query", name), query, |b, &q| {
             b.iter(|| {
                 rt.block_on(async {
@@ -380,7 +390,7 @@ fn bench_load_project_sessions(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let mut group = c.benchmark_group("load_project_sessions");
 
-    for session_count in [5, 10, 50].iter() {
+    for session_count in &[5, 10, 50] {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let base_path = generate_project_structure(&temp_dir, *session_count, 50);
         let project_path = base_path.join("projects").join("test-project");
@@ -411,7 +421,7 @@ fn bench_get_project_stats_summary(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let mut group = c.benchmark_group("get_project_stats_summary");
 
-    for session_count in [5, 10, 20].iter() {
+    for session_count in &[5, 10, 20] {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let base_path = generate_project_structure(&temp_dir, *session_count, 100);
         let project_path = base_path.join("projects").join("test-project");
@@ -443,18 +453,18 @@ fn bench_get_global_stats_summary(c: &mut Criterion) {
     group.sample_size(10); // Reduce sample size for slow benchmarks
 
     // Create multiple projects
-    for project_count in [3, 5].iter() {
+    for project_count in &[3, 5] {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let projects_dir = temp_dir.path().join("projects");
         fs::create_dir_all(&projects_dir).expect("Failed to create projects dir");
 
         for p in 0..*project_count {
-            let project_dir = projects_dir.join(format!("project_{}", p));
+            let project_dir = projects_dir.join(format!("project_{p}"));
             fs::create_dir_all(&project_dir).expect("Failed to create project dir");
 
             for s in 0..5 {
                 // 5 sessions per project
-                let filename = format!("session_{}.jsonl", s);
+                let filename = format!("session_{s}.jsonl");
                 let session_path = project_dir.join(&filename);
                 let mut file = File::create(&session_path).expect("Failed to create file");
 
@@ -509,7 +519,7 @@ fn bench_get_session_token_stats(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let mut group = c.benchmark_group("get_session_token_stats");
 
-    for size in [100, 500, 1000].iter() {
+    for size in &[100, 500, 1000] {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = generate_sample_jsonl(&temp_dir, "test.jsonl", *size);
         let path_str = file_path.to_string_lossy().to_string();
@@ -536,7 +546,7 @@ fn bench_get_project_token_stats(c: &mut Criterion) {
     let mut group = c.benchmark_group("get_project_token_stats");
     group.sample_size(10); // Reduce sample size for slower benchmarks
 
-    for session_count in [5, 10, 20].iter() {
+    for session_count in &[5, 10, 20] {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let base_path = generate_project_structure(&temp_dir, *session_count, 100);
         let project_path = base_path.join("projects").join("test-project");
@@ -569,13 +579,13 @@ fn bench_get_recent_edits(c: &mut Criterion) {
     let mut group = c.benchmark_group("get_recent_edits");
 
     // Test with varying session counts and edits per session
-    for (sessions, edits) in [(5, 50), (10, 100), (20, 100)].iter() {
+    for (sessions, edits) in &[(5, 50), (10, 100), (20, 100)] {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let base_path = generate_project_with_edits(&temp_dir, *sessions, *edits);
         let project_path = base_path.join("projects").join("test-project");
         let path_str = project_path.to_string_lossy().to_string();
 
-        let label = format!("{}sessions_{}edits", sessions, edits);
+        let label = format!("{sessions}sessions_{edits}edits");
         group.bench_with_input(
             BenchmarkId::new("size", &label),
             &(sessions, edits),

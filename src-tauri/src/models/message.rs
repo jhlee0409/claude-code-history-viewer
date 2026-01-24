@@ -154,11 +154,17 @@ pub struct ClaudeMessage {
     pub hook_infos: Option<serde_json::Value>,
     #[serde(rename = "stopReasonSystem", skip_serializing_if = "Option::is_none")]
     pub stop_reason_system: Option<String>,
-    #[serde(rename = "preventedContinuation", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "preventedContinuation",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub prevented_continuation: Option<bool>,
     #[serde(rename = "compactMetadata", skip_serializing_if = "Option::is_none")]
     pub compact_metadata: Option<serde_json::Value>,
-    #[serde(rename = "microcompactMetadata", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "microcompactMetadata",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub microcompact_metadata: Option<serde_json::Value>,
 }
 
@@ -274,7 +280,10 @@ mod tests {
 
         let entry: RawLogEntry = serde_json::from_str(json_str).unwrap();
         assert_eq!(entry.message_type, "summary");
-        assert_eq!(entry.summary, Some("This is a summary of the conversation".to_string()));
+        assert_eq!(
+            entry.summary,
+            Some("This is a summary of the conversation".to_string())
+        );
         assert_eq!(entry.leaf_uuid, Some("leaf-uuid-123".to_string()));
     }
 
@@ -468,7 +477,10 @@ mod tests {
         assert_eq!(entry.subtype, Some("stop_hook_summary".to_string()));
         assert_eq!(entry.hook_count, Some(2));
         assert!(entry.hook_infos.is_some());
-        assert_eq!(entry.stop_reason_system, Some("Stop hook prevented continuation".to_string()));
+        assert_eq!(
+            entry.stop_reason_system,
+            Some("Stop hook prevented continuation".to_string())
+        );
         assert_eq!(entry.prevented_continuation, Some(true));
         assert_eq!(entry.level, Some("suggestion".to_string()));
     }

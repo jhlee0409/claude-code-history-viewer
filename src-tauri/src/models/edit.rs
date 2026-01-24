@@ -48,7 +48,10 @@ mod tests {
         assert_eq!(deserialized.operation_type, "edit");
         assert_eq!(deserialized.lines_added, 5);
         assert_eq!(deserialized.lines_removed, 3);
-        assert_eq!(deserialized.original_content, Some("old content".to_string()));
+        assert_eq!(
+            deserialized.original_content,
+            Some("old content".to_string())
+        );
     }
 
     #[test]

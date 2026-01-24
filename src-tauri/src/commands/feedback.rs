@@ -26,7 +26,10 @@ pub async fn send_feedback(feedback: FeedbackData) -> Result<(), String> {
         email_body.push_str("\n\n---\n");
         email_body.push_str("System Information:\n");
         email_body.push_str(&format!("App Version: {}\n", system_info.app_version));
-        email_body.push_str(&format!("OS: {} {}\n", system_info.os_type, system_info.os_version));
+        email_body.push_str(&format!(
+            "OS: {} {}\n",
+            system_info.os_type, system_info.os_version
+        ));
         email_body.push_str(&format!("Architecture: {}\n", system_info.arch));
     }
 
@@ -46,16 +49,12 @@ pub async fn send_feedback(feedback: FeedbackData) -> Result<(), String> {
 
     let feedback_email = std::env::var("FEEDBACK_EMAIL")
         .unwrap_or_else(|_| "feedback@claude-history-viewer.app".to_string());
-    let mailto_url = format!(
-         "mailto:{}?subject={}&body={}",
-         feedback_email,
-         encoded_subject,
-         encoded_body
-    );
+    let mailto_url =
+        format!("mailto:{feedback_email}?subject={encoded_subject}&body={encoded_body}");
 
     // Open with system default email app
     tauri_plugin_opener::open_url(mailto_url, None::<String>)
-        .map_err(|e| format!("Failed to open email client: {}", e))?;
+        .map_err(|e| format!("Failed to open email client: {e}"))?;
 
     Ok(())
 }
@@ -75,7 +74,7 @@ pub async fn open_github_issues() -> Result<(), String> {
     let github_url = "https://github.com/jhlee0409/claude-code-history-viewer/issues/new";
 
     tauri_plugin_opener::open_url(github_url, None::<String>)
-        .map_err(|e| format!("Failed to open GitHub: {}", e))?;
+        .map_err(|e| format!("Failed to open GitHub: {e}"))?;
 
     Ok(())
 }

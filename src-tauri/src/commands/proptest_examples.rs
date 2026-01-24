@@ -8,6 +8,7 @@
 use proptest::prelude::*;
 
 /// Strategies for generating test data
+#[allow(dead_code)]
 mod strategies {
     use super::*;
 
@@ -18,14 +19,17 @@ mod strategies {
 
     /// Generate a valid RFC3339 timestamp
     pub fn valid_timestamp() -> impl Strategy<Value = String> {
-        (2020u32..2030, 1u32..13, 1u32..29, 0u32..24, 0u32..60, 0u32..60).prop_map(
-            |(year, month, day, hour, min, sec)| {
-                format!(
-                    "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-                    year, month, day, hour, min, sec
-                )
-            },
+        (
+            2020u32..2030,
+            1u32..13,
+            1u32..29,
+            0u32..24,
+            0u32..60,
+            0u32..60,
         )
+            .prop_map(|(year, month, day, hour, min, sec)| {
+                format!("{year:04}-{month:02}-{day:02}T{hour:02}:{min:02}:{sec:02}Z")
+            })
     }
 
     /// Generate a valid project name (like path segments)
@@ -40,15 +44,15 @@ mod strategies {
             valid_project_name(),
             valid_project_name(),
         )
-            .prop_map(|(user, dir, project)| format!("-{}-{}-{}", user, dir, project))
+            .prop_map(|(user, dir, project)| format!("-{user}-{dir}-{project}"))
     }
 
     /// Generate token counts within realistic ranges
     pub fn token_count() -> impl Strategy<Value = u32> {
         prop_oneof![
-            1u32..100,      // Small messages
-            100u32..1000,   // Medium messages
-            1000u32..10000, // Large messages
+            1u32..100,        // Small messages
+            100u32..1000,     // Medium messages
+            1000u32..10000,   // Large messages
             10000u32..100000, // Very large messages
         ]
     }
@@ -56,8 +60,8 @@ mod strategies {
     /// Generate file sizes in bytes
     pub fn file_size() -> impl Strategy<Value = u64> {
         prop_oneof![
-            0u64..1000,           // Empty to small
-            1000u64..100_000,     // Medium
+            0u64..1000,             // Empty to small
+            1000u64..100_000,       // Medium
             100_000u64..10_000_000, // Large
         ]
     }
@@ -85,7 +89,7 @@ proptest! {
             strategies::valid_project_name()
         )
     ) {
-        let input = format!("-{}-{}-{}", user, dir, project);
+        let input = format!("-{user}-{dir}-{project}");
         let result = crate::utils::extract_project_name(&input);
         // The result should be the last segment after splitn(4, '-')
         prop_assert!(!result.is_empty());
@@ -129,8 +133,9 @@ proptest! {
             service_tier: None,
         };
 
-        prop_assert!(usage.input_tokens.unwrap() >= 0);
-        prop_assert!(usage.output_tokens.unwrap() >= 0);
+        // Verify tokens are set correctly (no need to check >= 0 for u32)
+        prop_assert!(usage.input_tokens.is_some());
+        prop_assert!(usage.output_tokens.is_some());
     }
 
     /// Property: Serialization roundtrip preserves data
@@ -166,7 +171,7 @@ mod path_security_props {
             prefix in "[a-zA-Z/]{1,20}",
             suffix in "[a-zA-Z/]{1,20}"
         ) {
-            let malicious_path = format!("{}\0{}", prefix, suffix);
+            let malicious_path = format!("{prefix}\0{suffix}");
 
             // Verify that our validation would catch this
             prop_assert!(malicious_path.contains('\0'));
@@ -178,7 +183,7 @@ mod path_security_props {
             prefix in "/[a-zA-Z]{1,10}",
             suffix in "[a-zA-Z]{1,10}"
         ) {
-            let traversal_path = format!("{}/../{}", prefix, suffix);
+            let traversal_path = format!("{prefix}/../{suffix}");
 
             use std::path::{Path, Component};
             let path = Path::new(&traversal_path);

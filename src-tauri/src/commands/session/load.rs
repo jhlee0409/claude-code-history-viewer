@@ -1,17 +1,17 @@
 //! Session loading functions
 
-use crate::models::*;
+use crate::models::{ClaudeMessage, ClaudeSession, MessagePage, RawLogEntry};
 use crate::utils::{extract_project_name, find_line_ranges, find_line_starts};
+use chrono::{DateTime, Utc};
+use memmap2::Mmap;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use std::time::SystemTime;
-use walkdir::WalkDir;
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
-use rayon::prelude::*;
-use memmap2::Mmap;
+use walkdir::WalkDir;
 
 /// Cache entry for a single session file (supports incremental parsing)
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -26,7 +26,7 @@ struct CachedSessionMetadata {
     session: Option<ClaudeSession>,
     /// Number of sidechain messages (for filtering adjustment)
     sidechain_count: usize,
-    /// Whether tool_use was detected (for incremental updates)
+    /// Whether `tool_use` was detected (for incremental updates)
     has_tool_use: bool,
     /// Whether errors were detected (for incremental updates)
     has_errors: bool,
@@ -65,8 +65,7 @@ fn load_cache(project_path: &str) -> SessionMetadataCache {
 fn save_cache(project_path: &str, cache: &SessionMetadataCache) {
     let cache_path = get_cache_path(project_path);
     if let Ok(content) = serde_json::to_string(cache) {
-        let _ = fs::File::create(&cache_path)
-            .and_then(|mut f| f.write_all(content.as_bytes()));
+        let _ = fs::File::create(&cache_path).and_then(|mut f| f.write_all(content.as_bytes()));
     }
 }
 
@@ -95,7 +94,7 @@ struct IncrementalParseState {
     sidechain_count: usize,
     /// Previous last timestamp
     last_timestamp: Option<String>,
-    /// Already detected tool_use
+    /// Already detected `tool_use`
     has_tool_use: bool,
     /// Already detected errors
     has_errors: bool,
@@ -145,7 +144,7 @@ struct SessionMetadataMessage {
     content: Option<serde_json::Value>,
 }
 
-/// Minimal classifier for fast line counting (smaller than SessionMetadataEntry)
+/// Minimal classifier for fast line counting (smaller than `SessionMetadataEntry`)
 #[derive(serde::Deserialize)]
 struct QuickLineClassifier {
     #[serde(rename = "type")]
@@ -165,7 +164,7 @@ struct SessionExtractionResult {
     sidechain_count: usize,
     /// Final byte offset after parsing (for incremental updates)
     final_byte_offset: u64,
-    /// Whether tool_use was detected
+    /// Whether `tool_use` was detected
     has_tool_use: bool,
     /// Whether errors were detected
     has_errors: bool,
@@ -193,8 +192,9 @@ fn extract_session_metadata_internal(
     incremental_state: Option<IncrementalParseState>,
 ) -> Option<SessionExtractionResult> {
     let metadata = file_path.metadata().ok();
-    let file_size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
-    let last_modified = metadata.as_ref()
+    let file_size = metadata.as_ref().map_or(0, std::fs::Metadata::len);
+    let last_modified = metadata
+        .as_ref()
         .and_then(|m| m.modified().ok())
         .map(|t| {
             let dt: DateTime<Utc> = t.into();
@@ -206,31 +206,39 @@ fn extract_session_metadata_internal(
     let file_path_str = file_path.to_string_lossy().to_string();
 
     // Initialize from incremental state or start fresh
-    let (start_offset, mut message_count, mut sidechain_count, mut first_timestamp,
-         mut last_timestamp, mut actual_session_id, mut session_summary,
-         mut has_tool_use, mut has_errors, mut first_user_content) =
-        if let Some(ref state) = incremental_state {
-            (
-                state.start_offset,
-                state.message_count,
-                state.sidechain_count,
-                state.first_timestamp.clone(),
-                state.last_timestamp.clone(),
-                state.session_id.clone(),
-                state.summary.clone(),
-                state.has_tool_use,
-                state.has_errors,
-                state.first_user_content.clone(),
-            )
-        } else {
-            (0u64, 0usize, 0usize, None, None, None, None, false, false, None)
-        };
+    let (
+        start_offset,
+        mut message_count,
+        mut sidechain_count,
+        mut first_timestamp,
+        mut last_timestamp,
+        mut actual_session_id,
+        mut session_summary,
+        mut has_tool_use,
+        mut has_errors,
+        mut first_user_content,
+    ) = if let Some(ref state) = incremental_state {
+        (
+            state.start_offset,
+            state.message_count,
+            state.sidechain_count,
+            state.first_timestamp.clone(),
+            state.last_timestamp.clone(),
+            state.session_id.clone(),
+            state.summary.clone(),
+            state.has_tool_use,
+            state.has_errors,
+            state.first_user_content.clone(),
+        )
+    } else {
+        (
+            0u64, 0usize, 0usize, None, None, None, None, false, false, None,
+        )
+    };
 
     // Seek to start position for incremental parsing
-    if start_offset > 0 {
-        if file.seek(SeekFrom::Start(start_offset)).is_err() {
-            return None;
-        }
+    if start_offset > 0 && file.seek(SeekFrom::Start(start_offset)).is_err() {
+        return None;
     }
 
     // Use larger buffer for better I/O performance on large files
@@ -312,7 +320,9 @@ fn extract_session_metadata_internal(
                             if let Some(ref content) = msg.content {
                                 if let Some(arr) = content.as_array() {
                                     for item in arr {
-                                        if item.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
+                                        if item.get("type").and_then(|v| v.as_str())
+                                            == Some("tool_use")
+                                        {
                                             has_tool_use = true;
                                             break;
                                         }
@@ -344,7 +354,8 @@ fn extract_session_metadata_internal(
                 }
 
                 // Check if we have all essential metadata
-                if actual_session_id.is_some() && first_timestamp.is_some()
+                if actual_session_id.is_some()
+                    && first_timestamp.is_some()
                     && (first_user_content.is_some() || session_summary.is_some())
                 {
                     metadata_complete = true;
@@ -394,7 +405,11 @@ fn extract_session_metadata_internal(
             }
 
             // Quick tool_use check via string search (faster than full parse)
-            if !has_tool_use && (line.contains("\"toolUse\"") || line.contains("\"toolUseResult\"") || line.contains("\"tool_use\"")) {
+            if !has_tool_use
+                && (line.contains("\"toolUse\"")
+                    || line.contains("\"toolUseResult\"")
+                    || line.contains("\"tool_use\""))
+            {
                 has_tool_use = true;
             }
 
@@ -427,7 +442,9 @@ fn extract_session_metadata_internal(
             project_name,
             message_count,
             first_message_time: first_timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
-            last_message_time: last_timestamp.clone().unwrap_or_else(|| Utc::now().to_rfc3339()),
+            last_message_time: last_timestamp
+                .clone()
+                .unwrap_or_else(|| Utc::now().to_rfc3339()),
             last_modified,
             has_tool_use,
             has_errors,
@@ -486,7 +503,6 @@ fn classify_line(line: &str, exclude_sidechain: bool) -> bool {
     false
 }
 
-
 // Helper to check if text is a genuine user message (not system-generated)
 fn is_genuine_user_text(text: &str) -> bool {
     let trimmed = text.trim();
@@ -515,7 +531,7 @@ fn is_genuine_user_text(text: &str) -> bool {
 fn truncate_text(text: &str, max_chars: usize) -> String {
     if text.chars().count() > max_chars {
         let truncated: String = text.chars().take(max_chars).collect();
-        format!("{}...", truncated)
+        format!("{truncated}...")
     } else {
         text.to_string()
     }
@@ -530,7 +546,7 @@ fn extract_user_text(content: &serde_json::Value) -> Option<String> {
             } else {
                 None
             }
-        },
+        }
         serde_json::Value::Array(arr) => {
             for item in arr {
                 if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
@@ -544,8 +560,8 @@ fn extract_user_text(content: &serde_json::Value) -> Option<String> {
                 }
             }
             None
-        },
-        _ => None
+        }
+        _ => None,
     }
 }
 
@@ -576,13 +592,16 @@ pub async fn load_project_sessions(
     // 2. Collect all JSONL file paths
     let file_paths: Vec<PathBuf> = WalkDir::new(&project_path)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         .map(|e| e.path().to_path_buf())
         .collect();
 
     #[cfg(debug_assertions)]
-    eprintln!("🔍 load_project_sessions: processing {} files", file_paths.len());
+    eprintln!(
+        "🔍 load_project_sessions: processing {} files",
+        file_paths.len()
+    );
 
     // 3. Categorize files into: cached, incremental, full parse
     let mut strategies: Vec<FileParseStrategy> = Vec::with_capacity(file_paths.len());
@@ -603,7 +622,9 @@ pub async fn load_project_sessions(
             if Some(cached.modified_time) == current_mtime && cached.file_size == current_size {
                 if let Some(ref session) = cached.session {
                     #[cfg(debug_assertions)]
-                    { cache_hit_count += 1; }
+                    {
+                        cache_hit_count += 1;
+                    }
                     strategies.push(FileParseStrategy::UseCached(
                         session.clone(),
                         cached.sidechain_count,
@@ -616,7 +637,9 @@ pub async fn load_project_sessions(
             if current_size > cached.file_size && cached.session.is_some() {
                 let session = cached.session.as_ref().unwrap();
                 #[cfg(debug_assertions)]
-                { incremental_count += 1; }
+                {
+                    incremental_count += 1;
+                }
                 strategies.push(FileParseStrategy::Incremental(
                     path.clone(),
                     IncrementalParseState {
@@ -638,30 +661,29 @@ pub async fn load_project_sessions(
 
         // New file or file was modified (not just appended) - full parse
         #[cfg(debug_assertions)]
-        { full_parse_count += 1; }
+        {
+            full_parse_count += 1;
+        }
         strategies.push(FileParseStrategy::FullParse(path.clone()));
     }
 
     #[cfg(debug_assertions)]
     eprintln!(
-        "📦 Cache hits: {}, incremental parsing: {}, full parsing: {}",
-        cache_hit_count, incremental_count, full_parse_count
+        "📦 Cache hits: {cache_hit_count}, incremental parsing: {incremental_count}, full parsing: {full_parse_count}"
     );
 
     // 4. Process strategies in parallel
     let results: Vec<(FileParseStrategy, Option<SessionExtractionResult>)> = strategies
         .into_par_iter()
-        .map(|strategy| {
-            match &strategy {
-                FileParseStrategy::UseCached(_, _) => (strategy, None),
-                FileParseStrategy::Incremental(path, state) => {
-                    let result = extract_session_metadata_incremental(path, state.clone());
-                    (strategy, result)
-                }
-                FileParseStrategy::FullParse(path) => {
-                    let result = extract_session_metadata_from_file(path);
-                    (strategy, result)
-                }
+        .map(|strategy| match &strategy {
+            FileParseStrategy::UseCached(_, _) => (strategy, None),
+            FileParseStrategy::Incremental(path, state) => {
+                let result = extract_session_metadata_incremental(path, state.clone());
+                (strategy, result)
+            }
+            FileParseStrategy::FullParse(path) => {
+                let result = extract_session_metadata_from_file(path);
+                (strategy, result)
             }
         })
         .collect();
@@ -674,7 +696,8 @@ pub async fn load_project_sessions(
             FileParseStrategy::UseCached(session, sidechain_count) => {
                 let mut session_clone = session;
                 if exclude {
-                    session_clone.message_count = session_clone.message_count.saturating_sub(sidechain_count);
+                    session_clone.message_count =
+                        session_clone.message_count.saturating_sub(sidechain_count);
                     if session_clone.message_count == 0 {
                         continue;
                     }
@@ -742,7 +765,12 @@ pub async fn load_project_sessions(
     }
 
     for session in &mut sessions {
-        if session.summary.is_none() || session.summary.as_ref().is_some_and(|s| s.is_empty()) {
+        if session.summary.is_none()
+            || session
+                .summary
+                .as_ref()
+                .is_some_and(std::string::String::is_empty)
+        {
             if let Some(summary) = summary_map.get(&session.actual_session_id) {
                 session.summary = Some(summary.clone());
             }
@@ -758,16 +786,23 @@ pub async fn load_project_sessions(
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        println!("📊 load_project_sessions performance: {} sessions, {}ms elapsed",
-                 sessions.len(), elapsed.as_millis());
+        println!(
+            "📊 load_project_sessions performance: {} sessions, {}ms elapsed",
+            sessions.len(),
+            elapsed.as_millis()
+        );
     }
 
     Ok(sessions)
 }
 
-/// Parse a single line into ClaudeMessage (with line number)
+/// Parse a single line into `ClaudeMessage` (with line number)
 #[allow(dead_code)] // Keep for fallback and tests
-fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> Option<ClaudeMessage> {
+fn parse_line_to_message(
+    line_num: usize,
+    line: &str,
+    include_summary: bool,
+) -> Option<ClaudeMessage> {
     if line.trim().is_empty() {
         return None;
     }
@@ -789,8 +824,12 @@ fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> 
         return Some(ClaudeMessage {
             uuid,
             parent_uuid: log_entry.leaf_uuid,
-            session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
-            timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+            session_id: log_entry
+                .session_id
+                .unwrap_or_else(|| "unknown-session".to_string()),
+            timestamp: log_entry
+                .timestamp
+                .unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: "summary".to_string(),
             content: Some(serde_json::Value::String(summary_text)),
             tool_use: None,
@@ -825,9 +864,9 @@ fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> 
         return None;
     }
 
-    let uuid = log_entry.uuid.unwrap_or_else(|| {
-        format!("{}-line-{}", Uuid::new_v4(), line_num + 1)
-    });
+    let uuid = log_entry
+        .uuid
+        .unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1));
 
     let (role, message_id, model, stop_reason, usage) = if let Some(ref msg) = log_entry.message {
         (
@@ -835,7 +874,7 @@ fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> 
             msg.id.clone(),
             msg.model.clone(),
             msg.stop_reason.clone(),
-            msg.usage.clone()
+            msg.usage.clone(),
         )
     } else {
         (None, None, None, None, None)
@@ -844,8 +883,12 @@ fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> 
     Some(ClaudeMessage {
         uuid,
         parent_uuid: log_entry.parent_uuid,
-        session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
-        timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+        session_id: log_entry
+            .session_id
+            .unwrap_or_else(|| "unknown-session".to_string()),
+        timestamp: log_entry
+            .timestamp
+            .unwrap_or_else(|| Utc::now().to_rfc3339()),
         message_type: log_entry.message_type,
         content: log_entry.message.map(|m| m.content).or(log_entry.content),
         tool_use: log_entry.tool_use,
@@ -877,8 +920,15 @@ fn parse_line_to_message(line_num: usize, line: &str, include_summary: bool) -> 
 
 /// Parse a single line using simd-json for faster parsing
 /// Returns None if the line is empty or fails to parse
-fn parse_line_simd(line_num: usize, line: &mut [u8], include_summary: bool) -> Option<ClaudeMessage> {
-    if line.iter().all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r') {
+fn parse_line_simd(
+    line_num: usize,
+    line: &mut [u8],
+    include_summary: bool,
+) -> Option<ClaudeMessage> {
+    if line
+        .iter()
+        .all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r')
+    {
         return None;
     }
 
@@ -900,8 +950,12 @@ fn parse_line_simd(line_num: usize, line: &mut [u8], include_summary: bool) -> O
         return Some(ClaudeMessage {
             uuid,
             parent_uuid: log_entry.leaf_uuid,
-            session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
-            timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+            session_id: log_entry
+                .session_id
+                .unwrap_or_else(|| "unknown-session".to_string()),
+            timestamp: log_entry
+                .timestamp
+                .unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: "summary".to_string(),
             content: Some(serde_json::Value::String(summary_text)),
             tool_use: None,
@@ -936,9 +990,9 @@ fn parse_line_simd(line_num: usize, line: &mut [u8], include_summary: bool) -> O
         return None;
     }
 
-    let uuid = log_entry.uuid.unwrap_or_else(|| {
-        format!("{}-line-{}", Uuid::new_v4(), line_num + 1)
-    });
+    let uuid = log_entry
+        .uuid
+        .unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1));
 
     let (role, message_id, model, stop_reason, usage) = if let Some(ref msg) = log_entry.message {
         (
@@ -946,7 +1000,7 @@ fn parse_line_simd(line_num: usize, line: &mut [u8], include_summary: bool) -> O
             msg.id.clone(),
             msg.model.clone(),
             msg.stop_reason.clone(),
-            msg.usage.clone()
+            msg.usage.clone(),
         )
     } else {
         (None, None, None, None, None)
@@ -955,8 +1009,12 @@ fn parse_line_simd(line_num: usize, line: &mut [u8], include_summary: bool) -> O
     Some(ClaudeMessage {
         uuid,
         parent_uuid: log_entry.parent_uuid,
-        session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
-        timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+        session_id: log_entry
+            .session_id
+            .unwrap_or_else(|| "unknown-session".to_string()),
+        timestamp: log_entry
+            .timestamp
+            .unwrap_or_else(|| Utc::now().to_rfc3339()),
         message_type: log_entry.message_type,
         content: log_entry.message.map(|m| m.content).or(log_entry.content),
         tool_use: log_entry.tool_use,
@@ -993,14 +1051,14 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     let start_time = std::time::Instant::now();
 
     // Use memory-mapped file for faster I/O
-    let file = fs::File::open(&session_path)
-        .map_err(|e| format!("Failed to open session file: {}", e))?;
+    let file =
+        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
     // as session files are append-only by Claude.
     let mmap = unsafe { Mmap::map(&file) }
-        .map_err(|e| format!("Failed to memory-map session file: {}", e))?;
+        .map_err(|e| format!("Failed to memory-map session file: {e}"))?;
 
     // Find line boundaries efficiently using SIMD-accelerated memchr
     let line_starts = find_line_starts(&mmap);
@@ -1010,7 +1068,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
         .par_iter()
         .enumerate()
         .filter_map(|(line_num, &start)| {
-            let end = line_starts.get(line_num + 1).map(|&e| e - 1).unwrap_or(mmap.len());
+            let end = line_starts.get(line_num + 1).map_or(mmap.len(), |&e| e - 1);
             if start >= end {
                 return None;
             }
@@ -1031,8 +1089,11 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        eprintln!("📤 [load_session_messages] {} messages, {}ms elapsed (simd-json + mmap optimized)",
-            messages.len(), elapsed.as_millis());
+        eprintln!(
+            "📤 [load_session_messages] {} messages, {}ms elapsed (simd-json + mmap optimized)",
+            messages.len(),
+            elapsed.as_millis()
+        );
     }
 
     Ok(messages)
@@ -1040,7 +1101,10 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
 
 /// Fast line classifier for simd-json (mutable slice)
 fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
-    if line.iter().all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r') {
+    if line
+        .iter()
+        .all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r')
+    {
         return false;
     }
 
@@ -1076,14 +1140,14 @@ pub async fn load_session_messages_paginated(
     let start_time = std::time::Instant::now();
 
     // Use memory-mapped file for faster I/O
-    let file = fs::File::open(&session_path)
-        .map_err(|e| format!("Failed to open session file: {}", e))?;
+    let file =
+        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
     // as session files are append-only by Claude.
     let mmap = unsafe { Mmap::map(&file) }
-        .map_err(|e| format!("Failed to memory-map session file: {}", e))?;
+        .map_err(|e| format!("Failed to memory-map session file: {e}"))?;
 
     let exclude = exclude_sidechain.unwrap_or(false);
 
@@ -1166,14 +1230,14 @@ pub async fn get_session_message_count(
     exclude_sidechain: Option<bool>,
 ) -> Result<usize, String> {
     // Use memory-mapped file for faster I/O
-    let file = fs::File::open(&session_path)
-        .map_err(|e| format!("Failed to open session file: {}", e))?;
+    let file =
+        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
     // as session files are append-only by Claude.
     let mmap = unsafe { Mmap::map(&file) }
-        .map_err(|e| format!("Failed to memory-map session file: {}", e))?;
+        .map_err(|e| format!("Failed to memory-map session file: {e}"))?;
 
     let exclude = exclude_sidechain.unwrap_or(false);
 
@@ -1195,10 +1259,10 @@ pub async fn get_session_message_count(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs::File;
     use std::io::Write;
     use std::path::PathBuf;
+    use tempfile::TempDir;
 
     fn create_test_jsonl_file(dir: &TempDir, filename: &str, content: &str) -> PathBuf {
         let file_path = dir.path().join(filename);
@@ -1209,23 +1273,18 @@ mod tests {
 
     fn create_sample_user_message(uuid: &str, session_id: &str, content: &str) -> String {
         format!(
-            r#"{{"uuid":"{}","sessionId":"{}","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{{"role":"user","content":"{}"}}}}"#,
-            uuid, session_id, content
+            r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{{"role":"user","content":"{content}"}}}}"#
         )
     }
 
     fn create_sample_assistant_message(uuid: &str, session_id: &str, content: &str) -> String {
         format!(
-            r#"{{"uuid":"{}","sessionId":"{}","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"{}"}}],"id":"msg_123","model":"claude-opus-4-20250514","usage":{{"input_tokens":100,"output_tokens":50}}}}}}"#,
-            uuid, session_id, content
+            r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"{content}"}}],"id":"msg_123","model":"claude-opus-4-20250514","usage":{{"input_tokens":100,"output_tokens":50}}}}}}"#
         )
     }
 
     fn create_sample_summary_message(summary: &str) -> String {
-        format!(
-            r#"{{"type":"summary","summary":"{}","leafUuid":"leaf-123"}}"#,
-            summary
-        )
+        format!(r#"{{"type":"summary","summary":"{summary}","leafUuid":"leaf-123"}}"#)
     }
 
     #[tokio::test]
@@ -1341,18 +1400,19 @@ mod tests {
         for i in 1..=5 {
             content.push_str(&format!(
                 "{}\n",
-                create_sample_user_message(&format!("uuid-{}", i), "session-1", &format!("Message {}", i))
+                create_sample_user_message(
+                    &format!("uuid-{i}"),
+                    "session-1",
+                    &format!("Message {i}")
+                )
             ));
         }
 
         let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
 
-        let result = load_session_messages_paginated(
-            file_path.to_string_lossy().to_string(),
-            0,
-            3,
-            None
-        ).await;
+        let result =
+            load_session_messages_paginated(file_path.to_string_lossy().to_string(), 0, 3, None)
+                .await;
 
         assert!(result.is_ok());
         let page = result.unwrap();
@@ -1369,19 +1429,20 @@ mod tests {
         for i in 1..=5 {
             content.push_str(&format!(
                 "{}\n",
-                create_sample_user_message(&format!("uuid-{}", i), "session-1", &format!("Message {}", i))
+                create_sample_user_message(
+                    &format!("uuid-{i}"),
+                    "session-1",
+                    &format!("Message {i}")
+                )
             ));
         }
 
         let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
 
         // Get second page
-        let result = load_session_messages_paginated(
-            file_path.to_string_lossy().to_string(),
-            3,
-            3,
-            None
-        ).await;
+        let result =
+            load_session_messages_paginated(file_path.to_string_lossy().to_string(), 3, 3, None)
+                .await;
 
         assert!(result.is_ok());
         let page = result.unwrap();
@@ -1406,8 +1467,9 @@ mod tests {
             file_path.to_string_lossy().to_string(),
             0,
             10,
-            Some(true)
-        ).await;
+            Some(true),
+        )
+        .await;
 
         assert!(result.is_ok());
         let page = result.unwrap();
@@ -1422,7 +1484,11 @@ mod tests {
         for i in 1..=10 {
             content.push_str(&format!(
                 "{}\n",
-                create_sample_user_message(&format!("uuid-{}", i), "session-1", &format!("Message {}", i))
+                create_sample_user_message(
+                    &format!("uuid-{i}"),
+                    "session-1",
+                    &format!("Message {i}")
+                )
             ));
         }
         // Add a summary (should not be counted)
@@ -1430,10 +1496,7 @@ mod tests {
 
         let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
 
-        let result = get_session_message_count(
-            file_path.to_string_lossy().to_string(),
-            None
-        ).await;
+        let result = get_session_message_count(file_path.to_string_lossy().to_string(), None).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 10); // Summary not counted
@@ -1451,17 +1514,16 @@ mod tests {
         let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", content);
 
         // Without exclude
-        let count_all = get_session_message_count(
-            file_path.to_string_lossy().to_string(),
-            None
-        ).await.unwrap();
+        let count_all = get_session_message_count(file_path.to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
         assert_eq!(count_all, 3);
 
         // With exclude
-        let count_filtered = get_session_message_count(
-            file_path.to_string_lossy().to_string(),
-            Some(true)
-        ).await.unwrap();
+        let count_filtered =
+            get_session_message_count(file_path.to_string_lossy().to_string(), Some(true))
+                .await
+                .unwrap();
         assert_eq!(count_filtered, 2);
     }
 
@@ -1479,10 +1541,8 @@ mod tests {
         let mut file = File::create(&file_path).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        let result = load_project_sessions(
-            temp_dir.path().to_string_lossy().to_string(),
-            None
-        ).await;
+        let result =
+            load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None).await;
 
         assert!(result.is_ok());
         let sessions = result.unwrap();
@@ -1505,15 +1565,16 @@ mod tests {
         let mut file = File::create(&file_path).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        let result = load_project_sessions(
-            temp_dir.path().to_string_lossy().to_string(),
-            None
-        ).await;
+        let result =
+            load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None).await;
 
         assert!(result.is_ok());
         let sessions = result.unwrap();
         assert_eq!(sessions.len(), 1);
-        assert_eq!(sessions[0].summary, Some("This is the session summary".to_string()));
+        assert_eq!(
+            sessions[0].summary,
+            Some("This is the session summary".to_string())
+        );
     }
 
     #[tokio::test]
@@ -1539,10 +1600,8 @@ mod tests {
         let mut file2 = File::create(&file_path2).unwrap();
         file2.write_all(content2.as_bytes()).unwrap();
 
-        let result = load_project_sessions(
-            temp_dir.path().to_string_lossy().to_string(),
-            None
-        ).await;
+        let result =
+            load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None).await;
 
         assert!(result.is_ok());
         let sessions = result.unwrap();
@@ -1562,17 +1621,16 @@ mod tests {
         file.write_all(content.as_bytes()).unwrap();
 
         // Without exclude
-        let result_all = load_project_sessions(
-            temp_dir.path().to_string_lossy().to_string(),
-            None
-        ).await.unwrap();
+        let result_all = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
         assert_eq!(result_all[0].message_count, 2);
 
         // With exclude
-        let result_filtered = load_project_sessions(
-            temp_dir.path().to_string_lossy().to_string(),
-            Some(true)
-        ).await.unwrap();
+        let result_filtered =
+            load_project_sessions(temp_dir.path().to_string_lossy().to_string(), Some(true))
+                .await
+                .unwrap();
         assert_eq!(result_filtered[0].message_count, 1);
     }
 
@@ -1588,10 +1646,8 @@ mod tests {
         let mut file = File::create(&file_path).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        let result = load_project_sessions(
-            temp_dir.path().to_string_lossy().to_string(),
-            None
-        ).await;
+        let result =
+            load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None).await;
 
         assert!(result.is_ok());
         let sessions = result.unwrap();
@@ -1602,10 +1658,8 @@ mod tests {
     async fn test_load_project_sessions_empty_directory() {
         let temp_dir = TempDir::new().unwrap();
 
-        let result = load_project_sessions(
-            temp_dir.path().to_string_lossy().to_string(),
-            None
-        ).await;
+        let result =
+            load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None).await;
 
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
@@ -1626,10 +1680,9 @@ mod tests {
         std::fs::write(&file_path, initial_content).unwrap();
 
         // First load - creates cache
-        let result1 = load_project_sessions(
-            temp_dir.path().to_string_lossy().to_string(),
-            None
-        ).await.unwrap();
+        let result1 = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
         assert_eq!(result1.len(), 1);
         assert_eq!(result1[0].message_count, 2);
 
@@ -1643,10 +1696,9 @@ mod tests {
         drop(file);
 
         // Second load - should use incremental parsing
-        let result2 = load_project_sessions(
-            temp_dir.path().to_string_lossy().to_string(),
-            None
-        ).await.unwrap();
+        let result2 = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
         assert_eq!(result2.len(), 1);
         assert_eq!(result2[0].message_count, 4); // 2 original + 2 appended
         assert_eq!(result2[0].last_message_time, "2025-06-26T10:03:00Z");

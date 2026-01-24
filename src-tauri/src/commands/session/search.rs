@@ -1,14 +1,14 @@
 //! Session search functions
 
-use crate::models::*;
+use crate::models::{ClaudeMessage, RawLogEntry};
 use crate::utils::find_line_ranges;
+use chrono::Utc;
+use memmap2::Mmap;
+use rayon::prelude::*;
 use std::fs;
 use std::path::PathBuf;
-use walkdir::WalkDir;
-use chrono::Utc;
 use uuid::Uuid;
-use rayon::prelude::*;
-use memmap2::Mmap;
+use walkdir::WalkDir;
 
 /// Initial buffer capacity for JSON parsing (4KB covers most messages)
 const PARSE_BUFFER_INITIAL_CAPACITY: usize = 4096;
@@ -16,7 +16,7 @@ const PARSE_BUFFER_INITIAL_CAPACITY: usize = 4096;
 /// Initial capacity for search results (most searches find few matches)
 const SEARCH_RESULTS_INITIAL_CAPACITY: usize = 8;
 
-/// Recursively search for a query within a serde_json::Value
+/// Recursively search for a query within a `serde_json::Value`
 /// Returns true if the query is found in any string value.
 /// This avoids the expensive JSON serialization that was previously used.
 #[inline]
@@ -90,10 +90,16 @@ fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
         }
 
         let claude_message = ClaudeMessage {
-            uuid: log_entry.uuid.unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1)),
+            uuid: log_entry
+                .uuid
+                .unwrap_or_else(|| format!("{}-line-{}", Uuid::new_v4(), line_num + 1)),
             parent_uuid: log_entry.parent_uuid,
-            session_id: log_entry.session_id.unwrap_or_else(|| "unknown-session".to_string()),
-            timestamp: log_entry.timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+            session_id: log_entry
+                .session_id
+                .unwrap_or_else(|| "unknown-session".to_string()),
+            timestamp: log_entry
+                .timestamp
+                .unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: log_entry.message_type,
             content: Some(message_content.content.clone()),
             tool_use: log_entry.tool_use,
@@ -131,7 +137,7 @@ fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
 pub async fn search_messages(
     claude_path: String,
     query: String,
-    _filters: serde_json::Value
+    _filters: serde_json::Value,
 ) -> Result<Vec<ClaudeMessage>, String> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
@@ -145,7 +151,7 @@ pub async fn search_messages(
     // 1. Collect all JSONL file paths
     let file_paths: Vec<PathBuf> = WalkDir::new(&projects_path)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         .map(|e| e.path().to_path_buf())
         .collect();
@@ -162,8 +168,11 @@ pub async fn search_messages(
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        eprintln!("📊 search_messages performance: {} results, {}ms elapsed",
-                 all_messages.len(), elapsed.as_millis());
+        eprintln!(
+            "📊 search_messages performance: {} results, {}ms elapsed",
+            all_messages.len(),
+            elapsed.as_millis()
+        );
     }
 
     Ok(all_messages)
@@ -172,21 +181,19 @@ pub async fn search_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs::File;
     use std::io::Write;
+    use tempfile::TempDir;
 
     fn create_sample_user_message(uuid: &str, session_id: &str, content: &str) -> String {
         format!(
-            r#"{{"uuid":"{}","sessionId":"{}","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{{"role":"user","content":"{}"}}}}"#,
-            uuid, session_id, content
+            r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{{"role":"user","content":"{content}"}}}}"#
         )
     }
 
     fn create_sample_assistant_message(uuid: &str, session_id: &str, content: &str) -> String {
         format!(
-            r#"{{"uuid":"{}","sessionId":"{}","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"{}"}}],"id":"msg_123","model":"claude-opus-4-20250514","usage":{{"input_tokens":100,"output_tokens":50}}}}}}"#,
-            uuid, session_id, content
+            r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"{content}"}}],"id":"msg_123","model":"claude-opus-4-20250514","usage":{{"input_tokens":100,"output_tokens":50}}}}}}"#
         )
     }
 
@@ -211,8 +218,9 @@ mod tests {
         let result = search_messages(
             temp_dir.path().to_string_lossy().to_string(),
             "Rust".to_string(),
-            serde_json::json!({})
-        ).await;
+            serde_json::json!({}),
+        )
+        .await;
 
         assert!(result.is_ok());
         let messages = result.unwrap();
@@ -238,8 +246,9 @@ mod tests {
         let result = search_messages(
             temp_dir.path().to_string_lossy().to_string(),
             "hello".to_string(), // lowercase
-            serde_json::json!({})
-        ).await;
+            serde_json::json!({}),
+        )
+        .await;
 
         assert!(result.is_ok());
         let messages = result.unwrap();
@@ -265,8 +274,9 @@ mod tests {
         let result = search_messages(
             temp_dir.path().to_string_lossy().to_string(),
             "nonexistent".to_string(),
-            serde_json::json!({})
-        ).await;
+            serde_json::json!({}),
+        )
+        .await;
 
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
@@ -280,8 +290,9 @@ mod tests {
         let result = search_messages(
             temp_dir.path().to_string_lossy().to_string(),
             "test".to_string(),
-            serde_json::json!({})
-        ).await;
+            serde_json::json!({}),
+        )
+        .await;
 
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());

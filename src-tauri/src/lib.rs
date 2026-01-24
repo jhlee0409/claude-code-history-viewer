@@ -1,11 +1,22 @@
-pub mod models;
 pub mod commands;
+pub mod models;
 pub mod utils;
 
 #[cfg(test)]
 pub mod test_utils;
 
-use crate::commands::{project::*, session::*, stats::*, feedback::*};
+use crate::commands::{
+    feedback::{get_system_info, open_github_issues, send_feedback},
+    project::{get_claude_folder_path, scan_projects, validate_claude_folder},
+    session::{
+        get_recent_edits, get_session_message_count, load_project_sessions, load_session_messages,
+        load_session_messages_paginated, restore_file, search_messages,
+    },
+    stats::{
+        get_global_stats_summary, get_project_stats_summary, get_project_token_stats,
+        get_session_comparison, get_session_token_stats,
+    },
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,7 +30,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
         .invoke_handler(tauri::generate_handler![
-                        get_claude_folder_path,
+            get_claude_folder_path,
             validate_claude_folder,
             scan_projects,
             load_project_sessions,

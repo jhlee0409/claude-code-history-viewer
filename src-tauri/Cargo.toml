@@ -107,8 +107,8 @@ opt-level = 0
 unsafe_code = "deny"
 
 [lints.clippy]
-all = "warn"
-pedantic = "warn"
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 # nursery lints are too unstable - enable selectively if needed
 # Allow certain lints that are too strict for this project
 module_name_repetitions = "allow"
@@ -120,3 +120,19 @@ missing_docs_in_private_items = "allow"
 similar_names = "allow"
 too_many_lines = "allow"
 cognitive_complexity = "allow"
+# Allow casting in numeric code (common in size/count calculations)
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_precision_loss = "allow"
+# Allow reasonable patterns
+items_after_statements = "allow"
+needless_pass_by_value = "allow"
+unreadable_literal = "allow"
+manual_let_else = "allow"
+field_reassign_with_default = "allow"
+manual_clamp = "allow"
+map_unwrap_or = "allow"
+ptr_arg = "allow"
+format_push_string = "allow"
+duplicated_attributes = "allow"
+return_self_not_must_use = "allow"

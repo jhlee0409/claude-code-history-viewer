@@ -1,13 +1,13 @@
 //! File edit and restore functions
 
-use crate::models::*;
+use crate::models::{RawLogEntry, RecentFileEdit};
 use crate::utils::find_line_ranges;
+use memmap2::Mmap;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
-use rayon::prelude::*;
-use memmap2::Mmap;
 
 /// Intermediate result from processing a single session file (for parallel processing)
 struct SessionEditsResult {
@@ -41,7 +41,10 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
 
         // Extract common fields
         let timestamp = log_entry.timestamp.clone().unwrap_or_default();
-        let session_id = log_entry.session_id.clone().unwrap_or_else(|| "unknown".to_string());
+        let session_id = log_entry
+            .session_id
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
         let cwd = log_entry.cwd.clone();
 
         // Track cwd frequency to determine project directory
@@ -55,7 +58,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
             if tool_use_result.get("type").and_then(|v| v.as_str()) == Some("create") {
                 if let (Some(file_path_str), Some(content)) = (
                     tool_use_result.get("filePath").and_then(|v| v.as_str()),
-                    tool_use_result.get("content").and_then(|v| v.as_str())
+                    tool_use_result.get("content").and_then(|v| v.as_str()),
                 ) {
                     edits.push(RecentFileEdit {
                         file_path: file_path_str.to_string(),
@@ -76,7 +79,9 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                 if let Some(file_path_str) = file_path_val.as_str() {
                     if let Some(edits_arr_val) = tool_use_result.get("edits") {
                         // Multi-edit format
-                        if let Some(original) = tool_use_result.get("originalFile").and_then(|v| v.as_str()) {
+                        if let Some(original) =
+                            tool_use_result.get("originalFile").and_then(|v| v.as_str())
+                        {
                             let mut content = original.to_string();
                             let mut lines_added = 0usize;
                             let mut lines_removed = 0usize;
@@ -85,7 +90,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 for edit in edits_arr {
                                     if let (Some(old_str), Some(new_str)) = (
                                         edit.get("old_string").and_then(|v| v.as_str()),
-                                        edit.get("new_string").and_then(|v| v.as_str())
+                                        edit.get("new_string").and_then(|v| v.as_str()),
                                     ) {
                                         content = content.replacen(old_str, new_str, 1);
                                         lines_removed += old_str.lines().count();
@@ -108,10 +113,12 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                         }
                     } else if let (Some(old_str), Some(new_str)) = (
                         tool_use_result.get("oldString").and_then(|v| v.as_str()),
-                        tool_use_result.get("newString").and_then(|v| v.as_str())
+                        tool_use_result.get("newString").and_then(|v| v.as_str()),
                     ) {
                         // Single edit format
-                        if let Some(original) = tool_use_result.get("originalFile").and_then(|v| v.as_str()) {
+                        if let Some(original) =
+                            tool_use_result.get("originalFile").and_then(|v| v.as_str())
+                        {
                             let content = original.replacen(old_str, new_str, 1);
 
                             edits.push(RecentFileEdit {
@@ -138,7 +145,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                     if let Some(input) = tool_use.get("input") {
                         if let (Some(path), Some(content)) = (
                             input.get("file_path").and_then(|v| v.as_str()),
-                            input.get("content").and_then(|v| v.as_str())
+                            input.get("content").and_then(|v| v.as_str()),
                         ) {
                             edits.push(RecentFileEdit {
                                 file_path: path.to_string(),
@@ -188,7 +195,7 @@ pub async fn get_recent_edits(
     // Phase 1: Collect all session files
     let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         .map(|e| e.path().to_path_buf())
         .collect();
@@ -196,7 +203,7 @@ pub async fn get_recent_edits(
     // Phase 2: Process files in parallel
     let file_results: Vec<SessionEditsResult> = session_files
         .par_iter()
-        .filter_map(|path| process_session_file_for_edits(path))
+        .filter_map(process_session_file_for_edits)
         .collect();
 
     // Phase 3: Aggregate results with pre-allocated capacity
@@ -259,11 +266,7 @@ pub async fn get_recent_edits(
     files.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
     // Apply pagination
-    let paginated_files: Vec<RecentFileEdit> = files
-        .into_iter()
-        .skip(offset)
-        .take(limit)
-        .collect();
+    let paginated_files: Vec<RecentFileEdit> = files.into_iter().skip(offset).take(limit).collect();
 
     let has_more = offset + paginated_files.len() < unique_files_count;
 
@@ -309,7 +312,7 @@ pub async fn restore_file(file_path: String, content: String) -> Result<(), Stri
 
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create directories: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create directories: {e}"))?;
     }
 
     // Atomic write pattern: write to temp file, then rename
@@ -317,15 +320,13 @@ pub async fn restore_file(file_path: String, content: String) -> Result<(), Stri
     let temp_path = path.with_extension("tmp.restore");
 
     // Write to temporary file
-    fs::write(&temp_path, &content).map_err(|e| {
-        format!("Failed to write temporary file: {}", e)
-    })?;
+    fs::write(&temp_path, &content).map_err(|e| format!("Failed to write temporary file: {e}"))?;
 
     // Atomically rename temp file to target (this is atomic on most filesystems)
     fs::rename(&temp_path, path).map_err(|e| {
         // Clean up temp file if rename fails
         let _ = fs::remove_file(&temp_path);
-        format!("Failed to rename temporary file: {}", e)
+        format!("Failed to rename temporary file: {e}")
     })?;
 
     Ok(())
@@ -334,9 +335,9 @@ pub async fn restore_file(file_path: String, content: String) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs::File;
     use std::io::Write;
+    use tempfile::TempDir;
 
     fn create_test_jsonl_file(dir: &TempDir, filename: &str, content: &str) -> PathBuf {
         let file_path = dir.path().join(filename);
@@ -355,7 +356,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_restore_file_rejects_relative_path() {
-        let result = restore_file("relative/path/file.txt".to_string(), "content".to_string()).await;
+        let result =
+            restore_file("relative/path/file.txt".to_string(), "content".to_string()).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("absolute path"));
     }
@@ -374,8 +376,9 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "restored content".to_string()
-        ).await;
+            "restored content".to_string(),
+        )
+        .await;
 
         assert!(result.is_ok());
 
@@ -392,8 +395,9 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "atomic content".to_string()
-        ).await;
+            "atomic content".to_string(),
+        )
+        .await;
 
         assert!(result.is_ok());
         // Verify temp file was cleaned up
@@ -413,8 +417,9 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "new content".to_string()
-        ).await;
+            "new content".to_string(),
+        )
+        .await;
 
         assert!(result.is_ok());
         let content = fs::read_to_string(&file_path).unwrap();
@@ -428,8 +433,9 @@ mod tests {
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
-            "content".to_string()
-        ).await;
+            "content".to_string(),
+        )
+        .await;
 
         assert!(result.is_ok());
         assert!(file_path.exists());
@@ -440,7 +446,8 @@ mod tests {
     async fn test_get_recent_edits_empty_dir() {
         let temp_dir = TempDir::new().unwrap();
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result =
+            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -457,7 +464,8 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","cwd":"/test/project","toolUse":{"name":"Write","input":{"file_path":"/test/project/src/main.rs","content":"fn main() {}"}}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result =
+            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -474,7 +482,8 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/src/lib.rs","oldString":"old","newString":"new","originalFile":"old code here"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result =
+            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -491,7 +500,8 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/src/mod.rs","edits":[{"old_string":"old1","new_string":"new1"},{"old_string":"old2","new_string":"new2"}],"originalFile":"old1 old2"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result =
+            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -508,7 +518,8 @@ mod tests {
 {"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/file.txt","oldString":"v2","newString":"v3","originalFile":"v2"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result =
+            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -529,13 +540,17 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"type":"create","filePath":"/test/project/new_file.rs","content":"pub fn new() {}"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result =
+            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
         assert_eq!(edits_result.files.len(), 1);
         assert_eq!(edits_result.files[0].operation_type, "write");
-        assert_eq!(edits_result.files[0].content_after_change, "pub fn new() {}");
+        assert_eq!(
+            edits_result.files[0].content_after_change,
+            "pub fn new() {}"
+        );
     }
 
     #[tokio::test]
@@ -548,7 +563,8 @@ mod tests {
 {"uuid":"uuid-3","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/other/location/file3.txt","oldString":"old","newString":"new","originalFile":"old"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result = get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result =
+            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();

@@ -9,7 +9,7 @@ use super::*;
 use insta::{assert_json_snapshot, assert_snapshot};
 use serde_json::json;
 
-/// Snapshot tests for ClaudeMessage serialization
+/// Snapshot tests for `ClaudeMessage` serialization
 mod claude_message_snapshots {
     use super::*;
 
@@ -154,7 +154,7 @@ mod claude_message_snapshots {
     }
 }
 
-/// Snapshot tests for TokenUsage
+/// Snapshot tests for `TokenUsage`
 mod token_usage_snapshots {
     use super::*;
 
@@ -185,7 +185,7 @@ mod token_usage_snapshots {
     }
 }
 
-/// Snapshot tests for ClaudeProject
+/// Snapshot tests for `ClaudeProject`
 mod project_snapshots {
     use super::*;
 
@@ -203,7 +203,7 @@ mod project_snapshots {
     }
 }
 
-/// Snapshot tests for ClaudeSession
+/// Snapshot tests for `ClaudeSession`
 mod session_snapshots {
     use super::*;
 
@@ -303,19 +303,17 @@ mod edit_snapshots {
     #[test]
     fn snapshot_recent_edits_result() {
         let result = RecentEditsResult {
-            files: vec![
-                RecentFileEdit {
-                    file_path: "/file1.rs".to_string(),
-                    timestamp: "2025-01-15T14:30:00Z".to_string(),
-                    session_id: "session-1".to_string(),
-                    operation_type: "edit".to_string(),
-                    content_after_change: "content1".to_string(),
-                    original_content: None,
-                    lines_added: 5,
-                    lines_removed: 2,
-                    cwd: Some("/project".to_string()),
-                },
-            ],
+            files: vec![RecentFileEdit {
+                file_path: "/file1.rs".to_string(),
+                timestamp: "2025-01-15T14:30:00Z".to_string(),
+                session_id: "session-1".to_string(),
+                operation_type: "edit".to_string(),
+                content_after_change: "content1".to_string(),
+                original_content: None,
+                lines_added: 5,
+                lines_removed: 2,
+                cwd: Some("/project".to_string()),
+            }],
             total_edits_count: 10,
             unique_files_count: 3,
             project_cwd: Some("/project".to_string()),

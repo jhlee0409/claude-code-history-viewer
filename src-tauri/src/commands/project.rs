@@ -1,13 +1,14 @@
-use crate::models::*;
-use crate::utils::{extract_project_name, estimate_message_count_from_size};
+use crate::models::ClaudeProject;
+use crate::utils::{estimate_message_count_from_size, extract_project_name};
+use chrono::{DateTime, Utc};
 use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
-use chrono::{DateTime, Utc};
 
 #[tauri::command]
 pub async fn get_claude_folder_path() -> Result<String, String> {
-    let home_dir = dirs::home_dir().ok_or("HOME_DIRECTORY_NOT_FOUND:Could not determine home directory")?;
+    let home_dir =
+        dirs::home_dir().ok_or("HOME_DIRECTORY_NOT_FOUND:Could not determine home directory")?;
     let claude_path = home_dir.join(".claude");
 
     if !claude_path.exists() {
@@ -18,7 +19,9 @@ pub async fn get_claude_folder_path() -> Result<String, String> {
     }
 
     if fs::read_dir(&claude_path).is_err() {
-        return Err("PERMISSION_DENIED:Cannot access Claude folder. Please check permissions.".to_string());
+        return Err(
+            "PERMISSION_DENIED:Cannot access Claude folder. Please check permissions.".to_string(),
+        );
     }
 
     Ok(claude_path.to_string_lossy().to_string())
@@ -62,7 +65,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         .min_depth(1)
         .max_depth(1)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|e| e.file_type().is_dir())
     {
         let raw_project_name = entry.file_name().to_string_lossy().to_string();
@@ -75,7 +78,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 
         for jsonl_entry in WalkDir::new(entry.path())
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         {
             session_count += 1;
@@ -86,7 +89,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
                         last_modified = Some(modified);
                     }
                 }
-                
+
                 // Estimate message count from file size - much faster
                 let estimated_messages = estimate_message_count_from_size(metadata.len());
                 message_count += estimated_messages;
@@ -114,8 +117,11 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
-        println!("📊 scan_projects performance: {} projects, {}ms elapsed",
-                 projects.len(), elapsed.as_millis());
+        println!(
+            "📊 scan_projects performance: {} projects, {}ms elapsed",
+            projects.len(),
+            elapsed.as_millis()
+        );
     }
 
     Ok(projects)
@@ -124,9 +130,9 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs::File;
     use std::io::Write;
+    use tempfile::TempDir;
 
     fn create_test_jsonl_file(dir: &PathBuf, filename: &str, content: &str) {
         let file_path = dir.join(filename);
@@ -214,7 +220,7 @@ mod tests {
         create_test_jsonl_file(
             &project_dir,
             "session.jsonl",
-            r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello"}}"#
+            r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello"}}"#,
         );
 
         let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;

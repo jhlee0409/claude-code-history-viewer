@@ -11,8 +11,8 @@ pub struct ClaudeProject {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeSession {
-    pub session_id: String,  // Unique ID based on file path
-    pub actual_session_id: String,  // Actual session ID from the messages
+    pub session_id: String,        // Unique ID based on file path
+    pub actual_session_id: String, // Actual session ID from the messages
     pub file_path: String,
     pub project_name: String,
     pub message_count: usize,

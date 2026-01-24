@@ -49,7 +49,7 @@ impl MockClaudeProject {
     /// Add a session file to a project
     pub fn add_session(&self, project_name: &str, session_name: &str, content: &str) -> PathBuf {
         let project_dir = self.add_project(project_name);
-        let session_path = project_dir.join(format!("{}.jsonl", session_name));
+        let session_path = project_dir.join(format!("{session_name}.jsonl"));
         let mut file = File::create(&session_path).expect("Failed to create session file");
         file.write_all(content.as_bytes())
             .expect("Failed to write session content");
@@ -68,7 +68,7 @@ impl Default for MockClaudeProject {
     }
 }
 
-/// Builder for creating test ClaudeMessage instances
+/// Builder for creating test `ClaudeMessage` instances
 #[derive(Default)]
 pub struct MessageBuilder {
     uuid: Option<String>,
@@ -164,9 +164,13 @@ impl MessageBuilder {
 
     pub fn build(self) -> ClaudeMessage {
         ClaudeMessage {
-            uuid: self.uuid.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            uuid: self
+                .uuid
+                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
             parent_uuid: self.parent_uuid,
-            session_id: self.session_id.unwrap_or_else(|| "test-session".to_string()),
+            session_id: self
+                .session_id
+                .unwrap_or_else(|| "test-session".to_string()),
             timestamp: self
                 .timestamp
                 .unwrap_or_else(|| "2025-01-01T00:00:00Z".to_string()),
@@ -241,7 +245,7 @@ impl MessageBuilder {
 pub fn create_jsonl_content(messages: &[MessageBuilder]) -> String {
     messages
         .iter()
-        .map(|m| m.to_jsonl())
+        .map(MessageBuilder::to_jsonl)
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -257,14 +261,17 @@ pub mod strategies {
 
     /// Generate a valid timestamp
     pub fn timestamp_strategy() -> impl Strategy<Value = String> {
-        (2020u32..2030, 1u32..13, 1u32..29, 0u32..24, 0u32..60, 0u32..60).prop_map(
-            |(year, month, day, hour, min, sec)| {
-                format!(
-                    "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-                    year, month, day, hour, min, sec
-                )
-            },
+        (
+            2020u32..2030,
+            1u32..13,
+            1u32..29,
+            0u32..24,
+            0u32..60,
+            0u32..60,
         )
+            .prop_map(|(year, month, day, hour, min, sec)| {
+                format!("{year:04}-{month:02}-{day:02}T{hour:02}:{min:02}:{sec:02}Z")
+            })
     }
 
     /// Generate a valid message type
@@ -308,10 +315,7 @@ macro_rules! assert_err {
 macro_rules! assert_contains {
     ($haystack:expr, $needle:expr) => {
         if !$haystack.contains($needle) {
-            panic!(
-                "Expected {:?} to contain {:?}",
-                $haystack, $needle
-            );
+            panic!("Expected {:?} to contain {:?}", $haystack, $needle);
         }
     };
 }
@@ -322,9 +326,7 @@ mod tests {
 
     #[test]
     fn test_message_builder_user() {
-        let msg = MessageBuilder::user()
-            .with_text_content("Hello!")
-            .build();
+        let msg = MessageBuilder::user().with_text_content("Hello!").build();
 
         assert_eq!(msg.message_type, "user");
         assert_eq!(msg.role, Some("user".to_string()));
