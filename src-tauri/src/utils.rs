@@ -1,11 +1,18 @@
 use memchr::memchr_iter;
 
+/// Estimated average bytes per JSONL line (used for capacity pre-allocation)
+/// Based on typical Claude message sizes (800-1200 bytes average)
+const ESTIMATED_BYTES_PER_LINE: usize = 500;
+
+/// Average bytes per message for file size estimation
+const AVERAGE_MESSAGE_SIZE_BYTES: f64 = 1000.0;
+
 /// Find line boundaries in a memory-mapped buffer using memchr (SIMD-accelerated)
 /// Returns a vector of (start, end) byte positions for each line
 /// Empty lines are skipped
 #[inline]
 pub fn find_line_ranges(data: &[u8]) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::with_capacity(data.len() / 500); // Estimate ~500 bytes per line
+    let mut ranges = Vec::with_capacity(data.len() / ESTIMATED_BYTES_PER_LINE);
     let mut start = 0;
 
     for pos in memchr_iter(b'\n', data) {
@@ -27,7 +34,7 @@ pub fn find_line_ranges(data: &[u8]) -> Vec<(usize, usize)> {
 /// Returns positions where each line starts
 #[inline]
 pub fn find_line_starts(data: &[u8]) -> Vec<usize> {
-    let mut starts = Vec::with_capacity(data.len() / 500 + 1);
+    let mut starts = Vec::with_capacity(data.len() / ESTIMATED_BYTES_PER_LINE + 1);
     starts.push(0);
 
     for pos in memchr_iter(b'\n', data) {
@@ -54,9 +61,9 @@ pub fn extract_project_name(raw_project_name: &str) -> String {
 
 /// Estimate message count from file size (more accurate calculation)
 pub fn estimate_message_count_from_size(file_size: u64) -> usize {
-    // Average JSON message is 800-1200 bytes
+    // Average JSON message is 800-1200 bytes (using AVERAGE_MESSAGE_SIZE_BYTES)
     // Small files are treated as having at least 1 message
-    ((file_size as f64 / 1000.0).ceil() as usize).max(1)
+    ((file_size as f64 / AVERAGE_MESSAGE_SIZE_BYTES).ceil() as usize).max(1)
 }
 
 #[cfg(test)]

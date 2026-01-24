@@ -10,6 +10,12 @@ use uuid::Uuid;
 use rayon::prelude::*;
 use memmap2::Mmap;
 
+/// Initial buffer capacity for JSON parsing (4KB covers most messages)
+const PARSE_BUFFER_INITIAL_CAPACITY: usize = 4096;
+
+/// Initial capacity for search results (most searches find few matches)
+const SEARCH_RESULTS_INITIAL_CAPACITY: usize = 8;
+
 /// Recursively search for a query within a serde_json::Value
 /// Returns true if the query is found in any string value.
 /// This avoids the expensive JSON serialization that was previously used.
@@ -24,6 +30,8 @@ fn search_in_value(value: &serde_json::Value, query: &str) -> bool {
 }
 
 /// Search for messages matching the query in a single file
+///
+/// Uses a reusable buffer to avoid repeated heap allocations during JSON parsing.
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
     let query_lower = query.to_lowercase();
@@ -43,14 +51,18 @@ fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
 
-    // Pre-allocate with small capacity (most searches find few matches)
-    let mut results = Vec::with_capacity(8);
+    let mut results = Vec::with_capacity(SEARCH_RESULTS_INITIAL_CAPACITY);
+
+    // Reusable buffer for simd-json parsing (requires mutable slice)
+    // This avoids heap allocation per line
+    let mut parse_buffer = Vec::with_capacity(PARSE_BUFFER_INITIAL_CAPACITY);
 
     for (line_num, (start, end)) in line_ranges.iter().enumerate() {
-        // simd-json requires mutable slice
-        let mut line_bytes = mmap[*start..*end].to_vec();
+        // Reuse buffer instead of allocating new Vec each iteration
+        parse_buffer.clear();
+        parse_buffer.extend_from_slice(&mmap[*start..*end]);
 
-        let log_entry: RawLogEntry = match simd_json::serde::from_slice(&mut line_bytes) {
+        let log_entry: RawLogEntry = match simd_json::serde::from_slice(&mut parse_buffer) {
             Ok(entry) => entry,
             Err(_) => continue,
         };

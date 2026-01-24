@@ -56,7 +56,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   }, [pagination, recentEdits]);
 
   // Use filteredFiles directly - pagination is handled by backend
-  const displayedFiles = useMemo(() => filteredFiles, [filteredFiles]);
+  const displayedFiles = filteredFiles;
 
   // Pagination state from props
   const hasMoreFiles = searchQuery.trim() ? false : (pagination?.hasMore ?? false);
@@ -156,8 +156,10 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
             {/* Show More Button */}
             {hasMoreFiles && (
               <button
+                type="button"
                 onClick={handleShowMore}
                 disabled={isLoadingMore}
+                aria-label={t("recentEdits.showMore", { count: Math.min(pagination?.limit ?? 20, remainingCount) })}
                 className="w-full py-4 rounded-xl text-[13px] font-medium bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border text-muted-foreground hover:text-foreground transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoadingMore ? (

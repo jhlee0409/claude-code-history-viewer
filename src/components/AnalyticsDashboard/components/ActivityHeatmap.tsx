@@ -1,14 +1,13 @@
 /**
  * ActivityHeatmap Component
  *
- * Displays activity heatmap by hour and day of week.
+ * Clean heatmap grid with simple tooltips.
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import { cn } from "@/lib/utils";
-import { layout } from "../../renderers";
 import type { ActivityHeatmap } from "../../../types";
 import { formatNumber, getHeatColor } from "../utils";
 
@@ -16,105 +15,153 @@ interface ActivityHeatmapProps {
   data: ActivityHeatmap[];
 }
 
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
 export const ActivityHeatmapComponent: React.FC<ActivityHeatmapProps> = ({ data }) => {
   const { t } = useTranslation();
   const maxActivity = Math.max(...data.map((d) => d.activity_count), 1);
-  const hours = Array.from({ length: 24 }, (_, i) => i);
   const days = t("analytics.weekdayNames", { returnObjects: true }) as string[];
 
+  const hourTotals = useMemo(() => {
+    const totals = HOURS.map(hour => {
+      const hourData = data.filter(d => d.hour === hour);
+      return {
+        hour,
+        total: hourData.reduce((sum, d) => sum + d.activity_count, 0),
+      };
+    });
+    return totals;
+  }, [data]);
+
+  const peakHour = hourTotals.length > 0
+    ? hourTotals.reduce((max, h) => h.total > max.total ? h : max, hourTotals[0]!)
+    : { hour: 0, total: 0 };
+
+  const cellStyles = useMemo(() => {
+    const styles: Record<string, React.CSSProperties> = {};
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      for (const hour of HOURS) {
+        const activity = data.find((d) => d.hour === hour && d.day === dayIndex);
+        const intensity = activity ? activity.activity_count / maxActivity : 0;
+        const heatColor = getHeatColor(intensity);
+        const isNightHour = hour < 6 || hour >= 22;
+        styles[`${dayIndex}-${hour}`] = {
+          backgroundColor: heatColor,
+          opacity: isNightHour && intensity === 0 ? 0.5 : 1,
+        };
+      }
+    }
+    return styles;
+  }, [data, maxActivity]);
+
   return (
-    <div className="overflow-x-auto">
-      <div className="inline-block min-w-max">
-        {/* Hour labels */}
-        <div className="flex gap-[3px] mb-1.5 ml-9">
-          {hours.map((hour) => (
-            <div
-              key={hour}
-              className="w-5 h-5 flex items-center justify-center text-[12px] font-mono text-muted-foreground/60"
-            >
-              {hour % 4 === 0 ? hour.toString().padStart(2, "0") : ""}
-            </div>
-          ))}
-        </div>
-
-        {/* Heatmap grid */}
-        {days.map((day, dayIndex) => (
-          <div key={day} className="flex gap-[3px] mb-[3px]">
-            <div className="w-9 flex items-center justify-end pr-2 text-[12px] font-medium text-muted-foreground/70 uppercase tracking-wider">
-              {day}
-            </div>
-            {hours.map((hour) => {
-              const activity = data.find((d) => d.hour === hour && d.day === dayIndex);
-              const intensity = activity ? activity.activity_count / maxActivity : 0;
-              const tokens = activity?.tokens_used || 0;
-              const heatColor = getHeatColor(intensity);
-
-              return (
-                <Tooltip key={`${day}-${hour}`}>
-                  <TooltipTrigger>
-                    <div
-                      className={cn(
-                        "w-5 h-5 rounded-[3px] cursor-pointer",
-                        "transition-all duration-200",
-                        "hover:scale-[1.3] hover:z-10 relative",
-                        intensity > 0 && "hover:ring-2 hover:ring-white/30",
-                        intensity > 0.5 && "shadow-glow-green"
-                      )}
-                      style={{ backgroundColor: heatColor }}
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className={cn("font-mono", layout.smallText)}>
-                    <div className="space-y-0.5">
-                      <div className="font-semibold">
-                        {day} {hour}:00
-                      </div>
-                      <div className="text-muted-foreground">
-                        {activity?.activity_count || 0} activities
-                      </div>
-                      <div className="text-muted-foreground">{formatNumber(tokens)} tokens</div>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
+    <div className="space-y-4">
+      {/* Main Grid */}
+      <div className="overflow-x-auto scrollbar-thin">
+        <div className="inline-block min-w-max">
+          {/* Hour labels */}
+          <div className="flex gap-px mb-1 ml-10">
+            {HOURS.map((hour) => (
+              <div
+                key={hour}
+                className={cn(
+                  "w-4 h-5 flex items-end justify-center text-[8px] font-mono",
+                  hour === peakHour.hour ? "text-metric-green font-semibold" : "text-muted-foreground/40"
+                )}
+              >
+                {hour % 3 === 0 ? hour.toString().padStart(2, "0") : ""}
+              </div>
+            ))}
           </div>
-        ))}
 
-        {/* Legend */}
-        <div className="flex items-center gap-3 mt-4 ml-9">
-          <span
-            className={cn(
-              "font-medium text-muted-foreground/60 uppercase tracking-wider",
-              layout.smallText
-            )}
-          >
+          {/* Heatmap grid */}
+          {days.map((day, dayIndex) => {
+            const dayTotal = data
+              .filter(d => d.day === dayIndex)
+              .reduce((sum, d) => sum + d.activity_count, 0);
+
+            return (
+              <div key={day} className="flex gap-px mb-px">
+                <div
+                  className={cn(
+                    "w-10 flex items-center justify-end pr-2 text-[9px] font-medium uppercase tracking-wider",
+                    dayTotal > 0 ? "text-foreground/70" : "text-muted-foreground/40"
+                  )}
+                >
+                  {day}
+                </div>
+
+                {HOURS.map((hour) => {
+                  const activity = data.find((d) => d.hour === hour && d.day === dayIndex);
+                  const intensity = activity ? activity.activity_count / maxActivity : 0;
+                  const tokens = activity?.tokens_used || 0;
+                  const styleKey = `${dayIndex}-${hour}`;
+
+                  return (
+                    <Tooltip key={`${day}-${hour}`}>
+                      <TooltipTrigger>
+                        <div
+                          className={cn(
+                            "w-4 h-4 cursor-pointer rounded-sm",
+                            "transition-transform duration-150",
+                            "hover:scale-125 hover:z-10",
+                            intensity > 0 && "hover:ring-1 hover:ring-white/30"
+                          )}
+                          style={cellStyles[styleKey]}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="font-mono text-xs">
+                        <div className="space-y-1">
+                          <div className="font-semibold">
+                            {day} • {hour.toString().padStart(2, "0")}:00
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                            <span className="text-muted-foreground">Activities</span>
+                            <span
+                              className="text-right font-medium"
+                              style={{ color: intensity > 0.3 ? "var(--metric-green)" : undefined }}
+                            >
+                              {activity?.activity_count || 0}
+                            </span>
+                            <span className="text-muted-foreground">Tokens</span>
+                            <span className="text-right">{formatNumber(tokens)}</span>
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Legend + Peak */}
+      <div className="flex items-center justify-between pt-3 border-t border-border/30">
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-medium text-muted-foreground">
             {t("analytics.legend.less")}
           </span>
-          <div className="flex gap-[2px]">
-            <div
-              className="w-4 h-4 rounded-[2px]"
-              style={{ backgroundColor: "var(--heatmap-empty)" }}
-            />
-            <div
-              className="w-4 h-4 rounded-[2px]"
-              style={{ backgroundColor: "var(--heatmap-low)" }}
-            />
-            <div
-              className="w-4 h-4 rounded-[2px]"
-              style={{ backgroundColor: "var(--heatmap-medium)" }}
-            />
-            <div
-              className="w-4 h-4 rounded-[2px]"
-              style={{ backgroundColor: "var(--heatmap-high)" }}
-            />
+          <div className="flex gap-0.5">
+            {[0, 0.25, 0.5, 0.75, 1].map((intensity) => (
+              <div
+                key={intensity}
+                className="w-3 h-3 rounded-sm"
+                style={{ backgroundColor: getHeatColor(intensity) }}
+              />
+            ))}
           </div>
-          <span
-            className={cn(
-              "font-medium text-muted-foreground/60 uppercase tracking-wider",
-              layout.smallText
-            )}
-          >
+          <span className="text-[9px] font-medium text-muted-foreground">
             {t("analytics.legend.more")}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-metric-green" />
+          <span className="text-[9px] font-mono text-muted-foreground">
+            Peak: <span className="text-metric-green font-medium">{peakHour.hour.toString().padStart(2, "0")}:00</span>
+            <span className="text-muted-foreground/60 ml-1">({peakHour.total})</span>
           </span>
         </div>
       </div>

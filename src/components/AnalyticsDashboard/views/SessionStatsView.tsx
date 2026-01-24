@@ -1,15 +1,14 @@
 /**
  * SessionStatsView Component
  *
- * Displays session-level analytics and comparison.
+ * Clean session analytics with performance metrics and timeline.
  */
 
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { BarChart3, Clock } from "lucide-react";
+import { BarChart3, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
 import type { SessionTokenStats, SessionComparison } from "../../../types";
 import { formatTime } from "../../../utils/time";
-import { cn } from "@/lib/utils";
 import { SectionCard, TokenDistributionChart } from "../components";
 import { formatNumber } from "../utils";
 
@@ -43,101 +42,107 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
     cache_read: sessionStats.total_cache_read_tokens,
   };
 
-  return (
-    <div className="space-y-6 animate-stagger">
-      {/* Performance Banner */}
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-xl p-5",
-          "border-2",
-          sessionComparison.is_above_average
-            ? "bg-success/5 border-success/30"
-            : "bg-warning/5 border-warning/30"
-        )}
-      >
-        {/* Glow effect */}
-        <div
-          className={cn(
-            "absolute inset-0 pointer-events-none",
-            sessionComparison.is_above_average
-              ? "bg-[radial-gradient(ellipse_at_50%_0%,_var(--metric-green)_/_0.1,_transparent_60%)]"
-              : "bg-[radial-gradient(ellipse_at_50%_0%,_var(--metric-amber)_/_0.1,_transparent_60%)]"
-          )}
-        />
+  const isAboveAverage = sessionComparison.is_above_average;
+  const statusColor = isAboveAverage ? "var(--metric-green)" : "var(--metric-amber)";
 
-        <div className="relative">
+  return (
+    <div className="space-y-6">
+      {/* Performance Banner */}
+      <div className="rounded-lg bg-card/80 backdrop-blur-sm border border-border/40 overflow-hidden">
+        <div className="p-5">
           {/* Header */}
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-semibold text-foreground">
-              {t("analytics.performanceInsights")}
-            </h3>
+          <div className="flex items-start justify-between mb-5">
+            <div>
+              <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                {t("analytics.performanceInsights")}
+              </h3>
+              <div className="flex items-center gap-2">
+                {isAboveAverage ? (
+                  <TrendingUp className="w-4 h-4" style={{ color: statusColor }} />
+                ) : (
+                  <TrendingDown className="w-4 h-4" style={{ color: statusColor }} />
+                )}
+                <span className="text-base font-bold" style={{ color: statusColor }}>
+                  {isAboveAverage ? t("analytics.aboveAverage") : t("analytics.belowAverage")}
+                </span>
+              </div>
+            </div>
+
+            {/* Rank badge */}
             <div
-              className={cn(
-                "px-3 py-1.5 rounded-full text-[12px] font-bold uppercase tracking-wider",
-                sessionComparison.is_above_average
-                  ? "bg-success/20 text-success"
-                  : "bg-warning/20 text-warning"
-              )}
+              className="px-3 py-2 rounded-md"
+              style={{ background: `color-mix(in oklch, ${statusColor} 10%, transparent)` }}
             >
-              {sessionComparison.is_above_average
-                ? t("analytics.aboveAverage")
-                : t("analytics.belowAverage")}
+              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                {t("analytics.tokenRank")}
+              </div>
+              <div className="font-mono text-xl font-bold tabular-nums" style={{ color: statusColor }}>
+                #{sessionComparison.rank_by_tokens}
+              </div>
             </div>
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-            <div className="text-center">
-              <div className="font-mono text-3xl font-bold text-foreground">
-                #{sessionComparison.rank_by_tokens}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="p-3 rounded-md bg-muted/20">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Zap className="w-3.5 h-3.5 text-muted-foreground/50" />
+                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {t("analytics.projectShare")}
+                </span>
               </div>
-              <div className="text-[12px] text-muted-foreground mt-1">
-                {t("analytics.tokenRank")}
-              </div>
-              <div className="text-[12px] text-muted-foreground/70 mt-0.5">
-                {t("analytics.topPercent", {
-                  percent: (
-                    (sessionComparison.rank_by_tokens / totalProjectSessions) *
-                    100
-                  ).toFixed(0),
-                })}
-              </div>
-            </div>
-
-            <div className="text-center">
-              <div className="font-mono text-3xl font-bold text-foreground">
+              <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
                 {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
               </div>
-              <div className="text-[12px] text-muted-foreground mt-1">
-                {t("analytics.projectShare")}
-              </div>
-              <div className="text-[12px] text-muted-foreground/70 mt-0.5">
-                {formatNumber(sessionStats.total_tokens)} {t("analytics.tokens")}
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                {formatNumber(sessionStats.total_tokens)} tokens
               </div>
             </div>
 
-            <div className="text-center">
-              <div className="font-mono text-3xl font-bold text-foreground">
+            <div className="p-3 rounded-md bg-muted/20">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/50" />
+                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {t("analytics.tokensPerMessage")}
+                </span>
+              </div>
+              <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
                 {avgTokensPerMessage.toLocaleString()}
               </div>
-              <div className="text-[12px] text-muted-foreground mt-1">
-                {t("analytics.tokensPerMessage")}
-              </div>
-              <div className="text-[12px] text-muted-foreground/70 mt-0.5">
-                {t("analytics.totalMessagesCount", { count: sessionStats.message_count })}
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                {sessionStats.message_count} messages
               </div>
             </div>
 
-            <div className="text-center">
-              <div className="font-mono text-3xl font-bold text-foreground">
-                {durationMinutes}
-                <span className="text-lg text-muted-foreground">m</span>
+            <div className="p-3 rounded-md bg-muted/20">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Timer className="w-3.5 h-3.5 text-muted-foreground/50" />
+                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {t("analytics.sessionTime")}
+                </span>
               </div>
-              <div className="text-[12px] text-muted-foreground mt-1">
-                {t("analytics.sessionTime")}
+              <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
+                {durationMinutes}<span className="text-base text-muted-foreground/50">m</span>
               </div>
-              <div className="text-[12px] text-muted-foreground/70 mt-0.5">
-                {t("analytics.rank", { rank: sessionComparison.rank_by_duration })}
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                Rank #{sessionComparison.rank_by_duration}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-md bg-muted/20">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" />
+                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Percentile
+                </span>
+              </div>
+              <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
+                {totalProjectSessions > 0
+                  ? (100 - (sessionComparison.rank_by_tokens / totalProjectSessions) * 100).toFixed(0)
+                  : 0}%
+              </div>
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                of {totalProjectSessions} sessions
               </div>
             </div>
           </div>
@@ -151,38 +156,51 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
       {/* Session Timeline */}
       <SectionCard title={t("analytics.sessionTimeline")} icon={Clock} colorVariant="green">
-        <div className="space-y-3">
-          <div className="flex justify-between items-center p-3 rounded-lg bg-muted/30">
-            <div>
-              <div className="text-[12px] font-medium text-foreground/80">
+        <div className="space-y-4">
+          <div className="relative flex items-center justify-between">
+            {/* Start */}
+            <div className="text-center z-10">
+              <div className="w-2.5 h-2.5 rounded-full bg-metric-green mb-2 mx-auto" />
+              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.startTime")}
               </div>
-              <div className="font-mono text-[12px] text-muted-foreground">
+              <div className="font-mono text-[11px] text-foreground mt-0.5">
                 {formatTime(sessionStats.first_message_time)}
               </div>
             </div>
-            <div className="text-center px-4">
-              <div className="text-[12px] font-medium text-foreground/80">
+
+            {/* Connection line */}
+            <div className="absolute left-6 right-6 top-1 h-px bg-gradient-to-r from-metric-green via-border to-metric-amber" />
+
+            {/* Duration */}
+            <div className="text-center z-10 px-3 py-1.5 bg-card rounded-md border border-border/40">
+              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.duration")}
               </div>
-              <div className="font-mono text-[12px] text-muted-foreground">
-                {durationMinutes}
-                {t("analytics.minutesUnit")}
+              <div className="font-mono text-base font-bold text-foreground">
+                {durationMinutes}<span className="text-sm text-muted-foreground/50">{t("analytics.minutesUnit")}</span>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-[12px] font-medium text-foreground/80">
+
+            {/* End */}
+            <div className="text-center z-10">
+              <div className="w-2.5 h-2.5 rounded-full bg-metric-amber mb-2 mx-auto" />
+              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.endTime")}
               </div>
-              <div className="font-mono text-[12px] text-muted-foreground">
+              <div className="font-mono text-[11px] text-foreground mt-0.5">
                 {formatTime(sessionStats.last_message_time)}
               </div>
             </div>
           </div>
 
-          <div className="text-center">
-            <code className="inline-block px-3 py-1.5 bg-muted/50 rounded-md font-mono text-[12px] text-muted-foreground">
-              {t("analytics.sessionIdLabel")} {sessionStats.session_id.substring(0, 16)}...
+          {/* Session ID */}
+          <div className="pt-3 border-t border-border/30 text-center">
+            <div className="text-[9px] font-medium text-muted-foreground/60 uppercase tracking-wider mb-1">
+              {t("analytics.sessionIdLabel")}
+            </div>
+            <code className="font-mono text-[10px] text-muted-foreground/70 select-all">
+              {sessionStats.session_id}
             </code>
           </div>
         </div>

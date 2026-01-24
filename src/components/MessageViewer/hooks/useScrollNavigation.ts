@@ -10,6 +10,15 @@ import type { OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { SCROLL_HIGHLIGHT_DELAY_MS } from "../types";
 
+// Scroll behavior constants
+const SCROLL_RETRY_DELAY_MS = 50;
+const SCROLL_INIT_DELAY_MS = 100;
+const SCROLL_THROTTLE_MS = 100;
+const SCROLL_THRESHOLD_PX = 100;
+const MIN_MESSAGES_FOR_SCROLL_BUTTONS = 5;
+const SCROLL_BOTTOM_TOLERANCE_PX = 5;
+const MAX_SCROLL_RETRY_ATTEMPTS = 3;
+
 interface UseScrollNavigationOptions {
   scrollContainerRef: React.RefObject<OverlayScrollbarsComponentRef | null>;
   currentMatchUuid: string | null;
@@ -74,11 +83,11 @@ export const useScrollNavigation = ({
           element.scrollTop = element.scrollHeight;
           // Retry if not at bottom (height estimation may cause slight offset)
           setTimeout(() => {
-            if (element.scrollTop < element.scrollHeight - element.clientHeight - 5) {
+            if (element.scrollTop < element.scrollHeight - element.clientHeight - SCROLL_BOTTOM_TOLERANCE_PX) {
               element.scrollTop = element.scrollHeight;
             }
-          }, 50);
-        }, 50);
+          }, SCROLL_RETRY_DELAY_MS);
+        }, SCROLL_RETRY_DELAY_MS);
       }
       return;
     }
@@ -89,10 +98,10 @@ export const useScrollNavigation = ({
       const attemptScroll = (attempts = 0) => {
         element.scrollTop = element.scrollHeight;
         if (
-          attempts < 3 &&
-          element.scrollTop < element.scrollHeight - element.clientHeight - 10
+          attempts < MAX_SCROLL_RETRY_ATTEMPTS &&
+          element.scrollTop < element.scrollHeight - element.clientHeight - SCROLL_BOTTOM_TOLERANCE_PX * 2
         ) {
-          setTimeout(() => attemptScroll(attempts + 1), 50);
+          setTimeout(() => attemptScroll(attempts + 1), SCROLL_RETRY_DELAY_MS);
         }
       };
       attemptScroll();
@@ -230,6 +239,8 @@ export const useScrollNavigation = ({
   // 스크롤 이벤트 최적화 (쓰로틀링 적용)
   useEffect(() => {
     let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+    // Store reference to avoid race condition in cleanup
+    let scrollElementRef: HTMLElement | null = null;
 
     const handleScroll = () => {
       if (throttleTimer) return;
@@ -239,35 +250,35 @@ export const useScrollNavigation = ({
           const viewport = getScrollViewport();
           if (viewport) {
             const { scrollTop, scrollHeight, clientHeight } = viewport;
-            const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-            const isNearTop = scrollTop < 100;
-            setShowScrollToBottom(!isNearBottom && messagesLength > 5);
-            setShowScrollToTop(!isNearTop && messagesLength > 5);
+            const isNearBottom = scrollHeight - scrollTop - clientHeight < SCROLL_THRESHOLD_PX;
+            const isNearTop = scrollTop < SCROLL_THRESHOLD_PX;
+            setShowScrollToBottom(!isNearBottom && messagesLength > MIN_MESSAGES_FOR_SCROLL_BUTTONS);
+            setShowScrollToTop(!isNearTop && messagesLength > MIN_MESSAGES_FOR_SCROLL_BUTTONS);
           }
         } catch (error) {
           console.error("Scroll handler error:", error);
         }
         throttleTimer = null;
-      }, 100);
+      }, SCROLL_THROTTLE_MS);
     };
 
     // Delay to ensure OverlayScrollbars is initialized
     const timer = setTimeout(() => {
-      const scrollElement = getScrollViewport();
-      if (scrollElement) {
-        scrollElement.addEventListener("scroll", handleScroll, { passive: true });
+      scrollElementRef = getScrollViewport();
+      if (scrollElementRef) {
+        scrollElementRef.addEventListener("scroll", handleScroll, { passive: true });
         handleScroll();
       }
-    }, 100);
+    }, SCROLL_INIT_DELAY_MS);
 
     return () => {
       clearTimeout(timer);
       if (throttleTimer) {
         clearTimeout(throttleTimer);
       }
-      const scrollElement = getScrollViewport();
-      if (scrollElement) {
-        scrollElement.removeEventListener("scroll", handleScroll);
+      // Use stored reference to avoid race condition
+      if (scrollElementRef) {
+        scrollElementRef.removeEventListener("scroll", handleScroll);
       }
     };
   }, [messagesLength, getScrollViewport]);

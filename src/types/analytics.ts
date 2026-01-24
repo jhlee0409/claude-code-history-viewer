@@ -3,7 +3,7 @@
  * 가독성과 예측 가능성을 위한 명확한 타입 구조
  */
 
-import type { ProjectStatsSummary, SessionComparison, RecentEditsResult, RecentFileEdit } from './index';
+import type { ProjectStatsSummary, SessionComparison, RecentEditsResult } from './index';
 
 /**
  * Pagination state for recent edits

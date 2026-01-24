@@ -550,6 +550,8 @@ fn bench_get_project_token_stats(c: &mut Criterion) {
                     rt.block_on(async {
                         claude_code_history_viewer_lib::commands::stats::get_project_token_stats(
                             black_box(path_str.clone()),
+                            black_box(None),
+                            black_box(None),
                         )
                         .await
                     })
@@ -582,6 +584,8 @@ fn bench_get_recent_edits(c: &mut Criterion) {
                     rt.block_on(async {
                         claude_code_history_viewer_lib::commands::session::get_recent_edits(
                             black_box(path_str.clone()),
+                            black_box(None),
+                            black_box(None),
                         )
                         .await
                     })

@@ -1886,3 +1886,47 @@
 :root:not(.dark) .scrollbar-sidebar::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #4f46e5 0%, #4338ca 100%) !important;
 }
+
+/* ============================================
+   ANALYTICS DASHBOARD ANIMATIONS
+   ============================================ */
+
+/* DailyTrendChart animations */
+@keyframes draw-line {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    r: 1.5;
+    opacity: 1;
+  }
+  50% {
+    r: 2.5;
+    opacity: 0.7;
+  }
+}
+
+@keyframes scan-beam {
+  0% {
+    top: -20%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+/* TokenDistributionChart animations */
+@keyframes arc-reveal {
+  from {
+    stroke-dasharray: 0 1000;
+    opacity: 0;
+  }
+  to {
+    stroke-dasharray: 1000 0;
+    opacity: 1;
+  }
+}

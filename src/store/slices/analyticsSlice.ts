@@ -12,7 +12,7 @@ import type {
   PaginatedRecentEdits,
 } from "../../types";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
-import { initialAnalyticsState, initialRecentEditsPagination } from "../../types/analytics";
+import { initialAnalyticsState } from "../../types/analytics";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 

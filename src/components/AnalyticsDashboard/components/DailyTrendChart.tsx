@@ -1,13 +1,12 @@
 /**
  * DailyTrendChart Component
  *
- * Displays 7-day activity trend with bar chart.
+ * Compact bar chart for 7-day activity.
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
-import { cn } from "@/lib/utils";
 import type { DailyStatData } from "../types";
 import { formatNumber } from "../utils";
 
@@ -15,8 +14,12 @@ interface DailyTrendChartProps {
   dailyData: DailyStatData[];
 }
 
+const BAR_HEIGHT = 48; // px
+
 export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) => {
   const { t } = useTranslation();
+
+  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
 
   if (!dailyData.length) return null;
 
@@ -25,147 +28,92 @@ export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) =
   const totalMessages = dailyData.reduce((sum, d) => sum + d.message_count, 0);
   const activeDays = dailyData.filter((d) => d.total_tokens > 0).length;
 
+  const getDayName = (dateStr: string) => {
+    const dayNames = t("analytics.weekdayNamesShort", { returnObjects: true }) as string[];
+    const day = new Date(dateStr).getDay();
+    return dayNames[day] || "";
+  };
+
   return (
-    <div className="space-y-5">
-      {/* Chart */}
-      <div className="relative h-44">
-        {/* Grid lines */}
-        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="border-t border-border/30" />
-          ))}
-        </div>
+    <div className="space-y-3">
+      {/* Bar Chart */}
+      <div className="flex gap-2">
+        {dailyData.map((stat) => {
+          const isToday = stat.date === today;
+          const ratio = stat.total_tokens / maxTokens;
+          const barHeight = stat.total_tokens > 0 ? Math.max(ratio * BAR_HEIGHT, 4) : 2;
+          const hasActivity = stat.total_tokens > 0;
 
-        {/* Bars */}
-        <div className="absolute inset-0 flex items-end justify-between gap-2 pb-6">
-          {dailyData.map((stat) => {
-            const height = Math.max(4, (stat.total_tokens / maxTokens) * 100);
-            const isToday = stat.date === new Date().toISOString().split("T")[0];
-            const dateObj = stat.date ? new Date(stat.date) : new Date();
-            const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-
-            // Gradient colors using CSS variables
-            const barGradient = isToday
-              ? "linear-gradient(to top, var(--chart-green-from), var(--chart-green-to))"
-              : isWeekend
-              ? "linear-gradient(to top, var(--chart-blue-from), var(--chart-blue-to))"
-              : stat.total_tokens > maxTokens * 0.7
-              ? "linear-gradient(to top, var(--chart-purple-from), var(--chart-purple-to))"
-              : "linear-gradient(to top, var(--chart-muted-from), var(--chart-muted-to))";
-
-            const glowColor = isToday
-              ? "var(--chart-glow-green)"
-              : isWeekend
-              ? "var(--chart-glow-blue)"
-              : "transparent";
-
-            return (
-              <Tooltip key={stat.date}>
-                <TooltipTrigger asChild>
-                  <div className="flex-1 flex flex-col items-center justify-end h-full group cursor-pointer">
+          return (
+            <Tooltip key={stat.date}>
+              <TooltipTrigger asChild>
+                <div className="flex-1 flex flex-col items-center cursor-pointer group">
+                  {/* Bar container */}
+                  <div
+                    className="w-full flex items-end justify-center"
+                    style={{ height: `${BAR_HEIGHT}px` }}
+                  >
                     <div
-                      className={cn(
-                        "w-full rounded-t-md transition-all duration-300",
-                        "group-hover:brightness-125 group-hover:scale-[1.02]"
-                      )}
+                      className="w-full rounded-t-sm transition-all duration-200 group-hover:brightness-110"
                       style={{
-                        height: `${height}%`,
-                        minHeight: "4px",
-                        background: barGradient,
-                        boxShadow: `0 0 16px ${glowColor}`,
+                        height: `${barHeight}px`,
+                        backgroundColor: isToday
+                          ? "#22c55e"
+                          : hasActivity
+                            ? "rgba(34, 197, 94, 0.5)"
+                            : "rgba(128, 128, 128, 0.15)",
                       }}
-                    >
-                      {/* Value label on bar */}
-                      {stat.total_tokens > 0 && height > 20 && (
-                        <div className="flex items-center justify-center h-full">
-                          <span className="font-mono text-[12px] font-semibold text-white/90 drop-shadow-sm">
-                            {formatNumber(stat.total_tokens)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Date label */}
-                    <div
-                      className={cn(
-                        "mt-2 text-[12px] font-mono",
-                        isToday ? "font-bold text-success" : "text-muted-foreground/60"
-                      )}
-                    >
-                      {stat.date?.slice(5).replace("-", "/")}
-                    </div>
+                    />
                   </div>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="font-mono text-xs space-y-1">
-                  <div className="font-semibold">{stat.date}</div>
-                  <div>Tokens: {formatNumber(stat.total_tokens)}</div>
-                  <div>Messages: {stat.message_count}</div>
-                  <div>Sessions: {stat.session_count}</div>
-                </TooltipContent>
-              </Tooltip>
-            );
-          })}
-        </div>
+                  {/* Day label */}
+                  <span
+                    className="text-[9px] font-mono tabular-nums mt-1"
+                    style={{
+                      fontWeight: isToday ? 600 : 400,
+                      color: isToday ? "#22c55e" : "var(--muted-foreground)",
+                      opacity: isToday ? 1 : 0.5,
+                    }}
+                  >
+                    {stat.date?.slice(8)}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="font-mono text-xs">
+                <div className="space-y-1">
+                  <div className="font-semibold flex items-center gap-2">
+                    <span>{stat.date}</span>
+                    <span className="text-muted-foreground font-normal">({getDayName(stat.date)})</span>
+                  </div>
+                  <div className="text-[10px] grid grid-cols-2 gap-x-3 gap-y-0.5">
+                    <span className="text-muted-foreground">Tokens</span>
+                    <span className="text-right" style={{ color: "#22c55e" }}>{formatNumber(stat.total_tokens)}</span>
+                    <span className="text-muted-foreground">Messages</span>
+                    <span className="text-right">{stat.message_count}</span>
+                    <span className="text-muted-foreground">Sessions</span>
+                    <span className="text-right">{stat.session_count}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border/50">
-        <div className="text-center">
-          <div className="font-mono text-lg font-bold text-foreground">
-            {formatNumber(Math.round(totalTokens / 7))}
+      {/* Summary row */}
+      <div className="flex items-center justify-between text-[10px] pt-2 border-t border-border/20">
+        <div className="flex items-center gap-4">
+          <div>
+            <span className="text-muted-foreground">{t("analytics.dailyAvgTokens")}: </span>
+            <span className="font-mono font-semibold text-foreground">{formatNumber(Math.round(totalTokens / 7))}</span>
           </div>
-          <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
-            {t("analytics.dailyAvgTokens")}
-          </div>
-        </div>
-        <div className="text-center">
-          <div className="font-mono text-lg font-bold text-foreground">
-            {Math.round(totalMessages / 7)}
-          </div>
-          <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
-            {t("analytics.dailyAvgMessages")}
+          <div>
+            <span className="text-muted-foreground">{t("analytics.dailyAvgMessages")}: </span>
+            <span className="font-mono font-semibold text-foreground">{Math.round(totalMessages / 7)}</span>
           </div>
         </div>
-        <div className="text-center">
-          <div className="font-mono text-lg font-bold text-foreground">
-            {activeDays}
-            <span className="text-muted-foreground/60">/7</span>
-          </div>
-          <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
-            {t("analytics.weeklyActiveDays")}
-          </div>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center justify-center gap-5 text-[12px]">
-        <div className="flex items-center gap-1.5">
-          <div
-            className="w-3 h-3 rounded"
-            style={{
-              background: "linear-gradient(to top, var(--chart-green-from), var(--chart-green-to))",
-            }}
-          />
-          <span className="text-muted-foreground">{t("analytics.today")}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div
-            className="w-3 h-3 rounded"
-            style={{
-              background:
-                "linear-gradient(to top, var(--chart-purple-from), var(--chart-purple-to))",
-            }}
-          />
-          <span className="text-muted-foreground">{t("analytics.highActivity")}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div
-            className="w-3 h-3 rounded"
-            style={{
-              background: "linear-gradient(to top, var(--chart-blue-from), var(--chart-blue-to))",
-            }}
-          />
-          <span className="text-muted-foreground">{t("analytics.weekend")}</span>
+        <div className="flex items-center gap-1.5 text-muted-foreground/60">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#22c55e" }} />
+          <span>{activeDays}/7 {t("analytics.weeklyActiveDays")}</span>
         </div>
       </div>
     </div>

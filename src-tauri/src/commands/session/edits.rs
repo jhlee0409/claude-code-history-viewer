@@ -279,6 +279,10 @@ pub async fn get_recent_edits(
 }
 
 /// Restore a file by writing content to the specified path
+///
+/// Uses atomic write pattern: writes to a temporary file first, then renames.
+/// This prevents data loss if the write operation fails midway.
+///
 /// Security: Validates path to prevent path traversal attacks
 #[tauri::command]
 pub async fn restore_file(file_path: String, content: String) -> Result<(), String> {
@@ -308,8 +312,21 @@ pub async fn restore_file(file_path: String, content: String) -> Result<(), Stri
         fs::create_dir_all(parent).map_err(|e| format!("Failed to create directories: {}", e))?;
     }
 
-    // Write the content to the file
-    fs::write(path, content).map_err(|e| format!("Failed to write file: {}", e))?;
+    // Atomic write pattern: write to temp file, then rename
+    // This ensures the target file is never in a partial state
+    let temp_path = path.with_extension("tmp.restore");
+
+    // Write to temporary file
+    fs::write(&temp_path, &content).map_err(|e| {
+        format!("Failed to write temporary file: {}", e)
+    })?;
+
+    // Atomically rename temp file to target (this is atomic on most filesystems)
+    fs::rename(&temp_path, path).map_err(|e| {
+        // Clean up temp file if rename fails
+        let _ = fs::remove_file(&temp_path);
+        format!("Failed to rename temporary file: {}", e)
+    })?;
 
     Ok(())
 }
@@ -365,6 +382,43 @@ mod tests {
         // Verify file content
         let content = fs::read_to_string(&file_path).unwrap();
         assert_eq!(content, "restored content");
+    }
+
+    #[tokio::test]
+    async fn test_restore_file_atomic_write_no_temp_file_left() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("atomic_test.txt");
+        let temp_path = temp_dir.path().join("atomic_test.tmp.restore");
+
+        let result = restore_file(
+            file_path.to_string_lossy().to_string(),
+            "atomic content".to_string()
+        ).await;
+
+        assert!(result.is_ok());
+        // Verify temp file was cleaned up
+        assert!(!temp_path.exists());
+        // Verify target file exists with correct content
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "atomic content");
+    }
+
+    #[tokio::test]
+    async fn test_restore_file_overwrites_existing() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("existing.txt");
+
+        // Create existing file
+        fs::write(&file_path, "old content").unwrap();
+
+        let result = restore_file(
+            file_path.to_string_lossy().to_string(),
+            "new content".to_string()
+        ).await;
+
+        assert!(result.is_ok());
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "new content");
     }
 
     #[tokio::test]
