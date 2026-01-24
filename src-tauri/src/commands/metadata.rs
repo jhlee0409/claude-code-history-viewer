@@ -6,9 +6,20 @@
 use crate::models::{ProjectMetadata, SessionMetadata, UserMetadata, UserSettings};
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::State;
+
+/// Validate that a project path is absolute
+fn validate_absolute_path(project_path: &str) -> Result<(), String> {
+    let path = Path::new(project_path);
+    if !path.is_absolute() {
+        return Err(format!(
+            "Project path must be absolute, got relative path: {project_path}"
+        ));
+    }
+    Ok(())
+}
 
 /// Application state for metadata management
 pub struct MetadataState {
@@ -169,6 +180,9 @@ pub async fn update_project_metadata(
     update: ProjectMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
+    // Validate that project path is absolute
+    validate_absolute_path(&project_path)?;
+
     // Clone metadata while holding the lock to avoid race condition
     let metadata_to_save = {
         let mut cached = state
@@ -219,10 +233,13 @@ pub async fn update_user_settings(
 
 /// Check if a project should be hidden based on metadata
 #[tauri::command]
-pub fn is_project_hidden(
+pub async fn is_project_hidden(
     project_path: String,
     state: State<'_, MetadataState>,
 ) -> Result<bool, String> {
+    // Validate that project path is absolute
+    validate_absolute_path(&project_path)?;
+
     let cached = state
         .metadata
         .lock()
@@ -238,7 +255,7 @@ pub fn is_project_hidden(
 
 /// Get the display name for a session (custom name or fallback to summary)
 #[tauri::command]
-pub fn get_session_display_name(
+pub async fn get_session_display_name(
     session_id: String,
     fallback_summary: Option<String>,
     state: State<'_, MetadataState>,
