@@ -122,5 +122,3 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
     </div>
   );
 };
-
-export default ProjectContextMenu;

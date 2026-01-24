@@ -13,6 +13,7 @@ import { track, TrackingEvents } from "./hooks/useEventTracking";
 
 import { useTranslation } from "react-i18next";
 import { AppErrorType, type ClaudeSession, type ClaudeProject } from "./types";
+import type { GroupingMode } from "./types/metadata.types";
 import { AlertTriangle, MessageSquare, Database, BarChart3, FileEdit, Coins } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading";
 import { useLanguageStore } from "./store/useLanguageStore";
@@ -51,9 +52,10 @@ function App() {
     setAnalyticsCurrentView,
     loadMoreProjectTokenStats,
     loadMoreRecentEdits,
-    userMetadata,
     updateUserSettings,
     getGroupedProjects,
+    getDirectoryGroupedProjects,
+    getEffectiveGroupingMode,
     hideProject,
     unhideProject,
     isProjectHidden,
@@ -89,16 +91,21 @@ function App() {
     loadGlobalStats();
   }, [loadGlobalStats, setAnalyticsCurrentView]);
 
-  // Worktree grouping
-  const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
+  // Project grouping (worktree or directory-based)
+  const groupingMode = getEffectiveGroupingMode();
   const { groups: worktreeGroups, ungrouped: ungroupedProjects } = getGroupedProjects();
+  const { groups: directoryGroups } = getDirectoryGroupedProjects();
 
-  const handleWorktreeGroupingToggle = useCallback(() => {
+
+  // Set grouping mode directly
+  const handleGroupingModeChange = useCallback((newMode: GroupingMode) => {
     updateUserSettings({
-      worktreeGrouping: !worktreeGrouping,
-      worktreeGroupingUserSet: true, // Mark as explicitly set by user
+      groupingMode: newMode,
+      // Legacy support: keep worktreeGrouping in sync
+      worktreeGrouping: newMode === "worktree",
+      worktreeGroupingUserSet: true,
     });
-  }, [worktreeGrouping, updateUserSettings]);
+  }, [updateUserSettings]);
 
   const handleSessionSelect = async (session: ClaudeSession) => {
     setIsViewingGlobalStats(false);
@@ -242,10 +249,11 @@ function App() {
             width={sidebarWidth}
             isResizing={isSidebarResizing}
             onResizeStart={handleSidebarResizeStart}
-            worktreeGrouping={worktreeGrouping}
+            groupingMode={groupingMode}
             worktreeGroups={worktreeGroups}
+            directoryGroups={directoryGroups}
             ungroupedProjects={ungroupedProjects}
-            onWorktreeGroupingToggle={handleWorktreeGroupingToggle}
+            onGroupingModeChange={handleGroupingModeChange}
             onHideProject={hideProject}
             onUnhideProject={unhideProject}
             isProjectHidden={isProjectHidden}

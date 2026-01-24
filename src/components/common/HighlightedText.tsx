@@ -93,5 +93,3 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
 
 // React.memo로 불필요한 리렌더링 방지
 export const HighlightedText = memo(HighlightedTextComponent);
-
-export default HighlightedText;

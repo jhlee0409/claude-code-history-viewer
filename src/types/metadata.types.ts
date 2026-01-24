@@ -33,6 +33,9 @@ export interface ProjectMetadata {
   parentProject?: string;
 }
 
+/** Grouping mode for project tree display */
+export type GroupingMode = "none" | "worktree" | "directory";
+
 /** Global user settings */
 export interface UserSettings {
   /** Glob patterns for projects to hide (e.g., "folders-dg-*") */
@@ -41,6 +44,8 @@ export interface UserSettings {
   worktreeGrouping?: boolean;
   /** Whether user has explicitly set worktree grouping (prevents auto-override) */
   worktreeGroupingUserSet?: boolean;
+  /** Project tree grouping mode: none, worktree, or directory */
+  groupingMode?: GroupingMode;
 }
 
 /** Root structure for all user metadata */

@@ -12,8 +12,11 @@ import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 import {
   detectWorktreeGroupsHybrid,
+  groupProjectsByDirectory,
   type WorktreeGroupingResult,
+  type DirectoryGroupingResult,
 } from "../../utils/worktreeUtils";
+import type { GroupingMode } from "../../types/metadata.types";
 
 // ============================================================================
 // State Interface
@@ -40,6 +43,8 @@ export interface ProjectSliceActions {
   setSelectedSession: (session: ClaudeSession | null) => void;
   setSessions: (sessions: ClaudeSession[]) => void;
   getGroupedProjects: () => WorktreeGroupingResult;
+  getDirectoryGroupedProjects: () => DirectoryGroupingResult;
+  getEffectiveGroupingMode: () => GroupingMode;
 }
 
 export type ProjectSlice = ProjectSliceState & ProjectSliceActions;
@@ -258,5 +263,31 @@ export const createProjectSlice: StateCreator<
     }));
 
     return result;
+  },
+
+  getDirectoryGroupedProjects: () => {
+    const { projects, isProjectHidden } = get();
+
+    // Filter out hidden projects first
+    const visibleProjects = projects.filter((p) => !isProjectHidden(p.path));
+
+    return groupProjectsByDirectory(visibleProjects);
+  },
+
+  getEffectiveGroupingMode: (): GroupingMode => {
+    const { userMetadata } = get();
+    const settings = userMetadata?.settings;
+
+    // If explicit groupingMode is set, use it
+    if (settings?.groupingMode) {
+      return settings.groupingMode;
+    }
+
+    // Legacy: if worktreeGrouping is true, use "worktree" mode
+    if (settings?.worktreeGrouping) {
+      return "worktree";
+    }
+
+    return "none";
   },
 });

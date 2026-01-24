@@ -6,16 +6,19 @@ import {
   ChevronRight,
   Database,
   GitBranch,
+  FolderTree,
+  List,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import type { ClaudeProject, ClaudeSession } from "../types";
+import type { GroupingMode } from "../types/metadata.types";
 import { cn } from "@/lib/utils";
 import { getLocale } from "../utils/time";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionItem } from "./SessionItem";
 import { ProjectContextMenu } from "./ProjectContextMenu";
-import type { WorktreeGroup } from "../utils/worktreeUtils";
+import type { WorktreeGroup, DirectoryGroup } from "../utils/worktreeUtils";
 import { getWorktreeLabel } from "../utils/worktreeUtils";
 
 interface ContextMenuState {
@@ -36,11 +39,12 @@ interface ProjectTreeProps {
   width?: number;
   isResizing?: boolean;
   onResizeStart?: (e: React.MouseEvent<HTMLElement>) => void;
-  // Worktree grouping props
-  worktreeGrouping?: boolean;
+  // Grouping props
+  groupingMode?: GroupingMode;
   worktreeGroups?: WorktreeGroup[];
+  directoryGroups?: DirectoryGroup[];
   ungroupedProjects?: ClaudeProject[];
-  onWorktreeGroupingToggle?: () => void;
+  onGroupingModeChange?: (mode: GroupingMode) => void;
   // Project visibility props
   onHideProject?: (projectPath: string) => void;
   onUnhideProject?: (projectPath: string) => void;
@@ -50,6 +54,7 @@ interface ProjectTreeProps {
 export const ProjectTree: React.FC<ProjectTreeProps> = ({
   projects,
   sessions,
+  selectedProject,
   selectedSession,
   onProjectSelect,
   onSessionSelect,
@@ -59,10 +64,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   width,
   isResizing,
   onResizeStart,
-  worktreeGrouping = false,
+  groupingMode = "none",
   worktreeGroups = [],
+  directoryGroups = [],
   ungroupedProjects,
-  onWorktreeGroupingToggle,
+  onGroupingModeChange,
   onHideProject,
   onUnhideProject,
   isProjectHidden,
@@ -161,21 +167,49 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            {/* Worktree Grouping Toggle */}
-            {onWorktreeGroupingToggle && (
-              <button
-                onClick={onWorktreeGroupingToggle}
-                className={cn(
-                  "p-1.5 rounded-md transition-all duration-200",
-                  "hover:bg-accent/20",
-                  worktreeGrouping
-                    ? "bg-accent/20 text-accent"
-                    : "text-muted-foreground hover:text-accent"
-                )}
-                title={t("project.worktreeGrouping", "Group worktrees")}
-              >
-                <GitBranch className="w-3.5 h-3.5" />
-              </button>
+            {/* Grouping Mode Tabs */}
+            {onGroupingModeChange && (
+              <div className="flex items-center bg-muted/30 rounded-md p-0.5 gap-0.5">
+                {/* Flat (No Grouping) */}
+                <button
+                  onClick={() => onGroupingModeChange("none")}
+                  className={cn(
+                    "p-1 rounded transition-all duration-200",
+                    groupingMode === "none"
+                      ? "bg-accent/20 text-accent"
+                      : "text-muted-foreground hover:text-accent hover:bg-accent/10"
+                  )}
+                  title={t("project.groupingNone", "Flat list")}
+                >
+                  <List className="w-3 h-3" />
+                </button>
+                {/* Directory Grouping */}
+                <button
+                  onClick={() => onGroupingModeChange("directory")}
+                  className={cn(
+                    "p-1 rounded transition-all duration-200",
+                    groupingMode === "directory"
+                      ? "bg-blue-500/20 text-blue-500"
+                      : "text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10"
+                  )}
+                  title={t("project.groupingDirectory", "Group by directory")}
+                >
+                  <FolderTree className="w-3 h-3" />
+                </button>
+                {/* Worktree Grouping */}
+                <button
+                  onClick={() => onGroupingModeChange("worktree")}
+                  className={cn(
+                    "p-1 rounded transition-all duration-200",
+                    groupingMode === "worktree"
+                      ? "bg-emerald-500/20 text-emerald-500"
+                      : "text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10"
+                  )}
+                  title={t("project.groupingWorktree", "Group by worktree")}
+                >
+                  <GitBranch className="w-3 h-3" />
+                </button>
+              </div>
             )}
             <span className="text-xs font-mono text-accent bg-accent/10 px-2 py-0.5 rounded-full">
               {projects.length}
@@ -242,8 +276,193 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             {/* Divider */}
             <div className="my-2 mx-4 h-px bg-sidebar-border" />
 
-            {/* Worktree Groups (when grouping is enabled) */}
-            {worktreeGrouping && worktreeGroups.map((group) => {
+            {/* Directory Groups (when directory grouping is enabled) */}
+            {groupingMode === "directory" && directoryGroups.map((group) => {
+              const groupKey = `dir:${group.path}`;
+              const isGroupExpanded = expandedProjects.has(groupKey);
+              const toggleGroup = () => {
+                setExpandedProjects((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(groupKey)) {
+                    next.delete(groupKey);
+                  } else {
+                    next.add(groupKey);
+                  }
+                  return next;
+                });
+              };
+
+              return (
+                <div key={group.path} className="space-y-0.5">
+                  {/* Directory Group Header */}
+                  <button
+                    onClick={toggleGroup}
+                    className={cn(
+                      "w-full px-4 py-2 flex items-center gap-2.5",
+                      "text-left transition-all duration-300",
+                      "hover:bg-accent/8",
+                      "border-l-2 border-transparent",
+                      isGroupExpanded && "bg-accent/5 border-l-blue-500/50"
+                    )}
+                  >
+                    {/* Expand Icon */}
+                    <span
+                      className={cn(
+                        "transition-all duration-300",
+                        isGroupExpanded ? "text-blue-500" : "text-muted-foreground"
+                      )}
+                    >
+                      {isGroupExpanded ? (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      )}
+                    </span>
+
+                    {/* Directory Icon */}
+                    <div
+                      className={cn(
+                        "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300",
+                        isGroupExpanded
+                          ? "bg-blue-500/20 text-blue-500"
+                          : "bg-muted/50 text-muted-foreground"
+                      )}
+                    >
+                      <FolderTree className="w-3.5 h-3.5" />
+                    </div>
+
+                    {/* Directory Path */}
+                    <span
+                      className={cn(
+                        "text-sm truncate flex-1 transition-colors duration-300",
+                        isGroupExpanded
+                          ? "text-blue-600 dark:text-blue-400 font-semibold"
+                          : "text-sidebar-foreground/80"
+                      )}
+                      title={group.path}
+                    >
+                      {group.displayPath}
+                    </span>
+
+                    {/* Project count badge */}
+                    <span
+                      className={cn(
+                        "flex items-center gap-1 text-2xs font-mono px-1.5 py-0.5 rounded",
+                        "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                      )}
+                    >
+                      {group.projects.length}
+                    </span>
+                  </button>
+
+                  {/* Expanded Directory: Projects */}
+                  {isGroupExpanded && (
+                    <div className="ml-4 pl-3 border-l-2 border-blue-500/20 space-y-0.5">
+                      {group.projects.map((project) => {
+                        const isProjectExp = isProjectExpanded(project.path);
+                        const isSelected = selectedProject?.path === project.path;
+
+                        return (
+                          <div key={project.path}>
+                            {/* Project Item */}
+                            <button
+                              onClick={() => {
+                                onProjectSelect(project);
+                                toggleProject(project.path);
+                              }}
+                              onContextMenu={(e) => handleContextMenu(e, project)}
+                              className={cn(
+                                "w-full px-2 py-1.5 flex items-center gap-2",
+                                "text-left transition-all duration-200 rounded-md",
+                                "hover:bg-accent/10",
+                                isProjectExp && "bg-accent/15"
+                              )}
+                            >
+                              {/* Expand Icon */}
+                              <span
+                                className={cn(
+                                  "transition-all duration-200",
+                                  isProjectExp ? "text-accent" : "text-muted-foreground"
+                                )}
+                              >
+                                {isProjectExp ? (
+                                  <ChevronDown className="w-3 h-3" />
+                                ) : (
+                                  <ChevronRight className="w-3 h-3" />
+                                )}
+                              </span>
+
+                              {/* Folder Icon */}
+                              <Folder
+                                className={cn(
+                                  "w-3.5 h-3.5 transition-colors",
+                                  isProjectExp ? "text-accent" : "text-muted-foreground"
+                                )}
+                              />
+
+                              {/* Project Name */}
+                              <span
+                                className={cn(
+                                  "text-xs truncate flex-1 transition-colors",
+                                  isProjectExp
+                                    ? "text-accent font-medium"
+                                    : "text-muted-foreground"
+                                )}
+                                title={project.actual_path}
+                              >
+                                {project.name}
+                              </span>
+
+                              {/* Session count */}
+                              <span className="text-2xs text-muted-foreground/60 font-mono">
+                                {project.session_count}
+                              </span>
+                            </button>
+
+                            {/* Sessions for this project */}
+                            {isProjectExp && isSelected && sessions.length > 0 && !isLoading && (
+                              <div className="ml-4 pl-2 space-y-1 py-1.5 border-l border-accent/30">
+                                {sessions.map((session) => (
+                                  <SessionItem
+                                    key={session.session_id}
+                                    session={session}
+                                    isSelected={selectedSession?.session_id === session.session_id}
+                                    onSelect={() => onSessionSelect(session)}
+                                    formatTimeAgo={formatTimeAgo}
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Loading */}
+                            {isProjectExp && isLoading && (
+                              <div className="ml-4 pl-2 space-y-2 py-2 border-l border-accent/30">
+                                {[1, 2].map((i) => (
+                                  <div key={i} className="flex items-center gap-2 py-1.5 px-2">
+                                    <Skeleton variant="circular" className="w-4 h-4" />
+                                    <Skeleton className="h-3 flex-1" />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Empty */}
+                            {isProjectExp && isSelected && sessions.length === 0 && !isLoading && (
+                              <div className="ml-5 py-2 text-2xs text-muted-foreground">
+                                {t("components:session.notFound", "No sessions")}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Worktree Groups (when worktree grouping is enabled) */}
+            {groupingMode === "worktree" && worktreeGroups.map((group) => {
               // Group expansion state (separate from individual project expansion)
               const groupKey = `group:${group.parent.path}`;
               const isGroupExpanded = expandedProjects.has(groupKey);
@@ -331,7 +550,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                       {allGroupProjects.map((project, idx) => {
                         const isProjectExp = isProjectExpanded(project.path);
                         const isMain = idx === 0;
-                        const isSelected = selectedSession?.project_name === project.name;
+                        const isSelected = selectedProject?.path === project.path;
 
                         return (
                           <div key={project.path}>
@@ -455,8 +674,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               );
             })}
 
-            {/* Regular Projects (ungrouped or when grouping disabled) */}
-            {displayProjects.map((project) => {
+            {/* Regular Projects (when no grouping or showing worktree ungrouped) */}
+            {/* Note: directory mode shows ALL projects in groups, so no ungrouped section */}
+            {(groupingMode === "none" ? projects : groupingMode === "worktree" ? displayProjects : []).map((project) => {
               const isExpanded = isProjectExpanded(project.path);
 
               return (
