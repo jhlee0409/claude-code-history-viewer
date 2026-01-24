@@ -1,5 +1,7 @@
 use crate::models::ClaudeProject;
-use crate::utils::{detect_git_worktree_info, estimate_message_count_from_size, extract_project_name};
+use crate::utils::{
+    detect_git_worktree_info, estimate_message_count_from_size, extract_project_name,
+};
 use chrono::{DateTime, Utc};
 use std::fs;
 use std::path::PathBuf;

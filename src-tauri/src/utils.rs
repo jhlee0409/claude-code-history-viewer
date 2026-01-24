@@ -320,10 +320,7 @@ mod tests {
 
     #[test]
     fn test_decode_project_path_regular() {
-        assert_eq!(
-            decode_project_path("/some/other/path"),
-            "/some/other/path"
-        );
+        assert_eq!(decode_project_path("/some/other/path"), "/some/other/path");
     }
 
     #[test]
