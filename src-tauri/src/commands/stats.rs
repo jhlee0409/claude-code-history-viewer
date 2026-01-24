@@ -402,7 +402,9 @@ fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
 
 #[tauri::command]
 pub async fn get_session_token_stats(session_path: String) -> Result<SessionTokenStats, String> {
+    let start = std::time::Instant::now();
     let messages = load_session_messages(session_path.clone()).await?;
+    let load_time = start.elapsed();
 
     if messages.is_empty() {
         return Err("No valid messages found in session".to_string());
@@ -440,6 +442,10 @@ pub async fn get_session_token_stats(session_path: String) -> Result<SessionToke
     }
 
     let total_tokens = total_input_tokens + total_output_tokens + total_cache_creation_tokens + total_cache_read_tokens;
+    let total_time = start.elapsed();
+
+    eprintln!("📊 get_session_token_stats: {} messages, load={}ms, total={}ms",
+        messages.len(), load_time.as_millis(), total_time.as_millis());
 
     Ok(SessionTokenStats {
         session_id,
@@ -452,6 +458,7 @@ pub async fn get_session_token_stats(session_path: String) -> Result<SessionToke
         message_count: messages.len(),
         first_message_time: first_time.unwrap_or_else(|| "unknown".to_string()),
         last_message_time: last_time.unwrap_or_else(|| "unknown".to_string()),
+        summary: None,
     })
 }
 
@@ -489,6 +496,7 @@ fn extract_session_token_stats_sync(session_path: &PathBuf) -> Option<SessionTok
     let mut message_count = 0usize;
     let mut first_time: Option<String> = None;
     let mut last_time: Option<String> = None;
+    let mut summary: Option<String> = None;
 
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
@@ -498,6 +506,13 @@ fn extract_session_token_stats_sync(session_path: &PathBuf) -> Option<SessionTok
         let mut line_bytes = mmap[start..end].to_vec();
 
         if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
+            // Check for summary message type before converting
+            if log_entry.message_type == "summary" {
+                if let Some(s) = &log_entry.summary {
+                    summary = Some(s.clone());
+                }
+            }
+
             if let Ok(message) = ClaudeMessage::try_from(log_entry) {
                 if session_id.is_none() {
                     session_id = Some(message.session_id.clone());
@@ -539,6 +554,7 @@ fn extract_session_token_stats_sync(session_path: &PathBuf) -> Option<SessionTok
         message_count,
         first_message_time: first_time.unwrap_or_else(|| "unknown".to_string()),
         last_message_time: last_time.unwrap_or_else(|| "unknown".to_string()),
+        summary,
     })
 }
 
@@ -548,6 +564,7 @@ pub async fn get_project_token_stats(
     offset: Option<usize>,
     limit: Option<usize>,
 ) -> Result<PaginatedTokenStats, String> {
+    let start = std::time::Instant::now();
     let offset = offset.unwrap_or(0);
     let limit = limit.unwrap_or(20);
 
@@ -559,6 +576,7 @@ pub async fn get_project_token_stats(
         .map(|e| e.path().to_path_buf())
         .collect();
 
+    let scan_time = start.elapsed();
     let total_count = session_files.len();
 
     // Process all sessions in parallel using sync function
@@ -566,6 +584,8 @@ pub async fn get_project_token_stats(
         .par_iter()
         .filter_map(|path| extract_session_token_stats_sync(path))
         .collect();
+
+    let process_time = start.elapsed();
 
     // Sort by total tokens (descending)
     all_stats.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
@@ -578,6 +598,10 @@ pub async fn get_project_token_stats(
         .collect();
 
     let has_more = offset + paginated_items.len() < total_count;
+    let total_time = start.elapsed();
+
+    eprintln!("📊 get_project_token_stats: {} sessions, scan={}ms, process={}ms, total={}ms",
+        total_count, scan_time.as_millis(), process_time.as_millis(), total_time.as_millis());
 
     Ok(PaginatedTokenStats {
         items: paginated_items,
@@ -590,6 +614,7 @@ pub async fn get_project_token_stats(
 
 #[tauri::command]
 pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectStatsSummary, String> {
+    let start = std::time::Instant::now();
     let project_name = PathBuf::from(&project_path)
         .file_name()
         .and_then(|n| n.to_str())
@@ -603,12 +628,14 @@ pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectSt
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         .map(|e| e.path().to_path_buf())
         .collect();
+    let scan_time = start.elapsed();
 
     // Phase 2: Process all session files in parallel
     let file_stats: Vec<ProjectSessionFileStats> = session_files
         .par_iter()
         .filter_map(|path| process_session_file_for_project_stats(path))
         .collect();
+    let process_time = start.elapsed();
 
     // Phase 3: Aggregate results
     let mut summary = ProjectStatsSummary::default();
@@ -719,6 +746,10 @@ pub async fn get_project_stats_summary(project_path: String) -> Result<ProjectSt
         .map(|a| a.hour)
         .unwrap_or(0);
 
+    let total_time = start.elapsed();
+    eprintln!("📊 get_project_stats_summary: {} sessions, scan={}ms, process={}ms, total={}ms",
+        summary.total_sessions, scan_time.as_millis(), process_time.as_millis(), total_time.as_millis());
+
     Ok(summary)
 }
 
@@ -798,6 +829,8 @@ pub async fn get_session_comparison(
     session_id: String,
     project_path: String,
 ) -> Result<SessionComparison, String> {
+    let start = std::time::Instant::now();
+
     // Phase 1: Collect all session files
     let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
         .into_iter()
@@ -805,12 +838,14 @@ pub async fn get_session_comparison(
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         .map(|e| e.path().to_path_buf())
         .collect();
+    let scan_time = start.elapsed();
 
     // Phase 2: Process all session files in parallel (lightweight processing)
     let all_sessions: Vec<SessionComparisonStats> = session_files
         .par_iter()
         .filter_map(|path| process_session_file_for_comparison(path))
         .collect();
+    let process_time = start.elapsed();
 
     let target_session = all_sessions
         .iter()
@@ -856,6 +891,10 @@ pub async fn get_session_comparison(
         0
     };
     let is_above_average = target_session.total_tokens > avg_tokens;
+    let total_time = start.elapsed();
+
+    eprintln!("📊 get_session_comparison: {} sessions, scan={}ms, process={}ms, total={}ms",
+        all_sessions.len(), scan_time.as_millis(), process_time.as_millis(), total_time.as_millis());
 
     Ok(SessionComparison {
         session_id,

@@ -19,6 +19,7 @@ export interface SessionTokenStats {
   message_count: number;
   first_message_time: string;
   last_message_time: string;
+  summary?: string;
 }
 
 /**

@@ -209,22 +209,14 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             </span>
           </div>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {displayedSessions.map((stats, index) => (
               <div
                 key={`session-${stats.session_id}-${index}`}
                 className="animate-slide-up"
                 style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-[12px] font-bold text-foreground bg-accent/10 px-2.5 py-1 rounded-full">
-                    {t("analytics.sessionNumber", { number: index + 1 })}
-                  </span>
-                  <span className="text-[12px] text-muted-foreground font-mono">
-                    {formatTime(stats.last_message_time)}
-                  </span>
-                </div>
-                <SessionStatsCard stats={stats} showSessionId compact />
+                <SessionStatsCard stats={stats} showSessionId compact summary={stats.summary} />
               </div>
             ))}
 

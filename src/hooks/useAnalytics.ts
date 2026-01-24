@@ -137,74 +137,57 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
 
     try {
-      const promises: Promise<{ success: boolean; error?: unknown }>[] = [];
+      // 순차 실행: 프로젝트 요약 먼저, 그 다음 세션 비교
+      // (병렬 실행 시 182개 파일을 동시에 두 번 읽어 I/O 경쟁 발생 - 4초 → 순차 시 ~200ms)
 
-      // 프로젝트 요약 로드 (캐시 없으면)
+      // 1. 프로젝트 요약 로드 (캐시 없으면)
       if (!hasCachedProjectSummary) {
         setAnalyticsLoadingProjectSummary(true);
-        promises.push(
-          loadProjectStatsSummary(selectedProject.path)
-            .then((summary) => {
-              setAnalyticsProjectSummary(summary);
-              return { success: true };
-            })
-            .catch((error) => {
-              const errorMessage =
-                error instanceof Error ? error.message : t('common.hooks.projectSummaryLoadFailed');
-              setAnalyticsProjectSummaryError(errorMessage);
-              return { success: false, error };
-            })
-            .finally(() => {
-              setAnalyticsLoadingProjectSummary(false);
-            })
-        );
+        try {
+          const summary = await loadProjectStatsSummary(selectedProject.path);
+          setAnalyticsProjectSummary(summary);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : t('common.hooks.projectSummaryLoadFailed');
+          setAnalyticsProjectSummaryError(errorMessage);
+          throw error;
+        } finally {
+          setAnalyticsLoadingProjectSummary(false);
+        }
       }
 
-      // 세션 데이터 로드 (캐시 없는 것만)
+      // 2. 세션 데이터 로드 (프로젝트 요약 완료 후)
       // NOTE: sessionTokenStats도 함께 로드하여 탭 표시 조건(hasSessionData)을 충족
       if (selectedSession && (!hasCachedSessionComparison || !hasCachedSessionTokenStats)) {
-        const sessionPromises: Promise<unknown>[] = [];
+        setAnalyticsLoadingSessionComparison(true);
+        try {
+          const sessionPromises: Promise<unknown>[] = [];
 
-        if (!hasCachedSessionComparison) {
-          sessionPromises.push(
-            loadSessionComparison(
-              selectedSession.actual_session_id,
-              selectedProject.path
-            ).then((comparison) => {
-              setAnalyticsSessionComparison(comparison);
-            })
-          );
-        }
-
-        if (!hasCachedSessionTokenStats) {
-          sessionPromises.push(loadSessionTokenStats(selectedSession.file_path));
-        }
-
-        if (sessionPromises.length > 0) {
-          setAnalyticsLoadingSessionComparison(true);
-          promises.push(
-            Promise.all(sessionPromises)
-              .then(() => ({ success: true }))
-              .catch((error) => {
-                const errorMessage =
-                  error instanceof Error ? error.message : t('common.hooks.sessionComparisonLoadFailed');
-                setAnalyticsSessionComparisonError(errorMessage);
-                return { success: false, error };
+          if (!hasCachedSessionComparison) {
+            sessionPromises.push(
+              loadSessionComparison(
+                selectedSession.actual_session_id,
+                selectedProject.path
+              ).then((comparison) => {
+                setAnalyticsSessionComparison(comparison);
               })
-              .finally(() => {
-                setAnalyticsLoadingSessionComparison(false);
-              })
-          );
-        }
-      }
+            );
+          }
 
-      // 모든 작업을 병렬로 실행
-      if (promises.length > 0) {
-        const results = await Promise.all(promises);
+          if (!hasCachedSessionTokenStats) {
+            sessionPromises.push(loadSessionTokenStats(selectedSession.file_path));
+          }
 
-        // 프로젝트 요약이 첫 번째 promise이고 실패했으면 치명적
-        if (!hasCachedProjectSummary && results[0] && !results[0].success) {
-          throw results[0].error;
+          if (sessionPromises.length > 0) {
+            await Promise.all(sessionPromises);
+          }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : t('common.hooks.sessionComparisonLoadFailed');
+          setAnalyticsSessionComparisonError(errorMessage);
+          // 세션 비교 실패는 치명적이지 않으므로 throw하지 않음
+        } finally {
+          setAnalyticsLoadingSessionComparison(false);
         }
       }
     } catch (error) {

@@ -246,9 +246,14 @@ export const createMessageSlice: StateCreator<
     try {
       set({ isLoadingTokenStats: true });
       get().setError(null);
+      const start = performance.now();
       const stats = await invoke<SessionTokenStats>("get_session_token_stats", {
         sessionPath,
       });
+      const duration = performance.now() - start;
+      if (import.meta.env.DEV) {
+        console.log(`[Performance] loadSessionTokenStats: ${duration.toFixed(1)}ms`);
+      }
       set({ sessionTokenStats: stats });
     } catch (error) {
       console.error("Failed to load session token stats:", error);
@@ -273,10 +278,15 @@ export const createMessageSlice: StateCreator<
       });
       get().setError(null);
 
+      const start = performance.now();
       const response = await invoke<PaginatedTokenStats>(
         "get_project_token_stats",
         { projectPath, offset: 0, limit: TOKENS_STATS_PAGE_SIZE }
       );
+      const duration = performance.now() - start;
+      if (import.meta.env.DEV) {
+        console.log(`[Performance] loadProjectTokenStats: ${duration.toFixed(1)}ms (${response.total_count} sessions)`);
+      }
 
       set({
         projectTokenStats: response.items,
@@ -344,18 +354,28 @@ export const createMessageSlice: StateCreator<
   },
 
   loadProjectStatsSummary: async (projectPath: string) => {
+    const start = performance.now();
     const summary = await invoke<ProjectStatsSummary>(
       "get_project_stats_summary",
       { projectPath }
     );
+    const duration = performance.now() - start;
+    if (import.meta.env.DEV) {
+      console.log(`[Performance] loadProjectStatsSummary: ${duration.toFixed(1)}ms (${summary.total_sessions} sessions)`);
+    }
     return summary;
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {
+    const start = performance.now();
     const comparison = await invoke<SessionComparison>(
       "get_session_comparison",
       { sessionId, projectPath }
     );
+    const duration = performance.now() - start;
+    if (import.meta.env.DEV) {
+      console.log(`[Performance] loadSessionComparison: ${duration.toFixed(1)}ms`);
+    }
     return comparison;
   },
 

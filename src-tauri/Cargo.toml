@@ -91,6 +91,10 @@ harness = false
 opt-level = 0
 debug = true
 
+# Optimize dependencies in dev mode (simd-json, rayon need optimization)
+[profile.dev.package."*"]
+opt-level = 2
+
 [profile.test]
 opt-level = 1  # Faster test execution
 debug = true

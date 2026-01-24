@@ -12,6 +12,8 @@ pub struct SessionTokenStats {
     pub message_count: usize,
     pub first_message_time: String,
     pub last_message_time: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -134,6 +136,7 @@ mod tests {
             message_count: 50,
             first_message_time: "2025-06-01T10:00:00Z".to_string(),
             last_message_time: "2025-06-01T12:00:00Z".to_string(),
+            summary: Some("Test session summary".to_string()),
         };
 
         let serialized = serde_json::to_string(&stats).unwrap();
