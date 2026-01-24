@@ -23,8 +23,8 @@ success-output = "never"
 status-level = "pass"
 final-status-level = "fail"
 
-# Test threads (0 = number of CPU cores)
-test-threads = 0
+# Test threads (use all CPU cores)
+test-threads = "num-cpus"
 
 [profile.ci]
 # CI-specific profile
