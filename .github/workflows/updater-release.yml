@@ -154,6 +154,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Create Aptabase config
+        run: echo "APTABASE_KEY=${{ secrets.APTABASE_KEY }}" > src-tauri/.env
+
       - name: Build and upload to release
         uses: tauri-apps/tauri-action@v0
         env:

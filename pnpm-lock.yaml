@@ -12,6 +12,9 @@ importers:
 
   .:
     dependencies:
+      '@aptabase/tauri':
+        specifier: ^0.4.1
+        version: 0.4.1
       '@radix-ui/react-collapsible':
         specifier: ^1.1.12
         version: 1.1.12(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -223,6 +226,9 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
+
+  '@aptabase/tauri@0.4.1':
+    resolution: {integrity: sha512-ZjCtPN1Tw0y90nxMLR64UqFjgikxfc9NZouxqXlqZFkfpF8D/tPf1xUn0Anu8nvERGND/hAkO3x7ZLyLGI1HRg==}
 
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
@@ -1256,6 +1262,10 @@ packages:
 
   '@tanstack/virtual-core@3.13.13':
     resolution: {integrity: sha512-uQFoSdKKf5S8k51W5t7b2qpfkyIbdHMzAn+AMQvHPxKUPeo1SsGaA4JRISQT87jm28b7z8OEqPcg1IOZagQHcA==}
+
+  '@tauri-apps/api@1.6.0':
+    resolution: {integrity: sha512-rqI++FWClU5I2UBp4HXFvl+sBWkdigBkxnpJDQUWttNyG7IZP4FwQGhTNL5EOw0vI8i6eSAJ5frLqO7n7jbJdg==}
+    engines: {node: '>= 14.6.0', npm: '>= 6.6.0', yarn: '>= 1.19.1'}
 
   '@tauri-apps/api@2.9.1':
     resolution: {integrity: sha512-IGlhP6EivjXHepbBic618GOmiWe4URJiIeZFlB7x3czM0yDHHYviH1Xvoiv4FefdkQtn6v7TuwWCRfOGdnVUGw==}
@@ -3438,6 +3448,10 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
+  '@aptabase/tauri@0.4.1':
+    dependencies:
+      '@tauri-apps/api': 1.6.0
+
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
       '@csstools/css-calc': 2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)
@@ -4376,6 +4390,8 @@ snapshots:
       react-dom: 19.2.3(react@19.2.3)
 
   '@tanstack/virtual-core@3.13.13': {}
+
+  '@tauri-apps/api@1.6.0': {}
 
   '@tauri-apps/api@2.9.1': {}
 

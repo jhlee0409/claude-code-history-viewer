@@ -9,6 +9,7 @@ import { SimpleUpdateManager } from "./components/SimpleUpdateManager";
 import { useAppStore } from "./store/useAppStore";
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useResizablePanel } from "./hooks/useResizablePanel";
+import { track, TrackingEvents } from "./hooks/useEventTracking";
 
 import { useTranslation } from "react-i18next";
 import { AppErrorType, type ClaudeSession, type ClaudeProject } from "./types";
@@ -106,6 +107,8 @@ function App() {
         console.error("Failed to load language:", error);
       } finally {
         await initializeApp();
+        // Track app launch (anonymous)
+        track(TrackingEvents.APP_LAUNCHED);
       }
     };
     initialize();

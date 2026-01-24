@@ -16,6 +16,7 @@
     "i18n:sync": "node scripts/sync-i18n-keys.mjs"
   },
   "dependencies": {
+    "@aptabase/tauri": "^0.4.1",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-dropdown-menu": "^2.1.15",

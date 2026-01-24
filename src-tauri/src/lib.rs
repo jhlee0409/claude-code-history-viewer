@@ -18,9 +18,14 @@ use crate::commands::{
     },
 };
 
+#[cfg(not(debug_assertions))]
+use dotenvy_macro::dotenv;
+#[cfg(not(debug_assertions))]
+use tauri_plugin_aptabase::EventTracker;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -28,7 +33,16 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_os::init());
+
+    // Aptabase analytics - production only
+    #[cfg(not(debug_assertions))]
+    {
+        builder = builder.plugin(
+            tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build(),
+        );
+    }
+    builder
         .invoke_handler(tauri::generate_handler![
             get_claude_folder_path,
             validate_claude_folder,
@@ -49,6 +63,20 @@ pub fn run() {
             get_system_info,
             open_github_issues
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_handler, _event| {
+            // Production only: track app lifecycle events
+            #[cfg(not(debug_assertions))]
+            match _event {
+                tauri::RunEvent::Ready { .. } => {
+                    _handler.track_event("app_started", None);
+                }
+                tauri::RunEvent::Exit { .. } => {
+                    _handler.track_event("app_exited", None);
+                    _handler.flush_events_blocking();
+                }
+                _ => {}
+            }
+        });
 }
