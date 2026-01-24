@@ -7,6 +7,7 @@
 
 import { forwardRef } from "react";
 import type { VirtualItem } from "@tanstack/react-virtual";
+import { cn } from "@/lib/utils";
 import type { SearchFilterType } from "../../../store/useAppStore";
 import type { FlattenedMessage } from "../types";
 import { ClaudeMessageNode } from "./ClaudeMessageNode";
@@ -79,6 +80,7 @@ export const VirtualizedMessageRow = forwardRef<
     <div
       ref={ref}
       data-index={virtualRow.index}
+      className={cn(isCaptureMode && "group")}
       style={{
         position: "absolute",
         top: 0,

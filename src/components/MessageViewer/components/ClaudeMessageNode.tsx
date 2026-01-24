@@ -24,6 +24,9 @@ import { MessageHeader } from "./MessageHeader";
 import { SummaryMessage } from "./SummaryMessage";
 import type { MessageNodeProps } from "../types";
 
+// Capture mode hover background style
+const CAPTURE_HOVER_BG = "group-hover:bg-red-500/5 group-hover:ring-1 group-hover:ring-red-500/20";
+
 export const ClaudeMessageNode = React.memo(({
   message,
   isCurrentMatch,
@@ -40,8 +43,7 @@ export const ClaudeMessageNode = React.memo(({
 }: MessageNodeProps) => {
   const { t } = useTranslation();
 
-  // Capture mode hide button - sophisticated editorial style
-  // Appears on hover with smooth entrance animation
+  // Capture mode hide button - appears on hover
   const CaptureHideButton = isCaptureMode && onHideMessage ? (
     <button
       onClick={(e) => {
@@ -60,7 +62,7 @@ export const ClaudeMessageNode = React.memo(({
         "hover:shadow-lg hover:shadow-red-500/20",
         // Text/icon
         "text-zinc-400 hover:text-white",
-        // Animation
+        // Animation - appears on group hover
         "opacity-0 group-hover:opacity-100",
         "translate-y-1 group-hover:translate-y-0",
         "transition-all duration-200 ease-out"
@@ -71,11 +73,12 @@ export const ClaudeMessageNode = React.memo(({
       <X className="w-4 h-4" strokeWidth={2.5} />
     </button>
   ) : null;
+
   if (message.isSidechain) {
     return null;
   }
 
-  // Render hidden placeholders for group members to preserve DOM nodes for search/highlight
+  // Render hidden placeholders for group members
   if (isAgentTaskGroupMember) {
     return (
       <div
@@ -96,7 +99,7 @@ export const ClaudeMessageNode = React.memo(({
     );
   }
 
-  // Skip empty messages (no content, or only command tags)
+  // Skip empty messages
   if (isEmptyMessage(message)) {
     return null;
   }
@@ -104,7 +107,13 @@ export const ClaudeMessageNode = React.memo(({
   // Render grouped agent tasks
   if (agentTaskGroup && agentTaskGroup.length > 0) {
     return (
-      <div data-message-uuid={message.uuid} className={cn("relative w-full px-4 py-2", isCaptureMode && "group")}>
+      <div
+        data-message-uuid={message.uuid}
+        className={cn(
+          "relative w-full px-4 py-2 transition-all duration-200",
+          isCaptureMode && CAPTURE_HOVER_BG
+        )}
+      >
         {CaptureHideButton}
         <div className="max-w-4xl mx-auto">
           <AgentTaskGroupRenderer tasks={agentTaskGroup} timestamp={message.timestamp} />
@@ -113,10 +122,16 @@ export const ClaudeMessageNode = React.memo(({
     );
   }
 
-  // Render grouped agent progress (replaces individual ProgressRenderer for agent_progress)
+  // Render grouped agent progress
   if (agentProgressGroup && agentProgressGroup.entries.length > 0) {
     return (
-      <div data-message-uuid={message.uuid} className={cn("relative w-full px-4 py-2", isCaptureMode && "group")}>
+      <div
+        data-message-uuid={message.uuid}
+        className={cn(
+          "relative w-full px-4 py-2 transition-all duration-200",
+          isCaptureMode && CAPTURE_HOVER_BG
+        )}
+      >
         {CaptureHideButton}
         <div className="max-w-4xl mx-auto">
           <AgentProgressGroupRenderer
@@ -128,23 +143,35 @@ export const ClaudeMessageNode = React.memo(({
     );
   }
 
-  // Summary messages get special collapsible rendering
+  // Summary messages
   if (message.type === "summary") {
     const summaryContent = typeof message.content === "string"
       ? message.content
       : "";
     return (
-      <div data-message-uuid={message.uuid} className={cn("relative max-w-4xl mx-auto", isCaptureMode && "group")}>
+      <div
+        data-message-uuid={message.uuid}
+        className={cn(
+          "relative max-w-4xl mx-auto transition-all duration-200",
+          isCaptureMode && CAPTURE_HOVER_BG
+        )}
+      >
         {CaptureHideButton}
         <SummaryMessage content={summaryContent} timestamp={message.timestamp} />
       </div>
     );
   }
 
-  // Progress messages get special rendering (non-agent progress types)
+  // Progress messages
   if (message.type === "progress" && message.data) {
     return (
-      <div data-message-uuid={message.uuid} className={cn("relative w-full px-4 py-1", isCaptureMode && "group")}>
+      <div
+        data-message-uuid={message.uuid}
+        className={cn(
+          "relative w-full px-4 py-1 transition-all duration-200",
+          isCaptureMode && CAPTURE_HOVER_BG
+        )}
+      >
         {CaptureHideButton}
         <div className="max-w-4xl mx-auto">
           <ProgressRenderer
@@ -157,28 +184,25 @@ export const ClaudeMessageNode = React.memo(({
     );
   }
 
+  // Default message rendering
   return (
     <div
       data-message-uuid={message.uuid}
       className={cn(
-        "relative w-full px-4 py-2 transition-colors duration-300",
+        "relative w-full px-4 py-2 transition-all duration-200",
         message.isSidechain && "bg-muted",
-        // 현재 매치된 메시지 강조
+        // Search highlight
         isCurrentMatch && "bg-highlight-current ring-2 ring-warning",
-        // 다른 매치 메시지 연한 강조
         isMatch && !isCurrentMatch && "bg-highlight",
-        // Capture mode: enable group hover
-        isCaptureMode && "group"
+        // Capture mode hover effect
+        isCaptureMode && !isCurrentMatch && !isMatch && CAPTURE_HOVER_BG
       )}
     >
       {CaptureHideButton}
       <div className="max-w-4xl mx-auto">
-        {/* Compact message header */}
         <MessageHeader message={message} />
 
-        {/* 메시지 내용 */}
         <div className="w-full">
-          {/* Message Content */}
           <MessageContentDisplay
             content={extractClaudeMessageContent(message)}
             messageType={message.type}
@@ -187,7 +211,6 @@ export const ClaudeMessageNode = React.memo(({
             currentMatchIndex={currentMatchIndex}
           />
 
-          {/* Claude API Content Array */}
           {message.content &&
             typeof message.content === "object" &&
             Array.isArray(message.content) &&
@@ -206,12 +229,10 @@ export const ClaudeMessageNode = React.memo(({
               </div>
             )}
 
-          {/* Tool Use */}
           {message.toolUse && (
             <ClaudeToolUseDisplay toolUse={message.toolUse} />
           )}
 
-          {/* Tool Result */}
           {message.toolUseResult && (
             <ToolExecutionResultRouter
               toolResult={message.toolUseResult}
