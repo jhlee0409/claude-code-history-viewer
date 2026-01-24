@@ -678,6 +678,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             {/* Note: directory mode shows ALL projects in groups, so no ungrouped section */}
             {(groupingMode === "none" ? projects : groupingMode === "worktree" ? displayProjects : []).map((project) => {
               const isExpanded = isProjectExpanded(project.path);
+              const isSelected = selectedProject?.path === project.path;
 
               return (
                 <div key={project.path}>
