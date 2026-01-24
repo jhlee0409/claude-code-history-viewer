@@ -47,26 +47,35 @@ fn ensure_metadata_folder() -> Result<PathBuf, String> {
 
 /// Get the metadata folder path
 #[tauri::command]
-pub fn get_metadata_folder_path() -> Result<String, String> {
-    let path = get_metadata_folder()?;
-    Ok(path.to_string_lossy().to_string())
+pub async fn get_metadata_folder_path() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let path = get_metadata_folder()?;
+        Ok(path.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }
 
 /// Load user metadata from disk
 /// Creates default metadata if file doesn't exist
 #[tauri::command]
-pub fn load_user_metadata(state: State<'_, MetadataState>) -> Result<UserMetadata, String> {
+pub async fn load_user_metadata(state: State<'_, MetadataState>) -> Result<UserMetadata, String> {
     let path = get_user_data_path()?;
 
-    let metadata = if path.exists() {
-        let content =
-            fs::read_to_string(&path).map_err(|e| format!("Failed to read metadata file: {e}"))?;
-        serde_json::from_str(&content).map_err(|e| format!("Failed to parse metadata: {e}"))?
-    } else {
-        UserMetadata::new()
-    };
+    // Perform blocking file I/O off the async runtime
+    let metadata = tauri::async_runtime::spawn_blocking(move || {
+        if path.exists() {
+            let content = fs::read_to_string(&path)
+                .map_err(|e| format!("Failed to read metadata file: {e}"))?;
+            serde_json::from_str(&content).map_err(|e| format!("Failed to parse metadata: {e}"))
+        } else {
+            Ok(UserMetadata::new())
+        }
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
 
-    // Cache the metadata
+    // Cache the metadata (lock is quick, no need to spawn_blocking)
     let mut cached = state
         .metadata
         .lock()
@@ -76,18 +85,14 @@ pub fn load_user_metadata(state: State<'_, MetadataState>) -> Result<UserMetadat
     Ok(metadata)
 }
 
-/// Save user metadata to disk with atomic write
-#[tauri::command]
-pub fn save_user_metadata(
-    metadata: UserMetadata,
-    state: State<'_, MetadataState>,
-) -> Result<(), String> {
+/// Internal helper to save metadata to disk (blocking)
+fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), String> {
     ensure_metadata_folder()?;
     let path = get_user_data_path()?;
 
     // Write to temp file first (atomic write pattern)
     let temp_path = path.with_extension("json.tmp");
-    let content = serde_json::to_string_pretty(&metadata)
+    let content = serde_json::to_string_pretty(metadata)
         .map_err(|e| format!("Failed to serialize metadata: {e}"))?;
 
     let mut file =
@@ -99,6 +104,22 @@ pub fn save_user_metadata(
 
     // Rename temp file to actual file (atomic on most filesystems)
     fs::rename(&temp_path, &path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
+
+    Ok(())
+}
+
+/// Save user metadata to disk with atomic write
+#[tauri::command]
+pub async fn save_user_metadata(
+    metadata: UserMetadata,
+    state: State<'_, MetadataState>,
+) -> Result<(), String> {
+    let metadata_clone = metadata.clone();
+
+    // Perform blocking file I/O off the async runtime
+    tauri::async_runtime::spawn_blocking(move || save_metadata_to_disk(&metadata_clone))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
 
     // Update cache
     let mut cached = state
@@ -112,7 +133,7 @@ pub fn save_user_metadata(
 
 /// Update metadata for a specific session
 #[tauri::command]
-pub fn update_session_metadata(
+pub async fn update_session_metadata(
     session_id: String,
     update: SessionMetadata,
     state: State<'_, MetadataState>,
@@ -136,14 +157,14 @@ pub fn update_session_metadata(
         metadata.clone() // Clone while still holding the lock
     }; // Lock is dropped here
 
-    save_user_metadata(metadata_to_save.clone(), state)?;
+    save_user_metadata(metadata_to_save.clone(), state).await?;
 
     Ok(metadata_to_save)
 }
 
 /// Update metadata for a specific project
 #[tauri::command]
-pub fn update_project_metadata(
+pub async fn update_project_metadata(
     project_path: String,
     update: ProjectMetadata,
     state: State<'_, MetadataState>,
@@ -167,14 +188,14 @@ pub fn update_project_metadata(
         metadata.clone() // Clone while still holding the lock
     }; // Lock is dropped here
 
-    save_user_metadata(metadata_to_save.clone(), state)?;
+    save_user_metadata(metadata_to_save.clone(), state).await?;
 
     Ok(metadata_to_save)
 }
 
 /// Update global user settings
 #[tauri::command]
-pub fn update_user_settings(
+pub async fn update_user_settings(
     settings: UserSettings,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
@@ -191,7 +212,7 @@ pub fn update_user_settings(
         metadata.clone() // Clone while still holding the lock
     }; // Lock is dropped here
 
-    save_user_metadata(metadata_to_save.clone(), state)?;
+    save_user_metadata(metadata_to_save.clone(), state).await?;
 
     Ok(metadata_to_save)
 }
@@ -240,31 +261,40 @@ pub fn get_session_display_name(
 mod tests {
     use super::*;
     use std::env;
+    use std::sync::{LazyLock, Mutex, MutexGuard};
     use tempfile::TempDir;
 
-    fn setup_test_env() -> TempDir {
+    /// Static mutex to serialize tests that modify the HOME environment variable.
+    /// This prevents race conditions when multiple tests run in parallel.
+    static TEST_ENV_MUTEX: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    /// Sets up a test environment with a temporary HOME directory.
+    /// Returns both the mutex guard (to hold the lock) and the `TempDir`.
+    /// The guard must be kept alive for the duration of the test.
+    fn setup_test_env() -> (MutexGuard<'static, ()>, TempDir) {
+        let guard = TEST_ENV_MUTEX.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         env::set_var("HOME", temp_dir.path());
-        temp_dir
+        (guard, temp_dir)
     }
 
     #[test]
     fn test_get_metadata_folder() {
-        let _temp = setup_test_env();
+        let (_guard, _temp) = setup_test_env();
         let folder = get_metadata_folder().unwrap();
         assert!(folder.to_string_lossy().contains(".claude-history-viewer"));
     }
 
     #[test]
     fn test_ensure_metadata_folder() {
-        let _temp = setup_test_env();
+        let (_guard, _temp) = setup_test_env();
         let folder = ensure_metadata_folder().unwrap();
         assert!(folder.exists());
     }
 
     #[test]
     fn test_atomic_write() {
-        let temp = setup_test_env();
+        let (_guard, temp) = setup_test_env();
 
         // Manually create the metadata folder since HOME is mocked
         let metadata_folder = temp.path().join(".claude-history-viewer");

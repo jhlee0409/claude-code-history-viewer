@@ -91,7 +91,9 @@ describe("matchGlobPattern", () => {
     });
 
     it("should handle patterns at boundaries", () => {
-      expect(matchGlobPattern("*", "\\*")).toBe(false); // escaped * should match literal
+      // Note: backslash is treated as literal character, not glob escape
+      // Pattern "\\*" becomes regex "^\\.*$" which doesn't match "*"
+      expect(matchGlobPattern("*", "\\*")).toBe(false);
       expect(matchGlobPattern("test", "test*")).toBe(true);
       expect(matchGlobPattern("test", "*test")).toBe(true);
     });

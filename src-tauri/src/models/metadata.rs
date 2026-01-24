@@ -85,8 +85,25 @@ impl UserMetadata {
         false
     }
 
+    /// Maximum pattern length to prevent `ReDoS` attacks
+    const MAX_PATTERN_LENGTH: usize = 256;
+    /// Maximum number of wildcards to prevent catastrophic backtracking
+    const MAX_WILDCARDS: usize = 10;
+
     /// Simple glob pattern matching (supports * and ?)
+    /// Returns false for patterns that exceed safety limits
     fn matches_glob_pattern(text: &str, pattern: &str) -> bool {
+        // ReDoS protection: reject overly long patterns
+        if pattern.len() > Self::MAX_PATTERN_LENGTH {
+            return false;
+        }
+
+        // ReDoS protection: reject patterns with too many wildcards
+        let wildcard_count = pattern.chars().filter(|&c| c == '*' || c == '?').count();
+        if wildcard_count > Self::MAX_WILDCARDS {
+            return false;
+        }
+
         let pattern_chars: Vec<char> = pattern.chars().collect();
         let text_chars: Vec<char> = text.chars().collect();
 

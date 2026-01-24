@@ -221,7 +221,7 @@ describe("getSessionDisplayName", () => {
     expect(getSessionDisplayName(null, "session-1")).toBeUndefined();
   });
 
-  it("should return undefined when metadata is null and fallback is provided", () => {
+  it("should return fallback when metadata is null and fallback is provided", () => {
     const result = getSessionDisplayName(null, "session-1", "Fallback");
     expect(result).toBe("Fallback");
   });
