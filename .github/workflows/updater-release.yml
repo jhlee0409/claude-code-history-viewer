@@ -149,42 +149,55 @@ jobs:
             const pubDate = new Date().toISOString();
             const platforms = {};
 
+            // Helper to fetch signature using GitHub API (works for draft releases)
+            const fetchSignature = async (assetId) => {
+              try {
+                const { data } = await github.rest.repos.getReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: assetId,
+                  headers: { accept: 'application/octet-stream' }
+                });
+                // data is ArrayBuffer, convert to string
+                return Buffer.from(data).toString('utf-8');
+              } catch (e) {
+                console.log(`Failed to fetch signature for asset ${assetId}:`, e.message);
+                return '';
+              }
+            };
+
             const findAssetPair = (pattern, sigPattern) => {
               const asset = releaseData.assets.find(a => a?.name && pattern.test(a.name) && !a.name.endsWith('.sig'));
               const sig = releaseData.assets.find(a => a?.name && sigPattern.test(a.name));
               return { asset, sig };
             };
 
+            // Construct public download URL (will be valid after publish)
+            const getPublicUrl = (filename) =>
+              `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${{ github.ref_name }}/${filename}`;
+
             // macOS - Universal Binary (supports both Apple Silicon and Intel)
             const macUniversal = findAssetPair(/_universal\.app\.tar\.gz$/, /_universal\.app\.tar\.gz\.sig$/);
             if (macUniversal.asset) {
-              let signature = '';
-              if (macUniversal.sig) {
-                try { signature = await (await fetch(macUniversal.sig.browser_download_url)).text(); } catch (e) {}
-              }
+              const signature = macUniversal.sig ? await fetchSignature(macUniversal.sig.id) : '';
+              const url = getPublicUrl(macUniversal.asset.name);
               // Both darwin-aarch64 and darwin-x86_64 point to the same universal binary
-              platforms['darwin-aarch64'] = { signature, url: macUniversal.asset.browser_download_url };
-              platforms['darwin-x86_64'] = { signature, url: macUniversal.asset.browser_download_url };
+              platforms['darwin-aarch64'] = { signature, url };
+              platforms['darwin-x86_64'] = { signature, url };
             }
 
             // Linux
             const linux = findAssetPair(/\.AppImage$/, /\.AppImage\.sig$/);
             if (linux.asset) {
-              let signature = '';
-              if (linux.sig) {
-                try { signature = await (await fetch(linux.sig.browser_download_url)).text(); } catch (e) {}
-              }
-              platforms['linux-x86_64'] = { signature, url: linux.asset.browser_download_url };
+              const signature = linux.sig ? await fetchSignature(linux.sig.id) : '';
+              platforms['linux-x86_64'] = { signature, url: getPublicUrl(linux.asset.name) };
             }
 
             // Windows
             const windows = findAssetPair(/x64-setup\.exe$/, /x64-setup\.exe\.sig$/);
             if (windows.asset) {
-              let signature = '';
-              if (windows.sig) {
-                try { signature = await (await fetch(windows.sig.browser_download_url)).text(); } catch (e) {}
-              }
-              platforms['windows-x86_64'] = { signature, url: windows.asset.browser_download_url };
+              const signature = windows.sig ? await fetchSignature(windows.sig.id) : '';
+              platforms['windows-x86_64'] = { signature, url: getPublicUrl(windows.asset.name) };
             }
 
             const latestJson = {
