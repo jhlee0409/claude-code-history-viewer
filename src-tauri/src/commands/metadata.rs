@@ -149,8 +149,8 @@ pub async fn update_session_metadata(
     update: SessionMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    // Clone metadata while holding the lock to avoid race condition
-    let metadata_to_save = {
+    // Mutate and persist while holding the lock to prevent race conditions
+    let metadata_to_return = {
         let mut cached = state
             .metadata
             .lock()
@@ -165,12 +165,13 @@ pub async fn update_session_metadata(
             metadata.sessions.insert(session_id, update);
         }
 
-        metadata.clone() // Clone while still holding the lock
-    }; // Lock is dropped here
+        // Save to disk while holding the lock to ensure atomicity
+        save_metadata_to_disk(metadata)?;
 
-    save_user_metadata(metadata_to_save.clone(), state).await?;
+        metadata.clone()
+    }; // Lock is released here after both mutation and persistence
 
-    Ok(metadata_to_save)
+    Ok(metadata_to_return)
 }
 
 /// Update metadata for a specific project
@@ -183,8 +184,8 @@ pub async fn update_project_metadata(
     // Validate that project path is absolute
     validate_absolute_path(&project_path)?;
 
-    // Clone metadata while holding the lock to avoid race condition
-    let metadata_to_save = {
+    // Mutate and persist while holding the lock to prevent race conditions
+    let metadata_to_return = {
         let mut cached = state
             .metadata
             .lock()
@@ -199,12 +200,13 @@ pub async fn update_project_metadata(
             metadata.projects.insert(project_path, update);
         }
 
-        metadata.clone() // Clone while still holding the lock
-    }; // Lock is dropped here
+        // Save to disk while holding the lock to ensure atomicity
+        save_metadata_to_disk(metadata)?;
 
-    save_user_metadata(metadata_to_save.clone(), state).await?;
+        metadata.clone()
+    }; // Lock is released here after both mutation and persistence
 
-    Ok(metadata_to_save)
+    Ok(metadata_to_return)
 }
 
 /// Update global user settings
@@ -213,8 +215,8 @@ pub async fn update_user_settings(
     settings: UserSettings,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    // Clone metadata while holding the lock to avoid race condition
-    let metadata_to_save = {
+    // Mutate and persist while holding the lock to prevent race conditions
+    let metadata_to_return = {
         let mut cached = state
             .metadata
             .lock()
@@ -223,12 +225,13 @@ pub async fn update_user_settings(
         let metadata = cached.get_or_insert_with(UserMetadata::new);
         metadata.settings = settings;
 
-        metadata.clone() // Clone while still holding the lock
-    }; // Lock is dropped here
+        // Save to disk while holding the lock to ensure atomicity
+        save_metadata_to_disk(metadata)?;
 
-    save_user_metadata(metadata_to_save.clone(), state).await?;
+        metadata.clone()
+    }; // Lock is released here after both mutation and persistence
 
-    Ok(metadata_to_save)
+    Ok(metadata_to_return)
 }
 
 /// Check if a project should be hidden based on metadata
