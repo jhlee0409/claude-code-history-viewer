@@ -116,33 +116,28 @@ pub fn update_session_metadata(
     update: SessionMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    let mut cached = state
-        .metadata
-        .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+    // Clone metadata while holding the lock to avoid race condition
+    let metadata_to_save = {
+        let mut cached = state
+            .metadata
+            .lock()
+            .map_err(|e| format!("Failed to lock metadata: {}", e))?;
 
-    let metadata = cached.get_or_insert_with(UserMetadata::new);
+        let metadata = cached.get_or_insert_with(UserMetadata::new);
 
-    // Update or insert session metadata
-    if update.is_empty() {
-        // Remove if empty
-        metadata.sessions.remove(&session_id);
-    } else {
-        metadata.sessions.insert(session_id, update);
-    }
+        // Update or insert session metadata
+        if update.is_empty() {
+            metadata.sessions.remove(&session_id);
+        } else {
+            metadata.sessions.insert(session_id, update);
+        }
 
-    // Save to disk
-    drop(cached); // Release lock before save
-    let metadata = state
-        .metadata
-        .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?
-        .clone()
-        .unwrap_or_default();
+        metadata.clone() // Clone while still holding the lock
+    }; // Lock is dropped here
 
-    save_user_metadata(metadata.clone(), state)?;
+    save_user_metadata(metadata_to_save.clone(), state)?;
 
-    Ok(metadata)
+    Ok(metadata_to_save)
 }
 
 /// Update metadata for a specific project
@@ -152,33 +147,28 @@ pub fn update_project_metadata(
     update: ProjectMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    let mut cached = state
-        .metadata
-        .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+    // Clone metadata while holding the lock to avoid race condition
+    let metadata_to_save = {
+        let mut cached = state
+            .metadata
+            .lock()
+            .map_err(|e| format!("Failed to lock metadata: {}", e))?;
 
-    let metadata = cached.get_or_insert_with(UserMetadata::new);
+        let metadata = cached.get_or_insert_with(UserMetadata::new);
 
-    // Update or insert project metadata
-    if update.is_empty() {
-        // Remove if empty
-        metadata.projects.remove(&project_path);
-    } else {
-        metadata.projects.insert(project_path, update);
-    }
+        // Update or insert project metadata
+        if update.is_empty() {
+            metadata.projects.remove(&project_path);
+        } else {
+            metadata.projects.insert(project_path, update);
+        }
 
-    // Save to disk
-    drop(cached); // Release lock before save
-    let metadata = state
-        .metadata
-        .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?
-        .clone()
-        .unwrap_or_default();
+        metadata.clone() // Clone while still holding the lock
+    }; // Lock is dropped here
 
-    save_user_metadata(metadata.clone(), state)?;
+    save_user_metadata(metadata_to_save.clone(), state)?;
 
-    Ok(metadata)
+    Ok(metadata_to_save)
 }
 
 /// Update global user settings
@@ -187,26 +177,22 @@ pub fn update_user_settings(
     settings: UserSettings,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    let mut cached = state
-        .metadata
-        .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?;
+    // Clone metadata while holding the lock to avoid race condition
+    let metadata_to_save = {
+        let mut cached = state
+            .metadata
+            .lock()
+            .map_err(|e| format!("Failed to lock metadata: {}", e))?;
 
-    let metadata = cached.get_or_insert_with(UserMetadata::new);
-    metadata.settings = settings;
+        let metadata = cached.get_or_insert_with(UserMetadata::new);
+        metadata.settings = settings;
 
-    // Save to disk
-    drop(cached); // Release lock before save
-    let metadata = state
-        .metadata
-        .lock()
-        .map_err(|e| format!("Failed to lock metadata: {}", e))?
-        .clone()
-        .unwrap_or_default();
+        metadata.clone() // Clone while still holding the lock
+    }; // Lock is dropped here
 
-    save_user_metadata(metadata.clone(), state)?;
+    save_user_metadata(metadata_to_save.clone(), state)?;
 
-    Ok(metadata)
+    Ok(metadata_to_save)
 }
 
 /// Check if a project should be hidden based on metadata

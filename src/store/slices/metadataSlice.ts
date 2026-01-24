@@ -12,6 +12,7 @@ import type {
   UserSettings,
 } from "../../types";
 import { DEFAULT_USER_METADATA } from "../../types";
+import { matchGlobPattern } from "../../utils/globUtils";
 import type { StoreSet, StoreGet, FullAppStore } from "./types";
 
 // ============================================================================
@@ -213,18 +214,3 @@ export const createMetadataSlice = (
     set({ metadataError: null });
   },
 });
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/** Simple glob pattern matching (supports * and ?) */
-const matchGlobPattern = (text: string, pattern: string): boolean => {
-  const regexPattern = pattern
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&") // Escape regex special chars
-    .replace(/\*/g, ".*") // * -> .*
-    .replace(/\?/g, "."); // ? -> .
-
-  const regex = new RegExp(`^${regexPattern}$`);
-  return regex.test(text);
-};

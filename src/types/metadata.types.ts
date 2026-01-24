@@ -6,6 +6,8 @@
  * Location: ~/.claude-history-viewer/user-data.json
  */
 
+import { matchGlobPattern } from "../utils/globUtils";
+
 /** Current schema version for migration support */
 export const METADATA_SCHEMA_VERSION = 1;
 
@@ -106,15 +108,4 @@ export const isProjectHidden = (
   }
 
   return false;
-};
-
-/** Simple glob pattern matching (supports * and ?) */
-const matchGlobPattern = (text: string, pattern: string): boolean => {
-  const regexPattern = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
-    .replace(/\*/g, '.*') // * -> .*
-    .replace(/\?/g, '.'); // ? -> .
-
-  const regex = new RegExp(`^${regexPattern}$`);
-  return regex.test(text);
 };
