@@ -25,6 +25,7 @@ use tauri_plugin_aptabase::EventTracker;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -38,9 +39,8 @@ pub fn run() {
     // Aptabase analytics - production only
     #[cfg(not(debug_assertions))]
     {
-        builder = builder.plugin(
-            tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build(),
-        );
+        builder =
+            builder.plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build());
     }
     builder
         .invoke_handler(tauri::generate_handler![
