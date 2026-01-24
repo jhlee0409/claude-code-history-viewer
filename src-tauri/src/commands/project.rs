@@ -105,6 +105,14 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             })
             .unwrap_or_else(|| Utc::now().to_rfc3339());
 
+        // Validate that project_path is absolute before processing
+        let path_buf = PathBuf::from(&project_path);
+        if !path_buf.is_absolute() {
+            #[cfg(debug_assertions)]
+            eprintln!("⚠️ Skipping non-absolute project path: {project_path}");
+            continue;
+        }
+
         // Detect git worktree information
         let git_info = detect_git_worktree_info(&project_path);
 

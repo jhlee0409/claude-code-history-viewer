@@ -118,9 +118,13 @@ fn extract_main_git_dir(gitdir: &str) -> Option<String> {
 /// Detect git worktree information for a project
 ///
 /// Detection method:
-/// 1. If .git is a directory → `Main` (main repository)
-/// 2. If .git is a file → Parse content to get `Linked` (linked worktree)
-/// 3. If .git doesn't exist → `NotGit`
+/// 1. If `.git` is a directory → [`Main`] (main repository)
+/// 2. If `.git` is a file → Parse content to get [`Linked`] (linked worktree)
+/// 3. If `.git` doesn't exist → [`NotGit`]
+///
+/// [`Main`]: GitWorktreeType::Main
+/// [`Linked`]: GitWorktreeType::Linked
+/// [`NotGit`]: GitWorktreeType::NotGit
 pub fn detect_git_worktree_info(project_path: &str) -> Option<GitInfo> {
     let actual_path = decode_project_path(project_path);
     let git_path = Path::new(&actual_path).join(".git");
