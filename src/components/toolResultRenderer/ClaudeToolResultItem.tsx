@@ -13,12 +13,11 @@ import { Check, FileText, AlertTriangle, Folder, File } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Highlight } from "prism-react-renderer";
+import { Highlight, themes } from "prism-react-renderer";
 import { useCopyButton } from "../../hooks/useCopyButton";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
-import { getCodeTheme, getCodePreStyles } from "@/utils/codeThemeStyles";
 import { HighlightedText } from "../common";
 import {
   type IndexedRendererProps,
@@ -32,6 +31,7 @@ import {
   safeStringify,
   layout,
 } from "../renderers";
+import { getPreStyles, getLineStyles, getTokenStyles, getInlineLineNumberStyles } from "@/utils/prismStyles";
 
 interface ClaudeToolResultItemProps extends IndexedRendererProps {
   toolResult: Record<string, unknown>;
@@ -180,39 +180,38 @@ export const ClaudeToolResultItem = ({
                 {code.split("\n").length} {t("toolResult.lines")}
               </span>
             </div>
-            <Highlight theme={getCodeTheme(isDarkMode)} code={code} language={language}>
+            <Highlight theme={isDarkMode ? themes.vsDark : themes.vsLight} code={code} language={language}>
               {({ className, style, tokens, getLineProps, getTokenProps }) => (
                 <pre
                   className={className}
-                  style={{
-                    ...style,
-                    ...getCodePreStyles(isDarkMode),
-                    margin: 0,
+                  style={getPreStyles(isDarkMode, style, {
                     fontSize: "0.9375rem",
                     lineHeight: codeTheme.lineHeight,
                     maxHeight: "32rem",
                     overflow: "auto",
                     padding: "1rem",
-                  }}
+                  })}
                 >
-                  {tokens.map((line, i) => (
-                    <div key={i} {...getLineProps({ line })}>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          width: "2em",
-                          userSelect: "none",
-                          opacity: 0.5,
-                          marginRight: "1em",
-                        }}
-                      >
-                        {i + 1}
-                      </span>
-                      {line.map((token, key) => (
-                        <span key={key} {...getTokenProps({ token })} />
-                      ))}
-                    </div>
-                  ))}
+                  {tokens.map((line, i) => {
+                    const lineProps = getLineProps({ line });
+                    return (
+                      <div key={i} {...lineProps} style={getLineStyles(lineProps.style)}>
+                        <span style={getInlineLineNumberStyles()}>
+                          {i + 1}
+                        </span>
+                        {line.map((token, key) => {
+                          const tokenProps = getTokenProps({ token });
+                          return (
+                            <span
+                              key={key}
+                              {...tokenProps}
+                              style={getTokenStyles(isDarkMode, tokenProps.style)}
+                            />
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </pre>
               )}
             </Highlight>

@@ -4,13 +4,19 @@ import { useState, useEffect } from "react";
 import { FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Highlight } from "prism-react-renderer";
+import { Highlight, themes } from "prism-react-renderer";
 import { useCopyButton } from "../hooks/useCopyButton";
 import { useTheme } from "@/contexts/theme";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../shared/RendererHeader";
 import { layout } from "@/components/renderers";
-import { getCodeTheme, getCodePreStyles } from "@/utils/codeThemeStyles";
+import {
+  getPreStyles,
+  getLineStyles,
+  getTokenStyles,
+  getLineNumberStyles,
+  getTokenContainerStyles,
+} from "@/utils/prismStyles";
 
 export const FileContent = ({
   fileData,
@@ -260,7 +266,7 @@ export const FileContent = ({
                 </div>
               ) : (
                 <Highlight
-                  theme={getCodeTheme(isDarkMode)}
+                  theme={isDarkMode ? themes.vsDark : themes.vsLight}
                   code={displayContent}
                   language={
                     language === "tsx"
@@ -279,44 +285,40 @@ export const FileContent = ({
                   }) => (
                     <pre
                       className={className}
-                      style={{
-                        ...style,
-                        ...getCodePreStyles(isDarkMode),
-                        margin: 0,
+                      style={getPreStyles(isDarkMode, style, {
                         fontSize: "0.6875rem",
                         lineHeight: "1.2rem",
                         maxHeight: "24rem",
                         overflow: "auto",
                         padding: "0.75rem",
-                      }}
+                      })}
                     >
-                      {tokens.map((line, i) => (
-                        <div
-                          key={i}
-                          {...getLineProps({ line, key: i })}
-                          style={{ display: "table-row" }}
-                        >
-                          <span
-                            style={{
-                              display: "table-cell",
-                              textAlign: "right",
-                              paddingRight: "1em",
-                              userSelect: "none",
-                              opacity: 0.5,
-                            }}
+                      {tokens.map((line, i) => {
+                        const lineProps = getLineProps({ line, key: i });
+                        return (
+                          <div
+                            key={i}
+                            {...lineProps}
+                            style={getLineStyles(lineProps.style, { display: "table-row" })}
                           >
-                            {startLine + i}
-                          </span>
-                          <span style={{ display: "table-cell" }}>
-                            {line.map((token, key) => (
-                              <span
-                                key={key}
-                                {...getTokenProps({ token, key })}
-                              />
-                            ))}
-                          </span>
-                        </div>
-                      ))}
+                            <span style={getLineNumberStyles()}>
+                              {startLine + i}
+                            </span>
+                            <span style={getTokenContainerStyles()}>
+                              {line.map((token, key) => {
+                                const tokenProps = getTokenProps({ token, key });
+                                return (
+                                  <span
+                                    key={key}
+                                    {...tokenProps}
+                                    style={getTokenStyles(isDarkMode, tokenProps.style)}
+                                  />
+                                );
+                              })}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </pre>
                   )}
                 </Highlight>

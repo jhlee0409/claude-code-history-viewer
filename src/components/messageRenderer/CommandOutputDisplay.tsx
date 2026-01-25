@@ -12,13 +12,13 @@
  */
 
 import React from "react";
-import { Highlight } from "prism-react-renderer";
+import { Highlight, themes } from "prism-react-renderer";
 import { Terminal, Package, TestTube, Hammer, BarChart3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
-import { getCodeTheme, getCodePreStyles } from "@/utils/codeThemeStyles";
+import { getPreStyles, getLineStyles, getTokenStyles } from "@/utils/prismStyles";
 
 interface CommandOutputDisplayProps {
   stdout: string;
@@ -74,28 +74,35 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
             })}
           </div>
           <Highlight
-            theme={getCodeTheme(isDarkMode)}
+            theme={isDarkMode ? themes.vsDark : themes.vsLight}
             code={JSON.stringify(parsed, null, 2)}
             language="json"
           >
             {({ className, style, tokens, getLineProps, getTokenProps }) => (
               <pre
                 className={className}
-                style={{
-                  ...style,
-                  ...getCodePreStyles(isDarkMode),
-                  margin: 0,
+                style={getPreStyles(isDarkMode, style, {
                   fontSize: "0.6875rem",
                   padding: "0.75rem",
-                }}
+                })}
               >
-                {tokens.map((line, i) => (
-                  <div key={i} {...getLineProps({ line, key: i })}>
-                    {line.map((token, key) => (
-                      <span key={key} {...getTokenProps({ token, key })} />
-                    ))}
-                  </div>
-                ))}
+                {tokens.map((line, i) => {
+                  const lineProps = getLineProps({ line, key: i });
+                  return (
+                    <div key={i} {...lineProps} style={getLineStyles(lineProps.style)}>
+                      {line.map((token, key) => {
+                        const tokenProps = getTokenProps({ token, key });
+                        return (
+                          <span
+                            key={key}
+                            {...tokenProps}
+                            style={getTokenStyles(isDarkMode, tokenProps.style)}
+                          />
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </pre>
             )}
           </Highlight>
