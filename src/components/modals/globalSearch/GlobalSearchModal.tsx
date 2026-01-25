@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, Input } from "@/components/ui";
 import { useAppStore } from "@/store/useAppStore";
-import type { ClaudeMessage, ContentItem } from "@/types";
+import type { ClaudeMessage, ClaudeSession, ContentItem } from "@/types";
 
 type GlobalSearchResult = ClaudeMessage;
 
@@ -63,10 +63,16 @@ export const GlobalSearchModal = ({
         return flat;
     }, [groupedResults]);
 
+    // Maximum results to display for performance
+    const MAX_RESULTS = 100;
+
     // Debounced search
     const performSearch = useCallback(
         async (searchQuery: string) => {
-            if (!claudePath || !searchQuery.trim()) {
+            const trimmedQuery = searchQuery.trim();
+
+            // Require at least 2 characters to search
+            if (!claudePath || trimmedQuery.length < 2) {
                 setResults([]);
                 setIsSearching(false);
                 return;
@@ -78,8 +84,9 @@ export const GlobalSearchModal = ({
                     "search_messages",
                     {
                         claudePath,
-                        query: searchQuery,
+                        query: trimmedQuery,
                         filters: {},
+                        limit: MAX_RESULTS,
                     },
                 );
                 setResults(searchResults);
@@ -114,26 +121,57 @@ export const GlobalSearchModal = ({
     // Navigate to selected result
     const handleSelectResult = useCallback(
         async (result: GlobalSearchResult) => {
-            // Find the session that matches this result's sessionId
-            // First, check if it's in the currently loaded sessions
-            const targetSession = sessions.find(
+            // First, check if the session is in the currently loaded sessions
+            let targetSession = sessions.find(
                 (s) =>
                     s.session_id === result.sessionId ||
                     s.actual_session_id === result.sessionId,
             );
 
             if (targetSession) {
-                // Find and select the project for this session
-                const project = projects.find(
-                    (p) => p.name === targetSession.project_name,
-                );
-                if (project) {
-                    await selectProject(project);
-                }
+                // Session is in current project, just select it
                 await selectSession(targetSession);
+                onClose();
+                return;
             }
-            // Session not in current project - for now, just close the modal
 
+            // Session not in current project - search through all projects
+            for (const project of projects) {
+                try {
+                    // Load sessions for this project directly via invoke
+                    const projectSessions = await invoke<ClaudeSession[]>(
+                        "load_project_sessions",
+                        { projectPath: project.path },
+                    );
+
+                    // Check if any session matches
+                    targetSession = projectSessions.find(
+                        (s) =>
+                            s.session_id === result.sessionId ||
+                            s.actual_session_id === result.sessionId,
+                    );
+
+                    if (targetSession) {
+                        // Found it! Select the project first, then the session
+                        await selectProject(project);
+                        // After selectProject, sessions state is updated
+                        // We need to select the session from the updated state
+                        await selectSession(targetSession);
+                        onClose();
+                        return;
+                    }
+                } catch (error) {
+                    console.error(
+                        `Failed to load sessions for project ${project.name}:`,
+                        error,
+                    );
+                }
+            }
+
+            // Session not found in any project
+            console.warn(
+                `Could not find session ${result.sessionId} in any project`,
+            );
             onClose();
         },
         [projects, sessions, selectProject, selectSession, onClose],
@@ -247,6 +285,7 @@ export const GlobalSearchModal = ({
             <DialogContent
                 className="sm:max-w-2xl p-0 gap-0 overflow-hidden"
                 onKeyDown={handleKeyDown}
+                showCloseButton={false}
             >
                 {/* Search Header */}
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -258,6 +297,10 @@ export const GlobalSearchModal = ({
                         onChange={handleInputChange}
                         placeholder={t("globalSearch.placeholder")}
                         className="border-0 shadow-none focus-visible:ring-0 px-0 h-auto text-sm"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                     />
                     {isSearching && (
                         <Loader2 className="w-4 h-4 text-muted-foreground animate-spin shrink-0" />
@@ -305,7 +348,7 @@ export const GlobalSearchModal = ({
                                 ([sessionId, items]) => (
                                     <div key={sessionId}>
                                         {/* Session Header */}
-                                        <div className="px-4 py-1.5 text-xs font-medium text-muted-foreground bg-muted/50 sticky top-0 truncate">
+                                        <div className="px-4 py-1.5 text-xs font-medium text-muted-foreground bg-muted sticky top-0 truncate">
                                             {sessionId.length > 30
                                                 ? `${sessionId.slice(0, 30)}...`
                                                 : sessionId}

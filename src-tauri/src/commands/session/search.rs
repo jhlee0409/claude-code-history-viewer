@@ -133,15 +133,20 @@ fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
     results
 }
 
+/// Default limit for search results
+const DEFAULT_SEARCH_LIMIT: usize = 100;
+
 #[tauri::command]
 pub async fn search_messages(
     claude_path: String,
     query: String,
     _filters: serde_json::Value,
+    limit: Option<usize>,
 ) -> Result<Vec<ClaudeMessage>, String> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
 
+    let max_results = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
     let projects_path = PathBuf::from(&claude_path).join("projects");
 
     if !projects_path.exists() {
@@ -160,17 +165,21 @@ pub async fn search_messages(
     eprintln!("🔍 search_messages: searching {} files", file_paths.len());
 
     // 2. Parallel search using rayon
-    let all_messages: Vec<ClaudeMessage> = file_paths
+    let mut all_messages: Vec<ClaudeMessage> = file_paths
         .par_iter()
         .flat_map(|path| search_in_file(path, &query))
         .collect();
+
+    // 3. Truncate to limit
+    all_messages.truncate(max_results);
 
     #[cfg(debug_assertions)]
     {
         let elapsed = start_time.elapsed();
         eprintln!(
-            "📊 search_messages performance: {} results, {}ms elapsed",
+            "📊 search_messages performance: {} results (limit: {}), {}ms elapsed",
             all_messages.len(),
+            max_results,
             elapsed.as_millis()
         );
     }
