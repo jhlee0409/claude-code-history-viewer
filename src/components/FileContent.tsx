@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Highlight, themes } from "prism-react-renderer";
+import { Highlight } from "prism-react-renderer";
 import { useCopyButton } from "../hooks/useCopyButton";
 import { useTheme } from "@/contexts/theme";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../shared/RendererHeader";
 import { layout } from "@/components/renderers";
+import { getCodeTheme, getCodePreStyles } from "@/utils/codeThemeStyles";
 
 export const FileContent = ({
   fileData,
@@ -259,7 +260,7 @@ export const FileContent = ({
                 </div>
               ) : (
                 <Highlight
-                  theme={isDarkMode ? themes.vsDark : themes.vsLight}
+                  theme={getCodeTheme(isDarkMode)}
                   code={displayContent}
                   language={
                     language === "tsx"
@@ -280,6 +281,7 @@ export const FileContent = ({
                       className={className}
                       style={{
                         ...style,
+                        ...getCodePreStyles(isDarkMode),
                         margin: 0,
                         fontSize: "0.6875rem",
                         lineHeight: "1.2rem",

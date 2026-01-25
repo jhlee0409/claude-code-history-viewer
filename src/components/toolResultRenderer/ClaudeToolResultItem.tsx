@@ -13,11 +13,12 @@ import { Check, FileText, AlertTriangle, Folder, File } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Highlight, themes } from "prism-react-renderer";
+import { Highlight } from "prism-react-renderer";
 import { useCopyButton } from "../../hooks/useCopyButton";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
+import { getCodeTheme, getCodePreStyles } from "@/utils/codeThemeStyles";
 import { HighlightedText } from "../common";
 import {
   type IndexedRendererProps,
@@ -179,12 +180,13 @@ export const ClaudeToolResultItem = ({
                 {code.split("\n").length} {t("toolResult.lines")}
               </span>
             </div>
-            <Highlight theme={isDarkMode ? themes.vsDark : themes.vsLight} code={code} language={language}>
+            <Highlight theme={getCodeTheme(isDarkMode)} code={code} language={language}>
               {({ className, style, tokens, getLineProps, getTokenProps }) => (
                 <pre
                   className={className}
                   style={{
                     ...style,
+                    ...getCodePreStyles(isDarkMode),
                     margin: 0,
                     fontSize: "0.9375rem",
                     lineHeight: codeTheme.lineHeight,

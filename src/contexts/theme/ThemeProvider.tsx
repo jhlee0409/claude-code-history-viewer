@@ -10,26 +10,43 @@ type ThemeProviderProps = {
   children: React.ReactNode;
 };
 
+/**
+ * Calculates whether dark mode should be active based on theme setting
+ * and system preference.
+ */
+function calculateIsDarkMode(theme: Theme): boolean {
+  if (theme === "dark") return true;
+  if (theme === "light") return false;
+  // theme === "system"
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(initialState.theme);
+  // Track isDarkMode as state to ensure re-renders on system theme changes
+  const [isDarkMode, setIsDarkMode] = useState(() => calculateIsDarkMode(initialState.theme));
 
-  const handleSetTheme = useCallback(async (theme: Theme) => {
-    setTheme(theme);
-    await saveThemeToTauriStore(theme);
+  const handleSetTheme = useCallback(async (newTheme: Theme) => {
+    setTheme(newTheme);
+    setIsDarkMode(calculateIsDarkMode(newTheme));
+    await saveThemeToTauriStore(newTheme);
   }, []);
 
   const initializeTheme = useCallback(async () => {
-    const theme = await loadThemeFromTauriStore();
-    if (theme) {
-      setTheme(theme);
+    const savedTheme = await loadThemeFromTauriStore();
+    if (savedTheme) {
+      setTheme(savedTheme);
+      setIsDarkMode(calculateIsDarkMode(savedTheme));
     }
   }, []);
 
-  const isDarkMode =
-    theme === "dark" ||
-    (theme === "system" &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches);
+  // Initialize theme from store on mount
+  useEffect(() => {
+    initializeTheme();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Apply theme class to document and listen for system theme changes
   useEffect(() => {
     const root = window.document.documentElement;
 
@@ -39,6 +56,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       } else {
         root.classList.remove("dark");
       }
+      setIsDarkMode(isDark);
     };
 
     if (theme === "system") {

@@ -1,10 +1,11 @@
 import React from "react";
-import { Highlight, themes } from "prism-react-renderer";
+import { Highlight } from "prism-react-renderer";
 import { useTranslation } from "react-i18next";
 import { ToolIcon } from "../ToolIcon";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
+import { getCodeTheme, getCodePreStyles } from "@/utils/codeThemeStyles";
 
 interface ClaudeToolUseDisplayProps {
   toolUse: Record<string, unknown>;
@@ -32,7 +33,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
       </div>
       <div className={cn("rounded overflow-hidden overflow-y-auto", layout.contentMaxHeight)}>
         <Highlight
-          theme={isDarkMode ? themes.vsDark : themes.vsLight}
+          theme={getCodeTheme(isDarkMode)}
           code={JSON.stringify(toolUse.parameters || toolUse, null, 2)}
           language="json"
         >
@@ -41,6 +42,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
               className={className}
               style={{
                 ...style,
+                ...getCodePreStyles(isDarkMode),
                 margin: 0,
                 fontSize: "0.8125rem",
                 padding: "0.5rem",

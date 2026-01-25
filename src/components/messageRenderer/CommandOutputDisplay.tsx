@@ -12,12 +12,13 @@
  */
 
 import React from "react";
-import { Highlight, themes } from "prism-react-renderer";
+import { Highlight } from "prism-react-renderer";
 import { Terminal, Package, TestTube, Hammer, BarChart3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
+import { getCodeTheme, getCodePreStyles } from "@/utils/codeThemeStyles";
 
 interface CommandOutputDisplayProps {
   stdout: string;
@@ -73,7 +74,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
             })}
           </div>
           <Highlight
-            theme={isDarkMode ? themes.vsDark : themes.vsLight}
+            theme={getCodeTheme(isDarkMode)}
             code={JSON.stringify(parsed, null, 2)}
             language="json"
           >
@@ -82,6 +83,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
                 className={className}
                 style={{
                   ...style,
+                  ...getCodePreStyles(isDarkMode),
                   margin: 0,
                   fontSize: "0.6875rem",
                   padding: "0.75rem",

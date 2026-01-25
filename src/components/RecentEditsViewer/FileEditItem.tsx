@@ -20,11 +20,12 @@ import {
   Loader2,
   RotateCcw,
 } from "lucide-react";
-import { Highlight, themes } from "prism-react-renderer";
+import { Highlight } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import type { FileEditItemProps, RestoreStatus } from "./types";
 import { getLanguageFromPath, formatTimestamp, getRelativeTime } from "./utils";
+import { getCodeTheme, getCodePreStyles, getLineNumberStyles } from "@/utils/codeThemeStyles";
 
 export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) => {
   const { t } = useTranslation();
@@ -275,7 +276,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
           {/* Code content */}
           <div className="max-h-96 overflow-auto">
             <Highlight
-              theme={isDarkMode ? themes.vsDark : themes.vsLight}
+              theme={getCodeTheme(isDarkMode)}
               code={edit.content_after_change}
               language={
                 language === "tsx" ? "typescript" : language === "jsx" ? "javascript" : language
@@ -286,6 +287,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
                   className={className}
                   style={{
                     ...style,
+                    ...getCodePreStyles(isDarkMode),
                     margin: 0,
                     fontSize: "0.8125rem",
                     lineHeight: "1.25rem",
@@ -294,16 +296,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
                 >
                   {tokens.map((line, i) => (
                     <div key={i} {...getLineProps({ line, key: i })} style={{ display: "table-row" }}>
-                      <span
-                        style={{
-                          display: "table-cell",
-                          textAlign: "right",
-                          paddingRight: "1em",
-                          userSelect: "none",
-                          opacity: 0.5,
-                          width: "3em",
-                        }}
-                      >
+                      <span style={getLineNumberStyles(isDarkMode)}>
                         {i + 1}
                       </span>
                       <span style={{ display: "table-cell" }}>

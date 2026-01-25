@@ -23,15 +23,20 @@ use crate::commands::{
     },
 };
 
-#[cfg(not(debug_assertions))]
-use dotenvy_macro::dotenv;
-#[cfg(not(debug_assertions))]
-use tauri_plugin_aptabase::EventTracker;
+// NOTE: Aptabase temporarily disabled due to Tokio runtime panic
+// The plugin requires a Tokio runtime at initialization, but Tauri's runtime
+// isn't started yet when plugins are registered. This causes:
+// "there is no reactor running, must be called from the context of a Tokio 1.x runtime"
+// See: https://github.com/jhlee0409/claude-code-history-viewer/issues/63
+// TODO: Re-enable when tauri-plugin-aptabase is updated to support Tauri 2.x properly
+// #[cfg(not(debug_assertions))]
+// use dotenvy_macro::dotenv;
+// #[cfg(not(debug_assertions))]
+// use tauri_plugin_aptabase::EventTracker;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -41,12 +46,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init());
 
-    // Aptabase analytics - production only
-    #[cfg(not(debug_assertions))]
-    {
-        builder =
-            builder.plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build());
-    }
+    // Aptabase analytics - TEMPORARILY DISABLED
+    // See comment at top of file for details on the Tokio runtime panic issue
+    // #[cfg(not(debug_assertions))]
+    // {
+    //     builder =
+    //         builder.plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build());
+    // }
+
     builder
         .manage(MetadataState::default())
         .invoke_handler(tauri::generate_handler![
@@ -80,18 +87,19 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_handler, _event| {
+        .run(|_, _| {
             // Production only: track app lifecycle events
-            #[cfg(not(debug_assertions))]
-            match _event {
-                tauri::RunEvent::Ready { .. } => {
-                    let _ = _handler.track_event("app_started", None);
-                }
-                tauri::RunEvent::Exit { .. } => {
-                    let _ = _handler.track_event("app_exited", None);
-                    _handler.flush_events_blocking();
-                }
-                _ => {}
-            }
+            // TEMPORARILY DISABLED - Aptabase plugin causes runtime panic
+            // #[cfg(not(debug_assertions))]
+            // match _event {
+            //     tauri::RunEvent::Ready { .. } => {
+            //         let _ = _handler.track_event("app_started", None);
+            //     }
+            //     tauri::RunEvent::Exit { .. } => {
+            //         let _ = _handler.track_event("app_exited", None);
+            //         _handler.flush_events_blocking();
+            //     }
+            //     _ => {}
+            // }
         });
 }

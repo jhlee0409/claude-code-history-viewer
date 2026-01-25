@@ -10,7 +10,7 @@
  * - Default: Generic tool input display
  */
 
-import { Highlight, themes } from "prism-react-renderer";
+import { Highlight } from "prism-react-renderer";
 import { useTranslation } from "react-i18next";
 import {
   FileText,
@@ -23,6 +23,7 @@ import { ToolIcon } from "../ToolIcon";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
+import { getCodeTheme, getCodePreStyles } from "@/utils/codeThemeStyles";
 import { FileEditRenderer } from "../toolResultRenderer/FileEditRenderer";
 import { HighlightedText } from "../common";
 import {
@@ -139,7 +140,7 @@ export const ToolUseRenderer = ({
             </div>
             <div className={cn(layout.rounded, "overflow-hidden", layout.contentMaxHeight, "overflow-y-auto")}>
               <Highlight
-                theme={isDarkMode ? themes.vsDark : themes.vsLight}
+                theme={getCodeTheme(isDarkMode)}
                 code={content}
                 language={language}
               >
@@ -154,6 +155,7 @@ export const ToolUseRenderer = ({
                     className={className}
                     style={{
                       ...style,
+                      ...getCodePreStyles(isDarkMode),
                       margin: 0,
                       fontSize: codeTheme.fontSize,
                       padding: codeTheme.padding,
@@ -274,7 +276,7 @@ export const ToolUseRenderer = ({
             {t("toolUseRenderer.toolInputParameters")}
           </div>
           <Highlight
-            theme={isDarkMode ? themes.vsDark : themes.vsLight}
+            theme={getCodeTheme(isDarkMode)}
             code={JSON.stringify(toolInput, null, 2)}
             language="json"
           >
@@ -283,6 +285,7 @@ export const ToolUseRenderer = ({
                 className={className}
                 style={{
                   ...style,
+                  ...getCodePreStyles(isDarkMode),
                   margin: 0,
                   fontSize: codeTheme.fontSize,
                   padding: codeTheme.padding,
