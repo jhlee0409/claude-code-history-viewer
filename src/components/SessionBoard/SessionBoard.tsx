@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "../../store/useAppStore";
 import { SessionLane } from "./SessionLane";
@@ -6,6 +6,7 @@ import { BoardControls } from "./BoardControls";
 import { LoadingSpinner } from "../ui/loading";
 import { useTranslation } from "react-i18next";
 import { MessageSquare } from "lucide-react";
+import { clsx } from "clsx";
 
 export const SessionBoard = () => {
     const {
@@ -20,6 +21,84 @@ export const SessionBoard = () => {
 
     const { t } = useTranslation();
     const parentRef = useRef<HTMLDivElement>(null);
+    const scrollSyncRef = useRef<{ isSyncing: boolean; lastTop: number }>({ isSyncing: false, lastTop: 0 });
+
+    // Panning State
+    const [isMetaPressed, setIsMetaPressed] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+    const [startX, setStartX] = useState(0);
+    const [startY, setStartY] = useState(0);
+    const [scrollLeft, setScrollLeft] = useState(0);
+
+    // Track Meta/Command key
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Meta' || e.key === 'Control') setIsMetaPressed(true);
+        };
+        const handleKeyUp = (e: KeyboardEvent) => {
+            if (e.key === 'Meta' || e.key === 'Control') {
+                setIsMetaPressed(false);
+                setIsDragging(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, []);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (!isMetaPressed || !parentRef.current) return;
+        setIsDragging(true);
+        setStartX(e.pageX - parentRef.current.offsetLeft);
+        setStartY(e.pageY);
+        setScrollLeft(parentRef.current.scrollLeft);
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging || !parentRef.current) return;
+        e.preventDefault();
+
+        // Horizontal Pan
+        const x = e.pageX - parentRef.current.offsetLeft;
+        const walkX = (x - startX) * 2;
+        parentRef.current.scrollLeft = scrollLeft - walkX;
+
+        // Vertical Pan (Sync across all lanes)
+        const y = e.pageY;
+        const deltaY = y - startY;
+
+        const lanes = document.querySelectorAll('.session-lane-scroll');
+        lanes.forEach(lane => {
+            lane.scrollTop = lane.scrollTop - (e.movementY * 1.5);
+        });
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    // Scroll Synchronization Logic
+    const handleLaneScroll = useCallback((scrollTop: number) => {
+        if (scrollSyncRef.current.isSyncing) return;
+
+        scrollSyncRef.current.isSyncing = true;
+        scrollSyncRef.current.lastTop = scrollTop;
+
+        const lanes = document.querySelectorAll('.session-lane-scroll');
+        lanes.forEach(lane => {
+            if (lane.scrollTop !== scrollTop) {
+                lane.scrollTop = scrollTop;
+            }
+        });
+
+        // Reset sync flag after a short delay or in next tick
+        requestAnimationFrame(() => {
+            scrollSyncRef.current.isSyncing = false;
+        });
+    }, []);
 
     const columnVirtualizer = useVirtualizer({
         count: visibleSessionIds.length,
@@ -71,7 +150,15 @@ export const SessionBoard = () => {
             {/* Virtualized Lanes Container */}
             <div
                 ref={parentRef}
-                className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin"
+                className={clsx(
+                    "flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin select-none",
+                    isMetaPressed ? "cursor-grab" : "cursor-default",
+                    isDragging && "cursor-grabbing"
+                )}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
             >
                 <div
                     style={{
@@ -105,12 +192,20 @@ export const SessionBoard = () => {
                                     activeBrush={activeBrush}
                                     onHoverInteraction={(type, value) => setActiveBrush({ type: type as any, value })}
                                     onLeaveInteraction={() => setActiveBrush(null)}
+                                    onScroll={handleLaneScroll}
                                 />
                             </div>
                         );
                     })}
                 </div>
             </div>
+
+            {/* Hint for panning */}
+            {isMetaPressed && !isDragging && (
+                <div className="fixed bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-accent text-white rounded-full text-xs font-bold shadow-2xl animate-bounce z-[100]">
+                    Drag to pan horizontally and vertically
+                </div>
+            )}
         </div>
     );
 };

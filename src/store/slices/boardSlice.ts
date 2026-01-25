@@ -14,7 +14,7 @@ export interface BoardSliceState {
     isLoadingBoard: boolean;
     zoomLevel: ZoomLevel;
     activeBrush: {
-        type: "role" | "status" | "tool";
+        type: "role" | "status" | "tool" | "file";
         value: string;
     } | null;
 }
@@ -34,6 +34,32 @@ const initialBoardState: BoardSliceState = {
     isLoadingBoard: false,
     zoomLevel: 1, // Default to SKIM
     activeBrush: null,
+};
+
+/**
+ * Heuristic to determine if a session is "interesting" or just boilerplate
+ */
+const getSessionRelevance = (messages: ClaudeMessage[], stats: BoardSessionStats) => {
+    // Low interestingness: few messages, mostly system/boilerplate, or no tool use
+    if (messages.length < 3) return 0.2;
+
+    let score = 0.5;
+
+    // High tool use often means active coding/research
+    if (stats.toolCount > 5) score += 0.3;
+
+    // Errors might be interesting to debug
+    if (stats.errorCount > 0) score += 0.2;
+
+    // Mentioning .md files or documentation might be high value for summaries
+    const hasDocWork = messages.some(m => {
+        const toolUse = m.toolUse as any;
+        const path = toolUse?.input?.path || toolUse?.input?.file_path || "";
+        return typeof path === 'string' && path.toLowerCase().endsWith('.md');
+    });
+    if (hasDocWork) score += 0.2;
+
+    return Math.min(score, 1.0);
 };
 
 export const createBoardSlice: StateCreator<
@@ -66,34 +92,16 @@ export const createBoardSlice: StateCreator<
                     };
 
                     messages.forEach((msg) => {
-                        // Token stats from assistant messages
                         if (msg.usage) {
                             const usage = msg.usage;
                             stats.inputTokens += usage.input_tokens || 0;
                             stats.outputTokens += usage.output_tokens || 0;
-                            stats.totalTokens +=
-                                (usage.input_tokens || 0) + (usage.output_tokens || 0);
+                            stats.totalTokens += (usage.input_tokens || 0) + (usage.output_tokens || 0);
                         }
 
-                        // Duration if available
-                        if (msg.durationMs) {
-                            stats.durationMs += msg.durationMs;
-                        }
-
-                        // Error count - System level
-                        if (msg.stopReasonSystem?.toLowerCase().includes("error")) {
-                            stats.errorCount++;
-                        }
-
-                        // Error count - Assistant stop reason
-                        if (msg.type === "assistant" && msg.stop_reason === "max_tokens") {
-                            // Not necessarily an error, but worth noting depending on context
-                        }
-
-                        // Check tool uses and results
-                        if (msg.toolUse) {
-                            stats.toolCount++;
-                        }
+                        if (msg.durationMs) stats.durationMs += msg.durationMs;
+                        if (msg.stopReasonSystem?.toLowerCase().includes("error")) stats.errorCount++;
+                        if (msg.toolUse) stats.toolCount++;
 
                         if (msg.toolUseResult) {
                             const result = msg.toolUseResult as any;
@@ -101,30 +109,14 @@ export const createBoardSlice: StateCreator<
                                 stats.errorCount++;
                             }
                         }
-
-                        // Also check nested content for tool interactions
-                        if (Array.isArray(msg.content)) {
-                            msg.content.forEach((content: any) => {
-                                if (content.type === "tool_use") {
-                                    stats.toolCount++;
-                                }
-                                if (content.type === "tool_result" && content.is_error) {
-                                    stats.errorCount++;
-                                }
-                                // Handle complex tool result types (bash, code execution, etc.)
-                                if (content.type?.includes("tool_result") && content.content) {
-                                    if (content.content.stderr || content.content.type?.includes("error")) {
-                                        stats.errorCount++;
-                                    }
-                                }
-                            });
-                        }
                     });
+
+                    const relevance = getSessionRelevance(messages, stats);
 
                     return {
                         sessionId: session.session_id,
                         data: {
-                            session,
+                            session: { ...session, relevance }, // Inject heuristic relevance
                             messages,
                             stats,
                         },
@@ -140,11 +132,19 @@ export const createBoardSlice: StateCreator<
             const boardSessions: Record<string, BoardSessionData> = {};
             const visibleSessionIds: string[] = [];
 
-            results.forEach((res) => {
-                if (res) {
-                    boardSessions[res.sessionId] = res.data;
-                    visibleSessionIds.push(res.sessionId);
-                }
+            // Sort by relevance then recency
+            const sortedResults = results
+                .filter((r): r is NonNullable<typeof r> => r !== null)
+                .sort((a, b) => {
+                    const relA = (a.data.session as any).relevance || 0;
+                    const relB = (b.data.session as any).relevance || 0;
+                    if (relA !== relB) return relB - relA;
+                    return new Date(b.data.session.last_modified).getTime() - new Date(a.data.session.last_modified).getTime();
+                });
+
+            sortedResults.forEach((res) => {
+                boardSessions[res.sessionId] = res.data;
+                visibleSessionIds.push(res.sessionId);
             });
 
             set({
@@ -153,9 +153,6 @@ export const createBoardSlice: StateCreator<
                 isLoadingBoard: false,
             });
 
-            if (import.meta.env.DEV) {
-                console.log(`[BoardSlice] Loaded ${visibleSessionIds.length} sessions`);
-            }
         } catch (error) {
             console.error("Failed to load board sessions:", error);
             set({ isLoadingBoard: false });
@@ -163,8 +160,6 @@ export const createBoardSlice: StateCreator<
     },
 
     setZoomLevel: (zoomLevel: ZoomLevel) => set({ zoomLevel }),
-
     setActiveBrush: (activeBrush) => set({ activeBrush }),
-
     clearBoard: () => set(initialBoardState),
 });

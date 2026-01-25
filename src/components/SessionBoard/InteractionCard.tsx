@@ -1,15 +1,16 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import type { ClaudeMessage } from "../../types";
 import type { ZoomLevel } from "../../types/board.types";
 import { ToolIcon } from "../ToolIcon";
 import { extractClaudeMessageContent } from "../../utils/messageUtils";
 import { clsx } from "clsx";
+import { FileText } from "lucide-react";
 
 interface InteractionCardProps {
     message: ClaudeMessage;
     zoomLevel: ZoomLevel;
     isActive: boolean; // For brushing
-    onHover?: () => void;
+    onHover?: (type: "role" | "status" | "tool" | "file", value: string) => void;
     onLeave?: () => void;
     onClick?: () => void;
 }
@@ -22,17 +23,36 @@ export const InteractionCard = memo(({
     onLeave,
     onClick
 }: InteractionCardProps) => {
+    const content = extractClaudeMessageContent(message) || "";
+    const isTool = !!message.toolUse;
+    const toolInput = isTool ? JSON.stringify((message.toolUse as any).input) : "";
+
+    // Skip "No content" entries if they are not tools and empty
+    if (!content.trim() && !isTool) {
+        return null;
+    }
+
     const isError = (message.stopReasonSystem?.toLowerCase().includes("error")) ||
         (message.toolUseResult as any)?.is_error ||
         (message.toolUseResult as any)?.stderr?.length > 0;
 
     const role = message.role || message.type;
 
+    const editedMdFile = useMemo(() => {
+        if (!message.toolUse) return null;
+        const toolUse = message.toolUse as any;
+        const path = toolUse.input?.path || toolUse?.input?.file_path || "";
+        if (typeof path === 'string' && path.toLowerCase().endsWith('.md')) {
+            return path;
+        }
+        return null;
+    }, [message.toolUse]);
+
     // Base classes for the card
     const baseClasses = clsx(
         "relative rounded transition-all duration-200 cursor-pointer overflow-hidden border border-transparent shadow-sm",
-        !isActive && "opacity-30 scale-[0.98] grayscale",
-        isActive && "hover:border-accent hover:shadow-md",
+        !isActive && "opacity-20 scale-[0.98] grayscale blur-[0.5px]",
+        isActive && "hover:border-accent hover:shadow-lg hover:z-50 hover:scale-[1.02]",
         isError && "bg-destructive/10 border-destructive/20"
     );
 
@@ -46,13 +66,14 @@ export const InteractionCard = memo(({
         else if (role === "assistant") bgColor = "bg-foreground/40";
         else if (message.toolUse) bgColor = "bg-accent/60";
 
+        if (editedMdFile) bgColor = "bg-emerald-500/80"; // Call out .md edits in Pixel view
         if (isError) bgColor = "bg-destructive/80";
 
         return (
             <div
-                className={clsx(baseClasses, bgColor, "w-full mb-0.5")}
+                className={clsx(baseClasses, bgColor, "w-full")}
                 style={{ height: `${height}px` }}
-                onMouseEnter={onHover}
+                onMouseEnter={() => onHover?.('role', role)}
                 onMouseLeave={onLeave}
                 onClick={onClick}
             />
@@ -61,16 +82,14 @@ export const InteractionCard = memo(({
 
     // Level 1: Skim/Kanban
     if (zoomLevel === 1) {
-        const content = extractClaudeMessageContent(message) || "";
-
         return (
             <div
-                className={clsx(baseClasses, "mb-2 p-2 bg-card min-h-[60px] flex gap-2 items-start")}
-                onMouseEnter={onHover}
+                className={clsx(baseClasses, "mb-1.5 p-2 bg-card min-h-[60px] flex gap-2 items-start")}
+                onMouseEnter={() => onHover?.('role', role)}
                 onMouseLeave={onLeave}
                 onClick={onClick}
             >
-                <div className="mt-0.5">
+                <div className="mt-0.5 relative">
                     {message.toolUse ? (
                         <ToolIcon toolName={(message.toolUse as any).name} className="text-accent" />
                     ) : (
@@ -78,13 +97,24 @@ export const InteractionCard = memo(({
                             role === "user" ? "bg-primary" : "bg-muted-foreground/40")}
                         />
                     )}
+                    {editedMdFile && (
+                        <div
+                            className="absolute -top-1 -right-1 p-0.5 bg-emerald-500 rounded-full shadow-sm text-white border border-background"
+                            onMouseEnter={(e) => {
+                                e.stopPropagation();
+                                onHover?.('file', editedMdFile);
+                            }}
+                        >
+                            <FileText className="w-2 h-2" />
+                        </div>
+                    )}
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="text-[10px] font-medium uppercase tracking-tight text-muted-foreground opacity-70 mb-0.5">
                         {message.toolUse ? (message.toolUse as any).name : role}
                     </div>
                     <p className="text-xs line-clamp-2 leading-tight text-foreground/80">
-                        {message.toolUse ? JSON.stringify((message.toolUse as any).input) : content}
+                        {message.toolUse ? toolInput : content}
                     </p>
                 </div>
                 {isError && (
@@ -95,15 +125,27 @@ export const InteractionCard = memo(({
     }
 
     // Level 2: Read/Detail
-    const content = extractClaudeMessageContent(message) || "";
-
     return (
         <div
-            className={clsx(baseClasses, "mb-3 p-3 bg-card flex flex-col gap-2")}
-            onMouseEnter={onHover}
+            className={clsx(baseClasses, "mb-2.5 p-3 bg-card flex flex-col gap-2 ring-1 ring-border/5 shadow-md")}
+            style={{ transformOrigin: 'top center' }}
+            onMouseEnter={() => onHover?.('role', role)}
             onMouseLeave={onLeave}
             onClick={onClick}
         >
+            {editedMdFile && (
+                <div
+                    className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded text-[10px] text-emerald-600 font-medium mb-1 cursor-help group/md"
+                    onMouseEnter={(e) => {
+                        e.stopPropagation();
+                        onHover?.('file', editedMdFile);
+                    }}
+                >
+                    <FileText className="w-3 h-3" />
+                    <span className="truncate">Modified: {editedMdFile}</span>
+                </div>
+            )}
+
             <div className="flex justify-between items-center border-b border-border/10 pb-1.5 mb-1">
                 <div className="flex items-center gap-2">
                     {message.toolUse ? (

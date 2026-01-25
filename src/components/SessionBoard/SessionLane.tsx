@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { BoardSessionData, ZoomLevel } from "../../types/board.types";
 import { InteractionCard } from "./InteractionCard";
@@ -10,8 +10,9 @@ interface SessionLaneProps {
     zoomLevel: ZoomLevel;
     activeBrush: { type: string; value: string } | null;
     onInteractionClick?: (messageUuid: string) => void;
-    onHoverInteraction?: (type: string, value: string) => void;
+    onHoverInteraction?: (type: "role" | "status" | "tool" | "file", value: string) => void;
     onLeaveInteraction?: () => void;
+    onScroll?: (scrollTop: number) => void;
 }
 
 export const SessionLane = ({
@@ -20,7 +21,8 @@ export const SessionLane = ({
     activeBrush,
     onInteractionClick,
     onHoverInteraction,
-    onLeaveInteraction
+    onLeaveInteraction,
+    onScroll
 }: SessionLaneProps) => {
     const parentRef = useRef<HTMLDivElement>(null);
     const { session, messages, stats } = data;
@@ -29,27 +31,51 @@ export const SessionLane = ({
         count: messages.length,
         getScrollElement: () => parentRef.current,
         estimateSize: () => {
-            if (zoomLevel === 0) return 12;
-            if (zoomLevel === 1) return 85;
-            return 160;
+            if (zoomLevel === 0) return 6; // Compact for Pixel View
+            if (zoomLevel === 1) return 80;
+            return 150;
         },
-        overscan: 5,
+        overscan: 10,
     });
+
+    // Handle local scroll and notify parent
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        if (onScroll) {
+            onScroll(e.currentTarget.scrollTop);
+        }
+    };
 
     const isInteractionActive = (msg: any) => {
         if (!activeBrush) return true;
         if (!msg) return false;
+
+        if (activeBrush.type === 'file') {
+            const toolUse = msg.toolUse as any;
+            const path = toolUse?.input?.path || toolUse?.input?.file_path || "";
+            if (typeof path !== 'string') return false;
+
+            if (activeBrush.value === '.md') {
+                return path.toLowerCase().endsWith('.md');
+            }
+            return path === activeBrush.value;
+        }
+
         const role = msg.role || msg.type;
         if (activeBrush.type === 'role' && role === activeBrush.value) return true;
+
         if (activeBrush.type === 'status' && activeBrush.value === 'error') {
             const isError = (msg.stopReasonSystem?.toLowerCase().includes("error")) ||
                 (msg.toolUseResult as any)?.is_error ||
                 (msg.toolUseResult as any)?.stderr?.length > 0;
             return isError;
         }
-        if (activeBrush.type === 'tool' && msg.toolUse) {
+
+        if (activeBrush.type === 'tool') {
+            if (!msg.toolUse) return false;
+            if (activeBrush.value === 'tool') return true;
             return (msg.toolUse as any).name === activeBrush.value;
         }
+
         return false;
     };
 
@@ -83,7 +109,8 @@ export const SessionLane = ({
             {/* Interactions Virtual List */}
             <div
                 ref={parentRef}
-                className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin overflow-x-hidden"
+                onScroll={handleScroll}
+                className="session-lane-scroll flex-1 overflow-y-auto px-1 py-4 scrollbar-thin overflow-x-hidden"
             >
                 <div
                     style={{
@@ -96,6 +123,16 @@ export const SessionLane = ({
                         const message = messages[virtualRow.index];
                         if (!message) return null;
 
+                        let zIndex = 1;
+                        if (activeBrush) {
+                            if (activeBrush.type === 'role' && (message.role || message.type) === activeBrush.value) zIndex = 10;
+                            if (activeBrush.type === 'file') {
+                                const toolUse = message.toolUse as any;
+                                const path = toolUse?.input?.path || toolUse?.input?.file_path || "";
+                                if (typeof path === 'string' && (path === activeBrush.value || (activeBrush.value === '.md' && path.toLowerCase().endsWith('.md')))) zIndex = 20;
+                            }
+                        }
+
                         return (
                             <div
                                 key={message.uuid}
@@ -106,13 +143,15 @@ export const SessionLane = ({
                                     width: '100%',
                                     height: `${virtualRow.size}px`,
                                     transform: `translateY(${virtualRow.start}px)`,
+                                    zIndex: zIndex,
+                                    padding: zoomLevel === 0 ? '0 1px' : '0 8px'
                                 }}
                             >
                                 <InteractionCard
                                     message={message}
                                     zoomLevel={zoomLevel}
                                     isActive={isInteractionActive(message)}
-                                    onHover={() => onHoverInteraction?.('role', message.role || message.type)}
+                                    onHover={onHoverInteraction}
                                     onLeave={onLeaveInteraction}
                                     onClick={() => onInteractionClick?.(message.uuid)}
                                 />
