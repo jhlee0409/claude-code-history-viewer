@@ -7,12 +7,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { Settings, RefreshCw, MessageSquare, Folder, Download, Loader2 } from "lucide-react";
+import { Settings, RefreshCw, MessageSquare, Folder, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-import { useGitHubUpdater } from "@/hooks/useGitHubUpdater";
-import { useSmartUpdater } from "@/hooks/useSmartUpdater";
+import { useUpdater } from "@/hooks/useUpdater";
 import { useTranslation } from "react-i18next";
 import { useModal } from "@/contexts/modal";
 import { ThemeMenuGroup } from "./ThemeMenuGroup";
@@ -20,13 +19,11 @@ import { LanguageMenuGroup } from "./LanguageMenuGroup";
 import { FilterMenuGroup } from "./FilterMenuGroup";
 
 export const SettingDropdown = () => {
-  const manualUpdater = useGitHubUpdater();
-  const smartUpdater = useSmartUpdater();
+  const updater = useUpdater();
   const { t } = useTranslation();
-    const { openModal } = useModal();
+  const { openModal } = useModal();
 
-  // 자동 또는 수동 업데이트 체크 중인지 확인
-  const isCheckingForUpdates = manualUpdater.state.isChecking || smartUpdater.state.isChecking;
+  const isCheckingForUpdates = updater.state.isChecking;
 
   return (
     <>
@@ -54,10 +51,6 @@ export const SettingDropdown = () => {
             <MessageSquare className="mr-2 h-4 w-4 text-foreground" />
             <span>{t("feedback.title")}</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => window.dispatchEvent(new Event('open-update-settings'))}>
-            <Download className="mr-2 h-4 w-4 text-foreground" />
-            <span>{t('common.settings.updateSettings')}</span>
-          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <FilterMenuGroup />
 
@@ -71,17 +64,16 @@ export const SettingDropdown = () => {
           <DropdownMenuItem
             onClick={() => {
               window.dispatchEvent(new Event('manual-update-check'));
-              manualUpdater.checkForUpdates(true); // 강제 체크
             }}
-            disabled={manualUpdater.state.isChecking}
+            disabled={updater.state.isChecking}
           >
             <RefreshCw
               className={cn(
                 "mr-2 h-4 w-4 text-foreground",
-                manualUpdater.state.isChecking && "animate-spin"
+                updater.state.isChecking && "animate-spin"
               )}
             />
-            {manualUpdater.state.isChecking
+            {updater.state.isChecking
               ? t('common.settings.checking')
               : t('common.settings.checkUpdate')}
           </DropdownMenuItem>

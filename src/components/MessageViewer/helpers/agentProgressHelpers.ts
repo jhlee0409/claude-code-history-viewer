@@ -10,7 +10,7 @@ import type { AgentProgressEntry, AgentProgressGroupResult } from "../types";
 /**
  * Check if a message is an agent progress message
  */
-export const isAgentProgressMessage = (message: ClaudeMessage): boolean => {
+const isAgentProgressMessage = (message: ClaudeMessage): boolean => {
   if (message.type !== "progress") return false;
   const data = message.data as ProgressData | undefined;
   return data?.type === "agent_progress" && typeof data?.agentId === "string";

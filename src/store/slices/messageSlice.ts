@@ -71,7 +71,7 @@ export type MessageSlice = MessageSliceState & MessageSliceActions;
 
 const TOKENS_STATS_PAGE_SIZE = 20;
 
-export const initialMessageState: MessageSliceState = {
+const initialMessageState: MessageSliceState = {
   messages: [],
   pagination: {
     currentOffset: 0,

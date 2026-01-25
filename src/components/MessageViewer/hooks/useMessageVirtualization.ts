@@ -60,7 +60,10 @@ export const useMessageVirtualization = ({
   isCaptureMode = false,
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
   // Only apply hidden filter when in capture mode (hybrid approach)
-  const effectiveHiddenIds = isCaptureMode ? hiddenMessageIds : [];
+  const effectiveHiddenIds = useMemo(
+    () => (isCaptureMode ? hiddenMessageIds : []),
+    [isCaptureMode, hiddenMessageIds]
+  );
 
   // Flatten message tree with group information
   const flattenedMessages = useMemo(

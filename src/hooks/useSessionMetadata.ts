@@ -29,7 +29,10 @@ export const useSessionMetadata = (sessionId: string) => {
   // Derived values
   const customName = sessionMetadata?.customName;
   const starred = sessionMetadata?.starred ?? false;
-  const tags = sessionMetadata?.tags ?? [];
+  const tags = useMemo(
+    () => sessionMetadata?.tags ?? [],
+    [sessionMetadata?.tags]
+  );
   const notes = sessionMetadata?.notes;
 
   // Actions

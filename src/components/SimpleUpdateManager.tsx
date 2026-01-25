@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { useSmartUpdater } from "../hooks/useSmartUpdater";
+import { useUpdater } from "../hooks/useUpdater";
 import { SimpleUpdateModal } from "./SimpleUpdateModal";
-import { UpdateIntroModal } from "./UpdateConsentModal";
 import { UpToDateNotification } from "./UpToDateNotification";
 import { UpdateCheckingNotification } from "./UpdateCheckingNotification";
 import { UpdateErrorNotification } from "./UpdateErrorNotification";
 
+const AUTO_CHECK_DELAY_MS = 5_000; // 5 seconds after app start
+
 export function SimpleUpdateManager() {
-  const updater = useSmartUpdater();
+  const updater = useUpdater();
   const [showUpdateModal, setShowUpdateModal] = useState(true);
   const [showUpToDate, setShowUpToDate] = useState(false);
   const [showChecking, setShowChecking] = useState(false);
@@ -15,7 +16,19 @@ export function SimpleUpdateManager() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isManualCheck, setIsManualCheck] = useState(false);
 
-  // 수동 체크 시 체크 중 알림 표시
+  // Auto check on app start (production only)
+  useEffect(() => {
+    if (import.meta.env.DEV) return;
+
+    const timer = setTimeout(() => {
+      updater.checkForUpdates();
+    }, AUTO_CHECK_DELAY_MS);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Show checking notification during manual check
   useEffect(() => {
     if (updater.state.isChecking && isManualCheck) {
       setShowChecking(true);
@@ -24,19 +37,16 @@ export function SimpleUpdateManager() {
     }
   }, [updater.state.isChecking, isManualCheck]);
 
-  // 수동 체크 결과 처리
+  // Handle manual check results
   useEffect(() => {
     if (!updater.state.isChecking && isManualCheck) {
       if (updater.state.error) {
-        // 에러 발생
         setErrorMessage(updater.state.error);
         setShowError(true);
       } else if (!updater.state.hasUpdate) {
-        // 최신 버전
         setShowUpToDate(true);
         setTimeout(() => setShowUpToDate(false), 3000);
       }
-      // 업데이트가 있는 경우 업데이트 모달이 표시됨
       setIsManualCheck(false);
     }
   }, [
@@ -46,13 +56,13 @@ export function SimpleUpdateManager() {
     isManualCheck,
   ]);
 
-  // 수동 업데이트 체크 이벤트 리스너
+  // Listen for manual update check events
   useEffect(() => {
     const handleManualCheck = () => {
       setIsManualCheck(true);
       setShowError(false);
       setShowUpToDate(false);
-      updater.smartCheckForUpdates(true); // 강제 체크
+      updater.checkForUpdates();
     };
 
     window.addEventListener("manual-update-check", handleManualCheck);
@@ -67,20 +77,14 @@ export function SimpleUpdateManager() {
 
   return (
     <>
-      {/* 업데이트 시스템 안내 모달 (첫 실행 시) */}
-      <UpdateIntroModal
-        isOpen={updater.showIntroModal}
-        onClose={updater.onIntroClose}
-      />
-
-      {/* 개선된 업데이트 모달 */}
+      {/* Update Modal */}
       <SimpleUpdateModal
         updater={updater}
-        isVisible={showUpdateModal && updater.shouldShowUpdateModal}
+        isVisible={showUpdateModal && updater.state.hasUpdate}
         onClose={handleCloseUpdateModal}
       />
 
-      {/* 체크 중 알림 (수동 체크 시) */}
+      {/* Checking notification (manual check) */}
       <UpdateCheckingNotification
         onClose={() => {
           setShowChecking(false);
@@ -89,20 +93,20 @@ export function SimpleUpdateManager() {
         isVisible={showChecking}
       />
 
-      {/* 최신 버전 알림 (수동 체크 시) */}
+      {/* Up to date notification (manual check) */}
       <UpToDateNotification
         currentVersion={updater.state.currentVersion}
         onClose={() => setShowUpToDate(false)}
         isVisible={showUpToDate}
       />
 
-      {/* 에러 알림 (수동 체크 시) */}
+      {/* Error notification (manual check) */}
       <UpdateErrorNotification
         error={errorMessage}
         onClose={() => setShowError(false)}
         onRetry={() => {
           setIsManualCheck(true);
-          updater.smartCheckForUpdates(true);
+          updater.checkForUpdates();
         }}
         isVisible={showError}
       />

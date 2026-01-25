@@ -12,7 +12,7 @@ import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 /**
  * Check if a message is an agent task launch (isAsync: true)
  */
-export const isAgentTaskLaunchMessage = (message: ClaudeMessage): boolean => {
+const isAgentTaskLaunchMessage = (message: ClaudeMessage): boolean => {
   if (!message.toolUseResult || typeof message.toolUseResult !== "object") return false;
   const result = message.toolUseResult as Record<string, unknown>;
   return result.isAsync === true && typeof result.agentId === "string";
@@ -22,7 +22,7 @@ export const isAgentTaskLaunchMessage = (message: ClaudeMessage): boolean => {
  * Check if a message is an agent task completion
  * Handles: status "completed"/"error", or synchronous completion (isAsync === false)
  */
-export const isAgentTaskCompletionMessage = (message: ClaudeMessage): boolean => {
+const isAgentTaskCompletionMessage = (message: ClaudeMessage): boolean => {
   if (!message.toolUseResult || typeof message.toolUseResult !== "object") return false;
   const result = message.toolUseResult as Record<string, unknown>;
   if (typeof result.agentId !== "string") return false;
@@ -36,14 +36,14 @@ export const isAgentTaskCompletionMessage = (message: ClaudeMessage): boolean =>
 /**
  * Check if a message is an agent task launch (alias for isAgentTaskLaunchMessage)
  */
-export const isAgentTaskMessage = (message: ClaudeMessage): boolean => {
+const isAgentTaskMessage = (message: ClaudeMessage): boolean => {
   return isAgentTaskLaunchMessage(message);
 };
 
 /**
  * Extract agent task info from a message
  */
-export const extractAgentTask = (message: ClaudeMessage): AgentTask | null => {
+const extractAgentTask = (message: ClaudeMessage): AgentTask | null => {
   if (!isAgentTaskMessage(message)) return null;
   const result = message.toolUseResult as Record<string, unknown>;
   return {

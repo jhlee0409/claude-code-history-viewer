@@ -30,7 +30,7 @@ export type GlobalStatsSlice = GlobalStatsSliceState & GlobalStatsSliceActions;
 // Initial State
 // ============================================================================
 
-export const initialGlobalStatsState: GlobalStatsSliceState = {
+const initialGlobalStatsState: GlobalStatsSliceState = {
   globalSummary: null,
   isLoadingGlobalStats: false,
 };

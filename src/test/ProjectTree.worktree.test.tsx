@@ -353,10 +353,11 @@ describe("ProjectTree worktree grouping", () => {
       // Bug: Multiple projects expanded shows same sessions for all
       // Fix: Only one project can be expanded, so sessions always match
 
-      const sessions = [
-        { session_id: "1", project_name: "project-a" },
-        { session_id: "2", project_name: "project-a" },
-      ];
+      // Sessions that would exist for this project (documenting the scenario)
+      // const sessions = [
+      //   { session_id: "1", project_name: "project-a" },
+      //   { session_id: "2", project_name: "project-a" },
+      // ];
 
       // With accordion behavior, only one project is expanded at a time
       // So sessions are always from the correct project

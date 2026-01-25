@@ -49,7 +49,7 @@ export type SearchSlice = SearchSliceState & SearchSliceActions;
 // Initial State
 // ============================================================================
 
-export const initialSearchState: SearchSliceState = {
+const initialSearchState: SearchSliceState = {
   searchQuery: "",
   searchResults: [],
   searchFilters: {},

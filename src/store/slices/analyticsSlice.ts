@@ -50,7 +50,7 @@ export type AnalyticsSlice = AnalyticsSliceState & AnalyticsSliceActions;
 // Initial State
 // ============================================================================
 
-export const initialAnalyticsSliceState: AnalyticsSliceState = {
+const initialAnalyticsSliceState: AnalyticsSliceState = {
   analytics: initialAnalyticsState,
 };
 

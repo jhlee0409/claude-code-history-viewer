@@ -44,7 +44,7 @@ export type CaptureModeSlice = CaptureModeSliceState & CaptureModeSliceActions;
 // Initial State
 // ============================================================================
 
-export const initialCaptureModeState: CaptureModeSliceState = {
+const initialCaptureModeState: CaptureModeSliceState = {
   isCaptureMode: false,
   hiddenMessageIds: [],
 };

@@ -1,6 +1,6 @@
 # Dead Code Analysis Report (Frontend)
 
-**Generated**: 2026-01-25 (Updated)
+**Generated**: 2026-01-26 (Updated)
 **Target**: TypeScript/React Frontend (`src/`)
 
 ---
@@ -9,16 +9,51 @@
 
 | Category | Found | Cleaned |
 |----------|-------|---------|
-| Unused Files | 19 | 18 |
-| Unused Dependencies | 4 | 5 |
-| Unused Dev Dependencies | 6 | 1 |
-| Unused Exports | 68 | 4 |
-| Unused Exported Types | 30 | - |
+| Unused Files | 4 | 4 |
+| Unused Dependencies | 1 | 1 |
+| Unused Dev Dependencies | 1 | 0 |
+| Unused Exports | 115 | 43 |
+| Unused Exported Types | 192 | - |
 | Duplicate Exports | 3 | 3 |
 
 ---
 
-## CLEANED (This Session - 2026-01-25)
+## CLEANED (Session - 2026-01-26)
+
+### Deleted Unused Files
+- `src/components/MessageViewer/components/index.ts` - Barrel export not used (components imported directly)
+- `src/config/app.config.ts` - Configuration file with no imports
+- `src/store/slices/index.ts` - Barrel export not used (slices imported directly)
+
+### Removed Unused Hook
+- `src/hooks/useModals.ts` - Hook completely unused in codebase
+
+### Removed Unused Dependency
+- `@tauri-apps/plugin-http` - Not used anywhere in code
+
+### Made Internal Constants Private (removed unnecessary exports)
+- `src/store/slices/analyticsSlice.ts` - `initialAnalyticsSliceState`
+- `src/store/slices/captureModeSlice.ts` - `initialCaptureModeState`
+- `src/store/slices/globalStatsSlice.ts` - `initialGlobalStatsState`
+- `src/store/slices/messageSlice.ts` - `initialMessageState`
+- `src/store/slices/projectSlice.ts` - `initialProjectState`
+- `src/store/slices/searchSlice.ts` - `initialSearchState`
+- `src/store/slices/settingsSlice.ts` - `initialSettingsState`
+
+### Made Internal Helpers Private (removed unnecessary exports)
+- `src/components/MessageViewer/helpers/agentProgressHelpers.ts` - `isAgentProgressMessage`
+- `src/components/MessageViewer/helpers/agentTaskHelpers.ts` - `isAgentTaskLaunchMessage`, `isAgentTaskCompletionMessage`, `isAgentTaskMessage`, `extractAgentTask`
+
+### Cleaned Up Unused Config Exports
+- `src/config/update.config.ts` - Removed 8 unused constants (kept only 3 that are used)
+
+### Simplified Barrel Exports
+- `src/hooks/index.ts` - Reduced from 5 exports to 1 (only `useToggle` used via barrel)
+- `src/components/MessageViewer/helpers/index.ts` - Reduced from 16 exports to 2
+
+---
+
+## CLEANED (Session - 2026-01-25)
 
 ### Removed Dev Dependencies
 - `autoprefixer` - Not used (replaced by @tailwindcss/postcss)
@@ -78,7 +113,7 @@
 
 ---
 
-## NOT CLEANED (Intentional - Keep)
+## Remaining Unused (Intentional - Keep)
 
 ### False Positives
 - `scripts/sync-version.cjs` - Used by `justfile`, knip doesn't detect this
@@ -86,21 +121,10 @@
 ### Unused Dev Dependencies (Keep for Future Use)
 - `rollup-plugin-visualizer` - Optional bundle analysis tool (commented out in vite.config.ts)
 
-### Unused Content Renderers (Keep - Future Claude API Types)
-These are prepared for upcoming Claude API 2025 beta content types:
-- `RedactedThinkingRenderer`
-- `ServerToolUseRenderer`
-- `WebSearchResultRenderer`
-- `DocumentRenderer`
-- `CitationRenderer`
-- `SearchResultRenderer`
-- `MCPToolUseRenderer`
-- `MCPToolResultRenderer`
-- `WebFetchToolResultRenderer`
-- `CodeExecutionToolResultRenderer`
-- `BashCodeExecutionToolResultRenderer`
-- `TextEditorCodeExecutionToolResultRenderer`
-- `ToolSearchToolResultRenderer`
+### Unused Content Renderers (Keep - Public API for Future Content Types)
+These components are exported as part of a consistent public API pattern:
+- Various renderers in `src/components/contentRenderer/`
+- Various renderers in `src/components/messageRenderer/`
 
 ### shadcn/ui Components (Library Pattern - Keep)
 Variant exports follow shadcn/ui patterns:
@@ -109,29 +133,25 @@ Variant exports follow shadcn/ui patterns:
 
 ### Type Exports (API Contract - Keep)
 - Type definitions in `src/types/` are part of the public API
-- May be used by external tooling or future features
-
-### Helper Re-exports (Internal API - Keep)
-- `src/components/MessageViewer/helpers/index.ts` - Internal module API
-- `src/hooks/index.ts` - Hook barrel exports
-- `src/store/slices/*.ts` - Initial state exports for testing
+- 192 unused exported types are intentionally kept for external tooling and type safety
 
 ---
 
 ## Verification
 
 - **Build**: PASSED
-- **Tests**: 277 passed, 2 failed (pre-existing failures in worktreeUtils.test.ts)
+- **TypeScript**: PASSED
+- **Tests**: 331 passed
 - **Lint**: PASSED
 
 ---
 
 ## Cleanup Summary
 
-| Metric | This Session | Total |
+| Metric | 2026-01-26 Session | Total |
 |--------|--------------|-------|
-| Files Deleted | 1 | 18 |
-| Files Modified | 4 | - |
-| Dependencies Removed | 1 | 5 |
-| Duplicate Exports Fixed | 3 | 3 |
+| Files Deleted | 4 | 22 |
+| Files Modified | 11 | - |
+| Dependencies Removed | 1 | 6 |
+| Exports Cleaned | 43 | 47 |
 | Build Status | OK | OK |

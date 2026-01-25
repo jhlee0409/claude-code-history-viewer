@@ -38,7 +38,7 @@ export type SettingsSlice = SettingsSliceState & SettingsSliceActions;
 // Initial State
 // ============================================================================
 
-export const initialSettingsState: SettingsSliceState = {
+const initialSettingsState: SettingsSliceState = {
   excludeSidechain: true,
   showSystemMessages: false,
   updateSettings: DEFAULT_UPDATE_SETTINGS,

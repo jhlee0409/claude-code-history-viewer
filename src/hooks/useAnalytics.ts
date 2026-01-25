@@ -98,6 +98,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       throw error;
     }
   }, [
+    t,
     selectedProject,
     selectedSession,
     projectTokenStats,
@@ -195,10 +196,12 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       throw error;
     }
   }, [
+    t,
     selectedProject,
     selectedSession,
     analytics.projectSummary?.project_name,
     analytics.sessionComparison?.session_id,
+    sessionTokenStats?.session_id,
     setAnalyticsCurrentView,
     clearAnalyticsErrors,
     setAnalyticsLoadingProjectSummary,
@@ -271,6 +274,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       setAnalyticsLoadingRecentEdits(false);
     }
   }, [
+    t,
     selectedProject,
     analytics.recentEdits,
     setAnalyticsCurrentView,
@@ -425,6 +429,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       updateSessionData();
     }
   }, [
+    t,
     selectedSession?.actual_session_id,
     selectedProject?.path,
     selectedProject,

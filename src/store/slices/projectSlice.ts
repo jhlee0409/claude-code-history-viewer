@@ -53,7 +53,7 @@ export type ProjectSlice = ProjectSliceState & ProjectSliceActions;
 // Initial State
 // ============================================================================
 
-export const initialProjectState: ProjectSliceState = {
+const initialProjectState: ProjectSliceState = {
   claudePath: "",
   projects: [],
   selectedProject: null,
