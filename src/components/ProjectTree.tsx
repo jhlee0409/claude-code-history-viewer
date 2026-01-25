@@ -808,7 +808,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           onClose={closeContextMenu}
           onHide={onHideProject}
           onUnhide={onUnhideProject}
-          isHidden={isProjectHidden(contextMenu.project.path)}
+          isHidden={isProjectHidden(contextMenu.project.actual_path)}
         />
       )}
     </aside>

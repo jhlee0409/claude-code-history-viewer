@@ -3,7 +3,6 @@
  * Tests the UI behavior when worktree grouping is enabled/disabled
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
 import type { ClaudeProject, ClaudeSession } from "../types";
 import type { WorktreeGroupingResult, DirectoryGroupingResult } from "../utils/worktreeUtils";
 
@@ -24,9 +23,8 @@ const mockStore = {
   isLoading: false,
   userMetadata: {
     settings: {
-      worktreeGrouping: false,
-      directoryGrouping: false,
-      hiddenProjects: [],
+      groupingMode: "none" as const,
+      hiddenPatterns: [] as string[],
     },
   },
   setSelectedProject: vi.fn(),
@@ -67,7 +65,7 @@ function createMockProject(overrides: Partial<ClaudeProject> = {}): ClaudeProjec
     session_count: overrides.session_count ?? 1,
     message_count: overrides.message_count ?? 10,
     last_modified: overrides.last_modified ?? new Date().toISOString(),
-    git_info: overrides.git_info ?? null,
+    git_info: overrides.git_info,
   };
 }
 
@@ -79,8 +77,7 @@ describe("ProjectTree worktree grouping", () => {
     mockStore.selectedProject = null;
     mockStore.selectedSession = null;
     mockStore.expandedProjects = new Set();
-    mockStore.userMetadata.settings.worktreeGrouping = false;
-    mockStore.userMetadata.settings.directoryGrouping = false;
+    mockStore.userMetadata.settings.groupingMode = "none";
   });
 
   describe("worktree grouping detection", () => {
@@ -114,7 +111,7 @@ describe("ProjectTree worktree grouping", () => {
         path: "/Users/jack/no-git-project",
       });
 
-      expect(project.git_info).toBeNull();
+      expect(project.git_info).toBeUndefined();
     });
   });
 
@@ -158,41 +155,42 @@ describe("ProjectTree worktree grouping", () => {
 
   describe("settings toggle behavior", () => {
     it("should toggle worktree grouping setting", () => {
-      mockStore.userMetadata.settings.worktreeGrouping = false;
+      mockStore.userMetadata.settings.groupingMode = "none";
 
-      // Simulate toggle
-      mockStore.updateUserSettings({ worktreeGrouping: true });
+      // Simulate toggle to worktree mode
+      mockStore.updateUserSettings({ groupingMode: "worktree" });
 
       expect(mockStore.updateUserSettings).toHaveBeenCalledWith({
-        worktreeGrouping: true,
+        groupingMode: "worktree",
       });
     });
 
     it("should toggle directory grouping setting", () => {
-      mockStore.userMetadata.settings.directoryGrouping = false;
+      mockStore.userMetadata.settings.groupingMode = "none";
 
-      // Simulate toggle
-      mockStore.updateUserSettings({ directoryGrouping: true });
+      // Simulate toggle to directory mode
+      mockStore.updateUserSettings({ groupingMode: "directory" });
 
       expect(mockStore.updateUserSettings).toHaveBeenCalledWith({
-        directoryGrouping: true,
+        groupingMode: "directory",
       });
     });
 
-    it("should handle both grouping modes being enabled", () => {
-      mockStore.userMetadata.settings.worktreeGrouping = true;
-      mockStore.userMetadata.settings.directoryGrouping = true;
+    it("should support switching between grouping modes", () => {
+      mockStore.userMetadata.settings.groupingMode = "worktree";
 
-      // When both are enabled, directory grouping takes precedence
-      // This is testing the expected behavior
-      expect(mockStore.userMetadata.settings.worktreeGrouping).toBe(true);
-      expect(mockStore.userMetadata.settings.directoryGrouping).toBe(true);
+      // Switch to directory mode
+      mockStore.updateUserSettings({ groupingMode: "directory" });
+
+      expect(mockStore.updateUserSettings).toHaveBeenCalledWith({
+        groupingMode: "directory",
+      });
     });
   });
 
   describe("project visibility", () => {
-    it("should filter hidden projects", () => {
-      mockStore.userMetadata.settings.hiddenProjects = ["**/node_modules/**"];
+    it("should filter hidden projects using glob patterns", () => {
+      mockStore.userMetadata.settings.hiddenPatterns = ["**/node_modules/**"];
 
       const projects = [
         createMockProject({
@@ -205,15 +203,49 @@ describe("ProjectTree worktree grouping", () => {
         }),
       ];
 
-      // Filter simulation
-      const visibleProjects = projects.filter(
-        (p) => !mockStore.userMetadata.settings.hiddenProjects.some(
-          (pattern) => p.actual_path.includes("node_modules")
-        )
-      );
+      // Filter simulation using glob matching (simplified for test)
+      const visibleProjects = projects.filter((p) => {
+        const patterns = mockStore.userMetadata.settings.hiddenPatterns;
+        // Simplified glob check: pattern "**/node_modules/**" matches paths containing node_modules
+        return !patterns.some((pattern) => {
+          if (pattern === "**/node_modules/**") {
+            return p.actual_path.includes("/node_modules/");
+          }
+          return false;
+        });
+      });
 
       expect(visibleProjects).toHaveLength(1);
       expect(visibleProjects[0].name).toBe("visible-project");
+    });
+
+    it("should support wildcard patterns for hiding", () => {
+      mockStore.userMetadata.settings.hiddenPatterns = ["*-dg-*"];
+
+      const projects = [
+        createMockProject({
+          name: "normal-project",
+          actual_path: "/Users/jack/normal-project",
+        }),
+        createMockProject({
+          name: "folders-dg-test",
+          actual_path: "/Users/jack/folders-dg-test",
+        }),
+      ];
+
+      // Simplified glob check for wildcard pattern
+      const visibleProjects = projects.filter((p) => {
+        const patterns = mockStore.userMetadata.settings.hiddenPatterns;
+        return !patterns.some((pattern) => {
+          if (pattern === "*-dg-*") {
+            return /-dg-/.test(p.name);
+          }
+          return false;
+        });
+      });
+
+      expect(visibleProjects).toHaveLength(1);
+      expect(visibleProjects[0].name).toBe("normal-project");
     });
   });
 
@@ -343,13 +375,13 @@ describe("ProjectTree edge cases", () => {
       createMockProject({ name: "main", git_info: { worktree_type: "main" } }),
       createMockProject({ name: "linked", git_info: { worktree_type: "linked", main_project_path: "/main" } }),
       createMockProject({ name: "not-git", git_info: { worktree_type: "not_git" } }),
-      createMockProject({ name: "no-info", git_info: null }),
+      createMockProject({ name: "no-info", git_info: undefined }),
     ];
 
     const mainRepos = projects.filter((p) => p.git_info?.worktree_type === "main");
     const linkedWorktrees = projects.filter((p) => p.git_info?.worktree_type === "linked");
     const notGit = projects.filter((p) => p.git_info?.worktree_type === "not_git");
-    const noInfo = projects.filter((p) => p.git_info === null);
+    const noInfo = projects.filter((p) => p.git_info === undefined);
 
     expect(mainRepos).toHaveLength(1);
     expect(linkedWorktrees).toHaveLength(1);

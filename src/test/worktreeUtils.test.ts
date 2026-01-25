@@ -28,7 +28,7 @@ function createMockProject(overrides: Partial<ClaudeProject> = {}): ClaudeProjec
     session_count: overrides.session_count ?? 1,
     message_count: overrides.message_count ?? 10,
     last_modified: overrides.last_modified ?? new Date().toISOString(),
-    git_info: overrides.git_info ?? null,
+    git_info: overrides.git_info,
   };
 }
 
