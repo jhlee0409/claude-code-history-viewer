@@ -26,7 +26,10 @@ pub struct GitInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeProject {
     pub name: String,
+    /// Claude session storage path (e.g., "~/.claude/projects/-Users-jack-client-my-project")
     pub path: String,
+    /// Decoded actual filesystem path (e.g., "/Users/jack/client/my-project")
+    pub actual_path: String,
     pub session_count: usize,
     pub message_count: usize,
     pub last_modified: String,

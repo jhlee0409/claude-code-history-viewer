@@ -193,17 +193,3 @@ export async function fetchGlobalStatsSummary(
   return summary;
 }
 
-// ============================================================================
-// Re-export for convenience
-// ============================================================================
-
-export const analyticsApi = {
-  fetchSessionTokenStats,
-  fetchProjectTokenStats,
-  fetchProjectStatsSummary,
-  fetchSessionComparison,
-  fetchRecentEdits,
-  fetchGlobalStatsSummary,
-} as const;
-
-export default analyticsApi;

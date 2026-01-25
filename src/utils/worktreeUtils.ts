@@ -224,8 +224,8 @@ export function detectWorktreeGroupsByGit(
 
   for (const project of projects) {
     if (project.git_info?.worktree_type === "main") {
-      const actualPath = decodeProjectPath(project.path);
-      mainReposByPath.set(actualPath, project);
+      // Use actual_path from backend (correctly decoded via filesystem checks)
+      mainReposByPath.set(project.actual_path, project);
     }
   }
 
@@ -296,4 +296,128 @@ export function detectWorktreeGroupsHybrid(
     groups: [...gitResult.groups, ...heuristicResult.groups],
     ungrouped: heuristicResult.ungrouped,
   };
+}
+
+// ============================================================================
+// Directory-based Grouping (Filesystem Tree)
+// ============================================================================
+
+/**
+ * Represents a directory group containing projects.
+ */
+export interface DirectoryGroup {
+  /** Display name for the group (e.g., "client", "server") */
+  name: string;
+  /** Full path to the directory (e.g., "/Users/jack/client") */
+  path: string;
+  /** Short display path (e.g., "~/client") */
+  displayPath: string;
+  /** Projects in this directory */
+  projects: ClaudeProject[];
+}
+
+/**
+ * Result of directory-based grouping.
+ */
+export interface DirectoryGroupingResult {
+  groups: DirectoryGroup[];
+  /** Projects that couldn't be grouped (shouldn't happen normally) */
+  ungrouped: ClaudeProject[];
+}
+
+/**
+ * Gets the parent directory from an actual path.
+ * @example
+ * getParentDirectory("/Users/jack/client/my-project")
+ * // Returns: "/Users/jack/client"
+ */
+export function getParentDirectory(actualPath: string): string {
+  const segments = actualPath.split("/").filter(Boolean);
+  if (segments.length <= 1) {
+    return "/";
+  }
+  return "/" + segments.slice(0, -1).join("/");
+}
+
+/**
+ * Converts a full path to a shorter display path.
+ * Replaces home directory with ~ and removes common prefixes.
+ * @example
+ * toDisplayPath("/Users/jack/client") // "~/client"
+ * toDisplayPath("/tmp/worktree") // "/tmp/worktree"
+ */
+export function toDisplayPath(fullPath: string, homePath?: string): string {
+  // Try to detect home path
+  const home = homePath || detectHomePath(fullPath);
+
+  if (home && fullPath.startsWith(home)) {
+    return "~" + fullPath.slice(home.length);
+  }
+
+  return fullPath;
+}
+
+/**
+ * Detects the home directory from a path.
+ * Works for /Users/xxx (macOS), /home/xxx (Linux), C:\Users\xxx (Windows)
+ */
+function detectHomePath(path: string): string | null {
+  // macOS: /Users/username/...
+  const macMatch = path.match(/^(\/Users\/[^/]+)/);
+  if (macMatch) return macMatch[1];
+
+  // Linux: /home/username/...
+  const linuxMatch = path.match(/^(\/home\/[^/]+)/);
+  if (linuxMatch) return linuxMatch[1];
+
+  return null;
+}
+
+/**
+ * Groups projects by their parent directory.
+ *
+ * @example
+ * Input projects:
+ *   - /Users/jack/client/project1
+ *   - /Users/jack/client/project2
+ *   - /Users/jack/server/project3
+ *
+ * Output groups:
+ *   - { name: "client", path: "/Users/jack/client", projects: [project1, project2] }
+ *   - { name: "server", path: "/Users/jack/server", projects: [project3] }
+ */
+export function groupProjectsByDirectory(
+  projects: ClaudeProject[]
+): DirectoryGroupingResult {
+  // Group by parent directory
+  const directoryMap = new Map<string, ClaudeProject[]>();
+
+  for (const project of projects) {
+    const parentDir = getParentDirectory(project.actual_path);
+
+    if (!directoryMap.has(parentDir)) {
+      directoryMap.set(parentDir, []);
+    }
+    directoryMap.get(parentDir)!.push(project);
+  }
+
+  // Convert to DirectoryGroup array
+  const groups: DirectoryGroup[] = [];
+
+  for (const [dirPath, dirProjects] of directoryMap) {
+    const segments = dirPath.split("/").filter(Boolean);
+    const name = segments[segments.length - 1] || "/";
+
+    groups.push({
+      name,
+      path: dirPath,
+      displayPath: toDisplayPath(dirPath),
+      projects: dirProjects.sort((a, b) => a.name.localeCompare(b.name)),
+    });
+  }
+
+  // Sort groups by path for consistent ordering
+  groups.sort((a, b) => a.path.localeCompare(b.path));
+
+  return { groups, ungrouped: [] };
 }

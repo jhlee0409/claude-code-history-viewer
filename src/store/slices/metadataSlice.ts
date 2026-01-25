@@ -58,6 +58,14 @@ export interface MetadataSliceActions {
   ) => string | undefined;
   /** Check if a project should be hidden */
   isProjectHidden: (projectPath: string) => boolean;
+  /** Hide a specific project */
+  hideProject: (projectPath: string) => Promise<void>;
+  /** Unhide a specific project */
+  unhideProject: (projectPath: string) => Promise<void>;
+  /** Add a hidden pattern (glob) */
+  addHiddenPattern: (pattern: string) => Promise<void>;
+  /** Remove a hidden pattern */
+  removeHiddenPattern: (pattern: string) => Promise<void>;
   /** Clear metadata error */
   clearMetadataError: () => void;
 }
@@ -208,6 +216,32 @@ export const createMetadataSlice = (
     }
 
     return false;
+  },
+
+  hideProject: async (projectPath: string) => {
+    await get().updateProjectMetadata(projectPath, { hidden: true });
+  },
+
+  unhideProject: async (projectPath: string) => {
+    await get().updateProjectMetadata(projectPath, { hidden: false });
+  },
+
+  addHiddenPattern: async (pattern: string) => {
+    const { userMetadata } = get();
+    const currentPatterns = userMetadata.settings.hiddenPatterns || [];
+    if (!currentPatterns.includes(pattern)) {
+      await get().updateUserSettings({
+        hiddenPatterns: [...currentPatterns, pattern],
+      });
+    }
+  },
+
+  removeHiddenPattern: async (pattern: string) => {
+    const { userMetadata } = get();
+    const currentPatterns = userMetadata.settings.hiddenPatterns || [];
+    await get().updateUserSettings({
+      hiddenPatterns: currentPatterns.filter((p) => p !== pattern),
+    });
   },
 
   clearMetadataError: () => {

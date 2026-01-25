@@ -12,8 +12,11 @@ import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 import {
   detectWorktreeGroupsHybrid,
+  groupProjectsByDirectory,
   type WorktreeGroupingResult,
+  type DirectoryGroupingResult,
 } from "../../utils/worktreeUtils";
+import type { GroupingMode } from "../../types/metadata.types";
 
 // ============================================================================
 // State Interface
@@ -40,6 +43,8 @@ export interface ProjectSliceActions {
   setSelectedSession: (session: ClaudeSession | null) => void;
   setSessions: (sessions: ClaudeSession[]) => void;
   getGroupedProjects: () => WorktreeGroupingResult;
+  getDirectoryGroupedProjects: () => DirectoryGroupingResult;
+  getEffectiveGroupingMode: () => GroupingMode;
 }
 
 export type ProjectSlice = ProjectSliceState & ProjectSliceActions;
@@ -162,6 +167,24 @@ export const createProjectSlice: StateCreator<
         );
       }
       set({ projects });
+
+      // Auto-enable worktree grouping if worktrees are detected
+      // Only auto-enable if user has never explicitly set the preference
+      const { userMetadata, updateUserSettings } = get();
+      const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
+      const userHasSet = userMetadata?.settings?.worktreeGroupingUserSet ?? false;
+      if (!worktreeGrouping && !userHasSet && projects.length > 0) {
+        const { groups } = detectWorktreeGroupsHybrid(projects);
+        if (groups.length > 0) {
+          // Worktrees detected - auto-enable grouping
+          await updateUserSettings({ worktreeGrouping: true });
+          if (import.meta.env.DEV) {
+            console.log(
+              `[Worktree] Auto-enabled grouping: ${groups.length} groups detected`
+            );
+          }
+        }
+      }
     } catch (error) {
       console.error("Failed to scan projects:", error);
       set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
@@ -219,15 +242,52 @@ export const createProjectSlice: StateCreator<
   },
 
   getGroupedProjects: () => {
-    const { projects, userMetadata } = get();
+    const { projects, userMetadata, isProjectHidden } = get();
     const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
 
+    // Filter out hidden projects first (use actual_path for pattern matching)
+    const visibleProjects = projects.filter((p) => !isProjectHidden(p.actual_path));
+
     if (!worktreeGrouping) {
-      // When grouping is disabled, return all projects as ungrouped
-      return { groups: [], ungrouped: projects };
+      // When grouping is disabled, return all visible projects as ungrouped
+      return { groups: [], ungrouped: visibleProjects };
     }
 
     // Use hybrid detection: git-based (100% accurate) + heuristic fallback
-    return detectWorktreeGroupsHybrid(projects);
+    const result = detectWorktreeGroupsHybrid(visibleProjects);
+
+    // Also filter hidden projects from worktree children
+    result.groups = result.groups.map((group) => ({
+      ...group,
+      children: group.children.filter((child) => !isProjectHidden(child.actual_path)),
+    }));
+
+    return result;
+  },
+
+  getDirectoryGroupedProjects: () => {
+    const { projects, isProjectHidden } = get();
+
+    // Filter out hidden projects first (use actual_path for pattern matching)
+    const visibleProjects = projects.filter((p) => !isProjectHidden(p.actual_path));
+
+    return groupProjectsByDirectory(visibleProjects);
+  },
+
+  getEffectiveGroupingMode: (): GroupingMode => {
+    const { userMetadata } = get();
+    const settings = userMetadata?.settings;
+
+    // If explicit groupingMode is set, use it
+    if (settings?.groupingMode) {
+      return settings.groupingMode;
+    }
+
+    // Legacy: if worktreeGrouping is true, use "worktree" mode
+    if (settings?.worktreeGrouping) {
+      return "worktree";
+    }
+
+    return "none";
   },
 });

@@ -205,6 +205,14 @@ pub struct UserSettings {
     /// Whether to automatically group worktrees under their parent repos
     #[serde(skip_serializing_if = "Option::is_none")]
     pub worktree_grouping: Option<bool>,
+
+    /// Whether user has explicitly set worktree grouping (prevents auto-override)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worktree_grouping_user_set: Option<bool>,
+
+    /// Project tree grouping mode: "none", "worktree", or "directory"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grouping_mode: Option<String>,
 }
 
 #[cfg(test)]

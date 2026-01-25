@@ -116,9 +116,13 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         // Detect git worktree information
         let git_info = detect_git_worktree_info(&project_path);
 
+        // Decode the actual filesystem path
+        let actual_path = crate::utils::decode_project_path(&project_path);
+
         projects.push(ClaudeProject {
             name: project_name,
             path: project_path,
+            actual_path,
             session_count,
             message_count,
             last_modified: last_modified_str,

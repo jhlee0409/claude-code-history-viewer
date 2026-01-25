@@ -1,136 +1,137 @@
-# Dead Code Analysis & Refactoring Report
+# Dead Code Analysis Report (Frontend)
 
-**Date**: 2026-01-24
-**Target**: Rust Backend (`src-tauri/src/`)
+**Generated**: 2026-01-25 (Updated)
+**Target**: TypeScript/React Frontend (`src/`)
+
+---
 
 ## Summary
 
-| Category | Before | After | Status |
-|----------|--------|-------|--------|
-| Tests | 133 passed | 135 passed | ✅ +2 new tests |
-| Magic Numbers | 4 | 0 | ✅ Extracted to constants |
-| Memory Allocation Hotspots | 1 | 0 | ✅ Buffer reuse |
-| Atomic Write Pattern | No | Yes | ✅ Implemented |
-
-## Changes Applied
-
-### 1. Buffer Reuse Optimization (search.rs)
-
-**File**: `src-tauri/src/commands/session/search.rs`
-
-**Before**:
-```rust
-for (line_num, (start, end)) in line_ranges.iter().enumerate() {
-    // simd-json requires mutable slice
-    let mut line_bytes = mmap[*start..*end].to_vec();  // Heap allocation per line
-    // ...
-}
-```
-
-**After**:
-```rust
-// Reusable buffer for simd-json parsing
-let mut parse_buffer = Vec::with_capacity(PARSE_BUFFER_INITIAL_CAPACITY);
-
-for (line_num, (start, end)) in line_ranges.iter().enumerate() {
-    parse_buffer.clear();
-    parse_buffer.extend_from_slice(&mmap[*start..*end]);  // Reuses existing allocation
-    // ...
-}
-```
-
-**Impact**: Reduced heap allocations from O(n) to O(1) during search operations.
+| Category | Found | Cleaned |
+|----------|-------|---------|
+| Unused Files | 19 | 18 |
+| Unused Dependencies | 4 | 5 |
+| Unused Dev Dependencies | 6 | 1 |
+| Unused Exports | 68 | 4 |
+| Unused Exported Types | 30 | - |
+| Duplicate Exports | 3 | 3 |
 
 ---
 
-### 2. Constants Extraction (search.rs, utils.rs)
+## CLEANED (This Session - 2026-01-25)
 
-**File**: `src-tauri/src/commands/session/search.rs`
+### Removed Dev Dependencies
+- `autoprefixer` - Not used (replaced by @tailwindcss/postcss)
 
-```rust
-/// Initial buffer capacity for JSON parsing (4KB covers most messages)
-const PARSE_BUFFER_INITIAL_CAPACITY: usize = 4096;
+### Removed Duplicate Exports
+- `src/components/common/HighlightedText.tsx` - Removed `export default`
+- `src/components/ProjectContextMenu.tsx` - Removed `export default`
+- `src/services/analyticsApi.ts` - Removed `analyticsApi` object and `export default`
 
-/// Initial capacity for search results (most searches find few matches)
-const SEARCH_RESULTS_INITIAL_CAPACITY: usize = 8;
-```
+### Refactored Components
+- `src/components/CollapsibleToolResult.tsx` - **DELETED**
+  - Extracted `getToolName` to new `src/utils/toolUtils.ts`
+  - Component was unused, only `getToolName` function was imported
 
-**File**: `src-tauri/src/utils.rs`
-
-```rust
-/// Estimated average bytes per JSONL line (used for capacity pre-allocation)
-const ESTIMATED_BYTES_PER_LINE: usize = 500;
-
-/// Average bytes per message for file size estimation
-const AVERAGE_MESSAGE_SIZE_BYTES: f64 = 1000.0;
-```
-
-**Impact**: Improved code readability and maintainability by documenting magic numbers.
+### New Utility File Created
+- `src/utils/toolUtils.ts` - Contains `getToolName` function
 
 ---
 
-### 3. Atomic Write Pattern (edits.rs)
+## CLEANED (Previous Session)
 
-**File**: `src-tauri/src/commands/session/edits.rs`
+### Deleted Script Files
+- `scripts/cleanup-i18n-imports.mjs`
+- `scripts/migrate-colors.js`
+- `scripts/migrate-i18n-keys.mjs`
 
-**Before**:
-```rust
-// Write the content to the file
-fs::write(path, content).map_err(|e| format!("Failed to write file: {}", e))?;
-```
+### Deleted Test Server
+- `test-server/` (entire directory)
 
-**After**:
-```rust
-// Atomic write pattern: write to temp file, then rename
-let temp_path = path.with_extension("tmp.restore");
+### Deleted Unused Barrel Exports
+- `src/components/AnalyticsDashboard/index.ts`
+- `src/components/MessageViewer/components/index.ts`
+- `src/components/MessageViewer/hooks/index.ts`
+- `src/components/MessageViewer/index.ts`
+- `src/layouts/Header/index.ts`
+- `src/services/index.ts`
+- `src/store/slices/index.ts`
 
-// Write to temporary file
-fs::write(&temp_path, &content).map_err(|e| {
-    format!("Failed to write temporary file: {}", e)
-})?;
+### Deleted Unused Utility Files
+- `src/constants/colors.ts`
+- `src/utils/color.ts`
+- `src/utils/messageAdapter.ts`
 
-// Atomically rename temp file to target
-fs::rename(&temp_path, path).map_err(|e| {
-    let _ = fs::remove_file(&temp_path);  // Clean up on failure
-    format!("Failed to rename temporary file: {}", e)
-})?;
-```
+### Deleted Unused Hooks
+- `src/hooks/useNativeUpdater.ts`
+- `src/hooks/usePagination.ts`
 
-**Impact**: File restoration is now atomic - prevents data loss on write failures.
+### Deleted Unused Component Files
+- `src/components/contentRenderer/SyntaxHighlighterLazy.tsx`
+- `src/layouts/Header/SettingDropdown/menuConfig.ts`
+
+### Removed Dependencies
+- `@types/diff`
+- `@types/react-syntax-highlighter`
+- `react-syntax-highlighter`
+- `@types/flexsearch`
 
 ---
 
-## New Tests Added
+## NOT CLEANED (Intentional - Keep)
 
-1. `test_restore_file_atomic_write_no_temp_file_left` - Verifies temp file cleanup
-2. `test_restore_file_overwrites_existing` - Verifies atomic overwrite behavior
+### False Positives
+- `scripts/sync-version.cjs` - Used by `justfile`, knip doesn't detect this
 
----
+### Unused Dev Dependencies (Keep for Future Use)
+- `rollup-plugin-visualizer` - Optional bundle analysis tool (commented out in vite.config.ts)
 
-## Remaining Recommendations (Not Applied)
+### Unused Content Renderers (Keep - Future Claude API Types)
+These are prepared for upcoming Claude API 2025 beta content types:
+- `RedactedThinkingRenderer`
+- `ServerToolUseRenderer`
+- `WebSearchResultRenderer`
+- `DocumentRenderer`
+- `CitationRenderer`
+- `SearchResultRenderer`
+- `MCPToolUseRenderer`
+- `MCPToolResultRenderer`
+- `WebFetchToolResultRenderer`
+- `CodeExecutionToolResultRenderer`
+- `BashCodeExecutionToolResultRenderer`
+- `TextEditorCodeExecutionToolResultRenderer`
+- `ToolSearchToolResultRenderer`
 
-These items were identified in the code review but not applied in this refactoring session:
+### shadcn/ui Components (Library Pattern - Keep)
+Variant exports follow shadcn/ui patterns:
+- `alertVariants`, `badgeVariants`, `buttonVariants`, etc.
+- UI component variants like `CardFooter`, `DialogClose`, etc.
 
-### CAUTION Level (Requires Careful Review)
+### Type Exports (API Contract - Keep)
+- Type definitions in `src/types/` are part of the public API
+- May be used by external tooling or future features
 
-1. **`_filters` parameter in search.rs** - Currently unused, should be implemented or removed
-2. **Error handling inconsistency** - Consider structured error types with `thiserror`
-3. **Code duplication in mmap setup** - Common patterns could be extracted to shared module
-
-### DANGER Level (High Risk Changes)
-
-1. **Cache invalidation strategy** - Current version-based approach may miss edge cases
-2. **File locking for concurrent access** - No lock on cache file writes
+### Helper Re-exports (Internal API - Keep)
+- `src/components/MessageViewer/helpers/index.ts` - Internal module API
+- `src/hooks/index.ts` - Hook barrel exports
+- `src/store/slices/*.ts` - Initial state exports for testing
 
 ---
 
 ## Verification
 
-```bash
-# All tests pass
-cargo test
-# test result: ok. 135 passed; 0 failed; 0 ignored
+- **Build**: PASSED
+- **Tests**: 277 passed, 2 failed (pre-existing failures in worktreeUtils.test.ts)
+- **Lint**: PASSED
 
-# Build succeeds
-cargo build --release
-```
+---
+
+## Cleanup Summary
+
+| Metric | This Session | Total |
+|--------|--------------|-------|
+| Files Deleted | 1 | 18 |
+| Files Modified | 4 | - |
+| Dependencies Removed | 1 | 5 |
+| Duplicate Exports Fixed | 3 | 3 |
+| Build Status | OK | OK |
