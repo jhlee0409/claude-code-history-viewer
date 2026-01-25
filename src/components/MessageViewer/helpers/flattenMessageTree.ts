@@ -61,7 +61,18 @@ export function flattenMessageTree({
     childrenMap.get(parentUuid)!.push(msg);
   });
 
-  // Get root messages (no parent)
+  // Sort children by timestamp for each parent to ensure chronological order
+  const sortByTimestamp = (a: ClaudeMessage, b: ClaudeMessage): number => {
+    const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return timeA - timeB;
+  };
+
+  for (const children of childrenMap.values()) {
+    children.sort(sortByTimestamp);
+  }
+
+  // Get root messages (no parent) - already sorted by timestamp
   const rootMessages = childrenMap.get(null) ?? [];
 
   // If no root messages exist, treat all messages as flat list
@@ -112,18 +123,21 @@ export function flattenMessageTree({
   }
 
   // Fallback: If tree traversal resulted in significantly fewer messages,
-  // add remaining unvisited messages
+  // add remaining unvisited messages (sorted by timestamp)
   if (orderedMessages.length < uniqueMessages.length * 0.9) {
     if (import.meta.env.DEV) {
       console.warn(
         `[flattenMessageTree] Tree traversal found ${orderedMessages.length}/${uniqueMessages.length} messages. Adding orphaned messages.`
       );
     }
-    for (const msg of uniqueMessages) {
-      if (!visited.has(msg.uuid)) {
-        orderedMessages.push(msg);
-        visited.add(msg.uuid);
-      }
+    // Collect and sort orphaned messages by timestamp
+    const orphanedMessages = uniqueMessages
+      .filter((msg) => !visited.has(msg.uuid))
+      .sort(sortByTimestamp);
+
+    for (const msg of orphanedMessages) {
+      orderedMessages.push(msg);
+      visited.add(msg.uuid);
     }
   }
 
