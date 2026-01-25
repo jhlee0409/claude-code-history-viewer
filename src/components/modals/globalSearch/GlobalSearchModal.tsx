@@ -278,6 +278,30 @@ export const GlobalSearchModal = ({
         }
     };
 
+    // Highlight search term in text
+    const highlightText = (text: string, searchTerm: string): React.ReactNode => {
+        if (!searchTerm.trim()) return text;
+
+        const regex = new RegExp(
+            `(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+            "gi",
+        );
+        const parts = text.split(regex);
+
+        return parts.map((part, index) =>
+            regex.test(part) ? (
+                <mark
+                    key={index}
+                    className="bg-yellow-300 dark:bg-yellow-500/40 text-foreground rounded-sm px-0.5"
+                >
+                    {part}
+                </mark>
+            ) : (
+                part
+            ),
+        );
+    };
+
     let currentResultIndex = 0;
 
     return (
@@ -400,8 +424,9 @@ export const GlobalSearchModal = ({
                                                                 </span>
                                                             </div>
                                                             <p className="text-sm text-foreground line-clamp-2">
-                                                                {getPreviewText(
-                                                                    result,
+                                                                {highlightText(
+                                                                    getPreviewText(result),
+                                                                    query,
                                                                 )}
                                                             </p>
                                                         </div>
