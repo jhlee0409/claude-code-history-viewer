@@ -87,7 +87,7 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_handler, _event| {
+        .run(|_, _| {
             // Production only: track app lifecycle events
             // TEMPORARILY DISABLED - Aptabase plugin causes runtime panic
             // #[cfg(not(debug_assertions))]
@@ -101,6 +101,5 @@ pub fn run() {
             //     }
             //     _ => {}
             // }
-            let _ = (_handler, _event); // Suppress unused warnings
         });
 }
