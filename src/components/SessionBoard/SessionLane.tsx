@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "../../store/useAppStore";
 import type { BoardSessionData, ZoomLevel } from "../../types/board.types";
 import { InteractionCard } from "./InteractionCard";
-import { Coins, AlertCircle, Clock, Zap, Crown, Anchor, Hash } from "lucide-react";
+import { Coins, AlertCircle, Clock, Zap, Crown, Anchor, Hash, GitCommit, Pencil } from "lucide-react";
 import { clsx } from "clsx";
 import { extractClaudeMessageContent } from "../../utils/messageUtils";
 
@@ -132,10 +132,27 @@ export const SessionLane = ({
                         </div>
 
                         {/* Vertical Sparkline - using simple stacking bars for stats visually in a tiny column */}
-                        <div className="flex flex-col gap-0.5 w-full items-center mt-auto">
-                            <span className="text-[8px] font-mono opacity-50">{stats.toolCount}t</span>
-                            <div className="w-full h-0.5 bg-foreground/10" />
-                            <span className="text-[8px] font-mono font-bold text-accent">{Math.round(stats.totalTokens / 1000)}k</span>
+                        <div className="flex flex-col gap-1 w-full items-center mt-auto">
+                            {/* Commits Metric */}
+                            {stats.commitCount > 0 && (
+                                <div className="flex flex-col items-center gap-0.5" title={`${stats.commitCount} Commits`}>
+                                    <div className="w-3 h-0.5 bg-indigo-500"></div>
+                                    <span className="text-[8px] font-mono text-indigo-500 font-bold">{stats.commitCount}</span>
+                                </div>
+                            )}
+
+                            {/* Edits Metric */}
+                            {stats.fileEditCount > 0 && (
+                                <div className="flex flex-col items-center gap-0.5" title={`${stats.fileEditCount} File Edits`}>
+                                    <div className="w-3 h-0.5 bg-emerald-500"></div>
+                                    <span className="text-[8px] font-mono text-emerald-500">{stats.fileEditCount}</span>
+                                </div>
+                            )}
+
+                            <div className="flex flex-col items-center gap-0.5" title={`${Math.round(stats.totalTokens / 1000)}k Tokens`}>
+                                <div className="w-full h-px bg-foreground/10" />
+                                <span className="text-[8px] font-mono text-muted-foreground">{Math.round(stats.totalTokens / 1000)}k</span>
+                            </div>
                         </div>
                     </div>
                 ) : (
@@ -169,6 +186,24 @@ export const SessionLane = ({
                                 <span className="text-[11px] font-mono font-bold leading-none">{stats.errorCount}</span>
                             </div>
                         </div>
+
+                        {/* Derived Metrics Row for Zoom 1/2 */}
+                        {(stats.commitCount > 0 || stats.fileEditCount > 0) && (
+                            <div className="flex items-center gap-3 mt-2 text-[10px] opacity-80 pl-1">
+                                {stats.commitCount > 0 && (
+                                    <div className="flex items-center gap-1 text-indigo-500 font-medium">
+                                        <GitCommit className="w-3 h-3" />
+                                        <span>{stats.commitCount}</span>
+                                    </div>
+                                )}
+                                {stats.fileEditCount > 0 && (
+                                    <div className="flex items-center gap-1 text-emerald-600 font-medium">
+                                        <Pencil className="w-3 h-3" />
+                                        <span>{stats.fileEditCount} ({stats.filesTouchedCount} files)</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -191,6 +226,9 @@ export const SessionLane = ({
                 >
                     {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                         const message = visibleMessages[virtualRow.index];
+                        const nextMessage = visibleMessages[virtualRow.index + 1];
+                        const prevMessage = visibleMessages[virtualRow.index - 1];
+
                         if (!message) return null;
 
                         return (
@@ -216,6 +254,8 @@ export const SessionLane = ({
                                     onHover={onHoverInteraction}
                                     onLeave={onLeaveInteraction}
                                     onClick={() => onInteractionClick?.(message.uuid)}
+                                    onNext={nextMessage ? () => onInteractionClick?.(nextMessage.uuid) : undefined}
+                                    onPrev={prevMessage ? () => onInteractionClick?.(prevMessage.uuid) : undefined}
                                 />
                             </div>
                         );

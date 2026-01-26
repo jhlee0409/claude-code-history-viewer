@@ -5,7 +5,7 @@ import type { ZoomLevel } from "../../types/board.types";
 import { ToolIcon } from "../ToolIcon";
 import { extractClaudeMessageContent } from "../../utils/messageUtils";
 import { clsx } from "clsx";
-import { FileText, X, FileCode, AlignLeft, Bot, User, Ban } from "lucide-react";
+import { FileText, X, FileCode, AlignLeft, Bot, User, Ban, ChevronUp, ChevronDown, GitCommit, PencilLine } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "../../store/useAppStore";
 
@@ -17,6 +17,8 @@ interface InteractionCardProps {
     onHover?: (type: "role" | "status" | "tool" | "file", value: string) => void;
     onLeave?: () => void;
     onClick?: () => void;
+    onNext?: () => void;
+    onPrev?: () => void;
 }
 
 const ExpandedCard = ({
@@ -28,7 +30,9 @@ const ExpandedCard = ({
     isError,
     triggerRect,
     isMarkdownPretty,
-    onClose
+    onClose,
+    onNext,
+    onPrev
 }: {
     message: ClaudeMessage;
     content: string;
@@ -39,6 +43,8 @@ const ExpandedCard = ({
     triggerRect: DOMRect | null;
     isMarkdownPretty: boolean;
     onClose: () => void;
+    onNext?: () => void;
+    onPrev?: () => void;
 }) => {
     const { setMarkdownPretty } = useAppStore();
 
@@ -111,6 +117,26 @@ const ExpandedCard = ({
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {/* Navigation Controls */}
+                        <div className="flex items-center gap-0.5 p-0.5 bg-muted/50 rounded-md border border-border/50 mr-2">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onPrev?.(); }}
+                                disabled={!onPrev}
+                                className="p-1 rounded hover:bg-background hover:shadow-sm disabled:opacity-30 transition-all"
+                                title="Previous Message (Up)"
+                            >
+                                <ChevronUp className="w-3 h-3" />
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onNext?.(); }}
+                                disabled={!onNext}
+                                className="p-1 rounded hover:bg-background hover:shadow-sm disabled:opacity-30 transition-all"
+                                title="Next Message (Down)"
+                            >
+                                <ChevronDown className="w-3 h-3" />
+                            </button>
+                        </div>
+
                         {/* Markdown Toggle inside Tooltip */}
                         <div className="flex items-center gap-0.5 p-0.5 bg-muted/50 rounded-md border border-border/50">
                             <button
@@ -178,7 +204,9 @@ export const InteractionCard = memo(({
     isExpanded,
     onHover,
     onLeave,
-    onClick
+    onClick,
+    onNext,
+    onPrev
 }: InteractionCardProps) => {
     const cardRef = useRef<HTMLDivElement>(null);
     const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null);
@@ -188,6 +216,8 @@ export const InteractionCard = memo(({
     useEffect(() => {
         if (isExpanded && cardRef.current) {
             setTriggerRect(cardRef.current.getBoundingClientRect());
+            // Scroll card into view if expanded
+            cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }, [isExpanded]);
 
@@ -210,6 +240,23 @@ export const InteractionCard = memo(({
         content.includes("request canceled by user");
 
     const role = message.role || message.type;
+
+    // New Heuristics for Pixel View Coloring
+    const isCommit = useMemo(() => {
+        if (!isTool) return false;
+        const tool = message.toolUse as any;
+        if (['run_command', 'bash', 'execute_command'].includes(tool.name)) {
+            const cmd = tool.input?.CommandLine || tool.input?.command;
+            return typeof cmd === 'string' && cmd.trim().startsWith('git commit');
+        }
+        return false;
+    }, [message, isTool]);
+
+    const isFileEdit = useMemo(() => {
+        if (!isTool) return false;
+        const tool = message.toolUse as any;
+        return ['write_to_file', 'replace_file_content', 'create_file', 'edit_file', 'Edit', 'Replace'].includes(tool.name);
+    }, [message, isTool]);
 
     const editedMdFile = useMemo(() => {
         if (message.toolUse) {
@@ -245,10 +292,12 @@ export const InteractionCard = memo(({
 
     // Minimal Role Indicator (Icon only)
     const RoleIcon = useMemo(() => {
+        if (isCommit) return <GitCommit className="w-3.5 h-3.5 text-indigo-500" />;
+        if (isFileEdit) return <PencilLine className="w-3.5 h-3.5 text-emerald-500" />;
         if (message.toolUse) return <ToolIcon toolName={(message.toolUse as any).name} className="w-4 h-4 text-accent" />;
         if (role === 'user') return <User className="w-3.5 h-3.5 text-primary" />;
         return <Bot className="w-3.5 h-3.5 text-muted-foreground" />;
-    }, [role, message.toolUse]);
+    }, [role, message.toolUse, isCommit, isFileEdit]);
 
     // Level 0: Pixel/Heatmap
     if (zoomLevel === 0) {
@@ -258,20 +307,26 @@ export const InteractionCard = memo(({
         let bgColor = "bg-muted";
         if (role === "user") bgColor = "bg-primary/60";
         else if (role === "assistant") bgColor = "bg-foreground/40";
-        else if (message.toolUse) bgColor = "bg-accent/60";
 
-        if (editedMdFile) bgColor = "bg-emerald-500/80";
-        if (isError) bgColor = "bg-destructive/80";
+        // Override with Event Types for the "Session Understanding" view
+        if (message.toolUse) {
+            bgColor = "bg-accent/60";
+            if (isFileEdit) bgColor = "bg-emerald-500/90"; // High salience for edits
+            if (isCommit) bgColor = "bg-indigo-500/90"; // High salience for commits
+        }
+
+        if (isError) bgColor = "bg-destructive/90";
         if (isCancelled) bgColor = "bg-orange-500/70";
 
         return (
             <div
                 ref={cardRef}
-                className={clsx(baseClasses, bgColor, "w-full")}
+                className={clsx(baseClasses, bgColor, "w-full ring-0 border-0")} // No border in pixel view for seamless look
                 style={{ height: `${height}px` }}
                 onMouseEnter={() => onHover?.('role', role)}
                 onMouseLeave={onLeave}
                 onClick={onClick}
+                title={isCommit ? "Commit" : isFileEdit ? "File Edit" : role}
             />
         );
     }
@@ -316,6 +371,7 @@ export const InteractionCard = memo(({
                         {message.toolUse && (
                             <div className="text-[9px] font-medium uppercase tracking-tight text-accent opacity-90 mb-0.5">
                                 {(message.toolUse as any).name}
+                                {isCommit && <span className="ml-1 text-indigo-500 font-bold">COMMIT</span>}
                             </div>
                         )}
                         <p className={clsx("text-xs line-clamp-2 leading-tight",
@@ -338,6 +394,8 @@ export const InteractionCard = memo(({
                     triggerRect={triggerRect}
                     isMarkdownPretty={isMarkdownPretty}
                     onClose={() => onClick?.()}
+                    onNext={onNext}
+                    onPrev={onPrev}
                 />}
             </>
         );
@@ -374,6 +432,8 @@ export const InteractionCard = memo(({
                         <div className="w-5 h-5 rounded-full bg-muted/30 flex items-center justify-center shrink-0">
                             {RoleIcon}
                         </div>
+
+                        {isCommit && <span className="text-[9px] bg-indigo-500/10 text-indigo-600 px-1 rounded border border-indigo-200 uppercase tracking-wider font-bold">GIT</span>}
 
                         {isCancelled && (
                             <span className="text-[9px] uppercase font-bold text-orange-500 tracking-wide border border-orange-500/30 px-1 rounded">Cancelled</span>
@@ -414,6 +474,8 @@ export const InteractionCard = memo(({
                 triggerRect={triggerRect}
                 isMarkdownPretty={isMarkdownPretty}
                 onClose={() => onClick?.()}
+                onNext={onNext}
+                onPrev={onPrev}
             />}
         </>
     );
