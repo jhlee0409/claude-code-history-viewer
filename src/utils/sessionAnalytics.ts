@@ -43,7 +43,8 @@ export function analyzeSessionMessages(messages: ClaudeMessage[]): SessionStats 
             const input = tool.input || {};
 
             // Detect File Edits
-            if (['write_to_file', 'replace_file_content', 'create_file', 'edit_file', 'Edit', 'Replace'].includes(name)) {
+            // Broaden detection to catch multi_replace, atomic writes, etc.
+            if (['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'create_file', 'edit_file', 'Edit', 'Replace'].includes(name) || /write|edit|replace|patch/i.test(name)) {
                 stats.fileEditCount++;
 
                 const path = input.path || input.file_path || input.TargetFile || input.key;

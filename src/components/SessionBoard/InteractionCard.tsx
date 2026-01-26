@@ -323,7 +323,7 @@ export const InteractionCard = memo(({
     const isFileEdit = useMemo(() => {
         if (!isTool) return false;
         const tool = message.toolUse as any;
-        return ['write_to_file', 'replace_file_content', 'create_file', 'edit_file', 'Edit', 'Replace'].includes(tool.name);
+        return ['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'create_file', 'edit_file', 'Edit', 'Replace'].includes(tool.name) || /write|edit|replace|patch/i.test(tool.name);
     }, [message, isTool]);
 
     const editedMdFile = useMemo(() => {
@@ -332,7 +332,7 @@ export const InteractionCard = memo(({
             const name = toolUse.name;
             const input = toolUse.input;
 
-            if (['write_to_file', 'replace_file_content', 'create_file', 'edit_file'].includes(name)) {
+            if (['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'create_file', 'edit_file'].includes(name) || /write|edit|replace|patch/i.test(name)) {
                 const path = input?.path || input?.file_path || input?.TargetFile || "";
                 if (typeof path === 'string' && path.toLowerCase().endsWith('.md')) {
                     return path;
