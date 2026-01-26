@@ -18,7 +18,9 @@ export const SessionBoard = () => {
         setZoomLevel,
         setActiveBrush,
         setSelectedMessageId,
-        selectedMessageId
+        selectedMessageId,
+        dateFilter,
+        setDateFilter
     } = useAppStore();
 
     const { t } = useTranslation();
@@ -103,8 +105,10 @@ export const SessionBoard = () => {
 
     // Force re-measure when zoom level changes
     useEffect(() => {
-        columnVirtualizer.measure();
-    }, [zoomLevel]);
+        if (visibleSessionIds.length > 0) {
+            columnVirtualizer.measure();
+        }
+    }, [zoomLevel, visibleSessionIds.length]);
 
     const columnVirtualizer = useVirtualizer({
         count: visibleSessionIds.length,
@@ -138,17 +142,27 @@ export const SessionBoard = () => {
 
     if (visibleSessionIds.length === 0) {
         return (
-            <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-sm mx-auto">
-                    <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
-                        <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+            <div className="h-full flex flex-col overflow-hidden bg-background">
+                <BoardControls
+                    zoomLevel={zoomLevel}
+                    onZoomChange={setZoomLevel}
+                    activeBrush={activeBrush}
+                    onBrushChange={setActiveBrush}
+                    dateFilter={dateFilter}
+                    setDateFilter={setDateFilter}
+                />
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center max-w-sm mx-auto">
+                        <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
+                            <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+                        </div>
+                        <h3 className="text-lg font-medium text-foreground mb-2">
+                            No sessions found
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                            Try adjusting your date filters or select more sessions.
+                        </p>
                     </div>
-                    <h3 className="text-lg font-medium text-foreground mb-2">
-                        No sessions selected
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                        Select multiple sessions to compare them on the board.
-                    </p>
                 </div>
             </div>
         );
@@ -162,6 +176,8 @@ export const SessionBoard = () => {
                 onZoomChange={setZoomLevel}
                 activeBrush={activeBrush}
                 onBrushChange={setActiveBrush}
+                dateFilter={dateFilter}
+                setDateFilter={setDateFilter}
             />
 
             {/* Virtualized Lanes Container */}

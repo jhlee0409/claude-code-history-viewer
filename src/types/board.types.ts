@@ -33,6 +33,11 @@ export interface BoardSessionData {
 
 export type ZoomLevel = 0 | 1 | 2; // 0: PIXEL, 1: SKIM, 2: READ
 
+export interface DateFilter {
+    start: Date | null;
+    end: Date | null;
+}
+
 export interface BoardState {
     sessions: Record<string, BoardSessionData>;
     visibleSessionIds: string[];
@@ -42,4 +47,5 @@ export interface BoardState {
         type: "role" | "status" | "tool" | "file";
         value: string;
     } | null;
+    dateFilter: DateFilter;
 }

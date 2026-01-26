@@ -7,13 +7,15 @@ import type {
     ZoomLevel,
     SessionFileEdit,
     SessionDepth,
+    DateFilter,
 } from "../../types/board.types";
 import type { ClaudeMessage, ClaudeSession } from "../../types";
 import { analyzeSessionMessages } from "../../utils/sessionAnalytics";
 
 export interface BoardSliceState {
     boardSessions: Record<string, BoardSessionData>;
-    visibleSessionIds: string[];
+    visibleSessionIds: string[]; // This is now the FILTERED list
+    allSortedSessionIds: string[]; // This is the full sorted list
     isLoadingBoard: boolean;
     zoomLevel: ZoomLevel;
     activeBrush: {
@@ -22,6 +24,7 @@ export interface BoardSliceState {
     } | null;
     selectedMessageId: string | null;
     isMarkdownPretty: boolean;
+    dateFilter: DateFilter;
 }
 
 export interface BoardSliceActions {
@@ -30,6 +33,7 @@ export interface BoardSliceActions {
     setActiveBrush: (brush: BoardSliceState["activeBrush"]) => void;
     setSelectedMessageId: (id: string | null) => void;
     setMarkdownPretty: (pretty: boolean) => void;
+    setDateFilter: (filter: DateFilter) => void;
     clearBoard: () => void;
 }
 
@@ -38,11 +42,13 @@ export type BoardSlice = BoardSliceState & BoardSliceActions;
 const initialBoardState: BoardSliceState = {
     boardSessions: {},
     visibleSessionIds: [],
+    allSortedSessionIds: [],
     isLoadingBoard: false,
     zoomLevel: 1, // Default to SKIM
     activeBrush: null,
     selectedMessageId: null,
     isMarkdownPretty: true, // Default to pretty printing
+    dateFilter: { start: null, end: null },
 };
 
 /**
@@ -93,7 +99,7 @@ export const createBoardSlice: StateCreator<
     [],
     [],
     BoardSlice
-> = (set) => ({
+> = (set, get) => ({
     ...initialBoardState,
 
     loadBoardSessions: async (sessions: ClaudeSession[]) => {
@@ -180,7 +186,7 @@ export const createBoardSlice: StateCreator<
             const results = await Promise.all(loadPromises);
 
             const boardSessions: Record<string, BoardSessionData> = {};
-            const visibleSessionIds: string[] = [];
+            const allSortedSessionIds: string[] = [];
 
             // Sort by relevance then recency
             const sortedResults = results
@@ -194,12 +200,13 @@ export const createBoardSlice: StateCreator<
 
             sortedResults.forEach((res) => {
                 boardSessions[res.sessionId] = res.data;
-                visibleSessionIds.push(res.sessionId);
+                allSortedSessionIds.push(res.sessionId);
             });
 
             set({
                 boardSessions,
-                visibleSessionIds,
+                allSortedSessionIds,
+                visibleSessionIds: allSortedSessionIds, // Initially show all
                 isLoadingBoard: false,
             });
 
@@ -213,5 +220,29 @@ export const createBoardSlice: StateCreator<
     setActiveBrush: (activeBrush) => set({ activeBrush }),
     setSelectedMessageId: (id) => set({ selectedMessageId: id }),
     setMarkdownPretty: (isMarkdownPretty) => set({ isMarkdownPretty }),
+
+    setDateFilter: (filter: DateFilter) => {
+        set((state) => {
+            const { allSortedSessionIds, boardSessions } = state;
+
+            let visibleSessionIds = allSortedSessionIds;
+
+            if (filter.start || filter.end) {
+                const startMs = filter.start ? filter.start.getTime() : 0;
+                const endMs = filter.end ? filter.end.getTime() + (24 * 60 * 60 * 1000) : Infinity; // Include the end date fully (next day midnight)
+
+                visibleSessionIds = allSortedSessionIds.filter(id => {
+                    const sessionDate = new Date(boardSessions[id].session.last_modified).getTime();
+                    return sessionDate >= startMs && sessionDate < endMs;
+                });
+            }
+
+            return {
+                dateFilter: filter,
+                visibleSessionIds
+            };
+        });
+    },
+
     clearBoard: () => set(initialBoardState),
 });
