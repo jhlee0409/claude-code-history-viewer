@@ -9,6 +9,7 @@ import type {
     SessionDepth,
 } from "../../types/board.types";
 import type { ClaudeMessage, ClaudeSession } from "../../types";
+import { analyzeSessionMessages } from "../../utils/sessionAnalytics";
 
 export interface BoardSliceState {
     boardSessions: Record<string, BoardSessionData>;
@@ -67,6 +68,9 @@ const getSessionRelevance = (messages: ClaudeMessage[], stats: BoardSessionStats
     });
     if (hasDocWork) score += 0.2;
 
+    // Commits significantly increase relevance
+    if (stats.commitCount > 0) score += 0.3;
+
     return Math.min(score, 1.0);
 };
 
@@ -103,14 +107,22 @@ export const createBoardSlice: StateCreator<
                         { sessionPath: session.file_path }
                     );
 
-                    // Calculate stats and extract file edits
+                    // 1. Run Derived Analytics
+                    const derivedStats = analyzeSessionMessages(messages);
+
+                    // 2. Calculate Base Stats & Extract specific FileEdit objects for the timeline
                     const stats: BoardSessionStats = {
                         totalTokens: 0,
                         inputTokens: 0,
                         outputTokens: 0,
-                        errorCount: 0,
+                        errorCount: derivedStats.errorCount, // Use derived count which is more robust
                         durationMs: 0,
                         toolCount: 0,
+
+                        // Map derived stats
+                        fileEditCount: derivedStats.fileEditCount,
+                        commitCount: derivedStats.commitCount,
+                        filesTouchedCount: derivedStats.filesTouched.size
                     };
 
                     const fileEdits: SessionFileEdit[] = [];
@@ -124,7 +136,6 @@ export const createBoardSlice: StateCreator<
                         }
 
                         if (msg.durationMs) stats.durationMs += msg.durationMs;
-                        if (msg.stopReasonSystem?.toLowerCase().includes("error")) stats.errorCount++;
 
                         if (msg.toolUse) {
                             stats.toolCount++;
@@ -132,7 +143,7 @@ export const createBoardSlice: StateCreator<
                             const name = toolUse.name;
                             const input = toolUse.input;
 
-                            // Hoist file edits
+                            // Hoist explicit file edit events for the timeline visualization
                             if (['write_to_file', 'replace_file_content', 'create_file', 'edit_file'].includes(name)) {
                                 const path = input?.path || input?.file_path || input?.TargetFile || "";
                                 if (path) {
@@ -143,13 +154,6 @@ export const createBoardSlice: StateCreator<
                                         type: name === 'create_file' ? 'create' : 'edit'
                                     });
                                 }
-                            }
-                        }
-
-                        if (msg.toolUseResult) {
-                            const result = msg.toolUseResult as any;
-                            if (result.is_error || (result.stderr && result.stderr.length > 0)) {
-                                stats.errorCount++;
                             }
                         }
                     });

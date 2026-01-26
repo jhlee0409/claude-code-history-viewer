@@ -7,6 +7,11 @@ export interface BoardSessionStats {
     errorCount: number;
     durationMs: number;
     toolCount: number;
+
+    // Derived Metrics
+    fileEditCount: number;
+    commitCount: number;
+    filesTouchedCount: number; // Count of unique files
 }
 
 export interface SessionFileEdit {
