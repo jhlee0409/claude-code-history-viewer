@@ -366,100 +366,109 @@ export const InteractionCard = memo(({
     }, [isExpanded]);
 
     const content = extractClaudeMessageContent(message) || "";
-    // Unified Tool Use Extraction
     const toolUseBlock = useMemo(() => getToolUseBlock(message), [message]);
-
-    const isTool = !!toolUseBlock;
-
-
-    const isError = (isClaudeSystemMessage(message) && message.stopReasonSystem?.toLowerCase().includes("error")) ||
-        (isClaudeAssistantMessage(message) && typeof message.toolUseResult === 'object' && message.toolUseResult !== null && (message.toolUseResult as Record<string, unknown>).is_error === true) ||
-        (isClaudeAssistantMessage(message) && typeof message.toolUseResult === 'object' && message.toolUseResult !== null && typeof (message.toolUseResult as Record<string, unknown>).stderr === 'string' && ((message.toolUseResult as Record<string, unknown>).stderr as string).length > 0);
-
-    const isCancelled = (isClaudeAssistantMessage(message) && (message.stop_reason === "customer_cancelled" || message.stop_reason === "consumer_cancelled")) ||
-        (isClaudeSystemMessage(message) && message.stopReasonSystem === "customer_cancelled") ||
-        content.includes("request canceled by user");
-
     const role = getMessageRole(message);
 
-    // New Heuristics for Pixel View Coloring
-    const isCommit = useMemo(() => {
-        if (!isTool || !toolUseBlock) return false;
-        const tool = toolUseBlock;
-        if (['run_command', 'bash', 'execute_command'].includes(tool.name)) {
-            const cmd = tool.input?.CommandLine || tool.input?.command;
-            return typeof cmd === 'string' && cmd.includes('git commit');
-        }
-        return false;
-    }, [isTool, toolUseBlock]);
+    // --- CardSemantics: all semantic properties computed once ---
+    const semantics = useMemo(() => {
+        const isTool = !!toolUseBlock;
+        const variant = toolUseBlock ? getToolVariant(toolUseBlock.name) : null;
 
+        // Error detection
+        const isError = (isClaudeSystemMessage(message) && message.stopReasonSystem?.toLowerCase().includes("error")) ||
+            (isClaudeAssistantMessage(message) && typeof message.toolUseResult === 'object' && message.toolUseResult !== null && (message.toolUseResult as Record<string, unknown>).is_error === true) ||
+            (isClaudeAssistantMessage(message) && typeof message.toolUseResult === 'object' && message.toolUseResult !== null && typeof (message.toolUseResult as Record<string, unknown>).stderr === 'string' && ((message.toolUseResult as Record<string, unknown>).stderr as string).length > 0);
+
+        // Cancellation detection
+        const isCancelled = (isClaudeAssistantMessage(message) && (message.stop_reason === "customer_cancelled" || message.stop_reason === "consumer_cancelled")) ||
+            (isClaudeSystemMessage(message) && message.stopReasonSystem === "customer_cancelled") ||
+            content.includes("request canceled by user");
+
+        // Git commit detection
+        let isCommit = false;
+        if (isTool && toolUseBlock) {
+            if (['run_command', 'bash', 'execute_command'].includes(toolUseBlock.name)) {
+                const cmd = toolUseBlock.input?.CommandLine || toolUseBlock.input?.command;
+                isCommit = typeof cmd === 'string' && cmd.includes('git commit');
+            }
+        }
+
+        // Shell detection (terminal variant, excluding git commits)
+        const isShell = isTool && variant === 'terminal' && !isCommit;
+
+        // Shell command text (for display in zoom 1/2)
+        const shellCommand = isShell && toolUseBlock
+            ? (toolUseBlock.input?.CommandLine || toolUseBlock.input?.command || null) as string | null
+            : null;
+
+        // File edit detection
+        const isFileEdit = isTool && toolUseBlock
+            ? (['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'create_file', 'edit_file', 'Edit', 'Replace'].includes(toolUseBlock.name) || /write|edit|replace|patch/i.test(toolUseBlock.name))
+            : false;
+
+        // Markdown file detection
+        let editedMdFile: string | null = null;
+        if (toolUseBlock) {
+            const name = toolUseBlock.name;
+            const input = toolUseBlock.input;
+            if (['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'create_file', 'edit_file'].includes(name) || /write|edit|replace|patch/i.test(name)) {
+                const path = input?.path || input?.file_path || input?.TargetFile || "";
+                if (typeof path === 'string' && path.toLowerCase().endsWith('.md')) {
+                    editedMdFile = path;
+                }
+            }
+        }
+        if (!editedMdFile && role === 'assistant' && content) {
+            const mdMention = content.match(/(create|update|edit|writing|wrote).+?([a-zA-Z0-9_\-. ]+\.md)/i);
+            if (mdMention && mdMention[2]) {
+                editedMdFile = mdMention[2];
+            }
+        }
+
+        // URL detection
+        const hasUrls = content ? /https?:\/\/[^\s]+/.test(content) : false;
+
+        // MCP detection
+        const isMcp = toolUseBlock
+            ? toolUseBlock.name === 'mcp'
+            : (content.includes('<command-name>/mcp') || content.includes('mcp_server'));
+
+        // Raw error detection (in content text)
+        const isRawError = content.includes('<local-command-stdout>Failed') ||
+            content.includes('Error:') ||
+            content.includes('[ERROR]') ||
+            (content.includes('<local-command-stdout>') && content.toLowerCase().includes('failed'));
+
+        return {
+            isTool, variant, isError, isCancelled, isCommit, isShell, shellCommand,
+            isFileEdit, editedMdFile, hasUrls, isMcp, isRawError,
+        };
+    }, [message, toolUseBlock, content, role]);
+
+    // Destructure for backward-compatible access in render blocks
+    // Destructure commonly-used semantics; access semantics.variant, semantics.isShell,
+    // semantics.shellCommand directly when needed (e.g. brushing, terminal badges)
+    const {
+        isTool, isError, isCancelled, isCommit,
+        isFileEdit, editedMdFile, hasUrls, isMcp, isRawError,
+    } = semantics;
+
+    // Verified git commit (depends on semantics.isCommit + external gitCommits)
     const verifiedCommit = useMemo(() => {
         if (!isCommit || !gitCommits || gitCommits.length === 0 || !toolUseBlock) return null;
 
         const cmd = toolUseBlock.input?.CommandLine || toolUseBlock.input?.command;
-        // Extract message from "git commit -m '...'"
         if (!cmd) return null;
 
         const commitMsgMatch = (cmd as string).match(/-m\s+["'](.+?)["']/);
         const targetMsg = commitMsgMatch ? commitMsgMatch[1] : "";
 
-        // Find matches by message or time (nearby)
         return gitCommits.find(c => {
             const sameMsg = targetMsg && c.message.includes(targetMsg);
             const nearbyTime = Math.abs(c.timestamp * 1000 - new Date(message.timestamp).getTime()) < 60000;
             return sameMsg || nearbyTime;
         });
     }, [isCommit, gitCommits, message, toolUseBlock]);
-
-    const isFileEdit = useMemo(() => {
-        if (!isTool || !toolUseBlock) return false;
-        const tool = toolUseBlock;
-        return ['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'create_file', 'edit_file', 'Edit', 'Replace'].includes(tool.name) || /write|edit|replace|patch/i.test(tool.name);
-    }, [isTool, toolUseBlock]);
-
-    const editedMdFile = useMemo(() => {
-        if (toolUseBlock) {
-            const name = toolUseBlock.name;
-            const input = toolUseBlock.input;
-
-            if (['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'create_file', 'edit_file'].includes(name) || /write|edit|replace|patch/i.test(name)) {
-                const path = input?.path || input?.file_path || input?.TargetFile || "";
-                if (typeof path === 'string' && path.toLowerCase().endsWith('.md')) {
-                    return path;
-                }
-            }
-        }
-
-        // Also naive regex check for mentions in assistant text
-        if (role === 'assistant' && content) {
-            const mdMention = content.match(/(create|update|edit|writing|wrote).+?([a-zA-Z0-9_\-. ]+\.md)/i);
-            if (mdMention && mdMention[2]) {
-                return mdMention[2];
-            }
-        }
-
-        return null;
-    }, [toolUseBlock, content, role]);
-
-    const hasUrls = useMemo(() => {
-        if (!content) return false;
-        // Naive URL check
-        return /https?:\/\/[^\s]+/.test(content);
-    }, [content]);
-
-    const isMcp = useMemo(() => {
-        if (toolUseBlock) {
-            return toolUseBlock.name === 'mcp';
-        }
-        return content.includes('<command-name>/mcp') || content.includes('mcp_server');
-    }, [toolUseBlock, content]);
-
-    const isRawError = useMemo(() => {
-        return content.includes('<local-command-stdout>Failed') ||
-            content.includes('Error:') ||
-            content.includes('[ERROR]') ||
-            (content.includes('<local-command-stdout>') && content.toLowerCase().includes('failed'));
-    }, [content]);
 
     // Base classes for the card - REMOVED isActive checks
     const baseClasses = clsx(
@@ -501,6 +510,31 @@ export const InteractionCard = memo(({
         if (role === 'user') return <span title="User Message"><User className="w-3.5 h-3.5 text-primary" /></span>;
         return <span title="Assistant Message"><Bot className="w-3.5 h-3.5 text-muted-foreground" /></span>;
     }, [role, isCommit, isFileEdit, editedMdFile, verifiedCommit, hasUrls, isMcp, isRawError, toolUseBlock]);
+
+    // Memoized tool frequency summary for zoom level 2 header
+    const toolFrequency = useMemo(() => {
+        const allMsgs = [message, ...(siblings || [])];
+        const toolCounts: Record<string, number> = {};
+        let hasTools = false;
+
+        allMsgs.forEach(m => {
+            const toolBlock = getToolUseBlock(m);
+            let tName = toolBlock ? toolBlock.name : '';
+
+            if (tName) {
+                // Normalize names for grouping
+                if (['run_command', 'execute_command', 'bash'].includes(tName)) tName = 'bash';
+                else if (['grep_search', 'glob_search'].includes(tName)) tName = 'search';
+                else if (['read_resource', 'read_file'].includes(tName)) tName = 'read';
+                else if (['write_to_file', 'replace_file_content', 'edit_file'].includes(tName)) tName = 'edit';
+
+                toolCounts[tName] = (toolCounts[tName] || 0) + 1;
+                hasTools = true;
+            }
+        });
+
+        return hasTools ? toolCounts : null;
+    }, [message, siblings]);
 
     // Skip "No content" entries if they are not tools and empty
     // MOVED here to be after all hooks to prevent "Rendered more hooks" errors
@@ -775,48 +809,24 @@ export const InteractionCard = memo(({
                         {isCommit && <span className="text-[9px] bg-indigo-500/10 text-indigo-600 px-1 rounded border border-indigo-200 uppercase tracking-wider font-bold">GIT</span>}
                         {editedMdFile && <span className="text-[9px] bg-amber-500/10 text-amber-600 px-1 rounded border border-amber-200 uppercase tracking-wider font-bold">DOCS</span>}
 
-                        {/* Tool Frequency Summary from Siblings */}
-                        {(() => {
-                            const allMsgs = [message, ...(siblings || [])];
-                            const toolCounts: Record<string, number> = {};
-                            let hasTools = false;
-
-                            allMsgs.forEach(m => {
-                                const toolBlock = getToolUseBlock(m);
-                                let tName = toolBlock ? toolBlock.name : '';
-
-                                if (tName) {
-                                    // Normalize names for grouping
-                                    if (['run_command', 'execute_command', 'bash'].includes(tName)) tName = 'bash';
-                                    else if (['grep_search', 'glob_search'].includes(tName)) tName = 'search';
-                                    else if (['read_resource', 'read_file'].includes(tName)) tName = 'read';
-                                    else if (['write_to_file', 'replace_file_content', 'edit_file'].includes(tName)) tName = 'edit';
-
-                                    toolCounts[tName] = (toolCounts[tName] || 0) + 1;
-                                    hasTools = true;
-                                }
-                            });
-
-                            if (!hasTools) return null;
-
-                            return (
-                                <div className="flex items-center gap-1.5 ml-1">
-                                    {(Object.entries(toolCounts) as [string, number][]).sort((a, b) => b[1] - a[1]).map(([name, count]) => (
-                                        <div key={name} className="flex items-center gap-0.5 text-[9px] text-muted-foreground/80 bg-muted/30 px-1 rounded-sm border border-border/20" title={`${count}x ${name}`}>
-                                            <span className={clsx("w-1.5 h-1.5 rounded-full inline-block mr-0.5",
-                                                name === 'bash' ? 'bg-sky-500' :
-                                                    name === 'search' ? 'bg-amber-500' :
-                                                        name === 'edit' ? 'bg-emerald-500' :
-                                                            name === 'read' ? 'bg-indigo-400' :
-                                                                'bg-slate-400'
-                                            )} />
-                                            <span className="font-mono">{name}</span>
-                                            {count > 1 && <span className="opacity-50 text-[8px] ml-px">({count})</span>}
-                                        </div>
-                                    ))}
-                                </div>
-                            );
-                        })()}
+                        {/* Tool Frequency Summary (memoized) */}
+                        {toolFrequency && (
+                            <div className="flex items-center gap-1.5 ml-1">
+                                {(Object.entries(toolFrequency) as [string, number][]).sort((a, b) => b[1] - a[1]).map(([name, count]) => (
+                                    <div key={name} className="flex items-center gap-0.5 text-[9px] text-muted-foreground/80 bg-muted/30 px-1 rounded-sm border border-border/20" title={`${count}x ${name}`}>
+                                        <span className={clsx("w-1.5 h-1.5 rounded-full inline-block mr-0.5",
+                                            name === 'bash' ? 'bg-sky-500' :
+                                                name === 'search' ? 'bg-amber-500' :
+                                                    name === 'edit' ? 'bg-emerald-500' :
+                                                        name === 'read' ? 'bg-indigo-400' :
+                                                            'bg-slate-400'
+                                        )} />
+                                        <span className="font-mono">{name}</span>
+                                        {count > 1 && <span className="opacity-50 text-[8px] ml-px">({count})</span>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
                         {isCancelled && (
                             <span className="text-[9px] uppercase font-bold text-orange-500 tracking-wide border border-orange-500/30 px-1 rounded">Cancelled</span>
