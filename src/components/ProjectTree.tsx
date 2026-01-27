@@ -8,6 +8,8 @@ import {
   GitBranch,
   FolderTree,
   List,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
@@ -49,6 +51,9 @@ interface ProjectTreeProps {
   onHideProject?: (projectPath: string) => void;
   onUnhideProject?: (projectPath: string) => void;
   isProjectHidden?: (projectPath: string) => boolean;
+  // Collapse props
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const ProjectTree: React.FC<ProjectTreeProps> = ({
@@ -72,6 +77,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   onHideProject,
   onUnhideProject,
   isProjectHidden,
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -142,7 +149,69 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     return expandedProjects.has(projectPath);
   }, [expandedProjects]);
 
-  const sidebarStyle = width ? { width: `${width}px` } : undefined;
+  const sidebarStyle = isCollapsed
+    ? { width: "48px" }
+    : width
+      ? { width: `${width}px` }
+      : undefined;
+
+  // Collapsed View
+  if (isCollapsed) {
+    return (
+      <aside
+        className={cn(
+          "flex-shrink-0 bg-sidebar border-r-0 flex h-full",
+          isResizing && "select-none"
+        )}
+        style={sidebarStyle}
+      >
+        <div className="flex-1 flex flex-col items-center py-3 gap-2 relative">
+          {/* Right accent border */}
+          <div className="absolute right-0 inset-y-0 w-[2px] bg-gradient-to-b from-accent/40 via-accent/60 to-accent/40" />
+
+          {/* Expand Button */}
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center",
+                "bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+              )}
+              title={t("project.expandSidebar", "Expand sidebar")}
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+          )}
+
+          <div className="w-6 h-px bg-accent/20" />
+
+          {/* Global Stats Icon */}
+          <button
+            onClick={onGlobalStatsClick}
+            className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+              isViewingGlobalStats
+                ? "bg-accent/20 text-accent"
+                : "text-muted-foreground hover:bg-accent/10 hover:text-accent"
+            )}
+            title={t("components:project.globalStats", "Global Statistics")}
+          >
+            <Database className="w-4 h-4" />
+          </button>
+
+          <div className="w-6 h-px bg-accent/20" />
+
+          {/* Projects Count */}
+          <div className="flex flex-col items-center gap-1">
+            <Folder className="w-4 h-4 text-muted-foreground" />
+            <span className="text-2xs font-mono text-muted-foreground">
+              {projects.length}
+            </span>
+          </div>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside
@@ -162,6 +231,19 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       <div className="px-4 py-3 bg-accent/5 border-b border-accent/10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            {/* Collapse Button */}
+            {onToggleCollapse && (
+              <button
+                onClick={onToggleCollapse}
+                className={cn(
+                  "p-1 rounded-md transition-colors",
+                  "text-muted-foreground hover:text-accent hover:bg-accent/10"
+                )}
+                title={t("project.collapseSidebar", "Collapse sidebar")}
+              >
+                <PanelLeftClose className="w-3.5 h-3.5" />
+              </button>
+            )}
             <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
             <span className="text-xs font-semibold uppercase tracking-widest text-accent">
               {t("components:project.explorer", "Explorer")}
