@@ -176,6 +176,8 @@ export type {
   ClaudeCodeSettings,
   SettingsScope,
   AllSettingsResponse,
+  MCPSource,
+  AllMCPServersResponse,
   ScopedSettings,
   SettingsPreset,
 } from "./claudeSettings";

@@ -23,16 +23,33 @@ pub struct MCPServers {
     pub servers: serde_json::Value,
 }
 
+/// All MCP servers across all scopes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllMCPServers {
+    /// User-level from settings.json mcpServers
+    pub user_settings: Option<serde_json::Value>,
+    /// User-level from .mcp.json
+    pub user_mcp_file: Option<serde_json::Value>,
+    /// Project-level from .mcp.json (in project root)
+    pub project_mcp_file: Option<serde_json::Value>,
+}
+
 /// Get the user settings path (~/.claude/settings.json)
 fn get_user_settings_path() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude").join("settings.json"))
 }
 
-/// Get the MCP settings path (~/.claude/.mcp.json)
-fn get_mcp_settings_path() -> Result<PathBuf, String> {
+/// Get the user MCP settings path (~/.claude/.mcp.json)
+fn get_user_mcp_path() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude").join(".mcp.json"))
+}
+
+/// Get the project MCP settings path (<project>/.mcp.json)
+fn get_project_mcp_path(project_path: &str) -> PathBuf {
+    PathBuf::from(project_path).join(".mcp.json")
 }
 
 /// Get the managed settings path (macOS only)
@@ -213,11 +230,16 @@ pub async fn get_mcp_servers() -> Result<MCPServers, String> {
         }
 
         // Read from ~/.claude/.mcp.json
-        if let Ok(mcp_path) = get_mcp_settings_path() {
+        if let Ok(mcp_path) = get_user_mcp_path() {
             if let Ok(content) = read_settings_file(&mcp_path) {
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if let Some(obj) = json.as_object() {
-                        // .mcp.json servers override settings.json if same key
+                    // Check if it has mcpServers key or is the servers object directly
+                    if let Some(mcp_servers) = json.get("mcpServers") {
+                        if let Some(obj) = mcp_servers.as_object() {
+                            merged.extend(obj.clone());
+                        }
+                    } else if let Some(obj) = json.as_object() {
+                        // .mcp.json might be servers directly without mcpServers wrapper
                         merged.extend(obj.clone());
                     }
                 }
@@ -227,6 +249,130 @@ pub async fn get_mcp_servers() -> Result<MCPServers, String> {
         Ok(MCPServers {
             servers: serde_json::Value::Object(merged),
         })
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get all MCP servers from all sources (user settings, user .mcp.json, project .mcp.json)
+///
+/// # Arguments
+/// * `project_path` - Optional project path for project-level .mcp.json
+///
+/// # Returns
+/// AllMCPServers struct with servers from each source separately
+#[tauri::command]
+pub async fn get_all_mcp_servers(project_path: Option<String>) -> Result<AllMCPServers, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        // User settings.json mcpServers
+        let user_settings = get_user_settings_path().ok().and_then(|p| {
+            read_settings_file(&p).ok().and_then(|content| {
+                serde_json::from_str::<serde_json::Value>(&content)
+                    .ok()
+                    .and_then(|json| json.get("mcpServers").cloned())
+            })
+        });
+
+        // User .mcp.json
+        let user_mcp_file = get_user_mcp_path().ok().and_then(|p| {
+            if !p.exists() {
+                return None;
+            }
+            read_settings_file(&p).ok().and_then(|content| {
+                serde_json::from_str::<serde_json::Value>(&content).ok().map(|json| {
+                    // Check if it has mcpServers key or is servers directly
+                    if let Some(servers) = json.get("mcpServers") {
+                        servers.clone()
+                    } else {
+                        json
+                    }
+                })
+            })
+        });
+
+        // Project .mcp.json
+        let project_mcp_file = project_path.as_deref().and_then(|pp| {
+            let p = get_project_mcp_path(pp);
+            if !p.exists() {
+                return None;
+            }
+            read_settings_file(&p).ok().and_then(|content| {
+                serde_json::from_str::<serde_json::Value>(&content).ok().map(|json| {
+                    // Check if it has mcpServers key or is servers directly
+                    if let Some(servers) = json.get("mcpServers") {
+                        servers.clone()
+                    } else {
+                        json
+                    }
+                })
+            })
+        });
+
+        Ok(AllMCPServers {
+            user_settings,
+            user_mcp_file,
+            project_mcp_file,
+        })
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Save MCP servers to a specific source
+///
+/// # Arguments
+/// * `source` - One of: "user_settings", "user_mcp", "project_mcp"
+/// * `servers` - JSON string of MCP servers object
+/// * `project_path` - Required for "project_mcp" source
+#[tauri::command]
+pub async fn save_mcp_servers(
+    source: String,
+    servers: String,
+    project_path: Option<String>,
+) -> Result<(), String> {
+    // Validate servers JSON
+    let servers_value: serde_json::Value = serde_json::from_str(&servers)
+        .map_err(|e| format!("Invalid MCP servers JSON: {e}"))?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        match source.as_str() {
+            "user_settings" => {
+                // Update mcpServers field in ~/.claude/settings.json
+                let path = get_user_settings_path()?;
+                let mut settings: serde_json::Value = if path.exists() {
+                    let content = read_settings_file(&path)?;
+                    serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+                } else {
+                    serde_json::json!({})
+                };
+
+                settings["mcpServers"] = servers_value;
+                let content = serde_json::to_string_pretty(&settings)
+                    .map_err(|e| format!("Failed to serialize settings: {e}"))?;
+                write_settings_file(&path, &content)?;
+            }
+            "user_mcp" => {
+                // Write to ~/.claude/.mcp.json
+                let path = get_user_mcp_path()?;
+                // Store with mcpServers wrapper for consistency
+                let mcp_json = serde_json::json!({ "mcpServers": servers_value });
+                let content = serde_json::to_string_pretty(&mcp_json)
+                    .map_err(|e| format!("Failed to serialize MCP config: {e}"))?;
+                write_settings_file(&path, &content)?;
+            }
+            "project_mcp" => {
+                // Write to <project>/.mcp.json
+                let pp = project_path.ok_or("project_path required for project_mcp source")?;
+                let path = get_project_mcp_path(&pp);
+                // Store with mcpServers wrapper for consistency
+                let mcp_json = serde_json::json!({ "mcpServers": servers_value });
+                let content = serde_json::to_string_pretty(&mcp_json)
+                    .map_err(|e| format!("Failed to serialize MCP config: {e}"))?;
+                write_settings_file(&path, &content)?;
+            }
+            _ => return Err(format!("Invalid source: {source}")),
+        }
+        Ok(())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

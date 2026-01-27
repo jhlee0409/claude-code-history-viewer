@@ -239,6 +239,27 @@ export interface AllSettingsResponse {
 }
 
 /**
+ * MCP servers source type
+ *
+ * - user_settings: ~/.claude/settings.json mcpServers field
+ * - user_mcp: ~/.claude/.mcp.json
+ * - project_mcp: <project>/.mcp.json
+ */
+export type MCPSource = "user_settings" | "user_mcp" | "project_mcp";
+
+/**
+ * All MCP servers from all sources
+ */
+export interface AllMCPServersResponse {
+  /** MCP servers from ~/.claude/settings.json mcpServers field */
+  userSettings: Record<string, MCPServerConfig> | null;
+  /** MCP servers from ~/.claude/.mcp.json */
+  userMcpFile: Record<string, MCPServerConfig> | null;
+  /** MCP servers from <project>/.mcp.json */
+  projectMcpFile: Record<string, MCPServerConfig> | null;
+}
+
+/**
  * Parsed settings with scope metadata
  *
  * Represents parsed settings from a specific scope with metadata.

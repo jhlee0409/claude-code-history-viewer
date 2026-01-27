@@ -31,11 +31,13 @@ import {
 } from "@/components/ui/dialog";
 import { RefreshCw, Save, FolderOpen } from "lucide-react";
 import { usePresets } from "@/hooks/usePresets";
+import { useMCPServers } from "@/hooks/useMCPServers";
 import type {
   AllSettingsResponse,
   SettingsScope,
   ClaudeCodeSettings,
   MCPServerConfig,
+  MCPSource,
 } from "@/types";
 import { ScopeTabs } from "./components/ScopeTabs";
 import { JsonSettingsEditor } from "./components/JsonSettingsEditor";
@@ -129,45 +131,40 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
     [activeScope, projectPath, loadSettings]
   );
 
-  // MCP scope state
-  const [mcpScope, setMcpScope] = React.useState<SettingsScope>("user");
+  // MCP source state
+  const [mcpSource, setMcpSource] = React.useState<MCPSource>("user_settings");
 
-  // Get MCP servers for the selected MCP scope
-  const mcpScopeSettings: ClaudeCodeSettings = React.useMemo(() => {
-    const content = settings?.[mcpScope];
-    if (!content) return {};
-    try {
-      return JSON.parse(content) as ClaudeCodeSettings;
-    } catch {
-      return {};
+  // Use the MCP servers hook for all sources
+  const {
+    userSettings: mcpUserSettings,
+    userMcpFile: mcpUserMcpFile,
+    projectMcpFile: mcpProjectMcpFile,
+    saveMCPServers,
+  } = useMCPServers(projectPath);
+
+  // Get MCP servers for the selected source
+  const mcpServersForSource = React.useMemo(() => {
+    switch (mcpSource) {
+      case "user_settings":
+        return mcpUserSettings;
+      case "user_mcp":
+        return mcpUserMcpFile;
+      case "project_mcp":
+        return mcpProjectMcpFile;
+      default:
+        return {};
     }
-  }, [settings, mcpScope]);
-
-  const mcpServersForScope = mcpScopeSettings.mcpServers ?? {};
+  }, [mcpSource, mcpUserSettings, mcpUserMcpFile, mcpProjectMcpFile]);
 
   const handleMCPUpdate = React.useCallback(
     async (servers: Record<string, MCPServerConfig>) => {
-      // MCP servers are stored in the selected MCP scope
-      const scopeContent = settings?.[mcpScope];
-      const scopeSettings = scopeContent
-        ? (JSON.parse(scopeContent) as ClaudeCodeSettings)
-        : {};
-      const newSettings: ClaudeCodeSettings = {
-        ...scopeSettings,
-        mcpServers: servers,
-      };
       try {
-        await invoke("save_settings", {
-          scope: mcpScope,
-          content: JSON.stringify(newSettings, null, 2),
-          projectPath: mcpScope !== "user" ? projectPath : undefined,
-        });
-        await loadSettings();
+        await saveMCPServers(mcpSource, servers);
       } catch (err) {
         console.error("Failed to save MCP settings:", err);
       }
     },
-    [settings, mcpScope, projectPath, loadSettings]
+    [mcpSource, saveMCPServers]
   );
 
   const isReadOnly = activeScope === "managed";
@@ -381,29 +378,48 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {settings && (
-                  <Tabs
-                    value={mcpScope}
-                    onValueChange={(v) => setMcpScope(v as SettingsScope)}
-                    className="w-full"
-                  >
-                    <ScopeTabs availableScopes={availableScopes} />
+                <Tabs
+                  value={mcpSource}
+                  onValueChange={(v) => setMcpSource(v as MCPSource)}
+                  className="w-full"
+                >
+                  <TabsList className="w-full">
+                    <TabsTrigger value="user_settings" className="flex-1 text-xs">
+                      {t("settingsManager.mcp.sourceSettings")}
+                    </TabsTrigger>
+                    <TabsTrigger value="user_mcp" className="flex-1 text-xs">
+                      {t("settingsManager.mcp.sourceUserMcp")}
+                    </TabsTrigger>
+                    {projectPath && (
+                      <TabsTrigger value="project_mcp" className="flex-1 text-xs">
+                        {t("settingsManager.mcp.sourceProjectMcp")}
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
 
-                    {(["user", "project", "local"] as SettingsScope[]).map((scope) => (
-                      <TabsContent key={scope} value={scope} className="mt-4">
-                        {settings[scope] === null && scope !== "user" ? (
-                          <EmptyState scope={scope} />
-                        ) : (
-                          <MCPServerManager
-                            servers={scope === mcpScope ? mcpServersForScope : {}}
-                            onUpdate={handleMCPUpdate}
-                            readOnly={scope === "managed"}
-                          />
-                        )}
-                      </TabsContent>
-                    ))}
-                  </Tabs>
-                )}
+                  <TabsContent value="user_settings" className="mt-4">
+                    <MCPServerManager
+                      servers={mcpServersForSource}
+                      onUpdate={handleMCPUpdate}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="user_mcp" className="mt-4">
+                    <MCPServerManager
+                      servers={mcpServersForSource}
+                      onUpdate={handleMCPUpdate}
+                    />
+                  </TabsContent>
+
+                  {projectPath && (
+                    <TabsContent value="project_mcp" className="mt-4">
+                      <MCPServerManager
+                        servers={mcpServersForSource}
+                        onUpdate={handleMCPUpdate}
+                      />
+                    </TabsContent>
+                  )}
+                </Tabs>
               </CardContent>
             </Card>
           </TabsContent>
