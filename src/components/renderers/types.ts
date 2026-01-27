@@ -97,9 +97,9 @@ export const TOOL_VARIANTS: Record<string, RendererVariant> = {
   TodoWrite: "task",
   TodoRead: "task",
 
-  // System/Shell operations (Orange)
-  Bash: "system",
-  KillShell: "system",
+  // Terminal/Shell operations
+  Bash: "terminal",
+  KillShell: "terminal",
 
   // Git operations (Cyan)
   git: "git",
