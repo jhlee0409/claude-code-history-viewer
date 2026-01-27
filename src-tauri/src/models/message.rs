@@ -102,6 +102,9 @@ pub struct ClaudeMessage {
     #[serde(rename = "type")]
     pub message_type: String,
     pub content: Option<serde_json::Value>,
+    /// Project name (extracted from file path during search)
+    #[serde(rename = "projectName", skip_serializing_if = "Option::is_none")]
+    pub project_name: Option<String>,
     #[serde(rename = "toolUse")]
     pub tool_use: Option<serde_json::Value>,
     #[serde(rename = "toolUseResult")]
@@ -317,6 +320,7 @@ mod tests {
             timestamp: "2025-06-26T12:00:00Z".to_string(),
             message_type: "user".to_string(),
             content: Some(json!("Hello, Claude!")),
+            project_name: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: Some(false),
@@ -360,6 +364,7 @@ mod tests {
             timestamp: "2025-01-01T00:00:00Z".to_string(),
             message_type: "user".to_string(),
             content: None,
+            project_name: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: None,

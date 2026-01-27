@@ -774,5 +774,18 @@
   "captureMode.hiddenCount": "{{count}}개 숨김",
   "captureMode.restoreAll": "모두 복원",
   "captureMode.hideBlock": "이 블록 숨기기",
-  "captureMode.tooltip": "스크린샷용 메시지 블록 숨기기"
+  "captureMode.tooltip": "스크린샷용 메시지 블록 숨기기",
+  "globalSearch.title": "전체 검색",
+  "globalSearch.description": "모든 프로젝트와 세션에서 검색",
+  "globalSearch.placeholder": "메시지 검색...",
+  "globalSearch.searching": "검색 중...",
+  "globalSearch.noResults": "검색 결과 없음",
+  "globalSearch.noPreview": "미리보기 없음",
+  "globalSearch.unknownProject": "알 수 없는 프로젝트",
+  "globalSearch.hint": "모든 대화에서 검색하려면 입력하세요",
+  "globalSearch.shortcutHint": "Cmd+K를 눌러 검색 열기",
+  "globalSearch.navigate": "탐색",
+  "globalSearch.select": "선택",
+  "globalSearch.close": "닫기",
+  "globalSearch.results": "{{count}}개 결과"
 }

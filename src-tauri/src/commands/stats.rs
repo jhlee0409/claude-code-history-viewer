@@ -1055,6 +1055,7 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
                 .unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: log_entry.message_type.clone(),
             content: log_entry.message.map(|m| m.content).or(log_entry.content),
+            project_name: None,
             tool_use: log_entry.tool_use,
             tool_use_result: log_entry.tool_use_result,
             is_sidechain: log_entry.is_sidechain,
@@ -1568,6 +1569,7 @@ mod tests {
             timestamp: "2025-01-01T00:00:00Z".to_string(),
             message_type: "assistant".to_string(),
             content: None,
+            project_name: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: None,
@@ -1708,6 +1710,7 @@ mod tests {
             timestamp: "2025-01-01T00:00:00Z".to_string(),
             message_type: "assistant".to_string(),
             content: None,
+            project_name: None,
             tool_use: None,
             tool_use_result: Some(json!({
                 "totalTokens": 500

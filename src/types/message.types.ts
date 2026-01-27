@@ -157,6 +157,8 @@ export interface ClaudeMessage {
   timestamp: string;
   type: string;
   content?: string | ContentItem[] | Record<string, unknown>;
+  /** Project name (extracted from file path during search) */
+  projectName?: string;
   toolUse?: Record<string, unknown>;
   toolUseResult?: Record<string, unknown> | string;
   isSidechain?: boolean;

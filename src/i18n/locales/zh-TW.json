@@ -774,5 +774,18 @@
   "captureMode.hiddenCount": "已隱藏 {{count}} 個",
   "captureMode.restoreAll": "全部恢復",
   "captureMode.hideBlock": "隱藏此區塊",
-  "captureMode.tooltip": "隱藏訊息區塊以便截圖"
+  "captureMode.tooltip": "隱藏訊息區塊以便截圖",
+  "globalSearch.title": "全域搜尋",
+  "globalSearch.description": "搜尋所有專案和工作階段",
+  "globalSearch.placeholder": "搜尋訊息...",
+  "globalSearch.searching": "搜尋中...",
+  "globalSearch.noResults": "找不到結果",
+  "globalSearch.noPreview": "無預覽",
+  "globalSearch.unknownProject": "未知專案",
+  "globalSearch.hint": "輸入以搜尋所有對話",
+  "globalSearch.shortcutHint": "按 Cmd+K 開啟搜尋",
+  "globalSearch.navigate": "導航",
+  "globalSearch.select": "選擇",
+  "globalSearch.close": "關閉",
+  "globalSearch.results": "{{count}} 個結果"
 }

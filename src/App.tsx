@@ -22,6 +22,7 @@ import { type SupportedLanguage } from "./i18n";
 import "./App.css";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "./layouts/Header/SettingDropdown/ModalContainer";
+import { useModal } from "@/contexts/modal";
 
 function App() {
   const {
@@ -69,6 +70,7 @@ function App() {
 
   const { t, i18n: i18nInstance } = useTranslation();
       const { language, loadLanguage } = useLanguageStore();
+  const { openModal } = useModal();
 
   const [isViewingGlobalStats, setIsViewingGlobalStats] = useState(false);
 
@@ -162,6 +164,19 @@ function App() {
       i18nInstance.off("languageChanged", handleLanguageChange);
     };
   }, [language, i18nInstance]);
+
+  // Global search keyboard shortcut (Cmd+K / Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        openModal("globalSearch");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [openModal]);
 
   const handleProjectSelect = useCallback(
     async (project: ClaudeProject) => {

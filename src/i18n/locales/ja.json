@@ -774,5 +774,18 @@
   "captureMode.hiddenCount": "{{count}}件非表示",
   "captureMode.restoreAll": "すべて復元",
   "captureMode.hideBlock": "このブロックを非表示",
-  "captureMode.tooltip": "スクリーンショット用にメッセージブロックを非表示"
+  "captureMode.tooltip": "スクリーンショット用にメッセージブロックを非表示",
+  "globalSearch.title": "グローバル検索",
+  "globalSearch.description": "すべてのプロジェクトとセッションを検索",
+  "globalSearch.placeholder": "メッセージを検索...",
+  "globalSearch.searching": "検索中...",
+  "globalSearch.noResults": "結果が見つかりません",
+  "globalSearch.noPreview": "プレビューなし",
+  "globalSearch.unknownProject": "不明なプロジェクト",
+  "globalSearch.hint": "すべての会話を検索するには入力してください",
+  "globalSearch.shortcutHint": "Cmd+Kで検索を開く",
+  "globalSearch.navigate": "移動",
+  "globalSearch.select": "選択",
+  "globalSearch.close": "閉じる",
+  "globalSearch.results": "{{count}}件の結果"
 }

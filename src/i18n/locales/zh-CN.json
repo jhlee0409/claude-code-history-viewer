@@ -774,5 +774,18 @@
   "captureMode.hiddenCount": "已隐藏 {{count}} 个",
   "captureMode.restoreAll": "全部恢复",
   "captureMode.hideBlock": "隐藏此块",
-  "captureMode.tooltip": "隐藏消息块以便截图"
+  "captureMode.tooltip": "隐藏消息块以便截图",
+  "globalSearch.title": "全局搜索",
+  "globalSearch.description": "搜索所有项目和会话",
+  "globalSearch.placeholder": "搜索消息...",
+  "globalSearch.searching": "搜索中...",
+  "globalSearch.noResults": "未找到结果",
+  "globalSearch.noPreview": "无预览",
+  "globalSearch.unknownProject": "未知项目",
+  "globalSearch.hint": "输入以搜索所有对话",
+  "globalSearch.shortcutHint": "按 Cmd+K 打开搜索",
+  "globalSearch.navigate": "导航",
+  "globalSearch.select": "选择",
+  "globalSearch.close": "关闭",
+  "globalSearch.results": "{{count}} 个结果"
 }

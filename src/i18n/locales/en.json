@@ -774,5 +774,18 @@
   "captureMode.hiddenCount": "{{count}} hidden",
   "captureMode.restoreAll": "Restore All",
   "captureMode.hideBlock": "Hide this block",
-  "captureMode.tooltip": "Hide message blocks for screenshots"
+  "captureMode.tooltip": "Hide message blocks for screenshots",
+  "globalSearch.title": "Global Search",
+  "globalSearch.description": "Search across all projects and sessions",
+  "globalSearch.placeholder": "Search messages...",
+  "globalSearch.searching": "Searching...",
+  "globalSearch.noResults": "No results found",
+  "globalSearch.noPreview": "No preview available",
+  "globalSearch.unknownProject": "Unknown Project",
+  "globalSearch.hint": "Type to search across all conversations",
+  "globalSearch.shortcutHint": "Press Cmd+K to open search",
+  "globalSearch.navigate": "Navigate",
+  "globalSearch.select": "Select",
+  "globalSearch.close": "Close",
+  "globalSearch.results": "{{count}} results"
 }

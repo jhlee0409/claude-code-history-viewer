@@ -176,6 +176,7 @@ impl MessageBuilder {
                 .unwrap_or_else(|| "2025-01-01T00:00:00Z".to_string()),
             message_type: self.message_type.unwrap_or_else(|| "user".to_string()),
             content: self.content,
+            project_name: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: None,

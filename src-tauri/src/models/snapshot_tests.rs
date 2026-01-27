@@ -22,6 +22,7 @@ mod claude_message_snapshots {
             timestamp: "2025-01-01T12:00:00Z".to_string(),
             message_type: "user".to_string(),
             content: Some(json!("Hello, Claude!")),
+            project_name: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: Some(false),
@@ -62,6 +63,7 @@ mod claude_message_snapshots {
             content: Some(json!([
                 {"type": "text", "text": "Hello! How can I help you today?"}
             ])),
+            project_name: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: Some(false),
@@ -115,6 +117,7 @@ mod claude_message_snapshots {
                     }
                 }
             ])),
+            project_name: None,
             tool_use: Some(json!({
                 "name": "Read",
                 "input": {"file_path": "/path/to/file.rs"}
