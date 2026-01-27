@@ -26,6 +26,7 @@ import type {
 } from "@/types";
 import { SettingsSidebar } from "./sidebar/SettingsSidebar";
 import { SettingsEditorPane } from "./editor/SettingsEditorPane";
+import { SettingsCommandPalette } from "./components/SettingsCommandPalette";
 
 // ============================================================================
 // Types
@@ -46,6 +47,11 @@ export interface SettingsManagerContextValue {
   projectPath?: string;
   setProjectPath: (path: string | undefined) => void;
 
+  // Pending changes state (for dirty tracking across components)
+  pendingSettings: ClaudeCodeSettings | null;
+  setPendingSettings: React.Dispatch<React.SetStateAction<ClaudeCodeSettings | null>>;
+  hasUnsavedChanges: boolean;
+
   // MCP state
   mcpServers: {
     userClaudeJson: Record<string, MCPServerConfig>;
@@ -63,6 +69,9 @@ export interface SettingsManagerContextValue {
   // Actions
   loadSettings: () => Promise<void>;
   saveSettings: (settings: ClaudeCodeSettings, targetScope?: SettingsScope, targetProjectPath?: string) => Promise<void>;
+
+  // Section navigation
+  onSectionJump?: (sectionId: string) => void;
 }
 
 // Create context
@@ -95,6 +104,9 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Project path state - allows changing project within the component
   const [projectPath, setProjectPath] = React.useState<string | undefined>(initialProjectPath);
+
+  // Pending changes state (shared across components for dirty tracking)
+  const [pendingSettings, setPendingSettings] = React.useState<ClaudeCodeSettings | null>(null);
 
   // Sync with initial prop if it changes
   React.useEffect(() => {
@@ -168,6 +180,17 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   const isReadOnly = activeScope === "managed";
 
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = React.useMemo(() => {
+    if (!pendingSettings) return false;
+    return JSON.stringify(pendingSettings) !== JSON.stringify(currentSettings);
+  }, [pendingSettings, currentSettings]);
+
+  // Reset pending settings when scope changes
+  React.useEffect(() => {
+    setPendingSettings(null);
+  }, [activeScope]);
+
   // Context value
   const contextValue: SettingsManagerContextValue = React.useMemo(
     () => ({
@@ -178,6 +201,9 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
       isReadOnly,
       projectPath,
       setProjectPath,
+      pendingSettings,
+      setPendingSettings,
+      hasUnsavedChanges,
       mcpServers: {
         userClaudeJson: mcpUserClaudeJson,
         localClaudeJson: mcpLocalClaudeJson,
@@ -197,6 +223,8 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
       currentSettings,
       isReadOnly,
       projectPath,
+      pendingSettings,
+      hasUnsavedChanges,
       mcpUserClaudeJson,
       mcpLocalClaudeJson,
       mcpUserSettings,
@@ -223,16 +251,35 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     };
   }, [allSettings]);
 
+  // Section jump handler ref
+  const sectionJumpHandlerRef = React.useRef<((sectionId: string) => void) | null>(null);
+
+  const handleSectionJump = React.useCallback((sectionId: string) => {
+    sectionJumpHandlerRef.current?.(sectionId);
+  }, []);
+
+  const registerSectionJumpHandler = React.useCallback((handler: (sectionId: string) => void) => {
+    sectionJumpHandlerRef.current = handler;
+  }, []);
+
   return (
     <SettingsManagerContext.Provider value={contextValue}>
       <div className={`flex flex-col h-full ${className || ""}`}>
+        {/* Command Palette (⌘K) */}
+        <SettingsCommandPalette onSectionJump={handleSectionJump} />
+
         {/* Header */}
         <div className="flex items-center justify-between mb-4 shrink-0">
           <h2 className="text-xl font-semibold">{t("settingsManager.title")}</h2>
-          <Button variant="ghost" size="sm" onClick={loadSettings}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            {t("common.refresh")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {t("settingsManager.command.hint")}
+            </span>
+            <Button variant="ghost" size="sm" onClick={loadSettings}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              {t("common.refresh")}
+            </Button>
+          </div>
         </div>
 
         {/* Content */}
@@ -247,7 +294,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             <SettingsSidebar availableScopes={availableScopes} />
 
             {/* Main Editor Area */}
-            <SettingsEditorPane />
+            <SettingsEditorPane onSectionJump={registerSectionJumpHandler} />
           </div>
         </LoadingState>
       </div>

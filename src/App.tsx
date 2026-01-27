@@ -17,6 +17,7 @@ import { AppErrorType, type ClaudeSession, type ClaudeProject } from "./types";
 import type { GroupingMode } from "./types/metadata.types";
 import { AlertTriangle, MessageSquare, Database, BarChart3, FileEdit, Coins, Settings } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useLanguageStore } from "./store/useLanguageStore";
 import { type SupportedLanguage } from "./i18n";
 
@@ -234,7 +235,7 @@ function App() {
   }
 
   return (
-    <>
+    <TooltipProvider>
       <div className="h-screen flex flex-col bg-background">
         {/* Header */}
         <Header />
@@ -436,7 +437,7 @@ function App() {
 
       {/* Modals */}
       <ModalContainer />
-    </>
+    </TooltipProvider>
   );
 }
 

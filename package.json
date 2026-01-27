@@ -40,6 +40,7 @@
     "@types/prismjs": "^1.26.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "diff": "^8.0.2",
     "flexsearch": "^0.8.212",
     "i18next": "^25.3.0",

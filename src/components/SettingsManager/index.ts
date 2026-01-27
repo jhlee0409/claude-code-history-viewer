@@ -16,10 +16,6 @@ export {
 
 // Core components
 export { EmptyState } from "./components/EmptyState";
-export { MCPServerManager } from "./components/MCPServerManager";
-export { UnifiedMCPList } from "./components/UnifiedMCPList";
-export { EffectiveSettingsViewer } from "./components/EffectiveSettingsViewer";
-export { PresetManager } from "./components/PresetManager";
 export { ExportImport } from "./components/ExportImport";
 
 // Sidebar components
