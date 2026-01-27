@@ -5,7 +5,7 @@ import type { ZoomLevel } from "../../types/board.types";
 import { ToolIcon, getToolVariant } from "../ToolIcon";
 import { extractClaudeMessageContent } from "../../utils/messageUtils";
 import { clsx } from "clsx";
-import { FileText, X, FileCode, AlignLeft, Bot, User, Ban, ChevronUp, ChevronDown, GitCommit as GitIcon, PencilLine, GripVertical, CheckCircle2, Link2, Layers, Timer, Scissors, AlertTriangle, Zap } from "lucide-react";
+import { FileText, X, FileCode, AlignLeft, Bot, User, Ban, ChevronUp, ChevronDown, GitCommit as GitIcon, PencilLine, GripVertical, CheckCircle2, Link2, Layers, Timer, Scissors, AlertTriangle, Zap, Plug } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "../../store/useAppStore";
 import { SmartJsonDisplay } from "../SmartJsonDisplay";
@@ -463,12 +463,27 @@ export const InteractionCard = memo(({
         return /https?:\/\/[^\s]+/.test(content);
     }, [content]);
 
+    const isMcp = useMemo(() => {
+        if (toolUseBlock) {
+            return (toolUseBlock as any).name === 'mcp';
+        }
+        return content.includes('<command-name>/mcp') || content.includes('mcp_server');
+    }, [toolUseBlock, content]);
+
+    const isRawError = useMemo(() => {
+        return content.includes('<local-command-stdout>Failed') ||
+            content.includes('Error:') ||
+            content.includes('[ERROR]') ||
+            (content.includes('<local-command-stdout>') && content.toLowerCase().includes('failed'));
+    }, [content]);
+
     // Base classes for the card - REMOVED isActive checks
     const baseClasses = clsx(
         "relative rounded transition-all duration-200 cursor-pointer overflow-hidden border border-transparent shadow-sm select-none",
         "hover:border-accent hover:shadow-lg hover:z-50 hover:scale-[1.02]", // Always hoverable
-        isError && "bg-destructive/10 border-destructive/20",
-        isCancelled && "bg-orange-500/10 border-orange-500/20"
+        (isError || isRawError) && "bg-destructive/10 border-destructive/20",
+        isCancelled && "bg-orange-500/10 border-orange-500/20",
+        isMcp && !isError && !isRawError && "bg-orange-500/5 border-orange-500/10"
     );
 
     // Minimal Role Indicator (Icon only)
@@ -483,6 +498,13 @@ export const InteractionCard = memo(({
                 )}
             </div>
         );
+
+        // Error takes precedence
+        if (isRawError) return <span title="Error Detected"><AlertTriangle className="w-3.5 h-3.5 text-destructive" /></span>;
+
+        // MCP Tool
+        if (isMcp) return <span title="MCP Interaction"><Plug className="w-3.5 h-3.5 text-orange-500" /></span>;
+
         // If markdown edit is detected locally for this card
         if (editedMdFile) return <span title="Documentation Edit"><FileText className="w-3.5 h-3.5 text-amber-500" /></span>;
         if (isFileEdit) return <span title="File Edit"><PencilLine className="w-3.5 h-3.5 text-emerald-500" /></span>;
@@ -494,7 +516,7 @@ export const InteractionCard = memo(({
 
         if (role === 'user') return <span title="User Message"><User className="w-3.5 h-3.5 text-primary" /></span>;
         return <span title="Assistant Message"><Bot className="w-3.5 h-3.5 text-muted-foreground" /></span>;
-    }, [role, message, isCommit, isFileEdit, editedMdFile, verifiedCommit, hasUrls]);
+    }, [role, message, isCommit, isFileEdit, editedMdFile, verifiedCommit, hasUrls, isMcp, isRawError]);
 
     // Skip "No content" entries if they are not tools and empty
     // MOVED here to be after all hooks to prevent "Rendered more hooks" errors

@@ -169,23 +169,50 @@ export const SessionLane = ({
         }
     };
 
+    const getLaneBackground = () => {
+        // Detect Model from first assistant message with a model field
+        const modelMsg = messages.find(m => (m as any).role === 'assistant' && (m as any).model);
+        const model = (modelMsg as any)?.model || "";
+
+        if (model.includes("opus")) {
+            // Opus: Visible Blue
+            return "bg-sky-100/30 dark:bg-sky-900/20";
+        }
+        if (model.includes("sonnet")) {
+            // Sonnet: Very Faint Blue
+            return "bg-sky-50/30 dark:bg-sky-900/10";
+        }
+        if (model.includes("haiku")) {
+            // Haiku: Almost Invisible / Standard
+            return "bg-slate-50/30 dark:bg-slate-900/5"; // Standard/Default
+        }
+
+        // Default (if Unknown)
+        return "bg-card/20";
+    };
+
     const getDepthStyles = () => {
         if (zoomLevel === 0) {
             return clsx(
-                "w-[80px] min-w-[80px] bg-background border-r border-border/30",
+                "w-[80px] min-w-[80px] border-r border-border/30",
+                getLaneBackground(),
                 isSelected && "bg-accent/5 ring-1 ring-inset ring-accent/40"
             );
         }
 
+        const baseBg = getLaneBackground();
+
         switch (depth) {
             case 'deep':
                 return clsx(
-                    "w-[380px] min-w-[380px] bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/50 dark:border-slate-800/50",
+                    "w-[380px] min-w-[380px] border-slate-200/50 dark:border-slate-800/50",
+                    baseBg,
                     isSelected && "ring-2 ring-inset ring-accent/50 bg-accent/5 shadow-xl shadow-accent/5"
                 );
             default:
                 return clsx(
-                    "w-[320px] min-w-[320px] bg-card/20",
+                    "w-[320px] min-w-[320px]",
+                    baseBg,
                     isSelected && "ring-2 ring-inset ring-accent/50 bg-accent/5 shadow-xl shadow-accent/5"
                 );
         }

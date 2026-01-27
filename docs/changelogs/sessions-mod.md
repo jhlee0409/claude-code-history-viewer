@@ -1,58 +1,29 @@
-# Sessions Mod Changelog
+# PR: Session Visualization & Navigation Overhaul
 
-## Feature Summary: "Hypermedia Explorer" & Session Enhancements
+## Summary
+This PR introduces a significant upgrade to the session visualization ("Session Board") and navigation architecture. It moves from a static list view to a virtualized, interactive "swimlane" board that supports deep linking, granular analytics, and improved state management.
 
-This mod transforms the static history viewer into a dynamic, interactive "Hypermedia Explorer" for Claude Code sessions. It bridges the gap between high-level session management and granular message inspection.
+## Key Changes
 
-### 1. Interactive Session Board
-- **Visual "Lanes"**: Sessions are visualized as swimlanes with interaction cards, similar to a linear video editor or Kanban board.
-- **Pixel View (Zoom Level 0)**: A heatmap-style ultra-compact view that visualizes session density and activity patterns over time.
-- **Bi-directional Navigation**:
-  - **Explorer to Board**: Hovering items in the sidebar "skim" scrolls the board to the corresponding lane.
-  - **Board to Explorer**: Clicking a lane highlights the file in the project tree.
-  - **Deep Linking**: Tapping an interaction card jumps directly to that specific message in the full transcript view.
+### 1. Visualization Architecture
+- **Virtualized Session Board**: Replaces simple lists with a horizontal scrolling board using `@tanstack/react-virtual`, supporting thousands of sessions with 60fps performance.
+- **Swimlane UI**: Sessions are visualized as time-based lanes with zoom levels (Pixel/Heatmap, Skim, Detail).
+- **Rich Analytics**: Session cards now visualize model usage (Haiku/Sonnet/Opus color coding), token consumption, Git commits, and tool usage (Terminal, File, Search, MCP).
 
 ### 2. Deep Linking & Navigation
-- **Message Permalinks**: Internal architecture created to support linking to any specific message UUID.
-- **Auto-Scroll & Highlight**: Navigating to a message automatically scrolls the virtualized list to the exact position and flashes a highlight.
-- **Smart "Back" Navigation**: Returning from the message view restores the board state exactly as it was, preventing context loss.
+- **Message Permalinks**: Implemented internal deep linking to specific message UUIDs.
+- **Bi-directional Sync**: Clicking an event on the board jumps to the exact message in the transcript with auto-scroll and highlighting.
+- **Smart History**: "Back" navigation restores the exact board state (scroll position, zoom level) to prevent context loss.
 
-### 3. Analytics & Visualization
-- **Activity Indicators**: Session headers now display rich metrics:
-  - Input/Output token counts (visualized with colors).
-  - Shell commands run.
-  - Files created/edited.
-  - Git commits associated with the session.
-- **Tool Usage Icons**: Visual icons for different types of tool usage (Terminal, File Ops, Search, etc.) directly on the session cards.
-- **Time/Duration Tracking**: Clear visualization of session start times and durations.
+### 3. Technical Refactors
+- **Zustand Slices**: Refactored the monolithic store into modular slices (`boardSlice`, `navigationSlice`) for better separation of concerns.
+- **Project Tree**: Fixed interaction conflicts between "Expand" and "Select" actions in the sidebar.
+- **Performance**: Optimized rendering for large histories by virtualizing both the global board and individual message threads.
 
 ### 4. Search & Discovery
-- **"KakaoTalk-style" Search**: In-session search that jumps between matches without filtering context, preserving the conversational thread.
-- **Global Date Filtering**: Powerful date range picker that filters both the list and the board visualization.
+- **"Jump-to" Search**: implemented in-context search navigation (preserving thread context) rather than destructive filtering.
+- **Fixed Date Filtering**: Corrected timezone handling in the date picker to ensure accurate local-time filtering.
 
-### 5. Technical Improvements
-- **Virtualized Rendering**: Implemented `@tanstack/react-virtual` for both the session board (horizontal) and message list (vertical) to handle thousands of items with 60fps performance.
-- **Zustand Store Architecture**: Refactored monolithic state into modular slices (`boardSlice`, `navigationSlice`, etc.) for better maintainability.
-- **Robust Deduplication**: Fixed issues with duplicate session entries and ghost data.
-
----
-
-## Detailed Change Log
-
-### [Upcoming Release] - 2026-01-27
-
-#### Added
-- **Navigation Slice**: New Redux-style store slice for managing deep link targets and highlight states.
-- **SessionLane Interactions**: Added `onNavigate` prop to lanes and cards to trigger deep linking.
-- **Visual Feedback**: Added hover effects and "Open" buttons to expanded interaction cards.
-- **Project Tree Refactor**: completely rewrote project tree interactions to separate "Expand" (chevron) and "Select" (label) actions, fixing UX frustrations.
-
-#### Fixed
-- **Merge Conflicts**: Resolved complex conflicts in `SessionLane.tsx` preserving both upstream refactors and our custom UI enhancements.
-- **Back Button Logic**: Fixed `MessageViewer` back button to correctly re-hydrate the Session Board data instead of showing an empty state.
-- **Explorer Jumps**: Fixed issue where clicking a project in sidebar would accidentally collapse it.
-
-#### Changed
-- **Dependencies**: Added `lucide-react` icons (Globe, Search, Plug) for better tool visualization.
-- **Store Types**: Expanded `AppStore` interface to support transient navigation state (`targetMessageUuid`).
-
+## Dependencies Added
+- `lucide-react`: For consistent UI iconography (replacing ad-hoc SVGs).
+- `@tanstack/react-virtual`: For virtualization stability.
