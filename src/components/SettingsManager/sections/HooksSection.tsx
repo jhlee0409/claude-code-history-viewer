@@ -173,7 +173,6 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
   const [newHookType, setNewHookType] = useState<string>("UserPromptSubmit");
   const [newCommand, setNewCommand] = useState("");
   const [newArgs, setNewArgs] = useState("");
-  const [newTimeout, setNewTimeout] = useState("");
 
   const hooks = settings.hooks ?? {};
   const hookEntries = Object.entries(hooks).filter(
@@ -188,7 +187,6 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
     const newHookCommand: HookCommand = {
       command: newCommand.trim(),
       args: newArgs.trim() ? newArgs.split(/\s+/) : undefined,
-      timeout: newTimeout ? parseInt(newTimeout, 10) : undefined,
     };
 
     const currentHooks = hooks[newHookType] ?? [];
@@ -202,7 +200,6 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
     // Reset form
     setNewCommand("");
     setNewArgs("");
-    setNewTimeout("");
     setIsAddOpen(false);
   };
 
@@ -332,19 +329,6 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
                 placeholder="status --short"
                 className="mt-1"
               />
-            </div>
-            <div>
-              <Label>{t("settingsManager.unified.hooks.timeout")}</Label>
-              <Input
-                value={newTimeout}
-                onChange={(e) => setNewTimeout(e.target.value)}
-                placeholder="5000"
-                type="number"
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                {t("settingsManager.unified.hooks.timeoutHint")}
-              </p>
             </div>
           </div>
           <DialogFooter>

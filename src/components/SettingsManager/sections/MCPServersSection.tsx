@@ -34,7 +34,6 @@ import {
   Pencil,
   Check,
   X,
-  Sparkles,
 } from "lucide-react";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import type { MCPServerConfig, MCPSource, SettingsScope } from "@/types";
@@ -57,60 +56,6 @@ interface UnifiedServer {
 }
 
 type SaveLocation = "user" | "project" | "local";
-
-// ============================================================================
-// Popular MCP Server Templates
-// ============================================================================
-
-interface MCPTemplate {
-  id: string;
-  name: string;
-  description: string;
-  command: string;
-  args: string[];
-  envKeys?: string[];
-}
-
-const MCP_TEMPLATES: MCPTemplate[] = [
-  {
-    id: "filesystem",
-    name: "Filesystem",
-    description: "Read/write local files",
-    command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"],
-  },
-  {
-    id: "brave-search",
-    name: "Brave Search",
-    description: "Web search via Brave API",
-    command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-brave-search"],
-    envKeys: ["BRAVE_API_KEY"],
-  },
-  {
-    id: "sequential-thinking",
-    name: "Sequential Thinking",
-    description: "Step-by-step reasoning",
-    command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-  },
-  {
-    id: "postgres",
-    name: "PostgreSQL",
-    description: "Database queries",
-    command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-postgres"],
-    envKeys: ["DATABASE_URL"],
-  },
-  {
-    id: "github",
-    name: "GitHub",
-    description: "Repository management",
-    command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-github"],
-    envKeys: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
-  },
-];
 
 // ============================================================================
 // Source to Scope mapping
@@ -266,7 +211,6 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
 
   // Dialog states
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [saveLocation, setSaveLocation] = useState<SaveLocation>("user");
 
   // Add server form state
@@ -274,7 +218,6 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
   const [newServerCommand, setNewServerCommand] = useState("npx");
   const [newServerArgs, setNewServerArgs] = useState("");
   const [newServerEnv, setNewServerEnv] = useState<Record<string, string>>({});
-  const [isCustomMode, setIsCustomMode] = useState(false);
 
   // Combine all servers into unified list
   const allServers = useMemo((): UnifiedServer[] => {
@@ -314,27 +257,6 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
       default: return {};
     }
   }, [mcpServers]);
-
-  // Handle template selection
-  const handleTemplateSelect = (templateId: string) => {
-    const template = MCP_TEMPLATES.find((t) => t.id === templateId);
-    if (template) {
-      setSelectedTemplate(templateId);
-      setNewServerName(template.id);
-      setNewServerCommand(template.command);
-      setNewServerArgs(template.args.join(" "));
-      if (template.envKeys) {
-        const envObj: Record<string, string> = {};
-        template.envKeys.forEach((key) => {
-          envObj[key] = "";
-        });
-        setNewServerEnv(envObj);
-      } else {
-        setNewServerEnv({});
-      }
-      setIsCustomMode(false);
-    }
-  };
 
   // Handle add server
   const handleAddServer = async () => {
@@ -385,12 +307,10 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
 
   // Reset form
   const resetForm = () => {
-    setSelectedTemplate(null);
     setNewServerName("");
     setNewServerCommand("npx");
     setNewServerArgs("");
     setNewServerEnv({});
-    setIsCustomMode(false);
     setSaveLocation("user");
   };
 
@@ -454,71 +374,36 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Template Selection */}
-            {!isCustomMode && !selectedTemplate && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {t("settingsManager.mcp.popularServers")}
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {MCP_TEMPLATES.map((template) => (
-                    <button
-                      key={template.id}
-                      onClick={() => handleTemplateSelect(template.id)}
-                      className="p-3 text-left border rounded-lg transition-colors border-border hover:border-accent/50 hover:bg-accent/5"
-                    >
-                      <div className="font-medium text-sm">{template.name}</div>
-                      <div className="text-xs text-muted-foreground">{template.description}</div>
-                    </button>
-                  ))}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-xs text-muted-foreground"
-                  onClick={() => setIsCustomMode(true)}
-                >
-                  {t("settingsManager.mcp.customServer")}
-                </Button>
+            {/* Server Form */}
+            <div className="space-y-3">
+              <div>
+                <Label>{t("settingsManager.mcp.serverName")}</Label>
+                <Input
+                  value={newServerName}
+                  onChange={(e) => setNewServerName(e.target.value)}
+                  placeholder="my-mcp-server"
+                  className="mt-1"
+                />
               </div>
-            )}
 
-            {/* Form */}
-            {(isCustomMode || selectedTemplate) && (
-              <div className="space-y-3 pt-2 border-t">
-                <div>
-                  <Label>{t("settingsManager.mcp.serverName")}</Label>
-                  <Input
-                    value={newServerName}
-                    onChange={(e) => setNewServerName(e.target.value)}
-                    placeholder="my-mcp-server"
-                    className="mt-1"
-                  />
-                </div>
-
-                {isCustomMode && (
-                  <>
-                    <div>
-                      <Label>{t("settingsManager.mcp.command")}</Label>
-                      <Input
-                        value={newServerCommand}
-                        onChange={(e) => setNewServerCommand(e.target.value)}
-                        placeholder="npx"
-                        className="mt-1 font-mono text-sm"
-                      />
-                    </div>
-                    <div>
-                      <Label>{t("settingsManager.mcp.args")}</Label>
-                      <Input
-                        value={newServerArgs}
-                        onChange={(e) => setNewServerArgs(e.target.value)}
-                        placeholder="-y @modelcontextprotocol/server-name"
-                        className="mt-1 font-mono text-sm"
-                      />
-                    </div>
-                  </>
-                )}
+              <div>
+                <Label>{t("settingsManager.mcp.command")}</Label>
+                <Input
+                  value={newServerCommand}
+                  onChange={(e) => setNewServerCommand(e.target.value)}
+                  placeholder="npx"
+                  className="mt-1 font-mono text-sm"
+                />
+              </div>
+              <div>
+                <Label>{t("settingsManager.mcp.args")}</Label>
+                <Input
+                  value={newServerArgs}
+                  onChange={(e) => setNewServerArgs(e.target.value)}
+                  placeholder="-y @modelcontextprotocol/server-name"
+                  className="mt-1 font-mono text-sm"
+                />
+              </div>
 
                 {/* Env vars */}
                 {Object.keys(newServerEnv).length > 0 && (
@@ -577,8 +462,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                     {saveLocation === "local" && t("settingsManager.mcp.location.localDesc")}
                   </p>
                 </div>
-              </div>
-            )}
+            </div>
           </div>
 
           <DialogFooter>
