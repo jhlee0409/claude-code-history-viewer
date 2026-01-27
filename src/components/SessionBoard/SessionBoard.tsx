@@ -142,8 +142,7 @@ export const SessionBoard = () => {
             if (!sessionId) return 320;
             const data = boardSessions[sessionId];
 
-            // "Epic" sessions get wider columns in normal views
-            if (data?.depth === 'epic') return 480;
+            // "Deep" sessions get wider columns
             if (data?.depth === 'deep') return 380;
             return 320;
         },

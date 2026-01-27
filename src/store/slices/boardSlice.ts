@@ -64,8 +64,10 @@ const getSessionRelevance = (messages: ClaudeMessage[], stats: BoardSessionStats
 
     // Mentioning .md files or documentation might be high value for summaries
     const hasDocWork = messages.some(m => {
-        const toolUse = m.toolUse as any;
-        const path = toolUse?.input?.path || toolUse?.input?.file_path || "";
+        const toolUse = (m.type === 'assistant' && m.toolUse) ? m.toolUse : null;
+        if (!toolUse) return false;
+        const input = (toolUse as any).input;
+        const path = input?.path || input?.file_path || "";
         return typeof path === 'string' && path.toLowerCase().endsWith('.md');
     });
     if (hasDocWork) score += 0.2;
@@ -77,10 +79,6 @@ const getSessionRelevance = (messages: ClaudeMessage[], stats: BoardSessionStats
 };
 
 const getSessionDepth = (messages: ClaudeMessage[], stats: BoardSessionStats): SessionDepth => {
-    // Epic: Significant work, many tools, long history
-    if (messages.length > 50 || stats.toolCount > 20 || stats.totalTokens > 50000) {
-        return "epic";
-    }
     // Deep: Moderate work
     if (messages.length > 15 || stats.toolCount > 5) {
         return "deep";
@@ -147,16 +145,16 @@ export const createBoardSlice: StateCreator<
                     const fileEdits: SessionFileEdit[] = [];
 
                     messages.forEach((msg) => {
-                        if (msg.usage) {
+                        if (msg.type === 'assistant' && msg.usage) {
                             const usage = msg.usage;
                             stats.inputTokens += usage.input_tokens || 0;
                             stats.outputTokens += usage.output_tokens || 0;
                             stats.totalTokens += (usage.input_tokens || 0) + (usage.output_tokens || 0);
                         }
 
-                        if (msg.durationMs) stats.durationMs += msg.durationMs;
+                        if (msg.type === 'assistant' && msg.durationMs) stats.durationMs += msg.durationMs;
 
-                        if (msg.toolUse) {
+                        if (msg.type === 'assistant' && msg.toolUse) {
                             stats.toolCount++;
                             const toolUse = msg.toolUse as any;
                             const name = toolUse.name;

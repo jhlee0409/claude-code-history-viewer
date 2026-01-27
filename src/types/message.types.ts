@@ -150,18 +150,26 @@ export interface RawClaudeMessage {
 // Processed Message (for UI)
 // ============================================================================
 
-export interface ClaudeMessage {
+export interface BaseClaudeMessage {
   uuid: string;
   parentUuid?: string;
   sessionId: string;
   timestamp: string;
-  type: string;
-  content?: string | ContentItem[] | Record<string, unknown>;
-  toolUse?: Record<string, unknown>;
-  toolUseResult?: Record<string, unknown> | string;
   isSidechain?: boolean;
-  role?: string;
-  // Assistant metadata
+  content?: string | ContentItem[] | Record<string, unknown>;
+}
+
+/** Represents input from the human user */
+export interface ClaudeUserMessage extends BaseClaudeMessage {
+  type: "user";
+  role: "user";
+  toolUseResult?: Record<string, unknown> | string;
+}
+
+/** Represents response from Claude */
+export interface ClaudeAssistantMessage extends BaseClaudeMessage {
+  type: "assistant";
+  role: "assistant";
   model?: string;
   stop_reason?: "tool_use" | "end_turn" | "max_tokens";
   usage?: {
@@ -171,32 +179,70 @@ export interface ClaudeMessage {
     cache_read_input_tokens?: number;
     service_tier?: string;
   };
-  // Cost and performance metrics (2025 additions)
+  // Metrics (2025)
   costUSD?: number;
   durationMs?: number;
-  // File history snapshot fields (for type: "file-history-snapshot")
-  messageId?: string;
-  snapshot?: FileHistorySnapshotData;
-  isSnapshotUpdate?: boolean;
-  // Progress message fields (for type: "progress")
-  data?: ProgressData;
-  toolUseID?: string;
-  parentToolUseID?: string;
-  // Queue operation fields (for type: "queue-operation")
-  operation?: QueueOperationType;
-  // System message fields (for type: "system")
+  toolUse?: Record<string, unknown>;
+}
+
+/** System information, warnings, errors, or internal events */
+export interface ClaudeSystemMessage extends BaseClaudeMessage {
+  type: "system";
   subtype?: string;
   level?: "info" | "warning" | "error" | "suggestion";
+
   // stop_hook_summary fields
   hookCount?: number;
   hookInfos?: Array<{ command: string; output?: string; error?: string }>;
   stopReasonSystem?: string;
   preventedContinuation?: boolean;
-  // compact_boundary fields
+
+  // boundary fields
   compactMetadata?: { trigger?: string; preTokens?: number };
-  // microcompact_boundary fields
   microcompactMetadata?: { trigger?: string; preTokens?: number };
 }
+
+/** High level session summary */
+export interface ClaudeSummaryMessage extends BaseClaudeMessage {
+  type: "summary";
+  summary?: string;
+  leafUuid?: string;
+}
+
+/** UI wrapper for File History Snapshot */
+export interface ClaudeFileHistoryMessage extends BaseClaudeMessage {
+  type: "file-history-snapshot";
+  messageId?: string;
+  snapshot?: FileHistorySnapshotData;
+  isSnapshotUpdate?: boolean;
+}
+
+/** UI wrapper for Progress updates */
+export interface ClaudeProgressMessage extends BaseClaudeMessage {
+  type: "progress";
+  data?: ProgressData;
+  toolUseID?: string;
+  parentToolUseID?: string;
+}
+
+/** UI wrapper for Queue Operations */
+export interface ClaudeQueueMessage extends BaseClaudeMessage {
+  type: "queue-operation";
+  operation?: QueueOperationType;
+}
+
+/**
+ * Union type for all processed messages in the UI.
+ * Use 'type' discriminator to parse specific fields.
+ */
+export type ClaudeMessage =
+  | ClaudeUserMessage
+  | ClaudeAssistantMessage
+  | ClaudeSystemMessage
+  | ClaudeSummaryMessage
+  | ClaudeFileHistoryMessage
+  | ClaudeProgressMessage
+  | ClaudeQueueMessage;
 
 // ============================================================================
 // Message Tree Structure (for UI rendering)

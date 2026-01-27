@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "../../store/useAppStore";
 import type { BoardSessionData, ZoomLevel } from "../../types/board.types";
 import { InteractionCard } from "./InteractionCard";
-import { Terminal, FilePlus, FileText, Book, TrendingUp, Zap, Crown, Pencil, GitCommit } from "lucide-react";
+import { Terminal, FilePlus, FileText, Book, TrendingUp, Zap, Pencil, GitCommit, Search, Globe, Plug } from "lucide-react";
 import { clsx } from "clsx";
 import { extractClaudeMessageContent } from "../../utils/messageUtils";
 
@@ -61,7 +61,8 @@ export const SessionLane = ({
     const visibleItems = useMemo(() => {
         const filtered = messages.filter(msg => {
             const content = extractClaudeMessageContent(msg) || "";
-            const isTool = !!msg.toolUse || isToolEvent(msg);
+            // isToolEvent takes `any` so it safely checks toolUse
+            const isTool = isToolEvent(msg);
             return content.trim().length > 0 || isTool;
         });
 
@@ -70,11 +71,12 @@ export const SessionLane = ({
         let currentGroup: { head: any, siblings: any[] } | null = null;
 
         filtered.forEach((msg) => {
-            const role = msg.role || msg.type;
+            // Helper to get role safely from union
+            const role = (msg as any).role || msg.type;
             const isTool = isToolEvent(msg);
 
             if (currentGroup) {
-                const headRole = currentGroup.head.role || currentGroup.head.type;
+                const headRole = (currentGroup.head as any).role || currentGroup.head.type;
                 const headIsTool = isToolEvent(currentGroup.head);
 
                 // For Zoom Level 0, we want to group by "color band" (semantic type)
@@ -123,9 +125,12 @@ export const SessionLane = ({
             if (!msg) return 80;
 
             if (zoomLevel === 0) {
-                // Approximate total tokens for group? 
+                // Approximate total tokens for group?
                 // For heatmap, we disabled grouping above, so siblings is empty
-                const totalTokens = (msg.usage?.input_tokens || 0) + (msg.usage?.output_tokens || 0);
+                let totalTokens = 0;
+                if (msg.type === 'assistant' && msg.usage) {
+                    totalTokens = (msg.usage.input_tokens || 0) + (msg.usage.output_tokens || 0);
+                }
                 return Math.min(Math.max(totalTokens / 50, 4), 20);
             }
 
@@ -166,8 +171,6 @@ export const SessionLane = ({
         }
 
         switch (depth) {
-            case 'epic':
-                return "w-[480px] min-w-[480px] bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200/50 dark:border-indigo-800/50";
             case 'deep':
                 return "w-[380px] min-w-[380px] bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/50 dark:border-slate-800/50";
             default:
@@ -189,12 +192,11 @@ export const SessionLane = ({
             <div className={clsx(
                 "border-b border-border/50 shrink-0 z-10 backdrop-blur-sm sticky top-0 px-4 py-3 flex flex-col",
                 zoomLevel === 0 ? "h-[110px] bg-background/90" : "min-h-[165px]",
-                (zoomLevel !== 0 && depth === 'epic') ? "bg-indigo-50/80 dark:bg-indigo-950/40" : (zoomLevel !== 0 ? "bg-card/40" : "")
+                zoomLevel !== 0 ? "bg-card/40" : ""
             )}>
                 {zoomLevel === 0 ? (
                     <div className="flex flex-col items-center gap-1.5 text-center h-full justify-between">
                         <div className="flex gap-1">
-                            {depth === 'epic' && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />}
                             {stats?.commitCount > 0 && <GitCommit className="w-2.5 h-2.5 text-indigo-500" />}
                         </div>
                         <div className="text-[10px] font-bold text-muted-foreground">
@@ -213,7 +215,6 @@ export const SessionLane = ({
                             <div className="flex gap-1.5 items-center">
                                 {stats.commitCount > 0 && <GitCommit className="w-3 h-3 text-indigo-500" />}
                                 {stats.hasMarkdownEdits && <Pencil className="w-3 h-3 text-amber-500" />}
-                                {depth === 'epic' && <Crown className="w-3 h-3 text-indigo-500" />}
                             </div>
                         </div>
 
@@ -265,11 +266,7 @@ export const SessionLane = ({
                                     return null;
                                 })()}
 
-                                {/* 3. File Search (Grep/Glob) - Added new Metric ? 
-                                    We don't have explicit count in stats yet, but we can check derived stats if available,
-                                    or just rely on the fact that we want to show it.
-                                    For now, let's skip unless we add it to stats. 
-                                */}
+                                {/* 3. File Search (Grep/Glob) */}
 
                                 {/* 4. Docs (Markdown) */}
                                 {stats.hasMarkdownEdits && (
@@ -326,8 +323,8 @@ export const SessionLane = ({
                         const nextItem = visibleItems[virtualRow.index + 1];
                         const prevItem = visibleItems[virtualRow.index - 1];
 
-                        const role = message.role || message.type;
-                        const prevRole = prevItem ? (prevItem.head.role || prevItem.head.type) : null;
+                        const role = (message as any).role || message.type;
+                        const prevRole = prevItem ? ((prevItem.head as any).role || prevItem.head.type) : null;
 
                         // Spacing Logic: Tighter if same role, wider if turn switch
                         const marginTop = (prevRole && prevRole !== role && zoomLevel !== 0) ? 12 : 2;

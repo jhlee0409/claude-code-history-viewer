@@ -13,7 +13,7 @@ import { extractClaudeMessageContent } from "../../../utils/messageUtils";
  * Check if a message is an agent task launch (isAsync: true)
  */
 const isAgentTaskLaunchMessage = (message: ClaudeMessage): boolean => {
-  if (!message.toolUseResult || typeof message.toolUseResult !== "object") return false;
+  if (message.type !== 'user' || !message.toolUseResult || typeof message.toolUseResult !== "object") return false;
   const result = message.toolUseResult as Record<string, unknown>;
   return result.isAsync === true && typeof result.agentId === "string";
 };
@@ -23,14 +23,14 @@ const isAgentTaskLaunchMessage = (message: ClaudeMessage): boolean => {
  * Handles: status "completed"/"error", or synchronous completion (isAsync === false)
  */
 const isAgentTaskCompletionMessage = (message: ClaudeMessage): boolean => {
-  if (!message.toolUseResult || typeof message.toolUseResult !== "object") return false;
+  if (message.type !== 'user' || !message.toolUseResult || typeof message.toolUseResult !== "object") return false;
   const result = message.toolUseResult as Record<string, unknown>;
   if (typeof result.agentId !== "string") return false;
   // Synchronous completion (isAsync === false)
   if (result.isAsync === false) return true;
   // Async completion with status "completed" or "error" (and isAsync is undefined)
   return result.isAsync === undefined &&
-         (result.status === "completed" || result.status === "error");
+    (result.status === "completed" || result.status === "error");
 };
 
 /**
@@ -45,12 +45,13 @@ const isAgentTaskMessage = (message: ClaudeMessage): boolean => {
  */
 const extractAgentTask = (message: ClaudeMessage): AgentTask | null => {
   if (!isAgentTaskMessage(message)) return null;
-  const result = message.toolUseResult as Record<string, unknown>;
+  // We know it's a user message with toolUseResult because isAgentTaskMessage checked it
+  const result = (message as any).toolUseResult as Record<string, unknown>;
   return {
     agentId: String(result.agentId),
     description: String(result.description || ""),
     status: (result.status === "completed" ? "completed" :
-             result.status === "error" ? "error" : "async_launched") as AgentTask["status"],
+      result.status === "error" ? "error" : "async_launched") as AgentTask["status"],
     outputFile: result.outputFile ? String(result.outputFile) : undefined,
     prompt: result.prompt ? String(result.prompt) : undefined,
   };
@@ -113,7 +114,7 @@ export const groupAgentTasks = (
   // Now find completion messages and link them to groups by agentId
   for (const msg of messages) {
     if (isAgentTaskCompletionMessage(msg)) {
-      const result = msg.toolUseResult as Record<string, unknown>;
+      const result = (msg as any).toolUseResult as Record<string, unknown>;
       const agentId = String(result.agentId);
       const group = agentIdToGroup.get(agentId);
 

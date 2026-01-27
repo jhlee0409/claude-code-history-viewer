@@ -24,7 +24,7 @@ export interface SessionFileEdit {
     type: "write" | "edit" | "create";
 }
 
-export type SessionDepth = "epic" | "deep" | "shallow";
+export type SessionDepth = "deep" | "shallow";
 
 export interface BoardSessionData {
     session: ClaudeSession;

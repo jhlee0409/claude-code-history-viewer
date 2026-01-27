@@ -25,11 +25,11 @@ export function analyzeSessionMessages(messages: ClaudeMessage[]): SessionStats 
         // 1. Check for Errors
         let isError = false;
 
-        if (msg.stopReasonSystem?.toLowerCase().includes("error")) {
+        if (msg.type === 'system' && msg.stopReasonSystem?.toLowerCase().includes("error")) {
             isError = true;
         }
 
-        if (msg.toolUseResult) {
+        if (msg.type === 'user' && msg.toolUseResult) {
             const result = msg.toolUseResult as any;
             if (result.is_error === true || (typeof result.stderr === 'string' && result.stderr.trim().length > 0)) {
                 isError = true;
@@ -41,7 +41,7 @@ export function analyzeSessionMessages(messages: ClaudeMessage[]): SessionStats 
         }
 
         // 2. Scan Tool Usage
-        if (msg.toolUse) {
+        if (msg.type === 'assistant' && msg.toolUse) {
             const tool = msg.toolUse as any;
             const name = tool.name;
             const input = tool.input || {};
