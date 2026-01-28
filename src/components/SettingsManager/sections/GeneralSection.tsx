@@ -37,6 +37,7 @@ import {
   RefreshCw,
   GitCommit,
   Eye,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings, ClaudeModel, AutoUpdatesChannel, AttributionConfig } from "@/types";
@@ -102,6 +103,14 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
   const handleCleanupPeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     onChange({ cleanupPeriodDays: isNaN(value) ? undefined : value });
+  };
+
+  const handleOutputStyleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({ outputStyle: e.target.value || undefined });
+  };
+
+  const handlePlansDirectoryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({ plansDirectory: e.target.value || undefined });
   };
 
   const handleBooleanChange = (key: keyof ClaudeCodeSettings) => (checked: boolean) => {
@@ -254,6 +263,23 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 disabled={readOnly}
               />
             </div>
+
+            {/* Output Style */}
+            <div className="space-y-2">
+              <Label htmlFor="output-style">
+                {t("settingsManager.general.outputStyle")}
+              </Label>
+              <Input
+                id="output-style"
+                value={settings.outputStyle ?? ""}
+                onChange={handleOutputStyleChange}
+                placeholder={t("settingsManager.general.outputStylePlaceholder")}
+                disabled={readOnly}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("settingsManager.general.outputStyleDesc")}
+              </p>
+            </div>
           </div>
 
           <Separator className="opacity-50" />
@@ -318,6 +344,26 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 {t("settingsManager.general.cleanupPeriodDesc")}
               </p>
             </div>
+
+            {/* Plans Directory */}
+            <div className="space-y-2">
+              <Label htmlFor="plans-directory">
+                <span className="flex items-center gap-1.5">
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  {t("settingsManager.general.plansDirectory")}
+                </span>
+              </Label>
+              <Input
+                id="plans-directory"
+                value={settings.plansDirectory ?? ""}
+                onChange={handlePlansDirectoryChange}
+                placeholder="~/.claude/plans"
+                disabled={readOnly}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("settingsManager.general.plansDirectoryDesc")}
+              </p>
+            </div>
           </div>
 
           <Separator className="opacity-50" />
@@ -345,6 +391,60 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 id="respect-gitignore"
                 checked={settings.respectGitignore ?? true}
                 onCheckedChange={handleBooleanChange("respectGitignore")}
+                disabled={readOnly}
+              />
+            </div>
+
+            {/* Show Turn Duration */}
+            <div className="flex items-center justify-between py-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="show-turn-duration">
+                  {t("settingsManager.general.showTurnDuration")}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("settingsManager.general.showTurnDurationDesc")}
+                </p>
+              </div>
+              <Switch
+                id="show-turn-duration"
+                checked={settings.showTurnDuration ?? true}
+                onCheckedChange={handleBooleanChange("showTurnDuration")}
+                disabled={readOnly}
+              />
+            </div>
+
+            {/* Spinner Tips */}
+            <div className="flex items-center justify-between py-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="spinner-tips">
+                  {t("settingsManager.general.spinnerTips")}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("settingsManager.general.spinnerTipsDesc")}
+                </p>
+              </div>
+              <Switch
+                id="spinner-tips"
+                checked={settings.spinnerTipsEnabled ?? true}
+                onCheckedChange={handleBooleanChange("spinnerTipsEnabled")}
+                disabled={readOnly}
+              />
+            </div>
+
+            {/* Terminal Progress Bar */}
+            <div className="flex items-center justify-between py-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="terminal-progress-bar">
+                  {t("settingsManager.general.terminalProgressBar")}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("settingsManager.general.terminalProgressBarDesc")}
+                </p>
+              </div>
+              <Switch
+                id="terminal-progress-bar"
+                checked={settings.terminalProgressBarEnabled ?? true}
+                onCheckedChange={handleBooleanChange("terminalProgressBarEnabled")}
                 disabled={readOnly}
               />
             </div>

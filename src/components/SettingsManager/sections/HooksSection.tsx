@@ -205,7 +205,9 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
 
   // Handle delete hook type
   const handleDeleteHook = (hookName: string) => {
-    const { [hookName]: _, ...rest } = hooks;
+    const rest = Object.fromEntries(
+      Object.entries(hooks).filter(([k]) => k !== hookName)
+    );
     onChange({ hooks: rest });
   };
 

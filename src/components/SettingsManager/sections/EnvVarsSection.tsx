@@ -192,7 +192,9 @@ export const EnvVarsSection: React.FC<EnvVarsSectionProps> = React.memo(({
 
   // Handle delete env var
   const handleDeleteEnvVar = (key: string) => {
-    const { [key]: _, ...rest } = envVars;
+    const rest = Object.fromEntries(
+      Object.entries(envVars).filter(([k]) => k !== key)
+    );
     onChange({ env: Object.keys(rest).length > 0 ? rest : undefined });
   };
 

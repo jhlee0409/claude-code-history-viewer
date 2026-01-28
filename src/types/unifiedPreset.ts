@@ -8,7 +8,12 @@
  * When applied, intelligently routes data to correct files.
  */
 
-import type { ClaudeCodeSettings, MCPServerConfig } from "./claudeSettings";
+import type {
+  ClaudeCodeSettings,
+  ClaudeModel,
+  MCPServerConfig,
+  SettingsScope,
+} from "./claudeSettings";
 
 // ============================================================================
 // Core Types
@@ -50,7 +55,7 @@ export interface UnifiedPresetSummary {
   /** Number of non-empty settings fields */
   settingsCount: number;
   /** Model name if specified */
-  model?: string;
+  model?: ClaudeModel;
   /** Number of MCP servers */
   mcpServerCount: number;
   /** First few MCP server names for preview */
@@ -88,7 +93,7 @@ export interface UnifiedPresetInput {
  */
 export interface UnifiedPresetApplyOptions {
   /** Target scope for settings.json */
-  settingsScope: "user" | "project" | "local";
+  settingsScope: Exclude<SettingsScope, "managed">;
   /** Project path (required for project/local scope) */
   projectPath?: string;
   /** Whether to apply MCP servers (default: true) */

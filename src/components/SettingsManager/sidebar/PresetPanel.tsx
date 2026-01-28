@@ -421,18 +421,31 @@ export const PresetPanel: React.FC = () => {
     setIsApplying(true);
     try {
       // Apply settings
-      const settings = JSON.parse(
-        selectedPreset.settings
-      ) as ClaudeCodeSettings;
+      let settings: ClaudeCodeSettings;
+      try {
+        settings = JSON.parse(selectedPreset.settings) as ClaudeCodeSettings;
+      } catch (parseError) {
+        console.error("Failed to parse preset settings:", parseError);
+        alert(t("error.invalidPresetSettings") || "Failed to parse preset settings. The preset data may be corrupted.");
+        setIsApplying(false);
+        return;
+      }
+
       if (Object.keys(settings).length > 0) {
         await saveSettings(settings, targetScope, targetProject);
       }
 
       // Apply MCP servers
-      const serversRaw = JSON.parse(selectedPreset.mcpServers) as Record<
-        string,
-        unknown
-      >;
+      let serversRaw: Record<string, unknown>;
+      try {
+        serversRaw = JSON.parse(selectedPreset.mcpServers) as Record<string, unknown>;
+      } catch (parseError) {
+        console.error("Failed to parse preset MCP servers:", parseError);
+        alert(t("error.invalidPresetMcpServers") || "Failed to parse preset MCP servers. The preset data may be corrupted.");
+        setIsApplying(false);
+        return;
+      }
+
       if (Object.keys(serversRaw).length > 0) {
         const mcpSource =
           targetScope === "user"

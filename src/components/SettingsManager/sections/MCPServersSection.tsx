@@ -283,7 +283,9 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
   // Handle delete server
   const handleDeleteServer = async (server: UnifiedServer) => {
     const currentServers = getServersForSource(server.source);
-    const { [server.name]: _, ...rest } = currentServers;
+    const rest = Object.fromEntries(
+      Object.entries(currentServers).filter(([k]) => k !== server.name)
+    );
     await saveMCPServers(
       server.source,
       rest,

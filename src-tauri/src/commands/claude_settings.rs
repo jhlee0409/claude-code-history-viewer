@@ -57,9 +57,42 @@ fn get_claude_json_path() -> Result<PathBuf, String> {
     Ok(home.join(".claude.json"))
 }
 
+/// Validate project path to prevent path traversal attacks
+///
+/// # Security
+/// - Ensures path is absolute
+/// - Prevents ".." path traversal components
+/// - Canonicalizes existing paths
+///
+/// # Arguments
+/// * `path` - Project path to validate
+///
+/// # Returns
+/// Validated PathBuf or error message
+fn validate_project_path(path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(path);
+
+    if !path.is_absolute() {
+        return Err("Project path must be absolute".to_string());
+    }
+
+    // Check for path traversal
+    if path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err("Project path cannot contain '..' components".to_string());
+    }
+
+    // Canonicalize if exists, otherwise return as-is
+    if path.exists() {
+        path.canonicalize().map_err(|e| format!("Failed to canonicalize path: {}", e))
+    } else {
+        Ok(path)
+    }
+}
+
 /// Get the project MCP settings path (<project>/.mcp.json)
-fn get_project_mcp_path(project_path: &str) -> PathBuf {
-    PathBuf::from(project_path).join(".mcp.json")
+fn get_project_mcp_path(project_path: &str) -> Result<PathBuf, String> {
+    let validated = validate_project_path(project_path)?;
+    Ok(validated.join(".mcp.json"))
 }
 
 /// Get the managed settings path (macOS only)
@@ -81,13 +114,13 @@ fn get_settings_path(scope: &str, project_path: Option<&str>) -> Result<PathBuf,
         "user" => get_user_settings_path(),
         "project" => {
             let path = project_path.ok_or("project_path required for 'project' scope")?;
-            Ok(PathBuf::from(path).join(".claude").join("settings.json"))
+            let validated = validate_project_path(path)?;
+            Ok(validated.join(".claude").join("settings.json"))
         }
         "local" => {
             let path = project_path.ok_or("project_path required for 'local' scope")?;
-            Ok(PathBuf::from(path)
-                .join(".claude")
-                .join("settings.local.json"))
+            let validated = validate_project_path(path)?;
+            Ok(validated.join(".claude").join("settings.local.json"))
         }
         "managed" => get_managed_settings_path(),
         _ => Err(format!("Invalid scope: {scope}")),
@@ -302,7 +335,7 @@ pub async fn get_all_mcp_servers(project_path: Option<String>) -> Result<AllMCPS
 
         // Project .mcp.json
         let project_mcp_file = project_path.as_deref().and_then(|pp| {
-            let p = get_project_mcp_path(pp);
+            let p = get_project_mcp_path(pp).ok()?;
             if !p.exists() {
                 return None;
             }
@@ -397,7 +430,7 @@ pub async fn save_mcp_servers(
             "project_mcp" => {
                 // Write to <project>/.mcp.json
                 let pp = project_path.ok_or("project_path required for project_mcp source")?;
-                let path = get_project_mcp_path(&pp);
+                let path = get_project_mcp_path(&pp)?;
                 // Store with mcpServers wrapper for consistency
                 let mcp_json = serde_json::json!({ "mcpServers": servers_value });
                 let content = serde_json::to_string_pretty(&mcp_json)
@@ -513,6 +546,45 @@ pub async fn get_claude_json_config(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Validate that a path is within allowed directories
+///
+/// # Security
+/// Prevents unauthorized file system access by restricting operations to safe directories.
+///
+/// # Arguments
+/// * `path` - Path to validate
+///
+/// # Returns
+/// Ok(()) if path is safe, error message if not
+fn is_safe_path(path: &Path) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let allowed_dirs = [
+        home.join(".claude-history-viewer").join("exports"),
+        home.join("Downloads"),
+        home.join("Documents"),
+    ];
+
+    // For non-existing paths, canonicalize parent
+    let canonical = if path.exists() {
+        path.canonicalize()
+            .map_err(|e| format!("Path canonicalization error: {}", e))?
+    } else {
+        path.parent()
+            .and_then(|p| p.canonicalize().ok())
+            .map(|p| p.join(path.file_name().unwrap_or_default()))
+            .ok_or_else(|| "Invalid path".to_string())?
+    };
+
+    if allowed_dirs.iter().any(|d| canonical.starts_with(d)) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Path not in allowed directories. Allowed: {:?}",
+            allowed_dirs
+        ))
+    }
+}
+
 /// Write text content to a file
 ///
 /// # Arguments
@@ -525,6 +597,10 @@ pub async fn get_claude_json_config(
 pub async fn write_text_file(path: String, content: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let path = PathBuf::from(path);
+
+        // Validate path is in allowed directories
+        is_safe_path(&path)?;
+
         let mut file = fs::File::create(&path)
             .map_err(|e| format!("Failed to create file {}: {}", path.display(), e))?;
         file.write_all(content.as_bytes())
@@ -546,6 +622,10 @@ pub async fn write_text_file(path: String, content: String) -> Result<(), String
 pub async fn read_text_file(path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let path = PathBuf::from(path);
+
+        // Validate path is in allowed directories
+        is_safe_path(&path)?;
+
         fs::read_to_string(&path)
             .map_err(|e| format!("Failed to read file {}: {}", path.display(), e))
     })

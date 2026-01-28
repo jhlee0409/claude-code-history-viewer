@@ -81,8 +81,23 @@ fn ensure_presets_folder() -> Result<PathBuf, String> {
     Ok(folder)
 }
 
+/// Validate preset ID to prevent path traversal attacks
+fn validate_preset_id(id: &str) -> Result<(), String> {
+    if id.is_empty() {
+        return Err("Preset ID cannot be empty".to_string());
+    }
+    if id.len() > 64 {
+        return Err("Preset ID too long (max 64 characters)".to_string());
+    }
+    if !id.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        return Err("Preset ID must contain only alphanumeric characters and hyphens".to_string());
+    }
+    Ok(())
+}
+
 /// Get path to a preset file
 fn get_preset_path(id: &str) -> Result<PathBuf, String> {
+    validate_preset_id(id)?;
     let folder = get_presets_folder()?;
     Ok(folder.join(format!("{id}.json")))
 }
@@ -155,123 +170,141 @@ fn compute_summary(settings_json: &str, mcp_json: &str) -> UnifiedPresetSummary 
 /// Load all unified presets
 #[tauri::command]
 pub async fn load_unified_presets() -> Result<Vec<UnifiedPresetData>, String> {
-    let folder = match get_presets_folder() {
-        Ok(f) => f,
-        Err(_) => return Ok(vec![]), // No presets folder = no presets
-    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = match get_presets_folder() {
+            Ok(f) => f,
+            Err(_) => return Ok(vec![]), // No presets folder = no presets
+        };
 
-    if !folder.exists() {
-        return Ok(vec![]);
-    }
+        if !folder.exists() {
+            return Ok(vec![]);
+        }
 
-    let mut presets = Vec::new();
+        let mut presets = Vec::new();
 
-    let entries = fs::read_dir(&folder)
-        .map_err(|e| format!("Failed to read presets folder: {e}"))?;
+        let entries = fs::read_dir(&folder)
+            .map_err(|e| format!("Failed to read presets folder: {e}"))?;
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(preset) = serde_json::from_str::<UnifiedPresetData>(&content) {
-                    presets.push(preset);
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(preset) = serde_json::from_str::<UnifiedPresetData>(&content) {
+                        presets.push(preset);
+                    }
                 }
             }
         }
-    }
 
-    // Sort by updated_at descending
-    presets.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        // Sort by updated_at descending
+        presets.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
 
-    Ok(presets)
+        Ok(presets)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 /// Save a unified preset (create or update)
 #[tauri::command]
 pub async fn save_unified_preset(input: UnifiedPresetInput) -> Result<UnifiedPresetData, String> {
-    ensure_presets_folder()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        ensure_presets_folder()?;
 
-    let now = chrono::Utc::now().to_rfc3339();
-    let summary = compute_summary(&input.settings, &input.mcp_servers);
+        let now = chrono::Utc::now().to_rfc3339();
+        let summary = compute_summary(&input.settings, &input.mcp_servers);
 
-    let preset = if let Some(id) = &input.id {
-        // Update existing
-        let path = get_preset_path(id)?;
-        let existing: UnifiedPresetData = if path.exists() {
-            let content = fs::read_to_string(&path)
-                .map_err(|e| format!("Failed to read preset: {e}"))?;
-            serde_json::from_str(&content)
-                .map_err(|e| format!("Failed to parse preset: {e}"))?
+        let preset = if let Some(id) = &input.id {
+            // Update existing
+            let path = get_preset_path(id)?;
+            let existing: UnifiedPresetData = if path.exists() {
+                let content = fs::read_to_string(&path)
+                    .map_err(|e| format!("Failed to read preset: {e}"))?;
+                serde_json::from_str(&content)
+                    .map_err(|e| format!("Failed to parse preset: {e}"))?
+            } else {
+                return Err("Preset not found".to_string());
+            };
+
+            UnifiedPresetData {
+                id: id.clone(),
+                name: input.name,
+                description: input.description,
+                created_at: existing.created_at,
+                updated_at: now,
+                settings: input.settings,
+                mcp_servers: input.mcp_servers,
+                summary,
+            }
         } else {
-            return Err("Preset not found".to_string());
+            // Create new
+            UnifiedPresetData {
+                id: Uuid::new_v4().to_string(),
+                name: input.name,
+                description: input.description,
+                created_at: now.clone(),
+                updated_at: now,
+                settings: input.settings,
+                mcp_servers: input.mcp_servers,
+                summary,
+            }
         };
 
-        UnifiedPresetData {
-            id: id.clone(),
-            name: input.name,
-            description: input.description,
-            created_at: existing.created_at,
-            updated_at: now,
-            settings: input.settings,
-            mcp_servers: input.mcp_servers,
-            summary,
-        }
-    } else {
-        // Create new
-        UnifiedPresetData {
-            id: Uuid::new_v4().to_string(),
-            name: input.name,
-            description: input.description,
-            created_at: now.clone(),
-            updated_at: now,
-            settings: input.settings,
-            mcp_servers: input.mcp_servers,
-            summary,
-        }
-    };
+        // Write to file
+        let path = get_preset_path(&preset.id)?;
+        let json = serde_json::to_string_pretty(&preset)
+            .map_err(|e| format!("Failed to serialize preset: {e}"))?;
 
-    // Write to file
-    let path = get_preset_path(&preset.id)?;
-    let json = serde_json::to_string_pretty(&preset)
-        .map_err(|e| format!("Failed to serialize preset: {e}"))?;
+        let mut file = fs::File::create(&path)
+            .map_err(|e| format!("Failed to create preset file: {e}"))?;
+        file.write_all(json.as_bytes())
+            .map_err(|e| format!("Failed to write preset file: {e}"))?;
 
-    let mut file = fs::File::create(&path)
-        .map_err(|e| format!("Failed to create preset file: {e}"))?;
-    file.write_all(json.as_bytes())
-        .map_err(|e| format!("Failed to write preset file: {e}"))?;
-
-    Ok(preset)
+        Ok(preset)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 /// Delete a unified preset
 #[tauri::command]
 pub async fn delete_unified_preset(id: String) -> Result<(), String> {
-    let path = get_preset_path(&id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        validate_preset_id(&id)?;
+        let path = get_preset_path(&id)?;
 
-    if path.exists() {
-        fs::remove_file(&path)
-            .map_err(|e| format!("Failed to delete preset: {e}"))?;
-    }
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|e| format!("Failed to delete preset: {e}"))?;
+        }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 /// Get a single unified preset by ID
 #[tauri::command]
 pub async fn get_unified_preset(id: String) -> Result<Option<UnifiedPresetData>, String> {
-    let path = get_preset_path(&id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        validate_preset_id(&id)?;
+        let path = get_preset_path(&id)?;
 
-    if !path.exists() {
-        return Ok(None);
-    }
+        if !path.exists() {
+            return Ok(None);
+        }
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read preset: {e}"))?;
+        let content = fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read preset: {e}"))?;
 
-    let preset: UnifiedPresetData = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse preset: {e}"))?;
+        let preset: UnifiedPresetData = serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse preset: {e}"))?;
 
-    Ok(Some(preset))
+        Ok(Some(preset))
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[cfg(test)]
