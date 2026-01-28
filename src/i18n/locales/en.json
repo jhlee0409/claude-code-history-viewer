@@ -869,6 +869,7 @@
   "settingsManager.presets.settingsCount": "{{count}} settings configured",
   "settingsManager.presets.settingsPreview": "Settings to Save",
   "settingsManager.presets.sourceScope": "Source Scope",
+  "settingsManager.presets.badge.mcpCount": "MCP: {{count}}",
   "settingsManager.presets.summary.hooks": "Hooks",
   "settingsManager.presets.summary.mcpServers": "MCP servers",
   "settingsManager.presets.summary.permissions": "Permissions",

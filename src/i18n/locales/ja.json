@@ -869,6 +869,7 @@
   "settingsManager.presets.settingsCount": "{{count}}件の設定",
   "settingsManager.presets.settingsPreview": "保存する設定",
   "settingsManager.presets.sourceScope": "ソーススコープ",
+  "settingsManager.presets.badge.mcpCount": "MCP: {{count}}",
   "settingsManager.presets.summary.hooks": "フック",
   "settingsManager.presets.summary.mcpServers": "MCPサーバー",
   "settingsManager.presets.summary.permissions": "権限",

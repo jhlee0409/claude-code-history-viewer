@@ -109,7 +109,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
     const badgeParts: string[] = [];
     if (summary.model) badgeParts.push(summary.model);
     if (summary.mcpServerCount > 0)
-      badgeParts.push(`MCP: ${summary.mcpServerCount}`);
+      badgeParts.push(t("settingsManager.presets.badge.mcpCount", { count: summary.mcpServerCount }));
 
     return (
       <div className="group relative flex items-center gap-2 px-2.5 py-1.5 rounded-md border-l-2 border-l-indigo-500/70 hover:bg-muted/50 transition-colors duration-100">
@@ -154,6 +154,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
             className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
             onClick={onApplyTo}
             title={t("settingsManager.presets.applyTo")}
+            aria-label={t("settingsManager.presets.applyTo")}
           >
             <Play className="w-3 h-3" />
           </Button>

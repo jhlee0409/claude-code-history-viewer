@@ -869,6 +869,7 @@
   "settingsManager.presets.settingsCount": "{{count}}개 설정 구성됨",
   "settingsManager.presets.settingsPreview": "저장할 설정",
   "settingsManager.presets.sourceScope": "원본 범위",
+  "settingsManager.presets.badge.mcpCount": "MCP: {{count}}",
   "settingsManager.presets.summary.hooks": "훅",
   "settingsManager.presets.summary.mcpServers": "MCP 서버",
   "settingsManager.presets.summary.permissions": "권한",

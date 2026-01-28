@@ -41,10 +41,17 @@ fn get_presets_folder() -> Result<PathBuf, String> {
     Ok(home.join(".claude-history-viewer").join("presets"))
 }
 
-/// Ensure the presets folder exists
+/// Ensure the presets folder exists and is a directory
 fn ensure_presets_folder() -> Result<PathBuf, String> {
     let folder = get_presets_folder()?;
-    if !folder.exists() {
+    if folder.exists() {
+        if !folder.is_dir() {
+            return Err(format!(
+                "Presets path exists but is not a directory: {}",
+                folder.display()
+            ));
+        }
+    } else {
         fs::create_dir_all(&folder).map_err(|e| format!("Failed to create presets folder: {e}"))?;
     }
     Ok(folder)
