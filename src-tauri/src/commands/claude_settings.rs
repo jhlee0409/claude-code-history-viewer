@@ -222,7 +222,7 @@ pub async fn save_settings(
 /// * `project_path` - Optional project path for project/local settings (must be absolute)
 ///
 /// # Returns
-/// AllSettings struct with all 4 scopes (each is Option<String>)
+/// `AllSettings` struct with all 4 scopes (each is `Option<String>`)
 #[tauri::command]
 pub async fn get_all_settings(project_path: Option<String>) -> Result<AllSettings, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -258,7 +258,7 @@ pub async fn get_all_settings(project_path: Option<String>) -> Result<AllSetting
 /// Get MCP servers from both settings.json (mcpServers field) and .mcp.json
 ///
 /// # Returns
-/// MCPServers struct with merged servers from both sources
+/// `MCPServers` struct with merged servers from both sources
 #[tauri::command]
 pub async fn get_mcp_servers() -> Result<MCPServers, String> {
     tauri::async_runtime::spawn_blocking(|| {
@@ -308,7 +308,7 @@ pub async fn get_mcp_servers() -> Result<MCPServers, String> {
 /// * `project_path` - Optional project path for project-level .mcp.json and local scope in ~/.claude.json
 ///
 /// # Returns
-/// AllMCPServers struct with servers from each source separately
+/// `AllMCPServers` struct with servers from each source separately
 #[tauri::command]
 pub async fn get_all_mcp_servers(project_path: Option<String>) -> Result<AllMCPServers, String> {
     tauri::async_runtime::spawn_blocking(move || {
