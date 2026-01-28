@@ -249,10 +249,17 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
     );
 
     // Reload settings when project path changes
+    // Track mounted state to prevent state updates after unmount
     React.useEffect(() => {
-      if (projectPath) {
+      let isMounted = true;
+
+      if (projectPath && isMounted) {
         loadSettings();
       }
+
+      return () => {
+        isMounted = false;
+      };
     }, [projectPath, loadSettings]);
 
     // Toggle private/shared

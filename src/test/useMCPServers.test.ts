@@ -233,15 +233,20 @@ describe("useMCPServers", () => {
       mockInvoke.mockResolvedValueOnce(createMockResponse()); // Initial load
       mockInvoke.mockResolvedValueOnce(undefined); // Save call
 
+      const newServers = {
+        "new-server": createMockServerConfig("node", ["new.js"]),
+      };
+
+      // After save, loadAllMCPServers is called - return updated data
+      mockInvoke.mockResolvedValueOnce(
+        createMockResponse({ userClaudeJson: newServers })
+      );
+
       const { result } = renderHook(() => useMCPServers("/test/project"));
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
       });
-
-      const newServers = {
-        "new-server": createMockServerConfig("node", ["new.js"]),
-      };
 
       await act(async () => {
         await result.current.saveMCPServers("user_claude_json", newServers);
@@ -253,23 +258,28 @@ describe("useMCPServers", () => {
         projectPath: "/test/project",
       });
 
-      // Local state should be updated
+      // Local state should be updated via reload after save
       expect(result.current.userClaudeJson).toEqual(newServers);
     });
 
     it("should save to local_claude_json source correctly", async () => {
-      mockInvoke.mockResolvedValueOnce(createMockResponse());
-      mockInvoke.mockResolvedValueOnce(undefined);
+      mockInvoke.mockResolvedValueOnce(createMockResponse()); // Initial load
+      mockInvoke.mockResolvedValueOnce(undefined); // Save call
+
+      const newServers = {
+        "local-server": createMockServerConfig("python", ["local.py"]),
+      };
+
+      // After save, loadAllMCPServers is called - return updated data
+      mockInvoke.mockResolvedValueOnce(
+        createMockResponse({ localClaudeJson: newServers })
+      );
 
       const { result } = renderHook(() => useMCPServers("/test/project"));
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
       });
-
-      const newServers = {
-        "local-server": createMockServerConfig("python", ["local.py"]),
-      };
 
       await act(async () => {
         await result.current.saveMCPServers("local_claude_json", newServers);
@@ -281,22 +291,32 @@ describe("useMCPServers", () => {
         projectPath: "/test/project",
       });
 
+      // Local state should be updated via reload after save
       expect(result.current.localClaudeJson).toEqual(newServers);
     });
 
     it("should save to legacy sources correctly", async () => {
-      mockInvoke.mockResolvedValueOnce(createMockResponse());
-      mockInvoke.mockResolvedValueOnce(undefined); // user_settings
-      mockInvoke.mockResolvedValueOnce(undefined); // user_mcp
-      mockInvoke.mockResolvedValueOnce(undefined); // project_mcp
+      const newServers = { test: createMockServerConfig("test", []) };
+
+      mockInvoke.mockResolvedValueOnce(createMockResponse()); // Initial load
+      mockInvoke.mockResolvedValueOnce(undefined); // user_settings save
+      mockInvoke.mockResolvedValueOnce(
+        createMockResponse({ userSettings: newServers })
+      ); // reload after user_settings
+      mockInvoke.mockResolvedValueOnce(undefined); // user_mcp save
+      mockInvoke.mockResolvedValueOnce(
+        createMockResponse({ userMcpFile: newServers })
+      ); // reload after user_mcp
+      mockInvoke.mockResolvedValueOnce(undefined); // project_mcp save
+      mockInvoke.mockResolvedValueOnce(
+        createMockResponse({ projectMcpFile: newServers })
+      ); // reload after project_mcp
 
       const { result } = renderHook(() => useMCPServers("/test/project"));
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
       });
-
-      const newServers = { test: createMockServerConfig("test", []) };
 
       // Test each legacy source
       await act(async () => {

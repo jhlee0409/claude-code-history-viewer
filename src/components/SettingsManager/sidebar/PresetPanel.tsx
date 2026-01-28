@@ -11,7 +11,7 @@
  */
 
 import * as React from "react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -231,6 +231,18 @@ export const PresetPanel: React.FC = () => {
   // Loading/success state
   const [isApplying, setIsApplying] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
+
+  // Ref for cleanup of setTimeout to prevent memory leaks
+  const closeDialogTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (closeDialogTimeoutRef.current) {
+        clearTimeout(closeDialogTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Apply preset state
   const [targetScope, setTargetScope] = useState<SettingsScope>(activeScope);
@@ -524,7 +536,11 @@ export const PresetPanel: React.FC = () => {
       }
 
       setApplySuccess(true);
-      setTimeout(() => {
+      // Clear any existing timeout before setting a new one
+      if (closeDialogTimeoutRef.current) {
+        clearTimeout(closeDialogTimeoutRef.current);
+      }
+      closeDialogTimeoutRef.current = setTimeout(() => {
         closeDialog();
       }, 1000);
     } catch (e) {

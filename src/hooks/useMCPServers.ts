@@ -111,24 +111,9 @@ export const useMCPServers = (projectPath?: string): UseMCPServersResult => {
           projectPath: effectiveProjectPath,
         });
 
-        // Update local state
-        switch (source) {
-          case "user_claude_json":
-            setUserClaudeJson(servers);
-            break;
-          case "local_claude_json":
-            setLocalClaudeJson(servers);
-            break;
-          case "user_settings":
-            setUserSettings(servers);
-            break;
-          case "user_mcp":
-            setUserMcpFile(servers);
-            break;
-          case "project_mcp":
-            setProjectMcpFile(servers);
-            break;
-        }
+        // Reload from backend after save to ensure consistency
+        // This prevents race conditions where UI shows stale data if backend partially fails
+        await loadAllMCPServers();
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         setError(errorMessage);
@@ -138,7 +123,7 @@ export const useMCPServers = (projectPath?: string): UseMCPServersResult => {
         setIsLoading(false);
       }
     },
-    [projectPath]
+    [projectPath, loadAllMCPServers]
   );
 
   // Load MCP servers on mount and when projectPath changes
