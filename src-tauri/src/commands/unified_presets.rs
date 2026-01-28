@@ -139,14 +139,14 @@ fn compute_summary(settings_json: &str, mcp_json: &str) -> UnifiedPresetSummary 
     let model = settings
         .get("model")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        .map(str::to_string);
 
     // Count MCP servers
     let mcp_server_names: Vec<String> = mcp
         .as_object()
         .map(|obj| obj.keys().take(5).cloned().collect())
         .unwrap_or_default();
-    let mcp_server_count = mcp.as_object().map(|obj| obj.len()).unwrap_or(0);
+    let mcp_server_count = mcp.as_object().map(serde_json::Map::len).unwrap_or(0);
 
     // Check for permissions
     let has_permissions = settings
@@ -232,7 +232,7 @@ pub async fn load_unified_presets() -> Result<Vec<UnifiedPresetData>, String> {
         Ok(presets)
     })
     .await
-    .map_err(|e| format!("Task failed: {}", e))?
+    .map_err(|e| format!("Task failed: {e}"))?
 }
 
 /// Save a unified preset (create or update)
@@ -293,7 +293,7 @@ pub async fn save_unified_preset(input: UnifiedPresetInput) -> Result<UnifiedPre
         Ok(preset)
     })
     .await
-    .map_err(|e| format!("Task failed: {}", e))?
+    .map_err(|e| format!("Task failed: {e}"))?
 }
 
 /// Delete a unified preset
@@ -310,7 +310,7 @@ pub async fn delete_unified_preset(id: String) -> Result<(), String> {
         Ok(())
     })
     .await
-    .map_err(|e| format!("Task failed: {}", e))?
+    .map_err(|e| format!("Task failed: {e}"))?
 }
 
 /// Get a single unified preset by ID
@@ -333,7 +333,7 @@ pub async fn get_unified_preset(id: String) -> Result<Option<UnifiedPresetData>,
         Ok(Some(preset))
     })
     .await
-    .map_err(|e| format!("Task failed: {}", e))?
+    .map_err(|e| format!("Task failed: {e}"))?
 }
 
 #[cfg(test)]

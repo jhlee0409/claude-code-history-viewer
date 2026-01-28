@@ -68,7 +68,7 @@ fn get_claude_json_path() -> Result<PathBuf, String> {
 /// * `path` - Project path to validate
 ///
 /// # Returns
-/// Validated PathBuf or error message
+/// Validated `PathBuf` or error message
 fn validate_project_path(path: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(path);
 
@@ -87,7 +87,7 @@ fn validate_project_path(path: &str) -> Result<PathBuf, String> {
     // Canonicalize if exists, otherwise return as-is
     if path.exists() {
         path.canonicalize()
-            .map_err(|e| format!("Failed to canonicalize path: {}", e))
+            .map_err(|e| format!("Failed to canonicalize path: {e}"))
     } else {
         Ok(path)
     }
@@ -101,6 +101,7 @@ fn get_project_mcp_path(project_path: &str) -> Result<PathBuf, String> {
 
 /// Get the managed settings path (macOS only)
 #[cfg(target_os = "macos")]
+#[allow(clippy::unnecessary_wraps)]
 fn get_managed_settings_path() -> Result<PathBuf, String> {
     Ok(PathBuf::from(
         "/Library/Application Support/ClaudeCode/managed-settings.json",
@@ -475,12 +476,12 @@ pub async fn save_mcp_servers(
                 };
 
                 // Ensure projects object exists
-                if !claude_json.get("projects").is_some() {
+                if claude_json.get("projects").is_none() {
                     claude_json["projects"] = serde_json::json!({});
                 }
 
                 // Ensure project entry exists
-                if !claude_json["projects"].get(&pp).is_some() {
+                if claude_json["projects"].get(&pp).is_none() {
                     claude_json["projects"][&pp] = serde_json::json!({});
                 }
 
@@ -578,7 +579,7 @@ fn is_safe_path(path: &Path) -> Result<(), String> {
     // For non-existing paths, canonicalize parent
     let canonical = if path.exists() {
         path.canonicalize()
-            .map_err(|e| format!("Path canonicalization error: {}", e))?
+            .map_err(|e| format!("Path canonicalization error: {e}"))?
     } else {
         path.parent()
             .and_then(|p| p.canonicalize().ok())
@@ -590,8 +591,7 @@ fn is_safe_path(path: &Path) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!(
-            "Path not in allowed directories. Allowed: {:?}",
-            allowed_dirs
+            "Path not in allowed directories. Allowed: {allowed_dirs:?}"
         ))
     }
 }
@@ -645,6 +645,7 @@ pub async fn read_text_file(path: String) -> Result<String, String> {
 }
 
 #[cfg(test)]
+#[allow(clippy::await_holding_lock)]
 mod tests {
     use super::*;
     use std::env;
