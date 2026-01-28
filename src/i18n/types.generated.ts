@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-01-28T07:33:19.247Z
- * 총 키 개수: 1183
+ * 생성 시간: 2026-01-28T14:43:29.181Z
+ * 총 키 개수: 1174
  */
 
 /**
@@ -1070,15 +1070,6 @@ export type TranslationKey =
   | 'settingsManager.save.success'
   | 'settingsManager.save.error'
   | 'settingsManager.exportImport.sensitiveWarning'
-  | 'settingsManager.command.placeholder'
-  | 'settingsManager.command.noResults'
-  | 'settingsManager.command.recent'
-  | 'settingsManager.command.sections'
-  | 'settingsManager.command.presets'
-  | 'settingsManager.command.scopes'
-  | 'settingsManager.command.jumpTo'
-  | 'settingsManager.command.switchTo'
-  | 'settingsManager.command.hint'
   | 'settingsManager.inheritance.override'
   | 'settingsManager.inheritance.inheritedFrom'
   | 'settingsManager.inheritance.clickToOverride'
@@ -2618,15 +2609,6 @@ export type SettingsManagerKeys =
   | 'save.success'
   | 'save.error'
   | 'exportImport.sensitiveWarning'
-  | 'command.placeholder'
-  | 'command.noResults'
-  | 'command.recent'
-  | 'command.sections'
-  | 'command.presets'
-  | 'command.scopes'
-  | 'command.jumpTo'
-  | 'command.switchTo'
-  | 'command.hint'
   | 'inheritance.override'
   | 'inheritance.inheritedFrom'
   | 'inheritance.clickToOverride'

@@ -26,7 +26,6 @@ import type {
 } from "@/types";
 import { SettingsSidebar } from "./sidebar/SettingsSidebar";
 import { SettingsEditorPane } from "./editor/SettingsEditorPane";
-import { SettingsCommandPalette } from "./components/SettingsCommandPalette";
 
 // ============================================================================
 // Types
@@ -254,10 +253,6 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   // Section jump handler ref
   const sectionJumpHandlerRef = React.useRef<((sectionId: string) => void) | null>(null);
 
-  const handleSectionJump = React.useCallback((sectionId: string) => {
-    sectionJumpHandlerRef.current?.(sectionId);
-  }, []);
-
   const registerSectionJumpHandler = React.useCallback((handler: (sectionId: string) => void) => {
     sectionJumpHandlerRef.current = handler;
   }, []);
@@ -265,9 +260,6 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   return (
     <SettingsManagerContext.Provider value={contextValue}>
       <div className={`flex flex-col ${className || ""}`}>
-        {/* Command Palette (⌘K) */}
-        <SettingsCommandPalette onSectionJump={handleSectionJump} />
-
         {/* Header */}
         <div className="flex items-center justify-between mb-4 shrink-0">
           <h2 className="text-xl font-semibold">{t("settingsManager.title")}</h2>
