@@ -5,7 +5,7 @@
  */
 
 /**
- * Detect home directory from paths (infer from /Users/xxx or /home/xxx patterns)
+ * Detect home directory from paths (infer from /Users/xxx, /home/xxx, or C:\Users\xxx patterns)
  */
 export function detectHomeDir(paths: string[]): string | null {
   for (const path of paths) {
@@ -16,6 +16,10 @@ export function detectHomeDir(paths: string[]): string | null {
     // Linux: /home/username/...
     const linuxMatch = path.match(/^(\/home\/[^/]+)/);
     if (linuxMatch?.[1]) return linuxMatch[1];
+
+    // Windows: C:\Users\username\... (case-insensitive)
+    const windowsMatch = path.match(/^([A-Za-z]:\\Users\\[^\\]+)/i);
+    if (windowsMatch?.[1]) return windowsMatch[1];
   }
   return null;
 }

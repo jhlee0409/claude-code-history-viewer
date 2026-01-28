@@ -910,7 +910,6 @@
   "settingsManager.presets.quickApply": "Quick Apply",
   "settingsManager.presets.applyTo": "Apply to...",
   "settingsManager.presets.applyHere": "Apply Here",
-  "settingsManager.presets.applyTo": "Apply To...",
   "settingsManager.presets.applied": "Applied \"{{name}}\"",
   "settingsManager.presets.applyTitle": "Apply Preset",
   "settingsManager.presets.applyDescription": "Apply preset \"{{name}}\" to settings",

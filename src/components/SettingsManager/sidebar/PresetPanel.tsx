@@ -434,8 +434,10 @@ export const PresetPanel: React.FC = () => {
       let settings: ClaudeCodeSettings;
       try {
         settings = JSON.parse(preset.settings) as ClaudeCodeSettings;
-      } catch {
-        console.error("Failed to parse preset settings");
+      } catch (parseError) {
+        const errorMsg = `Failed to parse preset settings for "${preset.name}": ${parseError instanceof Error ? parseError.message : String(parseError)}`;
+        console.error(errorMsg);
+        alert(t("error.invalidPresetSettings") || errorMsg);
         return;
       }
 
@@ -449,8 +451,10 @@ export const PresetPanel: React.FC = () => {
       let servers: Record<string, unknown>;
       try {
         servers = JSON.parse(preset.mcpServers) as Record<string, unknown>;
-      } catch {
-        console.error("Failed to parse preset MCP servers");
+      } catch (parseError) {
+        const errorMsg = `Failed to parse preset MCP servers for "${preset.name}": ${parseError instanceof Error ? parseError.message : String(parseError)}`;
+        console.error(errorMsg);
+        alert(t("error.invalidPresetMcpServers") || errorMsg);
         return;
       }
 
@@ -464,7 +468,9 @@ export const PresetPanel: React.FC = () => {
         await saveMCPServers(mcpSource, servers as Parameters<typeof saveMCPServers>[1], projectPath);
       }
     } catch (e) {
-      console.error("Failed to apply preset:", e);
+      const errorMsg = `Failed to apply preset "${preset.name}": ${e instanceof Error ? e.message : String(e)}`;
+      console.error(errorMsg);
+      alert(t("error.applyPresetFailed") || errorMsg);
     }
   };
 

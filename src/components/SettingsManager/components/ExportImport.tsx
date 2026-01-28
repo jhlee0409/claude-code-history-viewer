@@ -308,6 +308,10 @@ export const ExportImport: React.FC<ExportImportProps> = ({
         });
       }
       if (importedBackup.scopes.project) {
+        if (!projectPath) {
+          console.error("Cannot apply project scope: projectPath is undefined");
+          return;
+        }
         await invoke("save_settings", {
           scope: "project",
           content: JSON.stringify(importedBackup.scopes.project, null, 2),
@@ -315,6 +319,10 @@ export const ExportImport: React.FC<ExportImportProps> = ({
         });
       }
       if (importedBackup.scopes.local) {
+        if (!projectPath) {
+          console.error("Cannot apply local scope: projectPath is undefined");
+          return;
+        }
         await invoke("save_settings", {
           scope: "local",
           content: JSON.stringify(importedBackup.scopes.local, null, 2),

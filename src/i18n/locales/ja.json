@@ -910,7 +910,6 @@
   "settingsManager.presets.quickApply": "クイック適用",
   "settingsManager.presets.applyTo": "別のスコープに適用...",
   "settingsManager.presets.applyHere": "ここに適用",
-  "settingsManager.presets.applyTo": "適用先...",
   "settingsManager.presets.applied": "「{{name}}」を適用しました",
   "settingsManager.presets.applyTitle": "プリセット適用",
   "settingsManager.presets.applyDescription": "\"{{name}}\"プリセットを設定に適用",

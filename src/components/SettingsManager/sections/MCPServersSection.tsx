@@ -275,9 +275,13 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
       [newServerName.trim()]: newServer,
     };
 
-    await saveMCPServers(source, updatedServers, saveLocation === "project" ? projectPath : undefined);
-    resetForm();
-    setIsAddOpen(false);
+    try {
+      await saveMCPServers(source, updatedServers, saveLocation === "project" ? projectPath : undefined);
+      resetForm();
+      setIsAddOpen(false);
+    } catch (error) {
+      console.error("Failed to add MCP server:", error);
+    }
   };
 
   // Handle delete server
@@ -286,11 +290,15 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
     const rest = Object.fromEntries(
       Object.entries(currentServers).filter(([k]) => k !== server.name)
     );
-    await saveMCPServers(
-      server.source,
-      rest,
-      server.source === "project_mcp" ? projectPath : undefined
-    );
+    try {
+      await saveMCPServers(
+        server.source,
+        rest,
+        server.source === "project_mcp" ? projectPath : undefined
+      );
+    } catch (error) {
+      console.error("Failed to delete MCP server:", error);
+    }
   };
 
   // Handle edit server
@@ -300,11 +308,15 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
       ...currentServers,
       [server.name]: newConfig,
     };
-    await saveMCPServers(
-      server.source,
-      updatedServers,
-      server.source === "project_mcp" ? projectPath : undefined
-    );
+    try {
+      await saveMCPServers(
+        server.source,
+        updatedServers,
+        server.source === "project_mcp" ? projectPath : undefined
+      );
+    } catch (error) {
+      console.error("Failed to edit MCP server:", error);
+    }
   };
 
   // Reset form

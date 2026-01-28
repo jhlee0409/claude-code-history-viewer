@@ -910,7 +910,6 @@
   "settingsManager.presets.quickApply": "빠른 적용",
   "settingsManager.presets.applyTo": "다른 스코프에 적용...",
   "settingsManager.presets.applyHere": "여기에 적용",
-  "settingsManager.presets.applyTo": "적용 대상...",
   "settingsManager.presets.applied": "\"{{name}}\" 적용됨",
   "settingsManager.presets.applyTitle": "프리셋 적용",
   "settingsManager.presets.applyDescription": "\"{{name}}\" 프리셋을 설정에 적용",

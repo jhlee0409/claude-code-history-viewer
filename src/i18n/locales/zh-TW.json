@@ -910,7 +910,6 @@
   "settingsManager.presets.quickApply": "快速套用",
   "settingsManager.presets.applyTo": "套用至...",
   "settingsManager.presets.applyHere": "應用到此處",
-  "settingsManager.presets.applyTo": "應用到...",
   "settingsManager.presets.applied": "已套用「{{name}}」",
   "settingsManager.presets.applyTitle": "套用預設",
   "settingsManager.presets.applyDescription": "將預設 \"{{name}}\" 套用到設定",
