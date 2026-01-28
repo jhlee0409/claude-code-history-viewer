@@ -279,11 +279,11 @@ export const PresetPanel: React.FC = () => {
     },
   ];
 
-  // Group projects by directory
+  // Group projects by directory (handle both POSIX and Windows path separators)
   const groupedProjects = useMemo(() => {
     const groups = new Map<string, ClaudeProject[]>();
     projects.forEach((project) => {
-      const parts = project.actual_path.split("/");
+      const parts = project.actual_path.split(/[\\/]/);
       parts.pop();
       const parentPath = parts.join("/") || "/";
       const existing = groups.get(parentPath) ?? [];
@@ -632,25 +632,25 @@ export const PresetPanel: React.FC = () => {
                   {Object.keys(effectiveSettings).length > 0 && (
                     <Badge variant="secondary" className="text-xs">
                       <Cpu className="w-3 h-3 mr-1" />
-                      {Object.keys(effectiveSettings).length} settings
+                      {Object.keys(effectiveSettings).length} {t("settingsManager.presets.summary.settings")}
                     </Badge>
                   )}
                   {Object.keys(currentMCPServers).length > 0 && (
                     <Badge variant="secondary" className="text-xs">
                       <Server className="w-3 h-3 mr-1" />
-                      {Object.keys(currentMCPServers).length} MCP servers
+                      {Object.keys(currentMCPServers).length} {t("settingsManager.presets.summary.mcpServers")}
                     </Badge>
                   )}
                   {(effectiveSettings as ClaudeCodeSettings).permissions && (
                     <Badge variant="secondary" className="text-xs">
                       <Shield className="w-3 h-3 mr-1" />
-                      Permissions
+                      {t("settingsManager.presets.summary.permissions")}
                     </Badge>
                   )}
                   {(effectiveSettings as ClaudeCodeSettings).hooks && (
                     <Badge variant="secondary" className="text-xs">
                       <Zap className="w-3 h-3 mr-1" />
-                      Hooks
+                      {t("settingsManager.presets.summary.hooks")}
                     </Badge>
                   )}
                 </div>
@@ -910,7 +910,7 @@ export const PresetPanel: React.FC = () => {
               {applySuccess ? (
                 <>
                   <Check className="w-4 h-4 mr-1.5 text-green-500" />
-                  {t("settingsManager.presets.applied")}
+                  {t("settingsManager.presets.applied", { name: selectedPreset?.name })}
                 </>
               ) : isApplying ? (
                 <>

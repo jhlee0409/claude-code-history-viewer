@@ -193,8 +193,14 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                     <div className="flex items-center gap-2">
                       {hasConflict && (
                         <Tooltip>
-                          <TooltipTrigger>
-                            <AlertTriangle className="w-4 h-4 text-amber-500" />
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+                              aria-label={t("settingsManager.unified.mcp.conflictHint")}
+                            >
+                              <AlertTriangle className="w-4 h-4 text-amber-500" />
+                            </button>
                           </TooltipTrigger>
                           <TooltipContent>
                             {t("settingsManager.unified.mcp.conflictHint")}

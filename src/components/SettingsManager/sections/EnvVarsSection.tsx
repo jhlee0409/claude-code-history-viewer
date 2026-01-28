@@ -271,8 +271,9 @@ export const EnvVarsSection: React.FC<EnvVarsSectionProps> = React.memo(({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>{t("settingsManager.unified.env.key")}</Label>
+              <Label htmlFor="env-key">{t("settingsManager.unified.env.key")}</Label>
               <Input
+                id="env-key"
                 value={newKey}
                 onChange={(e) => setNewKey(e.target.value)}
                 placeholder="MY_ENV_VAR"
@@ -280,8 +281,9 @@ export const EnvVarsSection: React.FC<EnvVarsSectionProps> = React.memo(({
               />
             </div>
             <div>
-              <Label>{t("settingsManager.unified.env.value")}</Label>
+              <Label htmlFor="env-value">{t("settingsManager.unified.env.value")}</Label>
               <Input
+                id="env-value"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 placeholder="value"

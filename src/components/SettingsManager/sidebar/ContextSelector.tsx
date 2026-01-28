@@ -144,18 +144,18 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
       [projects]
     );
 
-    // Current project name
+    // Current project name (handle both POSIX and Windows path separators)
     const currentProjectName = useMemo(() => {
       if (!projectPath) return null;
-      return projectPath.split("/").pop() ?? null;
+      return projectPath.split(/[\\/]/).pop() ?? null;
     }, [projectPath]);
 
-    // Group projects by directory
+    // Group projects by directory (handle both POSIX and Windows path separators)
     const groupedProjects = useMemo(() => {
       const groups = new Map<string, ClaudeProject[]>();
 
       projects.forEach((project) => {
-        const parts = project.actual_path.split("/");
+        const parts = project.actual_path.split(/[\\/]/);
         parts.pop();
         const parentPath = parts.join("/") || "/";
 

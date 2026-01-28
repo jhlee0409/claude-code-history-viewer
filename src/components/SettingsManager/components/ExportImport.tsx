@@ -122,7 +122,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
   }, [allSettings, exportScope]);
 
   // Check if export scope has settings
-  const hasExportSettings = allSettings?.[exportScope] !== null;
+  const hasExportSettings = allSettings != null && allSettings[exportScope] != null;
 
   const handleExport = async () => {
     if (!hasExportSettings) return;

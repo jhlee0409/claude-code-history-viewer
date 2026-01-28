@@ -140,13 +140,13 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
           <Input
             value={editCommand}
             onChange={(e) => setEditCommand(e.target.value)}
-            placeholder="command"
+            placeholder={t("settingsManager.mcp.commandPlaceholder")}
             className="h-7 text-xs font-mono"
           />
           <Input
             value={editArgs}
             onChange={(e) => setEditArgs(e.target.value)}
-            placeholder="arguments"
+            placeholder={t("settingsManager.mcp.argsPlaceholder")}
             className="h-7 text-xs font-mono"
           />
         </div>
@@ -397,7 +397,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                 <Input
                   value={newServerName}
                   onChange={(e) => setNewServerName(e.target.value)}
-                  placeholder="my-mcp-server"
+                  placeholder={t("settingsManager.mcp.serverNamePlaceholder")}
                   className="mt-1"
                 />
               </div>
@@ -407,7 +407,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                 <Input
                   value={newServerCommand}
                   onChange={(e) => setNewServerCommand(e.target.value)}
-                  placeholder="npx"
+                  placeholder={t("settingsManager.mcp.commandPlaceholder")}
                   className="mt-1 font-mono text-sm"
                 />
               </div>
@@ -416,7 +416,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                 <Input
                   value={newServerArgs}
                   onChange={(e) => setNewServerArgs(e.target.value)}
-                  placeholder="-y @modelcontextprotocol/server-name"
+                  placeholder={t("settingsManager.mcp.argsPlaceholder")}
                   className="mt-1 font-mono text-sm"
                 />
               </div>
