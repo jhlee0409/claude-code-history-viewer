@@ -6,7 +6,7 @@ import { Command as CommandPrimitive } from "cmdk";
 import { SearchIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 function Command({
   className,
@@ -24,16 +24,25 @@ function Command({
   );
 }
 
+interface CommandDialogProps extends DialogProps {
+  children?: React.ReactNode;
+  /** Accessible label for screen readers */
+  ariaLabel?: string;
+}
+
 function CommandDialog({
   children,
+  ariaLabel = "Command palette",
   ...props
-}: DialogProps & { children?: React.ReactNode }) {
+}: CommandDialogProps) {
   return (
     <Dialog {...props}>
       <DialogContent
         className="overflow-hidden p-0 shadow-lg"
         showCloseButton={false}
+        aria-label={ariaLabel}
       >
+        <DialogTitle className="sr-only">{ariaLabel}</DialogTitle>
         <Command className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
           {children}
         </Command>

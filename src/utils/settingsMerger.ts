@@ -62,6 +62,10 @@ export interface MergedPermissions {
   deny: MergedPermission[];
   /** Combined ask rules with sources */
   ask: MergedPermission[];
+  /** Default permission mode with source tracking */
+  defaultMode: MergedValue<string | undefined>;
+  /** Combined additional directories with sources */
+  additionalDirectories: MergedPermission[];
 }
 
 /**
@@ -101,6 +105,16 @@ export interface MergedSettings {
   model: MergedValue<string | undefined>;
   /** Custom API key acknowledgement */
   customApiKeyResponsibleUseAcknowledged: MergedValue<boolean | undefined>;
+  /** Language setting */
+  language: MergedValue<string | undefined>;
+  /** Output style setting */
+  outputStyle: MergedValue<string | undefined>;
+  /** Cleanup period in days */
+  cleanupPeriodDays: MergedValue<number | undefined>;
+  /** Respect gitignore setting */
+  respectGitignore: MergedValue<boolean | undefined>;
+  /** Disable bypass permissions mode setting */
+  disableBypassPermissionsMode: MergedValue<"disable" | undefined>;
   /** Merged permissions */
   permissions: MergedPermissions;
   /** Merged MCP servers */
@@ -180,6 +194,7 @@ function mergePermissions(
   const allow: MergedPermission[] = [];
   const deny: MergedPermission[] = [];
   const ask: MergedPermission[] = [];
+  const additionalDirectories: MergedPermission[] = [];
 
   // Collect from all scopes (order doesn't matter for collection, only for evaluation)
   for (const { scope, settings } of scopeSettings) {
@@ -196,9 +211,16 @@ function mergePermissions(
     settings.permissions.ask?.forEach((pattern) => {
       ask.push({ pattern, source: scope });
     });
+
+    settings.permissions.additionalDirectories?.forEach((pattern) => {
+      additionalDirectories.push({ pattern, source: scope });
+    });
   }
 
-  return { allow, deny, ask };
+  // Merge defaultMode using simple value merge
+  const defaultMode = mergeSimpleValue(scopeSettings, (s) => s.permissions?.defaultMode);
+
+  return { allow, deny, ask, defaultMode, additionalDirectories };
 }
 
 /**
@@ -308,6 +330,26 @@ function createEffectiveSettings(merged: Omit<MergedSettings, "effective">): Cla
       merged.customApiKeyResponsibleUseAcknowledged.value;
   }
 
+  // Language
+  if (merged.language.value !== undefined) {
+    effective.language = merged.language.value;
+  }
+
+  // Output style
+  if (merged.outputStyle.value !== undefined) {
+    effective.outputStyle = merged.outputStyle.value;
+  }
+
+  // Cleanup period
+  if (merged.cleanupPeriodDays.value !== undefined) {
+    effective.cleanupPeriodDays = merged.cleanupPeriodDays.value;
+  }
+
+  // Respect gitignore
+  if (merged.respectGitignore.value !== undefined) {
+    effective.respectGitignore = merged.respectGitignore.value;
+  }
+
   // Permissions
   const permissions: PermissionsConfig = {};
   if (merged.permissions.allow.length > 0) {
@@ -318,6 +360,15 @@ function createEffectiveSettings(merged: Omit<MergedSettings, "effective">): Cla
   }
   if (merged.permissions.ask.length > 0) {
     permissions.ask = merged.permissions.ask.map((p) => p.pattern);
+  }
+  if (merged.permissions.additionalDirectories.length > 0) {
+    permissions.additionalDirectories = merged.permissions.additionalDirectories.map((p) => p.pattern);
+  }
+  if (merged.permissions.defaultMode.value !== undefined) {
+    permissions.defaultMode = merged.permissions.defaultMode.value as PermissionsConfig["defaultMode"];
+  }
+  if (merged.disableBypassPermissionsMode.value !== undefined) {
+    permissions.disableBypassPermissionsMode = merged.disableBypassPermissionsMode.value;
   }
   if (Object.keys(permissions).length > 0) {
     effective.permissions = permissions;
@@ -365,6 +416,14 @@ export function mergeSettings(allSettings: AllSettingsResponse): MergedSettings 
     scopeSettings,
     (s) => s.customApiKeyResponsibleUseAcknowledged
   );
+  const language = mergeSimpleValue(scopeSettings, (s) => s.language);
+  const outputStyle = mergeSimpleValue(scopeSettings, (s) => s.outputStyle);
+  const cleanupPeriodDays = mergeSimpleValue(scopeSettings, (s) => s.cleanupPeriodDays);
+  const respectGitignore = mergeSimpleValue(scopeSettings, (s) => s.respectGitignore);
+  const disableBypassPermissionsMode = mergeSimpleValue(
+    scopeSettings,
+    (s) => s.permissions?.disableBypassPermissionsMode
+  );
   const permissions = mergePermissions(scopeSettings);
   const mcpServers = mergeMCPServers(scopeSettings);
   const env = mergeEnvVars(scopeSettings);
@@ -372,6 +431,11 @@ export function mergeSettings(allSettings: AllSettingsResponse): MergedSettings 
   const partialMerged = {
     model,
     customApiKeyResponsibleUseAcknowledged,
+    language,
+    outputStyle,
+    cleanupPeriodDays,
+    respectGitignore,
+    disableBypassPermissionsMode,
     permissions,
     mcpServers,
     env,

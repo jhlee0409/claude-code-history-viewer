@@ -178,6 +178,12 @@ export const ExportImport: React.FC<ExportImportProps> = ({
   const handleApplyImport = async () => {
     if (!importedSettings) return;
 
+    // Validate projectPath for non-user scopes
+    if (importScope !== "user" && !projectPath) {
+      console.error("Apply import failed: projectPath is required for project/local scope");
+      return;
+    }
+
     try {
       await invoke("save_settings", {
         scope: importScope,
