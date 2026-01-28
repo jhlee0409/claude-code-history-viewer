@@ -322,12 +322,8 @@ pub async fn restore_file(file_path: String, content: String) -> Result<(), Stri
     // Write to temporary file
     fs::write(&temp_path, &content).map_err(|e| format!("Failed to write temporary file: {e}"))?;
 
-    // Atomically rename temp file to target (this is atomic on most filesystems)
-    fs::rename(&temp_path, path).map_err(|e| {
-        // Clean up temp file if rename fails
-        let _ = fs::remove_file(&temp_path);
-        format!("Failed to rename temporary file: {e}")
-    })?;
+    // Cross-platform atomic rename
+    crate::commands::fs_utils::atomic_rename(&temp_path, path)?;
 
     Ok(())
 }

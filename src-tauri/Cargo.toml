@@ -44,10 +44,11 @@ memchr = "2.7"
 tokio = { version = "1.0", features = ["full"] }
 anyhow = "1.0"
 urlencoding = "2.1"
+tempfile = "3.24.0"
 
 [dev-dependencies]
 # Core testing utilities
-tempfile = "3.10.1"
+tempfile = "3.24.0"
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
 
 # Benchmarking

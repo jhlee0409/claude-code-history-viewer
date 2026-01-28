@@ -55,6 +55,15 @@ export const useAnalytics = (): UseAnalyticsReturn => {
   }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
 
   /**
+   * 설정 뷰로 전환
+   * 단순한 뷰 변경이므로 동기적 처리
+   */
+  const switchToSettings = useCallback(() => {
+    setAnalyticsCurrentView("settings");
+    clearAnalyticsErrors();
+  }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
+
+  /**
    * 토큰 통계 뷰로 전환
    * 캐시 전략: 같은 프로젝트/세션의 데이터가 있으면 재사용
    */
@@ -340,6 +349,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       isAnalyticsView: analytics.currentView === "analytics",
       isMessagesView: analytics.currentView === "messages",
       isRecentEditsView: analytics.currentView === "recentEdits",
+      isSettingsView: analytics.currentView === "settings",
       hasAnyError: !!(
         analytics.projectSummaryError ||
         analytics.sessionComparisonError ||
@@ -491,6 +501,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       switchToTokenStats,
       switchToAnalytics,
       switchToRecentEdits,
+      switchToSettings,
       refreshAnalytics,
       clearAll,
     },

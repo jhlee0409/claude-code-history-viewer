@@ -13,13 +13,16 @@
     "test": "vitest",
     "generate:i18n-types": "node scripts/generate-i18n-types.mjs",
     "i18n:flatten": "node scripts/flatten-i18n.mjs",
-    "i18n:sync": "node scripts/sync-i18n-keys.mjs"
+    "i18n:sync": "node scripts/sync-i18n-keys.mjs",
+    "i18n:validate": "node scripts/validate-i18n.mjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@aptabase/tauri": "^0.4.1",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-dropdown-menu": "^2.1.15",
+    "@radix-ui/react-hover-card": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.8",
@@ -39,6 +42,7 @@
     "@types/prismjs": "^1.26.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "diff": "^8.0.2",
     "flexsearch": "^0.8.212",
     "i18next": "^25.3.0",
@@ -67,12 +71,15 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.2",
+    "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^9.29.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-hooks": "6.0.0-rc.1",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.2.0",
+    "husky": "^9.1.7",
     "jsdom": "^24.0.0",
     "knip": "^5.82.1",
+    "lint-staged": "^16.2.7",
     "postcss": "^8.5.3",
     "rollup-plugin-visualizer": "^6.0.3",
     "tailwindcss": "^4.1.11",
@@ -91,5 +98,12 @@
       "@tailwindcss/oxide",
       "esbuild"
     ]
+  },
+  "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad",
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "eslint"
+    ],
+    "src-tauri/src/**/*.rs": "bash -c 'cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings'"
   }
 }

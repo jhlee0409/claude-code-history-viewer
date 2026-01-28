@@ -63,3 +63,4 @@ coverage
 debug.log*
 
 /.mise
+.omc/

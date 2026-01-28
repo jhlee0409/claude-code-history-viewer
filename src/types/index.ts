@@ -159,3 +159,64 @@ export {
   getSessionDisplayName,
   isProjectHidden,
 } from "./metadata.types";
+
+// ============================================================================
+// Claude Code Settings Types
+// ============================================================================
+export type {
+  ClaudeModel,
+  PermissionDefaultMode,
+  PermissionsConfig,
+  HookCommand,
+  HooksConfig,
+  StatusLineConfig,
+  SandboxNetworkConfig,
+  SandboxConfig,
+  AttributionConfig,
+  AutoUpdatesChannel,
+  MarketplaceConfig,
+  MCPServerType,
+  MCPServerConfig,
+  FeedbackSurveyState,
+  ClaudeCodeSettings,
+  SettingsScope,
+  AllSettingsResponse,
+  MCPSource,
+  AllMCPServersResponse,
+  ScopedSettings,
+  SettingsPreset,
+} from "./claudeSettings";
+export { SCOPE_PRIORITY } from "./claudeSettings";
+
+// ============================================================================
+// Preset Types
+// ============================================================================
+export type { PresetData, PresetInput } from "./preset.types";
+export {
+  settingsToJson,
+  jsonToSettings,
+  createPresetInput,
+  extractSettings,
+  formatPresetDate,
+} from "./preset.types";
+
+// ============================================================================
+// MCP Preset Types
+// ============================================================================
+export type { MCPPresetData, MCPPresetInput } from "./mcpPreset.types";
+export { parseMCPServers, formatMCPPresetDate } from "./mcpPreset.types";
+
+// ============================================================================
+// Unified Preset Types
+// ============================================================================
+export type {
+  UnifiedPresetData,
+  UnifiedPresetSummary,
+  UnifiedPresetInput,
+  UnifiedPresetApplyOptions,
+} from "./unifiedPreset";
+export {
+  computePresetSummary,
+  parsePresetContent,
+  formatPresetDate as formatUnifiedPresetDate,
+} from "./unifiedPreset";

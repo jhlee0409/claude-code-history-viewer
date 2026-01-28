@@ -113,8 +113,8 @@ fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), String> {
     file.sync_all()
         .map_err(|e| format!("Failed to sync temp file: {e}"))?;
 
-    // Rename temp file to actual file (atomic on most filesystems)
-    fs::rename(&temp_path, &path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
+    // Cross-platform atomic rename
+    super::fs_utils::atomic_rename(&temp_path, &path)?;
 
     Ok(())
 }
