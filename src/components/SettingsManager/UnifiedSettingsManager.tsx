@@ -74,9 +74,11 @@ export interface SettingsManagerContextValue {
 }
 
 // Create context
+// eslint-disable-next-line react-refresh/only-export-components
 export const SettingsManagerContext = React.createContext<SettingsManagerContextValue | null>(null);
 
 // Hook to use context
+// eslint-disable-next-line react-refresh/only-export-components
 export const useSettingsManager = () => {
   const context = React.useContext(SettingsManagerContext);
   if (!context) {

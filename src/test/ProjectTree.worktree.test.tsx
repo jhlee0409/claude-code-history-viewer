@@ -420,6 +420,7 @@ describe("ProjectTree worktree grouping", () => {
         const mainRepoPath = "/Users/jack/main-project";
         const worktree1Path = "/tmp/feature-1/main-project";
         const worktree2Path = "/tmp/feature-2/main-project";
+        void worktree2Path; // Reserved for future test expansion
         const groupKey = "worktree-group-main-project";
 
         // Expand group
@@ -748,7 +749,7 @@ describe("ProjectTree user flow scenarios", () => {
     });
 
     it("should allow comparing sessions between main and worktree", () => {
-      let state: ProjectTreeState = {
+      const state: ProjectTreeState = {
         expandedProjects: new Set([
           "/Users/jack/main-project",
           "/tmp/feature-branch/main-project",
