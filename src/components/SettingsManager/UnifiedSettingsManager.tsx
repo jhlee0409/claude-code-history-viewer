@@ -233,13 +233,6 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     };
   }, [allSettings]);
 
-  // Section jump handler ref
-  const sectionJumpHandlerRef = React.useRef<((sectionId: string) => void) | null>(null);
-
-  const registerSectionJumpHandler = React.useCallback((handler: (sectionId: string) => void) => {
-    sectionJumpHandlerRef.current = handler;
-  }, []);
-
   return (
     <SettingsManagerContext.Provider value={contextValue}>
       <div className={`flex flex-col ${className || ""}`}>
@@ -269,7 +262,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             <SettingsSidebar availableScopes={availableScopes} />
 
             {/* Main Editor Area */}
-            <SettingsEditorPane onSectionJump={registerSectionJumpHandler} />
+            <SettingsEditorPane />
           </div>
         </LoadingState>
       </div>

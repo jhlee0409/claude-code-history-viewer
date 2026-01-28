@@ -231,6 +231,7 @@ export const PresetPanel: React.FC = () => {
   // Loading/success state
   const [isApplying, setIsApplying] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   // Ref for cleanup of setTimeout to prevent memory leaks
   const closeDialogTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -354,6 +355,7 @@ export const PresetPanel: React.FC = () => {
       setTargetProject(projectPath);
       setIsApplying(false);
       setApplySuccess(false);
+      setApplyError(null);
     }
   };
 
@@ -366,6 +368,7 @@ export const PresetPanel: React.FC = () => {
     setIsJsonExpanded(false);
     setIsApplying(false);
     setApplySuccess(false);
+    setApplyError(null);
   };
 
   // ============================================================================
@@ -450,7 +453,7 @@ export const PresetPanel: React.FC = () => {
     } catch (parseError) {
       const errorMsg = `Failed to parse preset settings for "${preset.name}": ${parseError instanceof Error ? parseError.message : String(parseError)}`;
       console.error(errorMsg);
-      alert(t("error.invalidPresetSettings") || errorMsg);
+      setApplyError(t("error.invalidPresetSettings") || errorMsg);
       return;
     }
 
@@ -459,7 +462,7 @@ export const PresetPanel: React.FC = () => {
     } catch (parseError) {
       const errorMsg = `Failed to parse preset MCP servers for "${preset.name}": ${parseError instanceof Error ? parseError.message : String(parseError)}`;
       console.error(errorMsg);
-      alert(t("error.invalidPresetMcpServers") || errorMsg);
+      setApplyError(t("error.invalidPresetMcpServers") || errorMsg);
       return;
     }
 
@@ -485,7 +488,7 @@ export const PresetPanel: React.FC = () => {
     } catch (e) {
       const errorMsg = `Failed to apply preset "${preset.name}": ${e instanceof Error ? e.message : String(e)}`;
       console.error(errorMsg);
-      alert(t("error.applyPresetFailed") || errorMsg);
+      setApplyError(t("error.applyPresetFailed") || errorMsg);
     }
   };
 
@@ -495,30 +498,31 @@ export const PresetPanel: React.FC = () => {
 
     setIsApplying(true);
     try {
-      // Apply settings
+      // Parse all data BEFORE any side effects (transaction pattern)
       let settings: ClaudeCodeSettings;
+      let serversRaw: Record<string, unknown>;
+
       try {
         settings = JSON.parse(selectedPreset.settings) as ClaudeCodeSettings;
       } catch (parseError) {
         console.error("Failed to parse preset settings:", parseError);
-        alert(t("error.invalidPresetSettings") || "Failed to parse preset settings. The preset data may be corrupted.");
+        setApplyError(t("error.invalidPresetSettings") || "Failed to parse preset settings. The preset data may be corrupted.");
         setIsApplying(false);
         return;
       }
 
-      if (Object.keys(settings).length > 0) {
-        await saveSettings(settings, targetScope, targetProject);
-      }
-
-      // Apply MCP servers
-      let serversRaw: Record<string, unknown>;
       try {
         serversRaw = JSON.parse(selectedPreset.mcpServers) as Record<string, unknown>;
       } catch (parseError) {
         console.error("Failed to parse preset MCP servers:", parseError);
-        alert(t("error.invalidPresetMcpServers") || "Failed to parse preset MCP servers. The preset data may be corrupted.");
+        setApplyError(t("error.invalidPresetMcpServers") || "Failed to parse preset MCP servers. The preset data may be corrupted.");
         setIsApplying(false);
         return;
+      }
+
+      // All parsing succeeded — now apply side effects
+      if (Object.keys(settings).length > 0) {
+        await saveSettings(settings, targetScope, targetProject);
       }
 
       if (Object.keys(serversRaw).length > 0) {
@@ -894,6 +898,9 @@ export const PresetPanel: React.FC = () => {
             )}
           </div>
 
+          {applyError && (
+            <p className="text-sm text-destructive px-1">{applyError}</p>
+          )}
           <DialogFooter>
             <Button
               variant="outline"

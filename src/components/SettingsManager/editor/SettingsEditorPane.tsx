@@ -8,7 +8,7 @@
  */
 
 import * as React from "react";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -40,13 +40,7 @@ type SaveResult = {
   message: string;
 } | null;
 
-interface SettingsEditorPaneProps {
-  onSectionJump?: (handler: (sectionId: string) => void) => void;
-}
-
-export const SettingsEditorPane: React.FC<SettingsEditorPaneProps> = ({
-  onSectionJump,
-}) => {
+export const SettingsEditorPane: React.FC = () => {
   const { t } = useTranslation();
   const {
     allSettings,
@@ -73,24 +67,6 @@ export const SettingsEditorPane: React.FC<SettingsEditorPaneProps> = ({
 
   // Section refs for scrolling
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  // Jump to section handler
-  const jumpToSection = useCallback((sectionId: string) => {
-    // Expand the section
-    setExpandedSections((prev) => new Set([...prev, sectionId]));
-    // Scroll to section after a brief delay for expansion animation
-    setTimeout(() => {
-      const sectionEl = sectionRefs.current[sectionId];
-      if (sectionEl) {
-        sectionEl.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    }, 100);
-  }, []);
-
-  // Register jump handler with parent
-  useEffect(() => {
-    onSectionJump?.(jumpToSection);
-  }, [onSectionJump, jumpToSection]);
 
   // Clear save result after delay
   React.useEffect(() => {

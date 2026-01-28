@@ -162,7 +162,7 @@ fn write_settings_file(path: &Path, content: &str) -> Result<(), String> {
     file.sync_all()
         .map_err(|e| format!("Failed to sync temp file: {e}"))?;
 
-    fs::rename(&temp_path, path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
+    super::fs_utils::atomic_rename(&temp_path, path)?;
 
     Ok(())
 }
@@ -612,10 +612,20 @@ pub async fn write_text_file(path: String, content: String) -> Result<(), String
         // Validate path is in allowed directories
         is_safe_path(&path)?;
 
-        let mut file = fs::File::create(&path)
-            .map_err(|e| format!("Failed to create file {}: {}", path.display(), e))?;
-        file.write_all(content.as_bytes())
-            .map_err(|e| format!("Failed to write to file {}: {}", path.display(), e))?;
+        // Atomic write: write to temp file then rename
+        let temp_path = path.with_extension("tmp");
+        let mut file = fs::File::create(&temp_path)
+            .map_err(|e| format!("Failed to create temp file {}: {}", temp_path.display(), e))?;
+        file.write_all(content.as_bytes()).map_err(|e| {
+            format!(
+                "Failed to write to temp file {}: {}",
+                temp_path.display(),
+                e
+            )
+        })?;
+        file.sync_all()
+            .map_err(|e| format!("Failed to sync temp file: {e}"))?;
+        super::fs_utils::atomic_rename(&temp_path, &path)?;
         Ok(())
     })
     .await

@@ -137,8 +137,8 @@ pub async fn save_preset(input: PresetInput) -> Result<PresetData, String> {
         file.sync_all()
             .map_err(|e| format!("Failed to sync temp file: {e}"))?;
 
-        // Rename temp file to actual file (atomic on most filesystems)
-        fs::rename(&temp_path, &path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
+        // Cross-platform atomic rename
+        super::fs_utils::atomic_rename(&temp_path, &path)?;
 
         Ok::<(), String>(())
     })
@@ -172,8 +172,13 @@ pub async fn load_presets() -> Result<Vec<PresetData>, String> {
                 continue;
             }
 
-            let content =
-                fs::read_to_string(&path).map_err(|e| format!("Failed to read preset: {e}"))?;
+            let content = match fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Warning: Failed to read preset at {}: {e}", path.display());
+                    continue;
+                }
+            };
 
             match serde_json::from_str::<PresetData>(&content) {
                 Ok(preset) => presets.push(preset),
@@ -277,7 +282,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_save_and_load_preset() {
-        let (guard, _temp) = setup_test_env();
+        let (guard, temp) = setup_test_env();
+        // Use a unique subdirectory to avoid race conditions with other tests
+        let unique_home = temp.path().join("test_save_and_load_preset");
+        fs::create_dir_all(&unique_home).unwrap();
+        env::set_var("HOME", &unique_home);
         drop(guard); // Drop the guard before any await calls
 
         let input = PresetInput {

@@ -164,11 +164,8 @@ fn atomic_write(path: &PathBuf, content: &str) -> Result<(), String> {
     // Drop the file handle before renaming
     drop(file);
 
-    // Atomically rename temp file to target
-    fs::rename(&temp_path, path).map_err(|e| {
-        let _ = fs::remove_file(&temp_path);
-        format!("Failed to rename temp file to target: {e}")
-    })?;
+    // Cross-platform atomic rename
+    super::fs_utils::atomic_rename(&temp_path, path)?;
 
     Ok(())
 }

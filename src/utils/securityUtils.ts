@@ -13,14 +13,19 @@
  * Case-insensitive matching is applied.
  */
 export const SENSITIVE_KEY_PATTERNS = [
-  "key",
+  "api_key",
+  "api-key",
+  "apikey",
   "token",
   "secret",
   "password",
+  "passwd",
   "credential",
-  "api",
   "auth",
-  "private",
+  "private_key",
+  "private-key",
+  "access_key",
+  "access-key",
 ] as const;
 
 /**

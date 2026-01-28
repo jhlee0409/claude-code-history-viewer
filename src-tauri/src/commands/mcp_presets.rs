@@ -63,7 +63,14 @@ fn get_mcp_presets_folder() -> Result<PathBuf, String> {
 /// Ensure the MCP presets folder exists
 fn ensure_mcp_presets_folder() -> Result<PathBuf, String> {
     let folder = get_mcp_presets_folder()?;
-    if !folder.exists() {
+    if folder.exists() {
+        if !folder.is_dir() {
+            return Err(format!(
+                "MCP presets path exists but is not a directory: {}",
+                folder.display()
+            ));
+        }
+    } else {
         fs::create_dir_all(&folder)
             .map_err(|e| format!("Failed to create MCP presets folder: {e}"))?;
     }
@@ -145,8 +152,12 @@ pub async fn save_mcp_preset(input: MCPPresetInput) -> Result<MCPPresetData, Str
         ensure_mcp_presets_folder()?;
         let path = get_mcp_preset_path(&preset_clone.id)?;
 
-        // Write to temp file first (atomic write pattern)
-        let temp_path = path.with_extension("json.tmp");
+        // Write to temp file with unique name to avoid collisions
+        let nonce: u64 = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        let temp_path = path.with_extension(format!("json.{nonce}.tmp"));
         let content = serde_json::to_string_pretty(&preset_clone)
             .map_err(|e| format!("Failed to serialize MCP preset: {e}"))?;
 
@@ -157,15 +168,8 @@ pub async fn save_mcp_preset(input: MCPPresetInput) -> Result<MCPPresetData, Str
         file.sync_all()
             .map_err(|e| format!("Failed to sync temp file: {e}"))?;
 
-        // On Windows, rename fails if destination exists; remove it first
-        #[cfg(target_os = "windows")]
-        if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|e| format!("Failed to remove existing file before rename: {e}"))?;
-        }
-
-        // Rename temp file to actual file (atomic on most filesystems)
-        fs::rename(&temp_path, &path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
+        // Cross-platform atomic rename (handles Windows remove internally)
+        super::fs_utils::atomic_rename(&temp_path, &path)?;
 
         Ok::<(), String>(())
     })

@@ -706,3 +706,42 @@ Message-level Metadata (2025):
 - Thinking content appears both as a separate type and as tags within text
 - Image support is defined in the data structure but not implemented in the UI
 - ESLint configuration uses deprecated .eslintignore (migrated to ignores in config)
+
+## Code Quality Checklist (PR #78 리뷰 기반)
+
+코드 작성 시 아래 항목을 반드시 준수한다. 이 체크리스트는 PR #78에서 반복 발견된 34건의 리뷰 이슈를 예방하기 위한 것이다.
+
+### 보안
+- 사용자 입력 ID를 파일 경로에 사용할 때 → `^[A-Za-z0-9_-]+$` 검증 필수
+- 파일 쓰기 → temp 파일 + rename 패턴(원자적 쓰기)
+- Rust에서 디렉토리 순회 시 symlink 차단
+
+### 에러 처리
+- 모든 `async/await` → try/catch + 사용자에게 보이는 피드백 (toast/alert). `console.error`만은 부족
+- 다단계 저장 → 모든 파싱/검증을 먼저 완료한 후 적용
+- 필수 매개변수(`projectPath` 등) → 함수 시작부에 가드 배치
+
+### i18n
+- 새 키 추가 → 5개 locale 파일(en, ko, ja, zh-CN, zh-TW) 모두 동시 업데이트
+- JSON 중복 키 절대 금지 — `pnpm run i18n:validate`로 검증
+- TSX 내 사용자에게 보이는 문자열 → 반드시 `t()` 래핑
+
+### 접근성 (a11y)
+- 아이콘 전용 버튼 → `aria-label` 필수
+- Dialog → `DialogTitle` 또는 `aria-label` 필수
+- `Label`-`Input` 쌍 → `htmlFor`/`id` 연결, ID는 `React.useId()`
+- `TooltipTrigger` → 포커스 가능한 요소(`<button>`)로 감싸기
+
+### React 상태 관리
+- `setState` 직후 해당 상태를 읽지 말 것 → 값을 인자로 직접 전달하거나 `useEffect` 사용
+- 커스텀 훅 내부에서 다른 커스텀 훅 호출 → 인스턴스 분리 문제 주의
+
+### 크로스 플랫폼
+- 경로 split → `split(/[\\/]/)` (Windows `\` 대응)
+- Rust `fs::rename` → Windows에서 대상 존재 시 실패, `remove_file` 후 rename
+- 홈 디렉토리 감지 → `C:\Users\` 패턴 포함
+
+### 기타
+- 유틸리티 함수 작성 전 → 기존 utils에 동일 기능 있는지 확인
+- null 체크 → `!= null`(loose equality)로 null+undefined 동시 처리
+- `localStorage` 접근 → 항상 try/catch

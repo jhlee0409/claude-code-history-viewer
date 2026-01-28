@@ -14,6 +14,7 @@
     "generate:i18n-types": "node scripts/generate-i18n-types.mjs",
     "i18n:flatten": "node scripts/flatten-i18n.mjs",
     "i18n:sync": "node scripts/sync-i18n-keys.mjs",
+    "i18n:validate": "node scripts/validate-i18n.mjs",
     "prepare": "husky"
   },
   "dependencies": {

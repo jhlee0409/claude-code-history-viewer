@@ -145,7 +145,7 @@
   "analytics.totalMessages": "총 메시지 수",
   "analytics.totalMessagesCount": "총 {{count}}개 메시지",
   "analytics.totalProjects": "전체 프로젝트",
-  "analytics.totalSessionTime": "Total Session Time",
+  "analytics.totalSessionTime": "총 세션 시간",
   "analytics.totalSessions": "총 세션",
   "analytics.totalTokenUsage": "총 토큰 사용량",
   "analytics.totalTokenUsageLabel": "총 토큰 사용량",
