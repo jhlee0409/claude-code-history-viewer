@@ -15,7 +15,7 @@ export type RecentEditsPagination = RecentEditsPaginationState;
 /**
  * Analytics 뷰 타입
  */
-export type AnalyticsView = 'messages' | 'tokenStats' | 'analytics' | 'recentEdits';
+export type AnalyticsView = 'messages' | 'tokenStats' | 'analytics' | 'recentEdits' | 'settings';
 export type AnalyticsViewType = AnalyticsView;
 
 /**
@@ -124,6 +124,7 @@ export interface UseAnalyticsReturn {
     isAnalyticsView: boolean;
     isMessagesView: boolean;
     isRecentEditsView: boolean;
+    isSettingsView: boolean;
     hasAnyError: boolean;
     isLoadingAnalytics: boolean;
     isLoadingTokenStats: boolean;

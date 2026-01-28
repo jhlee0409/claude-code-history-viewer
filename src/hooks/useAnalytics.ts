@@ -340,6 +340,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       isAnalyticsView: analytics.currentView === "analytics",
       isMessagesView: analytics.currentView === "messages",
       isRecentEditsView: analytics.currentView === "recentEdits",
+      isSettingsView: analytics.currentView === "settings",
       hasAnyError: !!(
         analytics.projectSummaryError ||
         analytics.sessionComparisonError ||
