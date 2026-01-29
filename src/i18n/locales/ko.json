@@ -786,6 +786,8 @@
   "settingsManager.json.format": "JSON 정렬",
   "settingsManager.json.invalidJson": "잘못된 JSON 구문",
   "settingsManager.json.saved": "설정 저장됨",
+  "settingsManager.json.redo": "다시 실행",
+  "settingsManager.json.undo": "실행 취소",
   "settingsManager.json.unsavedChanges": "저장되지 않은 변경사항이 있습니다",
   "settingsManager.loading": "설정을 불러오는 중...",
   "settingsManager.mcp.add": "서버 추가",

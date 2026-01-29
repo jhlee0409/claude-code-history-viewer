@@ -22,6 +22,7 @@ interface EditorFooterProps {
   onReset: () => void;
   readOnly: boolean;
   isSaving?: boolean;
+  hasJsonError?: boolean;
 }
 
 // ============================================================================
@@ -36,6 +37,7 @@ export const EditorFooter: React.FC<EditorFooterProps> = ({
   onReset,
   readOnly,
   isSaving = false,
+  hasJsonError = false,
 }) => {
   const { t } = useTranslation();
 
@@ -86,7 +88,7 @@ export const EditorFooter: React.FC<EditorFooterProps> = ({
           size="sm"
           className="h-8"
           onClick={onSave}
-          disabled={!hasUnsavedChanges || readOnly || isSaving}
+          disabled={!hasUnsavedChanges || readOnly || isSaving || hasJsonError}
         >
           {isSaving ? (
             <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />

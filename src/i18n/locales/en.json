@@ -786,6 +786,8 @@
   "settingsManager.json.format": "Format JSON",
   "settingsManager.json.invalidJson": "Invalid JSON syntax",
   "settingsManager.json.saved": "Settings saved",
+  "settingsManager.json.redo": "Redo",
+  "settingsManager.json.undo": "Undo",
   "settingsManager.json.unsavedChanges": "You have unsaved changes",
   "settingsManager.loading": "Loading settings...",
   "settingsManager.mcp.add": "Add Server",

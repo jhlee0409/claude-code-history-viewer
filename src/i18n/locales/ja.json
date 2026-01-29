@@ -786,6 +786,8 @@
   "settingsManager.json.format": "JSONフォーマット",
   "settingsManager.json.invalidJson": "無効なJSON構文",
   "settingsManager.json.saved": "設定を保存しました",
+  "settingsManager.json.redo": "やり直し",
+  "settingsManager.json.undo": "元に戻す",
   "settingsManager.json.unsavedChanges": "保存されていない変更があります",
   "settingsManager.loading": "設定を読み込み中...",
   "settingsManager.mcp.add": "サーバー追加",

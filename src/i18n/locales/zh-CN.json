@@ -786,6 +786,8 @@
   "settingsManager.json.format": "格式化 JSON",
   "settingsManager.json.invalidJson": "无效的 JSON 语法",
   "settingsManager.json.saved": "设置已保存",
+  "settingsManager.json.redo": "重做",
+  "settingsManager.json.undo": "撤销",
   "settingsManager.json.unsavedChanges": "您有未保存的更改",
   "settingsManager.loading": "正在加载设置...",
   "settingsManager.mcp.add": "添加服务器",

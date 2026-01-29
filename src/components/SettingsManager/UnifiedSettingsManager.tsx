@@ -257,9 +257,10 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
           <h2 className="text-xl font-semibold">{t("settingsManager.title")}</h2>
           <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
+              variant={activePanel === "diagnostics" ? "secondary" : "ghost"}
               size="sm"
               onClick={() => setActivePanel(activePanel === "diagnostics" ? "editor" : "diagnostics")}
+              className={activePanel === "diagnostics" ? "shadow-sm ring-1 ring-ring/20" : ""}
             >
               <FolderTree className="h-4 w-4 mr-2" />
               {t("settingsManager.diagnostics.button")}
