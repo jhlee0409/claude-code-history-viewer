@@ -891,6 +891,7 @@
   "settingsManager.presets.applyHere": "ここに適用",
   "settingsManager.presets.applyTitle": "プリセット適用",
   "settingsManager.presets.applyTo": "別のスコープに適用...",
+  "settingsManager.presets.moreOptions": "その他のオプション",
   "settingsManager.presets.applying": "適用中...",
   "settingsManager.presets.clickToApply": "Click to apply this preset",
   "settingsManager.presets.create": "プリセット作成",

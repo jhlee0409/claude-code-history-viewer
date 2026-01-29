@@ -212,9 +212,10 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
   const handleAddHook = () => {
     if (!newCommand.trim()) return;
 
+    const trimmedArgs = newArgs.trim();
     const newHookCommand: HookCommand = {
       command: newCommand.trim(),
-      args: newArgs.trim() ? newArgs.split(/\s+/) : undefined,
+      args: trimmedArgs ? trimmedArgs.split(/\s+/) : undefined,
     };
 
     const currentHooks = hooks[newHookType] ?? [];

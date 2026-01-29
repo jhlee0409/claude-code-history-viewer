@@ -891,6 +891,7 @@
   "settingsManager.presets.applyHere": "Apply Here",
   "settingsManager.presets.applyTitle": "Apply Preset",
   "settingsManager.presets.applyTo": "Apply to...",
+  "settingsManager.presets.moreOptions": "More options",
   "settingsManager.presets.applying": "Applying...",
   "settingsManager.presets.clickToApply": "Click to apply this preset",
   "settingsManager.presets.create": "Create Preset",

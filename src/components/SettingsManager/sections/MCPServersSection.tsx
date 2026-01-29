@@ -445,8 +445,9 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
             {/* Server Form */}
             <div className="space-y-3">
               <div>
-                <Label>{t("settingsManager.mcp.serverName")}</Label>
+                <Label htmlFor="mcp-server-name">{t("settingsManager.mcp.serverName")}</Label>
                 <Input
+                  id="mcp-server-name"
                   value={newServerName}
                   onChange={(e) => setNewServerName(e.target.value)}
                   placeholder={t("settingsManager.mcp.serverNamePlaceholder")}
@@ -455,8 +456,9 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
               </div>
 
               <div>
-                <Label>{t("settingsManager.mcp.command")}</Label>
+                <Label htmlFor="mcp-server-command">{t("settingsManager.mcp.command")}</Label>
                 <Input
+                  id="mcp-server-command"
                   value={newServerCommand}
                   onChange={(e) => setNewServerCommand(e.target.value)}
                   placeholder={t("settingsManager.mcp.commandPlaceholder")}
@@ -464,8 +466,9 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                 />
               </div>
               <div>
-                <Label>{t("settingsManager.mcp.args")}</Label>
+                <Label htmlFor="mcp-server-args">{t("settingsManager.mcp.args")}</Label>
                 <Input
+                  id="mcp-server-args"
                   value={newServerArgs}
                   onChange={(e) => setNewServerArgs(e.target.value)}
                   placeholder={t("settingsManager.mcp.argsPlaceholder")}
@@ -498,9 +501,9 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
 
                 {/* Save Location */}
                 <div>
-                  <Label>{t("settingsManager.mcp.saveLocation")}</Label>
+                  <Label htmlFor="mcp-save-location">{t("settingsManager.mcp.saveLocation")}</Label>
                   <Select value={saveLocation} onValueChange={(v) => setSaveLocation(v as SaveLocation)}>
-                    <SelectTrigger className="mt-1">
+                    <SelectTrigger id="mcp-save-location" className="mt-1">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

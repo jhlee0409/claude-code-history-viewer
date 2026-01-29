@@ -891,6 +891,7 @@
   "settingsManager.presets.applyHere": "여기에 적용",
   "settingsManager.presets.applyTitle": "프리셋 적용",
   "settingsManager.presets.applyTo": "다른 스코프에 적용...",
+  "settingsManager.presets.moreOptions": "더 많은 옵션",
   "settingsManager.presets.applying": "적용 중...",
   "settingsManager.presets.clickToApply": "클릭하여 이 프리셋 적용",
   "settingsManager.presets.create": "프리셋 생성",

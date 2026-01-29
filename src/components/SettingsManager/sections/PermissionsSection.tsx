@@ -77,6 +77,12 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
     ask: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
   };
 
+  const variantLabelColors = {
+    allow: "text-green-800 dark:text-green-200",
+    deny: "text-red-800 dark:text-red-200",
+    ask: "text-amber-800 dark:text-amber-200",
+  };
+
   const addItem = () => {
     if (newItem.trim() && !items.includes(newItem.trim())) {
       onItemsChange([...items, newItem.trim()]);
@@ -90,7 +96,7 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
 
   return (
     <div className="space-y-2">
-      <Label className={`text-sm ${variantColors[variant].split(" ")[1]}`}>
+      <Label className={`text-sm ${variantLabelColors[variant]}`}>
         {title}
       </Label>
       <div className="space-y-1.5">

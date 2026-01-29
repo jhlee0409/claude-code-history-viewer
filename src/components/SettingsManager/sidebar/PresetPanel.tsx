@@ -154,7 +154,10 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
               {!isReadOnly && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                    <button
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      aria-label={t("settingsManager.presets.moreOptions")}
+                    >
                       <MoreHorizontal className="w-3.5 h-3.5" />
                     </button>
                   </DropdownMenuTrigger>
@@ -562,6 +565,10 @@ export const PresetPanel: React.FC = () => {
               : "local_claude_json";
         await saveMCPServers(mcpSource, servers as Parameters<typeof saveMCPServers>[1], projectPath);
       }
+
+      setApplyError(null);
+      setApplySuccess(true);
+      setTimeout(() => setApplySuccess(false), 2000);
     } catch (e) {
       const errorMsg = `Failed to apply preset "${preset.name}": ${e instanceof Error ? e.message : String(e)}`;
       console.error(errorMsg);
