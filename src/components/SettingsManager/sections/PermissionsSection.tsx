@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { ChevronDown, ChevronRight, Shield, Plus, X, FolderOpen } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings, PermissionDefaultMode } from "@/types";
 
 // ============================================================================
@@ -67,6 +68,7 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
   variant,
 }) => {
   const [newItem, setNewItem] = useState("");
+  const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
   const { t } = useTranslation();
 
   const variantColors = {
@@ -109,14 +111,39 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
                 {item}
               </Badge>
               {!readOnly && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => removeItem(index)}
-                >
-                  <X className="w-3 h-3" />
-                </Button>
+                confirmIndex === index ? (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-6 text-xs px-2"
+                      onClick={() => {
+                        removeItem(index);
+                        setConfirmIndex(null);
+                      }}
+                    >
+                      {t("common.delete")}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs px-2"
+                      onClick={() => setConfirmIndex(null)}
+                    >
+                      {t("common.cancel")}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => setConfirmIndex(index)}
+                    aria-label={t("common.remove")}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                )
               )}
             </div>
           ))
@@ -160,6 +187,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
 }) => {
   const { t } = useTranslation();
   const [newDirectory, setNewDirectory] = useState("");
+  const [dirConfirmIndex, setDirConfirmIndex] = useState<number | null>(null);
 
   const allowList = settings.permissions?.allow ?? [];
   const denyList = settings.permissions?.deny ?? [];
@@ -222,14 +250,28 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
-      <CollapsibleTrigger className="flex items-center justify-between w-full py-3 px-4 rounded-lg text-muted-foreground hover:text-accent hover:bg-accent/10 border border-border/40 transition-colors duration-150">
+      <CollapsibleTrigger
+        className={cn(
+          "flex items-center justify-between w-full py-3 px-4 rounded-lg",
+          "border border-border/40 transition-colors duration-150",
+          "text-muted-foreground hover:text-accent hover:bg-accent/10 hover:border-border/60",
+          isExpanded && "bg-accent/10 border-border/60 text-foreground"
+        )}
+      >
         <div className="flex items-center gap-2">
           {isExpanded ? (
             <ChevronDown className="w-4 h-4 text-muted-foreground" />
           ) : (
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           )}
-          <Shield className="w-4 h-4 text-muted-foreground" />
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{
+              background: "color-mix(in oklch, var(--accent) 15%, transparent)",
+            }}
+          >
+            <Shield className="w-4 h-4 text-accent" />
+          </div>
           <span className="font-medium text-sm">
             {t("settingsManager.unified.sections.permissions")}
           </span>
@@ -325,14 +367,39 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                       {dir}
                     </Badge>
                     {!readOnly && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeDirectory(index)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
+                      dirConfirmIndex === index ? (
+                        <div className="flex gap-1">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-6 text-xs px-2"
+                            onClick={() => {
+                              removeDirectory(index);
+                              setDirConfirmIndex(null);
+                            }}
+                          >
+                            {t("common.delete")}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs px-2"
+                            onClick={() => setDirConfirmIndex(null)}
+                          >
+                            {t("common.cancel")}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => setDirConfirmIndex(index)}
+                          aria-label={t("common.remove")}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      )
                     )}
                   </div>
                 ))

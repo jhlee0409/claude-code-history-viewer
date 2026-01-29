@@ -321,16 +321,12 @@ function App() {
             {/* Content */}
             <div className="flex-1 overflow-hidden">
               {computed.isSettingsView ? (
-                <OverlayScrollbarsComponent
-                  className="h-full"
-                  options={{ scrollbars: { theme: "os-theme-custom", autoHide: "leave" } }}
-                >
-                  <div className="p-6">
-                    <SettingsManager
-                      projectPath={selectedProject?.actual_path}
-                    />
-                  </div>
-                </OverlayScrollbarsComponent>
+                <div className="h-full flex flex-col p-6">
+                  <SettingsManager
+                    projectPath={selectedProject?.actual_path}
+                    className="flex-1 min-h-0"
+                  />
+                </div>
               ) : computed.isRecentEditsView ? (
                 <OverlayScrollbarsComponent
                   className="h-full"

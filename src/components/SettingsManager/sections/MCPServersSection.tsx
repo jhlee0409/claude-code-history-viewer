@@ -8,6 +8,11 @@
 import * as React from "react";
 import { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +39,10 @@ import {
   Pencil,
   Check,
   X,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import type { MCPServerConfig, MCPSource, SettingsScope } from "@/types";
 
@@ -129,28 +137,26 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-2 py-2 px-3 bg-muted/50 rounded-lg">
-        <div className="flex-1 space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium w-28 truncate">{server.name}</span>
-            <Badge variant="outline" className={`text-[10px] ${scopeColors[server.scope]}`}>
-              {scopeLabel[server.scope]}
-            </Badge>
-          </div>
-          <Input
-            value={editCommand}
-            onChange={(e) => setEditCommand(e.target.value)}
-            placeholder={t("settingsManager.mcp.commandPlaceholder")}
-            className="h-7 text-xs font-mono"
-          />
-          <Input
-            value={editArgs}
-            onChange={(e) => setEditArgs(e.target.value)}
-            placeholder={t("settingsManager.mcp.argsPlaceholder")}
-            className="h-7 text-xs font-mono"
-          />
+      <div className="rounded-lg border-2 border-accent/40 bg-card/50 p-3 space-y-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium w-28 truncate">{server.name}</span>
+          <Badge variant="outline" className={`text-[10px] ${scopeColors[server.scope]}`}>
+            {scopeLabel[server.scope]}
+          </Badge>
         </div>
-        <div className="flex items-center gap-1">
+        <Input
+          value={editCommand}
+          onChange={(e) => setEditCommand(e.target.value)}
+          placeholder={t("settingsManager.mcp.commandPlaceholder")}
+          className="h-7 text-xs font-mono"
+        />
+        <Input
+          value={editArgs}
+          onChange={(e) => setEditArgs(e.target.value)}
+          placeholder={t("settingsManager.mcp.argsPlaceholder")}
+          className="h-7 text-xs font-mono"
+        />
+        <div className="flex items-center gap-1 justify-end">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleSave} aria-label={t("common.save")}>
             <Check className="w-4 h-4 text-green-600" />
           </Button>
@@ -163,37 +169,39 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
   }
 
   return (
-    <div className="flex items-center gap-2 py-2 px-3 hover:bg-muted/30 rounded-lg group transition-colors">
-      <Server className="w-4 h-4 text-muted-foreground shrink-0" />
-      <span className="text-sm font-medium w-28 truncate">{server.name}</span>
-      <Badge variant="outline" className={`text-[10px] shrink-0 ${scopeColors[server.scope]}`}>
-        {scopeLabel[server.scope]}
-      </Badge>
-      <code className="text-xs text-muted-foreground font-mono truncate flex-1">
-        {server.config.command} {server.config.args?.join(" ")}
-      </code>
-      {!readOnly && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0"
-            onClick={() => setIsEditing(true)}
-            aria-label={t("common.edit")}
-          >
-            <Pencil className="w-3 h-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-            onClick={onDelete}
-            aria-label={t("common.delete")}
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
-        </div>
-      )}
+    <div className="group relative rounded-lg border border-border/50 hover:border-border bg-card/50 hover:bg-muted/40 transition-all duration-150 px-3 py-2.5">
+      {/* Top row: icon + server name + scope badge + hover actions */}
+      <div className="flex items-center gap-2">
+        <Server className="w-3.5 h-3.5 text-emerald-500/70 shrink-0" />
+        <span className="text-xs font-semibold truncate flex-1">{server.name}</span>
+        <Badge variant="outline" className={`text-[10px] shrink-0 ${scopeColors[server.scope]}`}>
+          {scopeLabel[server.scope]}
+        </Badge>
+        {!readOnly && (
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
+            <button
+              onClick={() => setIsEditing(true)}
+              className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label={t("common.edit")}
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+            <button
+              onClick={onDelete}
+              className="inline-flex items-center justify-center w-6 h-6 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+              aria-label={t("common.delete")}
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </div>
+      {/* Bottom row: command in monospace */}
+      <div className="mt-1.5 pl-5.5">
+        <code className="text-[11px] text-muted-foreground/70 font-mono truncate block">
+          {server.config.command} {server.config.args?.join(" ")}
+        </code>
+      </div>
     </div>
   );
 });
@@ -205,7 +213,8 @@ ServerRow.displayName = "ServerRow";
 // ============================================================================
 
 export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
-  // isExpanded and onToggle are kept for API compatibility but not used
+  isExpanded,
+  onToggle,
   readOnly,
 }) => {
   const { t } = useTranslation();
@@ -214,6 +223,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
   // Dialog states
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [saveLocation, setSaveLocation] = useState<SaveLocation>("user");
+  const [serverToDelete, setServerToDelete] = useState<UnifiedServer | null>(null);
 
   // Add server form state
   const [newServerName, setNewServerName] = useState("");
@@ -286,20 +296,27 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
     }
   };
 
-  // Handle delete server
-  const handleDeleteServer = async (server: UnifiedServer) => {
-    const currentServers = getServersForSource(server.source);
+  // Handle delete server (with confirmation)
+  const handleRequestDelete = (server: UnifiedServer) => {
+    setServerToDelete(server);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!serverToDelete) return;
+    const currentServers = getServersForSource(serverToDelete.source);
     const rest = Object.fromEntries(
-      Object.entries(currentServers).filter(([k]) => k !== server.name)
+      Object.entries(currentServers).filter(([k]) => k !== serverToDelete.name)
     );
     try {
       await saveMCPServers(
-        server.source,
+        serverToDelete.source,
         rest,
-        server.source === "project_mcp" ? projectPath : undefined
+        serverToDelete.source === "project_mcp" ? projectPath : undefined
       );
     } catch (error) {
       console.error("Failed to delete MCP server:", error);
+    } finally {
+      setServerToDelete(null);
     }
   };
 
@@ -332,49 +349,80 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
 
   return (
     <>
-      {/* Section Header */}
-      <div className="flex items-center justify-between py-2 px-1">
-        <div className="flex items-center gap-2">
-          <Server className="w-4 h-4 text-muted-foreground" />
-          <span className="font-medium text-sm">
-            {t("settingsManager.unified.sections.mcp")}
-          </span>
-          <Badge variant="secondary" className="text-[10px] h-5">
-            {allServers.length}
-          </Badge>
-        </div>
-        {!readOnly && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            onClick={() => setIsAddOpen(true)}
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            {t("settingsManager.mcp.add")}
-          </Button>
-        )}
-      </div>
-
-      {/* Server List - Always Visible */}
-      <div className="border rounded-lg divide-y">
-        {allServers.length === 0 ? (
-          <div className="text-center py-8 text-sm text-muted-foreground">
-            <Server className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            {t("settingsManager.mcp.empty")}
+      <Collapsible open={isExpanded} onOpenChange={onToggle}>
+        <CollapsibleTrigger
+          className={cn(
+            "flex items-center justify-between w-full py-3 px-4 rounded-lg",
+            "border border-border/40 transition-colors duration-150",
+            "text-muted-foreground hover:text-accent hover:bg-accent/10 hover:border-border/60",
+            isExpanded && "bg-accent/10 border-border/60 text-foreground"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            )}
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{
+                background: "color-mix(in oklch, var(--accent) 15%, transparent)",
+              }}
+            >
+              <Server className="w-4 h-4 text-accent" />
+            </div>
+            <span className="font-medium text-sm">
+              {t("settingsManager.unified.sections.mcp")}
+            </span>
           </div>
-        ) : (
-          allServers.map((server) => (
-            <ServerRow
-              key={`${server.source}-${server.name}`}
-              server={server}
-              onDelete={() => handleDeleteServer(server)}
-              onEdit={(newConfig) => handleEditServer(server, newConfig)}
-              readOnly={readOnly}
-            />
-          ))
-        )}
-      </div>
+          {allServers.length > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {allServers.length}
+            </Badge>
+          )}
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div className="pl-10 pr-4 pb-4 pt-2 space-y-3">
+            {/* Action bar */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {t("settingsManager.mcp.description")}
+              </span>
+              {!readOnly && (
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setIsAddOpen(true)}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  {t("settingsManager.mcp.add")}
+                </Button>
+              )}
+            </div>
+
+            {/* Server List */}
+            {allServers.length === 0 ? (
+              <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg">
+                {t("settingsManager.mcp.empty")}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {allServers.map((server) => (
+                  <ServerRow
+                    key={`${server.source}-${server.name}`}
+                    server={server}
+                    onDelete={() => handleRequestDelete(server)}
+                    onEdit={(newConfig) => handleEditServer(server, newConfig)}
+                    readOnly={readOnly}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Add Server Dialog */}
       <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) resetForm(); }}>
@@ -490,6 +538,28 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
               disabled={!newServerName.trim() || !newServerCommand.trim()}
             >
               {t("settingsManager.mcp.add")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={serverToDelete != null} onOpenChange={(open) => !open && setServerToDelete(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              {t("settingsManager.mcp.deleteConfirmTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("settingsManager.mcp.deleteConfirmDesc", { name: serverToDelete?.name })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setServerToDelete(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              {t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

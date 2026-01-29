@@ -50,9 +50,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
       className={cn(
         "w-60 shrink-0 flex flex-col gap-3",
         "border-r border-border/40 pr-4",
-        // Sticky: fixed position while parent scrolls
-        // top-6 for header clearance
-        "sticky top-6 self-start"
+        "overflow-y-auto min-h-0"
       )}
     >
       {/* Context Selector - Always visible, not collapsible */}

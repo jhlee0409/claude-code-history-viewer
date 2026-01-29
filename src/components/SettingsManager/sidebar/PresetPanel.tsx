@@ -48,6 +48,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   ChevronDown,
   Package,
   Play,
@@ -105,90 +111,105 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
     const { t } = useTranslation();
     const { summary } = preset;
 
-    // Build badge content
-    const badgeParts: string[] = [];
-    if (summary.model) badgeParts.push(summary.model);
-    if (summary.mcpServerCount > 0)
-      badgeParts.push(t("settingsManager.presets.badge.mcpCount", { count: summary.mcpServerCount }));
-
     return (
-      <div className="group relative flex items-center gap-2 px-2.5 py-1.5 rounded-md border-l-2 border-l-indigo-500/70 hover:bg-muted/50 transition-colors duration-100">
-        {/* Icon */}
-        <Package className="w-3.5 h-3.5 text-indigo-500/70 shrink-0" />
+      <TooltipProvider delayDuration={400}>
+        <div className="group relative rounded-lg border border-border/50 hover:border-border bg-card/50 hover:bg-muted/40 transition-all duration-150">
+          {/* Top row: name + badges */}
+          <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
+            <Package className="w-3.5 h-3.5 text-indigo-500/70 shrink-0" />
+            <span className="text-xs font-semibold truncate flex-1">{preset.name}</span>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-medium truncate">{preset.name}</span>
-            {badgeParts.length > 0 && (
-              <span className="text-[10px] text-muted-foreground/70 font-mono shrink-0">
-                {badgeParts.join(" · ")}
-              </span>
-            )}
+            {/* Action icons - visible on hover */}
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onApplyHere}
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-md text-green-600 hover:text-green-700 hover:bg-green-500/10 transition-colors"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {t("settingsManager.presets.applyHere")}
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onApplyTo}
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    aria-label={t("settingsManager.presets.applyTo")}
+                  >
+                    <Play className="w-3 h-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {t("settingsManager.presets.applyTo")}
+                </TooltipContent>
+              </Tooltip>
+
+              {!isReadOnly && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                      <MoreHorizontal className="w-3.5 h-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-36">
+                    <DropdownMenuItem onClick={onEdit}>
+                      <Pencil className="w-3.5 h-3.5 mr-2" />
+                      {t("common.edit")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={onDuplicate}>
+                      <Copy className="w-3.5 h-3.5 mr-2" />
+                      {t("common.duplicate")}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={onDelete}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-2" />
+                      {t("common.delete")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
+
+          {/* Row 2: badges */}
+          {(summary.model || summary.mcpServerCount > 0) && (
+            <div className="px-3 flex items-center gap-1.5">
+              {summary.model && (
+                <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-mono font-medium text-indigo-400 whitespace-nowrap">
+                  {summary.model}
+                </span>
+              )}
+              {summary.mcpServerCount > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400 whitespace-nowrap">
+                  <Server className="w-2.5 h-2.5 shrink-0" />
+                  {t("settingsManager.presets.badge.mcpCount", { count: summary.mcpServerCount })}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Row 3: description */}
           {preset.description && (
-            <p className="text-[10px] text-muted-foreground/60 truncate">
-              {preset.description}
-            </p>
+            <div className="px-3 py-2.5">
+              <span className="text-[10px] text-muted-foreground/60 truncate block">
+                {preset.description}
+              </span>
+            </div>
           )}
+
+          {/* Bottom padding when no description */}
+          {!preset.description && <div className="pb-1.5" />}
         </div>
-
-        {/* Action buttons - show on hover */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
-          {/* Apply Here button - primary action */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-[10px] text-green-600 hover:text-green-700 hover:bg-green-500/10"
-            onClick={onApplyHere}
-            title={t("settingsManager.presets.applyHere")}
-          >
-            <Zap className="w-3 h-3 mr-1" />
-            {t("settingsManager.presets.applyHere")}
-          </Button>
-
-          {/* Apply To... button - opens scope selection */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-            onClick={onApplyTo}
-            title={t("settingsManager.presets.applyTo")}
-            aria-label={t("settingsManager.presets.applyTo")}
-          >
-            <Play className="w-3 h-3" />
-          </Button>
-
-          {/* Edit/Delete dropdown */}
-          {!isReadOnly && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                  <MoreHorizontal className="w-3 h-3 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-32">
-                <DropdownMenuItem onClick={onEdit}>
-                  <Pencil className="w-3 h-3 mr-2" />
-                  {t("common.edit")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onDuplicate}>
-                  <Copy className="w-3 h-3 mr-2" />
-                  {t("common.duplicate")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={onDelete}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="w-3 h-3 mr-2" />
-                  {t("common.delete")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      </div>
+      </TooltipProvider>
     );
   }
 );
@@ -227,6 +248,8 @@ export const PresetPanel: React.FC = () => {
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formNameError, setFormNameError] = useState<string | null>(null);
+  const [formJsonText, setFormJsonText] = useState("");
+  const [formJsonError, setFormJsonError] = useState<string | null>(null);
   const [isJsonExpanded, setIsJsonExpanded] = useState(false);
 
   // Loading/success state
@@ -348,6 +371,17 @@ export const PresetPanel: React.FC = () => {
     } else if (mode === "edit" && preset) {
       setFormName(preset.name);
       setFormDescription(preset.description ?? "");
+      try {
+        const jsonObj = {
+          settings: JSON.parse(preset.settings || "{}"),
+          mcpServers: JSON.parse(preset.mcpServers || "{}"),
+        };
+        setFormJsonText(JSON.stringify(jsonObj, null, 2));
+        setFormJsonError(null);
+      } catch {
+        setFormJsonText(preset.settings || "{}");
+        setFormJsonError(null);
+      }
     } else if (mode === "duplicate" && preset) {
       setFormName(`${preset.name} (Copy)`);
       setFormDescription(preset.description ?? "");
@@ -366,6 +400,8 @@ export const PresetPanel: React.FC = () => {
     setFormName("");
     setFormDescription("");
     setFormNameError(null);
+    setFormJsonText("");
+    setFormJsonError(null);
     setIsJsonExpanded(false);
     setIsApplying(false);
     setApplySuccess(false);
@@ -422,12 +458,26 @@ export const PresetPanel: React.FC = () => {
     if (!formName.trim() || !selectedPreset) return;
     if (!validatePresetName(formName, selectedPreset.id)) return;
 
+    let settingsJson = selectedPreset.settings;
+    let mcpServersJson = selectedPreset.mcpServers;
+
+    if (formJsonText.trim()) {
+      try {
+        const parsed = JSON.parse(formJsonText);
+        settingsJson = JSON.stringify(parsed.settings ?? {});
+        mcpServersJson = JSON.stringify(parsed.mcpServers ?? {});
+      } catch {
+        setFormJsonError(t("settingsManager.presets.invalidJson"));
+        return;
+      }
+    }
+
     const input: UnifiedPresetInput = {
       id: selectedPreset.id,
       name: formName.trim(),
       description: formDescription.trim() || undefined,
-      settings: selectedPreset.settings,
-      mcpServers: selectedPreset.mcpServers,
+      settings: settingsJson,
+      mcpServers: mcpServersJson,
     };
 
     try {
@@ -632,7 +682,7 @@ export const PresetPanel: React.FC = () => {
         }
         onOpenChange={(open) => !open && closeDialog()}
       >
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+        <DialogContent className={dialogMode === "edit" ? "sm:max-w-3xl max-h-[85vh] flex flex-col" : "max-w-lg max-h-[85vh] flex flex-col"}>
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Package className="w-5 h-5" />
@@ -649,122 +699,195 @@ export const PresetPanel: React.FC = () => {
             )}
           </DialogHeader>
 
-          <div className="overflow-y-auto flex-1 min-h-0 pr-1 space-y-4">
-            {/* Summary Card (only for create) */}
-            {dialogMode === "create" && (
-              <div className="bg-muted border rounded-lg p-3">
-                <div className="text-sm font-medium mb-2">
-                  {t("settingsManager.presets.includedContent")}
+          {dialogMode === "edit" ? (
+            /* ── Edit mode: 2-column layout ── */
+            <div className="flex gap-4 flex-1 min-h-0">
+              {/* Left column: form fields */}
+              <div className="w-48 shrink-0 space-y-4 overflow-y-auto pr-1">
+                <div>
+                  <Label htmlFor="preset-name">
+                    {t("settingsManager.presets.name")}
+                  </Label>
+                  <Input
+                    id="preset-name"
+                    value={formName}
+                    onChange={(e) => {
+                      setFormName(e.target.value);
+                      setFormNameError(null);
+                    }}
+                    onBlur={() =>
+                      validatePresetName(formName, selectedPreset?.id)
+                    }
+                    placeholder={t("settingsManager.presets.namePlaceholder")}
+                    className={`mt-1.5 ${formNameError ? "border-destructive" : ""}`}
+                    autoFocus
+                  />
+                  {formNameError && (
+                    <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {formNameError}
+                    </p>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.keys(effectiveSettings).length > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      <Cpu className="w-3 h-3 mr-1" />
-                      {Object.keys(effectiveSettings).length} {t("settingsManager.presets.summary.settings")}
-                    </Badge>
-                  )}
-                  {Object.keys(currentMCPServers).length > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      <Server className="w-3 h-3 mr-1" />
-                      {Object.keys(currentMCPServers).length} {t("settingsManager.presets.summary.mcpServers")}
-                    </Badge>
-                  )}
-                  {(effectiveSettings as ClaudeCodeSettings).permissions && (
-                    <Badge variant="secondary" className="text-xs">
-                      <Shield className="w-3 h-3 mr-1" />
-                      {t("settingsManager.presets.summary.permissions")}
-                    </Badge>
-                  )}
-                  {(effectiveSettings as ClaudeCodeSettings).hooks && (
-                    <Badge variant="secondary" className="text-xs">
-                      <Zap className="w-3 h-3 mr-1" />
-                      {t("settingsManager.presets.summary.hooks")}
-                    </Badge>
-                  )}
+                <div>
+                  <Label htmlFor="preset-desc">
+                    {t("settingsManager.presets.description")}
+                  </Label>
+                  <Textarea
+                    id="preset-desc"
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    placeholder={t(
+                      "settingsManager.presets.descriptionPlaceholder"
+                    )}
+                    className="mt-1.5 resize-none"
+                    rows={3}
+                  />
                 </div>
               </div>
-            )}
 
-            {/* Form Fields */}
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="preset-name">
-                  {t("settingsManager.presets.name")}
+              {/* Right column: JSON editor */}
+              <div className="flex-1 flex flex-col min-w-0">
+                <Label className="mb-1.5 flex items-center gap-2">
+                  <FileJson className="w-4 h-4" />
+                  JSON
                 </Label>
-                <Input
-                  id="preset-name"
-                  value={formName}
+                <Textarea
+                  value={formJsonText}
                   onChange={(e) => {
-                    setFormName(e.target.value);
-                    setFormNameError(null);
+                    setFormJsonText(e.target.value);
+                    setFormJsonError(null);
                   }}
-                  onBlur={() =>
-                    validatePresetName(formName, selectedPreset?.id)
-                  }
-                  placeholder={t("settingsManager.presets.namePlaceholder")}
-                  className={`mt-1.5 ${formNameError ? "border-destructive" : ""}`}
-                  autoFocus
+                  className="font-mono text-xs flex-1 min-h-[300px] resize-none"
+                  spellCheck={false}
                 />
-                {formNameError && (
+                {formJsonError && (
                   <p className="text-xs text-destructive mt-1 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
-                    {formNameError}
+                    {formJsonError}
                   </p>
                 )}
               </div>
-              <div>
-                <Label htmlFor="preset-desc">
-                  {t("settingsManager.presets.description")}
-                </Label>
-                <Textarea
-                  id="preset-desc"
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder={t(
-                    "settingsManager.presets.descriptionPlaceholder"
-                  )}
-                  className="mt-1.5 resize-none"
-                  rows={2}
-                />
-              </div>
             </div>
-
-            {/* JSON Preview */}
-            {dialogMode === "create" && (
-              <Collapsible
-                open={isJsonExpanded}
-                onOpenChange={setIsJsonExpanded}
-              >
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-between px-3 h-9"
-                  >
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      <FileJson className="w-4 h-4" />
-                      {t("settingsManager.presets.viewJson")}
-                    </span>
-                    <ChevronDown
-                      className={`w-4 h-4 transition-transform ${isJsonExpanded ? "rotate-180" : ""}`}
-                    />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-[150px] font-mono mt-2">
-                    {JSON.stringify(
-                      {
-                        settings: effectiveSettings,
-                        mcpServers: currentMCPServers,
-                      },
-                      null,
-                      2
+          ) : (
+            /* ── Create/Duplicate mode: single column ── */
+            <div className="overflow-y-auto flex-1 min-h-0 pr-1 space-y-4">
+              {/* Summary Card (only for create) */}
+              {dialogMode === "create" && (
+                <div className="bg-muted border rounded-lg p-3">
+                  <div className="text-sm font-medium mb-2">
+                    {t("settingsManager.presets.includedContent")}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.keys(effectiveSettings).length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Cpu className="w-3 h-3 mr-1" />
+                        {Object.keys(effectiveSettings).length} {t("settingsManager.presets.summary.settings")}
+                      </Badge>
                     )}
-                  </pre>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
-          </div>
+                    {Object.keys(currentMCPServers).length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Server className="w-3 h-3 mr-1" />
+                        {Object.keys(currentMCPServers).length} {t("settingsManager.presets.summary.mcpServers")}
+                      </Badge>
+                    )}
+                    {(effectiveSettings as ClaudeCodeSettings).permissions && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Shield className="w-3 h-3 mr-1" />
+                        {t("settingsManager.presets.summary.permissions")}
+                      </Badge>
+                    )}
+                    {(effectiveSettings as ClaudeCodeSettings).hooks && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Zap className="w-3 h-3 mr-1" />
+                        {t("settingsManager.presets.summary.hooks")}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Form Fields */}
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="preset-name">
+                    {t("settingsManager.presets.name")}
+                  </Label>
+                  <Input
+                    id="preset-name"
+                    value={formName}
+                    onChange={(e) => {
+                      setFormName(e.target.value);
+                      setFormNameError(null);
+                    }}
+                    onBlur={() =>
+                      validatePresetName(formName, selectedPreset?.id)
+                    }
+                    placeholder={t("settingsManager.presets.namePlaceholder")}
+                    className={`mt-1.5 ${formNameError ? "border-destructive" : ""}`}
+                    autoFocus
+                  />
+                  {formNameError && (
+                    <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {formNameError}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="preset-desc">
+                    {t("settingsManager.presets.description")}
+                  </Label>
+                  <Textarea
+                    id="preset-desc"
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    placeholder={t(
+                      "settingsManager.presets.descriptionPlaceholder"
+                    )}
+                    className="mt-1.5 resize-none"
+                    rows={2}
+                  />
+                </div>
+              </div>
+
+              {/* JSON Preview (create only) */}
+              {dialogMode === "create" && (
+                <Collapsible
+                  open={isJsonExpanded}
+                  onOpenChange={setIsJsonExpanded}
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-between px-3 h-9"
+                    >
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <FileJson className="w-4 h-4" />
+                        {t("settingsManager.presets.viewJson")}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${isJsonExpanded ? "rotate-180" : ""}`}
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-[150px] font-mono mt-2">
+                      {JSON.stringify(
+                        {
+                          settings: effectiveSettings,
+                          mcpServers: currentMCPServers,
+                        },
+                        null,
+                        2
+                      )}
+                    </pre>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </div>
+          )}
 
           <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={closeDialog}>

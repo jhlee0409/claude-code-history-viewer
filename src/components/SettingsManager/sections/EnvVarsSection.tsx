@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ChevronDown, ChevronRight, Key, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings } from "@/types";
 
 // ============================================================================
@@ -204,14 +205,28 @@ export const EnvVarsSection: React.FC<EnvVarsSectionProps> = React.memo(({
   return (
     <>
       <Collapsible open={isExpanded} onOpenChange={onToggle}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-3 px-4 rounded-lg text-muted-foreground hover:text-accent hover:bg-accent/10 border border-border/40 transition-colors duration-150">
+        <CollapsibleTrigger
+          className={cn(
+            "flex items-center justify-between w-full py-3 px-4 rounded-lg",
+            "border border-border/40 transition-colors duration-150",
+            "text-muted-foreground hover:text-accent hover:bg-accent/10 hover:border-border/60",
+            isExpanded && "bg-accent/10 border-border/60 text-foreground"
+          )}
+        >
           <div className="flex items-center gap-2">
             {isExpanded ? (
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
             ) : (
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             )}
-            <Key className="w-4 h-4 text-muted-foreground" />
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{
+                background: "color-mix(in oklch, var(--accent) 15%, transparent)",
+              }}
+            >
+              <Key className="w-4 h-4 text-accent" />
+            </div>
             <span className="font-medium text-sm">
               {t("settingsManager.unified.sections.env")}
             </span>

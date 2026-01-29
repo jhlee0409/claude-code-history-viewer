@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChevronDown, ChevronRight, Zap, Plus, Trash2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings, HookCommand } from "@/types";
 
 // ============================================================================
@@ -73,6 +74,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
 }) => {
   const { t } = useTranslation();
   const [isDeleteConfirm, setIsDeleteConfirm] = useState(false);
+  const [commandConfirmIndex, setCommandConfirmIndex] = useState<number | null>(null);
 
   return (
     <div className="border rounded-lg p-3 bg-card">
@@ -82,7 +84,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
             {hookName}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {commands.length} {commands.length === 1 ? "command" : "commands"}
+            {t("settingsManager.unified.hooks.commandCount", { count: commands.length })}
           </span>
         </div>
         {!readOnly && (
@@ -115,6 +117,7 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
                 size="sm"
                 className="h-6 w-6 p-0"
                 onClick={() => setIsDeleteConfirm(true)}
+                aria-label={t("common.delete")}
               >
                 <Trash2 className="w-3 h-3" />
               </Button>
@@ -137,14 +140,39 @@ const HookCard: React.FC<HookCardProps> = React.memo(({
               </span>
             )}
             {!readOnly && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
-                onClick={() => onRemoveCommand(idx)}
-              >
-                <X className="w-3 h-3" />
-              </Button>
+              commandConfirmIndex === idx ? (
+                <div className="flex gap-1">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-5 text-xs px-2"
+                    onClick={() => {
+                      onRemoveCommand(idx);
+                      setCommandConfirmIndex(null);
+                    }}
+                  >
+                    {t("common.delete")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 text-xs px-2"
+                    onClick={() => setCommandConfirmIndex(null)}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                  onClick={() => setCommandConfirmIndex(idx)}
+                  aria-label={t("common.remove")}
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              )
             )}
           </div>
         ))}
@@ -231,14 +259,28 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
   return (
     <>
       <Collapsible open={isExpanded} onOpenChange={onToggle}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-3 px-4 rounded-lg text-muted-foreground hover:text-accent hover:bg-accent/10 border border-border/40 transition-colors duration-150">
+        <CollapsibleTrigger
+          className={cn(
+            "flex items-center justify-between w-full py-3 px-4 rounded-lg",
+            "border border-border/40 transition-colors duration-150",
+            "text-muted-foreground hover:text-accent hover:bg-accent/10 hover:border-border/60",
+            isExpanded && "bg-accent/10 border-border/60 text-foreground"
+          )}
+        >
           <div className="flex items-center gap-2">
             {isExpanded ? (
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
             ) : (
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             )}
-            <Zap className="w-4 h-4 text-muted-foreground" />
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{
+                background: "color-mix(in oklch, var(--accent) 15%, transparent)",
+              }}
+            >
+              <Zap className="w-4 h-4 text-accent" />
+            </div>
             <span className="font-medium text-sm">
               {t("settingsManager.unified.sections.hooks")}
             </span>

@@ -240,9 +240,6 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
         <div className="flex items-center justify-between mb-4 shrink-0">
           <h2 className="text-xl font-semibold">{t("settingsManager.title")}</h2>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">
-              {t("settingsManager.command.hint")}
-            </span>
             <Button variant="ghost" size="sm" onClick={loadSettings}>
               <RefreshCw className="h-4 w-4 mr-2" />
               {t("common.refresh")}
@@ -251,20 +248,27 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
         </div>
 
         {/* Content */}
-        <LoadingState
-          isLoading={isLoading}
-          error={error}
-          loadingMessage={t("settingsManager.loading")}
-          spinnerSize="lg"
-        >
-          <div className="flex gap-4">
+        {isLoading ? (
+          <LoadingState
+            isLoading={isLoading}
+            error={error}
+            loadingMessage={t("settingsManager.loading")}
+            spinnerSize="lg"
+          />
+        ) : error ? (
+          <LoadingState
+            isLoading={false}
+            error={error}
+          />
+        ) : (
+          <div className="flex gap-4 flex-1 min-h-0">
             {/* Left Sidebar */}
             <SettingsSidebar availableScopes={availableScopes} />
 
             {/* Main Editor Area */}
             <SettingsEditorPane />
           </div>
-        </LoadingState>
+        )}
       </div>
     </SettingsManagerContext.Provider>
   );
