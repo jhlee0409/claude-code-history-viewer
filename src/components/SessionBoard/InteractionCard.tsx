@@ -630,86 +630,96 @@ export const InteractionCard = memo(({
             ? getNaturalLanguageSummary(toolUseBlock.name, toolUseBlock.input)
             : content;
 
+        const PixelCard = (
+            <div
+                ref={cardRef}
+                className={clsx(
+                    baseClasses,
+                    bgColor,
+                    "w-full rounded-[1px] mb-px",
+                    // Pixel View Brushing: No border, dim unmatched
+                    "ring-0 border-0 shadow-none",
+                    // Dim unmatched items when a brush is active
+                    (!!activeBrush && !brushMatch) && "opacity-25",
+                    // Ensure matched items are fully visible (no border)
+                    isHighlighted && "!opacity-100 z-50"
+                )}
+                style={{ height: `${height}px` }}
+                onClick={onClick}
+            >
+                {/* Content Icon Overlay (Pixel View) */}
+                {!isExpanded && (
+                    <div className="absolute top-0.5 right-0.5 pointer-events-none opacity-40">
+                        {isError && <AlertTriangle className="w-2.5 h-2.5 text-destructive" />}
+                        {isCancelled && <Ban className="w-2.5 h-2.5 text-orange-500" />}
+                    </div>
+                )}
+            </div>
+        );
+
+        if (isExpanded) {
+            return (
+                <>
+                    {PixelCard}
+                    <ExpandedCard
+                        message={message}
+                        content={content}
+                        editedMdFile={editedMdFile}
+                        role={role}
+                        isError={Boolean(isError)}
+                        triggerRect={triggerRect}
+                        isMarkdownPretty={isMarkdownPretty}
+                        onClose={() => onClick?.()}
+                        onNext={onNext}
+                        onPrev={onPrev}
+                        onFileClick={onFileClick}
+                        onNavigate={onNavigate}
+                    />
+                </>
+            );
+        }
+
         return (
-            <>
-                <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>
-                        <div
-                            ref={cardRef}
-                            className={clsx(
-                                baseClasses,
-                                bgColor,
-                                "w-full rounded-[1px] mb-px",
-                                // Pixel View Brushing: No border, dim unmatched
-                                "ring-0 border-0 shadow-none",
-                                // Dim unmatched items when a brush is active
-                                (!!activeBrush && !brushMatch) && "opacity-25",
-                                // Ensure matched items are fully visible (no border)
-                                isHighlighted && "!opacity-100 z-50"
-                            )}
-                            style={{ height: `${height}px` }}
-                            onClick={onClick}
-                        >
-                            {/* Content Icon Overlay (Pixel View) */}
-                            {!isExpanded && (
-                                <div className="absolute top-0.5 right-0.5 pointer-events-none opacity-40">
-                                    {isError && <AlertTriangle className="w-2.5 h-2.5 text-destructive" />}
-                                    {isCancelled && <Ban className="w-2.5 h-2.5 text-orange-500" />}
-                                </div>
-                            )}
+            <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                    {PixelCard}
+                </TooltipTrigger>
+                <TooltipContent side="right" className="p-2 max-w-[300px] border border-border/50 bg-popover text-popover-foreground shadow-xl">
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-4">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                                {agentName} {totalMessagesCount > 1 && `(x${totalMessagesCount})`}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                                {new Date(message.timestamp).toLocaleTimeString()}
+                            </span>
                         </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="p-2 max-w-[300px] border border-border/50 bg-popover text-popover-foreground shadow-xl">
-                        <div className="flex flex-col gap-1">
-                            <div className="flex items-center justify-between gap-4">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                                    {agentName} {totalMessagesCount > 1 && `(x${totalMessagesCount})`}
-                                </span>
-                                <span className="text-[10px] text-muted-foreground font-mono">
-                                    {new Date(message.timestamp).toLocaleTimeString()}
-                                </span>
-                            </div>
 
-                            <div className="flex items-center gap-1.5 text-xs font-medium">
-                                {RoleIcon}
-                                <div className="flex flex-col">
-                                    <span className="uppercase text-[10px] font-bold tracking-wide opacity-80">
-                                        {toolUseBlock ? toolUseBlock.name : role}
+                        <div className="flex items-center gap-1.5 text-xs font-medium">
+                            {RoleIcon}
+                            <div className="flex flex-col">
+                                <span className="uppercase text-[10px] font-bold tracking-wide opacity-80">
+                                    {toolUseBlock ? toolUseBlock.name : role}
+                                </span>
+                                {totalMessagesCount > 1 && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                        {totalMessagesCount} messages • {totalTokens.toLocaleString()} tokens
                                     </span>
-                                    {totalMessagesCount > 1 && (
-                                        <span className="text-[10px] text-muted-foreground">
-                                            {totalMessagesCount} messages • {totalTokens.toLocaleString()} tokens
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="text-[11px] leading-tight text-foreground/90 font-mono line-clamp-4 whitespace-pre-wrap break-words border-t border-border/20 pt-1 mt-0.5">
-                                {totalMessagesCount > 1 ? (
-                                    <div className="flex flex-col gap-1">
-                                        <div className="italic opacity-70">Block containing {totalMessagesCount} sequential entries.</div>
-                                        <div className="line-clamp-3">{tooltipContent}</div>
-                                    </div>
-                                ) : tooltipContent}
+                                )}
                             </div>
                         </div>
-                    </TooltipContent>
-                </Tooltip>
-                {isExpanded && <ExpandedCard
-                    message={message}
-                    content={content}
-                    editedMdFile={editedMdFile}
-                    role={role}
-                    isError={Boolean(isError)}
-                    triggerRect={triggerRect}
-                    isMarkdownPretty={isMarkdownPretty}
-                    onClose={() => onClick?.()}
-                    onNext={onNext}
-                    onPrev={onPrev}
-                    onFileClick={onFileClick}
-                    onNavigate={onNavigate}
-                />}
-            </>
+
+                        <div className="text-[11px] leading-tight text-foreground/90 font-mono line-clamp-4 whitespace-pre-wrap break-words border-t border-border/20 pt-1 mt-0.5">
+                            {totalMessagesCount > 1 ? (
+                                <div className="flex flex-col gap-1">
+                                    <div className="italic opacity-70">Block containing {totalMessagesCount} sequential entries.</div>
+                                    <div className="line-clamp-3">{tooltipContent}</div>
+                                </div>
+                            ) : tooltipContent}
+                        </div>
+                    </div>
+                </TooltipContent>
+            </Tooltip>
         );
     }
 

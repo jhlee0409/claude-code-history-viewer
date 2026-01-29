@@ -117,7 +117,7 @@ export const SessionBoard = () => {
 
     const { t } = useTranslation();
     const parentRef = useRef<HTMLDivElement>(null);
-    const scrollSyncRef = useRef<{ isSyncing: boolean; lastTop: number }>({ isSyncing: false, lastTop: 0 });
+    // Removed scrollSyncRef as we now use a shared scroll container
 
     // Panning State
     const [isMetaPressed, setIsMetaPressed] = useState(false);
@@ -171,25 +171,21 @@ export const SessionBoard = () => {
         setIsDragging(false);
     };
 
-    // Scroll Synchronization Logic
-    const handleLaneScroll = useCallback((scrollTop: number) => {
-        if (scrollSyncRef.current.isSyncing) return;
+    // Track heights of visible lanes to determine container height
+    const [laneHeights, setLaneHeights] = useState<Record<string, number>>({});
 
-        scrollSyncRef.current.isSyncing = true;
-        scrollSyncRef.current.lastTop = scrollTop;
-
-        const lanes = document.querySelectorAll('.session-lane-scroll');
-        lanes.forEach(lane => {
-            if (lane.scrollTop !== scrollTop) {
-                lane.scrollTop = scrollTop;
-            }
-        });
-
-        // Reset sync flag after a short delay or in next tick
-        requestAnimationFrame(() => {
-            scrollSyncRef.current.isSyncing = false;
+    const handleLaneHeightChange = useCallback((sessionId: string, height: number) => {
+        setLaneHeights(prev => {
+            if (prev[sessionId] === height) return prev;
+            return { ...prev, [sessionId]: height };
         });
     }, []);
+
+    const maxContentHeight = useMemo(() => {
+        const h = Math.max(0, ...Object.values(laneHeights));
+        // Add some padding for the bottom
+        return h + 40;
+    }, [laneHeights]);
 
     const handleBoardHover = useCallback((type: "model" | "status" | "tool" | "file", value: string) => {
         setActiveBrush({ type, value });
@@ -308,7 +304,7 @@ export const SessionBoard = () => {
             <div
                 ref={parentRef}
                 className={clsx(
-                    "flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin select-none",
+                    "flex-1 overflow-auto scrollbar-thin select-none",
                     isMetaPressed ? "cursor-grab" : "cursor-default",
                     isDragging && "cursor-grabbing"
                 )}
@@ -320,7 +316,7 @@ export const SessionBoard = () => {
                 <div
                     style={{
                         width: `${columnVirtualizer.getTotalSize()}px`,
-                        height: '100%',
+                        height: `${Math.max(maxContentHeight, parentRef.current?.clientHeight || 0)}px`,
                         position: 'relative',
                     }}
                 >
@@ -383,7 +379,8 @@ export const SessionBoard = () => {
                                         useAppStore.getState().navigateToMessage(messageId);
                                         useAppStore.getState().setAnalyticsCurrentView("messages");
                                     }}
-                                    onScroll={handleLaneScroll}
+                                    scrollContainerRef={parentRef as React.RefObject<HTMLDivElement>}
+                                    onHeightChange={(h) => handleLaneHeightChange(sessionId, h)}
                                     onFileClick={(file) => {
                                         // Deep link to recent edits
                                         useAppStore.getState().setAnalyticsRecentEditsSearchQuery(file);
@@ -397,11 +394,13 @@ export const SessionBoard = () => {
             </div>
 
             {/* Hint for panning */}
-            {isMetaPressed && !isDragging && (
-                <div className="fixed bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-accent text-white rounded-full text-xs font-bold shadow-2xl animate-bounce z-[100]">
-                    Drag to pan horizontally and vertically
-                </div>
-            )}
-        </div>
+            {
+                isMetaPressed && !isDragging && (
+                    <div className="fixed bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-accent text-white rounded-full text-xs font-bold shadow-2xl animate-bounce z-[100]">
+                        Drag to pan horizontally and vertically
+                    </div>
+                )
+            }
+        </div >
     );
 };

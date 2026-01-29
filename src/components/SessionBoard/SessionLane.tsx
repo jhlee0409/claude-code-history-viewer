@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "../../store/useAppStore";
 import type { BoardSessionData, ZoomLevel } from "../../types/board.types";
@@ -40,13 +40,14 @@ interface SessionLaneProps {
     onLeave?: () => void;
     onToggleSticky?: () => void;
     onInteractionClick?: (messageUuid: string) => void;
-    onScroll?: (scrollTop: number) => void;
     onFileClick?: (file: string) => void;
     isSelected?: boolean;
     onNavigate?: (messageId: string) => void;
     onNext?: () => void;
     onPrev?: () => void;
     siblings?: ClaudeMessage[]; // For merged cards
+    scrollContainerRef: React.RefObject<HTMLDivElement>;
+    onHeightChange?: (height: number) => void;
 }
 
 export const SessionLane = ({
@@ -56,12 +57,12 @@ export const SessionLane = ({
     onHover,
     onToggleSticky,
     onInteractionClick,
-    onScroll,
     onFileClick,
     isSelected,
-    onNavigate
+    onNavigate,
+    scrollContainerRef,
+    onHeightChange
 }: SessionLaneProps) => {
-    const parentRef = useRef<HTMLDivElement>(null);
     const { session, messages, stats, depth } = data;
     const selectedMessageId = useAppStore(state => state.selectedMessageId);
 
@@ -174,7 +175,7 @@ export const SessionLane = ({
 
     const rowVirtualizer = useVirtualizer({
         count: visibleItems.length,
-        getScrollElement: () => parentRef.current,
+        getScrollElement: () => scrollContainerRef.current,
         estimateSize: (index) => {
             const item = visibleItems[index];
             if (!item) return 80;
@@ -219,11 +220,11 @@ export const SessionLane = ({
         overscan: 10,
     });
 
-    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        if (onScroll) {
-            onScroll(e.currentTarget.scrollTop);
+    useEffect(() => {
+        if (onHeightChange) {
+            onHeightChange(rowVirtualizer.getTotalSize());
         }
-    };
+    }, [rowVirtualizer.getTotalSize(), onHeightChange]);
 
     const getLaneBackground = () => {
         // Default transparent background
@@ -541,10 +542,8 @@ export const SessionLane = ({
             </div>
 
             <div
-                ref={parentRef}
-                onScroll={handleScroll}
                 className={clsx(
-                    "session-lane-scroll flex-1 overflow-y-auto scrollbar-thin relative",
+                    "session-lane-scroll flex-1 relative",
                     zoomLevel === 0 ? "px-0.5 py-2" : "px-1 py-4"
                 )}
             >
