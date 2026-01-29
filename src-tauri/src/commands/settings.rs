@@ -4,10 +4,12 @@
 //! user settings presets stored in ~/.claude-history-viewer/presets/
 
 use crate::models::UserSettings;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use tempfile::Builder;
 use uuid::Uuid;
 
 /// Data structure for a settings preset
@@ -95,7 +97,7 @@ pub async fn save_preset(input: PresetInput) -> Result<PresetData, String> {
 
     // Generate ID if not provided
     let id = input.id.unwrap_or_else(|| Uuid::new_v4().to_string());
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = Utc::now().to_rfc3339();
 
     // Check if preset already exists to preserve created_at
     let created_at = tauri::async_runtime::spawn_blocking({
@@ -139,7 +141,7 @@ pub async fn save_preset(input: PresetInput) -> Result<PresetData, String> {
         let dir = path
             .parent()
             .ok_or_else(|| "Failed to get parent directory".to_string())?;
-        let mut tmp_file = tempfile::Builder::new()
+        let mut tmp_file = Builder::new()
             .prefix(".preset-")
             .suffix(".tmp")
             .tempfile_in(dir)
