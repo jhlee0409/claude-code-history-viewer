@@ -14,10 +14,14 @@ export interface BoardSessionStats {
     commitCount: number;
     filesTouchedCount: number; // Count of unique files
     hasMarkdownEdits: boolean; // New Flag for distinct visibility
+    markdownEditCount: number;
     toolBreakdown: Record<string, number>;
     searchCount: number;
     webCount: number;
     mcpCount: number;
+    fileToolCount: number; // ls, create, glob
+    codeReadCount: number; // read_file etc
+    gitToolCount: number; // git status etc
 }
 
 export interface SessionFileEdit {
@@ -62,7 +66,9 @@ export interface BrushableCard {
     isError: boolean;
     isCancelled: boolean;
     isCommit: boolean;
+    isGit: boolean; // Generic git support
     isShell: boolean;
+    isFileEdit: boolean;
     editedFiles: string[];
 }
 

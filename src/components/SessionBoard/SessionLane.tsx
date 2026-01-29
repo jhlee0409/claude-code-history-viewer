@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "../../store/useAppStore";
 import type { BoardSessionData, ZoomLevel } from "../../types/board.types";
 import { InteractionCard } from "./InteractionCard";
-import { Terminal, FilePlus, FileText, Book, TrendingUp, Zap, GitCommit, Search, Globe, Plug } from "lucide-react";
+import { Terminal, FilePlus, FileText, Book, TrendingUp, Zap, GitCommit, Search, Globe, Plug, Eye } from "lucide-react";
 import { clsx } from "clsx";
 import {
     extractClaudeMessageContent,
@@ -14,7 +14,7 @@ import {
 } from "../../utils/messageUtils";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import { matchesBrush, type ActiveBrush } from "@/utils/brushMatchers";
-import type { ClaudeAssistantMessage, ClaudeMessage } from "../../types";
+import type { ClaudeMessage } from "../../types";
 
 // Helper for formatting duration
 const formatDuration = (minutes: number): string => {
@@ -137,6 +137,22 @@ export const SessionLane = ({
 
             // Basic semantics for header match count
             // This mirrors the logic in InteractionCard but without the full weight of the component
+            const isFileEdit = toolBlock ? (['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'create_file', 'edit_file', 'Edit', 'Replace'].includes(toolBlock.name) || /write|edit|replace|patch/i.test(toolBlock.name)) : false;
+
+            let isGit = false;
+            if (toolBlock) {
+                if (variant === 'git') isGit = true;
+                if (['run_command', 'bash', 'execute_command'].includes(toolBlock.name)) {
+                    const cmd = toolBlock.input?.CommandLine || toolBlock.input?.command;
+                    // Safe cast since input is Record<string, unknown>
+                    if (typeof cmd === 'string' && cmd.trim().startsWith('git')) {
+                        isGit = true;
+                    }
+                }
+            }
+
+            const isShell = variant === 'terminal' && !isGit; // Exclude git keys from shell brush
+
             const cardMatches = matchesBrush(activeBrush, {
                 role,
                 model: isClaudeAssistantMessage(msg) ? msg.model : undefined,
@@ -144,7 +160,9 @@ export const SessionLane = ({
                 isError: false, // Simplifying for header count
                 isCancelled: false,
                 isCommit: false,
-                isShell: false,
+                isGit,
+                isShell,
+                isFileEdit,
                 editedFiles: []
             });
 
@@ -208,25 +226,8 @@ export const SessionLane = ({
     };
 
     const getLaneBackground = () => {
-        // Detect Model from first assistant message with a model field
-        const modelMsg = messages.find(m => m.type === 'assistant' && (m as ClaudeAssistantMessage).model) as ClaudeAssistantMessage | undefined;
-        const model = modelMsg?.model || "";
-
-        if (model.includes("opus")) {
-            // Opus: Visible Blue
-            return "bg-sky-100/30 dark:bg-sky-900/20";
-        }
-        if (model.includes("sonnet")) {
-            // Sonnet: Very Faint Blue
-            return "bg-sky-50/30 dark:bg-sky-900/10";
-        }
-        if (model.includes("haiku")) {
-            // Haiku: Almost Invisible / Standard
-            return "bg-slate-50/30 dark:bg-slate-900/5"; // Standard/Default
-        }
-
-        // Default (if Unknown)
-        return "bg-card/20";
+        // Default transparent background
+        return "bg-transparent";
     };
 
     const getDepthStyles = () => {
@@ -314,29 +315,7 @@ export const SessionLane = ({
                                     <span className="text-[10px] font-mono">{formatNumber(stats.outputTokens || 0)}</span>
                                 </div>
 
-                                {stats.shellCount > 0 && (
-                                    <div className="flex items-center gap-1 text-sky-500" title="Shell Commands">
-                                        <Terminal className="w-3 h-3" />
-                                        <span className="text-[10px] font-mono">{stats.shellCount}</span>
-                                    </div>
-                                )}
 
-
-
-                                {(() => {
-                                    const createdCount = data.fileEdits.filter(e => e.type === 'create').length;
-                                    if (createdCount > 0) return (
-                                        <div
-                                            className="flex items-center gap-1 text-emerald-500 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors"
-                                            title="Files Created - Click to Filter"
-                                            onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'file'); }}
-                                        >
-                                            <FilePlus className="w-3 h-3" />
-                                            <span className="text-[10px] font-mono">{createdCount}</span>
-                                        </div>
-                                    );
-                                    return null;
-                                })()}
                             </div>
                         </div>
 
@@ -387,22 +366,42 @@ export const SessionLane = ({
                                 )}
 
                                 {/* 2. Files Created */}
+                                {/* 2. File Tools (Creates & Lists) */}
                                 {(() => {
                                     const createdCount = data.fileEdits.filter(e => e.type === 'create').length;
-                                    if (createdCount > 0) return (
-                                        <div
-                                            className={clsx(
-                                                "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent",
-                                                "text-emerald-500",
-                                                activeBrush?.type === 'tool' && activeBrush.value === 'file' && "brush-match bg-accent/10"
-                                            )}
-                                            title="Files Created - Click to Filter"
-                                            onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'file'); }}
-                                        >
-                                            <FilePlus className="w-3 h-3" />
-                                            <span className="text-[10px] font-bold font-mono">{createdCount}</span>
-                                        </div>
-                                    );
+                                    // If we have stats.fileToolCount > 0, we show something.
+                                    // If we have creates, prioritize that visual.
+                                    if (createdCount > 0) {
+                                        return (
+                                            <div
+                                                className={clsx(
+                                                    "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent",
+                                                    "text-emerald-500",
+                                                    activeBrush?.type === 'tool' && activeBrush.value === 'file' && "brush-match bg-accent/10"
+                                                )}
+                                                title={`Files Created (${createdCount}) / File Tools (${stats.fileToolCount})`}
+                                                onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'file'); }}
+                                            >
+                                                <FilePlus className="w-3 h-3" />
+                                                <span className="text-[10px] font-bold font-mono">{createdCount}</span>
+                                            </div>
+                                        );
+                                    } else if (stats.fileToolCount > 0) {
+                                        return (
+                                            <div
+                                                className={clsx(
+                                                    "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent",
+                                                    "text-blue-500",
+                                                    activeBrush?.type === 'tool' && activeBrush.value === 'file' && "brush-match bg-accent/10"
+                                                )}
+                                                title="File Operations (ls, glob, etc)"
+                                                onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'file'); }}
+                                            >
+                                                <FilePlus className="w-3 h-3" />
+                                                <span className="text-[10px] font-bold font-mono">{stats.fileToolCount}</span>
+                                            </div>
+                                        );
+                                    }
                                     return null;
                                 })()}
 
@@ -447,10 +446,26 @@ export const SessionLane = ({
                                             activeBrush?.type === 'tool' && activeBrush.value === 'mcp' && "brush-match bg-accent/10"
                                         )}
                                         title="MCP Tools - Click to Filter"
-                                        onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'mcp'); }} // Assuming 'mcp' variant exists, if not 'neutral' or fallback
+                                        onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'mcp'); }}
                                     >
                                         <Plug className="w-3 h-3" />
                                         <span className="text-[10px] font-bold font-mono">{stats.mcpCount}</span>
+                                    </div>
+                                )}
+
+                                {/* Git Tools (Status/Diff/Etc) */}
+                                {stats.gitToolCount > 0 && (
+                                    <div
+                                        className={clsx(
+                                            "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent",
+                                            "text-orange-500",
+                                            activeBrush?.type === 'tool' && activeBrush.value === 'git' && "brush-match bg-accent/10"
+                                        )}
+                                        title="Git Tools - Click to Filter"
+                                        onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'git'); }}
+                                    >
+                                        <GitCommit className="w-3 h-3" />
+                                        <span className="text-[10px] font-bold font-mono">{stats.gitToolCount}</span>
                                     </div>
                                 )}
 
@@ -466,6 +481,7 @@ export const SessionLane = ({
                                         onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'document'); }}
                                     >
                                         <Book className="w-3 h-3" />
+                                        <span className="text-[10px] font-bold font-mono">{stats.markdownEditCount}</span>
                                     </div>
                                 )}
 
@@ -477,11 +493,27 @@ export const SessionLane = ({
                                             "text-foreground/70",
                                             activeBrush?.type === 'tool' && activeBrush.value === 'code' && "brush-match bg-accent/10"
                                         )}
-                                        title="Files Touched - Click to Filter"
+                                        title="Files Touched (Edits) - Click to Filter"
                                         onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'code'); }}
                                     >
                                         <FileText className="w-3 h-3" />
                                         <span className="text-[10px] font-bold font-mono">{stats.fileEditCount}</span>
+                                    </div>
+                                )}
+
+                                {/* 6. Code Reads */}
+                                {stats.codeReadCount > 0 && (
+                                    <div
+                                        className={clsx(
+                                            "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent",
+                                            "text-sky-500/70",
+                                            activeBrush?.type === 'tool' && activeBrush.value === 'code' && "brush-match bg-accent/10"
+                                        )}
+                                        title="Files Read - Click to Filter"
+                                        onClick={(e) => { e.stopPropagation(); onHover?.('tool', 'code'); }}
+                                    >
+                                        <Eye className="w-3 h-3" />
+                                        <span className="text-[10px] font-bold font-mono">{stats.codeReadCount}</span>
                                     </div>
                                 )}
                             </div>

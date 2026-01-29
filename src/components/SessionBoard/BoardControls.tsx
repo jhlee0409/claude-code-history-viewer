@@ -8,7 +8,7 @@ import {
     Lock
 } from "lucide-react";
 import { clsx } from "clsx";
-import React, { useCallback } from "react";
+import React from "react";
 import { DatePickerHeader } from "../ui/DatePickerHeader";
 import {
     Select,
@@ -54,23 +54,12 @@ export const BoardControls = ({
     setDateFilter
 }: BoardControlsProps) => {
 
-    const handleWheel = useCallback((e: React.WheelEvent) => {
-        // Determine scroll direction
-        if (Math.abs(e.deltaY) < 10) return;
-
-        if (e.deltaY > 0) {
-            if (zoomLevel > 0) onZoomChange((zoomLevel - 1) as ZoomLevel);
-        } else {
-            if (zoomLevel < 2) onZoomChange((zoomLevel + 1) as ZoomLevel);
-        }
-    }, [zoomLevel, onZoomChange]);
 
 
 
     return (
         <div
             className="h-10 px-4 border-b border-border/50 bg-card/30 flex items-center justify-between shrink-0 backdrop-blur-md select-none"
-            onWheel={handleWheel}
         >
             {/* Zoom Controls */}
             <div className="flex items-center gap-3">

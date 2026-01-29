@@ -139,10 +139,14 @@ export const createBoardSlice: StateCreator<
                         commitCount: derivedStats.commitCount,
                         filesTouchedCount: derivedStats.filesTouched.size,
                         hasMarkdownEdits: derivedStats.hasMarkdownEdits, // New Flag
+                        markdownEditCount: derivedStats.markdownEditCount,
                         toolBreakdown: derivedStats.toolBreakdown,
                         searchCount: derivedStats.searchCount,
                         webCount: derivedStats.webCount,
-                        mcpCount: derivedStats.mcpCount
+                        mcpCount: derivedStats.mcpCount,
+                        fileToolCount: derivedStats.fileToolCount,
+                        codeReadCount: derivedStats.codeReadCount,
+                        gitToolCount: derivedStats.gitToolCount
                     };
 
                     const fileEdits: SessionFileEdit[] = [];
@@ -164,7 +168,7 @@ export const createBoardSlice: StateCreator<
                             const input = toolUse.input as Record<string, unknown>;
 
                             // Hoist explicit file edit events for the timeline visualization
-                            if (['write_to_file', 'replace_file_content', 'create_file', 'edit_file'].includes(name)) {
+                            if (['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'create_file', 'edit_file', 'Edit', 'Replace'].includes(name) || /write|edit|replace|patch/i.test(name)) {
                                 const path = (input?.path || input?.file_path || input?.TargetFile || "") as string;
                                 if (path) {
                                     fileEdits.push({

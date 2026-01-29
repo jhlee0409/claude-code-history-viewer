@@ -394,8 +394,22 @@ export const InteractionCard = memo(({
             }
         }
 
-        // Shell detection (terminal variant, excluding git commits)
-        const isShell = isTool && variant === 'terminal' && !isCommit;
+        // Generic Git command detection (includes commits AND other git ops)
+        let isGit = false;
+        if (isTool && toolUseBlock) {
+            // 1. Explicit tool variant
+            if (variant === 'git') isGit = true;
+            // 2. Shell command starting with git
+            if (['run_command', 'bash', 'execute_command'].includes(toolUseBlock.name)) {
+                const cmd = toolUseBlock.input?.CommandLine || toolUseBlock.input?.command;
+                if (typeof cmd === 'string' && cmd.trim().startsWith('git')) {
+                    isGit = true;
+                }
+            }
+        }
+
+        // Shell detection (terminal variant, excluding git ops)
+        const isShell = isTool && variant === 'terminal' && !isCommit && !isGit;
 
         // Shell command text (for display in zoom 1/2)
         const shellCommand = isShell && toolUseBlock
@@ -451,12 +465,14 @@ export const InteractionCard = memo(({
             isError: isError || isRawError,
             isCancelled,
             isCommit,
+            isGit,
             isShell,
+            isFileEdit,
             editedFiles: editedMdFile ? [editedMdFile] : []
         });
 
         return {
-            isTool, variant, isError, isCancelled, isCommit, isShell, shellCommand,
+            isTool, variant, isError, isCancelled, isCommit, isGit, isShell, shellCommand,
             isFileEdit, editedMdFile, hasUrls, isMcp, isRawError,
             brushMatch
         };
@@ -465,7 +481,7 @@ export const InteractionCard = memo(({
     // Destructure for backward-compatible access in render blocks
     // Destructure commonly-used semantics; access semantics.variant directly when needed (e.g. brushing)
     const {
-        isTool, isError, isCancelled, isCommit, isShell, shellCommand,
+        isTool, isError, isCancelled, isCommit, isGit, isShell, shellCommand,
         isFileEdit, editedMdFile, hasUrls, isMcp, isRawError, brushMatch
     } = semantics;
 
@@ -487,10 +503,12 @@ export const InteractionCard = memo(({
     }, [isCommit, gitCommits, message, toolUseBlock]);
 
     // Base classes for the card
-    const brushClass = (activeBrush && brushMatch) ? "brush-match" : "";
+    const isHighlighted = !!activeBrush && brushMatch;
+    const brushClass = isHighlighted ? "brush-match" : "";
 
     const baseClasses = clsx(
-        "relative rounded transition-all duration-200 cursor-pointer overflow-hidden border border-transparent shadow-sm select-none",
+        "relative rounded transition-all duration-200 cursor-pointer border border-transparent shadow-sm select-none",
+        (isHighlighted && zoomLevel !== 0) ? "overflow-visible z-50 !shadow-2xl !ring-4 !ring-blue-500" : "overflow-hidden",
         "hover:border-accent hover:shadow-lg hover:z-50 hover:scale-[1.02]", // Always hoverable
         (isError || isRawError) && "bg-destructive/10 border-destructive/20",
         isCancelled && "bg-orange-500/10 border-orange-500/20",
@@ -513,6 +531,9 @@ export const InteractionCard = memo(({
 
         // Error takes precedence
         if (isRawError) return <span title="Error Detected"><AlertTriangle className="w-3.5 h-3.5 text-destructive" /></span>;
+
+        // Generic Git (non-commit)
+        if (isGit) return <span title="Git Operation"><GitIcon className="w-3.5 h-3.5 text-orange-500" /></span>;
 
         // MCP Tool
         if (isMcp) return <span title="MCP Interaction"><Plug className="w-3.5 h-3.5 text-orange-500" /></span>;
@@ -619,12 +640,12 @@ export const InteractionCard = memo(({
                                 baseClasses,
                                 bgColor,
                                 "w-full rounded-[1px] mb-px",
-                                // Override baseClasses borders/rings unless matched
-                                !brushMatch && "ring-0 border-0",
-                                // Dim if brushing active but no match
-                                activeBrush && !brushMatch && "opacity-10 brightness-75 saturate-50",
-                                // Ensure match is visible
-                                brushMatch && "ring-1 ring-accent z-10 opacity-100"
+                                // Pixel View Brushing: No border, dim unmatched
+                                "ring-0 border-0 shadow-none",
+                                // Dim unmatched items when a brush is active
+                                (!!activeBrush && !brushMatch) && "opacity-25",
+                                // Ensure matched items are fully visible (no border)
+                                isHighlighted && "!opacity-100 z-50"
                             )}
                             style={{ height: `${height}px` }}
                             onClick={onClick}

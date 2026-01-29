@@ -17,11 +17,11 @@ export const getToolVariant = (name: string): RendererVariant => {
     if (lower.includes("read") || lower.includes("write") || lower.includes("edit") || lower.includes("lsp") || lower.includes("notebook") || lower.includes("replace")) {
         return "code";
     }
-    if (lower.includes("glob") || lower.includes("ls") || lower === "file" || lower.includes("create")) {
-        return "file";
-    }
     if (lower.includes("grep") || lower.includes("search")) {
         return "search";
+    }
+    if (lower.includes("glob") || lower.includes("ls") || lower === "file" || lower.includes("create")) {
+        return "file";
     }
     if (lower.includes("task") || lower.includes("todo") || lower.includes("agent")) {
         return "task";

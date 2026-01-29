@@ -88,6 +88,13 @@ export const SessionBoard = () => {
                 const toolBlock = getToolUseBlock(msg);
                 if (toolBlock) {
                     const variant = getToolVariant(toolBlock.name);
+                    if (variant === 'terminal') {
+                        // Check for git in shell commands
+                        const cmd = toolBlock.input?.CommandLine || toolBlock.input?.command;
+                        if (typeof cmd === 'string' && cmd.trim().startsWith('git')) {
+                            tools.add('git');
+                        }
+                    }
                     tools.add(variant);
                     const path = toolBlock.input?.path || toolBlock.input?.file_path || toolBlock.input?.TargetFile;
                     if (path && typeof path === 'string') {
