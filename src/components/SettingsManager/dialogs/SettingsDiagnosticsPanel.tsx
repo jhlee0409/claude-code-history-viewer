@@ -280,6 +280,10 @@ const ProjectIssueGroup = React.memo<{
   defaultOpen: boolean;
 }>(({ pd, defaultOpen }) => {
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    setOpen(defaultOpen);
+  }, [defaultOpen]);
   const errors = pd.issues.filter((i) => i.severity === "error").length;
   const warnings = pd.issues.filter((i) => i.severity === "warning").length;
   const infos = pd.issues.filter((i) => i.severity === "info").length;
@@ -350,17 +354,17 @@ const HealthBar: React.FC<{
         <div className="flex items-center gap-1.5">
           {errors > 0 && (
             <Badge variant="secondary" className="text-[10px] h-5 bg-destructive/10 text-destructive">
-              {errors} error{errors !== 1 ? "s" : ""}
+              {t("settingsManager.diagnostics.errorCount", { count: errors })}
             </Badge>
           )}
           {warnings > 0 && (
             <Badge variant="secondary" className="text-[10px] h-5 bg-amber-500/10 text-amber-600">
-              {warnings} warning{warnings !== 1 ? "s" : ""}
+              {t("settingsManager.diagnostics.warningCount", { count: warnings })}
             </Badge>
           )}
           {infos > 0 && (
             <Badge variant="secondary" className="text-[10px] h-5 bg-blue-500/10 text-blue-600">
-              {infos} info
+              {t("settingsManager.diagnostics.infoCount", { count: infos })}
             </Badge>
           )}
           {!isScanning && total === 0 && (
@@ -432,12 +436,12 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
             });
             const label = project.actual_path.split(/[\\/]/).pop() ?? project.name;
             const files = buildProjectFiles(settings, label);
-            const merged = mergeSettings(settings);
             // Only detect project/local scope issues — user scope handled by globalIssues
             const projectLocalOnly: AllSettingsResponse = {
               user: null, project: settings.project, local: settings.local, managed: null,
             };
-            const issues = detectSettingsIssues(projectLocalOnly, null, merged);
+            const mergedProjectLocal = mergeSettings(projectLocalOnly);
+            const issues = detectSettingsIssues(projectLocalOnly, null, mergedProjectLocal);
 
             if (files.some((f) => f.exists) || issues.length > 0) {
               results.push({

@@ -126,6 +126,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                   <button
                     onClick={onApplyHere}
                     className="inline-flex items-center justify-center w-6 h-6 rounded-md text-green-600 hover:text-green-700 hover:bg-green-500/10 transition-colors"
+                    aria-label={t("settingsManager.presets.applyHere")}
                   >
                     <Zap className="w-3.5 h-3.5" />
                   </button>
@@ -395,6 +396,10 @@ export const PresetPanel: React.FC = () => {
   };
 
   const closeDialog = () => {
+    if (closeDialogTimeoutRef.current) {
+      clearTimeout(closeDialogTimeoutRef.current);
+      closeDialogTimeoutRef.current = null;
+    }
     setDialogMode(null);
     setSelectedPreset(null);
     setFormName("");
@@ -750,7 +755,7 @@ export const PresetPanel: React.FC = () => {
               <div className="flex-1 flex flex-col min-w-0">
                 <Label className="mb-1.5 flex items-center gap-2">
                   <FileJson className="w-4 h-4" />
-                  JSON
+                  {t("settingsManager.presets.jsonLabel")}
                 </Label>
                 <Textarea
                   value={formJsonText}
@@ -889,6 +894,9 @@ export const PresetPanel: React.FC = () => {
             </div>
           )}
 
+          {applyError && (
+            <p className="text-sm text-destructive px-1">{applyError}</p>
+          )}
           <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={closeDialog}>
               {t("common.cancel")}
@@ -1099,6 +1107,9 @@ export const PresetPanel: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
 
+          {applyError && (
+            <p className="text-sm text-destructive px-1">{applyError}</p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>
               {t("common.cancel")}

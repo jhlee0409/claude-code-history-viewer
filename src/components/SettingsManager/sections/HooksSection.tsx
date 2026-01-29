@@ -361,7 +361,7 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
               <Input
                 value={newCommand}
                 onChange={(e) => setNewCommand(e.target.value)}
-                placeholder="git"
+                placeholder={t("settingsManager.mcp.commandPlaceholder")}
                 className="mt-1"
               />
             </div>
@@ -370,7 +370,7 @@ export const HooksSection: React.FC<HooksSectionProps> = React.memo(({
               <Input
                 value={newArgs}
                 onChange={(e) => setNewArgs(e.target.value)}
-                placeholder="status --short"
+                placeholder={t("settingsManager.mcp.argsPlaceholder")}
                 className="mt-1"
               />
             </div>

@@ -114,6 +114,10 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
   const [editArgs, setEditArgs] = useState(server.config.args?.join(" ") || "");
 
   const handleSave = () => {
+    if (!editCommand.trim()) {
+      setIsEditing(false);
+      return;
+    }
     onEdit({
       ...server.config,
       command: editCommand,
@@ -484,7 +488,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                           onChange={(e) =>
                             setNewServerEnv({ ...newServerEnv, [key]: e.target.value })
                           }
-                          placeholder="Enter value..."
+                          placeholder={t("settingsManager.mcp.envValuePlaceholder")}
                           className="flex-1 font-mono text-sm"
                         />
                       </div>

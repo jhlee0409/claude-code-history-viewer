@@ -159,6 +159,9 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     async (newSettings: ClaudeCodeSettings, targetScope?: SettingsScope, targetProjectPath?: string) => {
       const scope = targetScope ?? activeScope;
       const effectiveProjectPath = targetProjectPath ?? projectPath;
+      if (scope !== "user" && !effectiveProjectPath) {
+        throw new Error("Project path is required for non-user scope settings");
+      }
       try {
         await invoke("save_settings", {
           scope,

@@ -163,7 +163,7 @@ const PermissionListEditor: React.FC<PermissionListEditorProps> = React.memo(({
               }
             }}
           />
-          <Button size="sm" className="h-8" onClick={addItem}>
+          <Button size="sm" className="h-8" onClick={addItem} aria-label={t("common.add")}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -410,7 +410,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                 <Input
                   value={newDirectory}
                   onChange={(e) => setNewDirectory(e.target.value)}
-                  placeholder="/path/to/additional/directory"
+                  placeholder={t("settingsManager.permissions.directoryPlaceholder")}
                   className="h-8 text-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -419,7 +419,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
                     }
                   }}
                 />
-                <Button size="sm" className="h-8" onClick={addDirectory}>
+                <Button size="sm" className="h-8" onClick={addDirectory} aria-label={t("settingsManager.permissions.addDirectory")}>
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
@@ -437,7 +437,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
               title={t("settingsManager.visual.allowList")}
               items={allowList}
               onItemsChange={handleAllowChange}
-              placeholder="e.g., Bash(rg:*), Read(/path/**)"
+              placeholder={t("settingsManager.permissions.allowPlaceholder")}
               readOnly={readOnly}
               variant="allow"
             />
@@ -447,7 +447,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
               title={t("settingsManager.visual.denyList")}
               items={denyList}
               onItemsChange={handleDenyChange}
-              placeholder="e.g., Write(/sensitive/**)"
+              placeholder={t("settingsManager.permissions.denyPlaceholder")}
               readOnly={readOnly}
               variant="deny"
             />
@@ -457,7 +457,7 @@ export const PermissionsSection: React.FC<PermissionsSectionProps> = React.memo(
               title={t("settingsManager.unified.permissions.askList")}
               items={askList}
               onItemsChange={handleAskChange}
-              placeholder="e.g., Bash(rm:*)"
+              placeholder={t("settingsManager.permissions.askPlaceholder")}
               readOnly={readOnly}
               variant="ask"
             />
