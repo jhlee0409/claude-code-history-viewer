@@ -578,7 +578,7 @@ export const InteractionCard = memo(({
                 )}
                 style={{ height: `${height}px` }}
                 onClick={onClick}
-                aria-label={`Open message from ${role}`}
+                aria-label={t('interaction.openMessageFrom', { role })}
             >
                 {/* Content Icon Overlay (Pixel View) */}
                 {!isExpanded && (

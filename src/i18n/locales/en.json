@@ -256,6 +256,7 @@
   "interaction.cacheHit": "Cache Hit: {{tokens}} tokens",
   "interaction.duration": "Duration: {{seconds}}s",
   "interaction.markdownFileEdit": "Markdown File Edit",
+  "interaction.openMessageFrom": "Open message from {{role}}",
   "board.clickToFilter.shell": "Shell Commands - Click to Filter",
   "board.clickToFilter.filesCreated": "Files Created ({{count}}) / File Tools ({{total}})",
   "board.clickToFilter.fileOperations": "File Operations (ls, glob, etc)",
