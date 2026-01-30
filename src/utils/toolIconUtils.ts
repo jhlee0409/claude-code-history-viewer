@@ -14,32 +14,39 @@ export const getToolVariant = (name: string): RendererVariant => {
     // Fuzzy fallback for unknown tools (MCP plugins, custom tools, legacy names)
     const lower = name.toLowerCase();
 
-    // Use word boundaries or specific patterns to avoid false positives
-    if (/\b(read|write|edit|lsp|notebook|replace)\b/.test(lower)) {
+    // Helper to check if a keyword matches (underscore-separated OR PascalCase OR word boundary)
+    const matches = (keyword: string) => {
+        const pattern = new RegExp(`(^|_)${keyword}($|_)`, 'i');
+        const pascalPattern = new RegExp(`(^|[A-Z])${keyword}`, 'i');
+        return pattern.test(name) || pascalPattern.test(name);
+    };
+
+    // Use word boundaries treating underscores/PascalCase as separators to avoid false positives
+    if (matches('read') || matches('write') || matches('edit') || matches('lsp') || matches('notebook') || matches('replace')) {
         return "code";
     }
-    if (/\b(grep|search)\b/.test(lower)) {
+    if (matches('grep') || matches('search')) {
         return "search";
     }
-    if (/\b(glob|ls|create)\b/.test(lower) || lower === "file") {
+    if (matches('glob') || matches('ls') || matches('create') || lower === "file") {
         return "file";
     }
-    if (/\b(task|todo|agent)\b/.test(lower)) {
+    if (matches('task') || matches('todo') || matches('agent')) {
         return "task";
     }
-    if (/\b(bash|command|shell|kill)\b/.test(lower)) {
+    if (matches('bash') || matches('command') || matches('shell') || matches('kill')) {
         return "terminal";
     }
-    if (/\bgit\b/.test(lower)) {
+    if (matches('git')) {
         return "git";
     }
-    if (/\b(web|fetch|http)\b/.test(lower)) {
+    if (matches('web') || matches('fetch') || matches('http')) {
         return "web";
     }
-    if (/\b(mcp|server)\b/.test(lower)) {
+    if (matches('mcp') || matches('server')) {
         return "mcp";
     }
-    if (/\b(document|pdf)\b/.test(lower)) {
+    if (matches('document') || matches('pdf')) {
         return "document";
     }
 

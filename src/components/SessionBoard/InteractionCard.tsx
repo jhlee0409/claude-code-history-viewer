@@ -121,6 +121,7 @@ const ExpandedCard = memo(({
 
         // Heuristic: If trigger is in the bottom half of the screen, prefer bottom alignment (grow up or anchor bottom)
         const isBottomHalf = triggerRect.top > windowHeight / 2;
+        const anchorY = isBottomHalf ? 'bottom' : 'top';
 
         let top: number;
         if (isBottomHalf) {
