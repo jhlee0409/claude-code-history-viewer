@@ -685,8 +685,8 @@ pub async fn get_project_token_stats(
     let process_time = start.elapsed();
 
     // Filter by date if provided
-    let s_limit = None;
-    let e_limit = None;
+    let mut s_limit = None;
+    let mut e_limit = None;
 
     if let Some(s_str) = start_date {
         match DateTime::parse_from_rfc3339(&s_str) {
