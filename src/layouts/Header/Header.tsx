@@ -62,7 +62,7 @@ export const Header = () => {
       await analyticsActions.switchToBoard();
     } catch (error) {
       console.error("Failed to load board:", error);
-      window.alert("Failed to load board");
+      window.alert(t("error.loadBoard"));
     }
   };
 
@@ -167,7 +167,7 @@ export const Header = () => {
             {/* Session Board */}
             <NavButton
               icon={Columns}
-              label="Session Board"
+              label={t("board.title")}
               isActive={computed.isBoardView}
               onClick={() => {
                 if (computed.isBoardView) {

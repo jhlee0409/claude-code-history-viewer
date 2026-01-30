@@ -220,11 +220,13 @@ export const SessionLane = ({
         overscan: 10,
     });
 
+    const totalSize = rowVirtualizer.getTotalSize();
+
     useEffect(() => {
         if (onHeightChange) {
-            onHeightChange(rowVirtualizer.getTotalSize());
+            onHeightChange(totalSize);
         }
-    }, [rowVirtualizer.getTotalSize(), onHeightChange]);
+    }, [totalSize, onHeightChange]);
 
     const getLaneBackground = () => {
         // Default transparent background

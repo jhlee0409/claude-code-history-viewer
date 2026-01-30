@@ -101,11 +101,20 @@ export const createBoardSlice: StateCreator<
     loadBoardSessions: async (sessions: ClaudeSession[]) => {
         set({ isLoadingBoard: true, boardLoadError: null });
 
+        // Helper for basic path safety check
+        const isAbsolutePath = (p: string) => /^(?:[A-Za-z]:[\\/]|\/)/.test(p);
+
         try {
             const selectedProject = get().selectedProject;
             let projectCommits: import("../../types").GitCommit[] = [];
 
             if (selectedProject?.actual_path) {
+                if (!isAbsolutePath(selectedProject.actual_path)) {
+                    const msg = `Invalid project path: ${selectedProject.actual_path}`;
+                    set({ isLoadingBoard: false, boardLoadError: msg });
+                    window.alert(msg);
+                    return;
+                }
                 try {
                     projectCommits = await invoke<import("../../types").GitCommit[]>(
                         "get_git_log",
@@ -122,6 +131,12 @@ export const createBoardSlice: StateCreator<
 
             const loadPromises = sessions.map(async (session) => {
                 try {
+                    if (!isAbsolutePath(session.file_path)) {
+                        const msg = `Invalid session path: ${session.file_path}`;
+                        set({ isLoadingBoard: false, boardLoadError: msg });
+                        window.alert(msg);
+                        return null;
+                    }
                     const messages = await invoke<ClaudeMessage[]>(
                         "load_session_messages",
                         { sessionPath: session.file_path }

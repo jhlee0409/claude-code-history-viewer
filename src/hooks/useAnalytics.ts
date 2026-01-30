@@ -556,22 +556,25 @@ export const useAnalytics = (): UseAnalyticsReturn => {
    */
   useEffect(() => {
     if (selectedProject) {
-      if (computed.isTokenStatsView) {
-        loadProjectTokenStats(selectedProject.path);
-      } else if (computed.isAnalyticsView) {
-        const updateSummary = async () => {
-          setAnalyticsLoadingProjectSummary(true);
-          try {
+      const update = async () => {
+        try {
+          if (computed.isTokenStatsView) {
+            await loadProjectTokenStats(selectedProject.path);
+          } else if (computed.isAnalyticsView) {
+            setAnalyticsLoadingProjectSummary(true);
             const summary = await loadProjectStatsSummary(selectedProject.path);
             setAnalyticsProjectSummary(summary);
-          } catch (err) {
-            console.error(err);
-          } finally {
-            setAnalyticsLoadingProjectSummary(false);
           }
-        };
-        updateSummary();
-      }
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : t("common.hooks.projectSummaryLoadFailed");
+          setAnalyticsProjectSummaryError(message);
+          window.alert(message);
+        } finally {
+          setAnalyticsLoadingProjectSummary(false);
+        }
+      };
+      void update();
     }
   }, [
     dateFilter.start?.getTime(),
@@ -582,7 +585,9 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     loadProjectTokenStats,
     loadProjectStatsSummary,
     setAnalyticsLoadingProjectSummary,
-    setAnalyticsProjectSummary
+    setAnalyticsProjectSummary,
+    setAnalyticsProjectSummaryError,
+    t
   ]);
 
   return {

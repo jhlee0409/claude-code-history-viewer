@@ -646,6 +646,14 @@ pub async fn get_project_token_stats(
     start_date: Option<String>,
     end_date: Option<String>,
 ) -> Result<PaginatedTokenStats, String> {
+    if project_path.trim().is_empty() {
+        return Err("project_path is required".to_string());
+    }
+    let project_path_buf = PathBuf::from(&project_path);
+    if !project_path_buf.is_absolute() {
+        return Err("project_path must be absolute".to_string());
+    }
+
     #[cfg(debug_assertions)]
     let start = std::time::Instant::now();
     let offset = offset.unwrap_or(0);
@@ -672,25 +680,24 @@ pub async fn get_project_token_stats(
     let process_time = start.elapsed();
 
     // Filter by date if provided
-    if let (Some(s_str), Some(e_str)) = (start_date, end_date) {
-        if let (Ok(s_dt), Ok(e_dt)) = (
-            DateTime::parse_from_rfc3339(&s_str),
-            DateTime::parse_from_rfc3339(&e_str),
-        ) {
-            let s_utc = s_dt.with_timezone(&Utc);
-            // Include full end day by setting it to the end of the day if needed, 
-            // but usually RFC3339 should be specific.
-            let e_utc = e_dt.with_timezone(&Utc);
-            
-            all_stats.retain(|stat| {
-                if let Ok(ts_dt) = DateTime::parse_from_rfc3339(&stat.last_message_time) {
-                    let ts_utc = ts_dt.with_timezone(&Utc);
-                    ts_utc >= s_utc && ts_utc <= e_utc
-                } else {
-                    false
-                }
-            });
-        }
+    let s_limit = start_date
+        .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+        .map(|d| d.with_timezone(&Utc));
+    let e_limit = end_date
+        .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+        .map(|d| d.with_timezone(&Utc));
+
+    if s_limit.is_some() || e_limit.is_some() {
+        all_stats.retain(|stat| {
+            if let Ok(ts_dt) = DateTime::parse_from_rfc3339(&stat.last_message_time) {
+                let ts_utc = ts_dt.with_timezone(&Utc);
+                let after_start = s_limit.map(|s| ts_utc >= s).unwrap_or(true);
+                let before_end = e_limit.map(|e| ts_utc <= e).unwrap_or(true);
+                after_start && before_end
+            } else {
+                false
+            }
+        });
     }
 
     let total_count = all_stats.len();
@@ -731,6 +738,14 @@ pub async fn get_project_stats_summary(
     start_date: Option<String>,
     end_date: Option<String>,
 ) -> Result<ProjectStatsSummary, String> {
+    if project_path.trim().is_empty() {
+        return Err("project_path is required".to_string());
+    }
+    let project_path_buf = PathBuf::from(&project_path);
+    if !project_path_buf.is_absolute() {
+        return Err("project_path must be absolute".to_string());
+    }
+
     let start = std::time::Instant::now();
     let project_name = PathBuf::from(&project_path)
         .file_name()
