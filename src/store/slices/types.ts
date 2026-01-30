@@ -150,6 +150,7 @@ export interface AppStoreState {
   stickyBrush: boolean;
   selectedMessageId: string | null;
   isMarkdownPretty: boolean;
+  boardLoadError: string | null;
   dateFilter: import("../../types/board.types").DateFilter;
 
   // Navigation state

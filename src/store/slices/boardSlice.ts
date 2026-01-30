@@ -22,6 +22,7 @@ export interface BoardSliceState {
     stickyBrush: boolean;
     selectedMessageId: string | null;
     isMarkdownPretty: boolean;
+    boardLoadError: string | null;
 }
 
 export interface BoardSliceActions {
@@ -46,6 +47,7 @@ const initialBoardState: BoardSliceState = {
     stickyBrush: false,
     selectedMessageId: null,
     isMarkdownPretty: true, // Default to pretty printing
+    boardLoadError: null,
 };
 
 /**
@@ -97,7 +99,7 @@ export const createBoardSlice: StateCreator<
     ...initialBoardState,
 
     loadBoardSessions: async (sessions: ClaudeSession[]) => {
-        set({ isLoadingBoard: true });
+        set({ isLoadingBoard: true, boardLoadError: null });
 
         try {
             const selectedProject = get().selectedProject;
@@ -111,6 +113,10 @@ export const createBoardSlice: StateCreator<
                     );
                 } catch (e) {
                     console.error("Failed to fetch git log:", e);
+                    const msg = `Failed to fetch git log: ${e}`;
+                    set({ isLoadingBoard: false, boardLoadError: msg });
+                    window.alert(msg);
+                    return; // Abort
                 }
             }
 
@@ -210,6 +216,9 @@ export const createBoardSlice: StateCreator<
                     };
                 } catch (err) {
                     console.error(`Failed to load session ${session.session_id}:`, err);
+                    const msg = `Failed to load session message: ${err}`;
+                    set({ isLoadingBoard: false, boardLoadError: msg });
+                    window.alert(msg);
                     return null;
                 }
             });
@@ -243,7 +252,9 @@ export const createBoardSlice: StateCreator<
 
         } catch (error) {
             console.error("Failed to load board sessions:", error);
-            set({ isLoadingBoard: false });
+            const msg = `Failed to load board sessions: ${error}`;
+            set({ isLoadingBoard: false, boardLoadError: msg });
+            window.alert(msg);
         }
     },
 

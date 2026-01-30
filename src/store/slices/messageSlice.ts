@@ -365,18 +365,25 @@ export const createMessageSlice: StateCreator<
   },
 
   loadProjectStatsSummary: async (projectPath: string) => {
-    const { dateFilter } = get();
+    try {
+      const { dateFilter } = get();
 
-    // Ensure end date includes the full day
-    const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-    if (endDate) {
-      endDate.setHours(23, 59, 59, 999);
+      // Ensure end date includes the full day
+      const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
+      if (endDate) {
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      return await fetchProjectStatsSummary(projectPath, {
+        start_date: dateFilter.start?.toISOString(),
+        end_date: endDate?.toISOString(),
+      });
+    } catch (error) {
+      console.error("Failed to load project stats summary:", error);
+      get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
+      window.alert(`Failed to load project stats summary: ${String(error)}`);
+      throw error;
     }
-
-    return fetchProjectStatsSummary(projectPath, {
-      start_date: dateFilter.start?.toISOString(),
-      end_date: endDate?.toISOString(),
-    });
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {

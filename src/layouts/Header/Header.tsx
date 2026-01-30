@@ -62,6 +62,7 @@ export const Header = () => {
       await analyticsActions.switchToBoard();
     } catch (error) {
       console.error("Failed to load board:", error);
+      window.alert("Failed to load board");
     }
   };
 

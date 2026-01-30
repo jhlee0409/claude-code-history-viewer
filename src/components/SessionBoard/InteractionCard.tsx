@@ -82,32 +82,20 @@ const ExpandedCard = ({
 
         let left = triggerRect.right + gap;
 
-        // Default to top alignment
-        let top = triggerRect.top;
-        let anchorY: 'top' | 'bottom' = 'top';
-
-        // Flip to left if not enough space on right
-        if (left + cardWidth > windowWidth - 20) {
-            left = triggerRect.left - cardWidth - gap;
-        }
-
         // Heuristic: If trigger is in the bottom half of the screen, prefer bottom alignment (grow up or anchor bottom)
         const isBottomHalf = triggerRect.top > windowHeight / 2;
+        const anchorY: 'top' | 'bottom' = isBottomHalf ? 'bottom' : 'top';
 
-        // If we anchor to top, we might overflow bottom.
-        // If we anchor to bottom, we want to align the BOTTOM of the card with the BOTTOM of the trigger (or viewport).
-
+        let top: number;
         if (isBottomHalf) {
-            // Anchor to bottom
-            anchorY = 'bottom';
             // y will be the distance from the bottom of the viewport
             top = windowHeight - triggerRect.bottom;
 
             // If bottom edge is too close to bottom of screen (e.g. huge trigger?), clamp it.
             if (top < 20) top = 20;
         } else {
-            // Anchor to top
-            anchorY = 'top';
+            top = triggerRect.top;
+
             // If top is offscreen?
             if (top < 20) top = 20;
             // Overflow check is handled by max-height usually.

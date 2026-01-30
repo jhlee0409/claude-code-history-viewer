@@ -300,43 +300,49 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       throw new Error(t('common.hooks.noProjectSelected'));
     }
 
-    const { boardSessions, loadBoardSessions, dateFilter, setDateFilter, sessions } = useAppStore.getState();
-    const hasAnySessionsLoaded = Object.keys(boardSessions).length > 0;
+    try {
+      const { boardSessions, loadBoardSessions, dateFilter, setDateFilter, sessions } = useAppStore.getState();
+      const hasAnySessionsLoaded = Object.keys(boardSessions).length > 0;
 
-    setAnalyticsCurrentView("board");
-    clearAnalyticsErrors();
+      setAnalyticsCurrentView("board");
+      clearAnalyticsErrors();
 
-    // If no sessions are loaded for this board yet, load them all
-    // Or if the project changed (we check if any loaded session doesn't belong to current project)
-    const firstSession = Object.values(boardSessions)[0];
-    const needsFullReload = !hasAnySessionsLoaded ||
-      (firstSession && firstSession.session.project_name !== project.name) ||
-      (sessions.length > Object.keys(boardSessions).length);
+      // If no sessions are loaded for this board yet, load them all
+      // Or if the project changed (we check if any loaded session doesn't belong to current project)
+      const firstSession = Object.values(boardSessions)[0];
+      const needsFullReload = !hasAnySessionsLoaded ||
+        (firstSession && firstSession.session.project_name !== project.name) ||
+        (sessions.length > Object.keys(boardSessions).length);
 
-    if (needsFullReload && sessions.length > 0) {
-      // Load all sessions to "map the full range" as requested
-      // Note: This might be slow if there are 100s, but we'll start with this and optimize if needed.
-      await loadBoardSessions(sessions);
+      if (needsFullReload && sessions.length > 0) {
+        // Load all sessions to "map the full range" as requested
+        // Note: This might be slow if there are 100s, but we'll start with this and optimize if needed.
+        await loadBoardSessions(sessions);
 
-      // Initialize or Update date filter to the full range
-      // We do this if we just reloaded the board (new project) OR if the filter is empty
-      if (sessions.length > 0 && (needsFullReload || (!dateFilter.start && !dateFilter.end))) {
-        // Calculate true min/max range across all sessions
-        const timestamps = sessions.flatMap(s => [
-          new Date(s.first_message_time).getTime(),
-          new Date(s.last_modified).getTime()
-        ]).filter(t => !isNaN(t) && t > 0);
+        // Initialize or Update date filter to the full range
+        // We do this if we just reloaded the board (new project) OR if the filter is empty
+        if (sessions.length > 0 && (needsFullReload || (!dateFilter.start && !dateFilter.end))) {
+          // Calculate true min/max range across all sessions
+          const timestamps = sessions.flatMap(s => [
+            new Date(s.first_message_time).getTime(),
+            new Date(s.last_modified).getTime()
+          ]).filter(t => !isNaN(t) && t > 0);
 
-        if (timestamps.length > 0) {
-          const minTime = Math.min(...timestamps);
-          const maxTime = Math.max(...timestamps);
+          if (timestamps.length > 0) {
+            const minTime = Math.min(...timestamps);
+            const maxTime = Math.max(...timestamps);
 
-          setDateFilter({
-            start: new Date(minTime), // Start exactly at first file/msg
-            end: new Date(maxTime)    // End exactly at last modified
-          });
+            setDateFilter({
+              start: new Date(minTime), // Start exactly at first file/msg
+              end: new Date(maxTime)    // End exactly at last modified
+            });
+          }
         }
       }
+    } catch (error) {
+      console.error("Failed to load board:", error);
+      // Surface error to user
+      window.alert(`Failed to load board: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, [t, selectedProject, sessions, setAnalyticsCurrentView, clearAnalyticsErrors]);
 

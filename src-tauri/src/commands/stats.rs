@@ -140,46 +140,8 @@ fn process_session_file_for_global_stats(session_path: &PathBuf) -> Option<Sessi
                     }
                 }
 
-                // Tool usage from assistant content
-                if message.message_type == "assistant" {
-                    if let Some(content) = &message.content {
-                        if let Some(content_array) = content.as_array() {
-                            for item in content_array {
-                                if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                                    if item_type == "tool_use" {
-                                        if let Some(name) =
-                                            item.get("name").and_then(|v| v.as_str())
-                                        {
-                                            let tool_entry = stats
-                                                .tool_usage
-                                                .entry(name.to_string())
-                                                .or_insert((0, 0));
-                                            tool_entry.0 += 1;
-                                            tool_entry.1 += 1;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Tool usage from explicit tool_use field
-                if let Some(tool_use) = &message.tool_use {
-                    if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
-                        let tool_entry = stats.tool_usage.entry(name.to_string()).or_insert((0, 0));
-                        tool_entry.0 += 1;
-                        if let Some(result) = &message.tool_use_result {
-                            let is_error = result
-                                .get("is_error")
-                                .and_then(serde_json::Value::as_bool)
-                                .unwrap_or(false);
-                            if !is_error {
-                                tool_entry.1 += 1;
-                            }
-                        }
-                    }
-                }
+                // Track tool usage
+                track_tool_usage(&message, &mut stats.tool_usage);
             }
         }
     }
@@ -294,46 +256,8 @@ fn process_session_file_for_project_stats(
                         u64::from(usage.cache_read_input_tokens.unwrap_or(0));
                 }
 
-                // Tool usage from assistant content
-                if message.message_type == "assistant" {
-                    if let Some(content) = &message.content {
-                        if let Some(content_array) = content.as_array() {
-                            for item in content_array {
-                                if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                                    if item_type == "tool_use" {
-                                        if let Some(name) =
-                                            item.get("name").and_then(|v| v.as_str())
-                                        {
-                                            let tool_entry = stats
-                                                .tool_usage
-                                                .entry(name.to_string())
-                                                .or_insert((0, 0));
-                                            tool_entry.0 += 1;
-                                            tool_entry.1 += 1;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Tool usage from explicit tool_use field
-                if let Some(tool_use) = &message.tool_use {
-                    if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
-                        let tool_entry = stats.tool_usage.entry(name.to_string()).or_insert((0, 0));
-                        tool_entry.0 += 1;
-                        if let Some(result) = &message.tool_use_result {
-                            let is_error = result
-                                .get("is_error")
-                                .and_then(serde_json::Value::as_bool)
-                                .unwrap_or(false);
-                            if !is_error {
-                                tool_entry.1 += 1;
-                            }
-                        }
-                    }
-                }
+                // Track tool usage
+                track_tool_usage(&message, &mut stats.tool_usage);
             }
         }
     }
@@ -369,6 +293,44 @@ fn process_session_file_for_project_stats(
 
     stats.timestamps = session_timestamps;
     Some(stats)
+}
+
+fn track_tool_usage(message: &ClaudeMessage, tool_usage: &mut HashMap<String, (u32, u32)>) {
+    // Tool usage from assistant content
+    if message.message_type == "assistant" {
+        if let Some(content) = &message.content {
+            if let Some(content_array) = content.as_array() {
+                for item in content_array {
+                    if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
+                        if item_type == "tool_use" {
+                            if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
+                                let tool_entry = tool_usage.entry(name.to_string()).or_insert((0, 0));
+                                tool_entry.0 += 1;
+                                tool_entry.1 += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Tool usage from explicit tool_use field
+    if let Some(tool_use) = &message.tool_use {
+        if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
+            let tool_entry = tool_usage.entry(name.to_string()).or_insert((0, 0));
+            tool_entry.0 += 1;
+            if let Some(result) = &message.tool_use_result {
+                let is_error = result
+                    .get("is_error")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false);
+                if !is_error {
+                    tool_entry.1 += 1;
+                }
+            }
+        }
+    }
 }
 
 fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
@@ -511,39 +473,8 @@ pub async fn get_session_token_stats(session_path: String) -> Result<SessionToke
         }
 
         // Track tool usage
-        if message.message_type == "assistant" {
-            if let Some(content) = &message.content {
-                if let Some(content_array) = content.as_array() {
-                    for item in content_array {
-                        if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                            if item_type == "tool_use" {
-                                if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
-                                    let tool_entry = tool_usage.entry(name.to_string()).or_insert((0, 0));
-                                    tool_entry.0 += 1;
-                                    tool_entry.1 += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if let Some(tool_use) = &message.tool_use {
-            if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
-                let tool_entry = tool_usage.entry(name.to_string()).or_insert((0, 0));
-                tool_entry.0 += 1;
-                if let Some(result) = &message.tool_use_result {
-                    let is_error = result
-                        .get("is_error")
-                        .and_then(serde_json::Value::as_bool)
-                        .unwrap_or(false);
-                    if !is_error {
-                        tool_entry.1 += 1;
-                    }
-                }
-            }
-        }
+        // Track tool usage
+        track_tool_usage(message, &mut tool_usage);
     }
 
     let most_used_tools = tool_usage
@@ -663,41 +594,8 @@ fn extract_session_token_stats_sync(session_path: &PathBuf) -> Option<SessionTok
                 }
 
                 // Track tool usage
-                if message.message_type == "assistant" {
-                    if let Some(content) = &message.content {
-                        if let Some(content_array) = content.as_array() {
-                            for item in content_array {
-                                if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                                    if item_type == "tool_use" {
-                                        if let Some(name) = item.get("name").and_then(|v| v.as_str())
-                                        {
-                                            let tool_entry =
-                                                tool_usage.entry(name.to_string()).or_insert((0, 0));
-                                            tool_entry.0 += 1;
-                                            tool_entry.1 += 1;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if let Some(tool_use) = &message.tool_use {
-                    if let Some(name) = tool_use.get("name").and_then(|v| v.as_str()) {
-                        let tool_entry = tool_usage.entry(name.to_string()).or_insert((0, 0));
-                        tool_entry.0 += 1;
-                        if let Some(result) = &message.tool_use_result {
-                            let is_error = result
-                                .get("is_error")
-                                .and_then(serde_json::Value::as_bool)
-                                .unwrap_or(false);
-                            if !is_error {
-                                tool_entry.1 += 1;
-                            }
-                        }
-                    }
-                }
+                // Track tool usage
+                track_tool_usage(&message, &mut tool_usage);
             }
         }
     }

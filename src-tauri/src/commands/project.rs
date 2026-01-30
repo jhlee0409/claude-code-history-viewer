@@ -10,13 +10,26 @@ use walkdir::WalkDir;
 
 #[tauri::command]
 pub async fn get_git_log(actual_path: String, limit: usize) -> Result<Vec<GitCommit>, String> {
+    // Validate path is absolute and exists
+    let path_buf = PathBuf::from(&actual_path);
+    if !path_buf.is_absolute() {
+        return Err("Path must be absolute".to_string());
+    }
+    if !path_buf.exists() || !path_buf.is_dir() {
+        return Err("Path does not exist or is not a directory".to_string());
+    }
+
+    // Canonicalize to ensure we are using the real path
+    let safe_path = path_buf.canonicalize()
+        .map_err(|e| format!("Invalid path: {}", e))?;
+
     let output = Command::new("git")
         .args([
             "log",
             &format!("-n {}", limit),
             "--pretty=format:%H|%an|%at|%s",
         ])
-        .current_dir(&actual_path)
+        .current_dir(&safe_path)
         .output()
         .map_err(|e| format!("Failed to execute git log: {}", e))?;
 
