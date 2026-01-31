@@ -74,20 +74,28 @@ export const SessionBoard = () => {
         const tools = new Set<string>();
         const files = new Set<string>();
         const mcpServers = new Set<string>();
-        const shellCommands = new Set<string>();
+        const commandFrecency = new Map<string, { count: number; lastTimestamp: number }>();
+        
+        const now = Date.now();
 
         sessionIds.forEach(id => {
             const data = boardSessions[id];
             if (!data) return;
 
             data.messages.forEach(msg => {
+                const msgTimestamp = new Date(msg.timestamp).getTime();
+                
                 // Check for hooks in system messages
                 if (msg.type === 'system' && msg.hookCount && msg.hookCount > 0) {
-                    // Track individual commands from hookInfos
+                    // Track individual commands from hookInfos with frecency
                     if (msg.hookInfos && msg.hookInfos.length > 0) {
                         msg.hookInfos.forEach(info => {
                             if (info.command) {
-                                shellCommands.add(info.command);
+                                const existing = commandFrecency.get(info.command) || { count: 0, lastTimestamp: 0 };
+                                commandFrecency.set(info.command, {
+                                    count: existing.count + 1,
+                                    lastTimestamp: Math.max(existing.lastTimestamp, msgTimestamp)
+                                });
                             }
                         });
                     }
@@ -103,8 +111,8 @@ export const SessionBoard = () => {
                         const content = msg.content;
                         if (Array.isArray(content)) {
                             content.forEach(c => {
-                                if (c.type === 'mcp_tool_use' && c.server_name) {
-                                    mcpServers.add(c.server_name);
+                                if (c.type === 'mcp_tool_use' && (c as { server_name?: string }).server_name) {
+                                    mcpServers.add((c as { server_name: string }).server_name);
                                 }
                             });
                         }
@@ -114,13 +122,22 @@ export const SessionBoard = () => {
                         // Check for git in shell commands
                         const cmd = toolBlock.input?.CommandLine || toolBlock.input?.command;
                         if (typeof cmd === 'string') {
-                            shellCommands.add(cmd);
+                            // Track terminal commands with frecency
+                            const existing = commandFrecency.get(cmd) || { count: 0, lastTimestamp: 0 };
+                            commandFrecency.set(cmd, {
+                                count: existing.count + 1,
+                                lastTimestamp: Math.max(existing.lastTimestamp, msgTimestamp)
+                            });
+                            
                             if (cmd.trim().startsWith('git')) {
                                 tools.add('git');
                             }
                         }
                     }
-                    tools.add(variant);
+                    // Only add meaningful tool variants (exclude neutral/generic fallback)
+                    if (variant !== 'neutral' && variant !== 'info') {
+                        tools.add(variant);
+                    }
                     const path = toolBlock.input?.path || toolBlock.input?.file_path || toolBlock.input?.TargetFile;
                     if (path && typeof path === 'string') {
                         files.add(path);
@@ -129,11 +146,24 @@ export const SessionBoard = () => {
             });
         });
 
+        // Calculate frecency scores and get top 10 commands
+        const commandsWithFrecency = Array.from(commandFrecency.entries()).map(([cmd, data]) => {
+            const ageInDays = (now - data.lastTimestamp) / (1000 * 60 * 60 * 24);
+            const recencyWeight = 1 / (1 + ageInDays); // Decay function
+            const frecencyScore = data.count * recencyWeight;
+            return { cmd, score: frecencyScore };
+        });
+        
+        const topCommands = commandsWithFrecency
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 10)
+            .map(item => item.cmd);
+
         return {
             tools: Array.from(tools).sort(),
             files: Array.from(files).sort(),
             mcpServers: Array.from(mcpServers).sort(),
-            shellCommands: Array.from(shellCommands).sort()
+            shellCommands: topCommands
         };
     }, [boardSessions]);
 
