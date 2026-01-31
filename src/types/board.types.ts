@@ -55,8 +55,8 @@ import type { RendererVariant } from "@/components/renderers/types";
 // ... existing code ...
 
 export interface ActiveBrush {
-    type: "model" | "status" | "tool" | "file";
-    value: string;
+    type: "model" | "status" | "tool" | "file" | "hook" | "command" | "mcp";
+    value: string; // for mcp type, can be "all" or "server_name"
 }
 
 export interface BrushableCard {
@@ -70,6 +70,9 @@ export interface BrushableCard {
     isShell: boolean;
     isFileEdit: boolean;
     editedFiles: string[];
+    hasHook: boolean; // Has stop_hook
+    shellCommands: string[]; // Terminal/shell commands executed
+    mcpServers: string[]; // MCP server names used
 }
 
 export interface BoardState {

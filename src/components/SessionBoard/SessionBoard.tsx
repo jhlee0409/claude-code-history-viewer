@@ -71,28 +71,53 @@ export const SessionBoard = () => {
     // Compute brushing options for visible sessions (Step 8)
     // Helper to extract brush options from a list of session IDs
     const getBrushOptions = useCallback((sessionIds: string[]) => {
-        const models = new Set<string>();
         const tools = new Set<string>();
         const files = new Set<string>();
-        const statuses = new Set<string>(['error', 'cancelled']);
+        const mcpServers = new Set<string>();
+        const shellCommands = new Set<string>();
 
         sessionIds.forEach(id => {
             const data = boardSessions[id];
             if (!data) return;
 
             data.messages.forEach(msg => {
-                if (msg.type === 'assistant' && msg.model) {
-                    models.add(msg.model);
+                // Check for hooks in system messages
+                if (msg.type === 'system' && msg.hookCount && msg.hookCount > 0) {
+                    // Track individual commands from hookInfos
+                    if (msg.hookInfos && msg.hookInfos.length > 0) {
+                        msg.hookInfos.forEach(info => {
+                            if (info.command) {
+                                shellCommands.add(info.command);
+                            }
+                        });
+                    }
                 }
 
                 const toolBlock = getToolUseBlock(msg);
                 if (toolBlock) {
                     const variant = getToolVariant(toolBlock.name);
+                    
+                    // Track MCP server names for tools that are MCP
+                    if (variant === 'mcp' && msg.type === 'user') {
+                        // Find the mcp_tool_use content
+                        const content = msg.content;
+                        if (Array.isArray(content)) {
+                            content.forEach(c => {
+                                if (c.type === 'mcp_tool_use' && c.server_name) {
+                                    mcpServers.add(c.server_name);
+                                }
+                            });
+                        }
+                    }
+                    
                     if (variant === 'terminal') {
                         // Check for git in shell commands
                         const cmd = toolBlock.input?.CommandLine || toolBlock.input?.command;
-                        if (typeof cmd === 'string' && cmd.trim().startsWith('git')) {
-                            tools.add('git');
+                        if (typeof cmd === 'string') {
+                            shellCommands.add(cmd);
+                            if (cmd.trim().startsWith('git')) {
+                                tools.add('git');
+                            }
                         }
                     }
                     tools.add(variant);
@@ -105,10 +130,10 @@ export const SessionBoard = () => {
         });
 
         return {
-            models: Array.from(models).sort(),
             tools: Array.from(tools).sort(),
             files: Array.from(files).sort(),
-            statuses: Array.from(statuses).sort()
+            mcpServers: Array.from(mcpServers).sort(),
+            shellCommands: Array.from(shellCommands).sort()
         };
     }, [boardSessions]);
 
@@ -288,14 +313,14 @@ export const SessionBoard = () => {
                 activeBrush={activeBrush}
                 stickyBrush={stickyBrush}
                 onBrushChange={setActiveBrush}
-                modelOptions={allBrushOptions.models}
-                statusOptions={allBrushOptions.statuses}
                 toolOptions={allBrushOptions.tools}
                 fileOptions={allBrushOptions.files}
-                availableModels={visibleBrushOptions.models}
+                mcpServerOptions={allBrushOptions.mcpServers}
+                shellCommandOptions={allBrushOptions.shellCommands}
                 availableTools={visibleBrushOptions.tools}
                 availableFiles={visibleBrushOptions.files}
-                availableStatuses={visibleBrushOptions.statuses}
+                availableMcpServers={visibleBrushOptions.mcpServers}
+                availableShellCommands={visibleBrushOptions.shellCommands}
                 dateFilter={dateFilter}
                 setDateFilter={setDateFilter}
             />

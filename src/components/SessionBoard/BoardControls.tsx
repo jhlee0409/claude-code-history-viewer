@@ -26,8 +26,12 @@ interface BoardControlsProps {
     onBrushChange: (brush: ActiveBrush | null) => void;
     toolOptions?: string[];
     fileOptions?: string[];
+    mcpServerOptions?: string[];
+    shellCommandOptions?: string[];
     availableTools?: string[];
     availableFiles?: string[];
+    availableMcpServers?: string[];
+    availableShellCommands?: string[];
     dateFilter?: DateFilter;
     setDateFilter?: (filter: DateFilter) => void;
 }
@@ -39,7 +43,13 @@ export const BoardControls = ({
     stickyBrush = false,
     onBrushChange,
     toolOptions = [],
-    fileOptions = []
+    fileOptions = [],
+    mcpServerOptions = [],
+    shellCommandOptions = [],
+    availableTools = [],
+    availableFiles = [],
+    availableMcpServers = [],
+    availableShellCommands = []
 }: BoardControlsProps) => {
     const { t } = useTranslation();
 
@@ -113,6 +123,74 @@ export const BoardControls = ({
                             ))}
                         </SelectContent>
                     </Select>
+
+                    {/* MCP with hierarchical flyout */}
+                    {mcpServerOptions.length > 0 && (
+                        <Select
+                            value={activeBrush?.type === 'mcp' ? activeBrush.value : ""}
+                            onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'mcp', value: v })}
+                        >
+                            <SelectTrigger className="h-7 w-32 text-[10px] bg-muted/20 border-border/30 px-2">
+                                <SelectValue placeholder={t("session.board.controls.mcp")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="_ALL_" className="text-[10px] font-bold text-muted-foreground">{t("session.board.controls.all")}</SelectItem>
+                                <SelectItem value="all" className="text-[10px]" disabled={availableMcpServers.length === 0}>{t("session.board.controls.allMcp")}</SelectItem>
+                                {mcpServerOptions.map(server => (
+                                    <SelectItem
+                                        key={server}
+                                        value={server}
+                                        className="text-[10px] pl-6"
+                                        disabled={availableMcpServers ? !availableMcpServers.includes(server) : false}
+                                    >
+                                        {server}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+
+                    {/* Commands with hierarchical flyout */}
+                    {shellCommandOptions.length > 0 && (
+                        <Select
+                            value={activeBrush?.type === 'command' ? activeBrush.value : ""}
+                            onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'command', value: v })}
+                        >
+                            <SelectTrigger className="h-7 w-32 text-[10px] bg-muted/20 border-border/30 px-2">
+                                <SelectValue placeholder={t("session.board.controls.command")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="_ALL_" className="text-[10px] font-bold text-muted-foreground">{t("session.board.controls.all")}</SelectItem>
+                                <SelectItem value="all" className="text-[10px]" disabled={availableShellCommands.length === 0}>{t("session.board.controls.allCommands")}</SelectItem>
+                                {shellCommandOptions.slice(0, 20).map(cmd => (
+                                    <SelectItem
+                                        key={cmd}
+                                        value={cmd}
+                                        className="text-[10px] pl-6 font-mono"
+                                        disabled={availableShellCommands ? !availableShellCommands.includes(cmd) : false}
+                                    >
+                                        {cmd.length > 40 ? cmd.substring(0, 40) + '...' : cmd}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+
+                    {/* Hooks toggle */}
+                    {shellCommandOptions.length > 0 && (
+                        <button
+                            onClick={() => onBrushChange(activeBrush?.type === 'hook' ? null : { type: 'hook', value: 'true' })}
+                            className={clsx(
+                                "h-7 px-2 text-[10px] rounded-md border transition-all",
+                                activeBrush?.type === 'hook' 
+                                    ? "bg-accent text-accent-foreground border-accent" 
+                                    : "bg-muted/20 border-border/30 hover:bg-muted/40"
+                            )}
+                            disabled={availableShellCommands.length === 0}
+                        >
+                            {t("session.board.controls.hooks")}
+                        </button>
+                    )}
 
                     <Select
                         value={activeBrush?.type === 'file' ? activeBrush.value : ""}

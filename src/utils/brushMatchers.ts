@@ -33,6 +33,19 @@ export function matchesBrush(brush: ActiveBrush | null, card: BrushableCard): bo
         case "file":
             // Exact match for now
             return card.editedFiles.some(f => f === brush.value || f.endsWith(brush.value));
+        case "hook":
+            return card.hasHook;
+        case "command":
+            if (brush.value === "all") {
+                return card.shellCommands.length > 0;
+            }
+            // Match if any shell command contains or equals the brush value
+            return card.shellCommands.some(cmd => cmd === brush.value || cmd.includes(brush.value));
+        case "mcp":
+            if (brush.value === "all") {
+                return card.mcpServers.length > 0;
+            }
+            return card.mcpServers.includes(brush.value);
         default:
             return false;
     }

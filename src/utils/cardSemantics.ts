@@ -129,6 +129,32 @@ export function getCardSemantics(
     // Model detection
     const model = isClaudeAssistantMessage(message) ? message.model : undefined;
 
+    // Hook detection
+    const hasHook = isClaudeSystemMessage(message) && (message.hookCount ?? 0) > 0;
+
+    // Shell commands from hooks and tool blocks
+    const shellCommands: string[] = [];
+    if (isClaudeSystemMessage(message) && message.hookInfos) {
+        message.hookInfos.forEach(info => {
+            if (info.command) {
+                shellCommands.push(info.command);
+            }
+        });
+    }
+    if (toolUseBlock && shellCommand) {
+        shellCommands.push(shellCommand);
+    }
+
+    // MCP server names
+    const mcpServers: string[] = [];
+    if (isClaudeUserMessage(message) && Array.isArray(message.content)) {
+        message.content.forEach(c => {
+            if (c.type === 'mcp_tool_use' && (c as { server_name?: string }).server_name) {
+                mcpServers.push((c as { server_name: string }).server_name);
+            }
+        });
+    }
+
     // Brush matching
     const brushMatch = matchesBrush(activeBrush || null, {
         role,
@@ -140,7 +166,10 @@ export function getCardSemantics(
         isGit,
         isShell,
         isFileEdit,
-        editedFiles
+        editedFiles,
+        hasHook,
+        shellCommands,
+        mcpServers
     });
 
     return {
