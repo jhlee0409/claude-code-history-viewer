@@ -392,6 +392,7 @@
   "feedback.preview": "预览",
   "feedback.sendEmail": "通过邮件发送",
   "feedback.sendError": "发送反馈失败。请重试。",
+  "feedback.lengthExceeded": "标题不超过100个字符，内容不超过1000个字符。",
   "feedback.sendingEmail": "发送中...",
   "feedback.subject": "主题",
   "feedback.subjectPlaceholder": "请输入简短的主题",

@@ -392,6 +392,7 @@
   "feedback.preview": "預覽",
   "feedback.sendEmail": "透過電子郵件發送",
   "feedback.sendError": "發送意見回馔失敗。請重試。",
+  "feedback.lengthExceeded": "標題不超過100個字元，內容不超過1000個字元。",
   "feedback.sendingEmail": "發送中...",
   "feedback.subject": "主題",
   "feedback.subjectPlaceholder": "請輸入簡短的主題",
