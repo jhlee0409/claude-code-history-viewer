@@ -103,7 +103,25 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
 
   const handleOpenGitHub = async () => {
     try {
-      await invoke("open_github_issues");
+      const trimmedSubject = subject.trim();
+      const trimmedBody = body.trim();
+
+      if (trimmedSubject.length > 100 || trimmedBody.length > 1000) {
+        alert(t("feedback.lengthExceeded"));
+        return;
+      }
+
+      const feedback =
+        trimmedSubject && trimmedBody
+          ? {
+              subject: trimmedSubject,
+              body: trimmedBody,
+              include_system_info: includeSystemInfo,
+              feedback_type: feedbackType,
+            }
+          : null;
+
+      await invoke("open_github_issues", { feedback });
     } catch (error) {
       console.error("Failed to open GitHub:", error);
       alert(t("feedback.openGitHubError"));

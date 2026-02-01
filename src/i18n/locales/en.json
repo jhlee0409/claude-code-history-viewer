@@ -392,6 +392,7 @@
   "feedback.preview": "Preview",
   "feedback.sendEmail": "Send via Email",
   "feedback.sendError": "Failed to send feedback. Please try again.",
+  "feedback.lengthExceeded": "Subject must be 100 characters or less and body must be 1000 characters or less.",
   "feedback.sendingEmail": "Sending...",
   "feedback.subject": "Subject",
   "feedback.subjectPlaceholder": "Please enter a brief subject",

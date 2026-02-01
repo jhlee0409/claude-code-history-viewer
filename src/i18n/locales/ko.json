@@ -392,6 +392,7 @@
   "feedback.preview": "미리보기",
   "feedback.sendEmail": "이메일로 보내기",
   "feedback.sendError": "피드백 전송에 실패했습니다. 다시 시도해주세요.",
+  "feedback.lengthExceeded": "제목은 100자, 내용은 1000자 이하여야 합니다.",
   "feedback.sendingEmail": "전송 중...",
   "feedback.subject": "제목",
   "feedback.subjectPlaceholder": "간단한 제목을 입력해주세요",

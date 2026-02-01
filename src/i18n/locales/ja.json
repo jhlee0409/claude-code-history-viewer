@@ -392,6 +392,7 @@
   "feedback.preview": "プレビュー",
   "feedback.sendEmail": "メールで送る",
   "feedback.sendError": "フィードバックの送信に失敗しました。もう一度お試しください。",
+  "feedback.lengthExceeded": "タイトルは100文字以内、本文は1000文字以内にしてください。",
   "feedback.sendingEmail": "送信中...",
   "feedback.subject": "件名",
   "feedback.subjectPlaceholder": "簡単な件名を入力してください",
