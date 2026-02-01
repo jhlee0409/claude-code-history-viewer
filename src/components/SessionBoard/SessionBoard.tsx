@@ -44,7 +44,6 @@ export const SessionBoard = () => {
     }, [setActiveBrush, setStickyBrush]);
 
     // Compute visible session IDs reactively based on date filter
-    // Compute visible session IDs reactively based on date filter
     const visibleSessionIds = useMemo(() => {
         if (!dateFilter?.start && !dateFilter?.end) {
             return allSortedSessionIds;
@@ -175,11 +174,20 @@ export const SessionBoard = () => {
     const parentRef = useRef<HTMLDivElement>(null);
     // Removed scrollSyncRef as we now use a shared scroll container
 
+    // Ref for visibleSessionIds to avoid useEffect dependency issues
+    const visibleSessionIdsRef = useRef(visibleSessionIds);
+    useEffect(() => {
+        visibleSessionIdsRef.current = visibleSessionIds;
+    }, [visibleSessionIds]);
+
     // Panning State
     const [isMetaPressed, setIsMetaPressed] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [startX, setStartX] = useState(0);
     const [scrollLeft, setScrollLeft] = useState(0);
+
+    // Cache for lane elements
+
 
     // Track Meta/Command key
     useEffect(() => {
@@ -216,11 +224,12 @@ export const SessionBoard = () => {
         const walkX = (x - startX) * 2;
         parentRef.current.scrollLeft = scrollLeft - walkX;
 
-        // Vertical Pan (Sync across all lanes)
-        const lanes = document.querySelectorAll('.session-lane-scroll');
-        lanes.forEach(lane => {
+        // Vertical Pan (Sync across all lanes) - use live HTMLCollection
+        const lanes = parentRef.current.getElementsByClassName('session-lane-scroll');
+        for (let i = 0; i < lanes.length; i++) {
+            const lane = lanes[i] as HTMLElement;
             lane.scrollTop = lane.scrollTop - (e.movementY * 1.5);
-        });
+        }
     };
 
     const handleMouseUp = () => {
@@ -257,6 +266,13 @@ export const SessionBoard = () => {
         setStickyBrush(!stickyBrush);
     }, [stickyBrush, setStickyBrush]);
 
+    const selectedMessageIdRef = useRef(selectedMessageId);
+    selectedMessageIdRef.current = selectedMessageId;
+
+    const handleInteractionClick = useCallback((id: string) => {
+        setSelectedMessageId(selectedMessageIdRef.current === id ? null : id);
+    }, [setSelectedMessageId]);
+
     const columnVirtualizer = useVirtualizer({
         count: visibleSessionIds.length,
         getScrollElement: () => parentRef.current,
@@ -283,10 +299,12 @@ export const SessionBoard = () => {
         }
     }, [zoomLevel, visibleSessionIds, columnVirtualizer]);
 
+
+
     // Scroll active session into view when transitioning from Detail view
     useEffect(() => {
-        if (selectedSession && visibleSessionIds.length > 0) {
-            const index = visibleSessionIds.indexOf(selectedSession.session_id);
+        if (selectedSession && visibleSessionIdsRef.current.length > 0) {
+            const index = visibleSessionIdsRef.current.indexOf(selectedSession.session_id);
             if (index !== -1) {
                 // Small timeout to ensure virtualizer is ready and layout is stable
                 requestAnimationFrame(() => {
@@ -294,7 +312,7 @@ export const SessionBoard = () => {
                 });
             }
         }
-    }, [selectedSession?.session_id]); // Only run when the ID changes (or on mount if set)
+    }, [selectedSession?.session_id, columnVirtualizer]); // Only run when the ID changes (or on mount if set)
 
     if (isLoadingBoard) {
         return (
@@ -411,13 +429,7 @@ export const SessionBoard = () => {
                                     onLeave={handleBoardLeave}
                                     onToggleSticky={handleToggleSticky}
                                     isSelected={selectedSession?.session_id === sessionId}
-                                    onInteractionClick={(id) => {
-                                        if (selectedMessageId === id) {
-                                            setSelectedMessageId(null);
-                                        } else {
-                                            setSelectedMessageId(id);
-                                        }
-                                    }}
+                                    onInteractionClick={handleInteractionClick}
                                     onNavigate={(messageId) => {
                                         // 1. Ensure this session is selected
                                         if (selectedSession?.session_id !== sessionId) {
@@ -461,7 +473,7 @@ export const SessionBoard = () => {
             {
                 isMetaPressed && !isDragging && (
                     <div className="fixed bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-accent text-white rounded-full text-xs font-bold shadow-2xl animate-bounce z-[100]">
-                        Drag to pan horizontally and vertically
+                        {t("session.board.dragToPan")}
                     </div>
                 )
             }

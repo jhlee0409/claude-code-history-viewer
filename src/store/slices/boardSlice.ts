@@ -110,9 +110,8 @@ export const createBoardSlice: StateCreator<
 
             if (selectedProject?.actual_path) {
                 if (!isAbsolutePath(selectedProject.actual_path)) {
-                    const msg = `Invalid project path: ${selectedProject.actual_path}`;
+                    const msg = "Invalid project path";
                     set({ isLoadingBoard: false, boardLoadError: msg });
-                    window.alert(msg);
                     return;
                 }
                 try {
@@ -122,9 +121,8 @@ export const createBoardSlice: StateCreator<
                     );
                 } catch (e) {
                     console.error("Failed to fetch git log:", e);
-                    const msg = `Failed to fetch git log: ${e}`;
+                    const msg = "Failed to fetch git log";
                     set({ isLoadingBoard: false, boardLoadError: msg });
-                    window.alert(msg);
                     return; // Abort
                 }
             }
@@ -132,9 +130,8 @@ export const createBoardSlice: StateCreator<
             const loadPromises = sessions.map(async (session) => {
                 try {
                     if (!isAbsolutePath(session.file_path)) {
-                        const msg = `Invalid session path: ${session.file_path}`;
-                        set({ isLoadingBoard: false, boardLoadError: msg });
-                        window.alert(msg);
+                        const msg = "Invalid session path";
+                        console.error(msg);
                         return null;
                     }
                     const messages = await invoke<ClaudeMessage[]>(
@@ -231,9 +228,8 @@ export const createBoardSlice: StateCreator<
                     };
                 } catch (err) {
                     console.error(`Failed to load session ${session.session_id}:`, err);
-                    const msg = `Failed to load session message: ${err}`;
-                    set({ isLoadingBoard: false, boardLoadError: msg });
-                    window.alert(msg);
+                    const msg = "Failed to load session";
+                    set({ boardLoadError: msg });
                     return null;
                 }
             });
@@ -267,9 +263,8 @@ export const createBoardSlice: StateCreator<
 
         } catch (error) {
             console.error("Failed to load board sessions:", error);
-            const msg = `Failed to load board sessions: ${error}`;
+            const msg = "Failed to load board sessions";
             set({ isLoadingBoard: false, boardLoadError: msg });
-            window.alert(msg);
         }
     },
 

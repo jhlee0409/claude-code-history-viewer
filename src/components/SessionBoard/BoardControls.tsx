@@ -193,7 +193,7 @@ export const BoardControls = ({
                                     className="text-[10px]"
                                     disabled={availableFiles ? !availableFiles.includes(f) : false}
                                 >
-                                    {f.split(/[\/]/).pop() || ""}
+                                    {f.split(/[\\/]/).pop() || ""}
                                 </SelectItem>
                             ))}
                         </SelectContent>

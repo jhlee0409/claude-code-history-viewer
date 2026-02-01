@@ -205,33 +205,26 @@ export const SessionLane = ({
         }
     }, [totalSize, onHeightChange]);
 
-    const getLaneBackground = () => {
-        // Default transparent background
-        return "bg-transparent";
-    };
-
     const getDepthStyles = () => {
         if (zoomLevel === 0) {
             return clsx(
                 "w-[80px] min-w-[80px] border-r border-border/30",
-                getLaneBackground(),
+                "bg-transparent",
                 isSelected && "bg-accent/5 ring-1 ring-inset ring-accent/40"
             );
         }
-
-        const baseBg = getLaneBackground();
 
         switch (depth) {
             case 'deep':
                 return clsx(
                     "w-[380px] min-w-[380px] border-slate-200/50 dark:border-slate-800/50",
-                    baseBg,
+                    "bg-transparent",
                     isSelected && "ring-2 ring-inset ring-accent/50 bg-accent/5 shadow-xl shadow-accent/5"
                 );
             default:
                 return clsx(
                     "w-[320px] min-w-[320px]",
-                    baseBg,
+                    "bg-transparent",
                     isSelected && "ring-2 ring-inset ring-accent/50 bg-accent/5 shadow-xl shadow-accent/5"
                 );
         }

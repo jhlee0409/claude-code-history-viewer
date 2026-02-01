@@ -25,11 +25,9 @@ pub async fn get_git_log(actual_path: String, limit: usize) -> Result<Vec<GitCom
         .map_err(|e| format!("Invalid path: {e}"))?;
 
     let output = Command::new("git")
-        .args([
-            "log",
-            &format!("-n {limit}"),
-            "--pretty=format:%H|%an|%at|%s",
-        ])
+        .args(["log", "-n"])
+        .arg(limit.to_string())
+        .args(["--pretty=format:%H|%an|%at|%s"])
         .current_dir(&safe_path)
         .output()
         .map_err(|e| format!("Failed to execute git log: {e}"))?;
