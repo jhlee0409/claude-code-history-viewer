@@ -5,9 +5,6 @@ pub mod utils;
 #[cfg(test)]
 pub mod test_utils;
 
-#[cfg(not(debug_assertions))]
-use dotenvy_macro::dotenv;
-
 use crate::commands::{
     claude_settings::{
         get_all_mcp_servers, get_all_settings, get_claude_json_config, get_mcp_servers,
@@ -47,13 +44,6 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init());
-
-    // Aptabase analytics - enabled for release builds only
-    #[cfg(not(debug_assertions))]
-    {
-        builder =
-            builder.plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build());
-    }
 
     builder
         .manage(MetadataState::default())
@@ -114,19 +104,5 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_, _| {
-            // Production only: track app lifecycle events
-            // TEMPORARILY DISABLED - Aptabase plugin causes runtime panic
-            // #[cfg(not(debug_assertions))]
-            // match _event {
-            //     tauri::RunEvent::Ready { .. } => {
-            //         let _ = _handler.track_event("app_started", None);
-            //     }
-            //     tauri::RunEvent::Exit { .. } => {
-            //         let _ = _handler.track_event("app_exited", None);
-            //         _handler.flush_events_blocking();
-            //     }
-            //     _ => {}
-            // }
-        });
+        .run(|_, _| {});
 }

@@ -10,7 +10,6 @@
     "dialog:allow-open",
     "dialog:default",
     "updater:default",
-    "updater:allow-check",
-    "aptabase:allow-track-event"
+    "updater:allow-check"
   ]
 }
