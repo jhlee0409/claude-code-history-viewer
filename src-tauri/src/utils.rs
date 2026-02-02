@@ -134,6 +134,13 @@ fn decode_with_filesystem_check(encoded: &str) -> Option<String> {
 /// This handles nested directories like "claude-code-history-viewer-src-tauri"
 /// → "claude-code-history-viewer/src-tauri".
 fn decode_recursive(encoded: &str, base_path: &str) -> Option<String> {
+    decode_recursive_inner(encoded, base_path, 0)
+}
+
+fn decode_recursive_inner(encoded: &str, base_path: &str, depth: usize) -> Option<String> {
+    if depth > 20 {
+        return None;
+    }
     if encoded.is_empty() {
         if !base_path.is_empty() && Path::new(base_path).exists() {
             return Some(base_path.to_string());
@@ -173,8 +180,8 @@ fn decode_recursive(encoded: &str, base_path: &str) -> Option<String> {
             }
 
             // Recurse: remaining may itself contain hyphens that are path separators
-            if let Some(result) = decode_recursive(remaining, &candidate) {
-                return result.into();
+            if let result @ Some(_) = decode_recursive_inner(remaining, &candidate, depth + 1) {
+                return result;
             }
         }
     }

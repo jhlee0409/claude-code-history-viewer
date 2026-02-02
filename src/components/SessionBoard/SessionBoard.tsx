@@ -431,9 +431,8 @@ export const SessionBoard = () => {
                                     isSelected={selectedSession?.session_id === sessionId}
                                     onInteractionClick={handleInteractionClick}
                                     onNavigate={(messageId) => {
-                                        // Always set session and messages from board cache
-                                        // This ensures messages are available even when returning
-                                        // from board view where messages state may have been cleared
+                                        // Set session and messages from board cache when session
+                                        // differs or messages are empty (e.g., after board view switch)
                                         const currentMessages = useAppStore.getState().messages;
                                         if (selectedSession?.session_id !== sessionId || currentMessages.length === 0) {
                                             useAppStore.setState({
