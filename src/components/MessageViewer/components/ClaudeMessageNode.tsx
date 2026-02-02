@@ -232,9 +232,17 @@ export const ClaudeMessageNode = React.memo(({
               </div>
             )}
 
-          {message.type === "assistant" && message.toolUse && (
-            <ClaudeToolUseDisplay toolUse={message.toolUse} />
-          )}
+          {message.type === "assistant" &&
+            message.toolUse &&
+            !(
+              Array.isArray(message.content) &&
+              message.content.some(
+                (item) =>
+                  item != null &&
+                  typeof item === "object" &&
+                  (item as unknown as Record<string, unknown>).type === "tool_use"
+              )
+            ) && <ClaudeToolUseDisplay toolUse={message.toolUse} />}
 
           {(message.type === "user" || message.type === "assistant") &&
             message.toolUseResult && (
