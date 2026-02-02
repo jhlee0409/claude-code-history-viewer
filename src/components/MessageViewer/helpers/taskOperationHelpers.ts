@@ -269,16 +269,22 @@ export function groupTaskOperations(
         flushGroup();
       }
     } else {
-      // Non-task message: if we have pending ops without results, add them anyway
-      if (currentGroup && currentGroup.pendingOps.length > 0) {
-        for (const op of currentGroup.pendingOps) {
-          currentGroup.operations.push(op);
-        }
-        currentGroup.pendingOps = [];
+      // Skip progress/system messages — they shouldn't break task grouping
+      if (msg.type === "progress" || msg.type === "system") {
+        continue;
       }
-      // Check timestamp gap
-      if (currentGroup && Math.abs(msgTime - currentGroup.lastTimestamp) > 5000) {
-        flushGroup();
+      // Non-task message: if we have pending ops waiting for results, keep waiting
+      // Only flush pending ops without results if timestamp gap exceeded
+      if (currentGroup) {
+        if (Math.abs(msgTime - currentGroup.lastTimestamp) > 5000) {
+          // Flush pending ops without results
+          for (const op of currentGroup.pendingOps) {
+            currentGroup.operations.push(op);
+          }
+          currentGroup.pendingOps = [];
+          flushGroup();
+        }
+        // Otherwise keep group open — result may come after non-task messages
       }
     }
   }
