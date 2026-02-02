@@ -17,8 +17,26 @@ const TABLE_ROW_LIMIT = 2;
 const getTextInfo = (text: string) => {
   const lines = text.split('\n');
   const lineCount = lines.length;
-  const preview = lines.slice(0, LINE_LIMIT).join('\n');
-  return { lineCount, preview, needsExpand: lineCount > LINE_LIMIT };
+  const previewLines = lines.slice(0, LINE_LIMIT);
+
+  // If truncated preview has an unclosed code fence, remove it to avoid
+  // rendering an empty/broken code block (fixes GitHub issue #66)
+  const preview = previewLines.join('\n');
+  const fenceCount = (preview.match(/^```/gm) || []).length;
+  if (fenceCount % 2 !== 0) {
+    // Remove trailing unclosed fence and any trailing empty lines
+    while (previewLines.length > 0) {
+      const last = previewLines[previewLines.length - 1] ?? '';
+      if (last.startsWith('```') || last.trim() === '') {
+        previewLines.pop();
+      } else {
+        break;
+      }
+    }
+  }
+
+  const cleanPreview = previewLines.join('\n');
+  return { lineCount, preview: cleanPreview, needsExpand: lineCount > LINE_LIMIT };
 };
 
 // Collapsible table component for markdown
