@@ -85,7 +85,7 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
     if let Ok(content) = std::fs::read_to_string(&index_path) {
         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(original) = parsed.get("originalPath").and_then(|v| v.as_str()) {
-                if !original.is_empty() {
+                if !original.is_empty() && Path::new(original).is_absolute() {
                     return original.to_string();
                 }
             }

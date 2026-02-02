@@ -151,8 +151,14 @@ function App() {
   useEffect(() => {
     if (!computed.isMessagesView) return;
     const { selectedSession: session, messages: msgs } = useAppStore.getState();
-    if (session && msgs.length === 0) {
-      selectSession(session);
+    if (session != null && msgs.length === 0) {
+      void (async () => {
+        try {
+          await selectSession(session);
+        } catch (error) {
+          console.error("Failed to restore session messages:", error);
+        }
+      })();
     }
   }, [computed.isMessagesView, selectSession]);
 
