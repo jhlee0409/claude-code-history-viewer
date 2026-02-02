@@ -11,6 +11,7 @@
     "dialog:default",
     "updater:default",
     "updater:allow-check",
+    "store:allow-load",
     "store:allow-get",
     "store:allow-set",
     "store:allow-save"

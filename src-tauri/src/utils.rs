@@ -167,7 +167,12 @@ fn decode_recursive_inner(encoded: &str, base_path: &str, depth: usize) -> Optio
             format!("{base_path}/{segment}")
         };
 
-        if Path::new(&candidate).is_dir() {
+        // Use symlink_metadata to avoid following symlinks
+        let is_real_dir = std::fs::symlink_metadata(&candidate)
+            .map(|m| m.file_type().is_dir())
+            .unwrap_or(false);
+
+        if is_real_dir {
             let remaining = &encoded[pos + 1..];
             if remaining.is_empty() {
                 return Some(candidate);
@@ -175,7 +180,10 @@ fn decode_recursive_inner(encoded: &str, base_path: &str, depth: usize) -> Optio
 
             // First try: remaining as a single leaf (no more splitting needed)
             let full_path = format!("{candidate}/{remaining}");
-            if Path::new(&full_path).exists() {
+            let full_path_is_real = std::fs::symlink_metadata(&full_path)
+                .map(|m| !m.file_type().is_symlink())
+                .unwrap_or(false);
+            if full_path_is_real {
                 return Some(full_path);
             }
 
