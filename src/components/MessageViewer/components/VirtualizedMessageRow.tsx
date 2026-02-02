@@ -81,13 +81,16 @@ export const VirtualizedMessageRow = forwardRef<
     depth,
     isGroupMember,
     isProgressGroupMember,
+    isTaskOperationGroupMember,
     agentTaskGroup,
     agentProgressGroup,
+    taskOperationGroup,
+    taskRegistry,
   } = item;
 
   // Group members render as hidden placeholders for DOM presence (search needs them)
   // but with zero height they won't affect layout
-  if (isGroupMember || isProgressGroupMember) {
+  if (isGroupMember || isProgressGroupMember || isTaskOperationGroupMember) {
     return (
       <div
         ref={ref}
@@ -132,6 +135,9 @@ export const VirtualizedMessageRow = forwardRef<
         isAgentTaskGroupMember={false}
         agentProgressGroup={agentProgressGroup}
         isAgentProgressGroupMember={false}
+        taskOperationGroup={taskOperationGroup}
+        taskRegistry={taskRegistry}
+        isTaskOperationGroupMember={false}
         isCaptureMode={isCaptureMode}
         onHideMessage={onHideMessage}
       />

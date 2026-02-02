@@ -17,7 +17,7 @@ import {
   ProgressRenderer,
   AgentProgressGroupRenderer,
 } from "../../messageRenderer";
-import { AgentTaskGroupRenderer } from "../../toolResultRenderer";
+import { AgentTaskGroupRenderer, TaskOperationGroupRenderer } from "../../toolResultRenderer";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 import { isEmptyMessage } from "../helpers/messageHelpers";
 import { MessageHeader } from "./MessageHeader";
@@ -38,6 +38,9 @@ export const ClaudeMessageNode = React.memo(({
   isAgentTaskGroupMember,
   agentProgressGroup,
   isAgentProgressGroupMember,
+  taskOperationGroup,
+  taskRegistry,
+  isTaskOperationGroupMember,
   isCaptureMode,
   onHideMessage,
 }: MessageNodeProps) => {
@@ -99,6 +102,16 @@ export const ClaudeMessageNode = React.memo(({
     );
   }
 
+  if (isTaskOperationGroupMember) {
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className="hidden"
+        aria-hidden="true"
+      />
+    );
+  }
+
   // Skip empty messages
   if (isEmptyMessage(message)) {
     return null;
@@ -138,6 +151,24 @@ export const ClaudeMessageNode = React.memo(({
             entries={agentProgressGroup.entries}
             agentId={agentProgressGroup.agentId}
           />
+        </div>
+      </div>
+    );
+  }
+
+  // Render grouped task operations
+  if (taskOperationGroup && taskOperationGroup.length > 0) {
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className={cn(
+          "relative w-full px-4 py-2 transition-all duration-200",
+          isCaptureMode && CAPTURE_HOVER_BG
+        )}
+      >
+        {CaptureHideButton}
+        <div className="max-w-4xl mx-auto">
+          <TaskOperationGroupRenderer operations={taskOperationGroup} taskRegistry={taskRegistry} />
         </div>
       </div>
     );
@@ -212,11 +243,7 @@ export const ClaudeMessageNode = React.memo(({
           />
 
           {message.content &&
-            typeof message.content === "object" &&
-            Array.isArray(message.content) &&
-            (message.type !== "assistant" ||
-              (message.type === "assistant" &&
-                !extractClaudeMessageContent(message))) && (
+            Array.isArray(message.content) && (
               <div className="mb-2">
                 <ClaudeContentArrayRenderer
                   content={message.content}
@@ -227,6 +254,10 @@ export const ClaudeMessageNode = React.memo(({
                   skipToolResults={
                     (message.type === "user" || message.type === "assistant") &&
                     !!message.toolUseResult
+                  }
+                  skipText={
+                    message.type === "assistant" &&
+                    !!extractClaudeMessageContent(message)
                   }
                 />
               </div>

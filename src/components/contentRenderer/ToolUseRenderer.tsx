@@ -34,6 +34,20 @@ import {
   layout,
 } from "../renderers";
 import { getPreStyles, getLineStyles, getTokenStyles } from "@/utils/prismStyles";
+import {
+  ReadToolRenderer,
+  BashToolRenderer,
+  GlobToolRenderer,
+  GrepToolRenderer,
+  WebFetchToolRenderer,
+  WebSearchToolRenderer,
+  MultiEditToolRenderer,
+  TodoWriteToolRenderer,
+  NotebookEditToolRenderer,
+  TaskCreateToolRenderer,
+  TaskUpdateToolRenderer,
+  TaskOutputToolRenderer,
+} from "./toolUseRenderers";
 
 interface ToolUseRendererProps extends BaseRendererProps {
   toolUse: Record<string, unknown>;
@@ -71,11 +85,39 @@ export const ToolUseRenderer = ({
     );
   };
 
+  // === Named Tool Renderers ===
+  switch (toolName) {
+    case "Read":
+      return <ReadToolRenderer toolId={toolId} input={toolInput} />;
+    case "Bash":
+      return <BashToolRenderer toolId={toolId} input={toolInput} />;
+    case "Glob":
+      return <GlobToolRenderer toolId={toolId} input={toolInput} />;
+    case "Grep":
+      return <GrepToolRenderer toolId={toolId} input={toolInput} />;
+    case "WebFetch":
+      return <WebFetchToolRenderer toolId={toolId} input={toolInput} />;
+    case "WebSearch":
+      return <WebSearchToolRenderer toolId={toolId} input={toolInput} />;
+    case "MultiEdit":
+      return <MultiEditToolRenderer toolId={toolId} input={toolInput} />;
+    case "TodoWrite":
+      return <TodoWriteToolRenderer toolId={toolId} input={toolInput} />;
+    case "NotebookEdit":
+      return <NotebookEditToolRenderer toolId={toolId} input={toolInput} />;
+    case "TaskCreate":
+      return <TaskCreateToolRenderer toolId={toolId} input={toolInput} />;
+    case "TaskUpdate":
+      return <TaskUpdateToolRenderer toolId={toolId} input={toolInput} />;
+    case "TaskOutput":
+      return <TaskOutputToolRenderer toolId={toolId} input={toolInput} />;
+  }
+
   // Helper to check if toolInput is a non-null object
   const isObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null;
 
-  // Check tool types
+  // Check tool types (fallback for input-shape detection)
   const isWriteTool =
     toolName === "Write" ||
     (isObject(toolInput) && "file_path" in toolInput && "content" in toolInput);

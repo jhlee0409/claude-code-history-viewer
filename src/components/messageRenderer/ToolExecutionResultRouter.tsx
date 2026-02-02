@@ -16,6 +16,7 @@ import {
   ContentArrayRenderer,
   FileListRenderer,
   FallbackRenderer,
+  TaskResultRenderer,
 } from "../toolResultRenderer";
 import { FileContent } from "../FileContent";
 import { CommandOutputDisplay } from "./CommandOutputDisplay";
@@ -25,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 
 interface ToolExecutionResultRouterProps {
-  toolResult: Record<string, unknown> | string;
+  toolResult: Record<string, unknown> | string | unknown[];
   depth: number;
   searchQuery?: string;
   isCurrentMatch?: boolean;
@@ -88,6 +89,11 @@ export const ToolExecutionResultRouter: React.FC<
       return false;
     }
   };
+
+  // Handle array toolUseResult (e.g., [{type: "text", text: "..."}])
+  if (Array.isArray(toolResult)) {
+    return <ContentArrayRenderer toolResult={{ content: toolResult }} searchQuery={searchQuery} />;
+  }
 
   // Handle string toolUseResult first (like file trees, directory listings, errors)
   if (typeof toolResult === "string") {
@@ -231,6 +237,15 @@ export const ToolExecutionResultRouter: React.FC<
         currentMatchIndex={currentMatchIndex}
       />
     );
+  }
+
+  // Handle task operation results: {task: {id, subject, ...}} or {tasks: [...]} or {success, taskId, ...}
+  if (
+    (toolResult.task != null && typeof toolResult.task === "object") ||
+    (Array.isArray(toolResult.tasks) && toolResult.tasks.length > 0) ||
+    (toolResult.success != null && typeof toolResult.taskId === "string")
+  ) {
+    return <TaskResultRenderer toolResult={toolResult} />;
   }
 
   // Handle file list results

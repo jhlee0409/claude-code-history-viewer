@@ -12,6 +12,7 @@ import type {
   FlattenedMessage,
   AgentTaskGroupResult,
   AgentProgressGroupResult,
+  TaskOperationGroupResult,
 } from "../types";
 import {
   flattenMessageTree,
@@ -30,6 +31,8 @@ interface UseMessageVirtualizationOptions {
   agentTaskMemberUuids: Set<string>;
   agentProgressGroups: Map<string, AgentProgressGroupResult>;
   agentProgressMemberUuids: Set<string>;
+  taskOperationGroups: Map<string, TaskOperationGroupResult>;
+  taskOperationMemberUuids: Set<string>;
   getScrollElement: () => HTMLElement | null;
   /** Message UUIDs to hide (only applied when in capture mode) */
   hiddenMessageIds?: string[];
@@ -55,6 +58,8 @@ export const useMessageVirtualization = ({
   agentTaskMemberUuids,
   agentProgressGroups,
   agentProgressMemberUuids,
+  taskOperationGroups,
+  taskOperationMemberUuids,
   getScrollElement,
   hiddenMessageIds = [],
   isCaptureMode = false,
@@ -76,6 +81,8 @@ export const useMessageVirtualization = ({
           agentTaskMemberUuids,
           agentProgressGroups,
           agentProgressMemberUuids,
+          taskOperationGroups,
+          taskOperationMemberUuids,
           hiddenMessageIds: effectiveHiddenIds,
         });
         console.log(`[useMessageVirtualization] flattenMessageTree: ${messages.length} → ${result.length} items (${effectiveHiddenIds.length} hidden), ${(performance.now() - start).toFixed(1)}ms`);
@@ -87,6 +94,8 @@ export const useMessageVirtualization = ({
         agentTaskMemberUuids,
         agentProgressGroups,
         agentProgressMemberUuids,
+        taskOperationGroups,
+        taskOperationMemberUuids,
         hiddenMessageIds: effectiveHiddenIds,
       });
     },
@@ -96,6 +105,8 @@ export const useMessageVirtualization = ({
       agentTaskMemberUuids,
       agentProgressGroups,
       agentProgressMemberUuids,
+      taskOperationGroups,
+      taskOperationMemberUuids,
       effectiveHiddenIds,
     ]
   );
@@ -125,6 +136,8 @@ export const useMessageVirtualization = ({
     // Enable dynamic measurement
     measureElement: (element) => {
       if (!element) return MIN_ROW_HEIGHT;
+      // Group members render with height:0 and aria-hidden - respect that
+      if (element.getAttribute("aria-hidden") === "true") return 0;
       const height = element.getBoundingClientRect().height;
       return height > 0 ? height : MIN_ROW_HEIGHT;
     },

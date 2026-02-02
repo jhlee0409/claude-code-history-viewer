@@ -31,10 +31,10 @@ export function estimateMessageHeight(item: FlattenedMessage): number {
     return 40; // Compact placeholder height
   }
 
-  const { message, isGroupMember, isProgressGroupMember, agentTaskGroup, agentProgressGroup } = item;
+  const { message, isGroupMember, isProgressGroupMember, isTaskOperationGroupMember, agentTaskGroup, agentProgressGroup } = item;
 
   // Group members are hidden (height: 0)
-  if (isGroupMember || isProgressGroupMember) {
+  if (isGroupMember || isProgressGroupMember || isTaskOperationGroupMember) {
     return HEIGHT_DEFAULTS.hidden;
   }
 

@@ -7,3 +7,4 @@
 
 export { groupAgentTasks } from "./agentTaskHelpers";
 export { groupAgentProgressMessages } from "./agentProgressHelpers";
+export { groupTaskOperations } from "./taskOperationHelpers";

@@ -13,6 +13,7 @@ import type {
   AgentProgressGroup,
   AgentTaskGroupResult,
   AgentProgressGroupResult,
+  TaskOperationGroupResult,
 } from "../types";
 import { getParentUuid } from "./messageHelpers";
 import { getAgentIdFromProgress } from "./agentProgressHelpers";
@@ -24,6 +25,8 @@ interface FlattenOptions {
   agentTaskMemberUuids: Set<string>;
   agentProgressGroups: Map<string, AgentProgressGroupResult>;
   agentProgressMemberUuids: Set<string>;
+  taskOperationGroups: Map<string, TaskOperationGroupResult>;
+  taskOperationMemberUuids: Set<string>;
   /** Message UUIDs to hide (only used when in capture mode) */
   hiddenMessageIds?: string[];
 }
@@ -102,6 +105,8 @@ export function flattenMessageTree({
   agentTaskMemberUuids,
   agentProgressGroups,
   agentProgressMemberUuids,
+  taskOperationGroups,
+  taskOperationMemberUuids,
   hiddenMessageIds = [],
 }: FlattenOptions): FlattenedMessage[] {
   // Create a Set for O(1) lookup of hidden messages
@@ -150,7 +155,9 @@ export function flattenMessageTree({
       agentTaskGroups,
       agentTaskMemberUuids,
       agentProgressGroups,
-      agentProgressMemberUuids
+      agentProgressMemberUuids,
+      taskOperationGroups,
+      taskOperationMemberUuids
     );
   }
 
@@ -215,7 +222,9 @@ export function flattenMessageTree({
     agentTaskGroups,
     agentTaskMemberUuids,
     agentProgressGroups,
-    agentProgressMemberUuids
+    agentProgressMemberUuids,
+    taskOperationGroups,
+    taskOperationMemberUuids
   );
 }
 
@@ -228,7 +237,9 @@ function flattenWithPlaceholders(
   agentTaskGroups: Map<string, AgentTaskGroupResult>,
   agentTaskMemberUuids: Set<string>,
   agentProgressGroups: Map<string, AgentProgressGroupResult>,
-  agentProgressMemberUuids: Set<string>
+  agentProgressMemberUuids: Set<string>,
+  taskOperationGroups: Map<string, TaskOperationGroupResult>,
+  taskOperationMemberUuids: Set<string>
 ): FlattenedMessage[] {
   if (hiddenSet.size === 0) {
     // No hidden messages - return regular flattened list
@@ -240,7 +251,9 @@ function flattenWithPlaceholders(
         agentTaskGroups,
         agentTaskMemberUuids,
         agentProgressGroups,
-        agentProgressMemberUuids
+        agentProgressMemberUuids,
+        taskOperationGroups,
+        taskOperationMemberUuids
       )
     );
   }
@@ -274,7 +287,9 @@ function flattenWithPlaceholders(
           agentTaskGroups,
           agentTaskMemberUuids,
           agentProgressGroups,
-          agentProgressMemberUuids
+          agentProgressMemberUuids,
+          taskOperationGroups,
+          taskOperationMemberUuids
         )
       );
       visibleMessageIndex++;
@@ -304,7 +319,9 @@ function createFlattenedMessage(
   agentTaskGroups: Map<string, AgentTaskGroupResult>,
   agentTaskMemberUuids: Set<string>,
   agentProgressGroups: Map<string, AgentProgressGroupResult>,
-  agentProgressMemberUuids: Set<string>
+  agentProgressMemberUuids: Set<string>,
+  taskOperationGroups: Map<string, TaskOperationGroupResult>,
+  taskOperationMemberUuids: Set<string>
 ): FlattenedMessageItem {
   // Check agent task group status
   const taskGroupInfo = agentTaskGroups.get(message.uuid);
@@ -329,6 +346,12 @@ function createFlattenedMessage(
     }
   }
 
+  // Check task operation group status
+  const taskOpGroupInfo = taskOperationGroups.get(message.uuid);
+  const isTaskOperationGroupLeader = !!taskOpGroupInfo;
+  const isTaskOperationGroupMember =
+    !isTaskOperationGroupLeader && taskOperationMemberUuids.has(message.uuid);
+
   return {
     type: "message",
     message,
@@ -340,6 +363,10 @@ function createFlattenedMessage(
     isProgressGroupMember,
     agentTaskGroup: isGroupLeader ? taskGroupInfo!.tasks : undefined,
     agentProgressGroup,
+    isTaskOperationGroupLeader,
+    isTaskOperationGroupMember,
+    taskOperationGroup: isTaskOperationGroupLeader ? taskOpGroupInfo!.operations : undefined,
+    taskRegistry: isTaskOperationGroupLeader ? taskOpGroupInfo!.taskRegistry : undefined,
   };
 }
 

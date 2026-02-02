@@ -22,6 +22,7 @@ import { useMessageVirtualization } from "./hooks/useMessageVirtualization";
 import {
   groupAgentTasks,
   groupAgentProgressMessages,
+  groupTaskOperations,
 } from "./helpers";
 import { useAppStore } from "../../store/useAppStore";
 
@@ -146,6 +147,22 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     return memberSet;
   }, [agentProgressGroups]);
 
+  // Task operation grouping (group consecutive TaskCreate/TaskUpdate/etc. messages)
+  const taskOperationGroups = useMemo(() => {
+    return groupTaskOperations(uniqueMessages);
+  }, [uniqueMessages]);
+
+  // Pre-compute Set of all task operation member UUIDs for O(1) membership checks
+  const taskOperationMemberUuids = useMemo(() => {
+    const memberSet = new Set<string>();
+    for (const group of taskOperationGroups.values()) {
+      for (const uuid of group.messageUuids) {
+        memberSet.add(uuid);
+      }
+    }
+    return memberSet;
+  }, [taskOperationGroups]);
+
   // Helper to get scroll element from OverlayScrollbars
   // Include scrollElementReady to force virtualizer update when ready
   const getScrollElement = useCallback(() => {
@@ -202,6 +219,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     agentTaskMemberUuids,
     agentProgressGroups,
     agentProgressMemberUuids,
+    taskOperationGroups,
+    taskOperationMemberUuids,
     getScrollElement,
     hiddenMessageIds,
     isCaptureMode,

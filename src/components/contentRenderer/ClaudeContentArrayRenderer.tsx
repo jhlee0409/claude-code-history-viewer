@@ -12,9 +12,21 @@
 
 import { memo } from "react";
 import { ThinkingRenderer } from "./ThinkingRenderer";
+import { RedactedThinkingRenderer } from "./RedactedThinkingRenderer";
 import { ToolUseRenderer } from "./ToolUseRenderer";
 import { ImageRenderer } from "./ImageRenderer";
 import { CommandRenderer } from "./CommandRenderer";
+import { ServerToolUseRenderer } from "./ServerToolUseRenderer";
+import { WebSearchResultRenderer } from "./WebSearchResultRenderer";
+import { DocumentRenderer } from "./DocumentRenderer";
+import { SearchResultRenderer } from "./SearchResultRenderer";
+import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
+import { MCPToolResultRenderer } from "./MCPToolResultRenderer";
+import { WebFetchToolResultRenderer } from "./WebFetchToolResultRenderer";
+import { CodeExecutionToolResultRenderer } from "./CodeExecutionToolResultRenderer";
+import { BashCodeExecutionToolResultRenderer } from "./BashCodeExecutionToolResultRenderer";
+import { TextEditorCodeExecutionToolResultRenderer } from "./TextEditorCodeExecutionToolResultRenderer";
+import { ToolSearchToolResultRenderer } from "./ToolSearchToolResultRenderer";
 import { ClaudeToolResultItem } from "../toolResultRenderer";
 import { HighlightedText } from "../common/HighlightedText";
 import { useTranslation } from "react-i18next";
@@ -29,6 +41,7 @@ type Props = {
   isCurrentMatch?: boolean;
   currentMatchIndex?: number;
   skipToolResults?: boolean;
+  skipText?: boolean;
 };
 
 // Type guard for content items
@@ -43,6 +56,7 @@ export const ClaudeContentArrayRenderer = memo(({
   isCurrentMatch = false,
   currentMatchIndex = 0,
   skipToolResults = false,
+  skipText = false,
 }: Props) => {
   const { t } = useTranslation();
   if (!Array.isArray(content) || content.length === 0) {
@@ -64,6 +78,7 @@ export const ClaudeContentArrayRenderer = memo(({
 
         switch (itemType) {
           case "text":
+            if (skipText) return null;
             if (typeof item.text === "string") {
               return (
                 <div
@@ -184,6 +199,115 @@ export const ClaudeContentArrayRenderer = memo(({
               </div>
             );
           }
+
+          case "redacted_thinking":
+            return (
+              <RedactedThinkingRenderer
+                key={index}
+                data={typeof item.data === "string" ? item.data : ""}
+              />
+            );
+
+          case "server_tool_use":
+            return (
+              <ServerToolUseRenderer
+                key={index}
+                id={String(item.id ?? "")}
+                name={String(item.name ?? "")}
+                input={(item.input as Record<string, unknown>) ?? {}}
+              />
+            );
+
+          case "web_search_tool_result":
+            return (
+              <WebSearchResultRenderer
+                key={index}
+                toolUseId={String(item.tool_use_id ?? "")}
+                content={item.content as never}
+              />
+            );
+
+          case "document":
+            return (
+              <DocumentRenderer
+                key={index}
+                document={item as never}
+              />
+            );
+
+          case "search_result":
+            return (
+              <SearchResultRenderer
+                key={index}
+                searchResult={item as never}
+              />
+            );
+
+          case "mcp_tool_use":
+            return (
+              <MCPToolUseRenderer
+                key={index}
+                id={String(item.id ?? "")}
+                serverName={String(item.server_name ?? "")}
+                toolName={String(item.name ?? "")}
+                input={(item.input as Record<string, unknown>) ?? {}}
+              />
+            );
+
+          case "mcp_tool_result":
+            return (
+              <MCPToolResultRenderer
+                key={index}
+                toolUseId={String(item.tool_use_id ?? "")}
+                content={item.content as never}
+                isError={item.is_error === true}
+              />
+            );
+
+          case "web_fetch_tool_result":
+            return (
+              <WebFetchToolResultRenderer
+                key={index}
+                toolUseId={String(item.tool_use_id ?? "")}
+                content={item.content as never}
+              />
+            );
+
+          case "code_execution_tool_result":
+            return (
+              <CodeExecutionToolResultRenderer
+                key={index}
+                toolUseId={String(item.tool_use_id ?? "")}
+                content={item.content as never}
+              />
+            );
+
+          case "bash_code_execution_tool_result":
+            return (
+              <BashCodeExecutionToolResultRenderer
+                key={index}
+                toolUseId={String(item.tool_use_id ?? "")}
+                content={item.content as never}
+              />
+            );
+
+          case "text_editor_code_execution_tool_result":
+            return (
+              <TextEditorCodeExecutionToolResultRenderer
+                key={index}
+                toolUseId={String(item.tool_use_id ?? "")}
+                content={item.content as never}
+              />
+            );
+
+          case "tool_search_tool_result":
+            return (
+              <ToolSearchToolResultRenderer
+                key={index}
+                toolUseId={String(item.tool_use_id ?? "")}
+                content={item.content as never}
+              />
+            );
 
           default: {
             // 기본 JSON 렌더링 - warning variant for unknown types

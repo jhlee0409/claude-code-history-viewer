@@ -15,3 +15,5 @@ export { FileListRenderer } from "./FileListRenderer";
 export { FallbackRenderer } from "./FallbackRenderer";
 export { AgentTaskGroupRenderer } from "./AgentTaskGroupRenderer";
 export type { AgentTask } from "./AgentTaskGroupRenderer";
+export { TaskResultRenderer } from "./TaskResultRenderer";
+export { TaskOperationGroupRenderer } from "./TaskOperationGroupRenderer";

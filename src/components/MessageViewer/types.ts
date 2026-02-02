@@ -7,6 +7,7 @@
 import type { ClaudeMessage, ClaudeSession, ProgressData } from "../../types";
 import type { SearchState, SearchFilterType } from "../../store/useAppStore";
 import type { AgentTask } from "../toolResultRenderer";
+import type { TaskOperation } from "./helpers/taskOperationHelpers";
 
 // ============================================================================
 // Props Interfaces
@@ -39,6 +40,10 @@ export interface MessageNodeProps {
   // Agent progress grouping
   agentProgressGroup?: AgentProgressGroup;
   isAgentProgressGroupMember?: boolean;
+  // Task operation grouping
+  taskOperationGroup?: TaskOperation[];
+  taskRegistry?: Map<string, import("./helpers/taskOperationHelpers").TaskInfo>;
+  isTaskOperationGroupMember?: boolean;
   // Capture mode
   isCaptureMode?: boolean;
   onHideMessage?: (uuid: string) => void;
@@ -82,6 +87,8 @@ export interface AgentProgressGroupResult {
   messageUuids: Set<string>;
 }
 
+export type { TaskOperation, TaskOperationGroupResult } from "./helpers/taskOperationHelpers";
+
 // ============================================================================
 // Search Configuration
 // ============================================================================
@@ -111,6 +118,14 @@ export interface FlattenedMessageItem {
   agentTaskGroup?: AgentTask[];
   /** Agent progress data for group leader */
   agentProgressGroup?: AgentProgressGroup;
+  /** True if this message is the first (leader) of a task operation group */
+  isTaskOperationGroupLeader: boolean;
+  /** True if this message is a non-leader member of a task operation group */
+  isTaskOperationGroupMember: boolean;
+  /** Task operations for group leader */
+  taskOperationGroup?: TaskOperation[];
+  /** Global task registry for resolving task info */
+  taskRegistry?: Map<string, import("./helpers/taskOperationHelpers").TaskInfo>;
 }
 
 /** Placeholder indicating hidden blocks in capture mode */
