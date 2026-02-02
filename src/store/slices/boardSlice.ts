@@ -130,8 +130,7 @@ export const createBoardSlice: StateCreator<
             const loadPromises = sessions.map(async (session) => {
                 try {
                     if (!isAbsolutePath(session.file_path)) {
-                        const msg = "Invalid session path";
-                        console.error(msg);
+                        set({ boardLoadError: "Invalid session path" });
                         return null;
                     }
                     const messages = await invoke<ClaudeMessage[]>(

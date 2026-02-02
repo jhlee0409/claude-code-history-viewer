@@ -268,7 +268,7 @@ export const ExpandedCard = memo(({
                             {t("session.board.open")}
                         </button>
 
-                        <button onClick={onClose} className="p-1 hover:bg-muted rounded-full transition-colors opacity-70 hover:opacity-100" title={t("common.close")}
+                        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-1 hover:bg-muted rounded-full transition-colors opacity-70 hover:opacity-100" title={t("common.close")}
                             aria-label={t("common.close")}>
                             <X className="w-4 h-4" />
                         </button>
