@@ -1,5 +1,5 @@
 // src/components/ProjectTree.tsx
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   Folder,
   ChevronDown,
@@ -86,6 +86,15 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const { t, i18n } = useTranslation();
 
+  // Reset expandedProjects when grouping mode changes
+  const prevGroupingMode = useRef(groupingMode);
+  useEffect(() => {
+    if (prevGroupingMode.current !== groupingMode) {
+      setExpandedProjects(new Set());
+      prevGroupingMode.current = groupingMode;
+    }
+  }, [groupingMode, setExpandedProjects]);
+
   // Use ungroupedProjects if provided (when grouping enabled), else use all projects
   const displayProjects = ungroupedProjects ?? projects;
 
@@ -150,6 +159,35 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const isProjectExpanded = useCallback((projectPath: string) => {
     return expandedProjects.has(projectPath);
   }, [expandedProjects]);
+
+  // Unified project click handler: syncs expand state with selection + accordion behavior
+  const handleProjectClick = useCallback((project: ClaudeProject) => {
+    const isCurrentlySelected = selectedProject?.path === project.path;
+
+    if (isCurrentlySelected) {
+      // Deselecting: also collapse
+      setExpandedProjects((prev) => {
+        const next = new Set(prev);
+        next.delete(project.path);
+        return next;
+      });
+    } else {
+      // Selecting new project: collapse all other projects (accordion), expand this one
+      setExpandedProjects((prev) => {
+        const next = new Set<string>();
+        // Preserve group-level expansions (dir:, group: prefixed keys)
+        for (const key of prev) {
+          if (key.startsWith("dir:") || key.startsWith("group:")) {
+            next.add(key);
+          }
+        }
+        next.add(project.path);
+        return next;
+      });
+    }
+
+    onProjectSelect(project);
+  }, [selectedProject, onProjectSelect]);
 
   const sidebarStyle = isCollapsed
     ? { width: "48px" }
@@ -370,6 +408,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     const next = new Set(prev);
                     if (next.has(groupKey)) {
                       next.delete(groupKey);
+                      // Also collapse child projects when collapsing group
+                      for (const p of group.projects) {
+                        next.delete(p.path);
+                      }
                     } else {
                       next.add(groupKey);
                     }
@@ -452,18 +494,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                               <div
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => {
-                                  onProjectSelect(project);
-                                  if (!isProjectExpanded(project.path)) {
-                                    toggleProject(project.path);
-                                  }
-                                }}
+                                onClick={() => handleProjectClick(project)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" || e.key === " ") {
-                                    onProjectSelect(project);
-                                    if (!isProjectExpanded(project.path)) {
-                                      toggleProject(project.path);
-                                    }
+                                    handleProjectClick(project);
                                   }
                                 }}
                                 onContextMenu={(e) => handleContextMenu(e, project)}
@@ -569,20 +603,25 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 // Group expansion state (separate from individual project expansion)
                 const groupKey = `group:${group.parent.path}`;
                 const isGroupExpanded = expandedProjects.has(groupKey);
+
+                // All projects in this group (main + worktrees)
+                const allGroupProjects = [group.parent, ...group.children];
+
                 const toggleGroup = () => {
                   setExpandedProjects((prev) => {
                     const next = new Set(prev);
                     if (next.has(groupKey)) {
                       next.delete(groupKey);
+                      // Also collapse child projects when collapsing group
+                      for (const p of allGroupProjects) {
+                        next.delete(p.path);
+                      }
                     } else {
                       next.add(groupKey);
                     }
                     return next;
                   });
                 };
-
-                // All projects in this group (main + worktrees)
-                const allGroupProjects = [group.parent, ...group.children];
 
                 return (
                   <div key={group.parent.path} className="space-y-0.5">
@@ -660,18 +699,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                               <div
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => {
-                                  onProjectSelect(project);
-                                  if (!isProjectExpanded(project.path)) {
-                                    toggleProject(project.path);
-                                  }
-                                }}
+                                onClick={() => handleProjectClick(project)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" || e.key === " ") {
-                                    onProjectSelect(project);
-                                    if (!isProjectExpanded(project.path)) {
-                                      toggleProject(project.path);
-                                    }
+                                    handleProjectClick(project);
                                   }
                                 }}
                                 onContextMenu={(e) => handleContextMenu(e, project)}
@@ -806,18 +837,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     <div
                       role="button"
                       tabIndex={0}
-                      onClick={() => {
-                        onProjectSelect(project);
-                        if (!isProjectExpanded(project.path)) {
-                          toggleProject(project.path);
-                        }
-                      }}
+                      onClick={() => handleProjectClick(project)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
-                          onProjectSelect(project);
-                          if (!isProjectExpanded(project.path)) {
-                            toggleProject(project.path);
-                          }
+                          handleProjectClick(project);
                         }
                       }}
                       onContextMenu={(e) => handleContextMenu(e, project)}
@@ -874,9 +897,14 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                       </span>
 
                       {/* Session count badge */}
-                      {isExpanded && sessions.length > 0 && (
-                        <span className="text-2xs font-mono text-accent/70 bg-accent/10 px-1.5 py-0.5 rounded">
-                          {sessions.length}
+                      {project.session_count > 0 && (
+                        <span className={cn(
+                          "text-2xs font-mono px-1.5 py-0.5 rounded",
+                          isExpanded
+                            ? "text-accent/70 bg-accent/10"
+                            : "text-muted-foreground/60"
+                        )}>
+                          {project.session_count}
                         </span>
                       )}
                     </div>

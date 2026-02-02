@@ -260,11 +260,18 @@ export const createProjectSlice: StateCreator<
     // Use hybrid detection: git-based (100% accurate) + heuristic fallback
     const result = detectWorktreeGroupsHybrid(visibleProjects);
 
-    // Also filter hidden projects from worktree children
-    result.groups = result.groups.map((group) => ({
+    // Filter hidden children from worktree groups
+    const filtered = result.groups.map((group) => ({
       ...group,
       children: group.children.filter((child) => !isProjectHidden(child.actual_path)),
     }));
+
+    // Keep groups with visible children; rescue orphaned parents to ungrouped
+    result.groups = filtered.filter((group) => group.children.length > 0);
+    const orphanedParents = filtered
+      .filter((group) => group.children.length === 0)
+      .map((group) => group.parent);
+    result.ungrouped = [...result.ungrouped, ...orphanedParents];
 
     return result;
   },
