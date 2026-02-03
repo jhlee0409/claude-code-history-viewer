@@ -96,7 +96,7 @@ export interface MessagePayload {
   // Optional fields for assistant messages
   id?: string;
   model?: string;
-  stop_reason?: "tool_use" | "end_turn" | "max_tokens";
+  stop_reason?: "tool_use" | "end_turn" | "max_tokens" | "stop_sequence" | "pause_turn" | "refusal";
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
@@ -173,7 +173,7 @@ export interface ClaudeAssistantMessage extends BaseClaudeMessage {
   type: "assistant";
   role: "assistant";
   model?: string;
-  stop_reason?: "tool_use" | "end_turn" | "max_tokens" | "customer_cancelled" | "consumer_cancelled" | string;
+  stop_reason?: "tool_use" | "end_turn" | "max_tokens" | "stop_sequence" | "pause_turn" | "refusal";
   usage?: {
     input_tokens?: number;
     output_tokens?: number;

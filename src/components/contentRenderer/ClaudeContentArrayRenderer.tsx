@@ -249,7 +249,7 @@ export const ClaudeContentArrayRenderer = memo(({
                 key={index}
                 id={String(item.id ?? "")}
                 serverName={String(item.server_name ?? "")}
-                toolName={String(item.name ?? "")}
+                toolName={String(item.tool_name ?? "")}
                 input={(item.input as Record<string, unknown>) ?? {}}
               />
             );

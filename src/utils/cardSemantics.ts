@@ -47,8 +47,9 @@ export function getCardSemantics(
     const isError = (isClaudeSystemMessage(message) && message.stopReasonSystem?.toLowerCase().includes("error")) ||
         hasToolError(message);
 
-    // Cancellation detection
-    const isCancelled = (isClaudeAssistantMessage(message) && (message.stop_reason === "customer_cancelled" || message.stop_reason === "consumer_cancelled")) ||
+    // Cancellation detection (includes legacy/app-specific stop reasons)
+    const stopReasonValue = isClaudeAssistantMessage(message) ? (message.stop_reason as string | undefined) : undefined;
+    const isCancelled = (stopReasonValue === "customer_cancelled" || stopReasonValue === "consumer_cancelled") ||
         (isClaudeSystemMessage(message) && message.stopReasonSystem === "customer_cancelled") ||
         content.includes("request canceled by user");
 

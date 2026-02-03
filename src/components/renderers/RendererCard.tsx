@@ -19,7 +19,7 @@
  * ```
  */
 
-import { memo, type ReactNode } from "react";
+import { memo, createContext, useContext, type ReactNode } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -72,7 +72,7 @@ interface ContentProps {
 /**
  * Card context to share state between compound components
  */
-interface CardContext {
+interface CardContextType {
   variant: RendererVariant;
   isExpanded: boolean;
   toggle: () => void;
@@ -80,8 +80,19 @@ interface CardContext {
   enableToggle: boolean;
 }
 
-// Simple context using module-level variable (compound components pattern)
-let cardContext: CardContext | null = null;
+// Proper React context for compound components
+const CardContext = createContext<CardContextType | null>(null);
+
+/**
+ * Hook to access card context
+ */
+function useCardContext(): CardContextType {
+  const context = useContext(CardContext);
+  if (!context) {
+    throw new Error("RendererCard child components must be used within RendererCard");
+  }
+  return context;
+}
 
 /**
  * Main card container
@@ -97,8 +108,8 @@ const CardRoot = memo(function CardRoot({
   const { isExpanded, toggle } = useExpandableContent({ defaultExpanded });
   const styles = getVariantStyles(variant);
 
-  // Set context for child components
-  cardContext = {
+  // Context value for child components
+  const contextValue: CardContextType = {
     variant,
     isExpanded,
     toggle,
@@ -107,17 +118,19 @@ const CardRoot = memo(function CardRoot({
   };
 
   return (
-    <div
-      className={cn(
-        "mt-1.5 border border-border overflow-hidden",
-        layout.rounded,
-        styles.container,
-        hasError && "bg-destructive/10 border-destructive/50",
-        className
-      )}
-    >
-      {children}
-    </div>
+    <CardContext.Provider value={contextValue}>
+      <div
+        className={cn(
+          "mt-1.5 border border-border overflow-hidden",
+          layout.rounded,
+          styles.container,
+          hasError && "bg-destructive/10 border-destructive/50",
+          className
+        )}
+      >
+        {children}
+      </div>
+    </CardContext.Provider>
   );
 });
 
@@ -131,13 +144,7 @@ const CardHeader = memo(function CardHeader({
   rightContent,
 }: HeaderProps) {
   const { t } = useTranslation();
-  const context = cardContext;
-
-  if (!context) {
-    throw new Error("RendererCard.Header must be used within RendererCard");
-  }
-
-  const { isExpanded, toggle, hasError, enableToggle, variant } = context;
+  const { isExpanded, toggle, hasError, enableToggle, variant } = useCardContext();
   const styles = getVariantStyles(variant);
 
   // Static header (no toggle)
@@ -184,6 +191,7 @@ const CardHeader = memo(function CardHeader({
     <button
       type="button"
       onClick={toggle}
+      aria-expanded={isExpanded}
       className={cn(
         "w-full flex items-center justify-between text-left",
         layout.headerPadding,
@@ -234,13 +242,7 @@ const CardContent = memo(function CardContent({
   children,
   className,
 }: ContentProps) {
-  const context = cardContext;
-
-  if (!context) {
-    throw new Error("RendererCard.Content must be used within RendererCard");
-  }
-
-  const { isExpanded, enableToggle } = context;
+  const { isExpanded, enableToggle } = useCardContext();
 
   // Always visible if toggle disabled
   if (!enableToggle) {
