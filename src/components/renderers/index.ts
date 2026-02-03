@@ -5,6 +5,8 @@
  * - types.ts: TypeScript interfaces and type definitions
  * - styles.ts: Variant-based styling using design tokens
  * - utils.ts: Common utility functions
+ * - hooks.ts: Reusable React hooks for renderer logic
+ * - RendererCard.tsx: Compound component for consistent renderer UI
  *
  * Usage:
  * ```tsx
@@ -12,6 +14,8 @@
  *   type RendererVariant,
  *   getVariantStyles,
  *   getLanguageFromPath,
+ *   useRendererStyles,
+ *   RendererCard,
  * } from "@/components/renderers";
  * ```
  */
@@ -20,6 +24,7 @@
 export type {
   BaseRendererProps,
   IndexedRendererProps,
+  ToolRendererProps,
   ToolUseContent,
   ToolResultContent,
   RendererVariant,
@@ -48,3 +53,24 @@ export {
   safeStringify,
   isPlainObject,
 } from "./utils";
+
+// Hooks
+export { useRendererStyles, useExpandableContent } from "./hooks";
+
+// Components
+export { RendererCard } from "./RendererCard";
+
+// Registry
+export {
+  registerRenderer,
+  getRenderer,
+  getRegistration,
+  isRegisteredType,
+} from "./registry";
+
+export type {
+  ContentType,
+  RenderContext,
+  BaseContentRendererProps,
+  RendererRegistration,
+} from "./registry";
