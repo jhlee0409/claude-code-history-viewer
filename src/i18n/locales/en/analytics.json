@@ -128,6 +128,7 @@
   "analytics.totalUses": "{{count}} uses",
   "analytics.units": "units",
   "analytics.viewDetails": "View Details",
+  "analytics.weekdayNames": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   "analytics.weekend": "Weekend",
   "analytics.weeklyActiveDays": "Weekly Active Days",
   "analytics.weeklyActivity": "Weekly Activity"

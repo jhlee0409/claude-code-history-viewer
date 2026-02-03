@@ -113,10 +113,12 @@ export type Namespace = (typeof namespaces)[number];
 
 /**
  * Namespace별 리소스 병합 함수
+ * i18next는 returnObjects 옵션으로 배열을 반환할 수 있으므로 string | string[] 허용
  */
+type TranslationValue = string | string[];
 function mergeNamespaces(
-  ...nsObjects: Record<string, string>[]
-): Record<string, string> {
+  ...nsObjects: Record<string, TranslationValue>[]
+): Record<string, TranslationValue> {
   return Object.assign({}, ...nsObjects);
 }
 
