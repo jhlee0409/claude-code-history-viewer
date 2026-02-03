@@ -129,6 +129,7 @@
   "analytics.units": "単位",
   "analytics.viewDetails": "詳細表示",
   "analytics.weekdayNames": ["日", "月", "火", "水", "木", "金", "土"],
+  "analytics.weekdayNamesShort": ["日", "月", "火", "水", "木", "金", "土"],
   "analytics.weekend": "週末",
   "analytics.weeklyActiveDays": "週間アクティブ日数",
   "analytics.weeklyActivity": "週別アクティビティ"

@@ -129,6 +129,7 @@
   "analytics.units": "단위",
   "analytics.viewDetails": "상세 보기",
   "analytics.weekdayNames": ["일", "월", "화", "수", "목", "금", "토"],
+  "analytics.weekdayNamesShort": ["일", "월", "화", "수", "목", "금", "토"],
   "analytics.weekend": "주말",
   "analytics.weeklyActiveDays": "주간 활동일",
   "analytics.weeklyActivity": "주별 활동"

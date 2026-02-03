@@ -129,6 +129,7 @@
   "analytics.units": "单位",
   "analytics.viewDetails": "查看详情",
   "analytics.weekdayNames": ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
+  "analytics.weekdayNamesShort": ["日", "一", "二", "三", "四", "五", "六"],
   "analytics.weekend": "周末",
   "analytics.weeklyActiveDays": "每周活跃天数",
   "analytics.weeklyActivity": "每周活动"

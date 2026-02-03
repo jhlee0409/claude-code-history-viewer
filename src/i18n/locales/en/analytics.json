@@ -129,6 +129,7 @@
   "analytics.units": "units",
   "analytics.viewDetails": "View Details",
   "analytics.weekdayNames": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  "analytics.weekdayNamesShort": ["S", "M", "T", "W", "T", "F", "S"],
   "analytics.weekend": "Weekend",
   "analytics.weeklyActiveDays": "Weekly Active Days",
   "analytics.weeklyActivity": "Weekly Activity"
