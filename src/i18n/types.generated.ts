@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-03T19:30:55.635Z
- * 총 키 개수: 1392
+ * 생성 시간: 2026-02-03T19:53:00.275Z
+ * 총 키 개수: 1390
  * Namespace 수: 11
  */
 
@@ -405,7 +405,7 @@ export type SessionKeys =
   | 'session.title';
 
 /**
- * settings namespace의 번역 키 (501개)
+ * settings namespace의 번역 키 (499개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -523,8 +523,6 @@ export type SettingsKeys =
   | 'settingsManager.context.selectProject'
   | 'settingsManager.context.shareWithTeam'
   | 'settingsManager.context.sharedDesc'
-  | 'settingsManager.context.userWide'
-  | 'settingsManager.context.userWideDesc'
   | 'settingsManager.createNew'
   | 'settingsManager.description'
   | 'settingsManager.diagnostics.backToEditor'
@@ -2293,8 +2291,6 @@ export type TranslationKey =
   | 'settingsManager.context.selectProject'
   | 'settingsManager.context.shareWithTeam'
   | 'settingsManager.context.sharedDesc'
-  | 'settingsManager.context.userWide'
-  | 'settingsManager.context.userWideDesc'
   | 'settingsManager.createNew'
   | 'settingsManager.description'
   | 'settingsManager.diagnostics.backToEditor'

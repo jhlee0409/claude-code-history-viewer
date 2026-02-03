@@ -113,8 +113,6 @@
   "settingsManager.context.selectProject": "프로젝트 선택...",
   "settingsManager.context.shareWithTeam": "팀과 공유",
   "settingsManager.context.sharedDesc": "저장소의 .claude/에 커밋됩니다",
-  "settingsManager.context.userWide": "사용자 전체 설정",
-  "settingsManager.context.userWideDesc": "이 설정은 모든 프로젝트에 기본값으로 적용됩니다",
   "settingsManager.createNew": "새 설정 만들기",
   "settingsManager.description": "다양한 범위에서 Claude Code 설정 관리",
   "settingsManager.diagnostics.backToEditor": "에디터로 돌아가기",

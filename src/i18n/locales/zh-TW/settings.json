@@ -113,8 +113,6 @@
   "settingsManager.context.selectProject": "選擇專案...",
   "settingsManager.context.shareWithTeam": "與團隊共享",
   "settingsManager.context.sharedDesc": "提交到儲存庫的.claude/目錄",
-  "settingsManager.context.userWide": "使用者全域設定",
-  "settingsManager.context.userWideDesc": "這些設定將作為所有專案的預設值",
   "settingsManager.createNew": "建立新設定",
   "settingsManager.description": "在不同範圍內管理 Claude Code 設定",
   "settingsManager.diagnostics.backToEditor": "返回編輯器",

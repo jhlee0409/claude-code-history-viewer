@@ -113,8 +113,6 @@
   "settingsManager.context.selectProject": "Select a project...",
   "settingsManager.context.shareWithTeam": "Share with team",
   "settingsManager.context.sharedDesc": "Settings committed to .claude/ in your repo",
-  "settingsManager.context.userWide": "User-wide settings",
-  "settingsManager.context.userWideDesc": "These settings apply to all your projects as defaults",
   "settingsManager.createNew": "Create new settings",
   "settingsManager.description": "Manage Claude Code settings across different scopes",
   "settingsManager.diagnostics.backToEditor": "Back to editor",

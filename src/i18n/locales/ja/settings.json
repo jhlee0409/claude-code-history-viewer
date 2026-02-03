@@ -113,8 +113,6 @@
   "settingsManager.context.selectProject": "プロジェクトを選択...",
   "settingsManager.context.shareWithTeam": "チームと共有",
   "settingsManager.context.sharedDesc": "リポジトリの.claude/にコミットされます",
-  "settingsManager.context.userWide": "ユーザー全体の設定",
-  "settingsManager.context.userWideDesc": "この設定はすべてのプロジェクトのデフォルトとして適用されます",
   "settingsManager.createNew": "新しい設定を作成",
   "settingsManager.description": "異なるスコープでClaude Code設定を管理",
   "settingsManager.diagnostics.backToEditor": "エディタに戻る",
