@@ -170,7 +170,7 @@ const CardHeader = memo(function CardHeader({
               hasError && "text-destructive"
             )}
           >
-            {`${title} ${hasError ? t("common.errorOccurred") : ""}`}
+            {hasError ? `${title} ${t("common.errorOccurred")}` : title}
           </span>
         </div>
         <div
@@ -226,7 +226,7 @@ const CardHeader = memo(function CardHeader({
             "truncate"
           )}
         >
-          {`${title} ${hasError ? t("common.errorOccurred") : ""}`}
+          {hasError ? `${title} ${t("common.errorOccurred")}` : title}
         </span>
       </button>
       {/* rightContent - separate from toggle to allow interactive elements */}
