@@ -166,7 +166,7 @@ const CardHeader = memo(function CardHeader({
           <span
             className={cn(
               layout.titleText,
-              titleClassName,
+              titleClassName || styles.title,
               hasError && "text-destructive"
             )}
           >

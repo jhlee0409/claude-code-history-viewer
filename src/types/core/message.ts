@@ -123,7 +123,8 @@ export interface RawClaudeMessage {
   | "file-history-snapshot"
   | "progress"
   | "queue-operation";
-  message: MessagePayload;
+  /** Message payload - optional for progress, queue-operation, file-history-snapshot types */
+  message?: MessagePayload;
   toolUse?: Record<string, unknown>;
   toolUseResult?: Record<string, unknown> | string;
   isSidechain?: boolean;

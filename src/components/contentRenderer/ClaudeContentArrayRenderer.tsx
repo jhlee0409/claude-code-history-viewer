@@ -33,6 +33,19 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
 import type { SearchFilterType } from "../../store/useAppStore";
+import {
+  isServerToolUseContent,
+  isWebSearchToolResultContent,
+  isDocumentContent,
+  isSearchResultContent,
+  isMCPToolUseContent,
+  isMCPToolResultContent,
+  isWebFetchToolResultContent,
+  isCodeExecutionToolResultContent,
+  isBashCodeExecutionToolResultContent,
+  isTextEditorCodeExecutionToolResultContent,
+  isToolSearchToolResultContent,
+} from "@/utils/contentTypeGuards";
 
 type Props = {
   content: unknown[];
@@ -208,106 +221,150 @@ export const ClaudeContentArrayRenderer = memo(({
               />
             );
 
-          case "server_tool_use":
+          case "server_tool_use": {
+            if (!isServerToolUseContent(item)) {
+              return null;
+            }
             return (
               <ServerToolUseRenderer
                 key={index}
-                id={String(item.id ?? "")}
-                name={String(item.name ?? "")}
-                input={(item.input as Record<string, unknown>) ?? {}}
+                id={item.id}
+                name={item.name}
+                input={item.input}
               />
             );
+          }
 
-          case "web_search_tool_result":
+          case "web_search_tool_result": {
+            if (!isWebSearchToolResultContent(item)) {
+              return null;
+            }
             return (
               <WebSearchResultRenderer
                 key={index}
-                toolUseId={String(item.tool_use_id ?? "")}
-                content={item.content as never}
+                toolUseId={item.tool_use_id}
+                content={item.content}
               />
             );
+          }
 
-          case "document":
+          case "document": {
+            if (!isDocumentContent(item)) {
+              return null;
+            }
             return (
               <DocumentRenderer
                 key={index}
-                document={item as never}
+                document={item}
               />
             );
+          }
 
-          case "search_result":
+          case "search_result": {
+            if (!isSearchResultContent(item)) {
+              return null;
+            }
             return (
               <SearchResultRenderer
                 key={index}
-                searchResult={item as never}
+                searchResult={item}
               />
             );
+          }
 
-          case "mcp_tool_use":
+          case "mcp_tool_use": {
+            if (!isMCPToolUseContent(item)) {
+              return null;
+            }
             return (
               <MCPToolUseRenderer
                 key={index}
-                id={String(item.id ?? "")}
-                serverName={String(item.server_name ?? "")}
-                toolName={String(item.tool_name ?? "")}
-                input={(item.input as Record<string, unknown>) ?? {}}
+                id={item.id}
+                serverName={item.server_name}
+                toolName={item.tool_name}
+                input={item.input}
               />
             );
+          }
 
-          case "mcp_tool_result":
+          case "mcp_tool_result": {
+            if (!isMCPToolResultContent(item)) {
+              return null;
+            }
             return (
               <MCPToolResultRenderer
                 key={index}
-                toolUseId={String(item.tool_use_id ?? "")}
-                content={item.content as never}
+                toolUseId={item.tool_use_id}
+                content={item.content}
                 isError={item.is_error === true}
               />
             );
+          }
 
-          case "web_fetch_tool_result":
+          case "web_fetch_tool_result": {
+            if (!isWebFetchToolResultContent(item)) {
+              return null;
+            }
             return (
               <WebFetchToolResultRenderer
                 key={index}
-                toolUseId={String(item.tool_use_id ?? "")}
-                content={item.content as never}
+                toolUseId={item.tool_use_id}
+                content={item.content}
               />
             );
+          }
 
-          case "code_execution_tool_result":
+          case "code_execution_tool_result": {
+            if (!isCodeExecutionToolResultContent(item)) {
+              return null;
+            }
             return (
               <CodeExecutionToolResultRenderer
                 key={index}
-                toolUseId={String(item.tool_use_id ?? "")}
-                content={item.content as never}
+                toolUseId={item.tool_use_id}
+                content={item.content}
               />
             );
+          }
 
-          case "bash_code_execution_tool_result":
+          case "bash_code_execution_tool_result": {
+            if (!isBashCodeExecutionToolResultContent(item)) {
+              return null;
+            }
             return (
               <BashCodeExecutionToolResultRenderer
                 key={index}
-                toolUseId={String(item.tool_use_id ?? "")}
-                content={item.content as never}
+                toolUseId={item.tool_use_id}
+                content={item.content}
               />
             );
+          }
 
-          case "text_editor_code_execution_tool_result":
+          case "text_editor_code_execution_tool_result": {
+            if (!isTextEditorCodeExecutionToolResultContent(item)) {
+              return null;
+            }
             return (
               <TextEditorCodeExecutionToolResultRenderer
                 key={index}
-                toolUseId={String(item.tool_use_id ?? "")}
-                content={item.content as never}
+                toolUseId={item.tool_use_id}
+                content={item.content}
               />
             );
+          }
 
-          case "tool_search_tool_result":
+          case "tool_search_tool_result": {
+            if (!isToolSearchToolResultContent(item)) {
+              return null;
+            }
             return (
               <ToolSearchToolResultRenderer
                 key={index}
-                toolUseId={String(item.tool_use_id ?? "")}
-                content={item.content as never}
+                toolUseId={item.tool_use_id}
+                content={item.content}
               />
             );
+          }
 
           default: {
             // 기본 JSON 렌더링 - warning variant for unknown types
