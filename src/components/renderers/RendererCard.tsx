@@ -186,20 +186,26 @@ const CardHeader = memo(function CardHeader({
     );
   }
 
-  // Collapsible header (with toggle button)
+  // Collapsible header (with toggle button separated from rightContent for a11y)
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-expanded={isExpanded}
+    <div
       className={cn(
-        "w-full flex items-center justify-between text-left",
+        "w-full flex items-center justify-between",
         layout.headerPadding,
-        layout.headerHeight,
-        "hover:bg-muted/50 transition-colors"
+        layout.headerHeight
       )}
     >
-      <div className={cn("flex items-center", layout.iconGap)}>
+      {/* Toggle button - only wraps left side (chevron, icon, title) */}
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={isExpanded}
+        className={cn(
+          "flex items-center text-left flex-1 min-w-0",
+          layout.iconGap,
+          "hover:bg-muted/50 transition-colors rounded-sm -m-1 p-1"
+        )}
+      >
         <ChevronRight
           className={cn(
             layout.iconSize,
@@ -216,22 +222,27 @@ const CardHeader = memo(function CardHeader({
           className={cn(
             layout.titleText,
             titleClassName || styles.title,
-            hasError && "text-destructive"
+            hasError && "text-destructive",
+            "truncate"
           )}
         >
           {`${title} ${hasError ? t("common.errorOccurred") : ""}`}
         </span>
-      </div>
-      <div
-        className={cn(
-          "flex items-center shrink-0",
-          layout.iconGap,
-          layout.smallText
-        )}
-      >
-        {rightContent}
-      </div>
-    </button>
+      </button>
+      {/* rightContent - separate from toggle to allow interactive elements */}
+      {rightContent && (
+        <div
+          className={cn(
+            "flex items-center shrink-0",
+            layout.iconGap,
+            layout.smallText
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {rightContent}
+        </div>
+      )}
+    </div>
   );
 });
 
