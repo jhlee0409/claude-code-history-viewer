@@ -44,7 +44,7 @@ export const WebFetchToolRenderer = ({ toolId, input }: Props) => {
         )}
         {input.prompt && (
           <div className={cn("p-2 border bg-card border-border", layout.rounded)}>
-            <div className={cn(layout.smallText, "text-muted-foreground mb-1")}>Prompt</div>
+            <div className={cn(layout.smallText, "text-muted-foreground mb-1")}>{t("taskOperation.prompt")}</div>
             <div className={cn(layout.bodyText, "text-foreground whitespace-pre-wrap")}>{input.prompt}</div>
           </div>
         )}

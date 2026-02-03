@@ -7,7 +7,7 @@
 import type { ClaudeMessage, ClaudeSession, ProgressData } from "../../types";
 import type { SearchState, SearchFilterType } from "../../store/useAppStore";
 import type { AgentTask } from "../toolResultRenderer";
-import type { TaskOperation } from "./helpers/taskOperationHelpers";
+import type { TaskOperation, TaskInfo } from "./helpers/taskOperationHelpers";
 
 // ============================================================================
 // Props Interfaces
@@ -42,7 +42,7 @@ export interface MessageNodeProps {
   isAgentProgressGroupMember?: boolean;
   // Task operation grouping
   taskOperationGroup?: TaskOperation[];
-  taskRegistry?: Map<string, import("./helpers/taskOperationHelpers").TaskInfo>;
+  taskRegistry?: Map<string, TaskInfo>;
   isTaskOperationGroupMember?: boolean;
   // Capture mode
   isCaptureMode?: boolean;
@@ -125,7 +125,7 @@ export interface FlattenedMessageItem {
   /** Task operations for group leader */
   taskOperationGroup?: TaskOperation[];
   /** Global task registry for resolving task info */
-  taskRegistry?: Map<string, import("./helpers/taskOperationHelpers").TaskInfo>;
+  taskRegistry?: Map<string, TaskInfo>;
 }
 
 /** Placeholder indicating hidden blocks in capture mode */

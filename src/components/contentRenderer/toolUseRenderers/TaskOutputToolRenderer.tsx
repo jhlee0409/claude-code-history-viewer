@@ -1,4 +1,5 @@
 import { Download } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
@@ -15,12 +16,13 @@ interface Props {
 }
 
 export const TaskOutputToolRenderer = ({ toolId, input }: Props) => {
+  const { t } = useTranslation();
   const styles = getVariantStyles("task");
 
   return (
     <Renderer className={styles.container}>
       <Renderer.Header
-        title="TaskOutput"
+        title={t("taskOperation.taskOutput")}
         icon={<Download className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
         rightContent={

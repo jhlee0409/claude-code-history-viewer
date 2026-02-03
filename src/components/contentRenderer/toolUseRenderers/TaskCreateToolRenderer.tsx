@@ -37,19 +37,19 @@ export const TaskCreateToolRenderer = ({ toolId, input }: Props) => {
       <Renderer.Content>
         {input.subject && (
           <div className={cn("p-2 border bg-card border-border", layout.rounded, "mb-2")}>
-            <div className={cn(layout.smallText, "text-muted-foreground mb-0.5")}>Subject</div>
+            <div className={cn(layout.smallText, "text-muted-foreground mb-0.5")}>{t("taskOperation.subject")}</div>
             <div className={cn(layout.bodyText, "text-foreground font-medium")}>{input.subject}</div>
           </div>
         )}
         {input.description && (
           <div className={cn("p-2 border bg-card border-border", layout.rounded, "mb-2")}>
-            <div className={cn(layout.smallText, "text-muted-foreground mb-0.5")}>Description</div>
+            <div className={cn(layout.smallText, "text-muted-foreground mb-0.5")}>{t("taskOperation.description")}</div>
             <div className={cn(layout.bodyText, "text-foreground whitespace-pre-wrap")}>{input.description}</div>
           </div>
         )}
         {input.activeForm && (
           <div className={cn("flex items-center gap-2", layout.smallText, "text-muted-foreground")}>
-            <span>Active Form:</span>
+            <span>{t("taskOperation.activeForm")}</span>
             <span className={cn("px-1.5 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>
               {input.activeForm}
             </span>

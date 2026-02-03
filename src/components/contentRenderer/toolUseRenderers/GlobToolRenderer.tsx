@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FolderSearch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
@@ -14,7 +15,7 @@ interface Props {
   input: GlobToolInput;
 }
 
-export const GlobToolRenderer = ({ toolId, input }: Props) => {
+export const GlobToolRenderer = memo(function GlobToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const styles = getVariantStyles("file");
 
@@ -48,4 +49,4 @@ export const GlobToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

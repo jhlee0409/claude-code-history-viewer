@@ -1,8 +1,9 @@
-import { ListChecks, CheckCircle2, Circle, Loader2, Trash2, ArrowRight } from "lucide-react";
+import { ListChecks, ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
+import { TASK_STATUS_CONFIG } from "@/components/toolResultRenderer/taskStatusConfig";
 
 interface TaskUpdateToolInput {
   taskId?: string;
@@ -20,18 +21,22 @@ interface Props {
   input: TaskUpdateToolInput;
 }
 
-const STATUS_STYLES: Record<string, { icon: typeof Circle; color: string; label: string }> = {
-  pending: { icon: Circle, color: "text-muted-foreground", label: "Pending" },
-  in_progress: { icon: Loader2, color: "text-info", label: "In Progress" },
-  completed: { icon: CheckCircle2, color: "text-success", label: "Completed" },
-  deleted: { icon: Trash2, color: "text-destructive", label: "Deleted" },
-};
-
 export const TaskUpdateToolRenderer = ({ toolId, input }: Props) => {
   const { t } = useTranslation();
   const styles = getVariantStyles("task");
-  const statusInfo = input.status ? STATUS_STYLES[input.status] : null;
-  const StatusIcon = statusInfo?.icon ?? Circle;
+
+  const getStatusLabel = (status: string) => {
+    const keyMap: Record<string, string> = {
+      pending: "taskOperation.pending",
+      in_progress: "taskOperation.inProgress",
+      completed: "taskOperation.completed",
+      deleted: "taskOperation.deleted",
+    };
+    return t(keyMap[status] ?? "taskOperation.pending");
+  };
+
+  const statusInfo = input.status ? TASK_STATUS_CONFIG[input.status] : null;
+  const StatusIcon = statusInfo?.icon ?? TASK_STATUS_CONFIG["pending"]!.icon;
 
   return (
     <Renderer className={styles.container}>
@@ -62,7 +67,7 @@ export const TaskUpdateToolRenderer = ({ toolId, input }: Props) => {
               <span className={cn(layout.smallText, "text-muted-foreground")}>status:</span>
               <div className={cn("flex items-center gap-1 px-1.5 py-0.5", layout.rounded, "bg-card border border-border")}>
                 <StatusIcon className={cn(layout.iconSizeSmall, statusInfo.color)} />
-                <span className={cn(layout.bodyText, "font-medium", statusInfo.color)}>{statusInfo.label}</span>
+                <span className={cn(layout.bodyText, "font-medium", statusInfo.color)}>{getStatusLabel(input.status)}</span>
               </div>
             </div>
           )}

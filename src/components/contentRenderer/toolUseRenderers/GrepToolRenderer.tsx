@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FileSearch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
@@ -24,7 +25,7 @@ interface Props {
   input: GrepToolInput;
 }
 
-export const GrepToolRenderer = ({ toolId, input }: Props) => {
+export const GrepToolRenderer = memo(function GrepToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const styles = getVariantStyles("search");
 
@@ -103,4 +104,4 @@ export const GrepToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

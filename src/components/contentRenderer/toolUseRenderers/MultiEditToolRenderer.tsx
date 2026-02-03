@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FileText, Edit } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
@@ -21,7 +22,7 @@ interface Props {
   input: MultiEditToolInput;
 }
 
-export const MultiEditToolRenderer = ({ toolId, input }: Props) => {
+export const MultiEditToolRenderer = memo(function MultiEditToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const styles = getVariantStyles("code");
   const filePath = input.file_path ?? "";
@@ -36,7 +37,7 @@ export const MultiEditToolRenderer = ({ toolId, input }: Props) => {
         rightContent={
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             <span className={cn("px-1.5 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>
-              {edits.length} {edits.length === 1 ? "edit" : "edits"}
+              {t("taskOperation.editCount", { count: edits.length })}
             </span>
             {toolId && (
               <code className={cn(layout.monoText, "px-2 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>
@@ -71,4 +72,4 @@ export const MultiEditToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

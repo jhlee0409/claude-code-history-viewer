@@ -45,7 +45,7 @@ export const TodoWriteToolRenderer = ({ toolId, input }: Props) => {
         rightContent={
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             <span className={cn("px-1.5 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>
-              {todos.length} {todos.length === 1 ? "item" : "items"}
+              {t("taskOperation.itemCount", { count: todos.length })}
             </span>
             {toolId && (
               <code className={cn(layout.monoText, "px-2 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>

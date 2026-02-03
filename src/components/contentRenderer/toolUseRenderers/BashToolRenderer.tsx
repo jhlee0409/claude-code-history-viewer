@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Terminal, Clock, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Highlight, themes } from "prism-react-renderer";
@@ -19,7 +20,7 @@ interface Props {
   input: BashToolInput;
 }
 
-export const BashToolRenderer = ({ toolId, input }: Props) => {
+export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const styles = getVariantStyles("terminal");
@@ -35,7 +36,7 @@ export const BashToolRenderer = ({ toolId, input }: Props) => {
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             {input.run_in_background && (
               <span className={cn("px-1.5 py-0.5", layout.rounded, "bg-amber-500/20 text-amber-600 dark:text-amber-400")}>
-                background
+                {t("taskOperation.background")}
               </span>
             )}
             {input.timeout != null && (
@@ -61,7 +62,7 @@ export const BashToolRenderer = ({ toolId, input }: Props) => {
         <div className={cn(layout.rounded, "overflow-hidden")}>
           <div className={cn("px-3 py-1 flex items-center gap-1.5 bg-zinc-800 dark:bg-zinc-900", layout.smallText, "text-zinc-400")}>
             <Play className="w-3 h-3" />
-            <span>command</span>
+            <span>{t("taskOperation.command")}</span>
           </div>
           <Highlight
             theme={isDarkMode ? themes.vsDark : themes.vsLight}
@@ -96,4 +97,4 @@ export const BashToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

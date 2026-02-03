@@ -9,10 +9,6 @@ import { memo, useState, useMemo } from "react";
 import {
   ChevronRight,
   ListTodo,
-  CheckCircle2,
-  Circle,
-  Loader2,
-  Trash2,
   ListPlus,
   ArrowRight,
 } from "lucide-react";
@@ -20,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
 import type { TaskOperation, TaskInfo } from "../MessageViewer/helpers/taskOperationHelpers";
+import { TASK_STATUS_CONFIG } from "./taskStatusConfig";
 
 interface Props {
   operations: TaskOperation[];
@@ -37,13 +34,6 @@ interface MergedTask {
   /** Original operation */
   createOp: TaskOperation;
 }
-
-const STATUS_CONFIG: Record<string, { icon: typeof Circle; color: string }> = {
-  pending: { icon: Circle, color: "text-muted-foreground" },
-  in_progress: { icon: Loader2, color: "text-info" },
-  completed: { icon: CheckCircle2, color: "text-success" },
-  deleted: { icon: Trash2, color: "text-destructive" },
-};
 
 /**
  * Merge operations: TaskCreate defines a task row, TaskUpdate updates its status.
@@ -111,8 +101,9 @@ const TaskRow = memo(function TaskRow({
 }: {
   task: MergedTask;
 }) {
-  const statusInfo = task.status ? STATUS_CONFIG[task.status] : null;
-  const StatusIcon = statusInfo?.icon ?? Circle;
+  const { t } = useTranslation();
+  const statusInfo = task.status ? TASK_STATUS_CONFIG[task.status] : null;
+  const StatusIcon = statusInfo?.icon ?? TASK_STATUS_CONFIG["pending"]!.icon;
   const statusColor = statusInfo?.color ?? "text-muted-foreground";
   const hasDescription = task.isCreate && !!task.description;
   const [expanded, setExpanded] = useState(false);
@@ -122,6 +113,7 @@ const TaskRow = memo(function TaskRow({
       <button
         type="button"
         onClick={hasDescription ? () => setExpanded(!expanded) : undefined}
+        aria-label={hasDescription ? (expanded ? t("taskOperation.collapse") : t("taskOperation.expand")) : undefined}
         className={cn(
           "w-full flex items-center gap-2 px-2 py-1.5 text-left",
           hasDescription && "hover:bg-muted/50 transition-colors",
@@ -201,7 +193,7 @@ export const TaskOperationGroupRenderer = memo(function TaskOperationGroupRender
   const { tasks, otherOps } = useMemo(() => mergeOperations(operations, taskRegistry), [operations, taskRegistry]);
 
   const taskCount = tasks.length;
-  const summary = `${taskCount} task${taskCount !== 1 ? "s" : ""}`;
+  const summary = t("taskOperation.taskCount", { count: taskCount });
 
   return (
     <div className={cn(layout.rounded, "border overflow-hidden", styles.container)}>
@@ -209,6 +201,7 @@ export const TaskOperationGroupRenderer = memo(function TaskOperationGroupRender
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-label={isExpanded ? t("taskOperation.collapse") : t("taskOperation.expand")}
         className={cn(
           "w-full flex items-center gap-2 px-3 py-2 text-left",
           "hover:bg-muted/30 transition-colors"
@@ -222,7 +215,7 @@ export const TaskOperationGroupRenderer = memo(function TaskOperationGroupRender
         />
         <ListTodo className={cn("w-4 h-4 shrink-0", styles.icon)} />
         <span className={cn(layout.smallText, "font-medium", styles.title)}>
-          {t("taskOperationGroup.title", { defaultValue: "Task Operations" })}
+          {t("taskOperation.taskOperations", { defaultValue: "Task Operations" })}
         </span>
 
         {/* Summary Badge */}

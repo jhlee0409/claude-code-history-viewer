@@ -8,10 +8,6 @@
 
 import { memo } from "react";
 import {
-  CheckCircle2,
-  Circle,
-  Loader2,
-  Trash2,
   ListTodo,
   ArrowRight,
   Ban,
@@ -20,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { Renderer } from "@/shared/RendererHeader";
+import { TASK_STATUS_CONFIG } from "./taskStatusConfig";
 
 interface TaskData {
   id?: string;
@@ -34,13 +31,6 @@ interface TaskData {
 interface Props {
   toolResult: Record<string, unknown>;
 }
-
-const STATUS_CONFIG: Record<string, { icon: typeof Circle; color: string; label: string }> = {
-  pending: { icon: Circle, color: "text-muted-foreground", label: "Pending" },
-  in_progress: { icon: Loader2, color: "text-info", label: "In Progress" },
-  completed: { icon: CheckCircle2, color: "text-success", label: "Completed" },
-  deleted: { icon: Trash2, color: "text-destructive", label: "Deleted" },
-};
 
 /**
  * Normalize task data from different API shapes:
@@ -60,8 +50,8 @@ function normalizeTask(raw: Record<string, unknown>): TaskData {
 }
 
 const TaskRow = memo(function TaskRow({ task }: { task: TaskData }) {
-  const statusInfo = task.status ? STATUS_CONFIG[task.status] : STATUS_CONFIG.pending;
-  const StatusIcon = statusInfo?.icon ?? Circle;
+  const statusInfo = task.status ? TASK_STATUS_CONFIG[task.status] : TASK_STATUS_CONFIG["pending"]!;
+  const StatusIcon = statusInfo?.icon ?? TASK_STATUS_CONFIG["pending"]!.icon;
   const color = statusInfo?.color ?? "text-muted-foreground";
 
   return (
@@ -96,10 +86,20 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
   const { t } = useTranslation();
   const styles = getVariantStyles("task");
 
+  const getStatusLabel = (status: string) => {
+    const keyMap: Record<string, string> = {
+      pending: "taskOperation.pending",
+      in_progress: "taskOperation.inProgress",
+      completed: "taskOperation.completed",
+      deleted: "taskOperation.deleted",
+    };
+    return t(keyMap[status] ?? "taskOperation.pending");
+  };
+
   // Single task result: {task: {id, subject, ...}} or {task: {task_id, description, ...}}
   if (toolResult.task != null && typeof toolResult.task === "object") {
     const task = normalizeTask(toolResult.task as Record<string, unknown>);
-    const statusInfo = task.status ? STATUS_CONFIG[task.status] : null;
+    const statusInfo = task.status ? TASK_STATUS_CONFIG[task.status] : null;
 
     return (
       <Renderer className={styles.container} enableToggle={false}>
@@ -114,9 +114,9 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
                   #{task.id}
                 </span>
               )}
-              {statusInfo && (
+              {statusInfo && task.status && (
                 <span className={cn("px-1.5 py-0.5", layout.rounded, "bg-card border border-border", statusInfo.color)}>
-                  {statusInfo.label}
+                  {getStatusLabel(task.status)}
                 </span>
               )}
             </div>
@@ -137,8 +137,8 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
     const statusChange = toolResult.statusChange as Record<string, string> | undefined;
     const newStatus = statusChange?.to;
     const oldStatus = statusChange?.from;
-    const statusInfo = newStatus ? STATUS_CONFIG[newStatus] : null;
-    const StatusIcon = statusInfo?.icon ?? CheckCircle2;
+    const statusInfo = newStatus ? TASK_STATUS_CONFIG[newStatus] : null;
+    const StatusIcon = statusInfo?.icon ?? TASK_STATUS_CONFIG["completed"]!.icon;
 
     return (
       <Renderer className={styles.container} enableToggle={false}>
@@ -151,9 +151,9 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
               <span className={cn("px-1.5 py-0.5 font-mono", layout.rounded, styles.badge, styles.badgeText)}>
                 #{taskId}
               </span>
-              {statusInfo && (
+              {statusInfo && newStatus && (
                 <span className={cn("px-1.5 py-0.5", layout.rounded, "bg-card border border-border", statusInfo.color)}>
-                  {statusInfo.label}
+                  {getStatusLabel(newStatus)}
                 </span>
               )}
             </div>

@@ -132,60 +132,42 @@ export function groupTaskOperations(
   // Build global task registry from all TaskCreate operations in the conversation
   const taskRegistry = new Map<string, TaskInfo>();
   for (const msg of messages) {
-    if (msg.type !== "assistant" || !Array.isArray(msg.content)) continue;
-    for (const item of msg.content as unknown[]) {
-      if (item == null || typeof item !== "object") continue;
-      const obj = item as Record<string, unknown>;
-      if (obj.type === "tool_use" && obj.name === "TaskCreate") {
-        const input = (obj.input as Record<string, unknown>) ?? {};
-        const subject = typeof input.subject === "string" ? input.subject : undefined;
-        const description = typeof input.description === "string" ? input.description : undefined;
-        // We'll fill in the id when we find the result
-        if (subject || description) {
-          // Temporarily store by tool_use id to match with result later
-          const toolUseId = typeof obj.id === "string" ? obj.id : undefined;
-          if (toolUseId) {
-            (taskRegistry as Map<string, TaskInfo & { _toolUseId?: string }>).set(`_pending_${toolUseId}`, {
-              id: "",
-              subject,
-              description,
-            });
+    // Extract from assistant message TaskCreate tool_use
+    if (msg.type === "assistant" && Array.isArray(msg.content)) {
+      for (const item of msg.content as unknown[]) {
+        if (item == null || typeof item !== "object") continue;
+        const obj = item as Record<string, unknown>;
+        if (obj.type === "tool_use" && obj.name === "TaskCreate") {
+          const input = (obj.input as Record<string, unknown>) ?? {};
+          const subject = typeof input.subject === "string" ? input.subject : undefined;
+          const description = typeof input.description === "string" ? input.description : undefined;
+          if (subject || description) {
+            const toolUseId = typeof obj.id === "string" ? obj.id : undefined;
+            if (toolUseId) {
+              (taskRegistry as Map<string, TaskInfo & { _toolUseId?: string }>).set(`_pending_${toolUseId}`, {
+                id: "",
+                subject,
+                description,
+              });
+            }
           }
         }
       }
     }
-    // Check result messages for TaskCreate results to get the actual task id
+    // Extract from result messages (both assistant and user)
     const resultMsg = msg as { toolUseResult?: unknown };
     if (resultMsg.toolUseResult && typeof resultMsg.toolUseResult === "object") {
       const result = resultMsg.toolUseResult as Record<string, unknown>;
       if (result.task && typeof result.task === "object") {
         const task = result.task as Record<string, unknown>;
         const id = task.id != null ? String(task.id) : undefined;
-        if (id) {
+        if (id && !taskRegistry.has(id)) {
           taskRegistry.set(id, {
             id,
             subject: typeof task.subject === "string" ? task.subject : (typeof task.description === "string" ? task.description : undefined),
             description: typeof task.description === "string" ? task.description : undefined,
           });
         }
-      }
-    }
-  }
-  // Also scan user messages for task results (they often carry the result)
-  for (const msg of messages) {
-    if (msg.type !== "user") continue;
-    const resultMsg = msg as { toolUseResult?: unknown };
-    if (!resultMsg.toolUseResult || typeof resultMsg.toolUseResult !== "object") continue;
-    const result = resultMsg.toolUseResult as Record<string, unknown>;
-    if (result.task && typeof result.task === "object") {
-      const task = result.task as Record<string, unknown>;
-      const id = task.id != null ? String(task.id) : undefined;
-      if (id && !taskRegistry.has(id)) {
-        taskRegistry.set(id, {
-          id,
-          subject: typeof task.subject === "string" ? task.subject : (typeof task.description === "string" ? task.description : undefined),
-          description: typeof task.description === "string" ? task.description : undefined,
-        });
       }
     }
   }
@@ -200,20 +182,18 @@ export function groupTaskOperations(
 
   const flushGroup = () => {
     if (currentGroup && currentGroup.operations.length > 0) {
-      // Create group for 1+ operations to merge tool_use + tool_result into single card
-      if (currentGroup.operations.length >= 1) {
-        groups.set(currentGroup.leaderId, {
-          operations: currentGroup.operations,
-          messageUuids: currentGroup.messageUuids,
-          taskRegistry,
-        });
-      }
+      groups.set(currentGroup.leaderId, {
+        operations: currentGroup.operations,
+        messageUuids: currentGroup.messageUuids,
+        taskRegistry,
+      });
     }
     currentGroup = null;
   };
 
   for (const msg of messages) {
     const msgTime = new Date(msg.timestamp).getTime();
+    if (isNaN(msgTime)) continue;
 
     if (isTaskOperationAssistantMessage(msg)) {
       const ops = extractTaskOperations(msg);
