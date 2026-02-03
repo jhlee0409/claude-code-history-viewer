@@ -1,15 +1,11 @@
 /**
- * @deprecated This file is deprecated. Import from '@/types' or '@/types/core/tool' instead.
- *
- * Tool Types
+ * Core Tool Types
  *
  * Tool use and tool result content types for Claude's tool interactions.
  * Includes server-side tools, web search, web fetch, and code execution.
- *
- * @see src/types/core/tool.ts for the canonical implementation
  */
 
-import type { TextContent } from "./content.types";
+import type { TextContent } from "./content";
 
 // ============================================================================
 // Basic Tool Types
@@ -227,9 +223,9 @@ import type {
   ImageContent,
   DocumentContent,
   SearchResultContent,
-} from "./content.types";
+} from "./content";
 
-import type { MCPToolUseContent, MCPToolResultContent } from "./mcp.types";
+import type { MCPToolUseContent, MCPToolResultContent } from "./mcp";
 
 export type ContentItem =
   | TextContent

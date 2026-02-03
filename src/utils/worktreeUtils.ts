@@ -155,7 +155,10 @@ export function detectWorktreeGroupsHybrid(
   const withoutGitInfo: ClaudeProject[] = [];
 
   for (const project of projects) {
-    if (project.git_info && project.git_info.worktree_type !== "not_git") {
+    if (
+      project.git_info?.worktree_type &&
+      project.git_info.worktree_type !== "not_git"
+    ) {
       withGitInfo.push(project);
     } else {
       withoutGitInfo.push(project);

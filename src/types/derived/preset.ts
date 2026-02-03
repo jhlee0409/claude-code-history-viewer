@@ -1,15 +1,10 @@
 /**
- * @deprecated This file is deprecated. Import from '@/types' or '@/types/derived/preset' instead.
+ * Unified Preset Types
  *
- * Unified Configuration Preset Types
+ * Consolidated preset type definitions for configuration management.
+ * Combines settings presets, MCP presets, and unified presets into one coherent system.
  *
- * Single preset type that captures complete config state:
- * - Settings from settings.json
- * - MCP servers from claude.json
- *
- * When applied, intelligently routes data to correct files.
- *
- * @see src/types/derived/preset.ts for the canonical implementation
+ * Location: ~/.claude-history-viewer/unified-presets/
  */
 
 import type {
@@ -17,15 +12,131 @@ import type {
   ClaudeModel,
   MCPServerConfig,
   SettingsScope,
-} from "./claudeSettings";
+} from "../core/settings";
+import type { UserSettings } from "../core/project";
 
 // ============================================================================
-// Core Types
+// Legacy User Settings Preset (Deprecated)
+// ============================================================================
+
+/**
+ * @deprecated Use UnifiedPresetData instead
+ * Legacy data structure for settings presets
+ */
+export interface PresetData {
+  /** Unique identifier for the preset */
+  id: string;
+  /** Display name for the preset */
+  name: string;
+  /** Optional description of the preset */
+  description?: string;
+  /** JSON string of UserSettings */
+  settings: string;
+  /** ISO 8601 timestamp of creation */
+  createdAt: string;
+  /** ISO 8601 timestamp of last update */
+  updatedAt: string;
+}
+
+/**
+ * @deprecated Use UnifiedPresetInput instead
+ * Legacy input structure for creating/updating presets
+ */
+export interface PresetInput {
+  /** Optional ID (auto-generated if not provided) */
+  id?: string;
+  /** Display name for the preset */
+  name: string;
+  /** Optional description of the preset */
+  description?: string;
+  /** JSON string of UserSettings */
+  settings: string;
+}
+
+/** Helper to convert UserSettings to JSON string */
+export const settingsToJson = (settings: UserSettings): string => {
+  return JSON.stringify(settings);
+};
+
+/** Helper to parse settings JSON string */
+export const jsonToSettings = (json: string): UserSettings => {
+  return JSON.parse(json) as UserSettings;
+};
+
+/** Helper to create preset input from UserSettings */
+export const createPresetInput = (
+  name: string,
+  settings: UserSettings,
+  description?: string,
+  id?: string
+): PresetInput => {
+  return {
+    id,
+    name,
+    description,
+    settings: settingsToJson(settings),
+  };
+};
+
+/** Helper to extract settings from preset data */
+export const extractSettings = (preset: PresetData): UserSettings => {
+  return jsonToSettings(preset.settings);
+};
+
+// ============================================================================
+// Legacy MCP Preset (Deprecated)
+// ============================================================================
+
+/**
+ * @deprecated Use UnifiedPresetData instead
+ * Legacy MCP server preset data structure
+ */
+export interface MCPPresetData {
+  /** Unique preset identifier */
+  id: string;
+  /** Human-readable preset name */
+  name: string;
+  /** Optional description */
+  description?: string;
+  /** MCP server configurations (JSON string) */
+  servers: string;
+  /** Creation timestamp */
+  createdAt: string;
+  /** Last update timestamp */
+  updatedAt?: string;
+}
+
+/**
+ * @deprecated Use UnifiedPresetInput instead
+ * Legacy input for creating/updating an MCP preset
+ */
+export interface MCPPresetInput {
+  /** Optional ID for updates (auto-generated if not provided) */
+  id?: string;
+  /** Preset name */
+  name: string;
+  /** Optional description */
+  description?: string;
+  /** MCP server configurations (JSON string) */
+  servers: string;
+}
+
+/** Parse MCP servers from preset JSON string */
+export function parseMCPServers(serversJson: string): Record<string, MCPServerConfig> {
+  try {
+    return JSON.parse(serversJson) as Record<string, MCPServerConfig>;
+  } catch {
+    return {};
+  }
+}
+
+// ============================================================================
+// Unified Preset (Current)
 // ============================================================================
 
 /**
  * Unified preset data structure
- * Stored in ~/.claude-history-viewer/unified-presets/*.json
+ * Combines both settings and MCP servers into a single preset
  */
 export interface UnifiedPresetData {
   /** Unique identifier (UUID) */
@@ -71,10 +182,6 @@ export interface UnifiedPresetSummary {
   /** Has environment variables */
   hasEnvVars: boolean;
 }
-
-// ============================================================================
-// Input/Output Types
-// ============================================================================
 
 /**
  * Input for creating or updating a unified preset
@@ -170,3 +277,22 @@ export function formatPresetDate(isoDate: string): string {
     day: "numeric",
   });
 }
+
+/**
+ * Format preset timestamp for display (with time)
+ */
+export function formatMCPPresetDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * @deprecated Use formatPresetDate or formatMCPPresetDate
+ */
+export const formatUnifiedPresetDate = formatPresetDate;

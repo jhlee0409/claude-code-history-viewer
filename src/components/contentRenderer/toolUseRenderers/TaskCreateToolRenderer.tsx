@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ListPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
@@ -16,7 +17,7 @@ interface Props {
   input: TaskCreateToolInput;
 }
 
-export const TaskCreateToolRenderer = ({ toolId, input }: Props) => {
+export const TaskCreateToolRenderer = memo(function TaskCreateToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const styles = getVariantStyles("task");
 
@@ -58,4 +59,4 @@ export const TaskCreateToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

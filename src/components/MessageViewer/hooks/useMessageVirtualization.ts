@@ -85,7 +85,9 @@ export const useMessageVirtualization = ({
           taskOperationMemberUuids,
           hiddenMessageIds: effectiveHiddenIds,
         });
-        console.debug(`[useMessageVirtualization] flattenMessageTree: ${messages.length} → ${result.length} items (${effectiveHiddenIds.length} hidden), ${(performance.now() - start).toFixed(1)}ms`);
+        if (import.meta.env.DEV) {
+          console.debug(`[useMessageVirtualization] flattenMessageTree: ${messages.length} → ${result.length} items (${effectiveHiddenIds.length} hidden), ${(performance.now() - start).toFixed(1)}ms`);
+        }
         return result;
       }
       return flattenMessageTree({

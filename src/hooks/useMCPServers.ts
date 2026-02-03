@@ -1,18 +1,63 @@
 /**
  * MCP Servers Management Hook
  *
- * Manages MCP server configurations from all sources:
+ * **MULTI-SOURCE MCP CONFIGURATION MANAGER**
  *
- * Official sources (from ~/.claude.json):
- * - User claude.json: ~/.claude.json mcpServers (user-scoped, cross-project)
- * - Local claude.json: ~/.claude.json projects.<path>.mcpServers (local-scoped)
+ * Manages MCP (Model Context Protocol) server configurations from all sources
+ * in the Claude Code ecosystem. Provides a unified interface to read and write
+ * MCP configs across official and legacy file locations.
  *
- * Legacy sources:
- * - User settings.json: ~/.claude/settings.json mcpServers field
- * - User .mcp.json: ~/.claude/.mcp.json
+ * @example Load All Sources
+ * ```typescript
+ * const {
+ *   userClaudeJson,    // Official: ~/.claude.json mcpServers
+ *   localClaudeJson,   // Official: ~/.claude.json projects.<path>.mcpServers
+ *   userSettings,      // Legacy: ~/.claude/settings.json mcpServers
+ *   userMcpFile,       // Legacy: ~/.claude/.mcp.json
+ *   projectMcpFile,    // Project: <project>/.mcp.json
+ *   loadAllMCPServers,
+ *   saveMCPServers
+ * } = useMCPServers("/path/to/project");
  *
- * Project source:
- * - Project .mcp.json: <project>/.mcp.json
+ * // All sources auto-load on mount
+ * ```
+ *
+ * @example Save to Specific Source
+ * ```typescript
+ * await saveMCPServers("userClaudeJson", {
+ *   "my-server": {
+ *     command: "npx",
+ *     args: ["-y", "my-mcp-server"],
+ *     env: { API_KEY: "secret" }
+ *   }
+ * });
+ * ```
+ *
+ * @example Cross-Project Save
+ * ```typescript
+ * // Save to a different project's .mcp.json
+ * await saveMCPServers(
+ *   "projectMcpFile",
+ *   servers,
+ *   "/different/project/path"
+ * );
+ * ```
+ *
+ * @remarks
+ * **Source Priority (for Claude Code):**
+ * 1. Official sources take precedence (userClaudeJson, localClaudeJson)
+ * 2. Legacy sources for backward compatibility
+ * 3. Project-specific configs override user-level
+ *
+ * **Data Consistency:**
+ * - Auto-reloads from backend after save to prevent stale UI
+ * - Backend is source of truth for all file operations
+ *
+ * **File Locations:**
+ * - `~/.claude.json` - Official user-level and project-scoped configs
+ * - `~/.claude/settings.json` - Legacy user settings
+ * - `~/.claude/.mcp.json` - Legacy user MCP file
+ * - `<project>/.mcp.json` - Project-specific MCP config
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -37,11 +82,20 @@ export interface UseMCPServersResult {
   projectMcpFile: Record<string, MCPServerConfig>;
 
   // State
+  /** Loading state for async operations */
   isLoading: boolean;
+  /** Error message from last failed operation */
   error: string | null;
 
   // Actions
+  /** Load MCP servers from all sources */
   loadAllMCPServers: () => Promise<void>;
+  /**
+   * Save MCP servers to a specific source
+   * @param source - Target source location
+   * @param servers - Server configurations to save
+   * @param targetProjectPath - Optional different project path (for projectMcpFile source)
+   */
   saveMCPServers: (
     source: MCPSource,
     servers: Record<string, MCPServerConfig>,
@@ -51,6 +105,9 @@ export interface UseMCPServersResult {
 
 /**
  * Hook for managing MCP servers from all sources
+ *
+ * @param projectPath - Optional project path for loading project-specific MCP configs
+ * @returns MCP server state from all sources and management functions
  */
 export const useMCPServers = (projectPath?: string): UseMCPServersResult => {
   // Official sources (from ~/.claude.json)
@@ -67,7 +124,12 @@ export const useMCPServers = (projectPath?: string): UseMCPServersResult => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load all MCP servers from all sources
+  /**
+   * Load all MCP servers from all sources
+   *
+   * Fetches configs from official, legacy, and project sources in a single
+   * backend call for efficiency.
+   */
   const loadAllMCPServers = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -96,7 +158,16 @@ export const useMCPServers = (projectPath?: string): UseMCPServersResult => {
     }
   }, [projectPath]);
 
-  // Save MCP servers to a specific source (optionally to a different project)
+  /**
+   * Save MCP servers to a specific source
+   *
+   * Writes to the specified source file and reloads all sources to ensure
+   * UI consistency. Supports cross-project saves via targetProjectPath.
+   *
+   * @param source - Target source location (e.g., "userClaudeJson", "projectMcpFile")
+   * @param servers - Server configurations (Record<serverName, MCPServerConfig>)
+   * @param targetProjectPath - Override projectPath for cross-project saves
+   */
   const saveMCPServers = useCallback(
     async (source: MCPSource, servers: Record<string, MCPServerConfig>, targetProjectPath?: string) => {
       setIsLoading(true);
@@ -126,7 +197,11 @@ export const useMCPServers = (projectPath?: string): UseMCPServersResult => {
     [projectPath, loadAllMCPServers]
   );
 
-  // Load MCP servers on mount and when projectPath changes
+  /**
+   * Auto-load MCP servers on mount and when projectPath changes
+   *
+   * Ensures fresh data when switching projects or initializing.
+   */
   useEffect(() => {
     loadAllMCPServers();
   }, [loadAllMCPServers]);

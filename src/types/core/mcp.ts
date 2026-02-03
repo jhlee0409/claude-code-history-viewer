@@ -1,14 +1,10 @@
 /**
- * @deprecated This file is deprecated. Import from '@/types' or '@/types/core/mcp' instead.
- *
- * MCP Types (Model Context Protocol)
+ * Core MCP Types (Model Context Protocol)
  *
  * Types for MCP server tool invocations and results.
- *
- * @see src/types/core/mcp.ts for the canonical implementation
  */
 
-import type { ImageMimeType } from "./content.types";
+import type { ImageMimeType } from "./content";
 
 // ============================================================================
 // MCP Tool Use

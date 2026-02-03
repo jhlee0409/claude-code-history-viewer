@@ -267,10 +267,12 @@ export const createProjectSlice: StateCreator<
     }));
 
     // Keep groups with visible children; rescue orphaned parents to ungrouped
+    // (only if the parent itself is not hidden)
     result.groups = filtered.filter((group) => group.children.length > 0);
     const orphanedParents = filtered
       .filter((group) => group.children.length === 0)
-      .map((group) => group.parent);
+      .map((group) => group.parent)
+      .filter((parent) => !isProjectHidden(parent.actual_path));
     result.ungrouped = [...result.ungrouped, ...orphanedParents];
 
     return result;

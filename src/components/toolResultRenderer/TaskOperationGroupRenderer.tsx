@@ -92,7 +92,7 @@ function mergeOperations(operations: TaskOperation[], taskRegistry?: Map<string,
     }
   }
 
-  const tasks = taskOrder.map((id) => taskMap.get(id)!);
+  const tasks = taskOrder.map((id) => taskMap.get(id)).filter((t): t is MergedTask => t != null);
   return { tasks, otherOps };
 }
 
@@ -113,7 +113,7 @@ const TaskRow = memo(function TaskRow({
       <button
         type="button"
         onClick={hasDescription ? () => setExpanded(!expanded) : undefined}
-        aria-label={hasDescription ? (expanded ? t("taskOperation.collapse") : t("taskOperation.expand")) : undefined}
+        aria-label={hasDescription ? (expanded ? t("taskOperation.collapse", { defaultValue: "Collapse" }) : t("taskOperation.expand", { defaultValue: "Expand" })) : undefined}
         className={cn(
           "w-full flex items-center gap-2 px-2 py-1.5 text-left",
           hasDescription && "hover:bg-muted/50 transition-colors",

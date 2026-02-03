@@ -26,6 +26,9 @@ const TASK_TOOL_NAMES = new Set([
   "TodoRead",
 ]);
 
+/** Time window (in milliseconds) for grouping task operations */
+const TASK_GROUPING_WINDOW_MS = 5000;
+
 /** A single task operation (tool_use call + result) */
 export interface TaskOperation {
   /** The tool name (e.g., "TaskCreate") */
@@ -199,7 +202,7 @@ export function groupTaskOperations(
       const ops = extractTaskOperations(msg);
       if (ops.length === 0) continue;
 
-      if (currentGroup && Math.abs(msgTime - currentGroup.lastTimestamp) <= 5000) {
+      if (currentGroup && Math.abs(msgTime - currentGroup.lastTimestamp) <= TASK_GROUPING_WINDOW_MS) {
         // Continue current group
         currentGroup.pendingOps = ops;
         currentGroup.messageUuids.add(msg.uuid);
@@ -256,7 +259,7 @@ export function groupTaskOperations(
       // Non-task message: if we have pending ops waiting for results, keep waiting
       // Only flush pending ops without results if timestamp gap exceeded
       if (currentGroup) {
-        if (Math.abs(msgTime - currentGroup.lastTimestamp) > 5000) {
+        if (Math.abs(msgTime - currentGroup.lastTimestamp) > TASK_GROUPING_WINDOW_MS) {
           // Flush pending ops without results
           for (const op of currentGroup.pendingOps) {
             currentGroup.operations.push(op);

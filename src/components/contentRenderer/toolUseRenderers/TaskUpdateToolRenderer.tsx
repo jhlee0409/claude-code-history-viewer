@@ -1,4 +1,5 @@
-import { ListChecks, ArrowRight } from "lucide-react";
+import { memo } from "react";
+import { ListChecks, ArrowRight, Circle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
 import { cn } from "@/lib/utils";
@@ -21,7 +22,7 @@ interface Props {
   input: TaskUpdateToolInput;
 }
 
-export const TaskUpdateToolRenderer = ({ toolId, input }: Props) => {
+export const TaskUpdateToolRenderer = memo(function TaskUpdateToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const styles = getVariantStyles("task");
 
@@ -36,7 +37,8 @@ export const TaskUpdateToolRenderer = ({ toolId, input }: Props) => {
   };
 
   const statusInfo = input.status ? TASK_STATUS_CONFIG[input.status] : null;
-  const StatusIcon = statusInfo?.icon ?? TASK_STATUS_CONFIG["pending"]!.icon;
+  const defaultConfig = TASK_STATUS_CONFIG["pending"];
+  const StatusIcon = statusInfo?.icon ?? defaultConfig?.icon ?? Circle;
 
   return (
     <Renderer className={styles.container}>
@@ -111,4 +113,4 @@ export const TaskUpdateToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

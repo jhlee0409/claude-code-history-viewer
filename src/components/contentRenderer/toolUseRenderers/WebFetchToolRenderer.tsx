@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Globe, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
@@ -14,7 +15,7 @@ interface Props {
   input: WebFetchToolInput;
 }
 
-export const WebFetchToolRenderer = ({ toolId, input }: Props) => {
+export const WebFetchToolRenderer = memo(function WebFetchToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const styles = getVariantStyles("web");
 
@@ -51,4 +52,4 @@ export const WebFetchToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

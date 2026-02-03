@@ -1,9 +1,13 @@
 /**
+ * @deprecated This file is deprecated. Import from '@/types' or '@/types/derived/preset' instead.
+ *
  * Settings preset types for saving and loading user configurations
  *
  * This module contains data structures for settings presets
  * that allow users to save and quickly switch between different configurations.
  * Location: ~/.claude-history-viewer/presets/
+ *
+ * @see src/types/derived/preset.ts for the unified implementation
  */
 
 import type { UserSettings } from "./metadata.types";

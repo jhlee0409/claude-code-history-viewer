@@ -1,12 +1,8 @@
 /**
- * @deprecated This file is deprecated. Import from '@/types' or '@/types/core/content' instead.
- *
- * Content Types
+ * Core Content Types
  *
  * All content block types that can appear in message.content arrays.
  * Includes text, images, documents, thinking, and citations.
- *
- * @see src/types/core/content.ts for the canonical implementation
  */
 
 // ============================================================================

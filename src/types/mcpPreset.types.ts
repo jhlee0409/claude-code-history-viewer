@@ -1,7 +1,11 @@
 /**
+ * @deprecated This file is deprecated. Import from '@/types' or '@/types/derived/preset' instead.
+ *
  * MCP Server Preset Types
  *
  * Type definitions for MCP server configuration presets.
+ *
+ * @see src/types/derived/preset.ts for the unified implementation
  */
 
 import type { MCPServerConfig } from "./claudeSettings";

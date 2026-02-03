@@ -9,8 +9,10 @@
  */
 
 // ============================================================================
-// Message Types
+// Core Types - Fundamental building blocks
 // ============================================================================
+
+// Message Types
 export type {
   FileHistorySnapshotData,
   FileBackupEntry,
@@ -26,14 +28,16 @@ export type {
   ClaudeAssistantMessage,
   ClaudeUserMessage,
   ClaudeSystemMessage,
+  ClaudeSummaryMessage,
+  ClaudeFileHistoryMessage,
+  ClaudeProgressMessage,
+  ClaudeQueueMessage,
   MessageNode,
   MessagePage,
   PaginationState,
-} from "./message.types";
+} from "./core/message";
 
-// ============================================================================
 // Content Types
-// ============================================================================
 export type {
   TextContent,
   ThinkingContent,
@@ -49,11 +53,9 @@ export type {
   CitationsConfig,
   Citation,
   SearchResultContent,
-} from "./content.types";
+} from "./core/content";
 
-// ============================================================================
 // Tool Types
-// ============================================================================
 export type {
   ContentItem,
   ToolUseContent,
@@ -78,11 +80,9 @@ export type {
   ToolSearchToolResultContent,
   ToolSearchResult,
   ToolSearchError,
-} from "./tool.types";
+} from "./core/tool";
 
-// ============================================================================
 // MCP Types
-// ============================================================================
 export type {
   MCPToolUseContent,
   MCPToolResultContent,
@@ -92,11 +92,9 @@ export type {
   MCPResourceResult,
   MCPUnknownResult,
   ClaudeMCPResult,
-} from "./mcp.types";
+} from "./core/mcp";
 
-// ============================================================================
 // Session Types
-// ============================================================================
 export type {
   GitWorktreeType,
   GitInfo,
@@ -104,57 +102,16 @@ export type {
   ClaudeProject,
   ClaudeSession,
   SearchFilters,
-  AppState,
-} from "./session.types";
+} from "./core/session";
 
-// ============================================================================
-// Stats Types
-// ============================================================================
-export type {
-  SessionTokenStats,
-  PaginatedTokenStats,
-  DailyStats,
-  ActivityHeatmap,
-  ToolUsageStats,
-  ModelStats,
-  DateRange,
-  ProjectStatsSummary,
-  ProjectRanking,
-  SessionComparison,
-  GlobalStatsSummary,
-} from "./stats.types";
-
-// ============================================================================
-// Edit Types
-// ============================================================================
-export type { RecentFileEdit, RecentEditsResult, PaginatedRecentEdits } from "./edit.types";
-
-// ============================================================================
-// Update Types
-// ============================================================================
-export type {
-  UpdatePriority,
-  UpdateType,
-  UpdateMessage,
-  UpdateMetadata,
-  UpdateInfo,
-} from "./update.types";
-
-// ============================================================================
-// Error Types
-// ============================================================================
-export { AppErrorType } from "./error.types";
-export type { AppError } from "./error.types";
-
-// ============================================================================
-// Metadata Types
-// ============================================================================
+// Project & Metadata Types
 export type {
   SessionMetadata,
   ProjectMetadata,
+  GroupingMode,
   UserSettings,
   UserMetadata,
-} from "./metadata.types";
+} from "./core/project";
 export {
   METADATA_SCHEMA_VERSION,
   DEFAULT_USER_METADATA,
@@ -162,11 +119,9 @@ export {
   isProjectMetadataEmpty,
   getSessionDisplayName,
   isProjectHidden,
-} from "./metadata.types";
+} from "./core/project";
 
-// ============================================================================
-// Claude Code Settings Types
-// ============================================================================
+// Settings Types
 export type {
   ClaudeModel,
   PermissionDefaultMode,
@@ -187,40 +142,106 @@ export type {
   AllSettingsResponse,
   MCPSource,
   AllMCPServersResponse,
+  ClaudeJsonConfigResponse,
+  ClaudeJsonProjectSettings,
   ScopedSettings,
   SettingsPreset,
-} from "./claudeSettings";
-export { SCOPE_PRIORITY } from "./claudeSettings";
+} from "./core/settings";
+export { SCOPE_PRIORITY } from "./core/settings";
 
 // ============================================================================
-// Preset Types
+// Derived Types - Composed/aggregated types
 // ============================================================================
-export type { PresetData, PresetInput } from "./preset.types";
-export {
-  settingsToJson,
-  jsonToSettings,
-  createPresetInput,
-  extractSettings,
-  formatPresetDate,
-} from "./preset.types";
 
-// ============================================================================
-// MCP Preset Types
-// ============================================================================
-export type { MCPPresetData, MCPPresetInput } from "./mcpPreset.types";
-export { parseMCPServers, formatMCPPresetDate } from "./mcpPreset.types";
-
-// ============================================================================
-// Unified Preset Types
-// ============================================================================
+// Preset Types (Unified)
 export type {
+  // Current types
   UnifiedPresetData,
   UnifiedPresetSummary,
   UnifiedPresetInput,
   UnifiedPresetApplyOptions,
-} from "./unifiedPreset";
+  // Legacy types (deprecated)
+  PresetData,
+  PresetInput,
+  MCPPresetData,
+  MCPPresetInput,
+} from "./derived/preset";
 export {
   computePresetSummary,
   parsePresetContent,
-  formatPresetDate as formatUnifiedPresetDate,
-} from "./unifiedPreset";
+  formatPresetDate,
+  formatMCPPresetDate,
+  formatUnifiedPresetDate,
+  settingsToJson,
+  jsonToSettings,
+  createPresetInput,
+  extractSettings,
+  parseMCPServers,
+} from "./derived/preset";
+
+// ============================================================================
+// Domain Types - Feature-specific types
+// ============================================================================
+
+// Session State
+export type {
+  AppState,
+} from "./session.types";
+
+// Stats Types
+export type {
+  SessionTokenStats,
+  PaginatedTokenStats,
+  DailyStats,
+  ActivityHeatmap,
+  ToolUsageStats,
+  ModelStats,
+  DateRange,
+  ProjectStatsSummary,
+  ProjectRanking,
+  SessionComparison,
+  GlobalStatsSummary,
+} from "./stats.types";
+
+// Edit Types
+export type { RecentFileEdit, RecentEditsResult, PaginatedRecentEdits } from "./edit.types";
+
+// Update Types
+export type {
+  UpdatePriority,
+  UpdateType,
+  UpdateMessage,
+  UpdateMetadata,
+  UpdateInfo,
+} from "./update.types";
+
+// Error Types
+export { AppErrorType } from "./error.types";
+export type { AppError } from "./error.types";
+
+// Analytics Types
+export type {
+  AnalyticsView,
+  AnalyticsViewType,
+  AnalyticsState,
+  RecentEditsPagination,
+} from "./analytics";
+
+// Board Types
+export type {
+  BoardSessionStats,
+  SessionFileEdit,
+  SessionDepth,
+  BoardSessionData,
+  ZoomLevel,
+  DateFilter,
+  ActiveBrush,
+  BrushableCard,
+  BoardState,
+} from "./board.types";
+
+// Update Settings Types
+export type {
+  UpdateSettings,
+} from "./updateSettings";
+export { DEFAULT_UPDATE_SETTINGS } from "./updateSettings";

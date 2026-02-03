@@ -1,19 +1,17 @@
 /**
- * @deprecated This file is deprecated. Import from '@/types' or '@/types/core/project' instead.
+ * Core Project Types
  *
- * User metadata types for storing custom data
- *
- * This module contains data structures for user-specific metadata
- * that is stored separately from Claude Code's original data.
- * Location: ~/.claude-history-viewer/user-data.json
- *
- * @see src/types/core/project.ts for the canonical implementation
+ * Project metadata and organizational structures.
  */
 
-import { matchGlobPattern } from "../utils/globUtils";
+import { matchGlobPattern } from "../../utils/globUtils";
 
 /** Current schema version for migration support */
 export const METADATA_SCHEMA_VERSION = 1;
+
+// ============================================================================
+// Session Metadata
+// ============================================================================
 
 /** Metadata for individual sessions */
 export interface SessionMetadata {
@@ -26,6 +24,10 @@ export interface SessionMetadata {
   /** User notes about the session */
   notes?: string;
 }
+
+// ============================================================================
+// Project Metadata
+// ============================================================================
 
 /** Metadata for individual projects */
 export interface ProjectMetadata {
@@ -40,6 +42,10 @@ export interface ProjectMetadata {
 /** Grouping mode for project tree display */
 export type GroupingMode = "none" | "worktree" | "directory";
 
+// ============================================================================
+// User Settings
+// ============================================================================
+
 /** Global user settings */
 export interface UserSettings {
   /** Glob patterns for projects to hide (e.g., "folders-dg-*") */
@@ -51,6 +57,10 @@ export interface UserSettings {
   /** Project tree grouping mode: none, worktree, or directory */
   groupingMode?: GroupingMode;
 }
+
+// ============================================================================
+// User Metadata Root
+// ============================================================================
 
 /** Root structure for all user metadata */
 export interface UserMetadata {
@@ -71,6 +81,10 @@ export const DEFAULT_USER_METADATA: UserMetadata = {
   projects: {},
   settings: {},
 };
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
 
 /** Helper to check if session metadata is empty */
 export const isSessionMetadataEmpty = (metadata: SessionMetadata): boolean => {

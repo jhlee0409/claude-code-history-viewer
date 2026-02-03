@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FileText, Hash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
@@ -15,7 +16,7 @@ interface Props {
   input: ReadToolInput;
 }
 
-export const ReadToolRenderer = ({ toolId, input }: Props) => {
+export const ReadToolRenderer = memo(function ReadToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const styles = getVariantStyles("code");
   const filePath = input.file_path ?? "";
@@ -61,4 +62,4 @@ export const ReadToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

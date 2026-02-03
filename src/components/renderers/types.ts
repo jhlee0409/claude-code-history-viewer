@@ -9,12 +9,28 @@
  * Base props shared by all renderer components
  */
 export interface BaseRendererProps {
+  /** Additional CSS class names */
+  className?: string;
+  /** Enable collapsible toggle behavior */
+  enableToggle?: boolean;
+  /** Default expanded state (for collapsible renderers) */
+  defaultExpanded?: boolean;
   /** Search query for highlighting matches */
   searchQuery?: string;
   /** Whether this item contains the current search match */
   isCurrentMatch?: boolean;
   /** Index of current match within the message */
   currentMatchIndex?: number;
+}
+
+/**
+ * Props for tool-related renderers
+ */
+export interface ToolRendererProps extends BaseRendererProps {
+  /** Tool use ID for tracking */
+  toolId?: string;
+  /** Tool input parameters */
+  input?: Record<string, unknown>;
 }
 
 /**

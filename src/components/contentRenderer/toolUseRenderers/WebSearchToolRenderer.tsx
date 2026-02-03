@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
@@ -15,7 +16,7 @@ interface Props {
   input: WebSearchToolInput;
 }
 
-export const WebSearchToolRenderer = ({ toolId, input }: Props) => {
+export const WebSearchToolRenderer = memo(function WebSearchToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const styles = getVariantStyles("web");
 
@@ -67,4 +68,4 @@ export const WebSearchToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

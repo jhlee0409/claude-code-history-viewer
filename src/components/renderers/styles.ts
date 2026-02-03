@@ -180,6 +180,25 @@ export function getVariantStyles(variant: RendererVariant): VariantStyles {
 /**
  * Standardized layout constants for all renderers
  * These ensure visual consistency across all renderer components
+ *
+ * @example
+ * // Using layout constants in a component
+ * <div className={cn(layout.headerPadding, layout.headerHeight)}>
+ *   <Icon className={layout.iconSize} />
+ *   <span className={layout.titleText}>Title</span>
+ * </div>
+ *
+ * Size Reference:
+ * - containerPadding: 10px all sides
+ * - headerPadding: 10px horizontal, 6px vertical
+ * - iconGap: 6px
+ * - iconSize: 16x16px (standard)
+ * - iconSizeSmall: 12x12px (badges)
+ * - titleText/bodyText/smallText: 12px
+ * - headerHeight: 32px (fixed)
+ * - rounded: 6px border radius
+ * - codeMaxHeight: 256px
+ * - contentMaxHeight: 384px
  */
 export const layout = {
   /** Container padding */

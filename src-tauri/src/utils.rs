@@ -96,13 +96,13 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
     const MARKER: &str = ".claude/projects/";
     if let Some(marker_pos) = session_storage_path.find(MARKER) {
         let encoded = &session_storage_path[marker_pos + MARKER.len()..];
-        if encoded.starts_with('-') {
+        if let Some(stripped) = encoded.strip_prefix('-') {
             // Try filesystem-based decoding (recursive)
-            if let Some(path) = decode_with_filesystem_check(encoded) {
+            if let Some(path) = decode_with_filesystem_check(stripped) {
                 return path;
             }
 
-            // Fallback: use heuristic decoding
+            // Fallback: use heuristic decoding (still uses original encoded with dash)
             let parts: Vec<&str> = encoded.splitn(4, '-').collect();
             if parts.len() >= 4 {
                 return format!("/{}/{}/{}", parts[1], parts[2], parts[3]);

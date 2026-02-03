@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FileText, BookOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Highlight, themes } from "prism-react-renderer";
@@ -21,7 +22,7 @@ interface Props {
   input: NotebookEditToolInput;
 }
 
-export const NotebookEditToolRenderer = ({ toolId, input }: Props) => {
+export const NotebookEditToolRenderer = memo(function NotebookEditToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const styles = getVariantStyles("code");
@@ -100,4 +101,4 @@ export const NotebookEditToolRenderer = ({ toolId, input }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

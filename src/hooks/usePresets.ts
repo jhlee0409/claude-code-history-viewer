@@ -3,6 +3,28 @@
  *
  * Provides functionality for managing user settings presets
  * including saving, loading, deleting, and applying presets.
+ *
+ * @deprecated This hook will be removed in v2.0. Use `useUnifiedPresets` instead,
+ * which manages both settings and MCP server configurations in a single preset.
+ *
+ * @see {@link useUnifiedPresets} for the unified preset API that replaces this hook
+ *
+ * **Migration Guide:**
+ * ```typescript
+ * // Before:
+ * const { presets, savePreset, applyPreset } = usePresets();
+ * await savePreset({ name: "My Settings", settings: {...} });
+ * await applyPreset(presetId);
+ *
+ * // After:
+ * const { presets, savePreset } = useUnifiedPresets();
+ * await savePreset({
+ *   name: "My Settings",
+ *   settings: {...},
+ *   mcpServers: null  // or include MCP servers
+ * });
+ * // Note: Apply functionality should be implemented at component level
+ * ```
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -31,6 +53,9 @@ export interface UsePresetsResult {
 
 /**
  * Hook for managing settings presets
+ *
+ * @deprecated Use `useUnifiedPresets` instead. This hook will be removed in v2.0.
+ * @see {@link useUnifiedPresets}
  */
 export const usePresets = (): UsePresetsResult => {
   const [presets, setPresets] = useState<PresetData[]>([]);

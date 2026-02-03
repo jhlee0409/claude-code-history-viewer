@@ -20,6 +20,7 @@ import {
 import { AgentTaskGroupRenderer, TaskOperationGroupRenderer } from "../../toolResultRenderer";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 import { isEmptyMessage } from "../helpers/messageHelpers";
+import { isToolUseContent } from "../../../utils/contentTypeGuards";
 import { MessageHeader } from "./MessageHeader";
 import { SummaryMessage } from "./SummaryMessage";
 import type { MessageNodeProps } from "../types";
@@ -267,12 +268,7 @@ export const ClaudeMessageNode = React.memo(({
             message.toolUse &&
             !(
               Array.isArray(message.content) &&
-              message.content.some(
-                (item) =>
-                  item != null &&
-                  typeof item === "object" &&
-                  (item as unknown as Record<string, unknown>).type === "tool_use"
-              )
+              message.content.some(isToolUseContent)
             ) && <ClaudeToolUseDisplay toolUse={message.toolUse} />}
 
           {(message.type === "user" || message.type === "assistant") &&
