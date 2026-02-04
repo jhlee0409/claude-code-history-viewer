@@ -10,6 +10,7 @@ import {
   X,
   Check,
   RotateCcw,
+  Link2,
   Terminal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -284,10 +285,18 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                 {hasClaudeCodeName && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Terminal className="w-3 h-3 shrink-0 mt-0.5 text-muted-foreground" />
+                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-help shrink-0">
+                        <Link2 className="w-2.5 h-2.5 text-blue-400" aria-hidden="true" />
+                        <span className="text-[9px] font-medium text-blue-400 uppercase tracking-wide">
+                          CLI
+                        </span>
+                      </span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
-                      <p>{t("session.claudeCodeSynced", "Synced with Claude Code CLI")}</p>
+                      <p className="font-medium">{t("session.cliSync.title", "Synced with Claude Code CLI")}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {t("session.cliSync.description", "This session is synchronized with your terminal")}
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 )}
