@@ -315,7 +315,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                     <Pencil className="w-3 h-3" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem onClick={handleRenameClick}>
                     <Pencil className="w-3 h-3 mr-2" />
                     {t("session.rename", "Rename")}
