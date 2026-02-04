@@ -48,11 +48,18 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   const [editValue, setEditValue] = useState("");
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const [isNativeRenameOpen, setIsNativeRenameOpen] = useState(false);
+  // Local state for summary that can be updated after native rename
+  const [localSummary, setLocalSummary] = useState(session.summary);
   const inputRef = useRef<HTMLInputElement>(null);
   const ignoreBlurRef = useRef<boolean>(false);
 
+  // Sync localSummary when session.summary prop changes (e.g., session list refresh)
+  useEffect(() => {
+    setLocalSummary(session.summary);
+  }, [session.summary]);
+
   // Use the hooks for display name and metadata actions
-  const displayName = useSessionDisplayName(session.session_id, session.summary);
+  const displayName = useSessionDisplayName(session.session_id, localSummary);
   const { customName, setCustomName } = useSessionMetadata(session.session_id);
   const hasCustomName = !!customName;
 
@@ -66,13 +73,13 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   const saveCustomName = useCallback(async () => {
     const trimmedValue = editValue.trim();
     // If empty or same as original summary, clear custom name
-    if (!trimmedValue || trimmedValue === session.summary) {
+    if (!trimmedValue || trimmedValue === localSummary) {
       await setCustomName(undefined);
     } else {
       await setCustomName(trimmedValue);
     }
     setIsEditing(false);
-  }, [editValue, session.summary, setCustomName]);
+  }, [editValue, localSummary, setCustomName]);
 
   // Cancel editing
   const cancelEditing = useCallback(() => {
@@ -145,8 +152,13 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   );
 
   // Handle native rename success
-  const handleNativeRenameSuccess = useCallback(() => {
-    // Optionally refresh session data here if needed
+  const handleNativeRenameSuccess = useCallback((newTitle: string) => {
+    // Update local summary to reflect the new name
+    // newTitle contains the full first line content after rename
+    // The backend returns the updated message content
+    if (newTitle) {
+      setLocalSummary(newTitle);
+    }
   }, []);
 
   return (
@@ -335,7 +347,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         open={isNativeRenameOpen}
         onOpenChange={setIsNativeRenameOpen}
         filePath={session.file_path}
-        currentName={session.summary || ""}
+        currentName={localSummary || ""}
         onSuccess={handleNativeRenameSuccess}
       />
     </div>
