@@ -20,7 +20,8 @@ use crate::commands::{
     project::{get_claude_folder_path, get_git_log, scan_projects, validate_claude_folder},
     session::{
         get_recent_edits, get_session_message_count, load_project_sessions, load_session_messages,
-        load_session_messages_paginated, restore_file, search_messages,
+        load_session_messages_paginated, rename_session_native, reset_session_native_name,
+        restore_file, search_messages,
     },
     settings::{delete_preset, get_preset, load_presets, save_preset},
     stats::{
@@ -101,7 +102,10 @@ pub fn run() {
             get_claude_json_config,
             // File I/O commands for export/import
             write_text_file,
-            read_text_file
+            read_text_file,
+            // Native session rename commands
+            rename_session_native,
+            reset_session_native_name
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

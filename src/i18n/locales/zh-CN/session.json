@@ -114,5 +114,15 @@
   "session.select": "请选择会话",
   "session.selectDescription": "从左侧选择项目和会话以查看对话内容",
   "session.summaryNotFound": "未找到会话摘要。",
-  "session.title": "会话："
+  "session.title": "会话：",
+  "session.nativeRename.title": "在 Claude Code 中重命名",
+  "session.nativeRename.description": "这将直接修改会话文件。更改将在 Claude Code CLI 中可见。",
+  "session.nativeRename.warning": "此操作会修改原始会话文件。更改可以撤销。",
+  "session.nativeRename.label": "会话标题",
+  "session.nativeRename.placeholder": "输入标题（留空以重置）",
+  "session.nativeRename.preview": "预览: [{{title}}] {{original}}...",
+  "session.nativeRename.titlePlaceholder": "标题",
+  "session.nativeRename.success": "会话重命名成功",
+  "session.nativeRename.menuItem": "在 Claude Code 中重命名",
+  "session.nativeRename.resetMenuItem": "重置为原始名称"
 }

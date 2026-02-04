@@ -10,6 +10,7 @@ import {
   X,
   Check,
   RotateCcw,
+  Terminal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeSession } from "../types";
@@ -22,8 +23,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NativeRenameDialog } from "@/components/NativeRenameDialog";
 
 interface SessionItemProps {
   session: ClaudeSession;
@@ -44,6 +47,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
+  const [isNativeRenameOpen, setIsNativeRenameOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const ignoreBlurRef = useRef<boolean>(false);
 
@@ -129,6 +133,21 @@ export const SessionItem: React.FC<SessionItemProps> = ({
     },
     [startEditing]
   );
+
+  // Handle native rename action
+  const handleNativeRenameClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsContextMenuOpen(false);
+      setIsNativeRenameOpen(true);
+    },
+    []
+  );
+
+  // Handle native rename success
+  const handleNativeRenameSuccess = useCallback(() => {
+    // Optionally refresh session data here if needed
+  }, []);
 
   return (
     <div
@@ -253,7 +272,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                     <Pencil className="w-3 h-3" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={handleRenameClick}>
                     <Pencil className="w-3 h-3 mr-2" />
                     {t("session.rename", "Rename")}
@@ -264,6 +283,11 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                       {t("session.resetName", "Reset name")}
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleNativeRenameClick}>
+                    <Terminal className="w-3 h-3 mr-2" />
+                    {t("session.nativeRename.menuItem", "Rename in Claude Code")}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
@@ -305,6 +329,15 @@ export const SessionItem: React.FC<SessionItemProps> = ({
           <span title={t("session.item.containsErrors")}><AlertTriangle className="w-3 h-3 text-destructive" /></span>
         )}
       </div>
+
+      {/* Native Rename Dialog */}
+      <NativeRenameDialog
+        open={isNativeRenameOpen}
+        onOpenChange={setIsNativeRenameOpen}
+        filePath={session.file_path}
+        currentName={session.summary || ""}
+        onSuccess={handleNativeRenameSuccess}
+      />
     </div>
   );
 };

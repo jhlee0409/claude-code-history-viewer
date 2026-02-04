@@ -59,6 +59,12 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
       {children}
     </button>
   ),
+  DropdownMenuSeparator: () => <hr data-testid="dropdown-separator" />,
+}));
+
+// Mock NativeRenameDialog
+vi.mock("@/components/NativeRenameDialog", () => ({
+  NativeRenameDialog: () => <div data-testid="native-rename-dialog" />,
 }));
 
 // Helper to create mock session

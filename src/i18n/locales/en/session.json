@@ -114,5 +114,15 @@
   "session.select": "Please select a session",
   "session.selectDescription": "Select a project and session from the left to view conversation history",
   "session.summaryNotFound": "Session summary not found.",
-  "session.title": "Session:"
+  "session.title": "Session:",
+  "session.nativeRename.title": "Rename in Claude Code",
+  "session.nativeRename.description": "This will modify the session file directly. The change will be visible in Claude Code CLI.",
+  "session.nativeRename.warning": "This operation modifies the original session file. The change is reversible.",
+  "session.nativeRename.label": "Session Title",
+  "session.nativeRename.placeholder": "Enter a title (leave empty to reset)",
+  "session.nativeRename.preview": "Preview: [{{title}}] {{original}}...",
+  "session.nativeRename.titlePlaceholder": "Title",
+  "session.nativeRename.success": "Session renamed successfully",
+  "session.nativeRename.menuItem": "Rename in Claude Code",
+  "session.nativeRename.resetMenuItem": "Reset native name"
 }

@@ -114,5 +114,15 @@
   "session.select": "セッションを選択してください",
   "session.selectDescription": "左側からプロジェクトとセッションを選択すると、会話内容を表示できます",
   "session.summaryNotFound": "セッションの概要が見つかりません。",
-  "session.title": "セッション："
+  "session.title": "セッション：",
+  "session.nativeRename.title": "Claude Codeで名前を変更",
+  "session.nativeRename.description": "セッションファイルを直接変更します。変更はClaude Code CLIにも反映されます。",
+  "session.nativeRename.warning": "この操作は元のセッションファイルを変更します。変更は元に戻せます。",
+  "session.nativeRename.label": "セッションタイトル",
+  "session.nativeRename.placeholder": "タイトルを入力（空欄でリセット）",
+  "session.nativeRename.preview": "プレビュー: [{{title}}] {{original}}...",
+  "session.nativeRename.titlePlaceholder": "タイトル",
+  "session.nativeRename.success": "セッション名を変更しました",
+  "session.nativeRename.menuItem": "Claude Codeで名前を変更",
+  "session.nativeRename.resetMenuItem": "元の名前に戻す"
 }

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-04T04:29:31.894Z
- * 총 키 개수: 1392
+ * 생성 시간: 2026-02-04T06:22:44.939Z
+ * 총 키 개수: 1402
  * Namespace 수: 11
  */
 
@@ -285,7 +285,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (116개)
+ * session namespace의 번역 키 (126개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -396,6 +396,16 @@ export type SessionKeys =
   | 'session.item.messageCount'
   | 'session.item.session'
   | 'session.loading'
+  | 'session.nativeRename.description'
+  | 'session.nativeRename.label'
+  | 'session.nativeRename.menuItem'
+  | 'session.nativeRename.placeholder'
+  | 'session.nativeRename.preview'
+  | 'session.nativeRename.resetMenuItem'
+  | 'session.nativeRename.success'
+  | 'session.nativeRename.title'
+  | 'session.nativeRename.titlePlaceholder'
+  | 'session.nativeRename.warning'
   | 'session.refresh'
   | 'session.rename'
   | 'session.renamePlaceholder'
@@ -2188,6 +2198,16 @@ export type TranslationKey =
   | 'session.item.messageCount'
   | 'session.item.session'
   | 'session.loading'
+  | 'session.nativeRename.description'
+  | 'session.nativeRename.label'
+  | 'session.nativeRename.menuItem'
+  | 'session.nativeRename.placeholder'
+  | 'session.nativeRename.preview'
+  | 'session.nativeRename.resetMenuItem'
+  | 'session.nativeRename.success'
+  | 'session.nativeRename.title'
+  | 'session.nativeRename.titlePlaceholder'
+  | 'session.nativeRename.warning'
   | 'session.refresh'
   | 'session.rename'
   | 'session.renamePlaceholder'
