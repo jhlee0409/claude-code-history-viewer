@@ -2,6 +2,18 @@
 
 **Status**: ✅ WORKER_COMPLETE
 
+## TODO: Integration Required
+
+> **Note**: This infrastructure is preparatory and not yet integrated into existing renderers.
+>
+> **Next Steps**:
+> 1. Migrate one existing renderer (e.g., ThinkingRenderer) to use RendererCard
+> 2. Add import existence test to verify exports work
+> 3. Update a tool result renderer to demonstrate the new pattern
+>
+> This infrastructure was created to reduce boilerplate when building new renderers.
+> Integration with existing renderers is optional and can be done incrementally.
+
 ## Files Created
 
 ### 1. hooks.ts (New)
@@ -208,3 +220,27 @@ When creating new renderers:
 ---
 
 **Completion Status**: All infrastructure files created, tested, and documented. Ready for use in new renderer implementations.
+
+---
+
+## Integration Test (Minimal)
+
+To verify the infrastructure exports work, add this test:
+
+```typescript
+// src/components/renderers/__tests__/infrastructure.test.ts
+import { describe, it, expect } from 'vitest';
+
+describe('Renderer Infrastructure Exports', () => {
+  it('should export RendererCard', async () => {
+    const { RendererCard } = await import('../index');
+    expect(RendererCard).toBeDefined();
+  });
+
+  it('should export hooks', async () => {
+    const { useRendererStyles, useExpandableContent } = await import('../index');
+    expect(useRendererStyles).toBeDefined();
+    expect(useExpandableContent).toBeDefined();
+  });
+});
+```

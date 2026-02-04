@@ -42,6 +42,8 @@ memchr = "2.7"
 anyhow = "1.0"
 urlencoding = "2.1"
 tempfile = "3.24.0"
+regex = "1.11"
+lazy_static = "1.5"
 
 [dev-dependencies]
 # Core testing utilities

@@ -4,7 +4,7 @@ This directory contains the type definitions for the Claude Code History Viewer 
 
 ## Directory Structure
 
-```
+```text
 src/types/
 ├── core/           # Fundamental types (pure type definitions)
 │   ├── message.ts  # Message structures (user, assistant, system)
@@ -51,7 +51,7 @@ import { isUserMessage, hasToolUse } from '@/utils/typeGuards';
 ### 3. No Circular Dependencies
 
 The structure enforces a clear dependency hierarchy:
-```
+```text
 core types (no dependencies)
     ↓
 derived types (depend on core)

@@ -84,6 +84,33 @@ src/i18n/
 
 ## 구현 계획
 
+### Phase 0: Impact Analysis & Migration Automation
+
+Before applying the locales restructure, complete these steps:
+
+#### 0.1 Build Config Assessment
+- Review Vite configuration for locale loading patterns
+- Check Tauri build process for i18n bundling
+- Document any path resolution that depends on current structure
+
+#### 0.2 Usage Audit
+- List all files importing from `locales/{lang}.json`
+- Identify i18next initialization code (src/i18n/index.ts)
+- Map required rewrites in loader/init logic
+
+#### 0.3 Migration Script
+- Create automated script to transform `locales/{lang}.json` → `locales/{lang}/{namespace}.json`
+- Include dry-run mode with output preview
+- Add validation tests to verify key preservation
+- Test roundtrip: split → verify keys → merge back
+
+#### 0.4 Developer Workflow Documentation
+- Document explicit migration steps
+- Provide rollback instructions
+- Update CI/CD pipeline if needed
+
+This ensures the refactor is executed safely and repeatably.
+
 ### Phase 1: 분리 스크립트 작성
 - `scripts/split-i18n.mjs`: 단일 JSON → namespace별 파일 분리
 - prefix 맵핑 정의 및 자동 분류

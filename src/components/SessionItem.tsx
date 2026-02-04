@@ -86,14 +86,20 @@ export const SessionItem: React.FC<SessionItemProps> = ({
 
   // Save the custom name
   const saveCustomName = useCallback(async () => {
-    const trimmedValue = editValue.trim();
-    // If empty or same as original summary, clear custom name
-    if (!trimmedValue || trimmedValue === localSummary) {
-      await setCustomName(undefined);
-    } else {
-      await setCustomName(trimmedValue);
+    try {
+      const trimmedValue = editValue.trim();
+      // If empty or same as original summary, clear custom name
+      if (!trimmedValue || trimmedValue === localSummary) {
+        await setCustomName(undefined);
+      } else {
+        await setCustomName(trimmedValue);
+      }
+    } catch (error) {
+      console.error('Failed to save custom name:', error);
+      // TODO: Add toast notification for better UX
+    } finally {
+      setIsEditing(false);
     }
-    setIsEditing(false);
   }, [editValue, localSummary, setCustomName]);
 
   // Cancel editing
@@ -104,8 +110,14 @@ export const SessionItem: React.FC<SessionItemProps> = ({
 
   // Reset custom name to original summary
   const resetCustomName = useCallback(async () => {
-    await setCustomName(undefined);
-    setIsContextMenuOpen(false);
+    try {
+      await setCustomName(undefined);
+    } catch (error) {
+      console.error('Failed to reset custom name:', error);
+      // TODO: Add toast notification for better UX
+    } finally {
+      setIsContextMenuOpen(false);
+    }
   }, [setCustomName]);
 
   // Focus input when editing starts
@@ -169,13 +181,15 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   // Handle native rename success
   const handleNativeRenameSuccess = useCallback(
     async (newTitle: string) => {
-      // Update local summary to reflect the new name
-      // newTitle contains the full first line content after rename
-      // The backend returns the updated message content
       if (newTitle) {
         setLocalSummary(newTitle);
-        // Mark session as having Claude Code native rename in metadata
-        await setHasClaudeCodeName(true);
+        // Check if the new title has a Claude Code prefix [Title] format
+        const hasPrefix = /^\[.+?\]\s/.test(newTitle);
+        try {
+          await setHasClaudeCodeName(hasPrefix);
+        } catch (error) {
+          console.error('Failed to update Claude Code name metadata:', error);
+        }
       }
     },
     [setHasClaudeCodeName]
@@ -285,12 +299,16 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                 {hasClaudeCodeName && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-help shrink-0">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-help shrink-0"
+                        aria-label={t("session.cliSync.title", "Synced with Claude Code CLI")}
+                      >
                         <Link2 className="w-2.5 h-2.5 text-blue-400" aria-hidden="true" />
                         <span className="text-[9px] font-medium text-blue-400 uppercase tracking-wide">
                           CLI
                         </span>
-                      </span>
+                      </button>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
                       <p className="font-medium">{t("session.cliSync.title", "Synced with Claude Code CLI")}</p>
