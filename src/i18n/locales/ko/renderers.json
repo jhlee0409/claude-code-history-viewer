@@ -230,7 +230,7 @@
   "taskOperation.taskCount": "{{count}}개 태스크",
   "taskOperation.taskCount_plural": "{{count}}개 태스크",
   "taskOperation.taskOperations": "태스크 작업",
-  "taskOperation.taskOutput": "TaskOutput",
+  "taskOperation.taskOutput": "태스크 출력",
   "terminalStreamRenderer.exitCode": "종료 코드",
   "terminalStreamRenderer.title": "터미널",
   "textEditorCodeExecutionToolResultRenderer.create": "파일 생성",

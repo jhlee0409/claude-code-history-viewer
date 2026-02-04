@@ -230,7 +230,7 @@
   "taskOperation.taskCount": "{{count}} task",
   "taskOperation.taskCount_plural": "{{count}} tasks",
   "taskOperation.taskOperations": "Task Operations",
-  "taskOperation.taskOutput": "TaskOutput",
+  "taskOperation.taskOutput": "Task Output",
   "terminalStreamRenderer.exitCode": "exit",
   "terminalStreamRenderer.title": "Terminal",
   "textEditorCodeExecutionToolResultRenderer.create": "Create File",

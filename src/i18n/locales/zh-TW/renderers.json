@@ -230,7 +230,7 @@
   "taskOperation.taskCount": "{{count}}個任務",
   "taskOperation.taskCount_plural": "{{count}}個任務",
   "taskOperation.taskOperations": "任務操作",
-  "taskOperation.taskOutput": "TaskOutput",
+  "taskOperation.taskOutput": "任務輸出",
   "terminalStreamRenderer.exitCode": "結束代碼",
   "terminalStreamRenderer.title": "終端機",
   "textEditorCodeExecutionToolResultRenderer.create": "建立檔案",

@@ -48,7 +48,7 @@
   "messageViewer.priorContext": "以前のコンテキスト",
   "messageViewer.refresh": "更新",
   "messageViewer.renderError": "メッセージレンダリングエラー",
-  "messageViewer.reply": "返信 (depth: {{depth}})",
+  "messageViewer.reply": "返信 (深さ: {{depth}})",
   "messageViewer.scrollToBottom": "最下部に移動",
   "messageViewer.scrollToTop": "最上部に移動",
   "messageViewer.searchPlaceholder": "会話を検索...",

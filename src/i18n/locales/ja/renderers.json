@@ -230,7 +230,7 @@
   "taskOperation.taskCount": "{{count}}件のタスク",
   "taskOperation.taskCount_plural": "{{count}}件のタスク",
   "taskOperation.taskOperations": "タスク操作",
-  "taskOperation.taskOutput": "TaskOutput",
+  "taskOperation.taskOutput": "タスク出力",
   "terminalStreamRenderer.exitCode": "終了コード",
   "terminalStreamRenderer.title": "ターミナル",
   "textEditorCodeExecutionToolResultRenderer.create": "ファイルを作成",

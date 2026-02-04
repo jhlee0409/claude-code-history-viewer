@@ -230,7 +230,7 @@
   "taskOperation.taskCount": "{{count}}个任务",
   "taskOperation.taskCount_plural": "{{count}}个任务",
   "taskOperation.taskOperations": "任务操作",
-  "taskOperation.taskOutput": "TaskOutput",
+  "taskOperation.taskOutput": "任务输出",
   "terminalStreamRenderer.exitCode": "退出代码",
   "terminalStreamRenderer.title": "终端",
   "textEditorCodeExecutionToolResultRenderer.create": "创建文件",
