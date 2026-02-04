@@ -2,12 +2,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 
 // Use vi.hoisted to create mocks that can be referenced in vi.mock
-const { mockListen } = vi.hoisted(() => ({
+const { mockListen, mockToastError } = vi.hoisted(() => ({
   mockListen: vi.fn(),
+  mockToastError: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: mockListen,
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: mockToastError,
+  },
 }));
 
 import { useFileWatcher } from '../useFileWatcher';
@@ -54,6 +61,17 @@ describe('useFileWatcher', () => {
 
       await waitFor(() => {
         expect(mockListen).toHaveBeenCalledTimes(3);
+      });
+    });
+
+    it('should set isWatching to true after successful start', async () => {
+      const mockUnlisten = vi.fn();
+      mockListen.mockResolvedValue(mockUnlisten);
+
+      const { result } = renderHook(() => useFileWatcher({ enabled: true }));
+
+      await waitFor(() => {
+        expect(result.current.isWatching).toBe(true);
       });
     });
   });
@@ -260,10 +278,27 @@ describe('useFileWatcher', () => {
 
       expect(mockUnlisten).toHaveBeenCalledTimes(3);
     });
+
+    it('should set isWatching to false after stopWatching', async () => {
+      const mockUnlisten = vi.fn();
+      mockListen.mockResolvedValue(mockUnlisten);
+
+      const { result } = renderHook(() => useFileWatcher({ enabled: true }));
+
+      await waitFor(() => {
+        expect(result.current.isWatching).toBe(true);
+      });
+
+      act(() => {
+        result.current.stopWatching();
+      });
+
+      expect(result.current.isWatching).toBe(false);
+    });
   });
 
   describe('error handling', () => {
-    it('should handle listen errors gracefully', async () => {
+    it('should handle listen errors gracefully and show toast', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockListen.mockRejectedValue(new Error('Listen failed'));
 
@@ -276,7 +311,50 @@ describe('useFileWatcher', () => {
         );
       });
 
+      expect(mockToastError).toHaveBeenCalledWith('Failed to start file watcher');
+
       consoleErrorSpy.mockRestore();
+    });
+
+    it('should set isWatching to false on error', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockListen.mockRejectedValue(new Error('Listen failed'));
+
+      const { result } = renderHook(() => useFileWatcher({ enabled: true }));
+
+      await waitFor(() => {
+        expect(result.current.isWatching).toBe(false);
+      });
+
+      vi.restoreAllMocks();
+    });
+  });
+
+  describe('cancellation', () => {
+    it('should abort in-flight startWatching when stopWatching is called', async () => {
+      const mockUnlisten = vi.fn();
+      let resolveFirst: ((value: () => void) => void) | undefined;
+
+      // Make the first listen call hang until we resolve it
+      mockListen.mockImplementationOnce(
+        () => new Promise<() => void>((resolve) => { resolveFirst = resolve; })
+      );
+      mockListen.mockResolvedValue(mockUnlisten);
+
+      const { result } = renderHook(() => useFileWatcher({ enabled: true }));
+
+      // stopWatching while startWatching is still in progress
+      act(() => {
+        result.current.stopWatching();
+      });
+
+      // Now resolve the hanging listen - should be cancelled
+      resolveFirst?.(mockUnlisten);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // isWatching should remain false because stop was called
+      expect(result.current.isWatching).toBe(false);
     });
   });
 });

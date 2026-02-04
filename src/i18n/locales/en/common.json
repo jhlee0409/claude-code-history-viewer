@@ -84,6 +84,8 @@
   "common.watcher.enabled": "Auto-refresh enabled",
   "common.watcher.lastUpdated": "Last updated",
   "common.watcher.paused": "Auto-refresh paused",
+  "common.watcher.startError": "Failed to start file watcher",
+  "common.watcher.stopError": "Failed to clean up file watcher listener",
   "common.watcher.watching": "Watching for changes...",
   "copyButton.copied": "Copied",
   "copyButton.copy": "Copy",

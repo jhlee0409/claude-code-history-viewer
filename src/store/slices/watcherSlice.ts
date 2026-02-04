@@ -6,6 +6,7 @@
 
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
+import { AppErrorType } from "../../types";
 
 // ============================================================================
 // State Interface
@@ -60,26 +61,40 @@ export const createWatcherSlice: StateCreator<
     })),
 
   triggerProjectRefresh: async (projectPath) => {
-    const { selectedProject, selectProject } = get();
+    try {
+      const { selectedProject, selectProject } = get();
 
-    // If this is the currently selected project, reload its sessions
-    if (selectedProject && selectedProject.path === projectPath) {
-      await selectProject(selectedProject);
+      // If this is the currently selected project, reload its sessions
+      if (selectedProject && selectedProject.path === projectPath) {
+        await selectProject(selectedProject);
+      }
+    } catch (error) {
+      get().setError({
+        type: AppErrorType.UNKNOWN,
+        message: `Failed to refresh project: ${String(error)}`,
+      });
+    } finally {
+      // Always mark as updated regardless of success/failure
+      get().markProjectUpdated(projectPath);
     }
-
-    // Mark as updated
-    get().markProjectUpdated(projectPath);
   },
 
   triggerSessionRefresh: async (projectPath, sessionPath) => {
-    const { selectedSession, selectSession } = get();
+    try {
+      const { selectedSession, selectSession } = get();
 
-    // If this is the currently selected session, reload its messages
-    if (selectedSession && selectedSession.file_path === sessionPath) {
-      await selectSession(selectedSession);
+      // If this is the currently selected session, reload its messages
+      if (selectedSession && selectedSession.file_path === sessionPath) {
+        await selectSession(selectedSession);
+      }
+    } catch (error) {
+      get().setError({
+        type: AppErrorType.UNKNOWN,
+        message: `Failed to refresh session: ${String(error)}`,
+      });
+    } finally {
+      // Always mark project as updated regardless of success/failure
+      get().markProjectUpdated(projectPath);
     }
-
-    // Mark project as updated
-    get().markProjectUpdated(projectPath);
   },
 });

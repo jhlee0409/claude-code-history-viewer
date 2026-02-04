@@ -84,6 +84,8 @@
   "common.watcher.enabled": "自动刷新已启用",
   "common.watcher.lastUpdated": "最后更新",
   "common.watcher.paused": "自动刷新已暂停",
+  "common.watcher.startError": "启动文件监视器失败",
+  "common.watcher.stopError": "清理文件监视器监听器失败",
   "common.watcher.watching": "正在监视更改...",
   "copyButton.copied": "已复制",
   "copyButton.copy": "复制",

@@ -84,6 +84,8 @@
   "common.watcher.enabled": "自動更新が有効です",
   "common.watcher.lastUpdated": "最終更新",
   "common.watcher.paused": "自動更新を一時停止",
+  "common.watcher.startError": "ファイル監視の開始に失敗しました",
+  "common.watcher.stopError": "ファイル監視リスナーのクリーンアップに失敗しました",
   "common.watcher.watching": "変更を監視中...",
   "copyButton.copied": "コピー済み",
   "copyButton.copy": "コピー",

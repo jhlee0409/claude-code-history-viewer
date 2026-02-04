@@ -84,6 +84,8 @@
   "common.watcher.enabled": "自動重新整理已啟用",
   "common.watcher.lastUpdated": "最後更新",
   "common.watcher.paused": "自動重新整理已暫停",
+  "common.watcher.startError": "啟動檔案監視器失敗",
+  "common.watcher.stopError": "清理檔案監視器監聽器失敗",
   "common.watcher.watching": "正在監視變更...",
   "copyButton.copied": "已複製",
   "copyButton.copy": "複製",

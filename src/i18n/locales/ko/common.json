@@ -84,6 +84,8 @@
   "common.watcher.enabled": "자동 새로고침 활성화됨",
   "common.watcher.lastUpdated": "마지막 업데이트",
   "common.watcher.paused": "자동 새로고침 일시 중지",
+  "common.watcher.startError": "파일 감시 시작에 실패했습니다",
+  "common.watcher.stopError": "파일 감시 리스너 정리에 실패했습니다",
   "common.watcher.watching": "변경 사항 감시 중...",
   "copyButton.copied": "복사됨",
   "copyButton.copy": "복사",

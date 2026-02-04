@@ -22,12 +22,37 @@ pub async fn start_file_watcher(
     app_handle: AppHandle,
     claude_folder_path: String,
 ) -> Result<String, String> {
-    let projects_path = PathBuf::from(&claude_folder_path).join("projects");
+    let base_path = PathBuf::from(&claude_folder_path);
+    let projects_path = base_path.join("projects");
 
-    if !projects_path.exists() {
+    // Reject symlinks to prevent symlink attacks
+    let base_meta = std::fs::symlink_metadata(&base_path)
+        .map_err(|e| format!("Cannot read metadata for base path: {e}"))?;
+    if base_meta.file_type().is_symlink() {
+        return Err("Claude folder path must not be a symlink".to_string());
+    }
+
+    let projects_meta = std::fs::symlink_metadata(&projects_path)
+        .map_err(|e| format!("Cannot read metadata for projects path: {e}"))?;
+    if projects_meta.file_type().is_symlink() {
+        return Err("Projects directory must not be a symlink".to_string());
+    }
+
+    // Canonicalize and verify path traversal safety
+    let canonical_base = std::fs::canonicalize(&base_path)
+        .map_err(|e| format!("Failed to canonicalize base path: {e}"))?;
+    let canonical_projects = std::fs::canonicalize(&projects_path)
+        .map_err(|e| format!("Failed to canonicalize projects path: {e}"))?;
+
+    if !canonical_projects.starts_with(&canonical_base) {
+        return Err("Projects path escapes the allowed base directory".to_string());
+    }
+
+    // Verify it is a directory
+    if !canonical_projects.is_dir() {
         return Err(format!(
-            "Projects directory does not exist: {}",
-            projects_path.display()
+            "Projects path is not a directory: {}",
+            canonical_projects.display()
         ));
     }
 
@@ -48,10 +73,10 @@ pub async fn start_file_watcher(
     )
     .map_err(|e| format!("Failed to create file watcher: {e}"))?;
 
-    // Start watching the projects directory recursively
+    // Start watching the canonicalized projects directory recursively
     debouncer
         .watcher()
-        .watch(&projects_path, RecursiveMode::Recursive)
+        .watch(&canonical_projects, RecursiveMode::Recursive)
         .map_err(|e| format!("Failed to watch directory: {e}"))?;
 
     // Store the debouncer in app state to prevent it from being dropped
@@ -59,7 +84,7 @@ pub async fn start_file_watcher(
     let mut watcher = watcher_state.lock().unwrap();
     *watcher = Some(debouncer);
 
-    log::info!("File watcher started for: {}", projects_path.display());
+    log::info!("File watcher started for: {}", canonical_projects.display());
     Ok("watcher-started".to_string())
 }
 
