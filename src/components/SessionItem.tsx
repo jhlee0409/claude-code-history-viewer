@@ -65,9 +65,17 @@ export const SessionItem: React.FC<SessionItemProps> = ({
 
   // Use the hooks for display name and metadata actions
   const displayName = useSessionDisplayName(session.session_id, localSummary);
-  const { customName, setCustomName, hasClaudeCodeName, setHasClaudeCodeName } =
-    useSessionMetadata(session.session_id);
+  const {
+    customName,
+    setCustomName,
+    hasClaudeCodeName: hasClaudeCodeNameMeta,
+    setHasClaudeCodeName,
+  } = useSessionMetadata(session.session_id);
   const hasCustomName = !!customName;
+  // Detect Claude Code native rename: metadata OR regex fallback for existing renames
+  // Regex pattern: [Title] followed by space - matches our rename format
+  const hasClaudeCodeNamePattern = /^\[.+?\]\s/.test(localSummary ?? "");
+  const hasClaudeCodeName = hasClaudeCodeNameMeta || hasClaudeCodeNamePattern;
 
   // Start editing mode
   const startEditing = useCallback(() => {
