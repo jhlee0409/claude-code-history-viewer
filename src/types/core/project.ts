@@ -23,6 +23,8 @@ export interface SessionMetadata {
   tags?: string[];
   /** User notes about the session */
   notes?: string;
+  /** Whether the session has been renamed via Claude Code native rename (synced with CLI) */
+  hasClaudeCodeName?: boolean;
 }
 
 // ============================================================================
@@ -92,7 +94,8 @@ export const isSessionMetadataEmpty = (metadata: SessionMetadata): boolean => {
     !metadata.customName &&
     !metadata.starred &&
     (!metadata.tags || metadata.tags.length === 0) &&
-    !metadata.notes
+    !metadata.notes &&
+    !metadata.hasClaudeCodeName
   );
 };
 

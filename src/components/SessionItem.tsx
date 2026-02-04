@@ -65,10 +65,9 @@ export const SessionItem: React.FC<SessionItemProps> = ({
 
   // Use the hooks for display name and metadata actions
   const displayName = useSessionDisplayName(session.session_id, localSummary);
-  const { customName, setCustomName } = useSessionMetadata(session.session_id);
+  const { customName, setCustomName, hasClaudeCodeName, setHasClaudeCodeName } =
+    useSessionMetadata(session.session_id);
   const hasCustomName = !!customName;
-  // Detect if session has Claude Code native rename (starts with [Title])
-  const hasClaudeCodeName = localSummary?.startsWith("[") ?? false;
 
   // Start editing mode
   const startEditing = useCallback(() => {
@@ -159,14 +158,19 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   );
 
   // Handle native rename success
-  const handleNativeRenameSuccess = useCallback((newTitle: string) => {
-    // Update local summary to reflect the new name
-    // newTitle contains the full first line content after rename
-    // The backend returns the updated message content
-    if (newTitle) {
-      setLocalSummary(newTitle);
-    }
-  }, []);
+  const handleNativeRenameSuccess = useCallback(
+    async (newTitle: string) => {
+      // Update local summary to reflect the new name
+      // newTitle contains the full first line content after rename
+      // The backend returns the updated message content
+      if (newTitle) {
+        setLocalSummary(newTitle);
+        // Mark session as having Claude Code native rename in metadata
+        await setHasClaudeCodeName(true);
+      }
+    },
+    [setHasClaudeCodeName]
+  );
 
   return (
     <div

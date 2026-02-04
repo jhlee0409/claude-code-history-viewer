@@ -80,6 +80,7 @@ export const useSessionMetadata = (sessionId: string) => {
     [sessionMetadata?.tags]
   );
   const notes = sessionMetadata?.notes;
+  const hasClaudeCodeName = sessionMetadata?.hasClaudeCodeName ?? false;
 
   /**
    * Set or clear custom session name
@@ -158,6 +159,17 @@ export const useSessionMetadata = (sessionId: string) => {
     [sessionId, updateSessionMetadata]
   );
 
+  /**
+   * Set Claude Code native rename status
+   * @param value - true if renamed via Claude Code, false to clear
+   */
+  const setHasClaudeCodeName = useCallback(
+    async (value: boolean) => {
+      await updateSessionMetadata(sessionId, { hasClaudeCodeName: value });
+    },
+    [sessionId, updateSessionMetadata]
+  );
+
   return {
     // State
     sessionMetadata,
@@ -165,6 +177,7 @@ export const useSessionMetadata = (sessionId: string) => {
     starred,
     tags,
     notes,
+    hasClaudeCodeName,
     isMetadataLoaded,
 
     // Actions
@@ -175,6 +188,7 @@ export const useSessionMetadata = (sessionId: string) => {
     removeTag,
     setTags,
     setNotes,
+    setHasClaudeCodeName,
   };
 };
 
