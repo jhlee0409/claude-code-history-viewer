@@ -133,7 +133,7 @@
   "fileEditRenderer.partialReplace": "部分取代",
   "fileEditRenderer.userModified": "使用者修改",
   "fileEditRenderer.yes": "有",
-  "fileHistorySnapshotRenderer.files": "個檔案被追蹤",
+  "fileHistorySnapshotRenderer.files": "{{count}}個檔案被追蹤",
   "fileHistorySnapshotRenderer.noFiles": "此快照中沒有被追蹤的檔案",
   "fileHistorySnapshotRenderer.snapshot": "檔案歷史快照",
   "fileHistorySnapshotRenderer.trackedFiles": "追蹤的檔案",

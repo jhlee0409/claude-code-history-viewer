@@ -56,9 +56,9 @@ export const FileHistorySnapshotRenderer = memo(
           </span>
           {trackedFilesCount > 0 && (
             <span className={cn(`${layout.smallText} px-1.5 py-0.5 rounded`, styles.badge, styles.badgeText)}>
-              {trackedFilesCount}{" "}
               {t("fileHistorySnapshotRenderer.files", {
-                defaultValue: "files tracked",
+                count: trackedFilesCount,
+                defaultValue: "{{count}} files tracked",
               })}
             </span>
           )}

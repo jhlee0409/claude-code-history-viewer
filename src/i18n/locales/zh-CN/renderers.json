@@ -133,7 +133,7 @@
   "fileEditRenderer.partialReplace": "部分替换",
   "fileEditRenderer.userModified": "用户修改",
   "fileEditRenderer.yes": "是",
-  "fileHistorySnapshotRenderer.files": "个文件被追踪",
+  "fileHistorySnapshotRenderer.files": "{{count}}个文件被追踪",
   "fileHistorySnapshotRenderer.noFiles": "此快照中没有被追踪的文件",
   "fileHistorySnapshotRenderer.snapshot": "文件历史快照",
   "fileHistorySnapshotRenderer.trackedFiles": "追踪的文件",

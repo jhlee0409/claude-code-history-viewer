@@ -133,7 +133,7 @@
   "fileEditRenderer.partialReplace": "Partial Replace",
   "fileEditRenderer.userModified": "User Modified",
   "fileEditRenderer.yes": "Yes",
-  "fileHistorySnapshotRenderer.files": "files tracked",
+  "fileHistorySnapshotRenderer.files": "{{count}} files tracked",
   "fileHistorySnapshotRenderer.noFiles": "No files tracked in this snapshot",
   "fileHistorySnapshotRenderer.snapshot": "File History Snapshot",
   "fileHistorySnapshotRenderer.trackedFiles": "Tracked Files",

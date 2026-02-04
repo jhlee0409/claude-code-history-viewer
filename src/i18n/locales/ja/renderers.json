@@ -133,7 +133,7 @@
   "fileEditRenderer.partialReplace": "部分置換",
   "fileEditRenderer.userModified": "ユーザーによる修正",
   "fileEditRenderer.yes": "あり",
-  "fileHistorySnapshotRenderer.files": "ファイル追跡中",
+  "fileHistorySnapshotRenderer.files": "{{count}}ファイル追跡中",
   "fileHistorySnapshotRenderer.noFiles": "このスナップショットには追跡されているファイルがありません",
   "fileHistorySnapshotRenderer.snapshot": "ファイル履歴スナップショット",
   "fileHistorySnapshotRenderer.trackedFiles": "追跡中のファイル",
