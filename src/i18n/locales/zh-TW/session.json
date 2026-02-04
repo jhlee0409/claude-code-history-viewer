@@ -128,5 +128,8 @@
   "session.nativeRename.resetMenuItem": "重設為原始名稱",
   "session.claudeCodeSynced": "已與 Claude Code CLI 同步",
   "session.cliSync.title": "會話名稱已與CLI同步",
-  "session.cliSync.description": "此會話的名稱在Claude Code CLI中也會顯示"
+  "session.cliSync.description": "此會話的名稱在Claude Code CLI中也會顯示",
+  "session.saveError": "儲存名稱失敗",
+  "session.resetError": "重設名稱失敗",
+  "session.syncError": "同步中繼資料失敗"
 }

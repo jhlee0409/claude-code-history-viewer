@@ -14,6 +14,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import type { ClaudeSession } from "../types";
 import { cn } from "@/lib/utils";
 import {
@@ -96,11 +97,11 @@ export const SessionItem: React.FC<SessionItemProps> = ({
       }
     } catch (error) {
       console.error('Failed to save custom name:', error);
-      // TODO: Add toast notification for better UX
+      toast.error(t('session.saveError', 'Failed to save name'));
     } finally {
       setIsEditing(false);
     }
-  }, [editValue, localSummary, setCustomName]);
+  }, [editValue, localSummary, setCustomName, t]);
 
   // Cancel editing
   const cancelEditing = useCallback(() => {
@@ -114,11 +115,11 @@ export const SessionItem: React.FC<SessionItemProps> = ({
       await setCustomName(undefined);
     } catch (error) {
       console.error('Failed to reset custom name:', error);
-      // TODO: Add toast notification for better UX
+      toast.error(t('session.resetError', 'Failed to reset name'));
     } finally {
       setIsContextMenuOpen(false);
     }
-  }, [setCustomName]);
+  }, [setCustomName, t]);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -189,10 +190,11 @@ export const SessionItem: React.FC<SessionItemProps> = ({
           await setHasClaudeCodeName(hasPrefix);
         } catch (error) {
           console.error('Failed to update Claude Code name metadata:', error);
+          toast.error(t('session.syncError', 'Failed to sync metadata'));
         }
       }
     },
-    [setHasClaudeCodeName]
+    [setHasClaudeCodeName, t]
   );
 
   return (

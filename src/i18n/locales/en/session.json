@@ -128,5 +128,8 @@
   "session.nativeRename.resetMenuItem": "Reset native name",
   "session.claudeCodeSynced": "Synced with Claude Code CLI",
   "session.cliSync.title": "Session name synced with CLI",
-  "session.cliSync.description": "This session's name is also visible in Claude Code CLI"
+  "session.cliSync.description": "This session's name is also visible in Claude Code CLI",
+  "session.saveError": "Failed to save name",
+  "session.resetError": "Failed to reset name",
+  "session.syncError": "Failed to sync metadata"
 }

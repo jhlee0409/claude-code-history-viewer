@@ -128,5 +128,8 @@
   "session.nativeRename.resetMenuItem": "원래 이름으로 복원",
   "session.claudeCodeSynced": "Claude Code CLI와 동기화됨",
   "session.cliSync.title": "세션 이름이 CLI와 동기화됨",
-  "session.cliSync.description": "이 세션의 이름은 Claude Code CLI에서도 동일하게 표시됩니다"
+  "session.cliSync.description": "이 세션의 이름은 Claude Code CLI에서도 동일하게 표시됩니다",
+  "session.saveError": "이름 저장 실패",
+  "session.resetError": "이름 초기화 실패",
+  "session.syncError": "메타데이터 동기화 실패"
 }
