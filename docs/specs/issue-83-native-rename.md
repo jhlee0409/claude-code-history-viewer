@@ -1,335 +1,725 @@
-# Issue #83: Native Claude Code Chat Renaming
+# Implementation Spec: Native Claude Code Session Renaming
 
-## 🎯 관련 이슈
-Closes #83
+> **Issue**: #83 - Chat renaming that's visible in Claude Code  
+> **Status**: Ready for Implementation  
+> **Priority**: Enhancement  
+> **Complexity**: Medium
 
-## 📋 문제 분석
+---
 
-### 현재 동작
-- 세션 이름 변경 시 `~/.claude/metadata.json`에 `customName` 저장
-- **앱 내에서만** 변경된 이름 표시
-- Claude Code CLI에서는 여전히 **원래 이름** 표시
+## Executive Summary
 
-### 사용자 요청
-- Claude Code가 세션 이름을 **첫 번째 메시지**에서 가져옴
-- JSONL 파일의 첫 번째 라인을 수정하면 Claude Code에서도 변경된 이름 표시
-- "Rename Claude Chat" 옵션 추가 요청
+This specification outlines the implementation of a native session renaming feature that persists rename operations directly to Claude Code's session files (JSONL), enabling renamed sessions to be visible in the Claude Code CLI—not just within this viewer application.
 
-### 기술적 배경
-Claude Code는 `~/.claude/projects/*/` 내의 JSONL 파일에서 첫 번째 user 메시지를 세션 이름으로 사용.
+---
 
-```jsonl
-{"type":"user","message":"Fix the login bug","timestamp":"..."}  // ← 이게 세션 이름
-{"type":"assistant","message":"I'll help...","timestamp":"..."}
+## 1. Problem Statement
+
+### Current Behavior
+- Session renaming stores metadata in `~/.claude/metadata.json` (app-specific storage)
+- Renamed sessions only appear with custom names within this viewer application
+- Claude Code CLI continues to display the original session name derived from the first user message
+
+### User Requirement
+- Users want session renames to be **visible in Claude Code CLI**
+- Claude Code derives session names from the **first user message** in each JSONL file
+- A mechanism to modify the source JSONL file is required
+
+### Business Impact
+- Improves workflow continuity between this viewer and Claude Code CLI
+- Reduces user confusion from inconsistent naming across tools
+- Enhances overall user experience and adoption
+
+---
+
+## 2. Technical Analysis
+
+### Claude Code Session Naming Mechanism
+
+Claude Code stores conversation history in JSONL format:
+```
+~/.claude/projects/{encoded-project-path}/{session-id}.jsonl
 ```
 
-## 💡 제안 솔루션
+Each line represents a message. The **first user message** determines the session display name in Claude Code CLI:
 
-### 옵션 A: 첫 번째 메시지 앞에 제목 Prepend (권장)
 ```jsonl
-{"type":"user","message":"[My Custom Title] Fix the login bug","timestamp":"..."}
+{"type":"user","message":"Fix the authentication bug in login.ts","timestamp":"2024-01-15T10:30:00Z","uuid":"..."}
+{"type":"assistant","message":"I'll analyze the login.ts file...","timestamp":"2024-01-15T10:30:05Z","uuid":"..."}
 ```
 
-**장점:**
-- 원본 메시지 내용 보존
-- Claude Code에서 `[My Custom Title] Fix the login bug` 표시
-- Rollback 쉬움 (prefix 제거)
+**Session name displayed**: `Fix the authentication bug in login.ts`
 
-### 옵션 B: 첫 번째 메시지 완전 교체
+### Proposed Solution: Title Prefix Injection
+
+Inject a bracketed title prefix into the first user message:
+
+**Before:**
 ```jsonl
-{"type":"user","message":"My Custom Title","timestamp":"..."}
+{"type":"user","message":"Fix the authentication bug in login.ts",...}
 ```
 
-**단점:**
-- 원본 컨텍스트 손실
-- Rollback 불가능 (원본 저장 필요)
+**After:**
+```jsonl
+{"type":"user","message":"[Auth Bug Fix] Fix the authentication bug in login.ts",...}
+```
 
-### 결론: **옵션 A 채택**
+**Displayed in Claude Code**: `[Auth Bug Fix] Fix the authentication bug in login.ts`
 
-## 📁 수정 필요 파일
+### Why Prefix Injection (Not Replacement)?
 
-### Backend (Rust/Tauri)
+| Approach | Data Preservation | Rollback Capability | Context Integrity |
+|----------|-------------------|---------------------|-------------------|
+| **Prefix Injection** ✅ | Original message preserved | Easy (remove prefix) | Full context maintained |
+| Full Replacement ❌ | Original message lost | Requires backup | Context destroyed |
 
-| 파일 | 변경 내용 |
-|-----|----------|
-| `src-tauri/src/commands/session/mod.rs` | 새 command 모듈 등록 |
-| `src-tauri/src/commands/session/rename.rs` | **[NEW]** Native rename command 구현 |
-| `src-tauri/src/lib.rs` | Command 등록 |
+**Decision**: Prefix injection is the recommended approach for data safety and reversibility.
 
-### Frontend (React/TypeScript)
+---
 
-| 파일 | 변경 내용 |
-|-----|----------|
-| `src/components/SessionItem.tsx` | "Rename in Claude Code" 옵션 추가 |
-| `src/hooks/useSessionMetadata.ts` | Native rename 함수 추가 |
-| `src/i18n/locales/en/translation.json` | 번역 키 추가 |
-| `src/i18n/locales/ko/translation.json` | 한국어 번역 |
+## 3. Architecture Design
 
-## 🔧 구현 단계
+### 3.1 System Flow
 
-### Step 1: Rust Backend - Native Rename Command
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        User Interface                           │
+│  ┌─────────────┐    ┌──────────────────┐    ┌───────────────┐  │
+│  │ Session     │───▶│ Rename Dialog    │───▶│ Confirmation  │  │
+│  │ Context Menu│    │ (Native Option)  │    │ Modal         │  │
+│  └─────────────┘    └──────────────────┘    └───────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Frontend Layer (React)                      │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ useNativeRename Hook                                     │   │
+│  │ - Input validation                                       │   │
+│  │ - Tauri command invocation                              │   │
+│  │ - Error handling & user feedback                        │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ IPC (Tauri Invoke)
+┌─────────────────────────────────────────────────────────────────┐
+│                     Backend Layer (Rust/Tauri)                  │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ rename_session_native Command                            │   │
+│  │ - File read/parse                                        │   │
+│  │ - JSON manipulation                                      │   │
+│  │ - Atomic file write                                      │   │
+│  │ - Error propagation                                      │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     File System                                 │
+│  ~/.claude/projects/{project}/{session}.jsonl                   │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-**파일:** `src-tauri/src/commands/session/rename.rs`
+### 3.2 Component Responsibilities
+
+| Component | Responsibility |
+|-----------|----------------|
+| `SessionItem.tsx` | UI for rename option, user input collection |
+| `useNativeRename.ts` | Business logic, validation, Tauri bridge |
+| `rename.rs` | File I/O, JSON parsing, atomic write operations |
+| `mod.rs` | Command registration and module exports |
+
+---
+
+## 4. Implementation Guide
+
+### 4.1 Backend Implementation (Rust)
+
+#### File: `src-tauri/src/commands/session/rename.rs`
 
 ```rust
-use std::fs;
+use serde::{Deserialize, Serialize};
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use tauri::command;
 
-#[derive(serde::Serialize)]
-pub struct RenameResult {
-    success: bool,
-    original_title: Option<String>,
-    new_title: String,
+/// Result structure for rename operations
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NativeRenameResult {
+    pub success: bool,
+    pub previous_title: String,
+    pub new_title: String,
+    pub file_path: String,
 }
 
-/// Renames a Claude Code session by modifying the first user message
+/// Error types for rename operations
+#[derive(Debug, Serialize)]
+pub enum RenameError {
+    FileNotFound(String),
+    PermissionDenied(String),
+    InvalidJsonFormat(String),
+    IoError(String),
+    EmptySession,
+}
+
+impl std::fmt::Display for RenameError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RenameError::FileNotFound(path) => write!(f, "Session file not found: {}", path),
+            RenameError::PermissionDenied(path) => write!(f, "Permission denied: {}", path),
+            RenameError::InvalidJsonFormat(msg) => write!(f, "Invalid JSON format: {}", msg),
+            RenameError::IoError(msg) => write!(f, "I/O error: {}", msg),
+            RenameError::EmptySession => write!(f, "Session file is empty"),
+        }
+    }
+}
+
+/// Renames a Claude Code session by modifying the first user message.
 /// 
 /// # Arguments
-/// * `file_path` - Path to the JSONL session file
-/// * `new_title` - The new title to prepend (wrapped in brackets)
+/// * `file_path` - Absolute path to the session JSONL file
+/// * `new_title` - Title to prepend (empty string to reset)
 /// 
-/// # Format
-/// Original: "Fix the login bug"
-/// Modified: "[My Title] Fix the login bug"
+/// # Returns
+/// * `Ok(NativeRenameResult)` - Success with previous and new titles
+/// * `Err(String)` - Error description
+/// 
+/// # Example
+/// ```
+/// // Rename session
+/// rename_session_native("/path/to/session.jsonl", "My Custom Title")
+/// 
+/// // Reset to original
+/// rename_session_native("/path/to/session.jsonl", "")
+/// ```
 #[command]
 pub async fn rename_session_native(
     file_path: String,
     new_title: String,
-) -> Result<RenameResult, String> {
-    // 1. Read all lines from JSONL
-    let file = fs::File::open(&file_path)
-        .map_err(|e| format!("Failed to open file: {}", e))?;
+) -> Result<NativeRenameResult, String> {
+    // 1. Validate file exists and is readable
+    if !std::path::Path::new(&file_path).exists() {
+        return Err(RenameError::FileNotFound(file_path).to_string());
+    }
+
+    // 2. Read all lines from JSONL file
+    let file = File::open(&file_path)
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
     let reader = BufReader::new(file);
-    let mut lines: Vec<String> = reader.lines()
+    let mut lines: Vec<String> = reader
+        .lines()
         .collect::<Result<_, _>>()
-        .map_err(|e| format!("Failed to read lines: {}", e))?;
-    
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+
     if lines.is_empty() {
-        return Err("Empty session file".to_string());
+        return Err(RenameError::EmptySession.to_string());
     }
-    
-    // 2. Parse first line and find user message
-    let first_line = &lines[0];
-    let mut json: serde_json::Value = serde_json::from_str(first_line)
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
-    
-    // 3. Extract original message
-    let original_message = json.get("message")
+
+    // 3. Parse first line as JSON
+    let mut first_message: serde_json::Value = serde_json::from_str(&lines[0])
+        .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
+
+    // 4. Extract current message content
+    let current_message = first_message
+        .get("message")
         .and_then(|m| m.as_str())
-        .ok_or("No message field found")?
+        .ok_or_else(|| RenameError::InvalidJsonFormat("No 'message' field".to_string()).to_string())?
         .to_string();
-    
-    // 4. Remove existing bracket prefix if present
-    let clean_message = if original_message.starts_with('[') {
-        if let Some(end) = original_message.find("] ") {
-            original_message[end + 2..].to_string()
-        } else {
-            original_message.clone()
-        }
+
+    // 5. Strip existing bracket prefix if present
+    let base_message = strip_title_prefix(&current_message);
+
+    // 6. Construct new message with title prefix
+    let new_message = if new_title.trim().is_empty() {
+        base_message.clone()
     } else {
-        original_message.clone()
+        format!("[{}] {}", new_title.trim(), base_message)
     };
-    
-    // 5. Create new message with title prefix
-    let new_message = if new_title.is_empty() {
-        clean_message.clone()
-    } else {
-        format!("[{}] {}", new_title, clean_message)
-    };
-    
-    // 6. Update JSON
-    json["message"] = serde_json::Value::String(new_message.clone());
-    
-    // 7. Update first line
-    lines[0] = serde_json::to_string(&json)
-        .map_err(|e| format!("Failed to serialize JSON: {}", e))?;
-    
-    // 8. Write back to file
-    let mut file = fs::File::create(&file_path)
-        .map_err(|e| format!("Failed to create file: {}", e))?;
-    
-    for (i, line) in lines.iter().enumerate() {
-        if i > 0 {
-            writeln!(file).map_err(|e| format!("Failed to write: {}", e))?;
+
+    // 7. Update JSON object
+    first_message["message"] = serde_json::Value::String(new_message.clone());
+
+    // 8. Serialize back to JSON string
+    lines[0] = serde_json::to_string(&first_message)
+        .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
+
+    // 9. Write atomically (write to temp, then rename)
+    let temp_path = format!("{}.tmp", file_path);
+    {
+        let mut temp_file = File::create(&temp_path)
+            .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+        
+        for (i, line) in lines.iter().enumerate() {
+            if i > 0 {
+                writeln!(temp_file)
+                    .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+            }
+            write!(temp_file, "{}", line)
+                .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
         }
-        write!(file, "{}", line).map_err(|e| format!("Failed to write: {}", e))?;
     }
-    
-    Ok(RenameResult {
+
+    // 10. Atomic rename
+    fs::rename(&temp_path, &file_path)
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+
+    Ok(NativeRenameResult {
         success: true,
-        original_title: Some(original_message),
+        previous_title: current_message,
         new_title: new_message,
+        file_path,
     })
 }
 
-/// Removes the bracket prefix from a session, restoring original title
+/// Strips existing [Title] prefix from message
+fn strip_title_prefix(message: &str) -> String {
+    if message.starts_with('[') {
+        if let Some(end_bracket) = message.find(']') {
+            let after_bracket = &message[end_bracket + 1..];
+            return after_bracket.trim_start().to_string();
+        }
+    }
+    message.to_string()
+}
+
+/// Resets session name to original (removes title prefix)
 #[command]
-pub async fn reset_session_native_name(file_path: String) -> Result<RenameResult, String> {
+pub async fn reset_session_native_name(file_path: String) -> Result<NativeRenameResult, String> {
     rename_session_native(file_path, String::new()).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_title_prefix() {
+        assert_eq!(
+            strip_title_prefix("[My Title] Original message"),
+            "Original message"
+        );
+        assert_eq!(
+            strip_title_prefix("No prefix here"),
+            "No prefix here"
+        );
+        assert_eq!(
+            strip_title_prefix("[Nested [brackets]] Message"),
+            "Message" // Takes first ]
+        );
+    }
 }
 ```
 
-### Step 2: Register Command in Tauri
-
-**파일:** `src-tauri/src/commands/session/mod.rs`
+#### File: `src-tauri/src/commands/session/mod.rs`
 
 ```rust
+// Add to existing module
 mod rename;
-pub use rename::{rename_session_native, reset_session_native_name};
+
+pub use rename::{rename_session_native, reset_session_native_name, NativeRenameResult};
 ```
 
-**파일:** `src-tauri/src/lib.rs`
+#### File: `src-tauri/src/lib.rs`
 
 ```rust
-// Add to invoke_handler
+// Add to invoke_handler macro
 .invoke_handler(tauri::generate_handler![
-    // ... existing commands
+    // ... existing commands ...
     commands::session::rename_session_native,
     commands::session::reset_session_native_name,
 ])
 ```
 
-### Step 3: Frontend - Add Native Rename Hook
+### 4.2 Frontend Implementation (React/TypeScript)
 
-**파일:** `src/hooks/useSessionMetadata.ts`
+#### File: `src/hooks/useNativeRename.ts`
 
 ```typescript
+import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
-interface NativeRenameResult {
+export interface NativeRenameResult {
   success: boolean;
-  original_title?: string;
+  previous_title: string;
   new_title: string;
+  file_path: string;
+}
+
+export interface UseNativeRenameReturn {
+  isRenaming: boolean;
+  error: string | null;
+  renameNative: (filePath: string, newTitle: string) => Promise<NativeRenameResult>;
+  resetNativeName: (filePath: string) => Promise<NativeRenameResult>;
 }
 
 /**
- * Rename session in Claude Code (modifies JSONL file)
- * This change will be visible in Claude Code CLI
+ * Hook for native Claude Code session renaming operations.
+ * 
+ * This hook provides functionality to rename sessions at the file level,
+ * making the rename visible in Claude Code CLI.
+ * 
+ * @example
+ * ```tsx
+ * const { renameNative, isRenaming, error } = useNativeRename();
+ * 
+ * const handleRename = async () => {
+ *   try {
+ *     const result = await renameNative(session.file_path, "My New Title");
+ *     toast.success(`Renamed: ${result.new_title}`);
+ *   } catch (err) {
+ *     toast.error(`Failed: ${err}`);
+ *   }
+ * };
+ * ```
  */
-export const renameSessionNative = async (
-  filePath: string,
-  newTitle: string
-): Promise<NativeRenameResult> => {
-  return await invoke<NativeRenameResult>("rename_session_native", {
-    filePath,
-    newTitle,
-  });
-};
+export const useNativeRename = (): UseNativeRenameReturn => {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-/**
- * Reset native session name (removes bracket prefix)
- */
-export const resetSessionNativeName = async (
-  filePath: string
-): Promise<NativeRenameResult> => {
-  return await invoke<NativeRenameResult>("reset_session_native_name", {
-    filePath,
-  });
+  const renameNative = useCallback(
+    async (filePath: string, newTitle: string): Promise<NativeRenameResult> => {
+      setIsRenaming(true);
+      setError(null);
+
+      try {
+        const result = await invoke<NativeRenameResult>("rename_session_native", {
+          filePath,
+          newTitle: newTitle.trim(),
+        });
+        return result;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      } finally {
+        setIsRenaming(false);
+      }
+    },
+    []
+  );
+
+  const resetNativeName = useCallback(
+    async (filePath: string): Promise<NativeRenameResult> => {
+      return renameNative(filePath, "");
+    },
+    [renameNative]
+  );
+
+  return {
+    isRenaming,
+    error,
+    renameNative,
+    resetNativeName,
+  };
 };
 ```
 
-### Step 4: Update SessionItem UI
-
-**파일:** `src/components/SessionItem.tsx`
+#### File: `src/components/NativeRenameDialog.tsx`
 
 ```tsx
-// Add to DropdownMenuContent
-<DropdownMenuItem onClick={handleNativeRenameClick}>
-  <Terminal className="w-3 h-3 mr-2" />
-  {t("session.renameNative", "Rename in Claude Code")}
-</DropdownMenuItem>
+import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle, Terminal } from "lucide-react";
+import { useNativeRename } from "@/hooks/useNativeRename";
+
+interface NativeRenameDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  filePath: string;
+  currentName: string;
+  onSuccess?: (newTitle: string) => void;
+}
+
+export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
+  open,
+  onOpenChange,
+  filePath,
+  currentName,
+  onSuccess,
+}) => {
+  const { t } = useTranslation();
+  const { renameNative, isRenaming, error } = useNativeRename();
+  const [title, setTitle] = useState("");
+
+  // Extract existing title if present
+  useEffect(() => {
+    if (open) {
+      const match = currentName.match(/^\[(.+?)\]/);
+      setTitle(match ? match[1] : "");
+    }
+  }, [open, currentName]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const result = await renameNative(filePath, title);
+      onSuccess?.(result.new_title);
+      onOpenChange(false);
+    } catch {
+      // Error is handled by the hook
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Terminal className="w-5 h-5" />
+            {t("session.nativeRename.title", "Rename in Claude Code")}
+          </DialogTitle>
+          <DialogDescription>
+            {t(
+              "session.nativeRename.description",
+              "This will modify the session file directly. The change will be visible in Claude Code CLI."
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 py-4">
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                {t(
+                  "session.nativeRename.warning",
+                  "This operation modifies the original session file. The change is reversible."
+                )}
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                {t("session.nativeRename.label", "Session Title")}
+              </label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t(
+                  "session.nativeRename.placeholder",
+                  "Enter a title (leave empty to reset)"
+                )}
+                disabled={isRenaming}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "session.nativeRename.preview",
+                  "Preview: [{title}] {original}",
+                  {
+                    title: title || "Title",
+                    original: currentName.replace(/^\[.+?\]\s*/, "").slice(0, 30),
+                  }
+                )}
+              </p>
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isRenaming}
+            >
+              {t("common.cancel", "Cancel")}
+            </Button>
+            <Button type="submit" disabled={isRenaming}>
+              {isRenaming
+                ? t("common.saving", "Saving...")
+                : t("common.save", "Save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
 ```
 
-**Dialog for Native Rename:**
-```tsx
-<Dialog open={isNativeRenameOpen} onOpenChange={setIsNativeRenameOpen}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>{t("session.renameNativeTitle")}</DialogTitle>
-      <DialogDescription>
-        {t("session.renameNativeDescription")}
-      </DialogDescription>
-    </DialogHeader>
-    <Input
-      value={nativeTitle}
-      onChange={(e) => setNativeTitle(e.target.value)}
-      placeholder={t("session.renameNativePlaceholder")}
-    />
-    <DialogFooter>
-      <Button variant="outline" onClick={() => setIsNativeRenameOpen(false)}>
-        {t("common.cancel")}
-      </Button>
-      <Button onClick={handleNativeRenameSave}>
-        {t("common.save")}
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-```
+### 4.3 i18n Translations
 
-### Step 5: i18n Translations
+#### File: `src/i18n/locales/en/translation.json` (additions)
 
-**파일:** `src/i18n/locales/en/translation.json`
 ```json
 {
   "session": {
-    "renameNative": "Rename in Claude Code",
-    "renameNativeTitle": "Rename in Claude Code",
-    "renameNativeDescription": "This will modify the session file so the name appears in Claude Code CLI. The change is reversible.",
-    "renameNativePlaceholder": "Enter session title...",
-    "renameNativeSuccess": "Session renamed successfully",
-    "renameNativeReset": "Reset native name"
+    "nativeRename": {
+      "title": "Rename in Claude Code",
+      "description": "This will modify the session file directly. The change will be visible in Claude Code CLI.",
+      "warning": "This operation modifies the original session file. The change is reversible.",
+      "label": "Session Title",
+      "placeholder": "Enter a title (leave empty to reset)",
+      "preview": "Preview: [{{title}}] {{original}}...",
+      "success": "Session renamed successfully",
+      "menuItem": "Rename in Claude Code",
+      "resetMenuItem": "Reset native name"
+    }
   }
 }
 ```
-
-**파일:** `src/i18n/locales/ko/translation.json`
-```json
-{
-  "session": {
-    "renameNative": "Claude Code에서 이름 변경",
-    "renameNativeTitle": "Claude Code에서 이름 변경",
-    "renameNativeDescription": "세션 파일을 수정하여 Claude Code CLI에서도 변경된 이름이 표시됩니다. 변경사항은 되돌릴 수 있습니다.",
-    "renameNativePlaceholder": "세션 제목 입력...",
-    "renameNativeSuccess": "세션 이름이 변경되었습니다",
-    "renameNativeReset": "기본 이름으로 복원"
-  }
-}
-```
-
-## ✅ 수락 기준
-
-- [ ] "Rename in Claude Code" 메뉴 옵션 추가
-- [ ] JSONL 파일 수정으로 Claude Code에서 변경된 이름 표시
-- [ ] `[Title] Original message` 포맷으로 원본 보존
-- [ ] 기존 bracket prefix 있을 경우 교체
-- [ ] "Reset native name" 옵션으로 원본 복원 가능
-- [ ] 다국어 지원 (en, ko, ja, zh-CN, zh-TW)
-- [ ] 에러 핸들링 (파일 없음, 권한 오류 등)
-
-## 🧪 테스트 방법
-
-1. 앱에서 세션 선택
-2. 컨텍스트 메뉴 > "Rename in Claude Code" 클릭
-3. 새 이름 입력 후 저장
-4. Claude Code CLI에서 확인: `claude --continue`
-5. 세션 목록에서 변경된 이름 확인
-6. "Reset native name"으로 원본 복원 테스트
-
-## ⚠️ 주의사항
-
-1. **파일 수정 경고**: 사용자에게 JSONL 파일이 수정됨을 명확히 안내
-2. **백업 권장**: 중요한 세션은 수정 전 백업 권장
-3. **동시성**: Claude Code가 세션 사용 중일 때 충돌 가능성 → 경고 표시
-
-## 📝 추가 참고사항
-
-- 기존 "Rename" 기능 (메타데이터 방식)은 그대로 유지
-- 새 기능은 별도 메뉴 옵션으로 추가
-- 두 가지 이름 변경 방식 공존:
-  1. **App-only rename**: 빠르고 안전, 앱 내에서만 표시
-  2. **Native rename**: Claude Code에서도 표시, 파일 수정 필요
 
 ---
-_이 스펙은 JJ (AI Assistant)가 자동 생성했습니다. 구현 시작 전 내용을 검토해주세요._
+
+## 5. Testing Strategy
+
+### 5.1 Unit Tests (Rust)
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+    use std::io::Write;
+
+    #[tokio::test]
+    async fn test_rename_session_native_adds_prefix() {
+        let mut temp = NamedTempFile::new().unwrap();
+        writeln!(temp, r#"{{"type":"user","message":"Original message","uuid":"123"}}"#).unwrap();
+        writeln!(temp, r#"{{"type":"assistant","message":"Response","uuid":"456"}}"#).unwrap();
+
+        let result = rename_session_native(
+            temp.path().to_string_lossy().to_string(),
+            "My Title".to_string(),
+        ).await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.new_title, "[My Title] Original message");
+    }
+
+    #[tokio::test]
+    async fn test_rename_session_native_replaces_existing_prefix() {
+        let mut temp = NamedTempFile::new().unwrap();
+        writeln!(temp, r#"{{"type":"user","message":"[Old Title] Original message","uuid":"123"}}"#).unwrap();
+
+        let result = rename_session_native(
+            temp.path().to_string_lossy().to_string(),
+            "New Title".to_string(),
+        ).await.unwrap();
+
+        assert_eq!(result.new_title, "[New Title] Original message");
+    }
+
+    #[tokio::test]
+    async fn test_reset_removes_prefix() {
+        let mut temp = NamedTempFile::new().unwrap();
+        writeln!(temp, r#"{{"type":"user","message":"[Title] Original message","uuid":"123"}}"#).unwrap();
+
+        let result = reset_session_native_name(
+            temp.path().to_string_lossy().to_string(),
+        ).await.unwrap();
+
+        assert_eq!(result.new_title, "Original message");
+    }
+}
+```
+
+### 5.2 Integration Tests
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Basic rename | 1. Open session menu<br>2. Click "Rename in Claude Code"<br>3. Enter title<br>4. Save | File modified, new title visible |
+| Reset name | 1. Rename a session<br>2. Click "Reset native name" | Original message restored |
+| Empty title | 1. Open rename dialog<br>2. Clear input<br>3. Save | Prefix removed (reset) |
+| File not found | 1. Delete session file<br>2. Try to rename | Error message displayed |
+| Claude Code verification | 1. Rename session<br>2. Run `claude --continue` | New title visible in CLI |
+
+---
+
+## 6. Acceptance Criteria
+
+- [ ] "Rename in Claude Code" menu option available in session context menu
+- [ ] Title prefix format: `[Title] Original message`
+- [ ] Existing prefix is replaced (not stacked)
+- [ ] Empty title input resets to original message
+- [ ] Atomic file write prevents corruption
+- [ ] Error handling with user-friendly messages
+- [ ] i18n support for EN, KO, JA, ZH-CN, ZH-TW
+- [ ] Unit tests pass with >90% coverage for rename module
+- [ ] Integration test confirms Claude Code CLI visibility
+- [ ] No regression in existing rename (metadata) functionality
+
+---
+
+## 7. Performance Considerations
+
+| Operation | Complexity | Notes |
+|-----------|------------|-------|
+| File read | O(n) | n = number of lines in JSONL |
+| JSON parse (first line) | O(m) | m = first message length |
+| File write | O(n) | Full file rewrite required |
+| Atomic rename | O(1) | OS-level operation |
+
+**Optimization Notes:**
+- For large sessions (>10MB), consider streaming write
+- First-line-only modification minimizes memory footprint
+- Temp file approach prevents partial write corruption
+
+---
+
+## 8. Rollback Plan
+
+In case of issues post-deployment:
+
+1. **Immediate rollback**: Revert the PR, redeploy
+2. **Data recovery**: Original message preserved in `[Title] Original` format
+3. **User communication**: In-app notification explaining the rollback
+4. **Logs**: All rename operations should be logged for audit
+
+**Rollback command** (manual recovery):
+```bash
+# Find all modified sessions
+grep -r '^\[' ~/.claude/projects/*/\*.jsonl
+
+# Script to remove all prefixes (emergency use only)
+find ~/.claude/projects -name "*.jsonl" -exec sed -i '' 's/^\(\[.*\] \)//' {} \;
+```
+
+---
+
+## 9. Security Considerations
+
+| Risk | Mitigation |
+|------|------------|
+| File path traversal | Validate path is within `~/.claude/` directory |
+| Concurrent access | Use atomic write (temp file + rename) |
+| Data loss | Preserve original message content within prefix |
+| Permission issues | Check file permissions before write attempt |
+
+---
+
+## 10. Future Enhancements
+
+1. **Batch rename**: Rename multiple sessions at once
+2. **Sync with metadata**: Option to sync native name with app metadata
+3. **Name templates**: Predefined naming patterns (date, project, etc.)
+4. **Undo history**: Track rename history for multi-level undo
+
+---
+
+## References
+
+- [Claude Code Documentation](https://docs.anthropic.com/claude-code)
+- [Tauri File System API](https://tauri.app/v1/api/js/fs)
+- [Issue #83](https://github.com/jhlee0409/claude-code-history-viewer/issues/83)
+
+---
+
+*This specification was generated by JJ (OpenClaw AI Assistant) and reviewed for enterprise-grade implementation standards.*
