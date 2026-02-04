@@ -5,6 +5,8 @@
 > **Priority**: Enhancement  
 > **Complexity**: Medium
 
+> ⚠️ **Disclaimer**: Code samples in this specification are **reference implementations** for guidance purposes. They have not been compiled or tested. Implementers should verify, adapt, and test all code before use.
+
 ---
 
 ## Executive Summary
