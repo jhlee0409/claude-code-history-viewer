@@ -5,6 +5,15 @@
  */
 
 /**
+ * Check if a path is absolute (Unix or Windows)
+ * - Unix: starts with /
+ * - Windows: starts with drive letter (e.g., C:\)
+ */
+export function isAbsolutePath(path: string): boolean {
+  return /^(?:[A-Za-z]:[\\/]|\/)/.test(path);
+}
+
+/**
  * Detect home directory from paths (infer from /Users/xxx, /home/xxx, or C:\Users\xxx patterns)
  */
 export function detectHomeDir(paths: string[]): string | null {

@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { isAbsolutePath } from "@/utils/pathUtils";
 
 export interface NativeRenameResult {
   success: boolean;
@@ -41,6 +42,13 @@ export const useNativeRename = (): UseNativeRenameReturn => {
 
   const renameNative = useCallback(
     async (filePath: string, newTitle: string): Promise<NativeRenameResult> => {
+      // Validate absolute path before calling backend
+      if (!filePath || !isAbsolutePath(filePath)) {
+        const errorMessage = "Invalid file path: must be an absolute path";
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
+
       setIsRenaming(true);
       setError(null);
 

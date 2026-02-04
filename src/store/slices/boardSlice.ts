@@ -11,6 +11,7 @@ import type {
 import type { ActiveBrush } from "@/utils/brushMatchers";
 import type { ClaudeMessage, ClaudeSession } from "../../types";
 import { analyzeSessionMessages } from "../../utils/sessionAnalytics";
+import { isAbsolutePath } from "../../utils/pathUtils";
 
 export interface BoardSliceState {
     boardSessions: Record<string, BoardSessionData>;
@@ -100,9 +101,6 @@ export const createBoardSlice: StateCreator<
 
     loadBoardSessions: async (sessions: ClaudeSession[]) => {
         set({ isLoadingBoard: true, boardLoadError: null });
-
-        // Helper for basic path safety check
-        const isAbsolutePath = (p: string) => /^(?:[A-Za-z]:[\\/]|\/)/.test(p);
 
         try {
             const selectedProject = get().selectedProject;
