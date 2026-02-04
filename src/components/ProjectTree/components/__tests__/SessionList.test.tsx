@@ -56,6 +56,32 @@ vi.mock("react-window", () => ({
   ),
 }));
 
+// Mock Tauri plugin-store to prevent errors
+vi.mock("@tauri-apps/plugin-store", () => ({
+  load: vi.fn().mockResolvedValue({
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue(undefined),
+    save: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+// Mock useAppStore with a reactive state
+import { create } from "zustand";
+
+interface MockStore {
+  sessionSortOrder: 'newest' | 'oldest';
+  setSessionSortOrder: (order: 'newest' | 'oldest') => void;
+}
+
+const useTestStore = create<MockStore>((set) => ({
+  sessionSortOrder: 'newest',
+  setSessionSortOrder: (order) => set({ sessionSortOrder: order }),
+}));
+
+vi.mock("@/store/useAppStore", () => ({
+  useAppStore: () => useTestStore(),
+}));
+
 // Helper to create mock session
 function createMockSession(overrides: Partial<ClaudeSession> = {}): ClaudeSession {
   return {
@@ -105,6 +131,8 @@ describe("SessionList", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mock store state
+    useTestStore.setState({ sessionSortOrder: 'newest' });
   });
 
   describe("Loading state", () => {

@@ -5,6 +5,7 @@
  */
 
 import { load } from "@tauri-apps/plugin-store";
+import { toast } from "sonner";
 import type { UpdateSettings } from "../../types/updateSettings";
 import { DEFAULT_UPDATE_SETTINGS } from "../../types/updateSettings";
 import type { SessionSortOrder } from "../../types/metadata.types";
@@ -150,7 +151,8 @@ export const createSettingsSlice: StateCreator<
       await store.set("sessionSortOrder", order);
       await store.save();
     } catch (error) {
-      console.warn("Failed to save session sort order:", error);
+      console.error("Failed to save session sort order:", error);
+      toast.error("Failed to save session sort order");
     }
   },
 });

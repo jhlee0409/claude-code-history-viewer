@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { SessionItem } from "../../SessionItem";
+import { useAppStore } from "@/store/useAppStore";
 import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
 
@@ -61,7 +62,7 @@ export const SessionList: React.FC<SessionListProps> = ({
 }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const { sessionSortOrder, setSessionSortOrder } = useAppStore();
 
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
@@ -81,7 +82,7 @@ export const SessionList: React.FC<SessionListProps> = ({
     result.sort((a, b) => {
       const dateA = new Date(a.last_modified).getTime();
       const dateB = new Date(b.last_modified).getTime();
-      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+      return sessionSortOrder === 'newest' ? dateB - dateA : dateA - dateB;
     });
 
     // Filter
@@ -94,7 +95,7 @@ export const SessionList: React.FC<SessionListProps> = ({
     }
 
     return result;
-  }, [sessions, sortOrder, searchQuery]);
+  }, [sessions, sessionSortOrder, searchQuery]);
 
   // Show controls only if we have enough sessions
   const showControls = sessions.length >= 3;
@@ -170,16 +171,16 @@ export const SessionList: React.FC<SessionListProps> = ({
               )}
             </div>
             <button
-              onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+              onClick={() => setSessionSortOrder(sessionSortOrder === 'newest' ? 'oldest' : 'newest')}
               className="p-1.5 rounded hover:bg-muted/50 transition-colors"
-              aria-label={sortOrder === 'newest'
+              aria-label={sessionSortOrder === 'newest'
                 ? t('session.filter.sortOldestFirst')
                 : t('session.filter.sortNewestFirst')}
-              title={sortOrder === 'newest'
+              title={sessionSortOrder === 'newest'
                 ? t('session.filter.sortOldestFirst')
                 : t('session.filter.sortNewestFirst')}
             >
-              {sortOrder === 'newest' ? (
+              {sessionSortOrder === 'newest' ? (
                 <SortDesc className="w-3.5 h-3.5 text-muted-foreground" />
               ) : (
                 <SortAsc className="w-3.5 h-3.5 text-accent" />
@@ -236,16 +237,16 @@ export const SessionList: React.FC<SessionListProps> = ({
             )}
           </div>
           <button
-            onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+            onClick={() => setSessionSortOrder(sessionSortOrder === 'newest' ? 'oldest' : 'newest')}
             className="p-1.5 rounded hover:bg-muted/50 transition-colors"
-            aria-label={sortOrder === 'newest'
+            aria-label={sessionSortOrder === 'newest'
               ? t('session.filter.sortOldestFirst')
               : t('session.filter.sortNewestFirst')}
-            title={sortOrder === 'newest'
+            title={sessionSortOrder === 'newest'
               ? t('session.filter.sortOldestFirst')
               : t('session.filter.sortNewestFirst')}
           >
-            {sortOrder === 'newest' ? (
+            {sessionSortOrder === 'newest' ? (
               <SortDesc className="w-3.5 h-3.5 text-muted-foreground" />
             ) : (
               <SortAsc className="w-3.5 h-3.5 text-accent" />
