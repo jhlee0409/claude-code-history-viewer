@@ -284,18 +284,9 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleNativeRenameClick} className="flex-col items-start gap-0.5">
-                    <div className="flex items-center">
-                      <Terminal className="w-3 h-3 mr-2" />
-                      {t("session.nativeRename.menuItem", "Rename in Claude Code")}
-                    </div>
-                    {session.summary && (
-                      <span className="text-2xs text-muted-foreground ml-5 truncate max-w-[180px]">
-                        {session.summary.length > 30
-                          ? `${session.summary.slice(0, 30)}...`
-                          : session.summary}
-                      </span>
-                    )}
+                  <DropdownMenuItem onClick={handleNativeRenameClick}>
+                    <Terminal className="w-3 h-3 mr-2" />
+                    {t("session.nativeRename.menuItem", "Rename in Claude Code")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

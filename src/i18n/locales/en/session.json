@@ -123,6 +123,7 @@
   "session.nativeRename.preview": "Preview: [{{title}}] {{original}}...",
   "session.nativeRename.titlePlaceholder": "Title",
   "session.nativeRename.success": "Session renamed successfully",
+  "session.nativeRename.currentName": "Current name",
   "session.nativeRename.menuItem": "Rename in Claude Code",
   "session.nativeRename.resetMenuItem": "Reset native name"
 }

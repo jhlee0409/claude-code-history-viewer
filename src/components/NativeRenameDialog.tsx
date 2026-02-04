@@ -79,6 +79,16 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
               </AlertDescription>
             </Alert>
 
+            {/* Current session name display */}
+            <div className="space-y-1">
+              <Label className="text-muted-foreground">
+                {t("session.nativeRename.currentName", "Current name")}
+              </Label>
+              <p className="text-sm bg-muted/50 rounded-md px-3 py-2 break-words">
+                {currentName || t("session.summaryNotFound", "No summary")}
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor={inputId}>
                 {t("session.nativeRename.label")}

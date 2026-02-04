@@ -123,6 +123,7 @@
   "session.nativeRename.preview": "미리보기: [{{title}}] {{original}}...",
   "session.nativeRename.titlePlaceholder": "제목",
   "session.nativeRename.success": "세션 이름이 변경되었습니다",
+  "session.nativeRename.currentName": "현재 이름",
   "session.nativeRename.menuItem": "Claude Code에서 이름 변경",
   "session.nativeRename.resetMenuItem": "원래 이름으로 복원"
 }

@@ -123,6 +123,7 @@
   "session.nativeRename.preview": "プレビュー: [{{title}}] {{original}}...",
   "session.nativeRename.titlePlaceholder": "タイトル",
   "session.nativeRename.success": "セッション名を変更しました",
+  "session.nativeRename.currentName": "現在の名前",
   "session.nativeRename.menuItem": "Claude Codeで名前を変更",
   "session.nativeRename.resetMenuItem": "元の名前に戻す"
 }
