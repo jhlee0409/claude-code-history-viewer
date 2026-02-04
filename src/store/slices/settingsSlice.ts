@@ -7,6 +7,7 @@
 import { load } from "@tauri-apps/plugin-store";
 import type { UpdateSettings } from "../../types/updateSettings";
 import { DEFAULT_UPDATE_SETTINGS } from "../../types/updateSettings";
+import type { SessionSortOrder } from "../../types/metadata.types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 
@@ -18,6 +19,7 @@ export interface SettingsSliceState {
   excludeSidechain: boolean;
   showSystemMessages: boolean;
   updateSettings: UpdateSettings;
+  sessionSortOrder: SessionSortOrder;
 }
 
 export interface SettingsSliceActions {
@@ -30,6 +32,7 @@ export interface SettingsSliceActions {
   ) => Promise<void>;
   skipVersion: (version: string) => Promise<void>;
   postponeUpdate: () => Promise<void>;
+  setSessionSortOrder: (order: SessionSortOrder) => Promise<void>;
 }
 
 export type SettingsSlice = SettingsSliceState & SettingsSliceActions;
@@ -42,6 +45,7 @@ const initialSettingsState: SettingsSliceState = {
   excludeSidechain: true,
   showSystemMessages: false,
   updateSettings: DEFAULT_UPDATE_SETTINGS,
+  sessionSortOrder: "newest",
 };
 
 // ============================================================================
@@ -89,6 +93,12 @@ export const createSettingsSlice: StateCreator<
           updateSettings: { ...DEFAULT_UPDATE_SETTINGS, ...savedSettings },
         });
       }
+
+      // Load session sort order
+      const savedSortOrder = await store.get<SessionSortOrder>("sessionSortOrder");
+      if (savedSortOrder) {
+        set({ sessionSortOrder: savedSortOrder });
+      }
     } catch (error) {
       console.warn("Failed to load update settings:", error);
     }
@@ -127,5 +137,20 @@ export const createSettingsSlice: StateCreator<
   postponeUpdate: async () => {
     const { setUpdateSetting } = get();
     await setUpdateSetting("lastPostponedAt", Date.now());
+  },
+
+  setSessionSortOrder: async (order: SessionSortOrder) => {
+    set({ sessionSortOrder: order });
+
+    try {
+      const store = await load("settings.json", {
+        autoSave: false,
+        defaults: {},
+      });
+      await store.set("sessionSortOrder", order);
+      await store.save();
+    } catch (error) {
+      console.warn("Failed to save session sort order:", error);
+    }
   },
 });

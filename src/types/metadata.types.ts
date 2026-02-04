@@ -42,6 +42,9 @@ export interface ProjectMetadata {
 /** Grouping mode for project tree display */
 export type GroupingMode = "none" | "worktree" | "directory";
 
+/** Session sort order */
+export type SessionSortOrder = "newest" | "oldest";
+
 /** Global user settings */
 export interface UserSettings {
   /** Glob patterns for projects to hide (e.g., "folders-dg-*") */

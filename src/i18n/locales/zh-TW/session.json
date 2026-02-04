@@ -131,5 +131,11 @@
   "session.cliSync.description": "此會話的名稱在Claude Code CLI中也會顯示",
   "session.saveError": "儲存名稱失敗",
   "session.resetError": "重設名稱失敗",
-  "session.syncError": "同步中繼資料失敗"
+  "session.syncError": "同步中繼資料失敗",
+  "session.filter.searchPlaceholder": "搜尋工作階段...",
+  "session.filter.clearSearch": "清除搜尋",
+  "session.filter.sortNewestFirst": "依最新排序",
+  "session.filter.sortOldestFirst": "依最舊排序",
+  "session.filter.noResults": "沒有符合的工作階段",
+  "session.filter.showingCount": "顯示 {{count}}/{{total}} 個工作階段"
 }

@@ -131,5 +131,11 @@
   "session.cliSync.description": "This session's name is also visible in Claude Code CLI",
   "session.saveError": "Failed to save name",
   "session.resetError": "Failed to reset name",
-  "session.syncError": "Failed to sync metadata"
+  "session.syncError": "Failed to sync metadata",
+  "session.filter.searchPlaceholder": "Search sessions...",
+  "session.filter.clearSearch": "Clear search",
+  "session.filter.sortNewestFirst": "Sort by newest first",
+  "session.filter.sortOldestFirst": "Sort by oldest first",
+  "session.filter.noResults": "No sessions match your search",
+  "session.filter.showingCount": "Showing {{count}} of {{total}} sessions"
 }

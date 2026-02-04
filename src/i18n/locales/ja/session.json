@@ -131,5 +131,11 @@
   "session.cliSync.description": "このセッションの名前はClaude Code CLIでも同様に表示されます",
   "session.saveError": "名前の保存に失敗しました",
   "session.resetError": "名前のリセットに失敗しました",
-  "session.syncError": "メタデータの同期に失敗しました"
+  "session.syncError": "メタデータの同期に失敗しました",
+  "session.filter.searchPlaceholder": "セッションを検索...",
+  "session.filter.clearSearch": "検索をクリア",
+  "session.filter.sortNewestFirst": "新しい順に並べ替え",
+  "session.filter.sortOldestFirst": "古い順に並べ替え",
+  "session.filter.noResults": "検索に一致するセッションがありません",
+  "session.filter.showingCount": "{{total}}件中{{count}}件を表示"
 }

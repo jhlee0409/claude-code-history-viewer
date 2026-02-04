@@ -131,5 +131,11 @@
   "session.cliSync.description": "이 세션의 이름은 Claude Code CLI에서도 동일하게 표시됩니다",
   "session.saveError": "이름 저장 실패",
   "session.resetError": "이름 초기화 실패",
-  "session.syncError": "메타데이터 동기화 실패"
+  "session.syncError": "메타데이터 동기화 실패",
+  "session.filter.searchPlaceholder": "세션 검색...",
+  "session.filter.clearSearch": "검색 지우기",
+  "session.filter.sortNewestFirst": "최신순 정렬",
+  "session.filter.sortOldestFirst": "오래된 순 정렬",
+  "session.filter.noResults": "검색 결과가 없습니다",
+  "session.filter.showingCount": "{{total}}개 중 {{count}}개 표시"
 }

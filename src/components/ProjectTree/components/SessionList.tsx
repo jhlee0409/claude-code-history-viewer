@@ -1,9 +1,11 @@
 // src/components/ProjectTree/components/SessionList.tsx
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FixedSizeList as List } from "react-window";
+import { Search, X, SortDesc, SortAsc } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { SessionItem } from "../../SessionItem";
 import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
@@ -58,6 +60,8 @@ export const SessionList: React.FC<SessionListProps> = ({
   variant = "default",
 }) => {
   const { t } = useTranslation();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
@@ -69,26 +73,52 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   const containerClass = isWorktree || isMain ? "ml-4 pl-2" : "ml-6 pl-3";
 
+  // Filter and sort sessions
+  const filteredAndSortedSessions = useMemo(() => {
+    let result = [...sessions];
+
+    // Sort
+    result.sort((a, b) => {
+      const dateA = new Date(a.last_modified).getTime();
+      const dateB = new Date(b.last_modified).getTime();
+      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+
+    // Filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(session =>
+        session.summary?.toLowerCase().includes(query) ||
+        session.session_id.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [sessions, sortOrder, searchQuery]);
+
+  // Show controls only if we have enough sessions
+  const showControls = sessions.length >= 3;
+
   // Virtual list에 전달할 데이터 memoize
   const itemData = useMemo(
     () => ({
-      sessions,
+      sessions: filteredAndSortedSessions,
       selectedSession,
       onSessionSelect,
       onSessionHover,
       formatTimeAgo,
     }),
-    [sessions, selectedSession, onSessionSelect, onSessionHover, formatTimeAgo]
+    [filteredAndSortedSessions, selectedSession, onSessionSelect, onSessionHover, formatTimeAgo]
   );
 
   // 리스트 높이 계산
   const listHeight = useMemo(() => {
-    const totalHeight = sessions.length * SESSION_ITEM_HEIGHT;
+    const totalHeight = filteredAndSortedSessions.length * SESSION_ITEM_HEIGHT;
     return Math.min(totalHeight, MAX_LIST_HEIGHT);
-  }, [sessions.length]);
+  }, [filteredAndSortedSessions.length]);
 
   // Virtual scroll 사용 여부
-  const useVirtualScroll = sessions.length >= VIRTUALIZATION_THRESHOLD;
+  const useVirtualScroll = filteredAndSortedSessions.length >= VIRTUALIZATION_THRESHOLD;
 
   if (isLoading) {
     return (
@@ -117,35 +147,133 @@ export const SessionList: React.FC<SessionListProps> = ({
   // 세션 수가 적으면 기존 방식 유지
   if (!useVirtualScroll) {
     return (
-      <div className={cn(containerClass, borderClass, "space-y-1 py-2", (isWorktree || isMain) && "py-1.5")}>
-        {sessions.map((session) => (
-          <SessionItem
-            key={session.session_id}
-            session={session}
-            isSelected={selectedSession?.session_id === session.session_id}
-            onSelect={() => onSessionSelect(session)}
-            onHover={() => onSessionHover?.(session)}
-            formatTimeAgo={formatTimeAgo}
-          />
-        ))}
+      <div className={cn(containerClass, borderClass, (isWorktree || isMain) && "py-1.5")}>
+        {/* Search and Sort Controls */}
+        {showControls && (
+          <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border/30">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+              <Input
+                placeholder={t('session.filter.searchPlaceholder')}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-7 pl-7 pr-7 text-xs"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
+                  aria-label={t('session.filter.clearSearch')}
+                >
+                  <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+              className="p-1.5 rounded hover:bg-muted/50 transition-colors"
+              aria-label={sortOrder === 'newest'
+                ? t('session.filter.sortOldestFirst')
+                : t('session.filter.sortNewestFirst')}
+              title={sortOrder === 'newest'
+                ? t('session.filter.sortOldestFirst')
+                : t('session.filter.sortNewestFirst')}
+            >
+              {sortOrder === 'newest' ? (
+                <SortDesc className="w-3.5 h-3.5 text-muted-foreground" />
+              ) : (
+                <SortAsc className="w-3.5 h-3.5 text-accent" />
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Session List */}
+        <div className="space-y-1 py-2">
+          {filteredAndSortedSessions.length === 0 ? (
+            <div className="py-2 text-2xs text-muted-foreground text-center">
+              {t("session.filter.noResults", "No matching sessions")}
+            </div>
+          ) : (
+            filteredAndSortedSessions.map((session) => (
+              <SessionItem
+                key={session.session_id}
+                session={session}
+                isSelected={selectedSession?.session_id === session.session_id}
+                onSelect={() => onSessionSelect(session)}
+                onHover={() => onSessionHover?.(session)}
+                formatTimeAgo={formatTimeAgo}
+              />
+            ))
+          )}
+        </div>
       </div>
     );
   }
 
   // 세션 수가 많으면 virtual scroll 적용
   return (
-    <div className={cn(containerClass, borderClass, "py-2", (isWorktree || isMain) && "py-1.5")}>
-      <List
-        height={listHeight}
-        itemCount={sessions.length}
-        itemSize={SESSION_ITEM_HEIGHT}
-        width="100%"
-        itemData={itemData}
-        overscanCount={5}
-        className="session-virtual-list"
-      >
-        {SessionRow}
-      </List>
+    <div className={cn(containerClass, borderClass, (isWorktree || isMain) && "py-1.5")}>
+      {/* Search and Sort Controls */}
+      {showControls && (
+        <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border/30">
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+            <Input
+              placeholder={t('session.filter.searchPlaceholder')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-7 pl-7 pr-7 text-xs"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+                aria-label={t('session.filter.clearSearch')}
+              >
+                <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+            className="p-1.5 rounded hover:bg-muted/50 transition-colors"
+            aria-label={sortOrder === 'newest'
+              ? t('session.filter.sortOldestFirst')
+              : t('session.filter.sortNewestFirst')}
+            title={sortOrder === 'newest'
+              ? t('session.filter.sortOldestFirst')
+              : t('session.filter.sortNewestFirst')}
+          >
+            {sortOrder === 'newest' ? (
+              <SortDesc className="w-3.5 h-3.5 text-muted-foreground" />
+            ) : (
+              <SortAsc className="w-3.5 h-3.5 text-accent" />
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Virtual Scroll List */}
+      <div className="py-2">
+        {filteredAndSortedSessions.length === 0 ? (
+          <div className="py-2 text-2xs text-muted-foreground text-center">
+            {t("session.filter.noResults", "No matching sessions")}
+          </div>
+        ) : (
+          <List
+            height={listHeight}
+            itemCount={filteredAndSortedSessions.length}
+            itemSize={SESSION_ITEM_HEIGHT}
+            width="100%"
+            itemData={itemData}
+            overscanCount={5}
+            className="session-virtual-list"
+          >
+            {SessionRow}
+          </List>
+        )}
+      </div>
     </div>
   );
 };

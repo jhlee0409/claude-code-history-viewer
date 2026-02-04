@@ -122,6 +122,7 @@ export interface AppStoreState {
   excludeSidechain: boolean;
   showSystemMessages: boolean;
   updateSettings: UpdateSettings;
+  sessionSortOrder: import("../../types/metadata.types").SessionSortOrder;
 
   // Global stats state
   globalSummary: GlobalStatsSummary | null;
@@ -219,6 +220,7 @@ export interface AppStoreActions {
   ) => Promise<void>;
   skipVersion: (version: string) => Promise<void>;
   postponeUpdate: () => Promise<void>;
+  setSessionSortOrder: (order: import("../../types/metadata.types").SessionSortOrder) => Promise<void>;
 
   // Global stats actions
   loadGlobalStats: () => Promise<void>;
