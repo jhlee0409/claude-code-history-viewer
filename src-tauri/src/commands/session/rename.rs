@@ -410,4 +410,195 @@ mod tests {
             Some("Updated")
         );
     }
+
+    // ==================== EDGE CASE TESTS ====================
+
+    // --- strip_title_prefix edge cases ---
+
+    #[test]
+    fn test_strip_title_prefix_empty_string() {
+        assert_eq!(strip_title_prefix(""), "");
+    }
+
+    #[test]
+    fn test_strip_title_prefix_unclosed_bracket() {
+        // Unclosed bracket should return original string
+        assert_eq!(strip_title_prefix("[Unclosed title"), "[Unclosed title");
+    }
+
+    #[test]
+    fn test_strip_title_prefix_only_brackets() {
+        assert_eq!(strip_title_prefix("[]"), "");
+    }
+
+    #[test]
+    fn test_strip_title_prefix_unicode() {
+        assert_eq!(
+            strip_title_prefix("[日本語タイトル] メッセージ"),
+            "メッセージ"
+        );
+    }
+
+    #[test]
+    fn test_strip_title_prefix_with_newline() {
+        assert_eq!(strip_title_prefix("[Title]\nMessage"), "Message");
+    }
+
+    // --- extract_message_content edge cases ---
+
+    #[test]
+    fn test_extract_message_content_missing_field() {
+        let json: serde_json::Value = serde_json::json!({"uuid": "123"});
+        assert_eq!(extract_message_content(&json), None);
+    }
+
+    #[test]
+    fn test_extract_message_content_null_message() {
+        let json: serde_json::Value = serde_json::json!({"message": null});
+        assert_eq!(extract_message_content(&json), None);
+    }
+
+    #[test]
+    fn test_extract_message_content_empty_array() {
+        let json: serde_json::Value = serde_json::json!({
+            "message": {"role": "user", "content": []}
+        });
+        assert_eq!(extract_message_content(&json), None);
+    }
+
+    #[test]
+    fn test_extract_message_content_array_no_text_type() {
+        let json: serde_json::Value = serde_json::json!({
+            "message": {
+                "role": "user",
+                "content": [
+                    {"type": "image", "url": "http://example.com/img.png"}
+                ]
+            }
+        });
+        assert_eq!(extract_message_content(&json), None);
+    }
+
+    #[test]
+    fn test_extract_message_content_multiple_text_items() {
+        // Should return first text item
+        let json: serde_json::Value = serde_json::json!({
+            "message": {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "First"},
+                    {"type": "text", "text": "Second"}
+                ]
+            }
+        });
+        assert_eq!(extract_message_content(&json), Some("First".to_string()));
+    }
+
+    // --- find_first_user_message_index edge cases ---
+
+    #[test]
+    fn test_find_first_user_message_empty_lines() {
+        let lines: Vec<String> = vec![];
+        let result = find_first_user_message_index(&lines);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No user message"));
+    }
+
+    #[test]
+    fn test_find_first_user_message_no_user_messages() {
+        let lines = vec![
+            r#"{"type":"assistant","message":"Hello"}"#.to_string(),
+            r#"{"type":"system","message":"Init"}"#.to_string(),
+        ];
+        let result = find_first_user_message_index(&lines);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_find_first_user_message_invalid_json() {
+        let lines = vec![
+            "not valid json".to_string(),
+            r#"{"type":"user","message":"Valid"}"#.to_string(),
+        ];
+        // Should skip invalid JSON and find the valid user message
+        assert_eq!(find_first_user_message_index(&lines).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_find_first_user_message_user_without_content() {
+        let lines = vec![
+            r#"{"type":"user"}"#.to_string(), // No message field
+            r#"{"type":"user","message":"Has content"}"#.to_string(),
+        ];
+        // Should skip user without extractable content
+        assert_eq!(find_first_user_message_index(&lines).unwrap(), 1);
+    }
+
+    // --- update_message_content edge cases ---
+
+    #[test]
+    fn test_update_message_content_no_message_field() {
+        let mut json: serde_json::Value = serde_json::json!({"uuid": "123"});
+        assert!(!update_message_content(&mut json, "New"));
+    }
+
+    #[test]
+    fn test_update_message_content_array_no_text_type() {
+        let mut json: serde_json::Value = serde_json::json!({
+            "message": {
+                "role": "user",
+                "content": [
+                    {"type": "image", "url": "http://example.com/img.png"}
+                ]
+            }
+        });
+        assert!(!update_message_content(&mut json, "New"));
+    }
+
+    #[test]
+    fn test_update_message_content_direct_string() {
+        let mut json: serde_json::Value = serde_json::json!({
+            "message": "Direct string"
+        });
+        assert!(update_message_content(&mut json, "Updated"));
+        assert_eq!(json["message"].as_str(), Some("Updated"));
+    }
+
+    // --- validate_claude_path tests (SECURITY) ---
+
+    #[test]
+    fn test_validate_claude_path_rejects_non_claude_path() {
+        let result = validate_claude_path("/etc/passwd");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("must be within ~/.claude"));
+    }
+
+    #[test]
+    fn test_validate_claude_path_rejects_relative_path() {
+        let result = validate_claude_path("relative/path/file.jsonl");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_claude_path_valid_path() {
+        // This test requires a real path to exist, so we use home_dir
+        if let Some(home) = dirs::home_dir() {
+            let claude_dir = home.join(".claude");
+            if claude_dir.exists() {
+                // Only test if .claude directory exists
+                let test_path = claude_dir.to_string_lossy().to_string();
+                // Just the directory itself should be valid (though it's not a file)
+                // The path validation only checks if it's within ~/.claude
+                let result = validate_claude_path(&test_path);
+                assert!(result.is_ok());
+            }
+        }
+    }
+
+    #[test]
+    fn test_validate_claude_path_nonexistent_file() {
+        // Nonexistent file should fail at canonicalize
+        let result = validate_claude_path("/nonexistent/path/to/file.jsonl");
+        assert!(result.is_err());
+    }
 }
