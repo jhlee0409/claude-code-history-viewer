@@ -127,6 +127,6 @@
   "session.nativeRename.menuItem": "Rename in Claude Code",
   "session.nativeRename.resetMenuItem": "Reset native name",
   "session.claudeCodeSynced": "Synced with Claude Code CLI",
-  "session.cliSync.title": "Synced with Claude Code CLI",
-  "session.cliSync.description": "This session is synchronized with your terminal"
+  "session.cliSync.title": "Session name synced with CLI",
+  "session.cliSync.description": "This session's name is also visible in Claude Code CLI"
 }

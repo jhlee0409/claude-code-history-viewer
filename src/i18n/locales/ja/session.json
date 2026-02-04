@@ -127,6 +127,6 @@
   "session.nativeRename.menuItem": "Claude Codeで名前を変更",
   "session.nativeRename.resetMenuItem": "元の名前に戻す",
   "session.claudeCodeSynced": "Claude Code CLIと同期済み",
-  "session.cliSync.title": "Claude Code CLIと同期済み",
-  "session.cliSync.description": "このセッションはターミナルと同期されています"
+  "session.cliSync.title": "セッション名がCLIと同期済み",
+  "session.cliSync.description": "このセッションの名前はClaude Code CLIでも同様に表示されます"
 }
