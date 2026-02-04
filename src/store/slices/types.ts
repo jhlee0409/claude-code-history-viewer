@@ -154,6 +154,10 @@ export interface AppStoreState {
   // Navigation state
   targetMessageUuid: string | null;
   shouldHighlightTarget: boolean;
+
+  // Watcher state
+  watcherEnabled: boolean;
+  lastUpdateTime: Record<string, number>;
 }
 
 export interface AppStoreActions {
@@ -268,6 +272,12 @@ export interface AppStoreActions {
   setSelectedMessageId: (id: string | null) => void;
   setMarkdownPretty: (pretty: boolean) => void;
   setDateFilter: (filter: import("../../types/board.types").DateFilter) => void;
+
+  // Watcher actions
+  setWatcherEnabled: (enabled: boolean) => void;
+  markProjectUpdated: (projectPath: string) => void;
+  triggerProjectRefresh: (projectPath: string) => Promise<void>;
+  triggerSessionRefresh: (projectPath: string, sessionPath: string) => Promise<void>;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;

@@ -16,3 +16,7 @@ export type { UseMCPPresetsResult } from "./useMCPPresets";
 // MCP SERVER CONFIGURATION
 export { useMCPServers } from "./useMCPServers";
 export type { UseMCPServersResult } from "./useMCPServers";
+
+// FILE WATCHER
+export { useFileWatcher } from "./useFileWatcher";
+export type { UseFileWatcherResult } from "./useFileWatcher";

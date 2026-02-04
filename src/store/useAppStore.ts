@@ -50,6 +50,10 @@ import {
   type NavigationSlice,
   createNavigationSlice,
 } from "./slices/navigationSlice";
+import {
+  type WatcherSlice,
+  createWatcherSlice,
+} from "./slices/watcherSlice";
 
 // Re-export types for backward compatibility
 export type {
@@ -72,7 +76,8 @@ export type AppStore = ProjectSlice &
   CaptureModeSlice &
   BoardSlice &
   FilterSlice &
-  NavigationSlice;
+  NavigationSlice &
+  WatcherSlice;
 
 // ============================================================================
 // Store Creation
@@ -90,4 +95,5 @@ export const useAppStore = create<AppStore>()((...args) => ({
   ...createBoardSlice(...args),
   ...createFilterSlice(...args),
   ...createNavigationSlice(...args),
+  ...createWatcherSlice(...args),
 }));

@@ -31,10 +31,13 @@ use crate::commands::{
     unified_presets::{
         delete_unified_preset, get_unified_preset, load_unified_presets, save_unified_preset,
     },
+    watcher::{start_file_watcher, stop_file_watcher},
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use std::sync::{Arc, Mutex};
+
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -48,6 +51,10 @@ pub fn run() {
 
     builder
         .manage(MetadataState::default())
+        .manage(Arc::new(Mutex::new(None))
+            as Arc<
+                Mutex<Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>>>,
+            >)
         .invoke_handler(tauri::generate_handler![
             get_claude_folder_path,
             validate_claude_folder,
@@ -105,7 +112,10 @@ pub fn run() {
             read_text_file,
             // Native session rename commands
             rename_session_native,
-            reset_session_native_name
+            reset_session_native_name,
+            // File watcher commands
+            start_file_watcher,
+            stop_file_watcher
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
