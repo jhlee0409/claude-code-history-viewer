@@ -125,5 +125,6 @@
   "session.nativeRename.success": "會話重新命名成功",
   "session.nativeRename.currentName": "目前名稱",
   "session.nativeRename.menuItem": "在 Claude Code 中重新命名",
-  "session.nativeRename.resetMenuItem": "重設為原始名稱"
+  "session.nativeRename.resetMenuItem": "重設為原始名稱",
+  "session.claudeCodeSynced": "已與 Claude Code CLI 同步"
 }

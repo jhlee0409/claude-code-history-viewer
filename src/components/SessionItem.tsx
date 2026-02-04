@@ -26,6 +26,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { NativeRenameDialog } from "@/components/NativeRenameDialog";
 
 interface SessionItemProps {
@@ -62,6 +67,8 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   const displayName = useSessionDisplayName(session.session_id, localSummary);
   const { customName, setCustomName } = useSessionMetadata(session.session_id);
   const hasCustomName = !!customName;
+  // Detect if session has Claude Code native rename (starts with [Title])
+  const hasClaudeCodeName = localSummary?.startsWith("[") ?? false;
 
   // Start editing mode
   const startEditing = useCallback(() => {
@@ -254,7 +261,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
             <>
               <span
                 className={cn(
-                  "text-xs leading-relaxed line-clamp-2 transition-colors duration-300 flex-1 cursor-pointer",
+                  "text-xs leading-relaxed line-clamp-2 transition-colors duration-300 flex-1 cursor-pointer flex items-start gap-1",
                   isSelected
                     ? "text-accent font-medium"
                     : "text-sidebar-foreground/70"
@@ -262,7 +269,19 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                 onDoubleClick={handleDoubleClick}
                 title={t("session.rename", "Double-click to rename")}
               >
-                {displayName || t("session.summaryNotFound", "No summary")}
+                {hasClaudeCodeName && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Terminal className="w-3 h-3 shrink-0 mt-0.5 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p>{t("session.claudeCodeSynced", "Synced with Claude Code CLI")}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                <span className="flex-1">
+                  {displayName || t("session.summaryNotFound", "No summary")}
+                </span>
               </span>
 
               {/* Context Menu for Rename */}

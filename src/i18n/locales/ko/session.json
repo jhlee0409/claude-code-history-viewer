@@ -125,5 +125,6 @@
   "session.nativeRename.success": "세션 이름이 변경되었습니다",
   "session.nativeRename.currentName": "현재 이름",
   "session.nativeRename.menuItem": "Claude Code에서 이름 변경",
-  "session.nativeRename.resetMenuItem": "원래 이름으로 복원"
+  "session.nativeRename.resetMenuItem": "원래 이름으로 복원",
+  "session.claudeCodeSynced": "Claude Code CLI와 동기화됨"
 }
