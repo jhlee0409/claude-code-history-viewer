@@ -25,6 +25,7 @@ pub enum RenameError {
     InvalidJsonFormat(String),
     IoError(String),
     EmptySession,
+    NoUserMessage,
 }
 
 impl std::fmt::Display for RenameError {
@@ -35,6 +36,9 @@ impl std::fmt::Display for RenameError {
             RenameError::InvalidJsonFormat(msg) => write!(f, "Invalid JSON format: {msg}"),
             RenameError::IoError(msg) => write!(f, "I/O error: {msg}"),
             RenameError::EmptySession => write!(f, "Session file is empty"),
+            RenameError::NoUserMessage => {
+                write!(f, "No user message found in session")
+            }
         }
     }
 }
@@ -71,33 +75,36 @@ pub async fn rename_session_native(
         return Err(RenameError::EmptySession.to_string());
     }
 
-    // 3. Parse first line as JSON
-    let mut first_message: serde_json::Value = serde_json::from_str(&lines[0])
+    // 3. Find first user message (type: "user", not isMeta)
+    let user_message_index = find_first_user_message_index(&lines)?;
+
+    // 4. Parse the user message line as JSON
+    let mut user_message: serde_json::Value = serde_json::from_str(&lines[user_message_index])
         .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
 
-    // 4. Extract current message content - handle nested structure
-    let current_message = extract_message_content(&first_message).ok_or_else(|| {
+    // 5. Extract current message content - handle nested structure
+    let current_message = extract_message_content(&user_message).ok_or_else(|| {
         RenameError::InvalidJsonFormat("No 'message' field found".to_string()).to_string()
     })?;
 
-    // 5. Strip existing bracket prefix if present
+    // 6. Strip existing bracket prefix if present
     let base_message = strip_title_prefix(&current_message);
 
-    // 6. Construct new message with title prefix
+    // 7. Construct new message with title prefix
     let new_message = if new_title.trim().is_empty() {
         base_message.clone()
     } else {
         format!("[{}] {}", new_title.trim(), base_message)
     };
 
-    // 7. Update JSON object - handle nested structure
-    update_message_content(&mut first_message, &new_message);
+    // 8. Update JSON object - handle nested structure
+    update_message_content(&mut user_message, &new_message);
 
-    // 8. Serialize back to JSON string
-    lines[0] = serde_json::to_string(&first_message)
+    // 9. Serialize back to JSON string
+    lines[user_message_index] = serde_json::to_string(&user_message)
         .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
 
-    // 9. Write atomically (write to temp, then rename)
+    // 10. Write atomically (write to temp, then rename)
     let temp_path = format!("{file_path}.tmp");
     {
         let mut temp_file = File::create(&temp_path)
@@ -186,6 +193,38 @@ fn strip_title_prefix(message: &str) -> String {
         }
     }
     message.to_string()
+}
+
+/// Finds the index of the first real user message in the JSONL lines.
+/// Skips non-user messages (file-history-snapshot, progress, etc.) and meta messages.
+fn find_first_user_message_index(lines: &[String]) -> Result<usize, String> {
+    for (index, line) in lines.iter().enumerate() {
+        // Try to parse as JSON
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+            // Check if type is "user"
+            let is_user = json
+                .get("type")
+                .and_then(|t| t.as_str())
+                .map(|t| t == "user")
+                .unwrap_or(false);
+
+            // Check if it's NOT a meta message (isMeta: true)
+            let is_meta = json
+                .get("isMeta")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+
+            // Must be user message with actual content (not meta)
+            if is_user && !is_meta {
+                // Verify it has a message field with content
+                if extract_message_content(&json).is_some() {
+                    return Ok(index);
+                }
+            }
+        }
+    }
+
+    Err(RenameError::NoUserMessage.to_string())
 }
 
 /// Resets session name to original (removes title prefix)
