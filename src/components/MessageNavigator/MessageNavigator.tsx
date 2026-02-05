@@ -8,6 +8,11 @@ import { useAppStore } from "../../store/useAppStore";
 import { NavigatorEntry } from "./NavigatorEntry";
 import { useNavigatorEntries } from "./useNavigatorEntries";
 
+// Height estimation constants for virtual scrolling
+const ESTIMATED_CHARS_PER_LINE = 40; // Conservative estimate for small text
+const BASE_ENTRY_HEIGHT = 34; // py-2 (16px) + header row (~16px) + mb-0.5 (2px)
+const PREVIEW_LINE_HEIGHT = 20; // Approximate height of one text line with line-height
+
 interface MessageNavigatorProps {
   messages: ClaudeMessage[];
   width: number;
@@ -52,16 +57,13 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
 
     // Heuristic: estimate number of preview lines based on text length,
     // clamped to the max of 2 lines (due to line-clamp-2).
-    const charsPerLine = 40; // Conservative estimate for small text
     const previewLength = entry.preview?.length ?? 0;
-    const estimatedLines = Math.min(2, Math.max(1, Math.ceil(previewLength / charsPerLine)));
+    const estimatedLines = Math.min(
+      2,
+      Math.max(1, Math.ceil(previewLength / ESTIMATED_CHARS_PER_LINE))
+    );
 
-    // Base height: py-2 (16px) + header row (~16px) + mb-0.5 (2px)
-    const baseHeight = 34;
-    // Each line of text is approximately 20px with line-height
-    const lineHeight = 20;
-
-    return baseHeight + estimatedLines * lineHeight;
+    return BASE_ENTRY_HEIGHT + estimatedLines * PREVIEW_LINE_HEIGHT;
   }, [entries]);
 
   // Initialize virtualizer
