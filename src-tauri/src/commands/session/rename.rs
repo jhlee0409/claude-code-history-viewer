@@ -324,7 +324,7 @@ fn update_message_content(json: &mut serde_json::Value, new_content: &str) -> bo
     false
 }
 
-/// Strips existing [Title] prefix from message content.
+/// Strips existing \[Title\] prefix from message content.
 ///
 /// This function removes a title prefix in the format `[Title] Message`.
 /// It searches for the first occurrence of `]` and removes everything

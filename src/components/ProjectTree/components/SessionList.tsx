@@ -62,7 +62,7 @@ export const SessionList: React.FC<SessionListProps> = ({
 }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const { sessionSortOrder, setSessionSortOrder } = useAppStore();
+  const { sessionSortOrder, setSessionSortOrder, getSessionDisplayName } = useAppStore();
 
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
@@ -88,14 +88,18 @@ export const SessionList: React.FC<SessionListProps> = ({
     // Filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(session =>
-        session.summary?.toLowerCase().includes(query) ||
-        session.session_id.toLowerCase().includes(query)
-      );
+      result = result.filter(session => {
+        const displayName = getSessionDisplayName(session.session_id, session.summary);
+        return (
+          displayName?.toLowerCase().includes(query) ||
+          session.summary?.toLowerCase().includes(query) ||
+          session.session_id.toLowerCase().includes(query)
+        );
+      });
     }
 
     return result;
-  }, [sessions, sessionSortOrder, searchQuery]);
+  }, [sessions, sessionSortOrder, searchQuery, getSessionDisplayName]);
 
   // Show controls only if we have enough sessions
   const showControls = sessions.length >= 3;

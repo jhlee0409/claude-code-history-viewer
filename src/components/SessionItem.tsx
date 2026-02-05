@@ -21,6 +21,7 @@ import {
   useSessionDisplayName,
   useSessionMetadata,
 } from "@/hooks/useSessionMetadata";
+import { useAppStore } from "@/store/useAppStore";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -192,9 +193,19 @@ export const SessionItem: React.FC<SessionItemProps> = ({
           console.error('Failed to update Claude Code name metadata:', error);
           toast.error(t('session.syncError', 'Failed to sync metadata'));
         }
+
+        // Update sessions in store so other components see the change immediately
+        // Use getState() to avoid subscribing all SessionItem instances to sessions array
+        const { sessions: currentSessions, setSessions } = useAppStore.getState();
+        const updatedSessions = currentSessions.map(s =>
+          s.session_id === session.session_id
+            ? { ...s, summary: newTitle }
+            : s
+        );
+        setSessions(updatedSessions);
       }
     },
-    [setHasClaudeCodeName, t]
+    [setHasClaudeCodeName, t, session.session_id]
   );
 
   return (

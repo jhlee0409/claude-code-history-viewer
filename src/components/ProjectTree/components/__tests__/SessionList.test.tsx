@@ -71,11 +71,13 @@ import { create } from "zustand";
 interface MockStore {
   sessionSortOrder: 'newest' | 'oldest';
   setSessionSortOrder: (order: 'newest' | 'oldest') => void;
+  getSessionDisplayName: (sessionId: string, fallbackSummary?: string) => string | undefined;
 }
 
 const useTestStore = create<MockStore>((set) => ({
   sessionSortOrder: 'newest',
   setSessionSortOrder: (order) => set({ sessionSortOrder: order }),
+  getSessionDisplayName: (_sessionId: string, fallbackSummary?: string) => fallbackSummary,
 }));
 
 vi.mock("@/store/useAppStore", () => ({
@@ -278,6 +280,65 @@ describe("SessionList", () => {
       fireEvent.change(searchInput, { target: { value: "test" } });
 
       expect(screen.getByRole("button", { name: /clear/i })).toBeInTheDocument();
+    });
+  });
+
+  describe("CustomName search (BUG FIX)", () => {
+    it("should find sessions by customName from metadata", () => {
+      // Override getSessionDisplayName to return a custom name for session-3
+      useTestStore.setState({
+        getSessionDisplayName: (sessionId: string, fallbackSummary?: string) => {
+          if (sessionId === "session-3") return "My Debug Session";
+          return fallbackSummary;
+        },
+      });
+
+      render(<SessionList {...defaultProps} />);
+
+      const searchInput = screen.getByPlaceholderText("session.filter.searchPlaceholder");
+      fireEvent.change(searchInput, { target: { value: "Debug" } });
+
+      // session-3 should be found via its customName "My Debug Session"
+      expect(screen.getByTestId("session-item-session-3")).toBeInTheDocument();
+      // Others should NOT be visible
+      expect(screen.queryByTestId("session-item-session-1")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("session-item-session-2")).not.toBeInTheDocument();
+    });
+
+    it("should still find sessions by original summary even when customName is set", () => {
+      useTestStore.setState({
+        getSessionDisplayName: (sessionId: string, fallbackSummary?: string) => {
+          if (sessionId === "session-1") return "Custom Name";
+          return fallbackSummary;
+        },
+      });
+
+      render(<SessionList {...defaultProps} />);
+
+      const searchInput = screen.getByPlaceholderText("session.filter.searchPlaceholder");
+      // Search by original summary "React" - should still match session-1
+      fireEvent.change(searchInput, { target: { value: "React" } });
+
+      expect(screen.getByTestId("session-item-session-1")).toBeInTheDocument();
+      expect(screen.queryByTestId("session-item-session-2")).not.toBeInTheDocument();
+    });
+
+    it("should find sessions by customName case-insensitively", () => {
+      useTestStore.setState({
+        getSessionDisplayName: (sessionId: string, fallbackSummary?: string) => {
+          if (sessionId === "session-2") return "Important Production Fix";
+          return fallbackSummary;
+        },
+      });
+
+      render(<SessionList {...defaultProps} />);
+
+      const searchInput = screen.getByPlaceholderText("session.filter.searchPlaceholder");
+      fireEvent.change(searchInput, { target: { value: "PRODUCTION" } });
+
+      expect(screen.getByTestId("session-item-session-2")).toBeInTheDocument();
+      expect(screen.queryByTestId("session-item-session-1")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("session-item-session-3")).not.toBeInTheDocument();
     });
   });
 

@@ -35,7 +35,7 @@ export const GlobalSearchModal = ({
         null,
     );
 
-    const { claudePath, projects, selectProject, selectSession, sessions } =
+    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName } =
         useAppStore();
 
     // Group results by project name
@@ -62,6 +62,12 @@ export const GlobalSearchModal = ({
         }
         return flat;
     }, [groupedResults]);
+
+    // Get session display name for a search result
+    const getSessionName = useCallback((result: GlobalSearchResult): string | undefined => {
+        if (!result.sessionId) return undefined;
+        return getSessionDisplayName(result.sessionId);
+    }, [getSessionDisplayName]);
 
     // Maximum results to display for performance
     const MAX_RESULTS = 100;
@@ -422,6 +428,14 @@ export const GlobalSearchModal = ({
                                                                     )}
                                                                 </span>
                                                             </div>
+                                                            {(() => {
+                                                                const sessionName = getSessionName(result);
+                                                                return sessionName ? (
+                                                                    <p className="text-xs text-muted-foreground/70 truncate mb-0.5">
+                                                                        {sessionName}
+                                                                    </p>
+                                                                ) : null;
+                                                            })()}
                                                             <p className="text-sm text-foreground line-clamp-2">
                                                                 {highlightText(
                                                                     getPreviewText(result),
