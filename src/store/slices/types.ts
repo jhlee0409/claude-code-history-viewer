@@ -158,6 +158,9 @@ export interface AppStoreState {
   // Watcher state
   watcherEnabled: boolean;
   lastUpdateTime: Record<string, number>;
+
+  // Navigator state
+  isNavigatorOpen: boolean;
 }
 
 export interface AppStoreActions {
@@ -278,6 +281,10 @@ export interface AppStoreActions {
   markProjectUpdated: (projectPath: string) => void;
   triggerProjectRefresh: (projectPath: string) => Promise<void>;
   triggerSessionRefresh: (projectPath: string, sessionPath: string) => Promise<void>;
+
+  // Navigator actions
+  toggleNavigator: () => void;
+  setNavigatorOpen: (open: boolean) => void;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;

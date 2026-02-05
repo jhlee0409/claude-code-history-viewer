@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { ProjectTree } from "./components/ProjectTree";
 import { MessageViewer } from "./components/MessageViewer";
+import { MessageNavigator } from "./components/MessageNavigator";
 import { TokenStatsViewer } from "./components/TokenStatsViewer";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { RecentEditsViewer } from "./components/RecentEditsViewer";
@@ -64,6 +65,8 @@ function App() {
     isProjectHidden,
     dateFilter,
     setDateFilter,
+    isNavigatorOpen,
+    toggleNavigator,
   } = useAppStore();
 
   const {
@@ -89,6 +92,19 @@ function App() {
     minWidth: 200,
     maxWidth: 480,
     storageKey: "sidebar-width",
+  });
+
+  // Navigator resize (right sidebar)
+  const {
+    width: navigatorWidth,
+    isResizing: isNavigatorResizing,
+    handleMouseDown: handleNavigatorResizeStart,
+  } = useResizablePanel({
+    defaultWidth: 280,
+    minWidth: 200,
+    maxWidth: 400,
+    storageKey: "navigator-width",
+    direction: "left",
   });
 
   const handleGlobalStatsClick = useCallback(() => {
@@ -197,18 +213,23 @@ function App() {
     };
   }, [language, i18nInstance]);
 
-  // Global search keyboard shortcut (Cmd+K / Ctrl+K)
+  // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         openModal("globalSearch");
       }
+      // Cmd+Shift+M to toggle navigator
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        toggleNavigator();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openModal]);
+  }, [openModal, toggleNavigator]);
 
   const handleProjectSelect = useCallback(
     async (project: ClaudeProject) => {
@@ -427,18 +448,30 @@ function App() {
                   </div>
                 </OverlayScrollbarsComponent>
               ) : selectedSession ? (
-                <MessageViewer
-                  messages={messages}
-                  isLoading={isLoading}
-                  selectedSession={selectedSession}
-                  sessionSearch={sessionSearch}
-                  onSearchChange={setSessionSearchQuery}
-                  onFilterTypeChange={setSearchFilterType}
-                  onClearSearch={clearSessionSearch}
-                  onNextMatch={goToNextMatch}
-                  onPrevMatch={goToPrevMatch}
-                  onBack={() => analyticsActions.switchToBoard()}
-                />
+                <div className="flex h-full overflow-hidden">
+                  <div className="flex-1 min-w-0">
+                    <MessageViewer
+                      messages={messages}
+                      isLoading={isLoading}
+                      selectedSession={selectedSession}
+                      sessionSearch={sessionSearch}
+                      onSearchChange={setSessionSearchQuery}
+                      onFilterTypeChange={setSearchFilterType}
+                      onClearSearch={clearSessionSearch}
+                      onNextMatch={goToNextMatch}
+                      onPrevMatch={goToPrevMatch}
+                      onBack={() => analyticsActions.switchToBoard()}
+                    />
+                  </div>
+                  <MessageNavigator
+                    messages={messages}
+                    width={navigatorWidth}
+                    isResizing={isNavigatorResizing}
+                    onResizeStart={handleNavigatorResizeStart}
+                    isCollapsed={!isNavigatorOpen}
+                    onToggleCollapse={toggleNavigator}
+                  />
+                </div>
               ) : (
                 /* Empty State */
                 <div className="h-full flex items-center justify-center">

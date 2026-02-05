@@ -64,5 +64,12 @@
   "messages.noMessages": "메시지가 없습니다",
   "messages.offset": "오프셋: {{offset}}",
   "messages.tokenStats.existing": "토큰 통계 (기존)",
-  "messages.tokenStats.title": "토큰 사용량 통계"
+  "messages.tokenStats.title": "토큰 사용량 통계",
+  "navigator.title": "메시지",
+  "navigator.toggle": "메시지 네비게이터 토글",
+  "navigator.filter": "메시지 필터...",
+
+  "navigator.noMessages": "이 세션에 메시지가 없습니다",
+  "navigator.close": "네비게이터 닫기",
+  "navigator.messageCount": "{{count}}개 메시지"
 }

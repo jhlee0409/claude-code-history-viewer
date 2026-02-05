@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-04T06:22:44.939Z
- * 총 키 개수: 1402
+ * 생성 시간: 2026-02-05T15:01:39.747Z
+ * 총 키 개수: 1429
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (99개)
+ * common namespace의 번역 키 (107개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -124,6 +124,14 @@ export type CommonKeys =
   | 'common.update.skip'
   | 'common.update.upToDate'
   | 'common.view'
+  | 'common.watcher.autoRefresh'
+  | 'common.watcher.disabled'
+  | 'common.watcher.enabled'
+  | 'common.watcher.lastUpdated'
+  | 'common.watcher.paused'
+  | 'common.watcher.startError'
+  | 'common.watcher.stopError'
+  | 'common.watcher.watching'
   | 'copyButton.copied'
   | 'copyButton.copy'
   | 'copyButton.copying'
@@ -285,7 +293,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (126개)
+ * session namespace의 번역 키 (139개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -359,7 +367,16 @@ export type SessionKeys =
   | 'session.board.shellCommands'
   | 'session.board.title'
   | 'session.board.webSearch'
+  | 'session.claudeCodeSynced'
+  | 'session.cliSync.description'
+  | 'session.cliSync.title'
   | 'session.count'
+  | 'session.filter.clearSearch'
+  | 'session.filter.noResults'
+  | 'session.filter.searchPlaceholder'
+  | 'session.filter.showingCount'
+  | 'session.filter.sortNewestFirst'
+  | 'session.filter.sortOldestFirst'
   | 'session.id'
   | 'session.interaction.assistantMessage'
   | 'session.interaction.cacheHit'
@@ -396,6 +413,7 @@ export type SessionKeys =
   | 'session.item.messageCount'
   | 'session.item.session'
   | 'session.loading'
+  | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
   | 'session.nativeRename.label'
   | 'session.nativeRename.menuItem'
@@ -409,11 +427,14 @@ export type SessionKeys =
   | 'session.refresh'
   | 'session.rename'
   | 'session.renamePlaceholder'
+  | 'session.resetError'
   | 'session.resetName'
+  | 'session.saveError'
   | 'session.scanning'
   | 'session.select'
   | 'session.selectDescription'
   | 'session.summaryNotFound'
+  | 'session.syncError'
   | 'session.title';
 
 /**
@@ -1040,7 +1061,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (66개)
+ * message namespace의 번역 키 (72개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1109,7 +1130,13 @@ export type MessageKeys =
   | 'messages.noMessages'
   | 'messages.offset'
   | 'messages.tokenStats.existing'
-  | 'messages.tokenStats.title';
+  | 'messages.tokenStats.title'
+  | 'navigator.close'
+  | 'navigator.filter'
+  | 'navigator.messageCount'
+  | 'navigator.noMessages'
+  | 'navigator.title'
+  | 'navigator.toggle';
 
 /**
  * renderers namespace의 번역 키 (255개)
@@ -1816,6 +1843,14 @@ export type TranslationKey =
   | 'common.update.skip'
   | 'common.update.upToDate'
   | 'common.view'
+  | 'common.watcher.autoRefresh'
+  | 'common.watcher.disabled'
+  | 'common.watcher.enabled'
+  | 'common.watcher.lastUpdated'
+  | 'common.watcher.paused'
+  | 'common.watcher.startError'
+  | 'common.watcher.stopError'
+  | 'common.watcher.watching'
   | 'contentArray.cacheCreation'
   | 'contentArray.cacheRead'
   | 'contentArray.claudeApiResponse'
@@ -2051,6 +2086,12 @@ export type TranslationKey =
   | 'messages.offset'
   | 'messages.tokenStats.existing'
   | 'messages.tokenStats.title'
+  | 'navigator.close'
+  | 'navigator.filter'
+  | 'navigator.messageCount'
+  | 'navigator.noMessages'
+  | 'navigator.title'
+  | 'navigator.toggle'
   | 'progressRenderer.status.completed'
   | 'progressRenderer.status.error'
   | 'progressRenderer.status.running'
@@ -2161,7 +2202,16 @@ export type TranslationKey =
   | 'session.board.shellCommands'
   | 'session.board.title'
   | 'session.board.webSearch'
+  | 'session.claudeCodeSynced'
+  | 'session.cliSync.description'
+  | 'session.cliSync.title'
   | 'session.count'
+  | 'session.filter.clearSearch'
+  | 'session.filter.noResults'
+  | 'session.filter.searchPlaceholder'
+  | 'session.filter.showingCount'
+  | 'session.filter.sortNewestFirst'
+  | 'session.filter.sortOldestFirst'
   | 'session.id'
   | 'session.interaction.assistantMessage'
   | 'session.interaction.cacheHit'
@@ -2198,6 +2248,7 @@ export type TranslationKey =
   | 'session.item.messageCount'
   | 'session.item.session'
   | 'session.loading'
+  | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
   | 'session.nativeRename.label'
   | 'session.nativeRename.menuItem'
@@ -2211,11 +2262,14 @@ export type TranslationKey =
   | 'session.refresh'
   | 'session.rename'
   | 'session.renamePlaceholder'
+  | 'session.resetError'
   | 'session.resetName'
+  | 'session.saveError'
   | 'session.scanning'
   | 'session.select'
   | 'session.selectDescription'
   | 'session.summaryNotFound'
+  | 'session.syncError'
   | 'session.title'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
@@ -2953,6 +3007,7 @@ export type TranslationPrefix =
   | 'messageContentDisplay'
   | 'messageViewer'
   | 'messages'
+  | 'navigator'
   | 'progressRenderer'
   | 'project'
   | 'queueOperationRenderer'

@@ -47,6 +47,8 @@ interface UseResizablePanelOptions {
   maxWidth: number;
   /** Optional localStorage key for persistence */
   storageKey?: string;
+  /** Resize direction: "right" = panel grows rightward (left sidebar), "left" = panel grows leftward (right sidebar) */
+  direction?: "right" | "left";
 }
 
 interface UseResizablePanelReturn {
@@ -69,6 +71,7 @@ export function useResizablePanel({
   minWidth,
   maxWidth,
   storageKey,
+  direction = "right",
 }: UseResizablePanelOptions): UseResizablePanelReturn {
   /**
    * Initialize width from localStorage if available, otherwise use default
@@ -76,12 +79,16 @@ export function useResizablePanel({
    */
   const [width, setWidth] = useState<number>(() => {
     if (storageKey) {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const parsed = parseInt(stored, 10);
-        if (!isNaN(parsed) && parsed >= minWidth && parsed <= maxWidth) {
-          return parsed;
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = parseInt(stored, 10);
+          if (!isNaN(parsed) && parsed >= minWidth && parsed <= maxWidth) {
+            return parsed;
+          }
         }
+      } catch {
+        // localStorage may be unavailable (e.g. privacy mode)
       }
     }
     return defaultWidth;
@@ -90,6 +97,8 @@ export function useResizablePanel({
   const [isResizing, setIsResizing] = useState(false);
   const startXRef = useRef(0); // Initial mouse X position
   const startWidthRef = useRef(0); // Initial panel width
+  const widthRef = useRef(width); // Latest width for stale-closure safety
+  widthRef.current = width;
 
   /**
    * Start resize operation
@@ -100,9 +109,9 @@ export function useResizablePanel({
       e.preventDefault();
       setIsResizing(true);
       startXRef.current = e.clientX;
-      startWidthRef.current = width;
+      startWidthRef.current = widthRef.current;
     },
-    [width]
+    []
   );
 
   /**
@@ -115,19 +124,20 @@ export function useResizablePanel({
     const handleMouseMove = (e: MouseEvent) => {
       // Calculate delta from start position
       const delta = e.clientX - startXRef.current;
+      const effectiveDelta = direction === "left" ? -delta : delta;
       // Apply constraints (min/max) to new width
       const newWidth = Math.min(
         maxWidth,
-        Math.max(minWidth, startWidthRef.current + delta)
+        Math.max(minWidth, startWidthRef.current + effectiveDelta)
       );
       setWidth(newWidth);
     };
 
     const handleMouseUp = () => {
       setIsResizing(false);
-      // Persist to localStorage on mouse up (end of resize)
+      // Persist to localStorage on mouse up using ref for latest value
       if (storageKey) {
-        localStorage.setItem(storageKey, width.toString());
+        try { localStorage.setItem(storageKey, widthRef.current.toString()); } catch { /* ignore */ }
       }
     };
 
@@ -144,15 +154,14 @@ export function useResizablePanel({
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
     };
-  }, [isResizing, width, minWidth, maxWidth, storageKey]);
+  }, [isResizing, minWidth, maxWidth, storageKey, direction]);
 
   /**
    * Persist width changes to localStorage (when not resizing)
-   * Debounced save to avoid excessive localStorage writes during drag
    */
   useEffect(() => {
     if (storageKey && !isResizing) {
-      localStorage.setItem(storageKey, width.toString());
+      try { localStorage.setItem(storageKey, width.toString()); } catch { /* ignore */ }
     }
   }, [width, storageKey, isResizing]);
 
