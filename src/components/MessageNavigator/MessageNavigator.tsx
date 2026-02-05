@@ -82,9 +82,6 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   // Get virtual items
   const virtualItems = virtualizer.getVirtualItems();
 
-  // Measure container height
-  // (removed useEffect hook - no longer needed with @tanstack/react-virtual)
-
   // Collapsed view
   if (isCollapsed) {
     return (
