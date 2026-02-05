@@ -1,5 +1,5 @@
-import React, { useRef, useCallback, useState, useMemo } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
+import { VariableSizeList as List } from "react-window";
 import { useTranslation } from "react-i18next";
 import { ListTree, Search, X, PanelRightClose, PanelRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,8 +26,10 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   onToggleCollapse,
 }) => {
   const { t } = useTranslation();
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<List>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [filterText, setFilterText] = useState("");
+  const [containerHeight, setContainerHeight] = useState(600);
 
   const { navigateToMessage, targetMessageUuid } = useAppStore();
 
@@ -45,13 +47,8 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     );
   }, [allEntries, filterText]);
 
-  // Virtual scrolling
-  const virtualizer = useVirtualizer({
-    count: entries.length,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => 60,
-    overscan: 5,
-  });
+  // Item size function for react-window
+  const getItemSize = useCallback(() => 60, []);
 
   const handleEntryClick = useCallback(
     (uuid: string) => {
@@ -59,6 +56,36 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     },
     [navigateToMessage]
   );
+
+  // Row renderer for react-window
+  const Row = useCallback(
+    ({ index, style }: { index: number; style: React.CSSProperties }) => {
+      const entry = entries[index];
+      if (!entry) return null;
+      return (
+        <div style={style}>
+          <NavigatorEntry
+            entry={entry}
+            isActive={entry.uuid === targetMessageUuid}
+            onClick={handleEntryClick}
+          />
+        </div>
+      );
+    },
+    [entries, targetMessageUuid, handleEntryClick]
+  );
+
+  // Measure container height
+  useEffect(() => {
+    const updateHeight = () => {
+      if (containerRef.current) {
+        setContainerHeight(containerRef.current.clientHeight);
+      }
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, []);
 
   // Collapsed view
   if (isCollapsed) {
@@ -145,6 +172,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder={t("navigator.filter")}
+            aria-label={t("navigator.filter")}
             className="w-full pl-6 pr-2 py-1 text-xs bg-muted/30 border border-border/30 rounded focus:outline-none focus:ring-1 focus:ring-accent/40 placeholder:text-muted-foreground/40"
           />
           {filterText && (
@@ -167,38 +195,17 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           </p>
         </div>
       ) : (
-        <div ref={scrollContainerRef} className="flex-1 overflow-auto">
-          <div
-            style={{
-              height: virtualizer.getTotalSize(),
-              width: "100%",
-              position: "relative",
-            }}
+        <div ref={containerRef} className="flex-1 overflow-hidden">
+          <List
+            ref={listRef}
+            height={containerHeight}
+            itemCount={entries.length}
+            itemSize={getItemSize}
+            width="100%"
+            overscanCount={5}
           >
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              const entry = entries[virtualItem.index];
-              if (!entry) return null;
-              return (
-                <div
-                  key={entry.uuid}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: virtualItem.size,
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                >
-                  <NavigatorEntry
-                    entry={entry}
-                    isActive={entry.uuid === targetMessageUuid}
-                    onClick={handleEntryClick}
-                  />
-                </div>
-              );
-            })}
-          </div>
+            {Row}
+          </List>
         </div>
       )}
     </aside>
