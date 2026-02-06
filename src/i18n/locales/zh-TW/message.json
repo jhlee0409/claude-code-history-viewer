@@ -64,5 +64,12 @@
   "messages.noMessages": "沒有訊息",
   "messages.offset": "偏移量：{{offset}}",
   "messages.tokenStats.existing": "權杖統計（現有）",
-  "messages.tokenStats.title": "權杖使用統計"
+  "messages.tokenStats.title": "權杖使用統計",
+  "navigator.title": "訊息",
+  "navigator.toggle": "切換訊息導覽器",
+  "navigator.filter": "篩選訊息...",
+
+  "navigator.noMessages": "此會話沒有訊息",
+  "navigator.close": "關閉導覽器",
+  "navigator.messageCount": "{{count}} 則訊息"
 }

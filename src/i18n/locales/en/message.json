@@ -64,5 +64,12 @@
   "messages.noMessages": "No messages",
   "messages.offset": "Offset: {{offset}}",
   "messages.tokenStats.existing": "Token Statistics (Existing)",
-  "messages.tokenStats.title": "Token Statistics"
+  "messages.tokenStats.title": "Token Statistics",
+  "navigator.title": "Messages",
+  "navigator.toggle": "Toggle message navigator",
+  "navigator.filter": "Filter messages...",
+
+  "navigator.noMessages": "No messages in this session",
+  "navigator.close": "Close navigator",
+  "navigator.messageCount": "{{count}} messages"
 }

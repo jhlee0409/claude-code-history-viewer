@@ -64,5 +64,12 @@
   "messages.noMessages": "メッセージがありません",
   "messages.offset": "オフセット：{{offset}}",
   "messages.tokenStats.existing": "トークン統計（既存）",
-  "messages.tokenStats.title": "トークン使用統計"
+  "messages.tokenStats.title": "トークン使用統計",
+  "navigator.title": "メッセージ",
+  "navigator.toggle": "メッセージナビゲーターの切替",
+  "navigator.filter": "メッセージをフィルター...",
+
+  "navigator.noMessages": "このセッションにメッセージはありません",
+  "navigator.close": "ナビゲーターを閉じる",
+  "navigator.messageCount": "{{count}}件のメッセージ"
 }
