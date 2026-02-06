@@ -1,5 +1,5 @@
-import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
-import { VariableSizeList as List } from "react-window";
+import React, { useRef, useCallback, useState, useMemo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { ListTree, Search, X, PanelRightClose, PanelRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,11 @@ import type { ClaudeMessage } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
 import { NavigatorEntry } from "./NavigatorEntry";
 import { useNavigatorEntries } from "./useNavigatorEntries";
+
+// Height estimation constants for virtual scrolling
+const ESTIMATED_CHARS_PER_LINE = 40; // Conservative estimate for small text
+const BASE_ENTRY_HEIGHT = 34; // py-2 (16px) + header row (~16px) + mb-0.5 (2px)
+const PREVIEW_LINE_HEIGHT = 20; // Approximate height of one text line with line-height
 
 interface MessageNavigatorProps {
   messages: ClaudeMessage[];
@@ -26,10 +31,8 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   onToggleCollapse,
 }) => {
   const { t } = useTranslation();
-  const listRef = useRef<List>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollElementRef = useRef<HTMLDivElement>(null);
   const [filterText, setFilterText] = useState("");
-  const [containerHeight, setContainerHeight] = useState(600);
 
   const { navigateToMessage, targetMessageUuid } = useAppStore();
 
@@ -47,8 +50,29 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     );
   }, [allEntries, filterText]);
 
-  // Item size function for react-window
-  const getItemSize = useCallback(() => 60, []);
+  // Height estimation function for @tanstack/react-virtual
+  const estimateSize = useCallback((index: number) => {
+    const entry = entries[index];
+    if (!entry) return 60;
+
+    // Heuristic: estimate number of preview lines based on text length,
+    // clamped to the max of 2 lines (due to line-clamp-2).
+    const previewLength = entry.preview?.length ?? 0;
+    const estimatedLines = Math.min(
+      2,
+      Math.max(1, Math.ceil(previewLength / ESTIMATED_CHARS_PER_LINE))
+    );
+
+    return BASE_ENTRY_HEIGHT + estimatedLines * PREVIEW_LINE_HEIGHT;
+  }, [entries]);
+
+  // Initialize virtualizer
+  const virtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => scrollElementRef.current,
+    estimateSize,
+    overscan: 5,
+  });
 
   const handleEntryClick = useCallback(
     (uuid: string) => {
@@ -57,35 +81,8 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     [navigateToMessage]
   );
 
-  // Row renderer for react-window
-  const Row = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties }) => {
-      const entry = entries[index];
-      if (!entry) return null;
-      return (
-        <div style={style}>
-          <NavigatorEntry
-            entry={entry}
-            isActive={entry.uuid === targetMessageUuid}
-            onClick={handleEntryClick}
-          />
-        </div>
-      );
-    },
-    [entries, targetMessageUuid, handleEntryClick]
-  );
-
-  // Measure container height
-  useEffect(() => {
-    const updateHeight = () => {
-      if (containerRef.current) {
-        setContainerHeight(containerRef.current.clientHeight);
-      }
-    };
-    updateHeight();
-    window.addEventListener("resize", updateHeight);
-    return () => window.removeEventListener("resize", updateHeight);
-  }, []);
+  // Get virtual items
+  const virtualItems = virtualizer.getVirtualItems();
 
   // Collapsed view
   if (isCollapsed) {
@@ -195,17 +192,39 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           </p>
         </div>
       ) : (
-        <div ref={containerRef} className="flex-1 overflow-hidden">
-          <List
-            ref={listRef}
-            height={containerHeight}
-            itemCount={entries.length}
-            itemSize={getItemSize}
-            width="100%"
-            overscanCount={5}
+        <div
+          ref={scrollElementRef}
+          className="flex-1 overflow-auto"
+          style={{ contain: "strict" }}
+        >
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
           >
-            {Row}
-          </List>
+            {virtualItems.map((virtualItem) => {
+              const entry = entries[virtualItem.index];
+              if (!entry) return null;
+
+              return (
+                <NavigatorEntry
+                  key={entry.uuid}
+                  entry={entry}
+                  isActive={entry.uuid === targetMessageUuid}
+                  onClick={handleEntryClick}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                />
+              );
+            })}
+          </div>
         </div>
       )}
     </aside>

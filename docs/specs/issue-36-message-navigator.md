@@ -148,7 +148,12 @@ To highlight which navigator entry corresponds to the current viewport:
 
 ### 3.1 `App.tsx` Changes
 
-The navigator sits **inside** the `<main>` area, to the right of the message content, only when `isNavigatorOpen && selectedSession && isMessagesView`:
+The navigator sits **inside** the `<main>` area, to the right of the message content. It is **always rendered** when `selectedSession && computed.isMessagesView`, but displays in two states:
+
+1. **Expanded** (`isNavigatorOpen === true`): Shows full navigator with resizable width (default 280px, range 200-400px)
+2. **Collapsed** (`isNavigatorOpen === false`): Shows a minimal 48px-wide sidebar with expand button and entry count
+
+This approach provides visual feedback about the navigator's existence and shows the message count at a glance, even when collapsed.
 
 ```tsx
 {/* Main Content Area */}
@@ -160,13 +165,15 @@ The navigator sits **inside** the `<main>` area, to the right of the message con
       {/* existing content switching logic */}
     </div>
 
-    {/* Right sidebar — Message Navigator */}
-    {isNavigatorOpen && selectedSession && computed.isMessagesView && (
+    {/* Right sidebar — Message Navigator (always rendered when messages view is active) */}
+    {selectedSession && computed.isMessagesView && (
       <MessageNavigator
         messages={messages}
         width={navigatorWidth}              // from useResizablePanel
         isResizing={isNavigatorResizing}
         onResizeStart={handleNavigatorResizeStart}
+        isCollapsed={!isNavigatorOpen}      // controlled by navigator slice
+        onToggleCollapse={toggleNavigator}  // toggle between expanded/collapsed
       />
     )}
   </div>
