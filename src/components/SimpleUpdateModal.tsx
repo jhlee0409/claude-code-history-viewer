@@ -7,7 +7,7 @@ import {
   Button,
 } from "@/components/ui";
 import { LoadingSpinner, LoadingProgress } from "@/components/ui/loading";
-import { Download, AlertTriangle, X } from 'lucide-react';
+import { Download, AlertTriangle, X, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { UseUpdaterReturn } from '@/hooks/useUpdater';
 
@@ -57,8 +57,23 @@ export function SimpleUpdateModal({ updater, isVisible, onClose }: SimpleUpdateM
             </div>
           </div>
 
+          {/* Restarting overlay */}
+          {updater.state.isRestarting && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs">
+                <RotateCw className="w-3.5 h-3.5 animate-spin text-info" />
+                <span className="text-foreground font-medium">
+                  {t('simpleUpdateModal.restarting')}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {t('simpleUpdateModal.restartingDescription')}
+              </p>
+            </div>
+          )}
+
           {/* Download progress */}
-          {updater.state.isDownloading && (
+          {updater.state.isDownloading && !updater.state.isRestarting && (
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-xs">
                 <Download className="w-3.5 h-3.5 animate-bounce text-foreground" />
@@ -75,7 +90,7 @@ export function SimpleUpdateModal({ updater, isVisible, onClose }: SimpleUpdateM
           )}
 
           {/* Error display */}
-          {updater.state.error && (
+          {updater.state.error && !updater.state.isRestarting && (
             <div className="p-2.5 bg-destructive/10 border border-destructive/20 rounded-md">
               <div className="flex items-center gap-2 text-xs text-destructive">
                 <AlertTriangle className="w-3.5 h-3.5" />
@@ -88,11 +103,16 @@ export function SimpleUpdateModal({ updater, isVisible, onClose }: SimpleUpdateM
         <DialogFooter className="flex-col gap-2">
           <Button
             onClick={handleDownload}
-            disabled={updater.state.isDownloading}
+            disabled={updater.state.isDownloading || updater.state.isRestarting}
             size="sm"
             className="w-full"
           >
-            {updater.state.isDownloading ? (
+            {updater.state.isRestarting ? (
+              <>
+                <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                {t('simpleUpdateModal.restartingShort')}
+              </>
+            ) : updater.state.isDownloading ? (
               <>
                 <LoadingSpinner size="xs" variant="default" />
                 {t('simpleUpdateModal.downloadingShort')}
@@ -110,7 +130,7 @@ export function SimpleUpdateModal({ updater, isVisible, onClose }: SimpleUpdateM
               variant="outline"
               size="sm"
               onClick={handleDismiss}
-              disabled={updater.state.isDownloading}
+              disabled={updater.state.isDownloading || updater.state.isRestarting}
               className="flex-1 text-xs"
             >
               {t('simpleUpdateModal.remindLater')}
@@ -119,7 +139,7 @@ export function SimpleUpdateModal({ updater, isVisible, onClose }: SimpleUpdateM
               variant="outline"
               size="icon-sm"
               onClick={onClose}
-              disabled={updater.state.isDownloading}
+              disabled={updater.state.isDownloading || updater.state.isRestarting}
               aria-label={t('simpleUpdateModal.close')}
             >
               <X className="w-3.5 h-3.5" />

@@ -9,6 +9,7 @@ export interface UpdateState {
   isChecking: boolean;
   hasUpdate: boolean;
   isDownloading: boolean;
+  isRestarting: boolean;
   downloadProgress: number;
   error: string | null;
   updateInfo: Update | null;
@@ -28,6 +29,7 @@ export function useUpdater(): UseUpdaterReturn {
     isChecking: false,
     hasUpdate: false,
     isDownloading: false,
+    isRestarting: false,
     downloadProgress: 0,
     error: null,
     updateInfo: null,
@@ -100,12 +102,18 @@ export function useUpdater(): UseUpdaterReturn {
             setState((prev) => ({
               ...prev,
               isDownloading: false,
+              isRestarting: true,
               downloadProgress: 100,
             }));
             break;
         }
       });
 
+      // Show restarting state before relaunch
+      setState((prev) => ({ ...prev, isDownloading: false, isRestarting: true }));
+
+      // Brief delay to let the UI update before relaunch
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await relaunch();
     } catch (error) {
       setState((prev) => ({
