@@ -1939,7 +1939,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].summary, Some("Hello, can you help me?".to_string()));
+        assert_eq!(
+            result[0].summary,
+            Some("Hello, can you help me?".to_string())
+        );
     }
 
     #[tokio::test]
@@ -2074,9 +2077,6 @@ mod tests {
             .unwrap();
         assert_eq!(result.len(), 1);
         // Should fall back to user message since assistant text is too short
-        assert_eq!(
-            result[0].summary,
-            Some("User fallback message".to_string())
-        );
+        assert_eq!(result[0].summary, Some("User fallback message".to_string()));
     }
 }
