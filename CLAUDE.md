@@ -79,45 +79,102 @@ just sync-version
 
 ### Release Process
 
-**⚠️ 중요: 릴리즈 전 필수 체크리스트**
+#### Phase 1: 품질 검증 (Quality Gate)
 
-커밋/푸시 전에 반드시 다음을 확인:
+릴리즈 전 **모든 검증을 통과**해야 한다. 하나라도 실패하면 수정 후 재검증.
 
 ```bash
-# 1. TypeScript 빌드 체크 (CI와 동일한 옵션)
-pnpm tsc --build .
+# ===== Frontend 검증 =====
+pnpm install                    # 의존성 동기화 (lockfile 불일치 방지)
+pnpm tsc --build .              # TypeScript 빌드 체크 (CI와 동일)
+pnpm vitest run --reporter=verbose  # 프론트엔드 테스트
+pnpm lint                       # ESLint (no-explicit-any 등)
 
-# 2. 테스트 실행
-pnpm test run
+# ===== Backend 검증 =====
+cd src-tauri && cargo test -- --test-threads=1 && cd ..  # Rust 테스트 (단일 스레드 필수)
+cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings && cd ..  # Rust 린트
+cd src-tauri && cargo fmt --all -- --check && cd ..      # Rust 포맷 체크
 
-# 3. 린트 체크 (선택사항, 에러만 확인)
-pnpm lint
+# ===== i18n 검증 =====
+pnpm run i18n:validate          # 5개 언어 키 동기화 확인 (en, ko, ja, zh-CN, zh-TW)
 ```
 
-**모든 체크가 통과한 후에만 커밋/푸시 진행!**
+**주의사항:**
+- `cargo test`는 반드시 `--test-threads=1`로 실행 (settings 테스트가 `env::set_var("HOME")` 사용)
+- `pnpm install` 생략 시 lockfile과 node_modules 불일치로 빌드 실패 가능
+- lint에서 `@typescript-eslint/no-explicit-any` 에러 발생 시 `as unknown as TargetType` 패턴 사용
+
+#### Phase 2: 변경사항 분석 및 버전 결정
+
+```bash
+# 마지막 릴리즈 이후 커밋 수 확인
+git log $(git tag --sort=-version:refname | head -1)..HEAD --oneline | wc -l
+
+# 변경사항 요약 확인
+git log $(git tag --sort=-version:refname | head -1)..HEAD --oneline
+```
+
+**버전 결정 기준 (SemVer):**
+| 변경 유형 | 버전 | 예시 |
+|-----------|------|------|
+| 버그 수정만 | patch (x.y.Z) | 1.3.0 → 1.3.1 |
+| 새 기능 추가 | minor (x.Y.0) | 1.3.0 → 1.4.0 |
+| 호환성 깨지는 변경 | major (X.0.0) | 1.3.0 → 2.0.0 |
+
+#### Phase 3: 버전 범프 및 커밋
 
 ```bash
 # 1. 버전 업데이트
 npm version <version> --no-git-tag-version
-# 예: npm version 1.2.2 --no-git-tag-version
+# 예: npm version 1.3.1 --no-git-tag-version
 
-# 2. 버전 동기화
+# 2. 버전 동기화 (package.json → Cargo.toml + tauri.conf.json)
 just sync-version
 
-# 3. 최종 체크 (필수!)
-pnpm tsc --build . && pnpm test run
+# 3. 최종 빌드 확인 (동기화 후 Cargo.toml 변경 반영)
+pnpm tsc --build . && pnpm vitest run
 
 # 4. 커밋 및 태그
 git add -A
-git commit -m "chore: release v1.2.2"
-git tag v1.2.2
+git commit -m "chore: release v1.3.1"
+git tag v1.3.1
 git push && git push --tags
 ```
 
-GitHub Actions가 자동으로:
-1. 멀티플랫폼 빌드 (macOS, Windows, Linux)
-2. `latest.json` 생성 (Tauri 업데이터용)
-3. GitHub Release 발행
+#### Phase 4: 릴리즈 발행 확인
+
+태그 푸시 후 GitHub Actions (`updater-release.yml`)가 자동 실행:
+1. 멀티플랫폼 빌드 (macOS universal, Windows x64, Linux x64)
+2. `latest.json` 생성 (Tauri 업데이터용, 서명 포함)
+3. GitHub Release 발행 (자동 릴리즈 노트)
+
+```bash
+# 워크플로우 상태 확인
+gh run list --workflow=updater-release.yml --limit=1
+
+# 릴리즈 확인
+gh release view v1.3.1
+
+# 릴리즈 노트 수동 업데이트 (필요시)
+gh release edit v1.3.1 --notes-file /path/to/notes.md
+```
+
+**릴리즈 후 확인사항:**
+- [ ] 3개 플랫폼 바이너리 모두 첨부됨 (.dmg, .exe, .AppImage)
+- [ ] `latest.json`이 첨부됨 (자동 업데이트용)
+- [ ] `latest.json` 내 `platforms` 에 darwin-aarch64, darwin-x86_64, linux-x86_64, windows-x86_64 포함
+- [ ] 각 플랫폼의 `.sig` 서명 파일 존재
+- [ ] **README.md 업데이트** — 새 기능, 변경된 스크린샷, 버전 배지 등 반영
+
+#### 트러블슈팅
+
+| 문제 | 원인 | 해결 |
+|------|------|------|
+| CI에서 pnpm 버전 충돌 | `pnpm/action-setup`의 `version` 필드와 `package.json`의 `packageManager` 충돌 | 워크플로우에서 `version` 제거 (packageManager 자동 감지) |
+| `cargo test` 간헐적 실패 | `env::set_var("HOME")`이 프로세스 전역 → 병렬 실행 시 경쟁 | `--test-threads=1` 사용 |
+| 릴리즈 중복 생성 | 수동 `gh release create` + 워크플로우 자동 생성 | 수동 생성 금지, 워크플로우에 위임 |
+| 자동 업데이트 시 에러 플래시 | `relaunch()` 전 바이너리 교체로 UI 크래시 | `isRestarting` 상태로 오버레이 표시 후 500ms 딜레이 |
+| `pnpm install` 후에도 모듈 못 찾음 | lockfile과 실제 node_modules 불일치 | `rm -rf node_modules && pnpm install` |
 
 ### Auto-Update System
 

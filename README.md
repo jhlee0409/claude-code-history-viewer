@@ -1,15 +1,26 @@
+<div align="center">
+
 # Claude Code History Viewer
 
-Desktop app to browse Claude Code conversation history stored in `~/.claude`.
+**Browse, search, and analyze your Claude Code conversations — all offline.**
 
-🌐 [Website](https://jhlee0409.github.io/claude-code-history-viewer/) | 📦 [Download](https://github.com/jhlee0409/claude-code-history-viewer/releases)
+Desktop app that reads `~/.claude` conversation history with analytics, session boards, and real-time monitoring.
 
-![Version](https://img.shields.io/badge/Version-1.2.5-blue.svg)
-![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
+[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
+[![Downloads](https://img.shields.io/github/downloads/jhlee0409/claude-code-history-viewer/total?color=green)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
+[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
+[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
+
+[Website](https://jhlee0409.github.io/claude-code-history-viewer/) · [Download](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [Report Bug](https://github.com/jhlee0409/claude-code-history-viewer/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
-## Screenshots
+</div>
+
+---
 
 <p align="center">
   <img width="49%" alt="Conversation History" src="https://github.com/user-attachments/assets/9a18304d-3f08-4563-a0e6-dd6e6dfd227e" />
@@ -20,25 +31,45 @@ Desktop app to browse Claude Code conversation history stored in `~/.claude`.
   <img width="49%" alt="Recent Edits" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
 </p>
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Build from Source](#build-from-source)
+- [Usage](#usage)
+- [Tech Stack](#tech-stack)
+- [Data Privacy](#data-privacy)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Features
 
-- **Browse**: Navigate conversations by project/session with worktree grouping
-- **Search**: Global search across all conversations
-- **Analytics**: Token usage stats and API cost calculation
-- **Session Board**: Multi-session visual analysis with pixel view and attribute brushing
-- **Settings Manager**: Scope-aware Claude Code settings editor with MCP server management
-- **Message Navigator**: Right-side collapsible TOC for quick conversation navigation
-- **Real-time monitoring**: Live session file watching for instant updates
-- **Session rename**: Native session renaming with search integration
-- **Multi-language**: English, Korean, Japanese, Chinese (Simplified & Traditional)
-- **Recent edits**: View file modification history and restore
-- **Others**: Auto-update, feedback with GitHub issue prefill
+| Feature | Description |
+|---------|-------------|
+| **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
+| **Global Search** | Search across all conversations instantly |
+| **Analytics Dashboard** | Token usage stats and API cost calculation |
+| **Session Board** | Multi-session visual analysis with pixel view and attribute brushing |
+| **Settings Manager** | Scope-aware Claude Code settings editor with MCP server management |
+| **Message Navigator** | Right-side collapsible TOC for quick conversation navigation |
+| **Real-time Monitoring** | Live session file watching for instant updates |
+| **Session Rename** | Native session renaming with search integration |
+| **Multi-language** | English, Korean, Japanese, Chinese (Simplified & Traditional) |
+| **Recent Edits** | View file modification history and restore |
+| **Auto-update** | Built-in updater with skip/postpone options |
 
 ## Installation
 
-Download for your platform from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases).
+Download the latest release for your platform:
 
-## Build from source
+| Platform | Download |
+|----------|----------|
+| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+
+## Build from Source
 
 ```bash
 git clone https://github.com/jhlee0409/claude-code-history-viewer.git
@@ -66,28 +97,58 @@ pnpm tauri:build     # Production build
 4. Click a session to view messages
 5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board
 
-## Data privacy
+## Tech Stack
 
-Runs locally only. No conversation data sent to servers. No analytics or tracking of any kind.
+| Layer | Technology |
+|-------|------------|
+| **Backend** | ![Rust](https://img.shields.io/badge/Rust-000?logo=rust&logoColor=white) ![Tauri](https://img.shields.io/badge/Tauri_v2-24C8D8?logo=tauri&logoColor=white) |
+| **Frontend** | ![React](https://img.shields.io/badge/React_19-61DAFB?logo=react&logoColor=black) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white) ![Tailwind](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white) |
+| **State** | ![Zustand](https://img.shields.io/badge/Zustand-433E38?logo=react&logoColor=white) |
+| **Build** | ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white) |
+| **i18n** | ![i18next](https://img.shields.io/badge/i18next-26A69A?logo=i18next&logoColor=white) 5 languages |
+
+## Data Privacy
+
+**100% offline.** No conversation data is sent to any server. No analytics, no tracking, no telemetry.
+
+Your data stays on your machine.
 
 ## Troubleshooting
 
-**"No Claude data found"**: Make sure `~/.claude` exists with conversation history.
+| Problem | Solution |
+|---------|----------|
+| "No Claude data found" | Make sure `~/.claude` exists with conversation history |
+| Performance issues | Large histories may be slow initially — the app uses virtual scrolling |
+| Update problems | If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) |
 
-**Performance issues**: Large conversation histories may be slow initially. The app uses virtual scrolling to handle this.
+## Contributing
 
-**Update problems**: If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases).
+Contributions are welcome! Here's how to get started:
 
-## Tech stack
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feat/my-feature`)
+3. Run checks before committing:
+   ```bash
+   pnpm tsc --build .        # TypeScript
+   pnpm vitest run            # Tests
+   pnpm lint                  # Lint
+   ```
+4. Commit your changes (`git commit -m 'feat: add my feature'`)
+5. Push to the branch (`git push origin feat/my-feature`)
+6. Open a Pull Request
 
-- **Backend**: Rust + Tauri v2
-- **Frontend**: React 19, TypeScript, Tailwind CSS, Zustand
-- **Build**: Vite, just
+See [Development Commands](CLAUDE.md#development-commands) for the full list of available commands.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE).
+[MIT](LICENSE) — free for personal and commercial use.
 
 ---
 
-[Open an issue](https://github.com/jhlee0409/claude-code-history-viewer/issues) for questions or bug reports.
+<div align="center">
+
+If this project helps you, consider giving it a star!
+
+[![Star History Chart](https://api.star-history.com/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.com/#jhlee0409/claude-code-history-viewer&Date)
+
+</div>
