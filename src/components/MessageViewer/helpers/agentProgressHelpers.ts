@@ -4,15 +4,14 @@
  * Functions for grouping and processing agent progress messages.
  */
 
-import type { ClaudeMessage, ProgressData } from "../../../types";
+import type { ClaudeMessage, ClaudeProgressMessage, ProgressData } from "../../../types";
 import type { AgentProgressEntry, AgentProgressGroupResult } from "../types";
 
 export const getAgentIdFromProgress = (
   message: ClaudeMessage
 ): string | null => {
   if (message.type !== "progress") return null;
-  const progressMsg = message as any; // Cast as we know it's a progress message here
-  const data = progressMsg.data as ProgressData;
+  const data = message.data as ProgressData | undefined;
   return data?.type === "agent_progress" ? data.agentId || null : null;
 };
 
@@ -33,7 +32,7 @@ export const groupAgentProgressMessages = (
     const agentId = getAgentIdFromProgress(msg);
 
     if (agentId) {
-      const progressMsg = msg as any;
+      const progressMsg = msg as ClaudeProgressMessage;
       const entry: AgentProgressEntry = {
         data: progressMsg.data as ProgressData,
         timestamp: progressMsg.timestamp,

@@ -13,6 +13,7 @@ import { getShortModelName } from "../../../utils/model";
 import { getToolName } from "../../../utils/toolUtils";
 import { hasSystemCommandContent } from "../helpers/messageHelpers";
 import type { MessageHeaderProps } from "../types";
+import type { ClaudeAssistantMessage } from "../../../types";
 
 export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
   const { t } = useTranslation();
@@ -22,8 +23,8 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
   const isSystemContent = hasSystemCommandContent(message);
   const toolName = isToolResultMessage
     ? getToolName(
-      (message as any).toolUse as Record<string, unknown> | undefined,
-      (message as any).toolUseResult
+      (message as ClaudeAssistantMessage).toolUse,
+      (message as ClaudeAssistantMessage).toolUseResult
     )
     : null;
   const isLeftAligned =

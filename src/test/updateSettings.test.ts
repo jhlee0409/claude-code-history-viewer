@@ -22,7 +22,7 @@ import { DEFAULT_UPDATE_SETTINGS } from "../types/updateSettings";
 
 // Mock localStorage if not available in the test environment
 if (typeof localStorage === 'undefined') {
-  (global as any).localStorage = {
+  (global as unknown as { localStorage: Storage }).localStorage = {
     getItem: vi.fn(),
     setItem: vi.fn(),
     removeItem: vi.fn(),
