@@ -170,6 +170,7 @@ export const CommandRenderer = ({
             <button
               onClick={() => setIsCommandExpanded(!isCommandExpanded)}
               aria-expanded={isCommandExpanded}
+              aria-label={`${isCommandExpanded ? t("commandRenderer.collapse") : t("commandRenderer.expand")} ${commandGroup.name || t("commandRenderer.commandExecution")}`}
               className={cn(
                 "w-full flex items-center",
                 layout.iconGap,
@@ -399,6 +400,8 @@ const CaveatRenderer = ({
     <div className={cn(layout.rounded, "border bg-info/10 border-info/30")}>
       <button
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? t("commandRenderer.collapse") : t("commandRenderer.expand")} ${t("commandRenderer.systemNote")}`}
         className={cn(
           "w-full flex items-center",
           layout.iconGap,
