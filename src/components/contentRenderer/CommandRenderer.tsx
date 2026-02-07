@@ -38,6 +38,14 @@ export const CommandRenderer = ({
   currentMatchIndex = 0,
 }: Props) => {
   const { t } = useTranslation();
+  const [isCommandExpanded, setIsCommandExpanded] = useState(false);
+
+  // Auto-expand on search query match
+  useEffect(() => {
+    if (searchQuery && text.toLowerCase().includes(searchQuery.toLowerCase())) {
+      setIsCommandExpanded(true);
+    }
+  }, [searchQuery, text]);
 
   // Command 그룹 (name, message, args) 추출
   const commandNameRegex = /<command-name>\s*(.*?)\s*<\/command-name>/gs;
@@ -146,6 +154,8 @@ export const CommandRenderer = ({
   const hasOutputs = outputTags.length > 0;
   const hasCaveats = caveats.length > 0;
   const hasLocalStdout = localStdoutBlocks.length > 0;
+  // Only show collapse chevron when there's content to expand
+  const hasExpandableContent = !!commandGroup.args || !!commandGroup.message || hasLocalStdout;
 
   if (!hasCommandGroup && !hasOutputs && !hasCaveats && !hasLocalStdout && !withoutCommands) {
     return null;
@@ -155,79 +165,110 @@ export const CommandRenderer = ({
     <div className="space-y-2">
       {/* Command Group (with optional inline stdout output) */}
       {hasCommandGroup && (
-        <div className={cn(layout.rounded, layout.containerPadding, "border bg-accent/10 border-accent/30")}>
-          <div className={cn("flex items-center", layout.iconSpacing, hasLocalStdout ? "mb-1.5" : "mb-2")}>
-            <Terminal className={cn(layout.iconSize, "text-accent")} />
-            <span className={cn(layout.titleText, "text-accent")}>
-              {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
-            </span>
-          </div>
-
-          {/* Command args if present */}
-          {commandGroup.args && (
-            <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-              <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px] text-accent")}>
-                {t("commandRenderer.arguments")}
-              </span>
-              <code className={cn("px-1.5 py-0.5 text-[11px]", layout.rounded, "font-mono whitespace-pre-wrap bg-tool-search/20 text-tool-search")}>
-                {searchQuery ? (
-                  <HighlightedText
-                    text={commandGroup.args}
-                    searchQuery={searchQuery}
-                    isCurrentMatch={isCurrentMatch}
-                    currentMatchIndex={currentMatchIndex}
-                  />
-                ) : (
-                  commandGroup.args
-                )}
-              </code>
-            </div>
-          )}
-
-          {/* Command message/status if present */}
-          {commandGroup.message && (
-            <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-              <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px] text-accent")}>
-                {t("commandRenderer.status")}
-              </span>
-              <span className={cn("text-[11px] italic text-accent")}>
-                {searchQuery ? (
-                  <HighlightedText
-                    text={commandGroup.message}
-                    searchQuery={searchQuery}
-                    isCurrentMatch={isCurrentMatch}
-                    currentMatchIndex={currentMatchIndex}
-                  />
-                ) : (
-                  commandGroup.message
-                )}
-              </span>
-            </div>
-          )}
-
-          {/* Inline local stdout output (e.g., /cost results) — rendered inside the command card */}
-          {localStdoutBlocks.map((output, index) => (
-            <div
-              key={index}
+        <div className={cn(layout.rounded, "border bg-accent/10 border-accent/30")}>
+          {hasExpandableContent ? (
+            <button
+              onClick={() => setIsCommandExpanded(!isCommandExpanded)}
+              aria-expanded={isCommandExpanded}
+              aria-label={`${isCommandExpanded ? t("commandRenderer.collapse") : t("commandRenderer.expand")} ${commandGroup.name || t("commandRenderer.commandExecution")}`}
               className={cn(
-                "mt-1.5 px-2.5 py-2",
+                "w-full flex items-center",
+                layout.iconGap,
+                layout.headerPadding,
                 layout.rounded,
-                "bg-background/50 text-foreground/80",
-                "whitespace-pre-wrap font-mono text-xs leading-relaxed"
+                "text-left hover:bg-accent/20 transition-colors"
               )}
             >
-              {searchQuery ? (
-                <HighlightedText
-                  text={output}
-                  searchQuery={searchQuery}
-                  isCurrentMatch={isCurrentMatch}
-                  currentMatchIndex={currentMatchIndex}
-                />
-              ) : (
-                output
-              )}
+              <ChevronRight
+                className={cn(
+                  layout.iconSize,
+                  "transition-transform text-accent",
+                  isCommandExpanded && "rotate-90"
+                )}
+              />
+              <Terminal className={cn(layout.iconSize, "text-accent")} />
+              <span className={cn(layout.titleText, "text-accent")}>
+                {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
+              </span>
+            </button>
+          ) : (
+            <div className={cn("flex items-center", layout.iconGap, layout.headerPadding)}>
+              <Terminal className={cn(layout.iconSize, "text-accent")} />
+              <span className={cn(layout.titleText, "text-accent")}>
+                {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
+              </span>
             </div>
-          ))}
+          )}
+
+          {isCommandExpanded && hasExpandableContent && (
+            <div className={layout.contentPadding}>
+              {/* Command args if present */}
+              {commandGroup.args && (
+                <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
+                  <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px] text-accent")}>
+                    {t("commandRenderer.arguments")}
+                  </span>
+                  <code className={cn("px-1.5 py-0.5 text-[11px]", layout.rounded, "font-mono whitespace-pre-wrap bg-tool-search/20 text-tool-search")}>
+                    {searchQuery ? (
+                      <HighlightedText
+                        text={commandGroup.args}
+                        searchQuery={searchQuery}
+                        isCurrentMatch={isCurrentMatch}
+                        currentMatchIndex={currentMatchIndex}
+                      />
+                    ) : (
+                      commandGroup.args
+                    )}
+                  </code>
+                </div>
+              )}
+
+              {/* Command message/status if present */}
+              {commandGroup.message && (
+                <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
+                  <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px] text-accent")}>
+                    {t("commandRenderer.status")}
+                  </span>
+                  <span className={cn("text-[11px] italic text-accent")}>
+                    {searchQuery ? (
+                      <HighlightedText
+                        text={commandGroup.message}
+                        searchQuery={searchQuery}
+                        isCurrentMatch={isCurrentMatch}
+                        currentMatchIndex={currentMatchIndex}
+                      />
+                    ) : (
+                      commandGroup.message
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {/* Inline local stdout output (e.g., /cost results) — rendered inside the command card */}
+              {localStdoutBlocks.map((output, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    "mt-1.5 px-2.5 py-2",
+                    layout.rounded,
+                    "bg-background/50 text-foreground/80",
+                    "whitespace-pre-wrap font-mono text-xs leading-relaxed"
+                  )}
+                >
+                  {searchQuery ? (
+                    <HighlightedText
+                      text={output}
+                      searchQuery={searchQuery}
+                      isCurrentMatch={isCurrentMatch}
+                      currentMatchIndex={currentMatchIndex}
+                    />
+                  ) : (
+                    output
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -359,6 +400,8 @@ const CaveatRenderer = ({
     <div className={cn(layout.rounded, "border bg-info/10 border-info/30")}>
       <button
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? t("commandRenderer.collapse") : t("commandRenderer.expand")} ${t("commandRenderer.systemNote")}`}
         className={cn(
           "w-full flex items-center",
           layout.iconGap,
