@@ -30,6 +30,15 @@ struct CachedSessionMetadata {
     has_tool_use: bool,
     /// Whether errors were detected (for incremental updates)
     has_errors: bool,
+    /// First user content (for multi-tier fallback)
+    #[serde(default)]
+    first_user_content: Option<String>,
+    /// Last user content (for multi-tier fallback)
+    #[serde(default)]
+    last_user_content: Option<String>,
+    /// First assistant text (for multi-tier fallback)
+    #[serde(default)]
+    first_assistant_text: Option<String>,
 }
 
 /// Session metadata cache file structure
@@ -41,7 +50,7 @@ struct SessionMetadataCache {
     entries: HashMap<String, CachedSessionMetadata>,
 }
 
-const CACHE_VERSION: u32 = 5;
+const CACHE_VERSION: u32 = 6;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -106,6 +115,10 @@ struct IncrementalParseState {
     summary: Option<String>,
     /// First user content (already known)
     first_user_content: Option<String>,
+    /// Last user content (already known, for fallback)
+    last_user_content: Option<String>,
+    /// First assistant text (already known, for fallback)
+    first_assistant_text: Option<String>,
 }
 
 /// Minimal struct for fast line classification (avoids full parsing)
@@ -168,6 +181,12 @@ struct SessionExtractionResult {
     has_tool_use: bool,
     /// Whether errors were detected
     has_errors: bool,
+    /// First user content (for incremental caching)
+    first_user_content: Option<String>,
+    /// Last user content (for incremental caching)
+    last_user_content: Option<String>,
+    /// First assistant text (for incremental caching)
+    first_assistant_text: Option<String>,
 }
 
 /// Fast session metadata extraction with two-phase parsing:
@@ -231,8 +250,8 @@ fn extract_session_metadata_internal(
             state.has_tool_use,
             state.has_errors,
             state.first_user_content.clone(),
-            None,
-            None,
+            state.last_user_content.clone(),
+            state.first_assistant_text.clone(),
         )
     } else {
         (
@@ -349,6 +368,8 @@ fn extract_session_metadata_internal(
                 }
 
                 // Extract first user message for summary fallback
+                // Note: last_user_content is tracked only within METADATA_PHASE_LINES (first 100 lines).
+                // For longer sessions, the actual last user message may be beyond this limit.
                 if entry.message_type == "user" {
                     if let Some(ref msg) = entry.message {
                         if let Some(ref content) = msg.content {
@@ -452,9 +473,9 @@ fn extract_session_metadata_internal(
 
     let project_name = extract_project_name(&raw_project_name);
     let final_summary = session_summary
-        .or(first_user_content)
-        .or(first_assistant_text)
-        .or(last_user_content);
+        .or(first_user_content.clone())
+        .or(first_assistant_text.clone())
+        .or(last_user_content.clone());
 
     Some(SessionExtractionResult {
         session: ClaudeSession {
@@ -476,6 +497,9 @@ fn extract_session_metadata_internal(
         final_byte_offset: file_size,
         has_tool_use,
         has_errors,
+        first_user_content,
+        last_user_content,
+        first_assistant_text,
     })
 }
 
@@ -626,21 +650,32 @@ fn extract_command_display(text: &str) -> Option<String> {
 
 /// Extract text from assistant message content for summary fallback
 fn extract_assistant_text(content: &serde_json::Value) -> Option<String> {
-    if let Some(arr) = content.as_array() {
-        for item in arr {
-            if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                if item_type == "text" {
-                    if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
-                        let trimmed = text.trim();
-                        if !trimmed.is_empty() && trimmed.len() > 10 {
-                            return Some(truncate_text(trimmed, 100));
+    match content {
+        serde_json::Value::String(text) => {
+            let trimmed = text.trim();
+            if !trimmed.is_empty() && trimmed.len() > 10 {
+                Some(truncate_text(trimmed, 100))
+            } else {
+                None
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for item in arr {
+                if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
+                    if item_type == "text" {
+                        if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
+                            let trimmed = text.trim();
+                            if !trimmed.is_empty() && trimmed.len() > 10 {
+                                return Some(truncate_text(trimmed, 100));
+                            }
                         }
                     }
                 }
             }
+            None
         }
+        _ => None,
     }
-    None
 }
 
 /// Categorization of how to handle a file
@@ -730,7 +765,9 @@ pub async fn load_project_sessions(
                             session_id: Some(session.actual_session_id.clone()),
                             first_timestamp: Some(session.first_message_time.clone()),
                             summary: session.summary.clone(),
-                            first_user_content: session.summary.clone(),
+                            first_user_content: cached.first_user_content.clone(),
+                            last_user_content: cached.last_user_content.clone(),
+                            first_assistant_text: cached.first_assistant_text.clone(),
                         },
                     ));
                     continue;
@@ -788,17 +825,28 @@ pub async fn load_project_sessions(
                 let mtime = get_modified_time(&path).unwrap_or(0);
                 let file_size = get_file_size(&path).unwrap_or(0);
 
-                let (session_for_cache, sidechain_count, byte_offset, has_tool_use, has_errors) =
-                    match &result_opt {
-                        Some(result) => (
-                            Some(result.session.clone()),
-                            result.sidechain_count,
-                            result.final_byte_offset,
-                            result.has_tool_use,
-                            result.has_errors,
-                        ),
-                        None => (None, 0, 0, false, false),
-                    };
+                let (
+                    session_for_cache,
+                    sidechain_count,
+                    byte_offset,
+                    has_tool_use,
+                    has_errors,
+                    first_user_content,
+                    last_user_content,
+                    first_assistant_text,
+                ) = match &result_opt {
+                    Some(result) => (
+                        Some(result.session.clone()),
+                        result.sidechain_count,
+                        result.final_byte_offset,
+                        result.has_tool_use,
+                        result.has_errors,
+                        result.first_user_content.clone(),
+                        result.last_user_content.clone(),
+                        result.first_assistant_text.clone(),
+                    ),
+                    None => (None, 0, 0, false, false, None, None, None),
+                };
 
                 cache.entries.insert(
                     path_str,
@@ -810,6 +858,9 @@ pub async fn load_project_sessions(
                         sidechain_count,
                         has_tool_use,
                         has_errors,
+                        first_user_content,
+                        last_user_content,
+                        first_assistant_text,
                     },
                 );
                 cache_updated = true;
@@ -1870,5 +1921,162 @@ mod tests {
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.cache_creation_input_tokens, Some(20));
         assert_eq!(usage.cache_read_input_tokens, Some(10));
+    }
+
+    #[tokio::test]
+    async fn test_session_summary_fallback_first_user_message() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Session with no summary but has user messages
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello, can you help me?"}}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Of course!"}]}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0].summary,
+            Some("Hello, can you help me?".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_session_summary_fallback_first_assistant_text() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Session with no summary, no user messages, but has assistant text
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","message":{"role":"assistant","content":"This is a resume of a previous conversation about Rust programming"}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0].summary,
+            Some("This is a resume of a previous conversation about Rust programming".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_session_summary_fallback_last_user_message() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Session with command message (not genuine text), followed by real user message
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"<command-message>init is analyzing...</command-message>\n<command-name>/init</command-name>"}}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","message":{"role":"user","content":"Can you review this code?"}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Should use last_user_content as fallback since first is a command
+        assert_eq!(
+            result[0].summary,
+            Some("Can you review this code?".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_session_summary_fallback_incremental_preserves_values() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Initial content with user message
+        let initial_content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Initial question here"}}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{"role":"assistant","content":"Answer to the question"}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, initial_content).unwrap();
+
+        // First load - creates cache with fallback values
+        let result1 = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result1.len(), 1);
+        assert_eq!(
+            result1[0].summary,
+            Some("Initial question here".to_string())
+        );
+
+        // Append more messages (no summary or user messages in new content)
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file_path)
+            .unwrap();
+        use std::io::Write;
+        writeln!(
+            file,
+            r#"{{"uuid":"uuid-3","sessionId":"session-1","timestamp":"2025-06-26T10:02:00Z","type":"assistant","message":{{"role":"assistant","content":"More content"}}}}"#
+        )
+        .unwrap();
+        drop(file);
+
+        // Second load - should preserve the fallback value from cache
+        let result2 = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result2.len(), 1);
+        assert_eq!(result2[0].message_count, 3);
+        assert_eq!(
+            result2[0].summary,
+            Some("Initial question here".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_extract_assistant_text_with_string_content() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Assistant message with string content (not array)
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","message":{"role":"assistant","content":"This is a string content message that should be extracted"}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Should extract string content, not just array content
+        assert!(result[0].summary.is_some());
+        assert!(result[0]
+            .summary
+            .as_ref()
+            .unwrap()
+            .contains("string content message"));
+    }
+
+    #[tokio::test]
+    async fn test_extract_assistant_text_min_length() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Assistant message with very short text (< 10 chars, should be ignored)
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","message":{"role":"assistant","content":"Short"}}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","message":{"role":"user","content":"User fallback message"}}
+"#;
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Should fall back to user message since assistant text is too short
+        assert_eq!(result[0].summary, Some("User fallback message".to_string()));
     }
 }
