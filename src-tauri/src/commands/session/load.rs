@@ -375,7 +375,11 @@ fn extract_session_metadata_internal(
                         if let Some(ref content) = msg.content {
                             let user_text = extract_user_text(content);
                             if first_user_content.is_none() {
-                                first_user_content.clone_from(&user_text);
+                                // Only store genuine user text (skip command displays like "/init")
+                                let is_command = matches!(content, serde_json::Value::String(text) if !is_genuine_user_text(text));
+                                if !is_command {
+                                    first_user_content.clone_from(&user_text);
+                                }
                             }
                             if let Some(text) = user_text {
                                 last_user_content = Some(text);
