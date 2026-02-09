@@ -180,7 +180,7 @@ export const ToolUseRenderer = ({
               <CheckCircle className={layout.iconSize} />
               <span>{t("toolUseRenderer.createdContent")}</span>
             </div>
-            <div className={cn(layout.rounded, "overflow-hidden", layout.contentMaxHeight, "overflow-y-auto")}>
+            <div className={cn(layout.rounded, "overflow-auto", layout.contentMaxHeight)}>
               <Highlight
                 theme={isDarkMode ? themes.vsDark : themes.vsLight}
                 code={content}
@@ -320,7 +320,7 @@ export const ToolUseRenderer = ({
       />
 
       <Renderer.Content>
-        <div className={cn(layout.rounded, "overflow-hidden", layout.contentMaxHeight, "overflow-y-auto")}>
+        <div className={cn(layout.rounded, "overflow-auto", layout.contentMaxHeight)}>
           <div className={cn("px-3 py-1", layout.smallText, "bg-card text-muted-foreground border-b border-border")}>
             {t("toolUseRenderer.toolInputParameters")}
           </div>
