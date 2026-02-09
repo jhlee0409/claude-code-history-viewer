@@ -6,6 +6,7 @@ import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import { HighlightedText } from "../common/HighlightedText";
+import { AnsiText } from "@/components/common/AnsiText";
 
 type Props = {
   command: string;
@@ -91,7 +92,7 @@ export const TerminalStreamRenderer = ({
                 currentMatchIndex={currentMatchIndex}
               />
             ) : (
-              String(output)
+              <AnsiText text={String(output)} />
             )}
           </pre>
         </div>
