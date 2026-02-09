@@ -258,6 +258,10 @@ function App() {
           await analyticsActions.switchToBoard();
         } else if (activeView === "recentEdits") {
           await analyticsActions.switchToRecentEdits();
+        } else if (activeView === "analytics") {
+          await analyticsActions.switchToAnalytics();
+        } else if (activeView === "settings") {
+          analyticsActions.switchToSettings();
         } else {
           analyticsActions.switchToMessages();
         }
