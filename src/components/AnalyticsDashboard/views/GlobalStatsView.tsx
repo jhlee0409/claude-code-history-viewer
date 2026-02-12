@@ -149,9 +149,12 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                       <div className="flex-1 min-w-0">
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <p className="text-[12px] font-medium text-foreground truncate">
+                            <button
+                              type="button"
+                              className="text-[12px] font-medium text-foreground truncate text-left"
+                            >
                               {project.project_name}
-                            </p>
+                            </button>
                           </TooltipTrigger>
                           <TooltipContent>
                             {project.project_name}
