@@ -156,7 +156,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                       <div className="flex-1 min-w-0">
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="inline-block text-[12px] font-medium text-foreground truncate text-left">
+                            <span className="inline-block text-[12px] font-medium text-foreground truncate">
                               {project.project_name}
                             </span>
                           </TooltipTrigger>
