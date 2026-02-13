@@ -8,11 +8,10 @@ interface AnsiTextProps {
 
 /**
  * Renders text with ANSI codes as styled HTML.
- * Falls back to plain text if no ANSI codes detected.
+ * Always escapes HTML entities for XSS safety.
  * 
- * Note: ansiToHtml() already checks for ANSI codes internally and returns
- * the original text if none are present, so it's safe to always use
- * dangerouslySetInnerHTML (the library escapes HTML when escapeXML: true).
+ * Note: ansiToHtml() always returns HTML-safe output via the converter's
+ * escapeXML: true setting, making dangerouslySetInnerHTML safe to use.
  */
 export const AnsiText = ({ text, className }: AnsiTextProps) => {
   const html = useMemo(() => ansiToHtml(text), [text]);

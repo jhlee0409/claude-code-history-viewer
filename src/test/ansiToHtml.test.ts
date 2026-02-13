@@ -60,6 +60,12 @@ describe("ansiToHtml", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
+  it("escapes HTML entities without ANSI codes", () => {
+    const html = ansiToHtml("<script>alert('xss')</script>");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
   it("handles multiple color sequences", () => {
     const html = ansiToHtml("\x1b[31mred\x1b[0m \x1b[32mgreen\x1b[0m");
     expect(html).toContain("red");

@@ -27,9 +27,8 @@ export function stripAnsiCodes(text: string): string {
 
 /**
  * Convert ANSI escape codes to HTML spans with inline styles.
- * Returns the original string if no ANSI codes are present.
+ * Always returns HTML-safe output (non-ANSI text is HTML-escaped).
  */
 export function ansiToHtml(text: string): string {
-  if (!hasAnsiCodes(text)) return text;
   return converter.toHtml(text);
 }
