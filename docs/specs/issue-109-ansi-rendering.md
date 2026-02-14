@@ -12,7 +12,7 @@ Claude Code commands like `/context` produce terminal output with ANSI escape se
 
 ## Solution
 
-Add an ANSI-to-HTML conversion utility using the [`ansi-to-html`](https://www.npmjs.com/package/ansi-to-html) library, and apply it to all terminal output rendering paths. Text containing ANSI codes gets converted to styled `<span>` elements; text without codes passes through unchanged.
+Add an ANSI-to-HTML conversion utility using the [`ansi-to-html`](https://www.npmjs.com/package/ansi-to-html) library, and apply it to all terminal output rendering paths. Text containing ANSI codes gets converted to styled `<span>` elements; plain text without ANSI codes remains visually unchanged, but is still HTML-escaped for XSS safety.
 
 ---
 
@@ -22,7 +22,7 @@ Add an ANSI-to-HTML conversion utility using the [`ansi-to-html`](https://www.np
 
 ```bash
 pnpm add ansi-to-html
-pnpm add -D @types/ansi-to-html  # Not available; see type declaration below
+# Then create src/types/ansi-to-html.d.ts (see type declaration below)
 ```
 
 **Why `ansi-to-html`?**
