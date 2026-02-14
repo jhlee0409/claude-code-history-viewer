@@ -31,7 +31,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
             `- ${toolUse.description}`}
         </span>
       </div>
-      <div className={cn("rounded overflow-hidden overflow-y-auto", layout.contentMaxHeight)}>
+      <div className={cn("rounded overflow-auto", layout.contentMaxHeight)}>
         <Highlight
           theme={isDarkMode ? themes.vsDark : themes.vsLight}
           code={JSON.stringify(toolUse.input || toolUse.parameters || toolUse, null, 2)}

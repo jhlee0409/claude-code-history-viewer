@@ -66,7 +66,7 @@ export const NotebookEditToolRenderer = memo(function NotebookEditToolRenderer({
           </div>
         </div>
         {input.new_source && (
-          <div className={cn(layout.rounded, "overflow-hidden", layout.contentMaxHeight, "overflow-y-auto")}>
+          <div className={cn(layout.rounded, "overflow-auto", layout.contentMaxHeight)}>
             <Highlight
               theme={isDarkMode ? themes.vsDark : themes.vsLight}
               code={input.new_source}
