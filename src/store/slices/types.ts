@@ -150,6 +150,7 @@ export interface AppStoreState {
   isMarkdownPretty: boolean;
   boardLoadError: string | null;
   dateFilter: import("../../types/board.types").DateFilter;
+  isTimelineExpanded: boolean;
 
   // Navigation state
   targetMessageUuid: string | null;
@@ -275,6 +276,7 @@ export interface AppStoreActions {
   setSelectedMessageId: (id: string | null) => void;
   setMarkdownPretty: (pretty: boolean) => void;
   setDateFilter: (filter: import("../../types/board.types").DateFilter) => void;
+  toggleTimeline: () => void;
 
   // Watcher actions
   setWatcherEnabled: (enabled: boolean) => void;

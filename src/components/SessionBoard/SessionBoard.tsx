@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "../../store/useAppStore";
 import { SessionLane } from "./SessionLane";
 import { BoardControls } from "./BoardControls";
+import { SessionActivityTimeline } from "./SessionActivityTimeline";
 import { LoadingSpinner } from "../ui/loading";
 import { useTranslation } from "react-i18next";
 import { MessageSquare } from "lucide-react";
@@ -28,7 +29,11 @@ export const SessionBoard = () => {
         selectedMessageId,
         dateFilter,
         setDateFilter,
-        selectedSession
+        clearDateFilter,
+        isTimelineExpanded,
+        toggleTimeline,
+        selectedSession,
+        selectedProject,
     } = useAppStore();
 
     // Clear brush on Escape (Step 9)
@@ -380,6 +385,18 @@ export const SessionBoard = () => {
                 availableShellCommands={visibleBrushOptions.shellCommands}
                 dateFilter={dateFilter}
                 setDateFilter={setDateFilter}
+            />
+
+            {/* Activity Timeline Heatmap */}
+            <SessionActivityTimeline
+                boardSessions={boardSessions}
+                allSortedSessionIds={allSortedSessionIds}
+                dateFilter={dateFilter}
+                setDateFilter={setDateFilter}
+                clearDateFilter={clearDateFilter}
+                isExpanded={isTimelineExpanded}
+                onToggle={toggleTimeline}
+                projectName={selectedProject?.name}
             />
 
             {/* Virtualized Lanes Container */}

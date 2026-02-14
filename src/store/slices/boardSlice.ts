@@ -13,6 +13,8 @@ import type { ClaudeMessage, ClaudeSession } from "../../types";
 import { analyzeSessionMessages } from "../../utils/sessionAnalytics";
 import { isAbsolutePath } from "../../utils/pathUtils";
 
+const TIMELINE_STORAGE_KEY = "timeline-expanded";
+
 export interface BoardSliceState {
     boardSessions: Record<string, BoardSessionData>;
     visibleSessionIds: string[]; // This is now the FILTERED list
@@ -24,6 +26,7 @@ export interface BoardSliceState {
     selectedMessageId: string | null;
     isMarkdownPretty: boolean;
     boardLoadError: string | null;
+    isTimelineExpanded: boolean;
 }
 
 export interface BoardSliceActions {
@@ -34,6 +37,7 @@ export interface BoardSliceActions {
     setSelectedMessageId: (id: string | null) => void;
     setMarkdownPretty: (pretty: boolean) => void;
     clearBoard: () => void;
+    toggleTimeline: () => void;
 }
 
 export type BoardSlice = BoardSliceState & BoardSliceActions;
@@ -49,6 +53,14 @@ const initialBoardState: BoardSliceState = {
     selectedMessageId: null,
     isMarkdownPretty: true, // Default to pretty printing
     boardLoadError: null,
+    isTimelineExpanded: (() => {
+        try {
+            const stored = localStorage.getItem(TIMELINE_STORAGE_KEY);
+            return stored === "true";
+        } catch {
+            return false;
+        }
+    })(),
 };
 
 /**
@@ -270,6 +282,12 @@ export const createBoardSlice: StateCreator<
     setStickyBrush: (stickyBrush) => set({ stickyBrush }),
     setSelectedMessageId: (id) => set({ selectedMessageId: id }),
     setMarkdownPretty: (isMarkdownPretty) => set({ isMarkdownPretty }),
+
+    toggleTimeline: () => set((state) => {
+        const next = !state.isTimelineExpanded;
+        try { localStorage.setItem(TIMELINE_STORAGE_KEY, String(next)); } catch { /* ignore */ }
+        return { isTimelineExpanded: next };
+    }),
 
     clearBoard: () => set(initialBoardState),
 });
