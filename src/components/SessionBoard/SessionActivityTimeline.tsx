@@ -81,16 +81,16 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
         <div className="flex items-center gap-3 ml-auto text-[10px] text-muted-foreground shrink-0">
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
-            {totalActiveDays} {t("analytics.timeline.activeDays")}
+            {t("analytics.timeline.activeDays")} {t("analytics.timeline.days", { count: totalActiveDays })}
           </span>
           {currentStreak > 0 && (
             <span className="flex items-center gap-1 text-orange-500/80">
               <Flame className="w-3 h-3" />
-              {currentStreak} {t("analytics.timeline.currentStreak")}
+              {t("analytics.timeline.currentStreak")} {t("analytics.timeline.days", { count: currentStreak })}
             </span>
           )}
           <span>
-            {totalSessions} {t("analytics.timeline.sessions", { count: totalSessions })}
+            {t("analytics.timeline.sessions", { count: totalSessions })}
           </span>
         </div>
       </button>
@@ -101,8 +101,7 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
           {/* Stats row */}
           <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
             <span>
-              {t("analytics.timeline.longestStreak")}: {longestStreak}{" "}
-              {t("analytics.timeline.days", { count: longestStreak })}
+              {t("analytics.timeline.longestStreak")}: {t("analytics.timeline.days", { count: longestStreak })}
             </span>
             {selectedDate && (
               <button
