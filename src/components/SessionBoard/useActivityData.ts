@@ -46,6 +46,24 @@ function getLocalizedMonthNames(): string[] {
   );
 }
 
+/**
+ * Compute the end-of-range timestamp (ms) for a date filter.
+ * If `end` is at local midnight, it is treated as a date-only value
+ * and the full day is included (+24h). Otherwise 1ms is added for
+ * inclusive comparison.
+ */
+export function getFilterEndMs(end: Date): number {
+  if (
+    end.getHours() === 0 &&
+    end.getMinutes() === 0 &&
+    end.getSeconds() === 0 &&
+    end.getMilliseconds() === 0
+  ) {
+    return end.getTime() + 24 * 60 * 60 * 1000;
+  }
+  return end.getTime() + 1;
+}
+
 export function toDateString(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -192,20 +210,7 @@ export function useActivityData(
     // DateFilter range for highlight
     const filterStartMs = dateFilter?.start ? dateFilter.start.getTime() : 0;
     const filterEndMs = dateFilter?.end
-      ? (() => {
-          const end = dateFilter.end;
-          // If end is at local midnight, treat it as a date-only value and include the full day
-          if (
-            end.getHours() === 0 &&
-            end.getMinutes() === 0 &&
-            end.getSeconds() === 0 &&
-            end.getMilliseconds() === 0
-          ) {
-            return end.getTime() + 24 * 60 * 60 * 1000;
-          }
-          // Otherwise, treat end as an inclusive timestamp and add 1 ms
-          return end.getTime() + 1;
-        })()
+      ? getFilterEndMs(dateFilter.end)
       : Infinity;
     const hasFilter = dateFilter?.start != null || dateFilter?.end != null;
 

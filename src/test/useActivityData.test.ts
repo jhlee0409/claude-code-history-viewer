@@ -110,9 +110,9 @@ describe("useActivityData", () => {
 
     it("should separate sessions on different days", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z", 100),
-        "2": createMockSession("2", "2024-01-16T10:00:00Z", 150),
-        "3": createMockSession("3", "2024-01-17T10:00:00Z", 200),
+        "1": createMockSession("1", "2024-01-15T10:00:00", 100),
+        "2": createMockSession("2", "2024-01-16T10:00:00", 150),
+        "3": createMockSession("3", "2024-01-17T10:00:00", 200),
       };
 
       const { result } = renderHook(() =>
@@ -128,9 +128,9 @@ describe("useActivityData", () => {
   describe("streak calculations", () => {
     it("should calculate consecutive day streaks", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z"),
-        "2": createMockSession("2", "2024-01-16T10:00:00Z"),
-        "3": createMockSession("3", "2024-01-17T10:00:00Z"),
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
+        "2": createMockSession("2", "2024-01-16T10:00:00"),
+        "3": createMockSession("3", "2024-01-17T10:00:00"),
       };
 
       const { result } = renderHook(() =>
@@ -142,10 +142,10 @@ describe("useActivityData", () => {
 
     it("should break streak on gap day", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z"),
-        "2": createMockSession("2", "2024-01-16T10:00:00Z"),
-        "3": createMockSession("3", "2024-01-18T10:00:00Z"), // Gap: Jan 17 missing
-        "4": createMockSession("4", "2024-01-19T10:00:00Z"),
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
+        "2": createMockSession("2", "2024-01-16T10:00:00"),
+        "3": createMockSession("3", "2024-01-18T10:00:00"), // Gap: Jan 17 missing
+        "4": createMockSession("4", "2024-01-19T10:00:00"),
       };
 
       const { result } = renderHook(() =>
@@ -216,7 +216,7 @@ describe("useActivityData", () => {
     it("should pad to complete weeks (Sunday-Saturday)", () => {
       // Create sessions for a single week
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z"), // Monday
+        "1": createMockSession("1", "2024-01-15T10:00:00"), // Monday
       };
 
       const { result } = renderHook(() =>
@@ -234,8 +234,8 @@ describe("useActivityData", () => {
 
     it("should handle month transitions in grid", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-30T10:00:00Z"), // End of January
-        "2": createMockSession("2", "2024-02-01T10:00:00Z"), // Start of February
+        "1": createMockSession("1", "2024-01-30T10:00:00"), // End of January
+        "2": createMockSession("2", "2024-02-01T10:00:00"), // Start of February
       };
 
       const { result } = renderHook(() =>
@@ -254,9 +254,9 @@ describe("useActivityData", () => {
 
     it("should calculate correct intensity values", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z"),
-        "2": createMockSession("2", "2024-01-16T10:00:00Z"),
-        "3": createMockSession("3", "2024-01-16T14:00:00Z"), // 2 sessions on this day
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
+        "2": createMockSession("2", "2024-01-16T10:00:00"),
+        "3": createMockSession("3", "2024-01-16T14:00:00"), // 2 sessions on this day
       };
 
       const { result } = renderHook(() =>
@@ -277,9 +277,9 @@ describe("useActivityData", () => {
   describe("date filter highlighting", () => {
     it("should highlight single day filter", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z"),
-        "2": createMockSession("2", "2024-01-16T10:00:00Z"),
-        "3": createMockSession("3", "2024-01-17T10:00:00Z"),
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
+        "2": createMockSession("2", "2024-01-16T10:00:00"),
+        "3": createMockSession("3", "2024-01-17T10:00:00"),
       };
 
       const filterDate = new Date("2024-01-16T00:00:00");
@@ -303,9 +303,9 @@ describe("useActivityData", () => {
 
     it("should highlight date range filter", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z"),
-        "2": createMockSession("2", "2024-01-16T10:00:00Z"),
-        "3": createMockSession("3", "2024-01-17T10:00:00Z"),
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
+        "2": createMockSession("2", "2024-01-16T10:00:00"),
+        "3": createMockSession("3", "2024-01-17T10:00:00"),
       };
 
       const dateFilter: DateFilter = {
@@ -328,8 +328,8 @@ describe("useActivityData", () => {
 
     it("should handle end time with time component correctly", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z"),
-        "2": createMockSession("2", "2024-01-16T10:00:00Z"),
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
+        "2": createMockSession("2", "2024-01-16T10:00:00"),
       };
 
       const dateFilter: DateFilter = {
@@ -353,7 +353,7 @@ describe("useActivityData", () => {
 
     it("should not highlight when no filter is set", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z"),
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
       };
 
       const { result } = renderHook(() =>
@@ -371,9 +371,9 @@ describe("useActivityData", () => {
   describe("DST boundary handling", () => {
     it("should handle DST spring forward (2024-03-10 in US)", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-03-09T10:00:00Z"),
-        "2": createMockSession("2", "2024-03-10T10:00:00Z"), // DST boundary
-        "3": createMockSession("3", "2024-03-11T10:00:00Z"),
+        "1": createMockSession("1", "2024-03-09T10:00:00"),
+        "2": createMockSession("2", "2024-03-10T10:00:00"), // DST boundary
+        "3": createMockSession("3", "2024-03-11T10:00:00"),
       };
 
       const { result } = renderHook(() =>
@@ -387,9 +387,9 @@ describe("useActivityData", () => {
 
     it("should handle DST fall back (2024-11-03 in US)", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-11-02T10:00:00Z"),
-        "2": createMockSession("2", "2024-11-03T10:00:00Z"), // DST boundary
-        "3": createMockSession("3", "2024-11-04T10:00:00Z"),
+        "1": createMockSession("1", "2024-11-02T10:00:00"),
+        "2": createMockSession("2", "2024-11-03T10:00:00"), // DST boundary
+        "3": createMockSession("3", "2024-11-04T10:00:00"),
       };
 
       const { result } = renderHook(() =>
@@ -406,9 +406,9 @@ describe("useActivityData", () => {
     it("should add month label when month starts within first week", () => {
       // Use a date range that definitely spans multiple weeks and includes month start
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-28T10:00:00Z"), // Last week of Jan
-        "2": createMockSession("2", "2024-02-01T10:00:00Z"), // Feb 1st
-        "3": createMockSession("3", "2024-02-04T10:00:00Z"), // First Sun of Feb (week start)
+        "1": createMockSession("1", "2024-01-28T10:00:00"), // Last week of Jan
+        "2": createMockSession("2", "2024-02-01T10:00:00"), // Feb 1st
+        "3": createMockSession("3", "2024-02-04T10:00:00"), // First Sun of Feb (week start)
       };
 
       const { result } = renderHook(() =>
@@ -428,8 +428,8 @@ describe("useActivityData", () => {
     it("should not duplicate month labels", () => {
       // Create sessions spanning two months
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-28T10:00:00Z"),
-        "2": createMockSession("2", "2024-02-04T10:00:00Z"),
+        "1": createMockSession("1", "2024-01-28T10:00:00"),
+        "2": createMockSession("2", "2024-02-04T10:00:00"),
       };
 
       const { result } = renderHook(() =>
@@ -447,9 +447,9 @@ describe("useActivityData", () => {
   describe("dailyBars output", () => {
     it("should sort dailyBars by date", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-17T10:00:00Z"),
-        "2": createMockSession("2", "2024-01-15T10:00:00Z"),
-        "3": createMockSession("3", "2024-01-16T10:00:00Z"),
+        "1": createMockSession("1", "2024-01-17T10:00:00"),
+        "2": createMockSession("2", "2024-01-15T10:00:00"),
+        "3": createMockSession("3", "2024-01-16T10:00:00"),
       };
 
       const { result } = renderHook(() =>
@@ -462,8 +462,8 @@ describe("useActivityData", () => {
 
     it("should include all data in dailyBars", () => {
       const sessions: Record<string, BoardSessionData> = {
-        "1": createMockSession("1", "2024-01-15T10:00:00Z", 100),
-        "2": createMockSession("2", "2024-01-15T14:00:00Z", 200),
+        "1": createMockSession("1", "2024-01-15T10:00:00", 100),
+        "2": createMockSession("2", "2024-01-15T14:00:00", 200),
       };
 
       const { result } = renderHook(() =>

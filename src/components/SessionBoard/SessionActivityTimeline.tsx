@@ -44,8 +44,7 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
       const start = new Date(d);
       start.setHours(0, 0, 0, 0);
       const end = new Date(d);
-      // Set end to 00:00:00 of the same day (filtering logic will handle inclusive end)
-      end.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
       setDateFilter({ start, end });
     },
     [setDateFilter]

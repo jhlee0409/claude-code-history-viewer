@@ -4,6 +4,7 @@ import { useAppStore } from "../../store/useAppStore";
 import { SessionLane } from "./SessionLane";
 import { BoardControls } from "./BoardControls";
 import { SessionActivityTimeline } from "./SessionActivityTimeline";
+import { getFilterEndMs } from "./useActivityData";
 import { LoadingSpinner } from "../ui/loading";
 import { useTranslation } from "react-i18next";
 import { MessageSquare } from "lucide-react";
@@ -57,7 +58,7 @@ export const SessionBoard = () => {
         }
 
         const startMs = dateFilter.start ? dateFilter.start.getTime() : 0;
-        const endMs = dateFilter.end ? dateFilter.end.getTime() + (24 * 60 * 60 * 1000) : Infinity; // Add 24h to include end date fully
+        const endMs = dateFilter.end ? getFilterEndMs(dateFilter.end) : Infinity;
 
 
         const filtered = allSortedSessionIds.filter(id => {
