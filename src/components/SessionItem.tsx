@@ -12,6 +12,9 @@ import {
   RotateCcw,
   Link2,
   Terminal,
+  Copy,
+  FileText,
+  Play,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -168,6 +171,49 @@ export const SessionItem: React.FC<SessionItemProps> = ({
       startEditing();
     },
     [startEditing]
+  );
+
+  // Copy session ID to clipboard
+  const handleCopySessionId = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsContextMenuOpen(false);
+      navigator.clipboard.writeText(session.actual_session_id).then(() => {
+        toast.success(t('session.copiedSessionId', 'Session ID copied'));
+      }).catch(() => {
+        toast.error(t('copyButton.error', 'Copy failed'));
+      });
+    },
+    [session.actual_session_id, t]
+  );
+
+  // Copy resume command to clipboard
+  const handleCopyResumeCommand = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsContextMenuOpen(false);
+      const command = `claude --resume ${session.actual_session_id}`;
+      navigator.clipboard.writeText(command).then(() => {
+        toast.success(t('session.copiedResumeCommand', 'Resume command copied'));
+      }).catch(() => {
+        toast.error(t('copyButton.error', 'Copy failed'));
+      });
+    },
+    [session.actual_session_id, t]
+  );
+
+  // Copy file path to clipboard
+  const handleCopyFilePath = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsContextMenuOpen(false);
+      navigator.clipboard.writeText(session.file_path).then(() => {
+        toast.success(t('session.copiedFilePath', 'File path copied'));
+      }).catch(() => {
+        toast.error(t('copyButton.error', 'Copy failed'));
+      });
+    },
+    [session.file_path, t]
   );
 
   // Handle native rename action
@@ -370,6 +416,19 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                   <DropdownMenuItem onClick={handleNativeRenameClick}>
                     <Terminal className="w-3 h-3 mr-2" />
                     {t("session.nativeRename.menuItem", "Rename in Claude Code")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleCopySessionId}>
+                    <Copy className="w-3 h-3 mr-2" />
+                    {t("session.copySessionId", "Copy Session ID")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCopyResumeCommand}>
+                    <Play className="w-3 h-3 mr-2" />
+                    {t("session.copyResumeCommand", "Copy Resume Command")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCopyFilePath}>
+                    <FileText className="w-3 h-3 mr-2" />
+                    {t("session.copyFilePath", "Copy File Path")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
