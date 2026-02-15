@@ -16,8 +16,8 @@ interface ContributionGridProps {
 }
 
 const BAR_HEIGHT = 96;
-const BAR_MIN_WIDTH = 10;
-const BAR_GAP = 3;
+const BAR_WIDTH = 18;
+const BAR_GAP = 4;
 
 export const ContributionGrid: React.FC<ContributionGridProps> = ({
   dailyBars,
@@ -114,7 +114,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                       ${isSelected ? "ring-1 ring-primary ring-offset-1 ring-offset-background" : ""}
                     `}
                     style={{
-                      width: `${BAR_MIN_WIDTH}px`,
+                      width: `${BAR_WIDTH}px`,
                       height: `${barPixelHeight}px`,
                       backgroundColor: bar.sessionCount > 0
                         ? getHeatColor(Math.max(0.25, intensity))
@@ -156,7 +156,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                 key={bar.date}
                 className="shrink-0 text-[10px] text-muted-foreground/70"
                 style={{
-                  width: `${BAR_MIN_WIDTH}px`,
+                  width: `${BAR_WIDTH}px`,
                   textAlign: "center",
                   overflow: "visible",
                   whiteSpace: "nowrap",
