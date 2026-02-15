@@ -7,7 +7,8 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { TrendingUp, Zap, Database, Eye } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
+import { Tooltip, TooltipTrigger } from "../../ui/tooltip";
+import { ChartTooltip } from "../../ui/chart-tooltip";
 import type { TokenDistribution } from "../types";
 import { formatNumber } from "../utils";
 import { cn } from "@/lib/utils";
@@ -94,13 +95,14 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
                   className="cursor-pointer transition-opacity duration-200 hover:opacity-70"
                 />
               </TooltipTrigger>
-              <TooltipContent side="right" className="font-mono text-xs">
-                <div className="space-y-1">
-                  <div className="font-semibold" style={{ color: arc.color }}>{arc.label}</div>
-                  <div>{formatNumber(arc.value)} tokens</div>
-                  <div className="text-muted-foreground">{(arc.percentage * 100).toFixed(1)}%</div>
-                </div>
-              </TooltipContent>
+              <ChartTooltip
+                title={arc.label}
+                side="right"
+                rows={[
+                  { label: "Tokens", value: `${formatNumber(arc.value)}`, color: arc.color },
+                  { label: "Share", value: `${(arc.percentage * 100).toFixed(1)}%` },
+                ]}
+              />
             </Tooltip>
           ))}
         </svg>

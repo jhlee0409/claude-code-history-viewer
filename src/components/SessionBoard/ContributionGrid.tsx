@@ -2,9 +2,9 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Tooltip,
-  TooltipContent,
   TooltipTrigger,
 } from "../ui/tooltip";
+import { ChartTooltip } from "../ui/chart-tooltip";
 import { getHeatColor } from "../AnalyticsDashboard/utils/calculations";
 import type { DailyBar } from "./useActivityData";
 
@@ -129,18 +129,13 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                     onKeyDown={(e) => handleBarKeyDown(e, bar.date)}
                   />
                 </TooltipTrigger>
-                <TooltipContent side="top" className="font-mono text-xs px-3 py-2">
-                  <div className="space-y-0.5">
-                    <div className="font-semibold text-[12px]">
-                      {formatDateLabel(bar.date)}
-                    </div>
-                    <div className="text-[11px] text-primary-foreground/70">
-                      {bar.sessionCount > 0
-                        ? t("analytics.timeline.sessions", { count: bar.sessionCount })
-                        : t("analytics.timeline.noActivity")}
-                    </div>
-                  </div>
-                </TooltipContent>
+                <ChartTooltip
+                  title={formatDateLabel(bar.date)}
+                  rows={bar.sessionCount > 0 ? [
+                    { label: "Sessions", value: bar.sessionCount },
+                  ] : undefined}
+                  subtitle={bar.sessionCount === 0 ? t("analytics.timeline.noActivity") : undefined}
+                />
               </Tooltip>
             );
           })}
