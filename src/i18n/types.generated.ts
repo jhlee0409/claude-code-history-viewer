@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-05T15:01:39.747Z
- * 총 키 개수: 1429
+ * 생성 시간: 2026-02-14T15:27:23.350Z
+ * 총 키 개수: 1446
  * Namespace 수: 11
  */
 
@@ -153,7 +153,7 @@ export type CommonKeys =
   | 'time.start';
 
 /**
- * analytics namespace의 번역 키 (134개)
+ * analytics namespace의 번역 키 (146개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -249,6 +249,18 @@ export type AnalyticsKeys =
   | 'analytics.showMoreSessions'
   | 'analytics.startTime'
   | 'analytics.successRate'
+  | 'analytics.timeline.activeDays'
+  | 'analytics.timeline.clearFilter'
+  | 'analytics.timeline.currentStreak'
+  | 'analytics.timeline.day'
+  | 'analytics.timeline.days'
+  | 'analytics.timeline.less'
+  | 'analytics.timeline.longestStreak'
+  | 'analytics.timeline.more'
+  | 'analytics.timeline.noActivity'
+  | 'analytics.timeline.session'
+  | 'analytics.timeline.sessions'
+  | 'analytics.timeline.title'
   | 'analytics.today'
   | 'analytics.tokenAnalysis'
   | 'analytics.tokenDistribution'
@@ -1139,7 +1151,7 @@ export type MessageKeys =
   | 'navigator.toggle';
 
 /**
- * renderers namespace의 번역 키 (255개)
+ * renderers namespace의 번역 키 (257개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1221,11 +1233,13 @@ export type RenderersKeys =
   | 'commandOutputDisplay.terminalOutput'
   | 'commandOutputDisplay.testResults'
   | 'commandRenderer.arguments'
+  | 'commandRenderer.collapse'
   | 'commandRenderer.command'
   | 'commandRenderer.commandExecution'
   | 'commandRenderer.commandOutput'
   | 'commandRenderer.errorOutput'
   | 'commandRenderer.executionResult'
+  | 'commandRenderer.expand'
   | 'commandRenderer.status'
   | 'commandRenderer.systemNote'
   | 'commandRenderer.unknownContentType'
@@ -1400,7 +1414,7 @@ export type RenderersKeys =
   | 'webSearchRenderer.unknownResultFormat';
 
 /**
- * update namespace의 번역 키 (65개)
+ * update namespace의 번역 키 (68개)
  * 파일: locales/{lang}/update.json
  */
 export type UpdateKeys =
@@ -1419,6 +1433,9 @@ export type UpdateKeys =
   | 'simpleUpdateModal.newVersion'
   | 'simpleUpdateModal.releaseName'
   | 'simpleUpdateModal.remindLater'
+  | 'simpleUpdateModal.restarting'
+  | 'simpleUpdateModal.restartingDescription'
+  | 'simpleUpdateModal.restartingShort'
   | 'simpleUpdateModal.showDetails'
   | 'simpleUpdateModal.skipVersion'
   | 'simpleUpdateModal.viewOnGitHub'
@@ -1656,6 +1673,18 @@ export type TranslationKey =
   | 'analytics.showMoreSessions'
   | 'analytics.startTime'
   | 'analytics.successRate'
+  | 'analytics.timeline.activeDays'
+  | 'analytics.timeline.clearFilter'
+  | 'analytics.timeline.currentStreak'
+  | 'analytics.timeline.day'
+  | 'analytics.timeline.days'
+  | 'analytics.timeline.less'
+  | 'analytics.timeline.longestStreak'
+  | 'analytics.timeline.more'
+  | 'analytics.timeline.noActivity'
+  | 'analytics.timeline.session'
+  | 'analytics.timeline.sessions'
+  | 'analytics.timeline.title'
   | 'analytics.today'
   | 'analytics.tokenAnalysis'
   | 'analytics.tokenDistribution'
@@ -1755,11 +1784,13 @@ export type TranslationKey =
   | 'commandOutputDisplay.terminalOutput'
   | 'commandOutputDisplay.testResults'
   | 'commandRenderer.arguments'
+  | 'commandRenderer.collapse'
   | 'commandRenderer.command'
   | 'commandRenderer.commandExecution'
   | 'commandRenderer.commandOutput'
   | 'commandRenderer.errorOutput'
   | 'commandRenderer.executionResult'
+  | 'commandRenderer.expand'
   | 'commandRenderer.status'
   | 'commandRenderer.systemNote'
   | 'commandRenderer.unknownContentType'
@@ -2769,6 +2800,9 @@ export type TranslationKey =
   | 'simpleUpdateModal.newVersion'
   | 'simpleUpdateModal.releaseName'
   | 'simpleUpdateModal.remindLater'
+  | 'simpleUpdateModal.restarting'
+  | 'simpleUpdateModal.restartingDescription'
+  | 'simpleUpdateModal.restartingShort'
   | 'simpleUpdateModal.showDetails'
   | 'simpleUpdateModal.skipVersion'
   | 'simpleUpdateModal.viewOnGitHub'

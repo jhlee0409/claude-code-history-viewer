@@ -3,6 +3,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "../../store/useAppStore";
 import { SessionLane } from "./SessionLane";
 import { BoardControls } from "./BoardControls";
+import { SessionActivityTimeline } from "./SessionActivityTimeline";
+import { getFilterEndMs } from "./useActivityData";
 import { LoadingSpinner } from "../ui/loading";
 import { useTranslation } from "react-i18next";
 import { MessageSquare } from "lucide-react";
@@ -13,9 +15,11 @@ import { getToolUseBlock } from "../../utils/messageUtils";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import { buildSearchIndex, clearSearchIndex } from "../../utils/searchIndex";
 
+const selectBoardSessions = (s: ReturnType<typeof useAppStore.getState>) => s.boardSessions;
+
 export const SessionBoard = () => {
+    const boardSessions = useAppStore(selectBoardSessions);
     const {
-        boardSessions,
         allSortedSessionIds,
         isLoadingBoard,
         zoomLevel,
@@ -28,7 +32,11 @@ export const SessionBoard = () => {
         selectedMessageId,
         dateFilter,
         setDateFilter,
-        selectedSession
+        clearDateFilter,
+        isTimelineExpanded,
+        toggleTimeline,
+        selectedSession,
+        selectedProject,
     } = useAppStore();
 
     // Clear brush on Escape (Step 9)
@@ -50,7 +58,7 @@ export const SessionBoard = () => {
         }
 
         const startMs = dateFilter.start ? dateFilter.start.getTime() : 0;
-        const endMs = dateFilter.end ? dateFilter.end.getTime() + (24 * 60 * 60 * 1000) : Infinity; // Add 24h to include end date fully
+        const endMs = dateFilter.end ? getFilterEndMs(dateFilter.end) : Infinity;
 
 
         const filtered = allSortedSessionIds.filter(id => {
@@ -380,6 +388,18 @@ export const SessionBoard = () => {
                 availableShellCommands={visibleBrushOptions.shellCommands}
                 dateFilter={dateFilter}
                 setDateFilter={setDateFilter}
+            />
+
+            {/* Activity Timeline Heatmap */}
+            <SessionActivityTimeline
+                boardSessions={boardSessions}
+                allSortedSessionIds={allSortedSessionIds}
+                dateFilter={dateFilter}
+                setDateFilter={setDateFilter}
+                clearDateFilter={clearDateFilter}
+                isExpanded={isTimelineExpanded}
+                onToggle={toggleTimeline}
+                projectName={selectedProject?.name}
             />
 
             {/* Virtualized Lanes Container */}
