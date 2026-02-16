@@ -88,6 +88,17 @@ To uninstall:
 brew uninstall --cask claude-code-history-viewer
 ```
 
+> **Migrating from manual (.dmg) installation?**
+> Remove the existing app before installing via Homebrew to avoid conflicts.
+> Choose **one** installation method — do not mix manual and Homebrew installs.
+> ```bash
+> # Remove the manually installed app first
+> rm -rf "/Applications/Claude Code History Viewer.app"
+> # Then install via Homebrew
+> brew tap jhlee0409/tap
+> brew install --cask claude-code-history-viewer
+> ```
+
 ## Build from Source
 
 ```bash

@@ -88,6 +88,17 @@ brew upgrade --cask claude-code-history-viewer
 brew uninstall --cask claude-code-history-viewer
 ```
 
+> **手動インストール(.dmg)から移行しますか？**
+> 競合を防ぐため、Homebrewでインストールする前に既存のアプリを削除してください。
+> インストール方法は**1つだけ**使用してください — 手動とHomebrewを混在させないでください。
+> ```bash
+> # 手動インストールしたアプリを先に削除
+> rm -rf "/Applications/Claude Code History Viewer.app"
+> # Homebrewでインストール
+> brew tap jhlee0409/tap
+> brew install --cask claude-code-history-viewer
+> ```
+
 ## ソースからビルド
 
 ```bash
