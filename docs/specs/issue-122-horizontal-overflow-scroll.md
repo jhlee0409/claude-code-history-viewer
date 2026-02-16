@@ -70,7 +70,7 @@ Implement a **consistent horizontal overflow policy** for renderer content, prio
   - and responsive behavior expectations under narrow viewport.
 
 ## Specific File Changes (planned)
-> Spec only. No implementation in this PR.
+> This spec documents the renderer overflow changes implemented in this PR.
 
 1. **`src/shared/RendererHeader.tsx`**
    - Adjust header/right-content strategy so long technical metadata is not silently clipped.
