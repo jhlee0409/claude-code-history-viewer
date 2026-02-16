@@ -271,7 +271,7 @@ jobs:
                   .get(url, response => {
                     if (response.statusCode !== 200) {
                       file.close(() => fs.unlink(dest, (err) => {
-                        if (err) console.warn(`Failed to clean up partial download at ${dest}:`, err.message);
+                        if (err) console.warn(`Failed to clean up file after download error at ${dest}:`, err.message);
                       }));
                       return reject(new Error(`Failed to download file: ${response.statusCode} ${response.statusMessage}`));
                     }
