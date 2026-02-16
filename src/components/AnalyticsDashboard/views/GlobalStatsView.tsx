@@ -80,9 +80,12 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                     <div className="flex items-center justify-between mb-1.5">
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="inline-block text-[12px] font-medium text-foreground truncate max-w-[60%]">
+                          <button
+                            type="button"
+                            className="block max-w-[60%] text-[12px] font-medium text-foreground truncate text-left cursor-default"
+                          >
                             {model.model_name}
-                          </span>
+                          </button>
                         </TooltipTrigger>
                         <TooltipContent>
                           {model.model_name}
@@ -156,9 +159,12 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                       <div className="flex-1 min-w-0">
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="inline-block w-full text-[12px] font-medium text-foreground truncate">
+                            <button
+                              type="button"
+                              className="block w-full text-[12px] font-medium text-foreground truncate text-left cursor-default"
+                            >
                               {project.project_name}
-                            </span>
+                            </button>
                           </TooltipTrigger>
                           <TooltipContent>
                             {project.project_name}
