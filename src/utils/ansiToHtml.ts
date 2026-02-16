@@ -31,8 +31,7 @@ export function hasAnsiCodes(text: string): boolean {
  * Uses global flag for replacement to remove all occurrences.
  */
 export function stripAnsiCodes(text: string): string {
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/\x1b\[[\d;]*m/g, "");
+  return text.replace(new RegExp(ANSI_REGEX.source, "g"), "");
 }
 
 /**
