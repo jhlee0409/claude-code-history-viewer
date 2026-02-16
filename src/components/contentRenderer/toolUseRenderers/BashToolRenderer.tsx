@@ -75,6 +75,7 @@ export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }
                 style={getPreStyles(isDarkMode, style, {
                   fontSize: codeTheme.fontSize,
                   padding: codeTheme.padding,
+                  overflowX: "auto",
                 })}
               >
                 {tokens.map((line, i) => {

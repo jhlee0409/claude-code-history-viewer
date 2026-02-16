@@ -78,6 +78,7 @@ export const NotebookEditToolRenderer = memo(function NotebookEditToolRenderer({
                   style={getPreStyles(isDarkMode, style, {
                     fontSize: codeTheme.fontSize,
                     padding: codeTheme.padding,
+                    overflowX: "auto",
                   })}
                 >
                   {tokens.map((line, i) => {

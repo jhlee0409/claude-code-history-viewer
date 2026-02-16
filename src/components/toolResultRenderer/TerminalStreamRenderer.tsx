@@ -41,7 +41,7 @@ export const TerminalStreamRenderer = ({
         rightContent={
           <div className={cn("flex items-center", layout.iconSpacing)}>
             {command && (
-              <code className={`${layout.monoText} bg-tool-terminal/20 px-2 py-1 rounded text-tool-terminal`}>
+              <code className={`${layout.monoText} bg-tool-terminal/20 px-2 py-1 rounded text-tool-terminal max-w-[280px] overflow-x-auto inline-block whitespace-nowrap`}>
                 {String(command)}
               </code>
             )}

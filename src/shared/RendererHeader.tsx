@@ -101,7 +101,7 @@ const RendererHeader = ({
             {`${title} ${hasError ? t('common.errorOccurred') : ""}`}
           </span>
         </div>
-        <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
+        <div className={cn("flex items-center shrink-0 overflow-hidden", layout.iconGap, layout.smallText)}>
           {rightContent}
         </div>
       </div>
@@ -141,7 +141,7 @@ const RendererHeader = ({
           {`${title} ${hasError ? t('common.errorOccurred') : ""}`}
         </span>
       </div>
-      <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
+      <div className={cn("flex items-center shrink-0 overflow-hidden", layout.iconGap, layout.smallText)}>
         {rightContent}
       </div>
     </button>
