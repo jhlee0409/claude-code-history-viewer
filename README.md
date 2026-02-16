@@ -69,6 +69,25 @@ Download the latest release for your platform:
 | Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 | Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 
+### Homebrew (macOS)
+
+```bash
+brew tap jhlee0409/tap
+brew install --cask claude-code-history-viewer
+```
+
+To upgrade:
+
+```bash
+brew upgrade --cask claude-code-history-viewer
+```
+
+To uninstall:
+
+```bash
+brew uninstall --cask claude-code-history-viewer
+```
+
 ## Build from Source
 
 ```bash

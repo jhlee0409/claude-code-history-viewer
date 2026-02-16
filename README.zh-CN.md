@@ -69,6 +69,25 @@
 | Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 | Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 
+### Homebrew (macOS)
+
+```bash
+brew tap jhlee0409/tap
+brew install --cask claude-code-history-viewer
+```
+
+升级:
+
+```bash
+brew upgrade --cask claude-code-history-viewer
+```
+
+卸载:
+
+```bash
+brew uninstall --cask claude-code-history-viewer
+```
+
 ## 从源码构建
 
 ```bash
