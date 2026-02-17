@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-15T20:26:11.955Z
- * 총 키 개수: 1440
+ * 생성 시간: 2026-02-17T01:26:34.141Z
+ * 총 키 개수: 1457
  * Namespace 수: 11
  */
 
@@ -153,7 +153,7 @@ export type CommonKeys =
   | 'time.start';
 
 /**
- * analytics namespace의 번역 키 (134개)
+ * analytics namespace의 번역 키 (151개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -249,6 +249,18 @@ export type AnalyticsKeys =
   | 'analytics.showMoreSessions'
   | 'analytics.startTime'
   | 'analytics.successRate'
+  | 'analytics.timeline.activeDays'
+  | 'analytics.timeline.clearFilter'
+  | 'analytics.timeline.currentStreak'
+  | 'analytics.timeline.day'
+  | 'analytics.timeline.days'
+  | 'analytics.timeline.less'
+  | 'analytics.timeline.longestStreak'
+  | 'analytics.timeline.more'
+  | 'analytics.timeline.noActivity'
+  | 'analytics.timeline.session'
+  | 'analytics.timeline.sessions'
+  | 'analytics.timeline.title'
   | 'analytics.today'
   | 'analytics.tokenAnalysis'
   | 'analytics.tokenDistribution'
@@ -268,6 +280,11 @@ export type AnalyticsKeys =
   | 'analytics.toolUsageStats'
   | 'analytics.toolUsageTime'
   | 'analytics.toolsUsed'
+  | 'analytics.tooltip.activities'
+  | 'analytics.tooltip.messages'
+  | 'analytics.tooltip.sessions'
+  | 'analytics.tooltip.share'
+  | 'analytics.tooltip.tokens'
   | 'analytics.tooltipMessages'
   | 'analytics.tooltipSessions'
   | 'analytics.tooltipTokens'
@@ -1667,6 +1684,18 @@ export type TranslationKey =
   | 'analytics.showMoreSessions'
   | 'analytics.startTime'
   | 'analytics.successRate'
+  | 'analytics.timeline.activeDays'
+  | 'analytics.timeline.clearFilter'
+  | 'analytics.timeline.currentStreak'
+  | 'analytics.timeline.day'
+  | 'analytics.timeline.days'
+  | 'analytics.timeline.less'
+  | 'analytics.timeline.longestStreak'
+  | 'analytics.timeline.more'
+  | 'analytics.timeline.noActivity'
+  | 'analytics.timeline.session'
+  | 'analytics.timeline.sessions'
+  | 'analytics.timeline.title'
   | 'analytics.today'
   | 'analytics.tokenAnalysis'
   | 'analytics.tokenDistribution'
@@ -1686,6 +1715,11 @@ export type TranslationKey =
   | 'analytics.toolUsageStats'
   | 'analytics.toolUsageTime'
   | 'analytics.toolsUsed'
+  | 'analytics.tooltip.activities'
+  | 'analytics.tooltip.messages'
+  | 'analytics.tooltip.sessions'
+  | 'analytics.tooltip.share'
+  | 'analytics.tooltip.tokens'
   | 'analytics.tooltipMessages'
   | 'analytics.tooltipSessions'
   | 'analytics.tooltipTokens'

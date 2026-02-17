@@ -19,6 +19,7 @@ import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
 import { getPreStyles, getLineStyles, getTokenStyles } from "@/utils/prismStyles";
+import { AnsiText } from "@/components/common/AnsiText";
 
 interface CommandOutputDisplayProps {
   stdout: string;
@@ -135,7 +136,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
           </span>
         </div>
         <pre className={cn(layout.monoText, "text-foreground/80 whitespace-pre-wrap p-3")}>
-          {stdout}
+          <AnsiText text={stdout} />
         </pre>
       </div>
     );
@@ -164,7 +165,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
         </div>
         <div className="max-h-80 overflow-y-auto scrollbar-thin">
           <pre className={cn(layout.monoText, "text-foreground/80 whitespace-pre-wrap p-3")}>
-            {stdout}
+            <AnsiText text={stdout} />
           </pre>
         </div>
       </div>
@@ -194,7 +195,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
         </div>
         <div className="max-h-80 overflow-y-auto scrollbar-thin">
           <pre className={cn(layout.monoText, "text-foreground/80 whitespace-pre-wrap p-3")}>
-            {stdout}
+            <AnsiText text={stdout} />
           </pre>
         </div>
       </div>
@@ -224,7 +225,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
         </div>
         <div className="max-h-80 overflow-y-auto scrollbar-thin">
           <pre className={cn(layout.monoText, "text-foreground/80 whitespace-pre-wrap p-3")}>
-            {stdout}
+            <AnsiText text={stdout} />
           </pre>
         </div>
       </div>
@@ -253,7 +254,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
       </div>
       <div className="max-h-80 overflow-y-auto scrollbar-thin">
         <pre className={cn(layout.monoText, "text-foreground/80 whitespace-pre-wrap p-3")}>
-          {stdout}
+          <AnsiText text={stdout} />
         </pre>
       </div>
     </div>

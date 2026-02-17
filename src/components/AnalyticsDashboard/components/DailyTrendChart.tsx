@@ -6,7 +6,8 @@
 
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
+import { Tooltip, TooltipTrigger } from "../../ui/tooltip";
+import { ChartTooltip } from "../../ui/chart-tooltip";
 import type { DailyStatData } from "../types";
 import { formatNumber } from "../utils";
 
@@ -79,22 +80,16 @@ export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) =
                   </span>
                 </div>
               </TooltipTrigger>
-              <TooltipContent side="top" className="font-mono text-xs z-50">
-                <div className="space-y-1">
-                  <div className="font-semibold flex items-center gap-2">
-                    <span>{stat.date}</span>
-                    <span className="text-muted-foreground font-normal">({getDayName(stat.date)})</span>
-                  </div>
-                  <div className="text-[10px] grid grid-cols-2 gap-x-3 gap-y-0.5">
-                    <span className="text-muted-foreground">Tokens</span>
-                    <span className="text-right" style={{ color: "#22c55e" }}>{formatNumber(stat.total_tokens)}</span>
-                    <span className="text-muted-foreground">Messages</span>
-                    <span className="text-right">{stat.message_count}</span>
-                    <span className="text-muted-foreground">Sessions</span>
-                    <span className="text-right">{stat.session_count}</span>
-                  </div>
-                </div>
-              </TooltipContent>
+              <ChartTooltip
+                title={stat.date}
+                subtitle={`(${getDayName(stat.date)})`}
+                className="z-50"
+                rows={[
+                  { label: t("analytics.tooltip.tokens"), value: formatNumber(stat.total_tokens), color: "#22c55e" },
+                  { label: t("analytics.tooltip.messages"), value: stat.message_count },
+                  { label: t("analytics.tooltip.sessions"), value: stat.session_count },
+                ]}
+              />
             </Tooltip>
           );
         })}

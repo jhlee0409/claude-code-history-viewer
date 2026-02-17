@@ -227,3 +227,61 @@ jobs:
             });
 
             console.log('🎉 Release published!');
+
+      - name: Trigger Homebrew tap update
+        env:
+          HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+        if: env.HAS_TAP_TOKEN == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          script: |
+            const releaseId = ${{ needs.create-release.outputs.release_id }};
+            const { data: releaseData } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId
+            });
+
+            const dmgAsset = releaseData.assets.find(a => a.name.endsWith('_universal.dmg'));
+            if (!dmgAsset) {
+              console.log('⚠️ No universal DMG asset found, skipping tap update');
+              return;
+            }
+
+            const { execSync } = require('child_process');
+            const fs = require('fs');
+            const os = require('os');
+            const path = require('path');
+            const version = releaseData.tag_name.replace(/^v/, '');
+            const dmgUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${releaseData.tag_name}/${dmgAsset.name}`;
+            const tmpDmg = path.join(os.tmpdir(), `cchv-${version}-${Date.now()}.dmg`);
+
+            try {
+              execSync(`curl -sfL "${dmgUrl}" -o "${tmpDmg}"`, { stdio: 'inherit' });
+            } catch (error) {
+              throw new Error(`Failed to download DMG: ${dmgUrl}`);
+            }
+
+            const stat = fs.statSync(tmpDmg);
+            if (stat.size < 1024 * 1024) {
+              throw new Error(`Downloaded DMG is suspiciously small (${stat.size} bytes)`);
+            }
+
+            const shaOutput = execSync(`shasum -a 256 "${tmpDmg}"`, { encoding: 'utf8' });
+            const match = shaOutput.match(/^[a-f0-9]{64}/);
+            if (!match) {
+              throw new Error(`Failed to parse SHA256 from shasum output: ${shaOutput}`);
+            }
+            const sha256 = match[0];
+
+            await github.rest.repos.createDispatchEvent({
+              owner: 'jhlee0409',
+              repo: 'homebrew-tap',
+              event_type: 'update-cask',
+              client_payload: {
+                version: version,
+                dmg_sha256: sha256
+              }
+            });
+            console.log(`🍺 Triggered tap update: v${version}, sha256: ${sha256}`);

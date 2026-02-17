@@ -17,6 +17,7 @@ import {
   ToolUsageChart,
 } from "../components";
 import { formatNumber, calculateModelMetrics, getRankMedal, hasMedal } from "../utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 
 interface GlobalStatsViewProps {
   globalSummary: GlobalStatsSummary;
@@ -77,9 +78,19 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                 return (
                   <div key={model.model_name}>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[12px] font-medium text-foreground truncate max-w-[60%]">
-                        {model.model_name}
-                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="block max-w-[60%] text-[12px] font-medium text-foreground truncate text-left cursor-default"
+                          >
+                            {model.model_name}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {model.model_name}
+                        </TooltipContent>
+                      </Tooltip>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-[12px] text-muted-foreground">
                           {formattedPrice}
@@ -136,7 +147,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                       "bg-muted/30 hover:bg-muted/50 transition-colors"
                     )}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div
                         className={cn(
                           "w-6 h-6 rounded-md flex items-center justify-center text-[12px] font-bold",
@@ -145,10 +156,20 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                       >
                         {medal ?? index + 1}
                       </div>
-                      <div>
-                        <p className="text-[12px] font-medium text-foreground truncate max-w-[150px]">
-                          {project.project_name}
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="block w-full text-[12px] font-medium text-foreground truncate text-left cursor-default"
+                            >
+                              {project.project_name}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {project.project_name}
+                          </TooltipContent>
+                        </Tooltip>
                         <p className="text-[12px] text-muted-foreground">
                           {project.sessions} sessions • {project.messages} msgs
                         </p>

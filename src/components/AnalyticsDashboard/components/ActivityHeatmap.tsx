@@ -6,7 +6,8 @@
 
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
+import { Tooltip, TooltipTrigger } from "../../ui/tooltip";
+import { ChartTooltip } from "../../ui/chart-tooltip";
 import { cn } from "@/lib/utils";
 import type { ActivityHeatmap } from "../../../types";
 import { formatNumber, getHeatColor } from "../utils";
@@ -110,24 +111,13 @@ export const ActivityHeatmapComponent: React.FC<ActivityHeatmapProps> = ({ data 
                           style={cellStyles[styleKey]}
                         />
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="font-mono text-xs">
-                        <div className="space-y-1">
-                          <div className="font-semibold">
-                            {day} • {hour.toString().padStart(2, "0")}:00
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
-                            <span className="text-muted-foreground">Activities</span>
-                            <span
-                              className="text-right font-medium"
-                              style={{ color: intensity > 0.3 ? "var(--metric-green)" : undefined }}
-                            >
-                              {activity?.activity_count || 0}
-                            </span>
-                            <span className="text-muted-foreground">Tokens</span>
-                            <span className="text-right">{formatNumber(tokens)}</span>
-                          </div>
-                        </div>
-                      </TooltipContent>
+                      <ChartTooltip
+                        title={`${day} • ${hour.toString().padStart(2, "0")}:00`}
+                        rows={[
+                          { label: t("analytics.tooltip.activities"), value: activity?.activity_count || 0, color: intensity > 0.3 ? "var(--metric-green)" : undefined },
+                          { label: t("analytics.tooltip.tokens"), value: formatNumber(tokens) },
+                        ]}
+                      />
                     </Tooltip>
                   );
                 })}

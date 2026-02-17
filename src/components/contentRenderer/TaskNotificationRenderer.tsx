@@ -182,7 +182,7 @@ const TaskRow = ({
 
             {/* Result content */}
             <div className={cn(
-              "p-2.5 max-h-48 overflow-y-auto",
+              "p-2.5 max-h-48 overflow-y-auto overflow-x-auto",
               "text-2xs"
             )}>
               {notification.result ? (

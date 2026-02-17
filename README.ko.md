@@ -69,6 +69,36 @@
 | Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 | Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 
+### Homebrew (macOS)
+
+```bash
+brew tap jhlee0409/tap
+brew install --cask claude-code-history-viewer
+```
+
+업그레이드:
+
+```bash
+brew upgrade --cask claude-code-history-viewer
+```
+
+제거:
+
+```bash
+brew uninstall --cask claude-code-history-viewer
+```
+
+> **기존 수동 설치(.dmg)에서 전환하시나요?**
+> 충돌을 방지하려면 기존 앱을 먼저 삭제한 후 Homebrew로 설치하세요.
+> 설치 방식은 **하나만** 사용하세요 — 수동 설치와 Homebrew를 함께 사용하지 마세요.
+> ```bash
+> # 수동 설치된 앱을 먼저 삭제
+> rm -rf "/Applications/Claude Code History Viewer.app"
+> # Homebrew로 설치
+> brew tap jhlee0409/tap
+> brew install --cask claude-code-history-viewer
+> ```
+
 ## 소스에서 빌드
 
 ```bash

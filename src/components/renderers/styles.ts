@@ -231,6 +231,8 @@ export const layout = {
   codeMaxHeight: "max-h-64",
   /** Content max height */
   contentMaxHeight: "max-h-96",
+  /** Command/code block with horizontal scroll */
+  commandOverflow: "overflow-x-auto whitespace-pre",
   /** Prose/markdown style */
   prose: "prose prose-xs max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground/80 prose-a:text-info prose-code:text-accent prose-code:bg-muted prose-pre:bg-muted prose-pre:text-foreground",
 } as const;
@@ -249,6 +251,8 @@ export const layoutComposite = {
   contentArea: layout.contentPadding,
   /** Code/pre block */
   codeBlock: `${layout.smallText} ${layout.rounded} p-2 overflow-x-auto whitespace-pre-wrap ${layout.codeMaxHeight} font-mono`,
+  /** Scrollable command display (single-line) */
+  commandBlock: `${layout.smallText} ${layout.rounded} p-2 overflow-x-auto whitespace-pre ${layout.codeMaxHeight} font-mono`,
   /** Badge/tag */
   badge: `${layout.smallText} px-1.5 py-0.5 ${layout.rounded} font-mono`,
 } as const;
@@ -258,7 +262,7 @@ export const layoutComposite = {
  */
 export const commonStyles = {
   /** Code block container */
-  codeBlock: "rounded overflow-hidden max-h-96 overflow-y-auto",
+  codeBlock: "rounded overflow-x-auto max-h-96 overflow-y-auto",
 
   /** Code block header */
   codeBlockHeader:

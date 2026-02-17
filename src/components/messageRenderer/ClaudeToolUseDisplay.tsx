@@ -43,6 +43,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
               style={getPreStyles(isDarkMode, style, {
                 fontSize: "0.8125rem",
                 padding: "0.5rem",
+                overflowX: "auto",
               })}
             >
               {tokens.map((line, i) => {
