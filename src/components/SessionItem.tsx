@@ -173,47 +173,36 @@ export const SessionItem: React.FC<SessionItemProps> = ({
     [startEditing]
   );
 
-  // Copy session ID to clipboard
+  const handleCopyToClipboard = useCallback(
+    async (e: React.MouseEvent, text: string, successMsg: string) => {
+      e.stopPropagation();
+      setIsContextMenuOpen(false);
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success(successMsg);
+      } catch {
+        toast.error(t('copyButton.error', 'Copy failed'));
+      }
+    },
+    [t]
+  );
+
   const handleCopySessionId = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setIsContextMenuOpen(false);
-      navigator.clipboard.writeText(session.actual_session_id).then(() => {
-        toast.success(t('session.copiedSessionId', 'Session ID copied'));
-      }).catch(() => {
-        toast.error(t('copyButton.error', 'Copy failed'));
-      });
-    },
-    [session.actual_session_id, t]
+    (e: React.MouseEvent) =>
+      handleCopyToClipboard(e, session.actual_session_id, t('session.copiedSessionId', 'Session ID copied')),
+    [handleCopyToClipboard, session.actual_session_id, t]
   );
 
-  // Copy resume command to clipboard
   const handleCopyResumeCommand = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setIsContextMenuOpen(false);
-      const command = `claude --resume ${session.actual_session_id}`;
-      navigator.clipboard.writeText(command).then(() => {
-        toast.success(t('session.copiedResumeCommand', 'Resume command copied'));
-      }).catch(() => {
-        toast.error(t('copyButton.error', 'Copy failed'));
-      });
-    },
-    [session.actual_session_id, t]
+    (e: React.MouseEvent) =>
+      handleCopyToClipboard(e, `claude --resume ${session.actual_session_id}`, t('session.copiedResumeCommand', 'Resume command copied')),
+    [handleCopyToClipboard, session.actual_session_id, t]
   );
 
-  // Copy file path to clipboard
   const handleCopyFilePath = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setIsContextMenuOpen(false);
-      navigator.clipboard.writeText(session.file_path).then(() => {
-        toast.success(t('session.copiedFilePath', 'File path copied'));
-      }).catch(() => {
-        toast.error(t('copyButton.error', 'Copy failed'));
-      });
-    },
-    [session.file_path, t]
+    (e: React.MouseEvent) =>
+      handleCopyToClipboard(e, session.file_path, t('session.copiedFilePath', 'File path copied')),
+    [handleCopyToClipboard, session.file_path, t]
   );
 
   // Handle native rename action
