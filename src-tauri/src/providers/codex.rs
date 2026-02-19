@@ -72,17 +72,17 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 
     for entry in WalkDir::new(&sessions_dir)
         .min_depth(1)
-        .max_depth(1)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_dir())
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| {
+            e.file_name().to_string_lossy().starts_with("rollout-")
+                && e.path().extension().is_some_and(|ext| ext == "jsonl")
+        })
     {
-        let rollout_path = entry.path().join("rollout.jsonl");
-        if !rollout_path.exists() {
-            continue;
-        }
+        let rollout_path = entry.path();
 
-        if let Ok(info) = extract_session_info(&rollout_path) {
+        if let Ok(info) = extract_session_info(rollout_path) {
             let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
             project_map.entry(cwd).or_default().push(info);
         }
@@ -143,17 +143,17 @@ pub fn load_sessions(
 
     for entry in WalkDir::new(&sessions_dir)
         .min_depth(1)
-        .max_depth(1)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_dir())
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| {
+            e.file_name().to_string_lossy().starts_with("rollout-")
+                && e.path().extension().is_some_and(|ext| ext == "jsonl")
+        })
     {
-        let rollout_path = entry.path().join("rollout.jsonl");
-        if !rollout_path.exists() {
-            continue;
-        }
+        let rollout_path = entry.path();
 
-        if let Ok(info) = extract_session_info(&rollout_path) {
+        if let Ok(info) = extract_session_info(rollout_path) {
             let session_cwd = info.cwd.as_deref().unwrap_or("");
             if session_cwd != target_cwd {
                 continue;
@@ -215,24 +215,25 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 
         match line_type {
             "session_meta" => {
-                session_id = val
-                    .get("session_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-                if let Some(m) = val.get("model").and_then(|v| v.as_str()) {
-                    current_model = Some(m.to_string());
+                if let Some(payload) = val.get("payload") {
+                    session_id = payload
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
                 }
             }
             "turn_context" => {
-                if let Some(m) = val.get("model").and_then(|v| v.as_str()) {
-                    current_model = Some(m.to_string());
+                if let Some(payload) = val.get("payload") {
+                    if let Some(m) = payload.get("model").and_then(|v| v.as_str()) {
+                        current_model = Some(m.to_string());
+                    }
                 }
             }
             "response_item" => {
-                if let Some(item) = val.get("item") {
+                if let Some(payload) = val.get("payload") {
                     if let Some(msg) = convert_codex_item(
-                        item,
+                        payload,
                         &session_id,
                         current_model.as_ref(),
                         &mut msg_counter,
@@ -243,14 +244,14 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
             }
             "event_msg" => {
                 // Extract token counts and apply to last assistant message
-                if let Some(event) = val.get("event") {
-                    let event_type = event.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                if let Some(payload) = val.get("payload") {
+                    let event_type = payload.get("type").and_then(|t| t.as_str()).unwrap_or("");
                     if event_type == "token_count" {
-                        let input = event
+                        let input = payload
                             .get("input_tokens")
                             .and_then(Value::as_u64)
                             .unwrap_or(0) as u32;
-                        let output = event
+                        let output = payload
                             .get("output_tokens")
                             .and_then(Value::as_u64)
                             .unwrap_or(0) as u32;
@@ -296,15 +297,15 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 
     for entry in WalkDir::new(&sessions_dir)
         .min_depth(1)
-        .max_depth(1)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_dir())
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| {
+            e.file_name().to_string_lossy().starts_with("rollout-")
+                && e.path().extension().is_some_and(|ext| ext == "jsonl")
+        })
     {
-        let rollout_path = entry.path().join("rollout.jsonl");
-        if !rollout_path.exists() {
-            continue;
-        }
+        let rollout_path = entry.path();
 
         if let Ok(messages) = load_messages(&rollout_path.to_string_lossy()) {
             for msg in messages {
@@ -357,28 +358,35 @@ fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
 
         match line_type {
             "session_meta" => {
-                session_id = val
-                    .get("session_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                cwd = val.get("cwd").and_then(|v| v.as_str()).map(String::from);
-                if model.is_none() {
-                    model = val.get("model").and_then(|v| v.as_str()).map(String::from);
+                if let Some(payload) = val.get("payload") {
+                    session_id = payload
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    cwd = payload
+                        .get("cwd")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
                 }
             }
             "turn_context" => {
                 if model.is_none() {
-                    model = val.get("model").and_then(|v| v.as_str()).map(String::from);
+                    if let Some(payload) = val.get("payload") {
+                        model = payload
+                            .get("model")
+                            .and_then(|v| v.as_str())
+                            .map(String::from);
+                    }
                 }
             }
             "response_item" => {
-                if let Some(item) = val.get("item") {
-                    let item_type = item.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                if let Some(payload) = val.get("payload") {
+                    let item_type = payload.get("type").and_then(|t| t.as_str()).unwrap_or("");
                     if item_type == "message" {
                         message_count += 1;
 
-                        let ts = item
+                        let ts = payload
                             .get("created_at")
                             .or_else(|| val.get("timestamp"))
                             .and_then(|v| v.as_str())
@@ -394,9 +402,9 @@ fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
 
                         // Extract first user message as summary
                         if summary.is_none() {
-                            if let Some(role) = item.get("role").and_then(|r| r.as_str()) {
+                            if let Some(role) = payload.get("role").and_then(|r| r.as_str()) {
                                 if role == "user" {
-                                    summary = extract_text_from_content(item);
+                                    summary = extract_text_from_content(payload);
                                 }
                             }
                         }
