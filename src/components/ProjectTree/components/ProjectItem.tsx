@@ -138,12 +138,13 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       {project.provider && project.provider !== "claude" && (
         <span
           className={cn(
-            "w-2 h-2 rounded-full flex-shrink-0",
-            project.provider === "codex" && "bg-green-500",
-            project.provider === "opencode" && "bg-blue-500"
+            "px-1.5 py-0.5 text-2xs font-medium rounded-full flex-shrink-0 leading-none",
+            project.provider === "codex" && "bg-green-500/15 text-green-600 dark:text-green-400",
+            project.provider === "opencode" && "bg-blue-500/15 text-blue-600 dark:text-blue-400"
           )}
-          title={project.provider === "codex" ? "Codex CLI" : "OpenCode"}
-        />
+        >
+          {project.provider === "codex" ? "Codex" : "OpenCode"}
+        </span>
       )}
 
       {/* Session Count */}
