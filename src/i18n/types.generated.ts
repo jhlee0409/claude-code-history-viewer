@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-20T17:36:57.319Z
- * 총 키 개수: 1537
+ * 생성 시간: 2026-02-20T18:18:08.351Z
+ * 총 키 개수: 1546
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (121개)
+ * common namespace의 번역 키 (122개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -98,6 +98,7 @@ export type CommonKeys =
   | 'common.restartApp'
   | 'common.retry'
   | 'common.save'
+  | 'common.saving'
   | 'common.selectFolder'
   | 'common.settings.changeFolder'
   | 'common.settings.checkUpdate'
@@ -324,7 +325,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (144개)
+ * session namespace의 번역 키 (152개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -332,6 +333,7 @@ export type SessionKeys =
   | 'project.collapseSidebar'
   | 'project.count'
   | 'project.expandSidebar'
+  | 'project.explorer'
   | 'project.globalStats'
   | 'project.globalStatsDescription'
   | 'project.groupingDirectory'
@@ -342,6 +344,7 @@ export type SessionKeys =
   | 'project.main'
   | 'project.notFound'
   | 'project.removePattern'
+  | 'project.resetProviderFilters'
   | 'project.selectToView'
   | 'project.title'
   | 'project.unhide'
@@ -401,6 +404,12 @@ export type SessionKeys =
   | 'session.claudeCodeSynced'
   | 'session.cliSync.description'
   | 'session.cliSync.title'
+  | 'session.copiedFilePath'
+  | 'session.copiedResumeCommand'
+  | 'session.copiedSessionId'
+  | 'session.copyFilePath'
+  | 'session.copyResumeCommand'
+  | 'session.copySessionId'
   | 'session.count'
   | 'session.filter.clearSearch'
   | 'session.filter.noResults'
@@ -1944,6 +1953,7 @@ export type TranslationKey =
   | 'common.restartApp'
   | 'common.retry'
   | 'common.save'
+  | 'common.saving'
   | 'common.selectFolder'
   | 'common.settings.changeFolder'
   | 'common.settings.checkUpdate'
@@ -2261,6 +2271,7 @@ export type TranslationKey =
   | 'project.collapseSidebar'
   | 'project.count'
   | 'project.expandSidebar'
+  | 'project.explorer'
   | 'project.globalStats'
   | 'project.globalStatsDescription'
   | 'project.groupingDirectory'
@@ -2271,6 +2282,7 @@ export type TranslationKey =
   | 'project.main'
   | 'project.notFound'
   | 'project.removePattern'
+  | 'project.resetProviderFilters'
   | 'project.selectToView'
   | 'project.title'
   | 'project.unhide'
@@ -2391,6 +2403,12 @@ export type TranslationKey =
   | 'session.claudeCodeSynced'
   | 'session.cliSync.description'
   | 'session.cliSync.title'
+  | 'session.copiedFilePath'
+  | 'session.copiedResumeCommand'
+  | 'session.copiedSessionId'
+  | 'session.copyFilePath'
+  | 'session.copyResumeCommand'
+  | 'session.copySessionId'
   | 'session.count'
   | 'session.filter.clearSearch'
   | 'session.filter.noResults'

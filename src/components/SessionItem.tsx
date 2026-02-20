@@ -12,6 +12,9 @@ import {
   RotateCcw,
   Link2,
   Terminal,
+  Copy,
+  FileText,
+  Play,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -171,6 +174,38 @@ export const SessionItem: React.FC<SessionItemProps> = ({
       startEditing();
     },
     [startEditing]
+  );
+
+  const handleCopyToClipboard = useCallback(
+    async (e: React.MouseEvent, text: string, successMsg: string) => {
+      e.stopPropagation();
+      setIsContextMenuOpen(false);
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success(successMsg);
+      } catch {
+        toast.error(t('copyButton.error', 'Copy failed'));
+      }
+    },
+    [t]
+  );
+
+  const handleCopySessionId = useCallback(
+    (e: React.MouseEvent) =>
+      handleCopyToClipboard(e, session.actual_session_id, t('session.copiedSessionId', 'Session ID copied')),
+    [handleCopyToClipboard, session.actual_session_id, t]
+  );
+
+  const handleCopyResumeCommand = useCallback(
+    (e: React.MouseEvent) =>
+      handleCopyToClipboard(e, `claude --resume ${session.actual_session_id}`, t('session.copiedResumeCommand', 'Resume command copied')),
+    [handleCopyToClipboard, session.actual_session_id, t]
+  );
+
+  const handleCopyFilePath = useCallback(
+    (e: React.MouseEvent) =>
+      handleCopyToClipboard(e, session.file_path, t('session.copiedFilePath', 'File path copied')),
+    [handleCopyToClipboard, session.file_path, t]
   );
 
   // Handle native rename action
@@ -382,6 +417,19 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                       </DropdownMenuItem>
                     </>
                   )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleCopySessionId}>
+                    <Copy className="w-3 h-3 mr-2" />
+                    {t("session.copySessionId", "Copy Session ID")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCopyResumeCommand}>
+                    <Play className="w-3 h-3 mr-2" />
+                    {t("session.copyResumeCommand", "Copy Resume Command")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCopyFilePath}>
+                    <FileText className="w-3 h-3 mr-2" />
+                    {t("session.copyFilePath", "Copy File Path")}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
