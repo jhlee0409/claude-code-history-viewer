@@ -430,7 +430,7 @@ pub async fn reset_session_native_name(file_path: String) -> Result<NativeRename
     rename_session_native(file_path, String::new()).await
 }
 
-/// Renames an OpenCode session by updating the session title field in storage JSON.
+/// Renames an `OpenCode` session by updating the session title field in storage JSON.
 #[command]
 pub async fn rename_opencode_session_title(
     session_path: String,
