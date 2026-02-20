@@ -2,7 +2,7 @@
 
 use crate::models::{ClaudeMessage, RawLogEntry};
 use crate::utils::find_line_ranges;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use memmap2::Mmap;
 use rayon::prelude::*;
 use std::fs;
@@ -149,11 +149,149 @@ fn search_in_file(file_path: &PathBuf, query: &str) -> Vec<ClaudeMessage> {
 /// Default limit for search results
 const DEFAULT_SEARCH_LIMIT: usize = 100;
 
+fn has_tool_calls(message: &ClaudeMessage) -> bool {
+    message.tool_use.is_some()
+        || message.tool_use_result.is_some()
+        || message
+            .content
+            .as_ref()
+            .and_then(serde_json::Value::as_array)
+            .map(|arr| {
+                arr.iter().any(|item| {
+                    item.get("type").and_then(serde_json::Value::as_str) == Some("tool_use")
+                        || item.get("type").and_then(serde_json::Value::as_str)
+                            == Some("tool_result")
+                })
+            })
+            .unwrap_or(false)
+}
+
+fn has_errors(message: &ClaudeMessage) -> bool {
+    message.message_type == "error"
+        || message.level.as_deref() == Some("error")
+        || message.stop_reason_system.is_some()
+        || message
+            .content
+            .as_ref()
+            .map(|v| v.to_string().to_lowercase().contains("error"))
+            .unwrap_or(false)
+}
+
+fn has_file_changes(message: &ClaudeMessage) -> bool {
+    let Some(content) = message
+        .content
+        .as_ref()
+        .and_then(serde_json::Value::as_array)
+    else {
+        return false;
+    };
+
+    content.iter().any(|item| {
+        if item.get("type").and_then(serde_json::Value::as_str) != Some("tool_use") {
+            return false;
+        }
+
+        matches!(
+            item.get("name").and_then(serde_json::Value::as_str),
+            Some("Write" | "Edit" | "MultiEdit" | "NotebookEdit")
+        )
+    })
+}
+
+fn parse_filter_date(value: &serde_json::Value) -> Option<DateTime<Utc>> {
+    value.as_str().and_then(|s| {
+        DateTime::parse_from_rfc3339(s)
+            .ok()
+            .map(|dt| dt.with_timezone(&Utc))
+    })
+}
+
+fn matches_filters(message: &ClaudeMessage, filters: &serde_json::Value) -> bool {
+    let Some(obj) = filters.as_object() else {
+        return true;
+    };
+
+    if let Some(message_type) = obj.get("messageType").and_then(serde_json::Value::as_str) {
+        if message_type != "all" && message.message_type != message_type {
+            return false;
+        }
+    }
+
+    if let Some(projects) = obj.get("projects").and_then(serde_json::Value::as_array) {
+        let selected: Vec<&str> = projects
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect();
+        if !selected.is_empty() {
+            let Some(project_name) = message.project_name.as_deref() else {
+                return false;
+            };
+            if !selected.contains(&project_name) {
+                return false;
+            }
+        }
+    }
+
+    if let Some(has_tool_calls_filter) =
+        obj.get("hasToolCalls").and_then(serde_json::Value::as_bool)
+    {
+        let has_calls = has_tool_calls(message);
+        if has_calls != has_tool_calls_filter {
+            return false;
+        }
+    }
+
+    if let Some(has_errors_filter) = obj.get("hasErrors").and_then(serde_json::Value::as_bool) {
+        let has_message_error = has_errors(message);
+        if has_message_error != has_errors_filter {
+            return false;
+        }
+    }
+
+    if let Some(has_file_changes_filter) = obj
+        .get("hasFileChanges")
+        .and_then(serde_json::Value::as_bool)
+    {
+        let has_message_file_changes = has_file_changes(message);
+        if has_message_file_changes != has_file_changes_filter {
+            return false;
+        }
+    }
+
+    if let Some(date_range) = obj.get("dateRange").and_then(serde_json::Value::as_array) {
+        if date_range.len() == 2 {
+            let start = parse_filter_date(&date_range[0]);
+            let end = parse_filter_date(&date_range[1]);
+            if let (Some(start_at), Some(end_at)) = (start, end) {
+                let message_ts = DateTime::parse_from_rfc3339(&message.timestamp)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc));
+                match message_ts {
+                    Some(ts) if ts >= start_at && ts <= end_at => {}
+                    _ => return false,
+                }
+            }
+        }
+    }
+
+    true
+}
+
+pub fn apply_search_filters(
+    messages: Vec<ClaudeMessage>,
+    filters: &serde_json::Value,
+) -> Vec<ClaudeMessage> {
+    messages
+        .into_iter()
+        .filter(|message| matches_filters(message, filters))
+        .collect()
+}
+
 #[tauri::command]
 pub async fn search_messages(
     claude_path: String,
     query: String,
-    _filters: serde_json::Value,
+    filters: serde_json::Value,
     limit: Option<usize>,
 ) -> Result<Vec<ClaudeMessage>, String> {
     #[cfg(debug_assertions)]
@@ -182,6 +320,8 @@ pub async fn search_messages(
         .par_iter()
         .flat_map(|path| search_in_file(path, &query))
         .collect();
+
+    all_messages = apply_search_filters(all_messages, &filters);
 
     // 3. Sort by timestamp descending and truncate to limit
     all_messages.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));

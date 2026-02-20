@@ -5,7 +5,9 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import type { ProviderId, ProviderInfo } from "../../types";
+import i18n from "../../i18n";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 
@@ -33,7 +35,7 @@ export type ProviderSlice = ProviderSliceState & ProviderSliceActions;
 
 const initialProviderState: ProviderSliceState = {
   providers: [],
-  activeProviders: ["claude", "codex", "opencode"],
+  activeProviders: ["claude"],
   isDetectingProviders: false,
 };
 
@@ -59,6 +61,8 @@ export const createProviderSlice: StateCreator<
       set({ providers, activeProviders });
     } catch (error) {
       console.error("Failed to detect providers:", error);
+      set({ activeProviders: ["claude"] });
+      toast.error(i18n.t("common.provider.detectError"));
     } finally {
       set({ isDetectingProviders: false });
     }

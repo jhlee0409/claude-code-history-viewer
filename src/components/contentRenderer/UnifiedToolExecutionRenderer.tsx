@@ -55,7 +55,7 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
 }: Props) {
   const { t } = useTranslation();
 
-  const toolName = (toolUse.name as string) || "Unknown";
+  const toolName = (toolUse.name as string) || "";
   const toolId = (toolUse.id as string) || "";
   const toolInput = (toolUse.input as Record<string, unknown>) ?? {};
   const variant = getToolVariant(toolName);

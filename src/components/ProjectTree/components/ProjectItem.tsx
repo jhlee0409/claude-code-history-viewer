@@ -28,6 +28,11 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       ? getWorktreeLabel(project.actual_path)
       : project.name;
 
+  const providerLabels: Record<string, string> = {
+    codex: t("messageViewer.codex"),
+    opencode: t("messageViewer.opencode"),
+  };
+
   return (
     <div
       role="button"
@@ -143,7 +148,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             project.provider === "opencode" && "bg-blue-500/15 text-blue-600 dark:text-blue-400"
           )}
         >
-          {project.provider === "codex" ? "Codex" : "OpenCode"}
+          {providerLabels[project.provider] ?? project.provider}
         </span>
       )}
 

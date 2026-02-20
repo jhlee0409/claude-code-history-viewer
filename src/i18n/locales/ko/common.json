@@ -87,6 +87,7 @@
   "common.update.upToDate": "최신 버전입니다",
   "common.provider.claude": "Claude Code",
   "common.provider.codex": "Codex CLI",
+  "common.provider.detectError": "프로바이더 감지에 실패했습니다. Claude만 사용합니다.",
   "common.provider.opencode": "OpenCode",
   "common.view": "보기",
   "common.watcher.autoRefresh": "자동 새로고침",

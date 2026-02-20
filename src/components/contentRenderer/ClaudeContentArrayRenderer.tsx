@@ -77,6 +77,23 @@ type NormalizedContentEntry =
       index: number;
     };
 
+const SPECIALIZED_TOOL_RENDERERS = new Set([
+  "Read",
+  "Bash",
+  "Glob",
+  "Grep",
+  "WebFetch",
+  "WebSearch",
+  "MultiEdit",
+  "TodoWrite",
+  "NotebookEdit",
+  "TaskCreate",
+  "TaskUpdate",
+  "TaskOutput",
+  "Write",
+  "Edit",
+]);
+
 const normalizeToolExecutionEntries = (content: unknown[]): NormalizedContentEntry[] => {
   const entries: NormalizedContentEntry[] = [];
   const pendingByToolId = new Map<string, number>();
@@ -95,6 +112,16 @@ const normalizeToolExecutionEntries = (content: unknown[]): NormalizedContentEnt
     }
 
     if (item.type === "tool_use" && typeof item.id === "string") {
+      const toolName = typeof item.name === "string" ? item.name : "";
+      if (SPECIALIZED_TOOL_RENDERERS.has(toolName)) {
+        entries.push({
+          kind: "item",
+          key: `item-${index}`,
+          item,
+          index,
+        });
+        continue;
+      }
       entries.push({
         kind: "toolExecution",
         key: `tool-${index}`,

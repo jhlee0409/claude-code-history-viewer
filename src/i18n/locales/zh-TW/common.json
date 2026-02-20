@@ -87,6 +87,7 @@
   "common.update.upToDate": "已是最新版本",
   "common.provider.claude": "Claude Code",
   "common.provider.codex": "Codex CLI",
+  "common.provider.detectError": "偵測提供者失敗。將僅使用 Claude。",
   "common.provider.opencode": "OpenCode",
   "common.view": "檢視",
   "common.watcher.autoRefresh": "自動重新整理",

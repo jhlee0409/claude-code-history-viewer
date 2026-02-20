@@ -91,6 +91,7 @@ export const createSearchSlice: StateCreator<
             claudePath,
             query,
             activeProviders,
+            filters,
           })
         : await invoke<ClaudeMessage[]>("search_messages", {
             claudePath,

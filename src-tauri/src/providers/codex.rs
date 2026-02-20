@@ -295,14 +295,13 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
             }
             "compacted" => {
                 if let Some(payload) = val.get("payload") {
-                    if let Some(msg) = convert_codex_compacted(
+                    let msg = convert_codex_compacted(
                         payload,
                         &session_id,
                         &line_timestamp,
                         &mut msg_counter,
-                    ) {
-                        messages.push(msg);
-                    }
+                    );
+                    messages.push(msg);
                 }
             }
             _ => {}
@@ -488,10 +487,9 @@ fn extract_text_from_content(item: &Value) -> Option<String> {
         let ctype = c.get("type").and_then(|t| t.as_str()).unwrap_or("");
         if ctype == "input_text" || ctype == "output_text" || ctype == "text" {
             if let Some(text) = c.get("text").and_then(|t| t.as_str()) {
-                let truncated = if text.len() > 200 {
-                    format!("{}...", &text[..200])
-                } else {
-                    text.to_string()
+                let truncated = match text.char_indices().nth(200) {
+                    Some((idx, _)) => format!("{}...", &text[..idx]),
+                    None => text.to_string(),
                 };
                 return Some(truncated);
             }
@@ -767,8 +765,6 @@ fn convert_codex_event(
     let event_type = payload.get("type").and_then(|t| t.as_str())?;
 
     match event_type {
-        // Skip as they are already captured in response_item items and can duplicate content.
-        "token_count" | "agent_reasoning" | "agent_message" | "user_message" => None,
         "task_started" => {
             *counter += 1;
             let mut msg = build_codex_message(
@@ -833,6 +829,7 @@ fn convert_codex_event(
             }));
             Some(msg)
         }
+        // Unsupported/duplicated Codex events are intentionally ignored.
         _ => None,
     }
 }
@@ -842,7 +839,7 @@ fn convert_codex_compacted(
     session_id: &str,
     line_timestamp: &str,
     counter: &mut u64,
-) -> Option<ClaudeMessage> {
+) -> ClaudeMessage {
     *counter += 1;
     let replacement_history_count = payload
         .get("replacement_history")
@@ -864,7 +861,7 @@ fn convert_codex_compacted(
         "trigger": "compacted",
         "replacementHistoryCount": replacement_history_count
     }));
-    Some(msg)
+    msg
 }
 
 fn extract_token_totals(payload: &Value) -> Option<(u32, u32)> {
@@ -895,8 +892,7 @@ fn parse_tool_arguments(arguments: Option<&Value>) -> Value {
         Some(Value::String(s)) => {
             serde_json::from_str(s).unwrap_or_else(|_| Value::Object(serde_json::Map::default()))
         }
-        Some(v @ Value::Object(_)) => v.clone(),
-        Some(v @ Value::Array(_)) => v.clone(),
+        Some(v) if v.is_object() || v.is_array() => v.clone(),
         _ => Value::Object(serde_json::Map::default()),
     }
 }
@@ -1100,6 +1096,57 @@ fn convert_codex_content_array(content: Option<&Value>) -> Option<Value> {
         None
     } else {
         Some(Value::Array(items))
+    }
+}
+
+fn build_codex_message(
+    uuid: String,
+    session_id: &str,
+    timestamp: String,
+    message_type: &str,
+    role: Option<&str>,
+    content: Option<Value>,
+    model: Option<String>,
+) -> ClaudeMessage {
+    let tool_use = if message_type == "assistant" {
+        extract_first_tool_use(content.as_ref())
+    } else {
+        None
+    };
+
+    ClaudeMessage {
+        uuid,
+        parent_uuid: None,
+        session_id: session_id.to_string(),
+        timestamp,
+        message_type: message_type.to_string(),
+        content,
+        project_name: None,
+        tool_use,
+        tool_use_result: None,
+        is_sidechain: None,
+        usage: None,
+        role: role.map(String::from),
+        model,
+        stop_reason: None,
+        cost_usd: None,
+        duration_ms: None,
+        message_id: None,
+        snapshot: None,
+        is_snapshot_update: None,
+        data: None,
+        tool_use_id: None,
+        parent_tool_use_id: None,
+        operation: None,
+        subtype: None,
+        level: None,
+        hook_count: None,
+        hook_infos: None,
+        stop_reason_system: None,
+        prevented_continuation: None,
+        compact_metadata: None,
+        microcompact_metadata: None,
+        provider: Some("codex".to_string()),
     }
 }
 
@@ -1444,8 +1491,7 @@ mod tests {
             "session-1",
             "2026-02-19T12:00:00Z",
             &mut counter,
-        )
-        .expect("compacted should be converted");
+        );
 
         assert_eq!(msg.message_type, "system");
         assert_eq!(msg.subtype.as_deref(), Some("compact_boundary"));
@@ -1645,56 +1691,5 @@ mod tests {
             .iter()
             .all(|m| m.provider.as_deref() == Some("codex")));
         assert!(messages.iter().all(|m| m.session_id == "sess-1"));
-    }
-}
-
-fn build_codex_message(
-    uuid: String,
-    session_id: &str,
-    timestamp: String,
-    message_type: &str,
-    role: Option<&str>,
-    content: Option<Value>,
-    model: Option<String>,
-) -> ClaudeMessage {
-    let tool_use = if message_type == "assistant" {
-        extract_first_tool_use(content.as_ref())
-    } else {
-        None
-    };
-
-    ClaudeMessage {
-        uuid,
-        parent_uuid: None,
-        session_id: session_id.to_string(),
-        timestamp,
-        message_type: message_type.to_string(),
-        content,
-        project_name: None,
-        tool_use,
-        tool_use_result: None,
-        is_sidechain: None,
-        usage: None,
-        role: role.map(String::from),
-        model,
-        stop_reason: None,
-        cost_usd: None,
-        duration_ms: None,
-        message_id: None,
-        snapshot: None,
-        is_snapshot_update: None,
-        data: None,
-        tool_use_id: None,
-        parent_tool_use_id: None,
-        operation: None,
-        subtype: None,
-        level: None,
-        hook_count: None,
-        hook_infos: None,
-        stop_reason_system: None,
-        prevented_continuation: None,
-        compact_metadata: None,
-        microcompact_metadata: None,
-        provider: Some("codex".to_string()),
     }
 }

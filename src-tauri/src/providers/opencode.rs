@@ -3,7 +3,7 @@ use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 /// Convert epoch milliseconds to RFC 3339 string
 fn epoch_ms_to_rfc3339(ms: u64) -> String {
@@ -72,6 +72,9 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let entries = fs::read_dir(&projects_dir).map_err(|e| e.to_string())?;
 
     for entry in entries.flatten() {
+        if entry.file_type().map_or(true, |ft| ft.is_symlink()) {
+            continue;
+        }
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
@@ -119,6 +122,9 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                     entries
                         .flatten()
                         .filter(|e| {
+                            if e.file_type().map_or(true, |ft| ft.is_symlink()) {
+                                return false;
+                            }
                             e.path().extension().and_then(|ext| ext.to_str()) == Some("json")
                         })
                         .count()
@@ -158,6 +164,9 @@ pub fn load_sessions(
     let project_id = project_path
         .strip_prefix("opencode://")
         .unwrap_or(project_path);
+    if !is_safe_storage_id(project_id) {
+        return Err(format!("Invalid OpenCode project path: {project_path}"));
+    }
 
     let sessions_dir = storage_path.join("session").join(project_id);
     if !sessions_dir.exists() {
@@ -170,6 +179,9 @@ pub fn load_sessions(
         .map_err(|e| e.to_string())?
         .flatten()
     {
+        if entry.file_type().map_or(true, |ft| ft.is_symlink()) {
+            continue;
+        }
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
@@ -217,6 +229,9 @@ pub fn load_sessions(
                     entries
                         .flatten()
                         .filter(|e| {
+                            if e.file_type().map_or(true, |ft| ft.is_symlink()) {
+                                return false;
+                            }
                             e.path().extension().and_then(|ext| ext.to_str()) == Some("json")
                         })
                         .count()
@@ -262,7 +277,14 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     if parts.len() < 2 {
         return Err(format!("Invalid OpenCode session path: {session_path}"));
     }
+    let project_id = parts[0];
+    if !is_safe_storage_id(project_id) {
+        return Err(format!("Invalid project_id in path: {session_path}"));
+    }
     let session_id = parts[1];
+    if !is_safe_storage_id(session_id) {
+        return Err(format!("Invalid session_id in path: {session_path}"));
+    }
 
     // Read message files
     let messages_dir = storage_path.join("message").join(session_id);
@@ -276,7 +298,12 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let mut msg_files: Vec<PathBuf> = fs::read_dir(&messages_dir)
         .map_err(|e| e.to_string())?
         .flatten()
-        .map(|e| e.path())
+        .filter_map(|e| {
+            if e.file_type().map_or(true, |ft| ft.is_symlink()) {
+                return None;
+            }
+            Some(e.path())
+        })
         .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
         .collect();
     msg_files.sort();
@@ -411,13 +438,22 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         .map_err(|e| e.to_string())?
         .flatten()
     {
+        if project_entry.file_type().map_or(true, |ft| ft.is_symlink()) {
+            continue;
+        }
         let project_id = project_entry.file_name().to_string_lossy().to_string();
+        if !is_safe_storage_id(&project_id) {
+            continue;
+        }
 
         for session_entry in fs::read_dir(project_entry.path())
             .into_iter()
             .flatten()
             .flatten()
         {
+            if session_entry.file_type().map_or(true, |ft| ft.is_symlink()) {
+                continue;
+            }
             let session_path = session_entry.path();
             if session_path.extension().and_then(|e| e.to_str()) != Some("json") {
                 continue;
@@ -462,6 +498,9 @@ fn get_latest_session_time(sessions_dir: &Path) -> Option<String> {
     let mut latest: Option<String> = None;
 
     for entry in fs::read_dir(sessions_dir).ok()?.flatten() {
+        if entry.file_type().map_or(true, |ft| ft.is_symlink()) {
+            continue;
+        }
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
@@ -495,6 +534,9 @@ fn read_message_parts(parts_dir: &Path) -> Result<Vec<Value>, String> {
         .map_err(|e| e.to_string())?
         .flatten()
     {
+        if entry.file_type().map_or(true, |ft| ft.is_symlink()) {
+            continue;
+        }
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
@@ -527,10 +569,19 @@ fn read_message_parts(parts_dir: &Path) -> Result<Vec<Value>, String> {
 /// Sum two Option<u32> values, treating None as absent (not zero)
 fn sum_opt(a: Option<u32>, b: Option<u32>) -> Option<u32> {
     match (a, b) {
-        (Some(x), Some(y)) => Some(x + y),
+        (Some(x), Some(y)) => Some(x.saturating_add(y)),
         (Some(x), None) | (None, Some(x)) => Some(x),
         (None, None) => None,
     }
+}
+
+fn is_safe_storage_id(id: &str) -> bool {
+    if id.is_empty() {
+        return false;
+    }
+
+    let mut components = Path::new(id).components();
+    matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
 }
 
 fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<f64>) {

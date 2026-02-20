@@ -129,9 +129,12 @@ pub async fn search_all_providers(
     claude_path: Option<String>,
     query: String,
     active_providers: Option<Vec<String>>,
+    filters: Option<Value>,
     limit: Option<usize>,
 ) -> Result<Vec<ClaudeMessage>, String> {
     let max_results = limit.unwrap_or(100);
+    let search_filters =
+        filters.unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::default()));
     let providers_to_search = active_providers.unwrap_or_else(|| {
         vec![
             "claude".to_string(),
@@ -149,7 +152,7 @@ pub async fn search_all_providers(
             match crate::commands::session::search_messages(
                 base,
                 query.clone(),
-                serde_json::Value::Object(serde_json::Map::default()),
+                search_filters.clone(),
                 Some(max_results),
             )
             .await
@@ -192,6 +195,8 @@ pub async fn search_all_providers(
         }
     }
 
+    all_results = crate::commands::session::apply_search_filters(all_results, &search_filters);
+
     // Sort by timestamp descending
     all_results.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
     all_results.truncate(max_results);
@@ -203,17 +208,20 @@ fn merge_tool_execution_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMess
     let mut merged: Vec<ClaudeMessage> = Vec::with_capacity(messages.len());
 
     for msg in messages {
-        let Some((tool_use_id, tool_result_block)) = extract_tool_result_from_message(&msg) else {
+        let tool_results = extract_tool_results_from_message(&msg);
+        if tool_results.is_empty() {
             merged.push(msg);
             continue;
-        };
+        }
 
         let mut did_merge = false;
-        for prev in merged.iter_mut().rev() {
-            if has_matching_tool_use(prev, &tool_use_id) {
-                append_content_block(prev, tool_result_block.clone());
-                did_merge = true;
-                break;
+        for (tool_use_id, tool_result_block) in &tool_results {
+            for prev in merged.iter_mut().rev() {
+                if has_matching_tool_use(prev, tool_use_id) {
+                    append_content_block(prev, tool_result_block.clone());
+                    did_merge = true;
+                    break;
+                }
             }
         }
 
@@ -225,21 +233,24 @@ fn merge_tool_execution_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMess
     merged
 }
 
-fn extract_tool_result_from_message(msg: &ClaudeMessage) -> Option<(String, Value)> {
+fn extract_tool_results_from_message(msg: &ClaudeMessage) -> Vec<(String, Value)> {
     if msg.message_type != "user" {
-        return None;
+        return Vec::new();
     }
 
-    let arr = msg.content.as_ref()?.as_array()?;
-    let first = arr.first()?;
-    if first.get("type").and_then(Value::as_str) != Some("tool_result") {
-        return None;
-    }
-    let tool_use_id = first
-        .get("tool_use_id")
-        .and_then(Value::as_str)?
-        .to_string();
-    Some((tool_use_id, first.clone()))
+    let Some(arr) = msg.content.as_ref().and_then(Value::as_array) else {
+        return Vec::new();
+    };
+
+    arr.iter()
+        .filter_map(|item| {
+            if item.get("type").and_then(Value::as_str) != Some("tool_result") {
+                return None;
+            }
+            let tool_use_id = item.get("tool_use_id").and_then(Value::as_str)?.to_string();
+            Some((tool_use_id, item.clone()))
+        })
+        .collect()
 }
 
 fn has_matching_tool_use(msg: &ClaudeMessage, tool_use_id: &str) -> bool {
@@ -336,5 +347,50 @@ mod tests {
             arr[1].get("type").and_then(Value::as_str),
             Some("tool_result")
         );
+    }
+
+    #[test]
+    fn merge_multiple_tool_results_from_single_message() {
+        let tool_use = make_message(
+            "assistant",
+            serde_json::json!([
+                {
+                    "type": "tool_use",
+                    "id": "call_1",
+                    "name": "Bash",
+                    "input": { "command": "pwd" }
+                },
+                {
+                    "type": "tool_use",
+                    "id": "call_2",
+                    "name": "Bash",
+                    "input": { "command": "ls" }
+                }
+            ]),
+        );
+        let tool_result = make_message(
+            "user",
+            serde_json::json!([
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call_1",
+                    "content": "ok-1"
+                },
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call_2",
+                    "content": "ok-2"
+                }
+            ]),
+        );
+
+        let merged = merge_tool_execution_messages(vec![tool_use, tool_result]);
+        assert_eq!(merged.len(), 1);
+        let arr = merged[0]
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .expect("merged content should be array");
+        assert_eq!(arr.len(), 4);
     }
 }
