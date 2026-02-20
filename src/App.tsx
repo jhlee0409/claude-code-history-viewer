@@ -134,7 +134,7 @@ function App() {
     });
   }, [updateUserSettings]);
 
-  const handleSessionSelect = async (session: ClaudeSession) => {
+  const handleSessionSelect = useCallback(async (session: ClaudeSession) => {
     setIsViewingGlobalStats(false);
     setAnalyticsCurrentView("messages");
 
@@ -148,7 +148,7 @@ function App() {
     }
 
     await selectSession(session);
-  };
+  }, [projects, selectProject, selectSession, setAnalyticsCurrentView]);
 
   useEffect(() => {
     const initialize = async () => {
@@ -194,7 +194,7 @@ function App() {
         ? lng.includes("TW") || lng.includes("HK")
           ? "zh-TW"
           : "zh-CN"
-        : lng.split('common.-')[0];
+        : lng.split('-')[0];
 
       if (
         currentLang &&
@@ -247,6 +247,7 @@ function App() {
 
       // Reset cache for previous project
       analyticsActions.clearAll();
+      setDateFilter({ start: null, end: null });
 
       await selectProject(project);
 
@@ -272,6 +273,7 @@ function App() {
     [
       selectProject,
       analyticsActions,
+      setDateFilter,
     ]
   );
 
@@ -312,7 +314,10 @@ function App() {
     <TooltipProvider>
       <div className="h-screen flex flex-col bg-background">
         {/* Header */}
-        <Header />
+        <Header
+          analyticsActions={analyticsActions}
+          analyticsComputed={computed}
+        />
 
         {/* Main Content */}
         <div className="flex-1 flex overflow-hidden">

@@ -104,7 +104,7 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
     return (
       <Renderer className={styles.container} enableToggle={false}>
         <Renderer.Header
-          title={t("toolResult.taskResult", { defaultValue: "Task Result" })}
+          title={t("toolResult.taskResult")}
           icon={<ListTodo className={cn(layout.iconSize, styles.icon)} />}
           titleClassName={styles.title}
           rightContent={
@@ -143,7 +143,7 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
     return (
       <Renderer className={styles.container} enableToggle={false}>
         <Renderer.Header
-          title={t("toolResult.taskUpdated", { defaultValue: "Task Updated" })}
+          title={t("toolResult.taskUpdated")}
           icon={<ListTodo className={cn(layout.iconSize, styles.icon)} />}
           titleClassName={styles.title}
           rightContent={
@@ -187,7 +187,7 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
     return (
       <Renderer className={styles.container}>
         <Renderer.Header
-          title={t("toolResult.taskList", { defaultValue: "Task List" })}
+          title={t("toolResult.taskList")}
           icon={<ListTodo className={cn(layout.iconSize, styles.icon)} />}
           titleClassName={styles.title}
           rightContent={
@@ -217,7 +217,7 @@ export const TaskResultRenderer = memo(function TaskResultRenderer({ toolResult 
     return (
       <Renderer className={styles.container} enableToggle={false}>
         <Renderer.Header
-          title={t("toolResult.taskResult", { defaultValue: "Task Result" })}
+          title={t("toolResult.taskResult")}
           icon={<ArrowRight className={cn(layout.iconSize, styles.icon)} />}
           titleClassName={styles.title}
         />

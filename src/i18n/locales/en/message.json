@@ -26,6 +26,8 @@
   "messageViewer.branch": "Branch",
   "messageViewer.checkConsole": "Check the console for detailed error information.",
   "messageViewer.claude": "Claude",
+  "messageViewer.codex": "Codex",
+  "messageViewer.opencode": "OpenCode",
   "messageViewer.debugInfo.file": "File: {{fileName}}",
   "messageViewer.debugInfo.firstMessage": "First message: {{timestamp}}",
   "messageViewer.debugInfo.hasMore": "Has more: {{hasMore}}",

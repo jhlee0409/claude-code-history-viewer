@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { isAbsolutePath } from "@/utils/pathUtils";
+import type { ProviderId } from "@/types";
 
 export interface NativeRenameResult {
   success: boolean;
@@ -12,8 +13,12 @@ export interface NativeRenameResult {
 export interface UseNativeRenameReturn {
   isRenaming: boolean;
   error: string | null;
-  renameNative: (filePath: string, newTitle: string) => Promise<NativeRenameResult>;
-  resetNativeName: (filePath: string) => Promise<NativeRenameResult>;
+  renameNative: (
+    filePath: string,
+    newTitle: string,
+    provider?: ProviderId
+  ) => Promise<NativeRenameResult>;
+  resetNativeName: (filePath: string, provider?: ProviderId) => Promise<NativeRenameResult>;
 }
 
 /**
@@ -41,8 +46,44 @@ export const useNativeRename = (): UseNativeRenameReturn => {
   const [error, setError] = useState<string | null>(null);
 
   const renameNative = useCallback(
-    async (filePath: string, newTitle: string): Promise<NativeRenameResult> => {
-      // Validate absolute path before calling backend
+    async (
+      filePath: string,
+      newTitle: string,
+      provider: ProviderId = "claude"
+    ): Promise<NativeRenameResult> => {
+      const normalizedTitle = newTitle.trim();
+
+      if (provider === "opencode") {
+        if (!filePath) {
+          const errorMessage = "Invalid file path: path is required";
+          setError(errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        setIsRenaming(true);
+        setError(null);
+
+        try {
+          return await invoke<NativeRenameResult>("rename_opencode_session_title", {
+            sessionPath: filePath,
+            newTitle: normalizedTitle,
+          });
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          setError(errorMessage);
+          throw new Error(errorMessage);
+        } finally {
+          setIsRenaming(false);
+        }
+      }
+
+      if (provider !== "claude") {
+        const errorMessage = `Native rename is not supported for provider: ${provider}`;
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      // Validate absolute path before calling Claude backend command
       if (!filePath || !isAbsolutePath(filePath)) {
         const errorMessage = "Invalid file path: must be an absolute path";
         setError(errorMessage);
@@ -55,7 +96,7 @@ export const useNativeRename = (): UseNativeRenameReturn => {
       try {
         const result = await invoke<NativeRenameResult>("rename_session_native", {
           filePath,
-          newTitle: newTitle.trim(),
+          newTitle: normalizedTitle,
         });
         return result;
       } catch (err) {
@@ -70,8 +111,11 @@ export const useNativeRename = (): UseNativeRenameReturn => {
   );
 
   const resetNativeName = useCallback(
-    async (filePath: string): Promise<NativeRenameResult> => {
-      return renameNative(filePath, "");
+    async (
+      filePath: string,
+      provider: ProviderId = "claude"
+    ): Promise<NativeRenameResult> => {
+      return renameNative(filePath, "", provider);
     },
     [renameNative]
   );

@@ -11,6 +11,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { TextEditorResult, TextEditorError } from "../../types";
 import { getVariantStyles, layout } from "../renderers";
+import { ToolResultCard } from "./ToolResultCard";
+import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 
 type Props = {
   toolUseId: string;
@@ -23,15 +25,6 @@ const isTextEditorError = (
   return content.type === "text_editor_code_execution_tool_result_error";
 };
 
-const ERROR_MESSAGES: Record<string, string> = {
-  invalid_tool_input: "Invalid input provided",
-  unavailable: "Service temporarily unavailable",
-  too_many_requests: "Rate limit exceeded",
-  execution_time_exceeded: "Execution time limit exceeded",
-  file_not_found: "File not found",
-  permission_denied: "Permission denied",
-};
-
 const TEXT_PREVIEW_LENGTH = 500;
 
 export const TextEditorCodeExecutionToolResultRenderer = memo(
@@ -40,33 +33,24 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
     content,
   }: Props) {
     const { t } = useTranslation();
+    const errorMessages: Record<string, string> = {
+      ...getCommonToolErrorMessages(t),
+      file_not_found: t("toolError.fileNotFound"),
+      permission_denied: t("toolError.permissionDenied"),
+    };
 
     if (isTextEditorError(content)) {
-      const errorStyles = getVariantStyles("error");
-
       return (
-        <div className={cn(layout.rounded, "border", errorStyles.container)}>
-          <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
-            <div className={cn("flex items-center", layout.iconGap)}>
-              <AlertCircle className={cn(layout.iconSize, errorStyles.icon)} />
-              <span className={cn(layout.titleText, errorStyles.title)}>
-                {t("textEditorCodeExecutionToolResultRenderer.error", {
-                  defaultValue: "Text Editor Error",
-                })}
-              </span>
-            </div>
-            <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
-              <span className={cn(layout.monoText, errorStyles.accent)}>
-                {toolUseId}
-              </span>
-            </div>
+        <ToolResultCard
+          title={t("textEditorCodeExecutionToolResultRenderer.error")}
+          icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+          variant="error"
+          toolUseId={toolUseId}
+        >
+          <div className={cn(layout.bodyText, "text-destructive")}>
+            {errorMessages[content.error_code] || content.error_code}
           </div>
-          <div className={layout.contentPadding}>
-            <div className={cn(layout.bodyText, errorStyles.accent)}>
-              {ERROR_MESSAGES[content.error_code] || content.error_code}
-            </div>
-          </div>
-        </div>
+        </ToolResultCard>
       );
     }
 
@@ -93,22 +77,14 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
     const getOperationLabel = () => {
       switch (operation) {
         case "view":
-          return t("textEditorCodeExecutionToolResultRenderer.view", {
-            defaultValue: "View File",
-          });
+          return t("textEditorCodeExecutionToolResultRenderer.view");
         case "create":
-          return t("textEditorCodeExecutionToolResultRenderer.create", {
-            defaultValue: "Create File",
-          });
+          return t("textEditorCodeExecutionToolResultRenderer.create");
         case "delete":
-          return t("textEditorCodeExecutionToolResultRenderer.delete", {
-            defaultValue: "Delete File",
-          });
+          return t("textEditorCodeExecutionToolResultRenderer.delete");
         case "edit":
         default:
-          return t("textEditorCodeExecutionToolResultRenderer.edit", {
-            defaultValue: "Edit File",
-          });
+          return t("textEditorCodeExecutionToolResultRenderer.edit");
       }
     };
 
@@ -119,27 +95,21 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
     };
 
     return (
-      <div className={cn(layout.rounded, "border", warningStyles.container)}>
-        <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
-          <div className={cn("flex items-center", layout.iconGap)}>
+      <ToolResultCard
+        title={getOperationLabel()}
+        icon={
+          <span className={cn("flex items-center", layout.iconGap)}>
             {getOperationIcon()}
             {success !== false ? (
               <CheckCircle className={cn(layout.iconSizeSmall, "text-success")} />
             ) : (
               <AlertCircle className={cn(layout.iconSizeSmall, warningStyles.icon)} />
             )}
-            <span className={cn(layout.titleText, warningStyles.title)}>
-              {getOperationLabel()}
-            </span>
-          </div>
-          <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
-            <span className={cn(layout.monoText, warningStyles.accent)}>
-              {toolUseId}
-            </span>
-          </div>
-        </div>
-
-        <div className={layout.contentPadding}>
+          </span>
+        }
+        variant="warning"
+        toolUseId={toolUseId}
+      >
           {/* File path */}
           {path && (
             <div className={cn(
@@ -160,9 +130,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
                 "cursor-pointer hover:opacity-80",
                 warningStyles.accent
               )}>
-                {t("textEditorCodeExecutionToolResultRenderer.showContent", {
-                  defaultValue: "Show file content",
-                })}
+                {t("textEditorCodeExecutionToolResultRenderer.showContent")}
               </summary>
               <pre className={cn(
                 "mt-2 p-2 overflow-x-auto whitespace-pre-wrap",
@@ -176,8 +144,7 @@ export const TextEditorCodeExecutionToolResultRenderer = memo(
               </pre>
             </details>
           )}
-        </div>
-      </div>
+      </ToolResultCard>
     );
   }
 );

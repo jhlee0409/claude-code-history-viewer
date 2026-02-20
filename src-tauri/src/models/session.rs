@@ -36,6 +36,9 @@ pub struct ClaudeProject {
     /// Git worktree 정보
     #[serde(skip_serializing_if = "Option::is_none")]
     pub git_info: Option<GitInfo>,
+    /// Provider identifier (claude, codex, opencode)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +54,9 @@ pub struct ClaudeSession {
     pub has_tool_use: bool,
     pub has_errors: bool,
     pub summary: Option<String>,
+    /// Provider identifier (claude, codex, opencode)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,6 +86,7 @@ mod tests {
             has_tool_use: true,
             has_errors: false,
             summary: Some("Test conversation".to_string()),
+            provider: None,
         };
 
         let serialized = serde_json::to_string(&session).unwrap();

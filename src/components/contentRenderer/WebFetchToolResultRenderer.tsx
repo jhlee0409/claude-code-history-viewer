@@ -11,6 +11,8 @@ import { Globe, FileText, Clock, AlertCircle, ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
+import { ToolResultCard } from "./ToolResultCard";
+import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 
 /** Web fetch result content structure */
 interface WebFetchResult {
@@ -54,17 +56,6 @@ const isWebFetchError = (
   return content.type === "web_fetch_tool_error";
 };
 
-const ERROR_MESSAGES: Record<string, string> = {
-  invalid_input: "Invalid URL format",
-  url_too_long: "URL exceeds maximum length (250 characters)",
-  url_not_allowed: "URL blocked by domain filtering",
-  url_not_accessible: "Failed to fetch content (HTTP error)",
-  too_many_requests: "Rate limit exceeded",
-  unsupported_content_type: "Content type not supported",
-  max_uses_exceeded: "Maximum web fetch uses exceeded",
-  unavailable: "Service temporarily unavailable",
-};
-
 const TEXT_PREVIEW_LENGTH = 500;
 
 export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRenderer({
@@ -72,31 +63,28 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
   content,
 }: Props) {
   const { t } = useTranslation();
+  const errorMessages: Record<string, string> = {
+    ...getCommonToolErrorMessages(t),
+    invalid_input: t("toolError.invalidUrlFormat"),
+    url_too_long: t("toolError.urlTooLong"),
+    url_not_allowed: t("toolError.urlNotAllowed"),
+    url_not_accessible: t("toolError.urlNotAccessible"),
+    unsupported_content_type: t("toolError.unsupportedContentType"),
+    max_uses_exceeded: t("toolError.maxUsesExceeded"),
+  };
 
   if (isWebFetchError(content)) {
-    const errorStyles = getVariantStyles("error");
-
     return (
-      <div className={cn(layout.rounded, "border", errorStyles.container)}>
-        <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
-          <div className={cn("flex items-center", layout.iconGap)}>
-            <AlertCircle className={cn(layout.iconSize, errorStyles.icon)} />
-            <span className={cn(layout.titleText, errorStyles.title)}>
-              {t("webFetchToolResultRenderer.error", { defaultValue: "Web Fetch Error" })}
-            </span>
-          </div>
-          <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
-            <span className={cn(layout.monoText, errorStyles.accent)}>
-              {toolUseId}
-            </span>
-          </div>
+      <ToolResultCard
+        title={t("webFetchToolResultRenderer.error")}
+        icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+        variant="error"
+        toolUseId={toolUseId}
+      >
+        <div className={cn(layout.bodyText, "text-destructive")}>
+          {errorMessages[content.error_code] || content.error_code}
         </div>
-        <div className={layout.contentPadding}>
-          <div className={cn(layout.bodyText, errorStyles.accent)}>
-            {ERROR_MESSAGES[content.error_code] || content.error_code}
-          </div>
-        </div>
-      </div>
+      </ToolResultCard>
     );
   }
 
@@ -112,7 +100,7 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
         : source.data;
     }
     if (source.type === "base64" && source.media_type === "application/pdf") {
-      return "[PDF Document]";
+      return t("webFetchToolResultRenderer.pdfDocument");
     }
     return null;
   };
@@ -122,86 +110,65 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
   const webStyles = getVariantStyles("web");
 
   return (
-    <div className={cn(layout.rounded, "border", webStyles.container)}>
-      <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
-        <div className={cn("flex items-center", layout.iconGap)}>
-          {isPDF ? (
-            <FileText className={cn(layout.iconSize, webStyles.icon)} />
-          ) : (
-            <Globe className={cn(layout.iconSize, webStyles.icon)} />
+    <ToolResultCard
+      title={t("webFetchToolResultRenderer.title")}
+      icon={
+        isPDF ? (
+          <FileText className={cn(layout.iconSize, webStyles.icon)} />
+        ) : (
+          <Globe className={cn(layout.iconSize, webStyles.icon)} />
+        )
+      }
+      variant="web"
+      toolUseId={toolUseId}
+    >
+      <div className={cn("flex items-center mb-2", layout.iconGap)}>
+        <ExternalLink className={cn(layout.iconSizeSmall, webStyles.accent)} />
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            layout.bodyText,
+            "underline truncate max-w-md",
+            webStyles.accent,
+            "hover:opacity-80"
           )}
-          <span className={cn(layout.titleText, "text-foreground")}>
-            {t("webFetchToolResultRenderer.title", { defaultValue: "Web Fetch Result" })}
-          </span>
-        </div>
-        <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
-          <span className={cn(layout.monoText, webStyles.accent)}>
-            {toolUseId}
-          </span>
-        </div>
+        >
+          {url}
+        </a>
       </div>
 
-      <div className={layout.contentPadding}>
-        {/* URL */}
-        <div className={cn("flex items-center mb-2", layout.iconGap)}>
-          <ExternalLink className={cn(layout.iconSizeSmall, webStyles.accent)} />
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              layout.bodyText,
-              "underline truncate max-w-md",
-              webStyles.accent,
-              "hover:opacity-80"
-            )}
-          >
-            {url}
-          </a>
+      {title && <div className={cn(layout.bodyText, "font-medium mb-2 text-foreground")}>{title}</div>}
+
+      {retrieved_at && (
+        <div className={cn("flex items-center mb-2", layout.iconGap, layout.smallText, webStyles.accent)}>
+          <Clock className={layout.iconSizeSmall} />
+          <span>
+            {t("webFetchToolResultRenderer.retrievedAt")}:{" "}
+            {new Date(retrieved_at).toLocaleString()}
+          </span>
         </div>
+      )}
 
-        {/* Title */}
-        {title && (
-          <div className={cn(layout.bodyText, "font-medium mb-2 text-foreground")}>
-            {title}
-          </div>
-        )}
-
-        {/* Retrieved at */}
-        {retrieved_at && (
-          <div className={cn("flex items-center mb-2", layout.iconGap, layout.smallText, webStyles.accent)}>
-            <Clock className={layout.iconSizeSmall} />
-            <span>
-              {t("webFetchToolResultRenderer.retrievedAt", { defaultValue: "Retrieved" })}:{" "}
-              {new Date(retrieved_at).toLocaleString()}
-            </span>
-          </div>
-        )}
-
-        {/* Content preview */}
-        {preview && (
-          <details className="mt-2">
-            <summary className={cn(
-              layout.smallText,
-              "cursor-pointer hover:opacity-80",
-              webStyles.accent
-            )}>
-              {t("webFetchToolResultRenderer.showContent", {
-                defaultValue: "Show content preview",
-              })}
-            </summary>
-            <pre className={cn(
+      {preview && (
+        <details className="mt-2">
+          <summary className={cn(layout.smallText, "cursor-pointer hover:opacity-80", webStyles.accent)}>
+            {t("webFetchToolResultRenderer.showContent")}
+          </summary>
+          <pre
+            className={cn(
               "mt-2 overflow-x-auto whitespace-pre-wrap bg-muted text-foreground",
               layout.containerPadding,
               layout.rounded,
               layout.smallText,
               layout.codeMaxHeight
-            )}>
-              {preview}
-            </pre>
-          </details>
-        )}
-      </div>
-    </div>
+            )}
+          >
+            {preview}
+          </pre>
+        </details>
+      )}
+    </ToolResultCard>
   );
 });

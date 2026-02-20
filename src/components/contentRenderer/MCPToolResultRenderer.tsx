@@ -5,6 +5,7 @@ import { safeStringify } from "../../utils/jsonUtils";
 import type { MCPToolResultData } from "../../types";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { ToolResultCard } from "./ToolResultCard";
 
 type Props = {
   toolUseId: string;
@@ -33,24 +34,16 @@ export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
     };
 
     return (
-      <div className={cn(layout.rounded, "border border-destructive/30 bg-destructive/10")}>
-        <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
-          <div className={cn("flex items-center", layout.iconGap)}>
-            <AlertCircle className={cn(layout.iconSize, "text-destructive")} />
-            <span className={cn(layout.titleText, "text-destructive")}>
-              {t("mcpToolResultRenderer.error", { defaultValue: "MCP Error" })}
-            </span>
-          </div>
-          <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
-            <span className={cn(layout.monoText, "text-destructive/70")}>{toolUseId}</span>
-          </div>
+      <ToolResultCard
+        title={t("mcpToolResultRenderer.error")}
+        icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+        variant="error"
+        toolUseId={toolUseId}
+      >
+        <div className={cn(layout.bodyText, "text-destructive whitespace-pre-wrap")}>
+          {getErrorMessage()}
         </div>
-        <div className={layout.contentPadding}>
-          <div className={cn(layout.bodyText, "text-destructive whitespace-pre-wrap")}>
-            {getErrorMessage()}
-          </div>
-        </div>
-      </div>
+      </ToolResultCard>
     );
   }
 
@@ -76,7 +69,7 @@ export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
         return (
           <img
             src={`data:${content.mimeType};base64,${content.data}`}
-            alt="MCP result"
+            alt={t("mcpToolResultRenderer.imageAlt")}
             className={cn("max-w-full", layout.rounded)}
           />
         );
@@ -86,7 +79,7 @@ export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
         return (
           <div className={cn(layout.bodyText, "text-foreground")}>
             <span className="font-medium">
-              {t("mcpToolResultRenderer.resource", { defaultValue: "Resource" })}
+              {t("mcpToolResultRenderer.resource")}
               :
             </span>{" "}
             <span className="font-mono">{content.uri}</span>
@@ -105,21 +98,18 @@ export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
   };
 
   return (
-    <div className={cn(layout.rounded, "border border-tool-mcp/30 bg-tool-mcp/10")}>
-      <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
-        <div className={cn("flex items-center", layout.iconGap)}>
+    <ToolResultCard
+      title={t("mcpToolResultRenderer.title")}
+      icon={
+        <span className={cn("flex items-center", layout.iconGap)}>
           <Server className={cn(layout.iconSize, "text-tool-mcp")} />
           <CheckCircle className={cn(layout.iconSizeSmall, "text-success")} />
-          <span className={cn(layout.titleText, "text-foreground")}>
-            {t("mcpToolResultRenderer.title", { defaultValue: "MCP Result" })}
-          </span>
-        </div>
-        <div className={cn("flex items-center shrink-0", layout.iconGap, layout.smallText)}>
-          <span className={cn(layout.monoText, "text-tool-mcp")}>{toolUseId}</span>
-        </div>
-      </div>
-
-      <div className={layout.contentPadding}>{renderContent()}</div>
-    </div>
+        </span>
+      }
+      variant="mcp"
+      toolUseId={toolUseId}
+    >
+      {renderContent()}
+    </ToolResultCard>
   );
 });

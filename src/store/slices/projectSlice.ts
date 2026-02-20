@@ -113,6 +113,7 @@ export const createProjectSlice: StateCreator<
           if (isValid) {
             set({ claudePath: savedPath });
             await get().loadMetadata();
+            await get().detectProviders();
             await get().scanProjects();
             return;
           }
@@ -125,6 +126,7 @@ export const createProjectSlice: StateCreator<
       const claudePath = await invoke<string>("get_claude_folder_path");
       set({ claudePath });
       await get().loadMetadata();
+      await get().detectProviders();
       await get().scanProjects();
     } catch (error) {
       console.error("Failed to initialize app:", error);
@@ -151,15 +153,21 @@ export const createProjectSlice: StateCreator<
   },
 
   scanProjects: async () => {
-    const { claudePath } = get();
+    const { claudePath, activeProviders } = get();
     if (!claudePath) return;
 
     set({ isLoadingProjects: true, error: null });
     try {
       const start = performance.now();
-      const projects = await invoke<ClaudeProject[]>("scan_projects", {
-        claudePath,
-      });
+      const hasNonClaudeProviders = activeProviders.some((p) => p !== "claude");
+      const projects = hasNonClaudeProviders
+        ? await invoke<ClaudeProject[]>("scan_all_projects", {
+            claudePath,
+            activeProviders,
+          })
+        : await invoke<ClaudeProject[]>("scan_projects", {
+            claudePath,
+          });
       const duration = performance.now() - start;
       if (import.meta.env.DEV) {
         console.log(
@@ -201,10 +209,17 @@ export const createProjectSlice: StateCreator<
       isLoadingSessions: true,
     });
     try {
-      const sessions = await invoke<ClaudeSession[]>("load_project_sessions", {
-        projectPath: project.path,
-        excludeSidechain: get().excludeSidechain,
-      });
+      const provider = project.provider ?? "claude";
+      const sessions = provider !== "claude"
+        ? await invoke<ClaudeSession[]>("load_provider_sessions", {
+            provider,
+            projectPath: project.path,
+            excludeSidechain: get().excludeSidechain,
+          })
+        : await invoke<ClaudeSession[]>("load_project_sessions", {
+            projectPath: project.path,
+            excludeSidechain: get().excludeSidechain,
+          });
       set({ sessions });
     } catch (error) {
       console.error("Failed to load project sessions:", error);

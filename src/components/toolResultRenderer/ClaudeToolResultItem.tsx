@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 /**
  * ClaudeToolResultItem - Renders tool execution results
  *
@@ -37,13 +39,13 @@ interface ClaudeToolResultItemProps extends IndexedRendererProps {
   toolResult: Record<string, unknown>;
 }
 
-export const ClaudeToolResultItem = ({
+export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
   toolResult,
   index,
   searchQuery = "",
   isCurrentMatch = false,
   currentMatchIndex = 0,
-}: ClaudeToolResultItemProps) => {
+}: ClaudeToolResultItemProps) {
   const { t } = useTranslation();
   const { renderCopyButton } = useCopyButton();
   const { isDarkMode } = useTheme();
@@ -59,15 +61,16 @@ export const ClaudeToolResultItem = ({
   // Tool ID with search highlighting
   const renderToolUseId = (id: string) => {
     if (!id) return null;
+    const label = `${t("common.toolId")}: ${id}`;
     return searchQuery ? (
       <HighlightedText
-        text={`Tool ID: ${id}`}
+        text={label}
         searchQuery={searchQuery}
         isCurrentMatch={isCurrentMatch}
         currentMatchIndex={currentMatchIndex}
       />
     ) : (
-      <>Tool ID: {id}</>
+      <>{label}</>
     );
   };
 
@@ -320,4 +323,4 @@ export const ClaudeToolResultItem = ({
       </Renderer.Content>
     </Renderer>
   );
-};
+});

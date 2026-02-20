@@ -33,9 +33,7 @@ export const CitationRenderer = memo(function CitationRenderer({
         }
         return (
           <span className={cn(layout.smallText, "text-muted-foreground")}>
-            {t("citationRenderer.charLocation", {
-              defaultValue: "chars {start}-{end}",
-              start: citation.start_char_index,
+            {t("citationRenderer.charLocation", {start: citation.start_char_index,
               end: citation.end_char_index,
             })}
           </span>
@@ -51,13 +49,9 @@ export const CitationRenderer = memo(function CitationRenderer({
         return (
           <span className={cn(layout.smallText, "text-muted-foreground")}>
             {citation.start_page_number === citation.end_page_number
-              ? t("citationRenderer.singlePage", {
-                  defaultValue: "page {page}",
-                  page: citation.start_page_number,
+              ? t("citationRenderer.singlePage", {page: citation.start_page_number,
                 })
-              : t("citationRenderer.pageRange", {
-                  defaultValue: "pages {start}-{end}",
-                  start: citation.start_page_number,
+              : t("citationRenderer.pageRange", {start: citation.start_page_number,
                   end: citation.end_page_number,
                 })}
           </span>
@@ -72,9 +66,7 @@ export const CitationRenderer = memo(function CitationRenderer({
         }
         return (
           <span className={cn(layout.smallText, "text-muted-foreground")}>
-            {t("citationRenderer.blockLocation", {
-              defaultValue: "blocks {start}-{end}",
-              start: citation.start_block_index,
+            {t("citationRenderer.blockLocation", {start: citation.start_block_index,
               end: citation.end_block_index,
             })}
           </span>
@@ -101,7 +93,7 @@ export const CitationRenderer = memo(function CitationRenderer({
       <div className={cn("flex items-center mb-2", layout.iconGap)}>
         <Quote className={cn(layout.iconSizeSmall, "text-info")} />
         <span className={cn(layout.titleText, "text-info")}>
-          {t("citationRenderer.title", { defaultValue: "Citations" })} (
+          {t("citationRenderer.title")} (
           {citations.length})
         </span>
       </div>

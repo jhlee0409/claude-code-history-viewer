@@ -14,12 +14,14 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Terminal } from "lucide-react";
 import { useNativeRename } from "@/hooks/useNativeRename";
+import type { ProviderId } from "@/types";
 
 interface NativeRenameDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   filePath: string;
   currentName: string;
+  provider?: ProviderId;
   onSuccess?: (newTitle: string) => void;
 }
 
@@ -28,12 +30,14 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
   onOpenChange,
   filePath,
   currentName,
+  provider = "claude",
   onSuccess,
 }) => {
   const { t } = useTranslation();
   const { renameNative, isRenaming, error } = useNativeRename();
   const [title, setTitle] = useState("");
   const inputId = useId();
+  const isOpenCode = provider === "opencode";
 
   // Extract existing title if present
   useEffect(() => {
@@ -46,7 +50,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const result = await renameNative(filePath, title);
+      const result = await renameNative(filePath, title, provider);
       onSuccess?.(result.new_title);
       onOpenChange(false);
     } catch {
@@ -56,6 +60,9 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
 
   // Get base message (without prefix) for preview
   const baseMessage = currentName.replace(/^\[.+?\]\s*/, "");
+  const previewText = isOpenCode
+    ? (title || t("session.nativeRename.titlePlaceholder"))
+    : `[${title || t("session.nativeRename.titlePlaceholder")}] ${baseMessage.slice(0, 30)}...`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,10 +70,17 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Terminal className="w-5 h-5" />
-            {t("session.nativeRename.title")}
+            {isOpenCode
+              ? t("session.nativeRename.titleOpenCode", "Rename in OpenCode")
+              : t("session.nativeRename.title")}
           </DialogTitle>
           <DialogDescription>
-            {t("session.nativeRename.description")}
+            {isOpenCode
+              ? t(
+                  "session.nativeRename.descriptionOpenCode",
+                  "This updates the OpenCode session title in storage."
+                )
+              : t("session.nativeRename.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -75,7 +89,12 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                {t("session.nativeRename.warning")}
+                {isOpenCode
+                  ? t(
+                      "session.nativeRename.warningOpenCode",
+                      "This operation modifies the OpenCode session metadata file. The change is reversible."
+                    )
+                  : t("session.nativeRename.warning")}
               </AlertDescription>
             </Alert>
 
@@ -97,15 +116,21 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
                 id={inputId}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={t("session.nativeRename.placeholder")}
+                placeholder={
+                  t("session.nativeRename.placeholder")
+                }
                 disabled={isRenaming}
                 autoFocus
               />
               <p className="text-xs text-muted-foreground">
-                {t("session.nativeRename.preview", {
-                  title: title || t("session.nativeRename.titlePlaceholder"),
-                  original: baseMessage.slice(0, 30),
-                })}
+                {isOpenCode
+                  ? t("session.nativeRename.previewOpenCode", {
+                      title: previewText,
+                    })
+                  : t("session.nativeRename.preview", {
+                      title: title || t("session.nativeRename.titlePlaceholder"),
+                      original: baseMessage.slice(0, 30),
+                    })}
               </p>
             </div>
 

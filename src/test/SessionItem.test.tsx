@@ -8,11 +8,18 @@ import { SessionItem } from "../components/SessionItem";
 import type { ClaudeSession } from "../types";
 
 // Mock react-i18next
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback || key,
-  }),
-}));
+vi.mock("react-i18next", async () => {
+  const actual = await vi.importActual<typeof import("react-i18next")>(
+    "react-i18next"
+  );
+
+  return {
+    ...actual,
+    useTranslation: () => ({
+      t: (key: string, fallback?: string) => fallback || key,
+    }),
+  };
+});
 
 // Mock useSessionMetadata hook
 const mockSetCustomName = vi.fn();
@@ -22,6 +29,8 @@ vi.mock("@/hooks/useSessionMetadata", () => ({
     return fallbackSummary || "No summary";
   },
   useSessionMetadata: () => ({
+    hasClaudeCodeName: false,
+    setHasClaudeCodeName: vi.fn(),
     setCustomName: mockSetCustomName,
     customName: undefined,
     starred: false,
@@ -45,8 +54,8 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="dropdown-trigger">{children}</div>
   ),
-  DropdownMenuContent: () => (
-    <div data-testid="dropdown-content" />
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="dropdown-content">{children}</div>
   ),
   DropdownMenuItem: ({
     children,
@@ -81,6 +90,7 @@ function createMockSession(overrides: Partial<ClaudeSession> = {}): ClaudeSessio
     has_tool_use: overrides.has_tool_use ?? false,
     has_errors: overrides.has_errors ?? false,
     summary: overrides.summary,
+    provider: overrides.provider,
   };
 }
 
@@ -426,6 +436,58 @@ describe("SessionItem", () => {
       // Should exit edit mode without saving
       expect(mockSetCustomName).not.toHaveBeenCalled();
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Native rename menu visibility", () => {
+    it("should show Claude native rename menu for claude provider", () => {
+      const session = createMockSession({ provider: "claude" });
+
+      render(
+        <SessionItem
+          session={session}
+          isSelected={false}
+          onSelect={mockOnSelect}
+          formatTimeAgo={mockFormatTimeAgo}
+        />
+      );
+
+      expect(screen.getByText("Rename in Claude Code")).toBeInTheDocument();
+    });
+
+    it("should show OpenCode native rename menu for opencode provider", () => {
+      const session = createMockSession({ provider: "opencode" });
+
+      render(
+        <SessionItem
+          session={session}
+          isSelected={false}
+          onSelect={mockOnSelect}
+          formatTimeAgo={mockFormatTimeAgo}
+        />
+      );
+
+      expect(screen.getByText("Rename in OpenCode")).toBeInTheDocument();
+    });
+
+    it("should hide native rename menu for unsupported provider", () => {
+      const session = createMockSession({ provider: "codex" });
+
+      render(
+        <SessionItem
+          session={session}
+          isSelected={false}
+          onSelect={mockOnSelect}
+          formatTimeAgo={mockFormatTimeAgo}
+        />
+      );
+
+      expect(screen.queryByText("Rename in Claude Code")).not.toBeInTheDocument();
+      expect(screen.queryByText("Rename in OpenCode")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Native rename not supported for this provider")
+      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("dropdown-separator")).not.toBeInTheDocument();
     });
   });
 

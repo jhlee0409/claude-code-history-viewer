@@ -8,7 +8,11 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
+
+use crate::utils::is_safe_storage_id;
 
 lazy_static! {
     /// Regex for validating JSONL filename pattern (alphanumeric, underscore, hyphen only)
@@ -29,6 +33,7 @@ pub struct NativeRenameResult {
 pub enum RenameError {
     FileNotFound(String),
     PermissionDenied(String),
+    InvalidSessionPath(String),
     InvalidJsonFormat(String),
     IoError(String),
     EmptySession,
@@ -42,6 +47,7 @@ impl std::fmt::Display for RenameError {
         match self {
             RenameError::FileNotFound(path) => write!(f, "Session file not found: {path}"),
             RenameError::PermissionDenied(path) => write!(f, "Permission denied: {path}"),
+            RenameError::InvalidSessionPath(msg) => write!(f, "Invalid session path: {msg}"),
             RenameError::InvalidJsonFormat(msg) => write!(f, "Invalid JSON format: {msg}"),
             RenameError::IoError(msg) => write!(f, "I/O error: {msg}"),
             RenameError::EmptySession => write!(f, "Session file is empty"),
@@ -54,6 +60,25 @@ impl std::fmt::Display for RenameError {
             RenameError::InvalidTitle(msg) => write!(f, "Invalid title: {msg}"),
         }
     }
+}
+
+fn parse_opencode_session_path(session_path: &str) -> Result<(String, String), String> {
+    let path_part = session_path
+        .strip_prefix("opencode://")
+        .ok_or_else(|| RenameError::InvalidSessionPath(session_path.to_string()).to_string())?;
+
+    let parts: Vec<&str> = path_part.splitn(2, '/').collect();
+    if parts.len() < 2 {
+        return Err(RenameError::InvalidSessionPath(session_path.to_string()).to_string());
+    }
+
+    let project_id = parts[0];
+    let session_id = parts[1];
+    if !is_safe_storage_id(project_id) || !is_safe_storage_id(session_id) {
+        return Err(RenameError::InvalidSessionPath(session_path.to_string()).to_string());
+    }
+
+    Ok((project_id.to_string(), session_id.to_string()))
 }
 
 /// Renames a Claude Code session by modifying the first user message.
@@ -130,8 +155,12 @@ pub async fn rename_session_native(
     lines[user_message_index] = serde_json::to_string(&user_message)
         .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
 
-    // 12. Write atomically (write to temp, then rename)
-    let temp_path = format!("{file_path}.tmp");
+    // 12. Write atomically (write to temp with unique nonce, then rename)
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let temp_path = format!("{file_path}.{nonce}.tmp");
     {
         let mut temp_file = File::create(&temp_path)
             .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
@@ -399,9 +428,129 @@ pub async fn reset_session_native_name(file_path: String) -> Result<NativeRename
     rename_session_native(file_path, String::new()).await
 }
 
+/// Renames an `OpenCode` session by updating the session title field in storage JSON.
+#[command]
+pub async fn rename_opencode_session_title(
+    session_path: String,
+    new_title: String,
+) -> Result<NativeRenameResult, String> {
+    let (project_id, session_id) = parse_opencode_session_path(&session_path)?;
+
+    let base_path = crate::providers::opencode::get_base_path().ok_or_else(|| {
+        RenameError::FileNotFound("OpenCode base path not found".to_string()).to_string()
+    })?;
+    let session_root = Path::new(&base_path).join("storage").join("session");
+    let session_file = session_root
+        .join(&project_id)
+        .join(format!("{session_id}.json"));
+
+    if !session_file.exists() {
+        return Err(
+            RenameError::FileNotFound(session_file.to_string_lossy().to_string()).to_string(),
+        );
+    }
+
+    if let Ok(metadata) = fs::symlink_metadata(&session_file) {
+        if metadata.file_type().is_symlink() {
+            return Err(RenameError::PermissionDenied(
+                "Session file cannot be a symlink".to_string(),
+            )
+            .to_string());
+        }
+    }
+
+    let canonical_file = session_file
+        .canonicalize()
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+    let canonical_root = session_root
+        .canonicalize()
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+    if !canonical_file.starts_with(&canonical_root) {
+        return Err(RenameError::PermissionDenied(
+            "Session file path is outside OpenCode storage".to_string(),
+        )
+        .to_string());
+    }
+
+    let content = fs::read_to_string(&canonical_file)
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+    let mut session_json: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
+
+    let previous_title = session_json
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let normalized_title = new_title.trim().to_string();
+
+    let Some(session_obj) = session_json.as_object_mut() else {
+        return Err(
+            RenameError::InvalidJsonFormat("Session JSON must be an object".to_string())
+                .to_string(),
+        );
+    };
+
+    if normalized_title.is_empty() {
+        session_obj.remove("title");
+    } else {
+        session_obj.insert(
+            "title".to_string(),
+            serde_json::Value::String(normalized_title.clone()),
+        );
+    }
+
+    let serialized = serde_json::to_string(&session_json)
+        .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let temp_path = canonical_file.with_extension(format!("json.{nonce}.tmp"));
+    fs::write(&temp_path, serialized)
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+
+    #[cfg(target_os = "windows")]
+    {
+        if canonical_file.exists() {
+            fs::remove_file(&canonical_file)
+                .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+        }
+    }
+
+    fs::rename(&temp_path, &canonical_file)
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+
+    Ok(NativeRenameResult {
+        success: true,
+        previous_title,
+        new_title: normalized_title,
+        file_path: session_path,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_opencode_session_path_valid() {
+        let parsed = parse_opencode_session_path("opencode://project_123/session_456").unwrap();
+        assert_eq!(
+            parsed,
+            ("project_123".to_string(), "session_456".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_opencode_session_path_invalid_prefix() {
+        assert!(parse_opencode_session_path("/tmp/invalid").is_err());
+    }
+
+    #[test]
+    fn test_parse_opencode_session_path_rejects_traversal() {
+        assert!(parse_opencode_session_path("opencode://project/../etc").is_err());
+    }
 
     #[test]
     fn test_strip_title_prefix() {

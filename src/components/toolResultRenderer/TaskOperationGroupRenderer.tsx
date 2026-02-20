@@ -113,7 +113,7 @@ const TaskRow = memo(function TaskRow({
       <button
         type="button"
         onClick={hasDescription ? () => setExpanded(!expanded) : undefined}
-        aria-label={hasDescription ? (expanded ? t("taskOperation.collapse", { defaultValue: "Collapse" }) : t("taskOperation.expand", { defaultValue: "Expand" })) : undefined}
+        aria-label={hasDescription ? (expanded ? t("taskOperation.collapse") : t("taskOperation.expand")) : undefined}
         className={cn(
           "w-full flex items-center gap-2 px-2 py-1.5 text-left",
           hasDescription && "hover:bg-muted/50 transition-colors",
@@ -215,7 +215,7 @@ export const TaskOperationGroupRenderer = memo(function TaskOperationGroupRender
         />
         <ListTodo className={cn("w-4 h-4 shrink-0", styles.icon)} />
         <span className={cn(layout.smallText, "font-medium", styles.title)}>
-          {t("taskOperation.taskOperations", { defaultValue: "Task Operations" })}
+          {t("taskOperation.taskOperations")}
         </span>
 
         {/* Summary Badge */}

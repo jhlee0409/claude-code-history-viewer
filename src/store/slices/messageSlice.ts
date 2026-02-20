@@ -122,10 +122,11 @@ export const createMessageSlice: StateCreator<
       const sessionPath = session.file_path;
       const start = performance.now();
 
-      const allMessages = await invoke<ClaudeMessage[]>(
-        "load_session_messages",
-        { sessionPath }
-      );
+      const provider = session.provider ?? "claude";
+      const allMessages = await invoke<ClaudeMessage[]>("load_provider_messages", {
+        provider,
+        sessionPath,
+      });
 
       // Apply sidechain filter
       let filteredMessages = get().excludeSidechain
@@ -196,13 +197,17 @@ export const createMessageSlice: StateCreator<
     try {
       // Refresh project sessions list
       if (selectedProject) {
-        const sessions = await invoke<ClaudeSession[]>(
-          "load_project_sessions",
-          {
-            projectPath: selectedProject.path,
-            excludeSidechain: get().excludeSidechain,
-          }
-        );
+        const provider = selectedProject.provider ?? "claude";
+        const sessions = provider !== "claude"
+          ? await invoke<ClaudeSession[]>("load_provider_sessions", {
+              provider,
+              projectPath: selectedProject.path,
+              excludeSidechain: get().excludeSidechain,
+            })
+          : await invoke<ClaudeSession[]>("load_project_sessions", {
+              projectPath: selectedProject.path,
+              excludeSidechain: get().excludeSidechain,
+            });
         get().setSessions(sessions);
       }
 

@@ -119,7 +119,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
           {task.prompt && (
             <div className="mb-2">
               <div className="text-muted-foreground mb-1">
-                {t("agentTaskGroup.prompt", { defaultValue: "Prompt:" })}
+                {t("agentTaskGroup.prompt")}
               </div>
               <pre className={cn(
                 "p-2 rounded bg-muted/50 text-foreground/80 whitespace-pre-wrap",
@@ -135,7 +135,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
             <div className="flex items-center gap-2">
               <FileText className="w-3 h-3 text-muted-foreground" />
               <span className="text-muted-foreground">
-                {t("agentTaskGroup.transcript", { defaultValue: "Transcript:" })}
+                {t("agentTaskGroup.transcript")}
               </span>
               <code className={cn(
                 layout.monoText,
@@ -150,7 +150,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
                   "p-1 rounded hover:bg-muted transition-colors",
                   "text-muted-foreground hover:text-foreground"
                 )}
-                title={t("agentTaskGroup.copyPath", { defaultValue: "Copy full path" })}
+                title={t("agentTaskGroup.copyPath")}
               >
                 {copied ? (
                   <Check className="w-3 h-3 text-success" />
@@ -219,7 +219,7 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
           />
           <Bot className={cn("w-4 h-4 shrink-0", styles.icon)} />
           <span className={cn(layout.smallText, "font-medium", styles.title)}>
-            {t("agentTaskGroup.agent", { defaultValue: "Agent" })}
+            {t("agentTaskGroup.agent")}
           </span>
           <code className={cn(layout.monoText, "text-muted-foreground")}>
             {task.agentId}
@@ -241,7 +241,7 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
             {task.prompt && (
               <div className="mb-2">
                 <div className="text-muted-foreground mb-1">
-                  {t("agentTaskGroup.prompt", { defaultValue: "Prompt:" })}
+                  {t("agentTaskGroup.prompt")}
                 </div>
                 <pre className={cn(
                   "p-2 rounded bg-muted/50 text-foreground/80 whitespace-pre-wrap",
@@ -257,7 +257,7 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
               <div className="flex items-center gap-2 mt-2">
                 <FileText className="w-3 h-3 text-muted-foreground" />
                 <span className="text-muted-foreground">
-                  {t("agentTaskGroup.transcript", { defaultValue: "Transcript:" })}
+                  {t("agentTaskGroup.transcript")}
                 </span>
                 <code className={cn(
                   layout.monoText,
@@ -293,7 +293,7 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
         />
         <Bot className={cn("w-4 h-4 shrink-0", styles.icon)} />
         <span className={cn(layout.smallText, "font-medium", styles.title)}>
-          {t("agentTaskGroup.parallelTasks", { defaultValue: "Parallel Tasks" })}
+          {t("agentTaskGroup.parallelTasks")}
         </span>
 
         {/* Progress Badge */}
@@ -309,7 +309,7 @@ export const AgentTaskGroupRenderer = memo(function AgentTaskGroupRenderer({
           )}
         >
           {completedCount}/{tasks.length}{" "}
-          {t("agentTaskGroup.completed", { defaultValue: "completed" })}
+          {t("agentTaskGroup.completed")}
         </span>
 
         {/* Running indicator */}

@@ -12,13 +12,18 @@ import {
 
 import { TooltipButton } from "@/shared/TooltipButton";
 import { useAppStore } from "@/store/useAppStore";
-import { useAnalytics } from "@/hooks/useAnalytics";
+import type { UseAnalyticsReturn } from "@/types/analytics";
 
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { SettingDropdown } from "./SettingDropdown";
 
-export const Header = () => {
+interface HeaderProps {
+  analyticsActions: UseAnalyticsReturn["actions"];
+  analyticsComputed: UseAnalyticsReturn["computed"];
+}
+
+export const Header = ({ analyticsActions, analyticsComputed }: HeaderProps) => {
   const { t } = useTranslation();
 
   const {
@@ -28,7 +33,8 @@ export const Header = () => {
     refreshCurrentSession,
   } = useAppStore();
 
-  const { actions: analyticsActions, computed } = useAnalytics();
+  const computed = analyticsComputed;
+  const isClaudeProject = (selectedProject?.provider ?? "claude") === "claude";
 
   const handleLoadTokenStats = async () => {
     if (!selectedProject) return;
@@ -168,8 +174,13 @@ export const Header = () => {
             {/* Session Board */}
             <NavButton
               icon={Columns}
-              label={t("session.board.title")}
+              label={
+                isClaudeProject
+                  ? t("session.board.title")
+                  : `${t("session.board.title")} (Claude only)`
+              }
               isActive={computed.isBoardView}
+              disabled={!isClaudeProject}
               onClick={() => {
                 if (computed.isBoardView) {
                   analyticsActions.switchToMessages();

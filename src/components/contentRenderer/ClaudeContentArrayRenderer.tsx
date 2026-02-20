@@ -10,7 +10,7 @@
  * - Unknown types: Fallback JSON display
  */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { ThinkingRenderer } from "./ThinkingRenderer";
 import { RedactedThinkingRenderer } from "./RedactedThinkingRenderer";
 import { ToolUseRenderer } from "./ToolUseRenderer";
@@ -27,6 +27,7 @@ import { CodeExecutionToolResultRenderer } from "./CodeExecutionToolResultRender
 import { BashCodeExecutionToolResultRenderer } from "./BashCodeExecutionToolResultRenderer";
 import { TextEditorCodeExecutionToolResultRenderer } from "./TextEditorCodeExecutionToolResultRenderer";
 import { ToolSearchToolResultRenderer } from "./ToolSearchToolResultRenderer";
+import { UnifiedToolExecutionRenderer } from "./UnifiedToolExecutionRenderer";
 import { ClaudeToolResultItem } from "../toolResultRenderer";
 import { HighlightedText } from "../common/HighlightedText";
 import { useTranslation } from "react-i18next";
@@ -57,9 +58,73 @@ type Props = {
   skipText?: boolean;
 };
 
-// Type guard for content items
-const isContentItem = (item: unknown): item is Record<string, unknown> => {
+// Broad guard used by normalization; this intentionally does not require a "type" field.
+const isObjectItem = (item: unknown): item is Record<string, unknown> => {
   return item !== null && typeof item === "object";
+};
+
+type NormalizedContentEntry =
+  | {
+      kind: "toolExecution";
+      key: string;
+      toolUse: Record<string, unknown>;
+      toolResults: Record<string, unknown>[];
+    }
+  | {
+      kind: "item";
+      key: string;
+      item: unknown;
+      index: number;
+    };
+
+const normalizeToolExecutionEntries = (content: unknown[]): NormalizedContentEntry[] => {
+  const entries: NormalizedContentEntry[] = [];
+  const pendingByToolId = new Map<string, number>();
+
+  for (let index = 0; index < content.length; index += 1) {
+    const item = content[index];
+
+    if (!isObjectItem(item)) {
+      entries.push({
+        kind: "item",
+        key: `item-${index}`,
+        item,
+        index,
+      });
+      continue;
+    }
+
+    if (item.type === "tool_use" && typeof item.id === "string") {
+      entries.push({
+        kind: "toolExecution",
+        key: `tool-${index}`,
+        toolUse: item,
+        toolResults: [],
+      });
+      pendingByToolId.set(item.id, entries.length - 1);
+      continue;
+    }
+
+    if (typeof item.tool_use_id === "string") {
+      const targetEntryIndex = pendingByToolId.get(item.tool_use_id);
+      if (targetEntryIndex !== undefined) {
+        const targetEntry = entries[targetEntryIndex];
+        if (targetEntry?.kind === "toolExecution") {
+          targetEntry.toolResults.push(item);
+          continue;
+        }
+      }
+    }
+
+    entries.push({
+      kind: "item",
+      key: `item-${index}`,
+      item,
+      index,
+    });
+  }
+
+  return entries;
 };
 
 export const ClaudeContentArrayRenderer = memo(({
@@ -72,16 +137,32 @@ export const ClaudeContentArrayRenderer = memo(({
   skipText = false,
 }: Props) => {
   const { t } = useTranslation();
-  if (!Array.isArray(content) || content.length === 0) {
+  const normalizedContent = useMemo(
+    () => (Array.isArray(content) ? normalizeToolExecutionEntries(content) : []),
+    [content]
+  );
+
+  if (normalizedContent.length === 0) {
     return null;
   }
 
   return (
     <div className="space-y-2">
-      {content.map((item, index) => {
-        if (!isContentItem(item)) {
+      {normalizedContent.map((entry) => {
+        if (entry.kind === "toolExecution") {
           return (
-            <div key={index} className={cn(layout.bodyText, "text-muted-foreground")}>
+            <UnifiedToolExecutionRenderer
+              key={entry.key}
+              toolUse={entry.toolUse}
+              toolResults={skipToolResults ? [] : entry.toolResults}
+            />
+          );
+        }
+
+        const { item, index } = entry;
+        if (!isObjectItem(item)) {
+          return (
+            <div key={entry.key} className={cn(layout.bodyText, "text-muted-foreground")}>
               {String(item)}
             </div>
           );
@@ -95,7 +176,7 @@ export const ClaudeContentArrayRenderer = memo(({
             if (typeof item.text === "string") {
               return (
                 <div
-                  key={index}
+                  key={entry.key}
                   className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}
                 >
                   <div className={cn("whitespace-pre-wrap text-foreground", layout.bodyText)}>
@@ -126,11 +207,11 @@ export const ClaudeContentArrayRenderer = memo(({
                 source.media_type
               ) {
                 const imageUrl = `data:${source.media_type};base64,${source.data}`;
-                return <ImageRenderer key={index} imageUrl={imageUrl} />;
+                return <ImageRenderer key={entry.key} imageUrl={imageUrl} />;
               }
               // URL 이미지
               if (source.type === "url" && typeof source.url === "string") {
-                return <ImageRenderer key={index} imageUrl={source.url} />;
+                return <ImageRenderer key={entry.key} imageUrl={source.url} />;
               }
             }
             return null;
@@ -139,7 +220,7 @@ export const ClaudeContentArrayRenderer = memo(({
             if (typeof item.thinking === "string") {
               return (
                 <ThinkingRenderer
-                  key={index}
+                  key={entry.key}
                   thinking={item.thinking}
                   searchQuery={searchQuery}
                   isCurrentMatch={isCurrentMatch}
@@ -150,9 +231,11 @@ export const ClaudeContentArrayRenderer = memo(({
             return null;
 
           case "tool_use":
+            // NOTE: tool_use entries with string ids are normalized into `toolExecution`
+            // and rendered by UnifiedToolExecutionRenderer; this branch handles edge cases.
             return (
               <ToolUseRenderer
-                key={index}
+                key={entry.key}
                 toolUse={item}
                 searchQuery={filterType === "toolId" ? searchQuery : ""}
                 isCurrentMatch={isCurrentMatch}
@@ -164,7 +247,7 @@ export const ClaudeContentArrayRenderer = memo(({
             if (skipToolResults) return null;
             return (
               <ClaudeToolResultItem
-                key={index}
+                key={entry.key}
                 toolResult={item}
                 index={index}
                 searchQuery={filterType === "toolId" ? searchQuery : ""}
@@ -178,7 +261,7 @@ export const ClaudeContentArrayRenderer = memo(({
             const commandContent = typeof item.content === "string" ? item.content : "";
             if (!commandContent) return null;
             return (
-              <div key={index} className={cn("border", layout.containerPadding, layout.rounded, getVariantStyles("system").container)}>
+              <div key={entry.key} className={cn("border", layout.containerPadding, layout.rounded, getVariantStyles("system").container)}>
                 <CommandRenderer text={commandContent} searchQuery={searchQuery} />
               </div>
             );
@@ -189,12 +272,12 @@ export const ClaudeContentArrayRenderer = memo(({
             const reminderContent = typeof item.content === "string" ? item.content : JSON.stringify(item.content);
             return (
               <div
-                key={index}
+                key={entry.key}
                 className={cn("border", layout.containerPadding, layout.rounded, reminderStyles.container)}
               >
                 <div className={cn("flex items-center gap-1.5 mb-1.5", layout.smallText, reminderStyles.title)}>
                   <span className="font-medium">
-                    {t("claudeContentArrayRenderer.systemReminder", { defaultValue: "System Reminder" })}
+                    {t("claudeContentArrayRenderer.systemReminder")}
                   </span>
                 </div>
                 <div className={cn("whitespace-pre-wrap", layout.bodyText, "text-foreground")}>
@@ -216,7 +299,7 @@ export const ClaudeContentArrayRenderer = memo(({
           case "redacted_thinking":
             return (
               <RedactedThinkingRenderer
-                key={index}
+                key={entry.key}
                 data={typeof item.data === "string" ? item.data : ""}
               />
             );
@@ -227,7 +310,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <ServerToolUseRenderer
-                key={index}
+                key={entry.key}
                 id={item.id}
                 name={item.name}
                 input={item.input}
@@ -241,7 +324,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <WebSearchResultRenderer
-                key={index}
+                key={entry.key}
                 toolUseId={item.tool_use_id}
                 content={item.content}
               />
@@ -254,7 +337,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <DocumentRenderer
-                key={index}
+                key={entry.key}
                 document={item}
               />
             );
@@ -266,7 +349,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <SearchResultRenderer
-                key={index}
+                key={entry.key}
                 searchResult={item}
               />
             );
@@ -278,7 +361,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <MCPToolUseRenderer
-                key={index}
+                key={entry.key}
                 id={item.id}
                 serverName={item.server_name}
                 toolName={item.tool_name}
@@ -293,7 +376,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <MCPToolResultRenderer
-                key={index}
+                key={entry.key}
                 toolUseId={item.tool_use_id}
                 content={item.content}
                 isError={item.is_error === true}
@@ -307,7 +390,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <WebFetchToolResultRenderer
-                key={index}
+                key={entry.key}
                 toolUseId={item.tool_use_id}
                 content={item.content}
               />
@@ -320,7 +403,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <CodeExecutionToolResultRenderer
-                key={index}
+                key={entry.key}
                 toolUseId={item.tool_use_id}
                 content={item.content}
               />
@@ -333,7 +416,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <BashCodeExecutionToolResultRenderer
-                key={index}
+                key={entry.key}
                 toolUseId={item.tool_use_id}
                 content={item.content}
               />
@@ -346,7 +429,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <TextEditorCodeExecutionToolResultRenderer
-                key={index}
+                key={entry.key}
                 toolUseId={item.tool_use_id}
                 content={item.content}
               />
@@ -359,7 +442,7 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <ToolSearchToolResultRenderer
-                key={index}
+                key={entry.key}
                 toolUseId={item.tool_use_id}
                 content={item.content}
               />
@@ -371,13 +454,11 @@ export const ClaudeContentArrayRenderer = memo(({
             const warningStyles = getVariantStyles("warning");
             return (
               <div
-                key={index}
+                key={entry.key}
                 className={cn("border", layout.containerPadding, layout.rounded, warningStyles.container)}
               >
                 <div className={cn("mb-2", layout.titleText, warningStyles.title)}>
-                  {t("claudeContentArrayRenderer.unknownContentType", {
-                    defaultValue: "Unknown Content Type: {contentType}",
-                    contentType: itemType,
+                  {t("claudeContentArrayRenderer.unknownContentType", {contentType: itemType,
                   })}
                 </div>
                 <pre className={cn("overflow-auto", layout.smallText, warningStyles.accent)}>

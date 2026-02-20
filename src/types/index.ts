@@ -99,6 +99,8 @@ export type {
   GitWorktreeType,
   GitInfo,
   GitCommit,
+  ProviderId,
+  ProviderInfo,
   ClaudeProject,
   ClaudeSession,
   SearchFilters,

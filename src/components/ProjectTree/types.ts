@@ -47,6 +47,7 @@ export interface ProjectItemProps {
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   variant?: "default" | "main" | "worktree";
+  showProviderBadge?: boolean;
 }
 
 export interface SessionListProps {

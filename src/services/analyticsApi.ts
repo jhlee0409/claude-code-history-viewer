@@ -20,6 +20,23 @@ import type {
 // ============================================================================
 
 const DEFAULT_PAGE_SIZE = 20;
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+async function dedupeInFlight<T>(
+  key: string,
+  fetcher: () => Promise<T>
+): Promise<T> {
+  const existing = inFlightRequests.get(key) as Promise<T> | undefined;
+  if (existing) {
+    return existing;
+  }
+
+  const requestPromise = fetcher().finally(() => {
+    inFlightRequests.delete(key);
+  });
+  inFlightRequests.set(key, requestPromise as Promise<unknown>);
+  return requestPromise;
+}
 
 // ============================================================================
 // Session Token Stats API
@@ -31,18 +48,21 @@ const DEFAULT_PAGE_SIZE = 20;
 export async function fetchSessionTokenStats(
   sessionPath: string
 ): Promise<SessionTokenStats> {
-  const start = performance.now();
+  const key = `sessionTokenStats:${sessionPath}`;
+  return dedupeInFlight(key, async () => {
+    const start = performance.now();
 
-  const stats = await invoke<SessionTokenStats>("get_session_token_stats", {
-    sessionPath,
+    const stats = await invoke<SessionTokenStats>("get_session_token_stats", {
+      sessionPath,
+    });
+
+    if (import.meta.env.DEV) {
+      const duration = performance.now() - start;
+      console.log(`[API] fetchSessionTokenStats: ${duration.toFixed(1)}ms`);
+    }
+
+    return stats;
   });
-
-  if (import.meta.env.DEV) {
-    const duration = performance.now() - start;
-    console.log(`[API] fetchSessionTokenStats: ${duration.toFixed(1)}ms`);
-  }
-
-  return stats;
 }
 
 // ============================================================================
@@ -64,24 +84,27 @@ export async function fetchProjectTokenStats(
   options: FetchProjectTokenStatsOptions = {}
 ): Promise<PaginatedTokenStats> {
   const { offset = 0, limit = DEFAULT_PAGE_SIZE, start_date, end_date } = options;
-  const start = performance.now();
+  const key = `projectTokenStats:${projectPath}:${offset}:${limit}:${start_date ?? ""}:${end_date ?? ""}`;
+  return dedupeInFlight(key, async () => {
+    const start = performance.now();
 
-  const response = await invoke<PaginatedTokenStats>("get_project_token_stats", {
-    projectPath,
-    offset,
-    limit,
-    startDate: start_date,
-    endDate: end_date,
+    const response = await invoke<PaginatedTokenStats>("get_project_token_stats", {
+      projectPath,
+      offset,
+      limit,
+      startDate: start_date,
+      endDate: end_date,
+    });
+
+    if (import.meta.env.DEV) {
+      const duration = performance.now() - start;
+      console.log(
+        `[API] fetchProjectTokenStats: ${duration.toFixed(1)}ms (${response.total_count} sessions, offset=${offset})`
+      );
+    }
+
+    return response;
   });
-
-  if (import.meta.env.DEV) {
-    const duration = performance.now() - start;
-    console.log(
-      `[API] fetchProjectTokenStats: ${duration.toFixed(1)}ms (${response.total_count} sessions, offset=${offset})`
-    );
-  }
-
-  return response;
 }
 
 // ============================================================================
@@ -96,22 +119,25 @@ export async function fetchProjectStatsSummary(
   options: { start_date?: string; end_date?: string } = {}
 ): Promise<ProjectStatsSummary> {
   const { start_date, end_date } = options;
-  const start = performance.now();
+  const key = `projectStatsSummary:${projectPath}:${start_date ?? ""}:${end_date ?? ""}`;
+  return dedupeInFlight(key, async () => {
+    const start = performance.now();
 
-  const summary = await invoke<ProjectStatsSummary>("get_project_stats_summary", {
-    projectPath,
-    startDate: start_date,
-    endDate: end_date,
+    const summary = await invoke<ProjectStatsSummary>("get_project_stats_summary", {
+      projectPath,
+      startDate: start_date,
+      endDate: end_date,
+    });
+
+    if (import.meta.env.DEV) {
+      const duration = performance.now() - start;
+      console.log(
+        `[API] fetchProjectStatsSummary: ${duration.toFixed(1)}ms (${summary.total_sessions} sessions)`
+      );
+    }
+
+    return summary;
   });
-
-  if (import.meta.env.DEV) {
-    const duration = performance.now() - start;
-    console.log(
-      `[API] fetchProjectStatsSummary: ${duration.toFixed(1)}ms (${summary.total_sessions} sessions)`
-    );
-  }
-
-  return summary;
 }
 
 // ============================================================================
@@ -125,19 +151,22 @@ export async function fetchSessionComparison(
   sessionId: string,
   projectPath: string
 ): Promise<SessionComparison> {
-  const start = performance.now();
+  const key = `sessionComparison:${projectPath}:${sessionId}`;
+  return dedupeInFlight(key, async () => {
+    const start = performance.now();
 
-  const comparison = await invoke<SessionComparison>("get_session_comparison", {
-    sessionId,
-    projectPath,
+    const comparison = await invoke<SessionComparison>("get_session_comparison", {
+      sessionId,
+      projectPath,
+    });
+
+    if (import.meta.env.DEV) {
+      const duration = performance.now() - start;
+      console.log(`[API] fetchSessionComparison: ${duration.toFixed(1)}ms`);
+    }
+
+    return comparison;
   });
-
-  if (import.meta.env.DEV) {
-    const duration = performance.now() - start;
-    console.log(`[API] fetchSessionComparison: ${duration.toFixed(1)}ms`);
-  }
-
-  return comparison;
 }
 
 // ============================================================================
@@ -157,22 +186,25 @@ export async function fetchRecentEdits(
   options: FetchRecentEditsOptions = {}
 ): Promise<PaginatedRecentEdits> {
   const { offset = 0, limit = DEFAULT_PAGE_SIZE } = options;
-  const start = performance.now();
+  const key = `recentEdits:${projectPath}:${offset}:${limit}`;
+  return dedupeInFlight(key, async () => {
+    const start = performance.now();
 
-  const result = await invoke<PaginatedRecentEdits>("get_recent_edits", {
-    projectPath,
-    offset,
-    limit,
+    const result = await invoke<PaginatedRecentEdits>("get_recent_edits", {
+      projectPath,
+      offset,
+      limit,
+    });
+
+    if (import.meta.env.DEV) {
+      const duration = performance.now() - start;
+      console.log(
+        `[API] fetchRecentEdits: ${duration.toFixed(1)}ms (${result.unique_files_count} files, offset=${offset})`
+      );
+    }
+
+    return result;
   });
-
-  if (import.meta.env.DEV) {
-    const duration = performance.now() - start;
-    console.log(
-      `[API] fetchRecentEdits: ${duration.toFixed(1)}ms (${result.unique_files_count} files, offset=${offset})`
-    );
-  }
-
-  return result;
 }
 
 // ============================================================================
@@ -185,19 +217,21 @@ export async function fetchRecentEdits(
 export async function fetchGlobalStatsSummary(
   claudePath: string
 ): Promise<GlobalStatsSummary> {
-  const start = performance.now();
+  const key = `globalStatsSummary:${claudePath}`;
+  return dedupeInFlight(key, async () => {
+    const start = performance.now();
 
-  const summary = await invoke<GlobalStatsSummary>("get_global_stats_summary", {
-    claudePath,
+    const summary = await invoke<GlobalStatsSummary>("get_global_stats_summary", {
+      claudePath,
+    });
+
+    if (import.meta.env.DEV) {
+      const duration = performance.now() - start;
+      console.log(
+        `[API] fetchGlobalStatsSummary: ${duration.toFixed(1)}ms (${summary.total_projects} projects)`
+      );
+    }
+
+    return summary;
   });
-
-  if (import.meta.env.DEV) {
-    const duration = performance.now() - start;
-    console.log(
-      `[API] fetchGlobalStatsSummary: ${duration.toFixed(1)}ms (${summary.total_projects} projects)`
-    );
-  }
-
-  return summary;
 }
-

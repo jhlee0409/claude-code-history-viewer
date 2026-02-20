@@ -15,6 +15,7 @@ interface GroupedProjectListProps {
   directoryGroups: DirectoryGroup[];
   worktreeGroups: WorktreeGroup[];
   ungroupedProjects?: ClaudeProject[];
+  showProviderBadge?: boolean;
   sessions: ClaudeSession[];
   selectedProject: ClaudeProject | null;
   selectedSession: ClaudeSession | null;
@@ -36,6 +37,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   directoryGroups,
   worktreeGroups,
   ungroupedProjects,
+  showProviderBadge = true,
   sessions,
   selectedProject,
   selectedSession,
@@ -86,6 +88,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           onClick={() => handleProjectClick(project)}
           onContextMenu={(e) => handleContextMenu(e, project)}
           variant={variant}
+          showProviderBadge={showProviderBadge}
         />
         {showSessions && (
           <SessionList

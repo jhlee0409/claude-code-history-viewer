@@ -58,6 +58,10 @@ import {
   type NavigatorSlice,
   createNavigatorSlice,
 } from "./slices/navigatorSlice";
+import {
+  type ProviderSlice,
+  createProviderSlice,
+} from "./slices/providerSlice";
 
 // Re-export types for backward compatibility
 export type {
@@ -82,7 +86,8 @@ export type AppStore = ProjectSlice &
   FilterSlice &
   NavigationSlice &
   WatcherSlice &
-  NavigatorSlice;
+  NavigatorSlice &
+  ProviderSlice;
 
 // ============================================================================
 // Store Creation
@@ -102,4 +107,5 @@ export const useAppStore = create<AppStore>()((...args) => ({
   ...createNavigationSlice(...args),
   ...createWatcherSlice(...args),
   ...createNavigatorSlice(...args),
+  ...createProviderSlice(...args),
 }));

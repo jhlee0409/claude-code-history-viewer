@@ -1,13 +1,31 @@
 //! File edit and restore functions
 
-use crate::models::{RawLogEntry, RecentFileEdit};
+use crate::models::{ClaudeMessage, RawLogEntry, RecentFileEdit};
+use crate::providers;
 use crate::utils::find_line_ranges;
 use memmap2::Mmap;
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EditsProvider {
+    Claude,
+    Codex,
+    OpenCode,
+}
+
+fn detect_project_provider(project_path: &str) -> EditsProvider {
+    if project_path.starts_with("codex://") {
+        EditsProvider::Codex
+    } else if project_path.starts_with("opencode://") {
+        EditsProvider::OpenCode
+    } else {
+        EditsProvider::Claude
+    }
+}
 
 /// Intermediate result from processing a single session file (for parallel processing)
 struct SessionEditsResult {
@@ -168,62 +186,263 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
     Some(SessionEditsResult { edits, cwd_counts })
 }
 
-/// Paginated response for recent edits
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct PaginatedRecentEdits {
-    pub files: Vec<RecentFileEdit>,
-    pub total_edits_count: usize,
-    pub unique_files_count: usize,
-    pub project_cwd: Option<String>,
-    pub offset: usize,
-    pub limit: usize,
-    pub has_more: bool,
+fn resolve_provider_project_cwd(provider: EditsProvider, project_path: &str) -> Option<String> {
+    match provider {
+        EditsProvider::Claude => Some(project_path.to_string()),
+        EditsProvider::Codex => {
+            let cwd = project_path
+                .strip_prefix("codex://")
+                .unwrap_or(project_path)
+                .to_string();
+            if cwd.is_empty() || cwd == "unknown" {
+                None
+            } else {
+                Some(cwd)
+            }
+        }
+        EditsProvider::OpenCode => {
+            let projects = providers::opencode::scan_projects().ok()?;
+            projects
+                .into_iter()
+                .find(|project| project.path == project_path)
+                .and_then(|project| {
+                    if project.actual_path.is_empty() {
+                        None
+                    } else {
+                        Some(project.actual_path)
+                    }
+                })
+        }
+    }
 }
 
-/// Scan all JSONL files in a project and extract recent file edits/writes
-/// Returns the LATEST content for each unique file path, sorted by timestamp descending
-/// Only includes files that belong to the project's working directory
-/// Supports pagination with offset and limit parameters
-#[tauri::command]
-pub async fn get_recent_edits(
-    project_path: String,
-    offset: Option<usize>,
-    limit: Option<usize>,
-) -> Result<PaginatedRecentEdits, String> {
-    let offset = offset.unwrap_or(0);
-    let limit = limit.unwrap_or(20);
-    // Phase 1: Collect all session files
-    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+fn infer_operation_type(tool_name: &str) -> Option<&'static str> {
+    let normalized = tool_name.to_ascii_lowercase();
 
-    // Phase 2: Process files in parallel
-    let file_results: Vec<SessionEditsResult> = session_files
-        .par_iter()
-        .filter_map(process_session_file_for_edits)
-        .collect();
+    if normalized == "write" || normalized == "create_file" || normalized == "write_to_file" {
+        return Some("write");
+    }
 
-    // Phase 3: Aggregate results with pre-allocated capacity
-    let total_edits_estimate: usize = file_results.iter().map(|r| r.edits.len()).sum();
-    let mut all_edits: Vec<RecentFileEdit> = Vec::with_capacity(total_edits_estimate);
-    let mut cwd_counts: HashMap<String, usize> = HashMap::new();
+    if normalized == "edit"
+        || normalized == "multiedit"
+        || normalized == "replace_file_content"
+        || normalized == "replace"
+        || normalized == "apply_patch"
+    {
+        return Some("edit");
+    }
 
-    for result in file_results {
-        all_edits.extend(result.edits);
-        for (cwd, count) in result.cwd_counts {
-            *cwd_counts.entry(cwd).or_insert(0) += count;
+    None
+}
+
+fn get_first_string(value: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        if let Some(raw) = value.get(*key).and_then(serde_json::Value::as_str) {
+            if !raw.is_empty() {
+                return Some(raw.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn resolve_file_path_from_input(input: &serde_json::Value) -> Option<String> {
+    get_first_string(
+        input,
+        &["file_path", "path", "filePath", "TargetFile", "target_file"],
+    )
+}
+
+fn normalize_relative_path(path: &str, project_cwd: Option<&str>) -> String {
+    let input_path = Path::new(path);
+    if input_path.is_absolute() {
+        return path.to_string();
+    }
+
+    if let Some(cwd) = project_cwd {
+        return Path::new(cwd)
+            .join(input_path)
+            .to_string_lossy()
+            .to_string();
+    }
+
+    path.to_string()
+}
+
+fn parse_patch_file_paths(patch: &str) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut files = Vec::new();
+
+    for line in patch.lines() {
+        let candidate = line
+            .strip_prefix("*** Update File: ")
+            .or_else(|| line.strip_prefix("*** Add File: "))
+            .or_else(|| line.strip_prefix("*** Delete File: "))
+            .or_else(|| line.strip_prefix("+++ "))
+            .or_else(|| line.strip_prefix("--- "));
+
+        let Some(raw_path) = candidate else {
+            continue;
+        };
+
+        let trimmed = raw_path.trim();
+        if trimmed.is_empty() || trimmed == "/dev/null" {
+            continue;
+        }
+
+        let normalized = trimmed
+            .strip_prefix("a/")
+            .or_else(|| trimmed.strip_prefix("b/"))
+            .unwrap_or(trimmed)
+            .to_string();
+
+        if seen.insert(normalized.clone()) {
+            files.push(normalized);
         }
     }
 
-    // Find the most common cwd (project directory)
-    let project_cwd = cwd_counts
-        .into_iter()
-        .max_by_key(|(_, count)| *count)
-        .map(|(cwd, _)| cwd);
+    files
+}
 
+fn get_tool_input_content(input: &serde_json::Value) -> String {
+    if let Some(content) = get_first_string(input, &["content", "new_string", "newString", "patch"])
+    {
+        return content;
+    }
+    input.to_string()
+}
+
+fn build_tool_use_edits(
+    tool_name: &str,
+    input: &serde_json::Value,
+    timestamp: &str,
+    session_id: &str,
+    project_cwd: Option<&str>,
+) -> Vec<RecentFileEdit> {
+    let Some(operation_type) = infer_operation_type(tool_name) else {
+        return Vec::new();
+    };
+
+    let normalized_name = tool_name.to_ascii_lowercase();
+    if normalized_name == "apply_patch" {
+        let patch = get_first_string(input, &["patch"]).unwrap_or_default();
+        if patch.is_empty() {
+            return Vec::new();
+        }
+
+        let lines_added = patch
+            .lines()
+            .filter(|line| line.starts_with('+') && !line.starts_with("+++"))
+            .count();
+        let lines_removed = patch
+            .lines()
+            .filter(|line| line.starts_with('-') && !line.starts_with("---"))
+            .count();
+
+        let files = parse_patch_file_paths(&patch);
+        return files
+            .into_iter()
+            .map(|path| RecentFileEdit {
+                file_path: normalize_relative_path(&path, project_cwd),
+                timestamp: timestamp.to_string(),
+                session_id: session_id.to_string(),
+                operation_type: operation_type.to_string(),
+                content_after_change: patch.clone(),
+                original_content: None,
+                lines_added,
+                lines_removed,
+                cwd: project_cwd.map(str::to_string),
+            })
+            .collect();
+    }
+
+    let Some(path) = resolve_file_path_from_input(input) else {
+        return Vec::new();
+    };
+
+    let content_after_change = get_tool_input_content(input);
+    let lines_added = content_after_change.lines().count();
+    let lines_removed = get_first_string(input, &["old_string", "oldString"])
+        .map(|s| s.lines().count())
+        .unwrap_or(0);
+
+    vec![RecentFileEdit {
+        file_path: normalize_relative_path(&path, project_cwd),
+        timestamp: timestamp.to_string(),
+        session_id: session_id.to_string(),
+        operation_type: operation_type.to_string(),
+        content_after_change,
+        original_content: None,
+        lines_added,
+        lines_removed,
+        cwd: project_cwd.map(str::to_string),
+    }]
+}
+
+fn collect_provider_recent_edits_from_messages(
+    messages: &[ClaudeMessage],
+    project_cwd: Option<&str>,
+) -> Vec<RecentFileEdit> {
+    let mut edits = Vec::new();
+
+    for message in messages {
+        let timestamp = if message.timestamp.is_empty() {
+            "unknown"
+        } else {
+            message.timestamp.as_str()
+        };
+
+        if let Some(content) = &message.content {
+            if let Some(items) = content.as_array() {
+                for item in items {
+                    if item.get("type").and_then(serde_json::Value::as_str) != Some("tool_use") {
+                        continue;
+                    }
+                    let Some(tool_name) = item.get("name").and_then(serde_json::Value::as_str)
+                    else {
+                        continue;
+                    };
+                    let input = item
+                        .get("input")
+                        .cloned()
+                        .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
+                    edits.extend(build_tool_use_edits(
+                        tool_name,
+                        &input,
+                        timestamp,
+                        &message.session_id,
+                        project_cwd,
+                    ));
+                }
+            }
+        }
+
+        if let Some(tool_use) = &message.tool_use {
+            if let Some(tool_name) = tool_use.get("name").and_then(serde_json::Value::as_str) {
+                let input = tool_use
+                    .get("input")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
+                edits.extend(build_tool_use_edits(
+                    tool_name,
+                    &input,
+                    timestamp,
+                    &message.session_id,
+                    project_cwd,
+                ));
+            }
+        }
+    }
+
+    edits
+}
+
+fn paginate_recent_edits(
+    all_edits: Vec<RecentFileEdit>,
+    project_cwd: Option<String>,
+    offset: usize,
+    limit: usize,
+) -> PaginatedRecentEdits {
     // Filter edits to only include files within the project directory
     // Use case-insensitive comparison on Windows for path matching
     let filtered_edits: Vec<RecentFileEdit> = if let Some(ref cwd) = project_cwd {
@@ -270,7 +489,7 @@ pub async fn get_recent_edits(
 
     let has_more = offset + paginated_files.len() < unique_files_count;
 
-    Ok(PaginatedRecentEdits {
+    PaginatedRecentEdits {
         files: paginated_files,
         total_edits_count,
         unique_files_count,
@@ -278,7 +497,104 @@ pub async fn get_recent_edits(
         offset,
         limit,
         has_more,
-    })
+    }
+}
+
+fn get_provider_recent_edits(
+    provider: EditsProvider,
+    project_path: &str,
+    offset: usize,
+    limit: usize,
+) -> Result<PaginatedRecentEdits, String> {
+    let project_cwd = resolve_provider_project_cwd(provider, project_path);
+
+    let sessions = match provider {
+        EditsProvider::Codex => providers::codex::load_sessions(project_path, false)?,
+        EditsProvider::OpenCode => providers::opencode::load_sessions(project_path, false)?,
+        EditsProvider::Claude => {
+            return Err("Claude provider should use legacy edits path".to_string())
+        }
+    };
+
+    let mut all_edits = Vec::new();
+    for session in sessions {
+        let messages = match provider {
+            EditsProvider::Codex => providers::codex::load_messages(&session.file_path)?,
+            EditsProvider::OpenCode => providers::opencode::load_messages(&session.file_path)?,
+            EditsProvider::Claude => Vec::new(),
+        };
+        all_edits.extend(collect_provider_recent_edits_from_messages(
+            &messages,
+            project_cwd.as_deref(),
+        ));
+    }
+
+    Ok(paginate_recent_edits(all_edits, project_cwd, offset, limit))
+}
+
+/// Paginated response for recent edits
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PaginatedRecentEdits {
+    pub files: Vec<RecentFileEdit>,
+    pub total_edits_count: usize,
+    pub unique_files_count: usize,
+    pub project_cwd: Option<String>,
+    pub offset: usize,
+    pub limit: usize,
+    pub has_more: bool,
+}
+
+/// Scan all JSONL files in a project and extract recent file edits/writes
+/// Returns the LATEST content for each unique file path, sorted by timestamp descending
+/// Only includes files that belong to the project's working directory
+/// Supports pagination with offset and limit parameters
+#[tauri::command]
+pub async fn get_recent_edits(
+    project_path: String,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<PaginatedRecentEdits, String> {
+    let offset = offset.unwrap_or(0);
+    let limit = limit.unwrap_or(20);
+    let provider = detect_project_provider(&project_path);
+
+    if provider != EditsProvider::Claude {
+        return get_provider_recent_edits(provider, &project_path, offset, limit);
+    }
+
+    // Phase 1: Collect all session files
+    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+        .map(|e| e.path().to_path_buf())
+        .collect();
+
+    // Phase 2: Process files in parallel
+    let file_results: Vec<SessionEditsResult> = session_files
+        .par_iter()
+        .filter_map(process_session_file_for_edits)
+        .collect();
+
+    // Phase 3: Aggregate results with pre-allocated capacity
+    let total_edits_estimate: usize = file_results.iter().map(|r| r.edits.len()).sum();
+    let mut all_edits: Vec<RecentFileEdit> = Vec::with_capacity(total_edits_estimate);
+    let mut cwd_counts: HashMap<String, usize> = HashMap::new();
+
+    for result in file_results {
+        all_edits.extend(result.edits);
+        for (cwd, count) in result.cwd_counts {
+            *cwd_counts.entry(cwd).or_insert(0) += count;
+        }
+    }
+
+    // Find the most common cwd (project directory)
+    let project_cwd = cwd_counts
+        .into_iter()
+        .max_by_key(|(_, count)| *count)
+        .map(|(cwd, _)| cwd);
+
+    Ok(paginate_recent_edits(all_edits, project_cwd, offset, limit))
 }
 
 /// Restore a file by writing content to the specified path

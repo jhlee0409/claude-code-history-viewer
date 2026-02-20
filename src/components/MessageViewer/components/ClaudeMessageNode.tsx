@@ -20,7 +20,7 @@ import {
 import { AgentTaskGroupRenderer, TaskOperationGroupRenderer } from "../../toolResultRenderer";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 import { isEmptyMessage } from "../helpers/messageHelpers";
-import { isToolUseContent } from "../../../utils/contentTypeGuards";
+import { isToolUseContent, isToolResultContent } from "../../../utils/typeGuards";
 import { MessageHeader } from "./MessageHeader";
 import { SummaryMessage } from "./SummaryMessage";
 import type { MessageNodeProps } from "../types";
@@ -216,6 +216,13 @@ export const ClaudeMessageNode = React.memo(({
     );
   }
 
+  const hasInlineToolResult =
+    Array.isArray(message.content) && message.content.some(isToolResultContent);
+  const shouldRenderLegacyToolResult =
+    (message.type === "user" || message.type === "assistant") &&
+    message.toolUseResult != null &&
+    !hasInlineToolResult;
+
   // Default message rendering
   return (
     <div
@@ -252,10 +259,7 @@ export const ClaudeMessageNode = React.memo(({
                   filterType={filterType}
                   isCurrentMatch={isCurrentMatch}
                   currentMatchIndex={currentMatchIndex}
-                  skipToolResults={
-                    (message.type === "user" || message.type === "assistant") &&
-                    !!message.toolUseResult
-                  }
+                  skipToolResults={shouldRenderLegacyToolResult}
                   skipText={
                     message.type === "assistant" &&
                     !!extractClaudeMessageContent(message)
@@ -271,8 +275,7 @@ export const ClaudeMessageNode = React.memo(({
               message.content.some(isToolUseContent)
             ) && <ClaudeToolUseDisplay toolUse={message.toolUse} />}
 
-          {(message.type === "user" || message.type === "assistant") &&
-            message.toolUseResult && (
+          {shouldRenderLegacyToolResult && (
               <ToolExecutionResultRouter
                 toolResult={message.toolUseResult}
                 depth={0}

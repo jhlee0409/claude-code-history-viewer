@@ -44,7 +44,11 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
               : message.type === "user"
                 ? t("messageViewer.user")
                 : message.type === "assistant"
-                  ? t("messageViewer.claude")
+                  ? (message.provider === "codex"
+                    ? "Codex"
+                    : message.provider === "opencode"
+                      ? "OpenCode"
+                      : t("messageViewer.claude"))
                   : t("messageViewer.system")}
         </span>
         <span>·</span>

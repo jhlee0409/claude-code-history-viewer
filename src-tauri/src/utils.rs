@@ -1,7 +1,8 @@
 use crate::models::{GitInfo, GitWorktreeType};
+use chrono::{DateTime, Utc};
 use memchr::memchr_iter;
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path};
 
 /// Estimated average bytes per JSONL line (used for capacity pre-allocation)
 /// Based on typical Claude message sizes (800-1200 bytes average)
@@ -67,6 +68,42 @@ pub fn estimate_message_count_from_size(file_size: u64) -> usize {
     // Average JSON message is 800-1200 bytes (using AVERAGE_MESSAGE_SIZE_BYTES)
     // Small files are treated as having at least 1 message
     ((file_size as f64 / AVERAGE_MESSAGE_SIZE_BYTES).ceil() as usize).max(1)
+}
+
+/// Parse an RFC3339 timestamp into UTC for robust cross-provider sorting.
+pub fn parse_rfc3339_utc(timestamp: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(timestamp)
+        .ok()
+        .map(|dt| dt.with_timezone(&Utc))
+}
+
+/// Validates that `id` is a single, safe path component (no traversal).
+///
+/// Returns `true` only if `id` is a single normal component (e.g. `"abc-123"`).
+/// Rejects empty strings, path separators, `..`, `.`, and multi-component paths.
+pub fn is_safe_storage_id(id: &str) -> bool {
+    if id.is_empty() {
+        return false;
+    }
+
+    let mut components = Path::new(id).components();
+    matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
+}
+
+/// Recursively searches JSON string values for a lowercase query.
+///
+/// `query_lower` must already be lowercased by the caller.
+pub fn search_json_value_case_insensitive(value: &serde_json::Value, query_lower: &str) -> bool {
+    match value {
+        serde_json::Value::String(s) => s.to_lowercase().contains(query_lower),
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .any(|item| search_json_value_case_insensitive(item, query_lower)),
+        serde_json::Value::Object(obj) => obj
+            .values()
+            .any(|v| search_json_value_case_insensitive(v, query_lower)),
+        _ => false,
+    }
 }
 
 // ===== Git Worktree Detection =====
@@ -419,6 +456,25 @@ mod tests {
         // 1000 bytes -> ceil(1.0) = 1
         let result = estimate_message_count_from_size(1000);
         assert_eq!(result, 1);
+    }
+
+    #[test]
+    fn test_parse_rfc3339_utc_supports_z_and_offset() {
+        let z = parse_rfc3339_utc("2026-02-20T05:00:00Z");
+        let offset = parse_rfc3339_utc("2026-02-20T05:00:00+00:00");
+        assert_eq!(z, offset);
+    }
+
+    #[test]
+    fn test_search_json_value_case_insensitive_ignores_keys() {
+        let value = serde_json::json!({
+            "type": "text",
+            "nested": {
+                "label": "Hello World"
+            }
+        });
+        assert!(!search_json_value_case_insensitive(&value, "type"));
+        assert!(search_json_value_case_insensitive(&value, "hello"));
     }
 
     // ===== Git Worktree Detection Tests =====

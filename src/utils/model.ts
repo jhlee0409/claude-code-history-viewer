@@ -20,6 +20,12 @@ export const getShortModelName = (model: string): string => {
     return `${variant}-${major}.${minor}`;
   }
 
+  // Non-Claude models (OpenAI, Google, etc.) - already human-readable
+  // e.g., "gpt-4.1", "o4-mini", "codex-mini", "gemini-2.5-pro"
+  if (!model.startsWith("claude")) {
+    return model;
+  }
+
   // Fallback: remove date suffix
   return model.replace(/-\d{8}$/, "");
 };

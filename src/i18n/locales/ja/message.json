@@ -26,6 +26,8 @@
   "messageViewer.branch": "ブランチ",
   "messageViewer.checkConsole": "詳細なエラー情報はコンソールで確認してください。",
   "messageViewer.claude": "Claude",
+  "messageViewer.codex": "Codex",
+  "messageViewer.opencode": "OpenCode",
   "messageViewer.debugInfo.file": "ファイル: {{fileName}}",
   "messageViewer.debugInfo.firstMessage": "最初のメッセージ: {{timestamp}}",
   "messageViewer.debugInfo.hasMore": "もっとある: {{hasMore}}",

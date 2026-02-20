@@ -1,9 +1,9 @@
 import { memo } from "react";
 import { FileText, Hash } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "@/shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
+import { ToolUseCard } from "./ToolUseCard";
 
 interface ReadToolInput {
   file_path?: string;
@@ -23,20 +23,12 @@ export const ReadToolRenderer = memo(function ReadToolRenderer({ toolId, input }
   const hasRange = input.offset != null || input.limit != null;
 
   return (
-    <Renderer className={styles.container}>
-      <Renderer.Header
-        title={t("tools.readFile", { defaultValue: "Read" })}
-        icon={<FileText className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        rightContent={
-          toolId && (
-            <code className={cn(layout.monoText, "px-2 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>
-              ID: {toolId}
-            </code>
-          )
-        }
-      />
-      <Renderer.Content>
+    <ToolUseCard
+      title={t("tools.readFile")}
+      icon={<FileText className={cn(layout.iconSize, styles.icon)} />}
+      variant="code"
+      toolId={toolId}
+    >
         <div className={cn("p-2 border bg-card border-border", layout.rounded)}>
           <div className={cn("flex items-center", layout.iconSpacing)}>
             <FileText className={cn(layout.iconSizeSmall, "text-info")} />
@@ -48,18 +40,17 @@ export const ReadToolRenderer = memo(function ReadToolRenderer({ toolId, input }
             {input.offset != null && (
               <span className="flex items-center gap-1">
                 <Hash className={layout.iconSizeSmall} />
-                offset: {input.offset}
+                {t("renderers.readToolRenderer.offset")}: {input.offset}
               </span>
             )}
             {input.limit != null && (
               <span className="flex items-center gap-1">
                 <Hash className={layout.iconSizeSmall} />
-                limit: {input.limit}
+                {t("renderers.readToolRenderer.limit")}: {input.limit}
               </span>
             )}
           </div>
         )}
-      </Renderer.Content>
-    </Renderer>
+    </ToolUseCard>
   );
 });

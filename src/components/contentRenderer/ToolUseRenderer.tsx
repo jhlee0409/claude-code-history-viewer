@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 /**
  * ToolUseRenderer - Renders Claude tool use content
  *
@@ -25,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
 import { FileEditRenderer } from "../toolResultRenderer/FileEditRenderer";
 import { HighlightedText } from "../common";
+import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import {
   type BaseRendererProps,
@@ -47,24 +50,42 @@ import {
   TaskCreateToolRenderer,
   TaskUpdateToolRenderer,
   TaskOutputToolRenderer,
+  TaskToolRenderer,
+  ApplyPatchToolRenderer,
+  UpdatePlanToolRenderer,
 } from "./toolUseRenderers";
 
 interface ToolUseRendererProps extends BaseRendererProps {
   toolUse: Record<string, unknown>;
 }
 
-export const ToolUseRenderer = ({
+export const ToolUseRenderer = memo(function ToolUseRenderer({
   toolUse,
   searchQuery = "",
   isCurrentMatch = false,
   currentMatchIndex = 0,
-}: ToolUseRendererProps) => {
+}: ToolUseRendererProps) {
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
 
   const toolName = (toolUse.name as string) || "Unknown Tool";
   const toolId = (toolUse.id as string) || "";
   const toolInput = (toolUse.input as Record<string, unknown>) ?? {};
+
+  const parseMcpTool = (name: string) => {
+    if (!name.startsWith("mcp__")) {
+      return null;
+    }
+    const rest = name.slice(5);
+    const separatorIndex = rest.indexOf("__");
+    if (separatorIndex < 0) {
+      return { serverName: "mcp", toolName: rest };
+    }
+    return {
+      serverName: rest.slice(0, separatorIndex),
+      toolName: rest.slice(separatorIndex + 2),
+    };
+  };
 
   // Get variant styles based on tool type
   const variant = getToolVariant(toolName);
@@ -73,15 +94,16 @@ export const ToolUseRenderer = ({
   // Tool ID with search highlighting
   const renderToolId = (id: string) => {
     if (!id) return null;
+    const label = `${t("common.id")}: ${id}`;
     return searchQuery ? (
       <HighlightedText
-        text={`ID: ${id}`}
+        text={label}
         searchQuery={searchQuery}
         isCurrentMatch={isCurrentMatch}
         currentMatchIndex={currentMatchIndex}
       />
     ) : (
-      <>ID: {id}</>
+      <>{label}</>
     );
   };
 
@@ -111,6 +133,24 @@ export const ToolUseRenderer = ({
       return <TaskUpdateToolRenderer toolId={toolId} input={toolInput} />;
     case "TaskOutput":
       return <TaskOutputToolRenderer toolId={toolId} input={toolInput} />;
+    case "Task":
+      return <TaskToolRenderer toolId={toolId} input={toolInput} />;
+    case "apply_patch":
+      return <ApplyPatchToolRenderer toolId={toolId} input={toolInput} />;
+    case "update_plan":
+      return <UpdatePlanToolRenderer toolId={toolId} input={toolInput} />;
+  }
+
+  const mcpTool = parseMcpTool(toolName);
+  if (mcpTool) {
+    return (
+      <MCPToolUseRenderer
+        id={toolId}
+        serverName={mcpTool.serverName}
+        toolName={mcpTool.toolName}
+        input={toolInput}
+      />
+    );
   }
 
   // Helper to check if toolInput is a non-null object
@@ -361,4 +401,4 @@ export const ToolUseRenderer = ({
       </Renderer.Content>
     </Renderer>
   );
-};
+});

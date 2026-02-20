@@ -3,6 +3,7 @@ pub mod feedback;
 pub mod fs_utils;
 pub mod mcp_presets;
 pub mod metadata;
+pub mod multi_provider;
 pub mod project;
 pub mod session;
 pub mod settings;

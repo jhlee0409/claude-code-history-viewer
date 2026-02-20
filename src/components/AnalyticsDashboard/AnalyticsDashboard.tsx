@@ -12,7 +12,6 @@ import { BarChart3, Layers, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LoadingState } from "@/components/ui/loading";
 import { useAppStore } from "../../store/useAppStore";
-import { useAnalytics } from "../../hooks/useAnalytics";
 import type { AnalyticsDashboardProps } from "./types";
 import { ProjectStatsView, SessionStatsView, GlobalStatsView } from "./views";
 import { DatePickerHeader } from "../ui/DatePickerHeader";
@@ -29,9 +28,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     isLoadingGlobalStats,
     dateFilter,
     setDateFilter,
+    analytics: analyticsState,
   } = useAppStore();
-
-  const { state: analyticsState } = useAnalytics();
   const [activeTab, setActiveTab] = useState<"project" | "session">("project");
 
   const projectSummary = analyticsState.projectSummary;

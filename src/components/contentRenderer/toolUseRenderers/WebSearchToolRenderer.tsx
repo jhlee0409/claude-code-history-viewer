@@ -1,9 +1,9 @@
 import { memo } from "react";
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "@/shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
+import { ToolUseCard, ToolUsePropertyRow } from "./ToolUseCard";
 
 interface WebSearchToolInput {
   query?: string;
@@ -21,28 +21,18 @@ export const WebSearchToolRenderer = memo(function WebSearchToolRenderer({ toolI
   const styles = getVariantStyles("web");
 
   return (
-    <Renderer className={styles.container}>
-      <Renderer.Header
-        title={t("tools.webSearch", { defaultValue: "WebSearch" })}
-        icon={<Search className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        rightContent={
-          toolId && (
-            <code className={cn(layout.monoText, "px-2 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>
-              ID: {toolId}
-            </code>
-          )
-        }
-      />
-      <Renderer.Content>
+    <ToolUseCard
+      title={t("tools.webSearch")}
+      icon={<Search className={cn(layout.iconSize, styles.icon)} />}
+      variant="web"
+      toolId={toolId}
+    >
         <div className={cn("p-2 border bg-card border-border", layout.rounded, "space-y-1.5")}>
-          <div className="flex items-start gap-2">
-            <span className={cn(layout.smallText, "text-muted-foreground shrink-0 pt-0.5")}>query:</span>
+          <ToolUsePropertyRow label={t("renderers.webSearchToolRenderer.query")}>
             <span className={cn(layout.bodyText, "text-foreground font-medium")}>{input.query ?? ""}</span>
-          </div>
+          </ToolUsePropertyRow>
           {input.allowed_domains && input.allowed_domains.length > 0 && (
-            <div className="flex items-start gap-2">
-              <span className={cn(layout.smallText, "text-muted-foreground shrink-0 pt-0.5")}>allow:</span>
+            <ToolUsePropertyRow label={t("renderers.webSearchToolRenderer.allow")}>
               <div className="flex gap-1 flex-wrap">
                 {input.allowed_domains.map((d) => (
                   <span key={d} className={cn("px-1.5 py-0.5 font-mono", layout.smallText, layout.rounded, "bg-success/20 text-success")}>
@@ -50,11 +40,10 @@ export const WebSearchToolRenderer = memo(function WebSearchToolRenderer({ toolI
                   </span>
                 ))}
               </div>
-            </div>
+            </ToolUsePropertyRow>
           )}
           {input.blocked_domains && input.blocked_domains.length > 0 && (
-            <div className="flex items-start gap-2">
-              <span className={cn(layout.smallText, "text-muted-foreground shrink-0 pt-0.5")}>block:</span>
+            <ToolUsePropertyRow label={t("renderers.webSearchToolRenderer.block")}>
               <div className="flex gap-1 flex-wrap">
                 {input.blocked_domains.map((d) => (
                   <span key={d} className={cn("px-1.5 py-0.5 font-mono", layout.smallText, layout.rounded, "bg-destructive/20 text-destructive")}>
@@ -62,10 +51,9 @@ export const WebSearchToolRenderer = memo(function WebSearchToolRenderer({ toolI
                   </span>
                 ))}
               </div>
-            </div>
+            </ToolUsePropertyRow>
           )}
         </div>
-      </Renderer.Content>
-    </Renderer>
+    </ToolUseCard>
   );
 });

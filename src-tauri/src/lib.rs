@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod models;
+pub mod providers;
 pub mod utils;
 
 #[cfg(test)]
@@ -17,11 +18,15 @@ use crate::commands::{
         save_user_metadata, update_project_metadata, update_session_metadata, update_user_settings,
         MetadataState,
     },
+    multi_provider::{
+        detect_providers, load_provider_messages, load_provider_sessions, scan_all_projects,
+        search_all_providers,
+    },
     project::{get_claude_folder_path, get_git_log, scan_projects, validate_claude_folder},
     session::{
         get_recent_edits, get_session_message_count, load_project_sessions, load_session_messages,
-        load_session_messages_paginated, rename_session_native, reset_session_native_name,
-        restore_file, search_messages,
+        load_session_messages_paginated, rename_opencode_session_title, rename_session_native,
+        reset_session_native_name, restore_file, search_messages,
     },
     settings::{delete_preset, get_preset, load_presets, save_preset},
     stats::{
@@ -113,9 +118,16 @@ pub fn run() {
             // Native session rename commands
             rename_session_native,
             reset_session_native_name,
+            rename_opencode_session_title,
             // File watcher commands
             start_file_watcher,
-            stop_file_watcher
+            stop_file_watcher,
+            // Multi-provider commands
+            detect_providers,
+            scan_all_projects,
+            load_provider_sessions,
+            load_provider_messages,
+            search_all_providers
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -20,6 +20,8 @@ import type {
   SessionMetadata,
   ProjectMetadata,
   UserSettings,
+  ProviderId,
+  ProviderInfo,
 } from "../../types";
 import type { ProjectTokenStatsPagination } from "./messageSlice";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
@@ -162,6 +164,11 @@ export interface AppStoreState {
 
   // Navigator state
   isNavigatorOpen: boolean;
+
+  // Provider state
+  providers: ProviderInfo[];
+  activeProviders: ProviderId[];
+  isDetectingProviders: boolean;
 }
 
 export interface AppStoreActions {
@@ -287,6 +294,11 @@ export interface AppStoreActions {
   // Navigator actions
   toggleNavigator: () => void;
   setNavigatorOpen: (open: boolean) => void;
+
+  // Provider actions
+  detectProviders: () => Promise<void>;
+  toggleProvider: (id: ProviderId) => void;
+  setActiveProviders: (ids: ProviderId[]) => void;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;

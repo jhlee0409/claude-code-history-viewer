@@ -169,6 +169,9 @@ pub struct ClaudeMessage {
         skip_serializing_if = "Option::is_none"
     )]
     pub microcompact_metadata: Option<serde_json::Value>,
+    /// Provider identifier (claude, codex, opencode)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -345,6 +348,7 @@ mod tests {
             prevented_continuation: None,
             compact_metadata: None,
             microcompact_metadata: None,
+            provider: None,
         };
 
         let serialized = serde_json::to_string(&message).unwrap();
@@ -389,6 +393,7 @@ mod tests {
             prevented_continuation: None,
             compact_metadata: None,
             microcompact_metadata: None,
+            provider: None,
         };
 
         let serialized = serde_json::to_string(&message).unwrap();

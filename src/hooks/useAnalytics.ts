@@ -6,13 +6,14 @@
  * 가독성: 명확한 함수명과 예측 가능한 동작
  */
 
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/useAppStore";
 import type { UseAnalyticsReturn } from "../types/analytics";
 
 export const useAnalytics = (): UseAnalyticsReturn => {
   const { t } = useTranslation();
+  const dateFilterKeyRef = useRef<string | null>(null);
   const {
     // Store state
     analytics,
@@ -309,6 +310,13 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       throw new Error(t('common.hooks.noProjectSelected'));
     }
 
+    const provider = project.provider ?? "claude";
+    if (provider !== "claude") {
+      setAnalyticsCurrentView("messages");
+      clearAnalyticsErrors();
+      return;
+    }
+
     try {
       const { boardSessions, loadBoardSessions, dateFilter, setDateFilter, sessions } = useAppStore.getState();
       const hasAnySessionsLoaded = Object.keys(boardSessions).length > 0;
@@ -565,25 +573,41 @@ export const useAnalytics = (): UseAnalyticsReturn => {
    * 사이드 이팩트: 필터 변경 시 토큰 통계 자동 새로고침
    */
   useEffect(() => {
-    if (selectedProject) {
-      const update = async () => {
-        try {
-          if (computed.isTokenStatsView) {
-            await loadProjectTokenStats(selectedProject.path);
-          } else if (computed.isAnalyticsView) {
-            setAnalyticsLoadingProjectSummary(true);
-            const summary = await loadProjectStatsSummary(selectedProject.path);
-            setAnalyticsProjectSummary(summary);
-          }
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : t("common.hooks.projectSummaryLoadFailed");
-          setAnalyticsProjectSummaryError(message);
-          window.alert(message);
-        } finally {
-          setAnalyticsLoadingProjectSummary(false);
+    const currentDateFilterKey = `${dateFilter.start?.getTime() ?? "none"}:${dateFilter.end?.getTime() ?? "none"}`;
+
+    // Skip initial render and only react to real date filter changes.
+    if (dateFilterKeyRef.current === null) {
+      dateFilterKeyRef.current = currentDateFilterKey;
+      return;
+    }
+    if (dateFilterKeyRef.current === currentDateFilterKey) {
+      return;
+    }
+    dateFilterKeyRef.current = currentDateFilterKey;
+
+    if (!selectedProject) {
+      return;
+    }
+
+    const update = async () => {
+      try {
+        if (computed.isTokenStatsView) {
+          await loadProjectTokenStats(selectedProject.path);
+        } else if (computed.isAnalyticsView) {
+          setAnalyticsLoadingProjectSummary(true);
+          const summary = await loadProjectStatsSummary(selectedProject.path);
+          setAnalyticsProjectSummary(summary);
         }
-      };
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : t("common.hooks.projectSummaryLoadFailed");
+        setAnalyticsProjectSummaryError(message);
+      } finally {
+        setAnalyticsLoadingProjectSummary(false);
+      }
+    };
+
+    if (computed.isTokenStatsView || computed.isAnalyticsView) {
       void update();
     }
   }, [

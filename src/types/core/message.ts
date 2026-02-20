@@ -158,6 +158,8 @@ export interface BaseClaudeMessage {
   timestamp: string;
   /** Project name (extracted from file path during search) */
   projectName?: string;
+  /** Provider identifier (claude, codex, opencode) */
+  provider?: import("./session").ProviderId;
   isSidechain?: boolean;
   content?: string | ContentItem[] | Record<string, unknown>;
 }

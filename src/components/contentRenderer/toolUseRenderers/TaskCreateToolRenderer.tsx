@@ -1,9 +1,9 @@
 import { memo } from "react";
 import { ListPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "@/shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
+import { ToolUseCard } from "./ToolUseCard";
 
 interface TaskCreateToolInput {
   subject?: string;
@@ -22,20 +22,12 @@ export const TaskCreateToolRenderer = memo(function TaskCreateToolRenderer({ too
   const styles = getVariantStyles("task");
 
   return (
-    <Renderer className={styles.container}>
-      <Renderer.Header
-        title={t("tools.taskCreate", { defaultValue: "TaskCreate" })}
-        icon={<ListPlus className={cn(layout.iconSize, styles.icon)} />}
-        titleClassName={styles.title}
-        rightContent={
-          toolId && (
-            <code className={cn(layout.monoText, "px-2 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>
-              ID: {toolId}
-            </code>
-          )
-        }
-      />
-      <Renderer.Content>
+    <ToolUseCard
+      title={t("tools.taskCreate")}
+      icon={<ListPlus className={cn(layout.iconSize, styles.icon)} />}
+      variant="task"
+      toolId={toolId}
+    >
         {input.subject && (
           <div className={cn("p-2 border bg-card border-border", layout.rounded, "mb-2")}>
             <div className={cn(layout.smallText, "text-muted-foreground mb-0.5")}>{t("taskOperation.subject")}</div>
@@ -56,7 +48,6 @@ export const TaskCreateToolRenderer = memo(function TaskCreateToolRenderer({ too
             </span>
           </div>
         )}
-      </Renderer.Content>
-    </Renderer>
+    </ToolUseCard>
   );
 });

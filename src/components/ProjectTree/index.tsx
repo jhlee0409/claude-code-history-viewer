@@ -1,5 +1,5 @@
 // src/components/ProjectTree/index.tsx
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Folder,
   Database,
@@ -8,6 +8,7 @@ import {
   GitBranch,
   PanelLeftClose,
   PanelLeft,
+  RotateCcw,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
@@ -17,6 +18,12 @@ import { ProjectContextMenu } from "../ProjectContextMenu";
 import { useProjectTreeState } from "./hooks/useProjectTreeState";
 import { GroupedProjectList } from "./components/GroupedProjectList";
 import type { ProjectTreeProps } from "./types";
+import type { ProviderId } from "../../types";
+
+type ProviderTabId = "all" | ProviderId;
+const PROVIDER_ORDER: ProviderId[] = ["claude", "codex", "opencode"];
+const getProviderId = (project: { provider?: ProviderId }): ProviderId =>
+  project.provider ?? "claude";
 
 export const ProjectTree: React.FC<ProjectTreeProps> = ({
   projects,
@@ -44,6 +51,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   onToggleCollapse,
 }) => {
   const { t, i18n } = useTranslation();
+  const [selectedProviderFilters, setSelectedProviderFilters] = useState<ProviderId[]>([]);
 
   const {
     expandedProjects,
@@ -54,6 +62,139 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     handleContextMenu,
     closeContextMenu,
   } = useProjectTreeState(groupingMode);
+
+  const isAllProvidersSelected = selectedProviderFilters.length === 0;
+  const showProviderBadge = selectedProviderFilters.length !== 1;
+
+  const matchesProviderFilter = useCallback(
+    (project: (typeof projects)[number]) =>
+      isAllProvidersSelected || selectedProviderFilters.includes(getProviderId(project)),
+    [isAllProvidersSelected, selectedProviderFilters]
+  );
+
+  const handleProviderTabClick = useCallback((provider: ProviderTabId) => {
+    if (provider === "all") {
+      setSelectedProviderFilters([]);
+      return;
+    }
+
+    setSelectedProviderFilters((prev) => {
+      if (prev.length === 0) {
+        return [provider];
+      }
+
+      if (prev.includes(provider)) {
+        const next = prev.filter((id) => id !== provider);
+        return next.length > 0 ? next : [];
+      }
+
+      const next = [...prev, provider];
+      return PROVIDER_ORDER.filter((id) => next.includes(id));
+    });
+  }, []);
+
+  const providerCounts = useMemo(() => {
+    const counts: Record<ProviderTabId, number> = {
+      all: projects.length,
+      claude: 0,
+      codex: 0,
+      opencode: 0,
+    };
+
+    for (const project of projects) {
+      counts[getProviderId(project)] += 1;
+    }
+
+    return counts;
+  }, [projects]);
+
+  const filteredProjects = useMemo(
+    () => projects.filter(matchesProviderFilter),
+    [projects, matchesProviderFilter]
+  );
+
+  const filteredDirectoryGroups = useMemo(() => {
+    if (isAllProvidersSelected) {
+      return directoryGroups;
+    }
+
+    return directoryGroups
+      .map((group) => ({
+        ...group,
+        projects: group.projects.filter(matchesProviderFilter),
+      }))
+      .filter((group) => group.projects.length > 0);
+  }, [directoryGroups, isAllProvidersSelected, matchesProviderFilter]);
+
+  const { filteredWorktreeGroups, filteredUngroupedProjects } = useMemo(() => {
+    const baseUngrouped = ungroupedProjects ?? projects;
+
+    if (isAllProvidersSelected) {
+      return {
+        filteredWorktreeGroups: worktreeGroups,
+        filteredUngroupedProjects: baseUngrouped,
+      };
+    }
+
+    const nextGroups: typeof worktreeGroups = [];
+    const movedChildren: (typeof projects)[number][] = [];
+
+    for (const group of worktreeGroups) {
+      const includeParent = matchesProviderFilter(group.parent);
+      const matchingChildren = group.children.filter(matchesProviderFilter);
+
+      if (includeParent) {
+        nextGroups.push({
+          ...group,
+          children: matchingChildren,
+        });
+      } else if (matchingChildren.length > 0) {
+        movedChildren.push(...matchingChildren);
+      }
+    }
+
+    const baseFiltered = baseUngrouped.filter(matchesProviderFilter);
+    const seenPaths = new Set(baseFiltered.map((project) => project.path));
+    const movedChildrenToAdd = movedChildren.filter((child) => {
+      if (seenPaths.has(child.path)) {
+        return false;
+      }
+      seenPaths.add(child.path);
+      return true;
+    });
+    const nextUngrouped = [...baseFiltered, ...movedChildrenToAdd];
+
+    return {
+      filteredWorktreeGroups: nextGroups,
+      filteredUngroupedProjects: nextUngrouped,
+    };
+  }, [worktreeGroups, ungroupedProjects, projects, isAllProvidersSelected, matchesProviderFilter]);
+
+  const providerTabs = useMemo(
+    () => [
+      {
+        id: "all" as const,
+        label: t("session.board.controls.all", "ALL"),
+        count: providerCounts.all,
+      },
+      {
+        id: "claude" as const,
+        label: t("common.provider.claude", "Claude Code"),
+        count: providerCounts.claude,
+      },
+      {
+        id: "codex" as const,
+        label: t("common.provider.codex", "Codex CLI"),
+        count: providerCounts.codex,
+      },
+      {
+        id: "opencode" as const,
+        label: t("common.provider.opencode", "OpenCode"),
+        count: providerCounts.opencode,
+      },
+    ],
+    [providerCounts, t]
+  );
 
   const formatTimeAgo = (dateStr: string) => {
     try {
@@ -154,7 +295,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
               isViewingGlobalStats ? "bg-accent/20 text-accent" : "text-muted-foreground hover:bg-accent/10 hover:text-accent"
             )}
-            title={t("components:project.globalStats", "Global Statistics")}
+            title={t("project.globalStats")}
           >
             <Database className="w-4 h-4" />
           </button>
@@ -164,7 +305,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           {/* Projects Count */}
           <div className="flex flex-col items-center gap-1">
             <Folder className="w-4 h-4 text-muted-foreground" />
-            <span className="text-2xs font-mono text-muted-foreground">{projects.length}</span>
+            <span className="text-2xs font-mono text-muted-foreground">{filteredProjects.length}</span>
           </div>
         </div>
       </aside>
@@ -200,7 +341,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               )}
               <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
               <span className="text-xs font-semibold uppercase tracking-widest text-accent">
-                {t("components:project.explorer", "Explorer")}
+                {t("project.explorer")}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -247,9 +388,59 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 </div>
               )}
               <span className="text-xs font-mono text-accent bg-accent/10 px-2 py-0.5 rounded-full">
-                {projects.length}
+                {filteredProjects.length}
               </span>
             </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {providerTabs.map((tab) => {
+              const isActive = tab.id === "all"
+                ? isAllProvidersSelected
+                : selectedProviderFilters.includes(tab.id);
+              const isDisabled = tab.id !== "all" && tab.count === 0;
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleProviderTabClick(tab.id)}
+                  disabled={isDisabled}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-2xs font-medium transition-colors",
+                    isDisabled
+                      ? "bg-muted/20 text-muted-foreground/50 border-transparent cursor-not-allowed"
+                      : isActive
+                      ? "bg-accent/15 text-accent border-accent/30"
+                      : "bg-muted/30 text-muted-foreground border-transparent hover:bg-accent/8 hover:text-accent"
+                  )}
+                  title={tab.label}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={cn(
+                      "px-1 py-0.5 rounded text-[10px] font-mono leading-none",
+                      isActive ? "bg-accent/20 text-accent" : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setSelectedProviderFilters([])}
+              disabled={isAllProvidersSelected}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-2xs font-medium transition-colors",
+                isAllProvidersSelected
+                  ? "bg-muted/20 text-muted-foreground/50 border-transparent cursor-not-allowed"
+                  : "bg-muted/30 text-muted-foreground border-transparent hover:bg-accent/8 hover:text-accent"
+              )}
+              title={t("project.resetProviderFilters", "Reset")}
+              aria-label={t("project.resetProviderFilters", "Reset")}
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>{t("project.resetProviderFilters", "Reset")}</span>
+            </button>
           </div>
         </div>
 
@@ -267,12 +458,12 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             },
           }}
         >
-          {projects.length === 0 ? (
+          {filteredProjects.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
                 <Folder className="w-8 h-8 text-muted-foreground/40" />
               </div>
-              <p className="text-sm text-muted-foreground">{t("components:project.notFound", "No projects found")}</p>
+              <p className="text-sm text-muted-foreground">{t("project.notFound")}</p>
             </div>
           ) : (
             <div className="space-y-0.5 animate-stagger">
@@ -300,10 +491,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-sidebar-foreground">
-                    {t("components:project.globalStats", "Global Statistics")}
+                    {t("project.globalStats")}
                   </div>
                   <div className="text-2xs text-muted-foreground">
-                    {t("components:project.globalStatsDescription", "All projects overview")}
+                    {t("project.globalStatsDescription")}
                   </div>
                 </div>
               </button>
@@ -314,10 +505,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               {/* Grouped Project List */}
               <GroupedProjectList
                 groupingMode={groupingMode}
-                projects={projects}
-                directoryGroups={directoryGroups}
-                worktreeGroups={worktreeGroups}
-                ungroupedProjects={ungroupedProjects}
+                projects={filteredProjects}
+                directoryGroups={filteredDirectoryGroups}
+                worktreeGroups={filteredWorktreeGroups}
+                ungroupedProjects={filteredUngroupedProjects}
+                showProviderBadge={showProviderBadge}
                 sessions={sessions}
                 selectedProject={selectedProject}
                 selectedSession={selectedSession}

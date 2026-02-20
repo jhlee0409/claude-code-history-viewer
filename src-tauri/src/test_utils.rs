@@ -201,6 +201,7 @@ impl MessageBuilder {
             prevented_continuation: None,
             compact_metadata: None,
             microcompact_metadata: None,
+            provider: None,
         }
     }
 

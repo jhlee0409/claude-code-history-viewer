@@ -5,6 +5,19 @@
  */
 
 // ============================================================================
+// Provider Types
+// ============================================================================
+
+export type ProviderId = "claude" | "codex" | "opencode";
+
+export interface ProviderInfo {
+  id: ProviderId;
+  display_name: string;
+  base_path: string;
+  is_available: boolean;
+}
+
+// ============================================================================
 // Git Types
 // ============================================================================
 
@@ -40,6 +53,8 @@ export interface ClaudeProject {
   last_modified: string;
   /** Git worktree 정보 */
   git_info?: GitInfo;
+  /** Provider identifier (claude, codex, opencode) */
+  provider?: ProviderId;
 }
 
 export interface ClaudeSession {
@@ -55,6 +70,8 @@ export interface ClaudeSession {
   has_errors: boolean;
   summary?: string;
   relevance?: number;
+  /** Provider identifier (claude, codex, opencode) */
+  provider?: ProviderId;
 }
 
 // ============================================================================

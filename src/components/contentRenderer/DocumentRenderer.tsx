@@ -14,6 +14,7 @@ import { FileText, File, Link } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { ToolResultCard } from "./ToolResultCard";
 import type {
   DocumentContent,
   Base64PDFSource,
@@ -52,31 +53,27 @@ export const DocumentRenderer = memo(function DocumentRenderer({ document }: Pro
     if (isBase64PDF(source)) {
       return {
         icon: <FileText className={cn(layout.iconSize, "text-tool-document")} />,
-        label: t("documentRenderer.pdf", { defaultValue: "PDF Document" }),
-        preview: t("documentRenderer.base64Preview", {
-          defaultValue: "Base64 encoded PDF",
-        }),
+        label: t("documentRenderer.pdf"),
+        preview: t("documentRenderer.base64Preview"),
       };
     }
     if (isPlainText(source)) {
       return {
         icon: <File className={cn(layout.iconSize, "text-tool-document")} />,
-        label: t("documentRenderer.plainText", {
-          defaultValue: "Plain Text Document",
-        }),
+        label: t("documentRenderer.plainText"),
         preview: source.data.substring(0, 500) + (source.data.length > 500 ? "..." : ""),
       };
     }
     if (isURLPDF(source)) {
       return {
         icon: <Link className={cn(layout.iconSize, "text-tool-document")} />,
-        label: t("documentRenderer.urlPdf", { defaultValue: "PDF from URL" }),
+        label: t("documentRenderer.urlPdf"),
         preview: source.url,
       };
     }
     return {
       icon: <File className={cn(layout.iconSize, "text-tool-document")} />,
-      label: t("documentRenderer.unknown", { defaultValue: "Document" }),
+      label: t("documentRenderer.unknown"),
       preview: null,
     };
   };
@@ -84,11 +81,11 @@ export const DocumentRenderer = memo(function DocumentRenderer({ document }: Pro
   const { icon, label, preview } = getSourceInfo();
 
   return (
-    <div className={cn(documentStyles.container, "border", layout.rounded, layout.containerPadding)}>
-      <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
-        {icon}
-        <span className={cn(layout.titleText, "text-foreground")}>{label}</span>
-      </div>
+    <ToolResultCard
+      title={label}
+      icon={icon}
+      variant="document"
+    >
 
       {title && (
         <div className={cn(layout.bodyText, "font-medium mb-1 text-foreground")}>{title}</div>
@@ -130,12 +127,10 @@ export const DocumentRenderer = memo(function DocumentRenderer({ document }: Pro
       {document.citations?.enabled && (
         <div className={cn("mt-2 flex items-center", layout.iconSpacing, layout.smallText, "text-muted-foreground")}>
           <span>
-            {t("documentRenderer.citationsEnabled", {
-              defaultValue: "Citations enabled",
-            })}
+            {t("documentRenderer.citationsEnabled")}
           </span>
         </div>
       )}
-    </div>
+    </ToolResultCard>
   );
 });

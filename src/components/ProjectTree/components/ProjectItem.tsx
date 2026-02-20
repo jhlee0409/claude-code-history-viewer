@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
+import type { ProviderId } from "../../../types";
 import { getWorktreeLabel } from "../../../utils/worktreeUtils";
 
 export const ProjectItem: React.FC<ProjectItemProps> = ({
@@ -14,6 +15,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   onClick,
   onContextMenu,
   variant = "default",
+  showProviderBadge = true,
 }) => {
   void _isSelected; // Reserved for future selection highlighting
   const { t } = useTranslation();
@@ -27,6 +29,13 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
     : isWorktree
       ? getWorktreeLabel(project.actual_path)
       : project.name;
+
+  const providerId = project.provider ?? "claude";
+  const providerLabels: Record<ProviderId, string> = {
+    claude: t("common.provider.claude"),
+    codex: t("common.provider.codex"),
+    opencode: t("common.provider.opencode"),
+  };
 
   return (
     <div
@@ -57,7 +66,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       <span
         role="button"
         tabIndex={0}
-        aria-label={isExpanded ? "Collapse" : "Expand"}
+        aria-label={isExpanded ? t("common.collapse", "Collapse") : t("common.expand", "Expand")}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
@@ -133,6 +142,20 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       >
         {displayName}
       </span>
+
+      {/* Provider Badge */}
+      {showProviderBadge && (
+        <span
+          className={cn(
+            "px-1.5 py-0.5 text-2xs font-medium rounded-full flex-shrink-0 leading-none",
+            providerId === "claude" && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+            providerId === "codex" && "bg-green-500/15 text-green-600 dark:text-green-400",
+            providerId === "opencode" && "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+          )}
+        >
+          {providerLabels[providerId] ?? providerId}
+        </span>
+      )}
 
       {/* Session Count */}
       {(!isGrouped && project.session_count > 0) || isGrouped ? (

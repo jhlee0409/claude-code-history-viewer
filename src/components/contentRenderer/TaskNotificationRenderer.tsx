@@ -5,7 +5,7 @@
  * Displays parallel agent tasks with clear visual hierarchy and status indicators.
  * Design: Industrial/Utilitarian - inspired by mission control dashboards
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo, useCallback } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -66,7 +66,7 @@ const formatTaskId = (id: string | undefined): string => {
 };
 
 // Single task row component - minimal, data-dense design
-const TaskRow = ({
+const TaskRow = memo(function TaskRow({
   notification,
   index,
   isExpanded,
@@ -76,7 +76,7 @@ const TaskRow = ({
   index: number;
   isExpanded: boolean;
   onToggle: () => void;
-}) => {
+}) {
   const statusKey = (notification.status || "completed") as keyof typeof STATUS_CONFIG;
   const config = STATUS_CONFIG[statusKey] || STATUS_CONFIG.completed;
   const hasExpandableContent = notification.result || notification.summary;
@@ -200,7 +200,7 @@ const TaskRow = ({
       )}
     </div>
   );
-};
+});
 
 // Get first N lines of text for preview
 const getPreviewLines = (text: string, lineCount: number = 3): string => {
@@ -208,7 +208,7 @@ const getPreviewLines = (text: string, lineCount: number = 3): string => {
   return lines.slice(0, lineCount).join('\n');
 };
 
-export const TaskNotificationRenderer = ({ text }: Props) => {
+export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({ text }: Props) {
   const { t } = useTranslation();
   const [isGroupExpanded, setIsGroupExpanded] = useState(true); // Default open
   const [expandedTaskIndices, setExpandedTaskIndices] = useState<Set<number>>(new Set());
@@ -253,6 +253,15 @@ export const TaskNotificationRenderer = ({ text }: Props) => {
     return counts;
   }, [notifications]);
 
+  const toggleTaskExpanded = useCallback((index: number) => {
+    setExpandedTaskIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
+
   if (notifications.length === 0) {
     return null;
   }
@@ -262,15 +271,6 @@ export const TaskNotificationRenderer = ({ text }: Props) => {
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "")
     .replace(/^\s*\n/gm, "")
     .trim();
-
-  const toggleTaskExpanded = (index: number) => {
-    setExpandedTaskIndices(prev => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  };
 
   // Determine if all completed
   const allCompleted = statusCounts.completed === notifications.length;
@@ -310,7 +310,7 @@ export const TaskNotificationRenderer = ({ text }: Props) => {
             )}>
               <Zap className="w-3.5 h-3.5 text-tool-task" />
               <span className="text-xs font-medium text-tool-task">
-                {t("taskNotification.agentTasks", { defaultValue: "Parallel Tasks" })}
+                {t("taskNotification.agentTasks")}
               </span>
             </div>
 
@@ -425,7 +425,7 @@ export const TaskNotificationRenderer = ({ text }: Props) => {
                 )} />
                 <Terminal className="w-3 h-3 text-muted-foreground" />
                 <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {t("taskNotification.details", { defaultValue: "Details" })}
+                  {t("taskNotification.details")}
                 </span>
               </div>
               <span className="text-3xs text-muted-foreground/60">
@@ -461,7 +461,7 @@ export const TaskNotificationRenderer = ({ text }: Props) => {
                     </ReactMarkdown>
                   </div>
                   <span className="text-3xs text-info mt-1 inline-block">
-                    {t("taskNotification.showMore", { defaultValue: "Show more..." })}
+                    {t("taskNotification.showMore")}
                   </span>
                 </div>
               )}
@@ -471,7 +471,7 @@ export const TaskNotificationRenderer = ({ text }: Props) => {
       </div>
     </div>
   );
-};
+});
 
 /**
  * Check if text contains task-notification tags

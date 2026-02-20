@@ -47,6 +47,7 @@ mod claude_message_snapshots {
             prevented_continuation: None,
             compact_metadata: None,
             microcompact_metadata: None,
+            provider: None,
         };
 
         assert_json_snapshot!("user_message", message);
@@ -94,6 +95,7 @@ mod claude_message_snapshots {
             prevented_continuation: None,
             compact_metadata: None,
             microcompact_metadata: None,
+            provider: None,
         };
 
         assert_json_snapshot!("assistant_message", message);
@@ -151,6 +153,7 @@ mod claude_message_snapshots {
             prevented_continuation: None,
             compact_metadata: None,
             microcompact_metadata: None,
+            provider: None,
         };
 
         assert_json_snapshot!("message_with_tool_use", message);
@@ -202,6 +205,7 @@ mod project_snapshots {
             message_count: 1337,
             last_modified: "2025-01-15T10:30:00Z".to_string(),
             git_info: None,
+            provider: None,
         };
 
         assert_json_snapshot!("claude_project", project);
@@ -226,6 +230,7 @@ mod session_snapshots {
             has_tool_use: true,
             has_errors: false,
             summary: Some("Test conversation summary".to_string()),
+            provider: None,
         };
 
         assert_json_snapshot!("claude_session", session);

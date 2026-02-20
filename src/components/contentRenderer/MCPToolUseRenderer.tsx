@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { safeStringify } from "../../utils/jsonUtils";
+import { ToolUseCard } from "./toolUseRenderers/ToolUseCard";
 
 type Props = {
   id: string;
@@ -21,14 +22,12 @@ export const MCPToolUseRenderer = memo(function MCPToolUseRenderer({
   const { t } = useTranslation();
 
   return (
-    <div className={cn(layout.rounded, "bg-tool-mcp/10 border border-tool-mcp/30", layout.containerPadding)}>
-      <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
-        <Server className={cn(layout.iconSize, "text-tool-mcp")} />
-        <span className={cn(layout.titleText, "text-foreground")}>
-          {t("mcpToolUseRenderer.title", { defaultValue: "MCP Tool" })}
-        </span>
-        <span className={cn(layout.monoText, "text-tool-mcp")}>{id}</span>
-      </div>
+    <ToolUseCard
+      title={t("mcpToolUseRenderer.title")}
+      icon={<Server className={cn(layout.iconSize, "text-tool-mcp")} />}
+      variant="mcp"
+      toolId={id}
+    >
 
       <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
         <Wrench className={cn(layout.iconSizeSmall, "text-tool-mcp")} />
@@ -42,15 +41,13 @@ export const MCPToolUseRenderer = memo(function MCPToolUseRenderer({
       {Object.keys(input).length > 0 && (
         <details className="mt-2">
           <summary className={cn(layout.smallText, "text-tool-mcp cursor-pointer hover:text-tool-mcp/80")}>
-            {t("mcpToolUseRenderer.showInput", {
-              defaultValue: "Show input parameters",
-            })}
+            {t("mcpToolUseRenderer.showInput")}
           </summary>
           <pre className={cn("mt-2 text-foreground bg-muted p-2 overflow-x-auto", layout.monoText, layout.rounded)}>
             {safeStringify(input)}
           </pre>
         </details>
       )}
-    </div>
+    </ToolUseCard>
   );
 });

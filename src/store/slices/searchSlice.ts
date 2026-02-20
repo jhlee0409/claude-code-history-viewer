@@ -77,7 +77,7 @@ export const createSearchSlice: StateCreator<
 
   // Global search
   searchMessages: async (query: string, filters: SearchFilters = {}) => {
-    const { claudePath } = get();
+    const { claudePath, activeProviders } = get();
     if (!claudePath || !query.trim()) {
       set({ searchResults: [], searchQuery: "" });
       return;
@@ -85,11 +85,19 @@ export const createSearchSlice: StateCreator<
 
     set({ searchQuery: query });
     try {
-      const results = await invoke<ClaudeMessage[]>("search_messages", {
-        claudePath,
-        query,
-        filters,
-      });
+      const hasNonClaudeProviders = activeProviders.some((p) => p !== "claude");
+      const results = hasNonClaudeProviders
+        ? await invoke<ClaudeMessage[]>("search_all_providers", {
+            claudePath,
+            query,
+            activeProviders,
+            filters,
+          })
+        : await invoke<ClaudeMessage[]>("search_messages", {
+            claudePath,
+            query,
+            filters,
+          });
       set({ searchResults: results });
     } catch (error) {
       console.error("Failed to search messages:", error);

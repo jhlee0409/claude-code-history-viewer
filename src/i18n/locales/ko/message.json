@@ -26,6 +26,8 @@
   "messageViewer.branch": "분기",
   "messageViewer.checkConsole": "콘솔에서 자세한 오류 정보를 확인하세요.",
   "messageViewer.claude": "Claude",
+  "messageViewer.codex": "Codex",
+  "messageViewer.opencode": "OpenCode",
   "messageViewer.debugInfo.file": "파일: {{fileName}}",
   "messageViewer.debugInfo.firstMessage": "첫번째 메시지: {{timestamp}}",
   "messageViewer.debugInfo.hasMore": "더 있음: {{hasMore}}",

@@ -2,11 +2,12 @@ import { memo } from "react";
 import { ExternalLink, Search, AlertCircle, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { layout } from "@/components/renderers";
+import { getVariantStyles, layout } from "@/components/renderers";
 import type {
   WebSearchResultItem,
   WebSearchToolError,
 } from "../../types";
+import { ToolResultCard } from "./ToolResultCard";
 
 type Props = {
   toolUseId: string;
@@ -29,43 +30,43 @@ export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({
   content,
 }: Props) {
   const { t } = useTranslation();
+  const webStyles = getVariantStyles("web");
 
   if (isError(content)) {
     return (
-      <div className={cn("bg-destructive/10 border border-destructive/30", layout.rounded, layout.containerPadding)}>
-        <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
-          <AlertCircle className={cn(layout.iconSize, "text-destructive")} />
-          <span className={cn(layout.titleText, "text-destructive")}>
-            {t("webSearchResultRenderer.error", {
-              defaultValue: "Search Error",
-            })}
-          </span>
-          <span className={cn(layout.monoText, "text-destructive/70")}>{toolUseId}</span>
-        </div>
+      <ToolResultCard
+        title={t("webSearchResultRenderer.error")}
+        icon={<AlertCircle className={cn(layout.iconSize, "text-destructive")} />}
+        variant="error"
+        toolUseId={toolUseId}
+      >
         <div className={cn(layout.bodyText, "text-destructive")}>
           <span className="font-medium">{content.error_code}:</span>{" "}
           {content.message}
         </div>
-      </div>
+      </ToolResultCard>
     );
   }
 
   const results = content as WebSearchResultItem[];
 
   return (
-    <div className={cn("bg-tool-web/10 border border-tool-web/30", layout.rounded, layout.containerPadding)}>
-      <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
-        <Search className={cn(layout.iconSize, "text-tool-web")} />
-        <span className={cn(layout.titleText, "text-foreground")}>
-          {t("webSearchResultRenderer.title", {
-            defaultValue: "Web Search Results",
-          })}
+    <ToolResultCard
+      title={t("webSearchResultRenderer.title")}
+      icon={<Search className={cn(layout.iconSize, webStyles.icon)} />}
+      variant="web"
+      toolUseId={toolUseId}
+      rightContent={
+        <span className={cn(layout.smallText, "px-1.5 py-0.5 rounded", webStyles.badge, webStyles.badgeText)}>
+          {results.length} {t("webSearchResultRenderer.results")}
         </span>
-        <span className={cn(layout.smallText, "text-tool-web")}>
-          ({results.length}{" "}
-          {t("webSearchResultRenderer.results", { defaultValue: "results" })})
-        </span>
-      </div>
+      }
+    >
+      {results.length === 0 && (
+        <div className={cn(layout.smallText, "text-muted-foreground italic")}>
+          {t("webSearchResultRenderer.noResults")}
+        </div>
+      )}
 
       <div className="space-y-1.5">
         {results.map((result) => (
@@ -98,6 +99,6 @@ export const WebSearchResultRenderer = memo(function WebSearchResultRenderer({
           </div>
         ))}
       </div>
-    </div>
+    </ToolResultCard>
   );
 });

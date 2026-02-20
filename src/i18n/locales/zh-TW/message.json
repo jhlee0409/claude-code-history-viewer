@@ -26,6 +26,8 @@
   "messageViewer.branch": "分支",
   "messageViewer.checkConsole": "請查看主控台以取得詳細錯誤資訊。",
   "messageViewer.claude": "Claude",
+  "messageViewer.codex": "Codex",
+  "messageViewer.opencode": "OpenCode",
   "messageViewer.debugInfo.file": "檔案: {{fileName}}",
   "messageViewer.debugInfo.firstMessage": "第一則訊息: {{timestamp}}",
   "messageViewer.debugInfo.hasMore": "還有更多: {{hasMore}}",

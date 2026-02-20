@@ -77,6 +77,7 @@ fake = { version = "2.9", features = ["derive"] }
 # Test utilities
 test-case = "3.3"
 once_cell = "1.19"
+serial_test = "3.2"
 
 # Async testing utilities
 async-std = { version = "1.12", features = ["attributes"] }
