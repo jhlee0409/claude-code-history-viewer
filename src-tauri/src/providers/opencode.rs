@@ -608,12 +608,14 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
             }
             "tool" => {
                 // Real field names: "tool" (not "toolName"), "callID" (not "toolCallId")
-                let tool_name = part
+                let raw_tool_name = part
                     .get("tool")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
+                let tool_name = normalize_opencode_tool_name(raw_tool_name);
                 let tool_id = part
                     .get("callID")
+                    .or_else(|| part.get("id"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
@@ -623,6 +625,7 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                     .and_then(|s| s.get("input"))
                     .cloned()
                     .unwrap_or(Value::Object(serde_json::Map::default()));
+                let input = normalize_opencode_tool_input(tool_name, input);
 
                 content_items.push(serde_json::json!({
                     "type": "tool_use",
@@ -637,19 +640,16 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                     .and_then(|s| s.get("status"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
-                if status == "completed" {
-                    // Output can be a string or an object — handle both
-                    let output_val = part.get("state").and_then(|s| s.get("output"));
-                    let result = match output_val {
-                        Some(Value::String(s)) => s.clone(),
-                        Some(other) => other.to_string(),
-                        None => String::new(),
-                    };
-                    content_items.push(serde_json::json!({
+                if let Some((result, is_error)) = extract_tool_result_from_state(part, status) {
+                    let mut tool_result = serde_json::json!({
                         "type": "tool_result",
                         "tool_use_id": tool_id,
                         "content": result
-                    }));
+                    });
+                    if is_error {
+                        tool_result["is_error"] = Value::Bool(true);
+                    }
+                    content_items.push(tool_result);
                 }
             }
             "reasoning" => {
@@ -762,4 +762,158 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
     };
 
     (content, usage, cost_usd)
+}
+
+fn normalize_opencode_tool_name(name: &str) -> &str {
+    match name {
+        "read" => "Read",
+        "bash" => "Bash",
+        "glob" => "Glob",
+        "grep" => "Grep",
+        "write" => "Write",
+        "edit" => "Edit",
+        "todowrite" => "TodoWrite",
+        "webfetch" => "WebFetch",
+        "task" | "call_omo_agent" => "Task",
+        "websearch_web_search_exa"
+        | "websearch_exa_web_search_exa"
+        | "web_search"
+        | "brave-search_brave_web_search" => "WebSearch",
+        _ if name.starts_with("grep_") => "Grep",
+        _ => name,
+    }
+}
+
+fn move_input_key(input_obj: &mut serde_json::Map<String, Value>, from: &str, to: &str) {
+    if input_obj.contains_key(to) {
+        return;
+    }
+    if let Some(value) = input_obj.remove(from) {
+        input_obj.insert(to.to_string(), value);
+    }
+}
+
+fn normalize_opencode_tool_input(tool_name: &str, input: Value) -> Value {
+    let Value::Object(mut input_obj) = input else {
+        return input;
+    };
+
+    move_input_key(&mut input_obj, "filePath", "file_path");
+    move_input_key(&mut input_obj, "oldString", "old_string");
+    move_input_key(&mut input_obj, "newString", "new_string");
+    move_input_key(&mut input_obj, "replaceAll", "replace_all");
+    move_input_key(&mut input_obj, "runInBackground", "run_in_background");
+    move_input_key(&mut input_obj, "allowedDomains", "allowed_domains");
+    move_input_key(&mut input_obj, "blockedDomains", "blocked_domains");
+
+    if tool_name == "Bash" {
+        if let Some(Value::Array(command_arr)) = input_obj.get("command").cloned() {
+            let joined = command_arr
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(" ");
+            input_obj.insert("command".to_string(), Value::String(joined));
+        }
+    }
+
+    Value::Object(input_obj)
+}
+
+fn extract_tool_result_from_state(part: &Value, status: &str) -> Option<(Value, bool)> {
+    let state = part.get("state")?;
+    match status {
+        "completed" => {
+            let output = state
+                .get("output")
+                .cloned()
+                .unwrap_or(Value::String(String::new()));
+            Some((output, false))
+        }
+        "error" | "cancelled" => {
+            let error = state
+                .get("error")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .filter(|s| !s.is_empty())
+                .or_else(|| {
+                    state.get("output").map(|v| {
+                        if let Some(s) = v.as_str() {
+                            s.to_string()
+                        } else {
+                            v.to_string()
+                        }
+                    })
+                })
+                .unwrap_or_else(|| format!("Tool execution failed: {status}"));
+            Some((Value::String(error), true))
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn normalizes_lowercase_tool_names() {
+        assert_eq!(normalize_opencode_tool_name("read"), "Read");
+        assert_eq!(normalize_opencode_tool_name("bash"), "Bash");
+        assert_eq!(normalize_opencode_tool_name("task"), "Task");
+        assert_eq!(
+            normalize_opencode_tool_name("websearch_web_search_exa"),
+            "WebSearch"
+        );
+        assert_eq!(normalize_opencode_tool_name("web_search"), "WebSearch");
+    }
+
+    #[test]
+    fn keeps_github_search_tools_as_is() {
+        assert_eq!(
+            normalize_opencode_tool_name("github_search_repositories"),
+            "github_search_repositories"
+        );
+    }
+
+    #[test]
+    fn normalizes_camel_case_input_keys() {
+        let normalized = normalize_opencode_tool_input(
+            "Edit",
+            json!({
+                "filePath": "/tmp/a.ts",
+                "oldString": "before",
+                "newString": "after",
+                "replaceAll": true
+            }),
+        );
+        let obj = normalized
+            .as_object()
+            .expect("normalized input should be object");
+        assert_eq!(
+            obj.get("file_path").and_then(Value::as_str),
+            Some("/tmp/a.ts")
+        );
+        assert_eq!(
+            obj.get("old_string").and_then(Value::as_str),
+            Some("before")
+        );
+        assert_eq!(obj.get("new_string").and_then(Value::as_str), Some("after"));
+        assert_eq!(obj.get("replace_all").and_then(Value::as_bool), Some(true));
+    }
+
+    #[test]
+    fn extracts_error_tool_result_from_state() {
+        let part = json!({
+            "state": {
+                "status": "error",
+                "error": "failure"
+            }
+        });
+        let (result, is_error) =
+            extract_tool_result_from_state(&part, "error").expect("error result should exist");
+        assert_eq!(result.as_str(), Some("failure"));
+        assert!(is_error);
+    }
 }

@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
 import { FileEditRenderer } from "../toolResultRenderer/FileEditRenderer";
 import { HighlightedText } from "../common";
+import { MCPToolUseRenderer } from "./MCPToolUseRenderer";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import {
   type BaseRendererProps,
@@ -47,6 +48,7 @@ import {
   TaskCreateToolRenderer,
   TaskUpdateToolRenderer,
   TaskOutputToolRenderer,
+  TaskToolRenderer,
   ApplyPatchToolRenderer,
   UpdatePlanToolRenderer,
 } from "./toolUseRenderers";
@@ -67,6 +69,21 @@ export const ToolUseRenderer = ({
   const toolName = (toolUse.name as string) || "Unknown Tool";
   const toolId = (toolUse.id as string) || "";
   const toolInput = (toolUse.input as Record<string, unknown>) ?? {};
+
+  const parseMcpTool = (name: string) => {
+    if (!name.startsWith("mcp__")) {
+      return null;
+    }
+    const rest = name.slice(5);
+    const separatorIndex = rest.indexOf("__");
+    if (separatorIndex < 0) {
+      return { serverName: "mcp", toolName: rest };
+    }
+    return {
+      serverName: rest.slice(0, separatorIndex),
+      toolName: rest.slice(separatorIndex + 2),
+    };
+  };
 
   // Get variant styles based on tool type
   const variant = getToolVariant(toolName);
@@ -114,10 +131,24 @@ export const ToolUseRenderer = ({
       return <TaskUpdateToolRenderer toolId={toolId} input={toolInput} />;
     case "TaskOutput":
       return <TaskOutputToolRenderer toolId={toolId} input={toolInput} />;
+    case "Task":
+      return <TaskToolRenderer toolId={toolId} input={toolInput} />;
     case "apply_patch":
       return <ApplyPatchToolRenderer toolId={toolId} input={toolInput} />;
     case "update_plan":
       return <UpdatePlanToolRenderer toolId={toolId} input={toolInput} />;
+  }
+
+  const mcpTool = parseMcpTool(toolName);
+  if (mcpTool) {
+    return (
+      <MCPToolUseRenderer
+        id={toolId}
+        serverName={mcpTool.serverName}
+        toolName={mcpTool.toolName}
+        input={toolInput}
+      />
+    );
   }
 
   // Helper to check if toolInput is a non-null object

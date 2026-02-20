@@ -10,5 +10,6 @@ export { NotebookEditToolRenderer } from "./NotebookEditToolRenderer";
 export { TaskCreateToolRenderer } from "./TaskCreateToolRenderer";
 export { TaskUpdateToolRenderer } from "./TaskUpdateToolRenderer";
 export { TaskOutputToolRenderer } from "./TaskOutputToolRenderer";
+export { TaskToolRenderer } from "./TaskToolRenderer";
 export { ApplyPatchToolRenderer } from "./ApplyPatchToolRenderer";
 export { UpdatePlanToolRenderer } from "./UpdatePlanToolRenderer";

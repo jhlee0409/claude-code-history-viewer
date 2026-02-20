@@ -90,6 +90,7 @@ const SPECIALIZED_TOOL_RENDERERS = new Set([
   "TaskCreate",
   "TaskUpdate",
   "TaskOutput",
+  "Task",
   "Write",
   "Edit",
   "apply_patch",
@@ -115,7 +116,7 @@ const normalizeToolExecutionEntries = (content: unknown[]): NormalizedContentEnt
 
     if (item.type === "tool_use" && typeof item.id === "string") {
       const toolName = typeof item.name === "string" ? item.name : "";
-      if (SPECIALIZED_TOOL_RENDERERS.has(toolName)) {
+      if (SPECIALIZED_TOOL_RENDERERS.has(toolName) || toolName.startsWith("mcp__")) {
         entries.push({
           kind: "item",
           key: `item-${index}`,
