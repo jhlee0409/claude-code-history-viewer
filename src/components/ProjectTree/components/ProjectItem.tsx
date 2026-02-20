@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
+import type { ProviderId } from "../../../types";
 import { getWorktreeLabel } from "../../../utils/worktreeUtils";
 
 export const ProjectItem: React.FC<ProjectItemProps> = ({
@@ -30,7 +31,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       : project.name;
 
   const providerId = project.provider ?? "claude";
-  const providerLabels: Record<string, string> = {
+  const providerLabels: Record<ProviderId, string> = {
     claude: t("common.provider.claude"),
     codex: t("common.provider.codex"),
     opencode: t("common.provider.opencode"),
@@ -65,7 +66,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       <span
         role="button"
         tabIndex={0}
-        aria-label={isExpanded ? "Collapse" : "Expand"}
+        aria-label={isExpanded ? t("common.collapse", "Collapse") : t("common.expand", "Expand")}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();

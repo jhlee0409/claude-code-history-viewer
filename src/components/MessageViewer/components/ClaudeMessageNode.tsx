@@ -20,7 +20,7 @@ import {
 import { AgentTaskGroupRenderer, TaskOperationGroupRenderer } from "../../toolResultRenderer";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 import { isEmptyMessage } from "../helpers/messageHelpers";
-import { isToolUseContent, isToolResultContent } from "../../../utils/contentTypeGuards";
+import { isToolUseContent, isToolResultContent } from "../../../utils/typeGuards";
 import { MessageHeader } from "./MessageHeader";
 import { SummaryMessage } from "./SummaryMessage";
 import type { MessageNodeProps } from "../types";
@@ -46,12 +46,6 @@ export const ClaudeMessageNode = React.memo(({
   onHideMessage,
 }: MessageNodeProps) => {
   const { t } = useTranslation();
-  const hasInlineToolResult =
-    Array.isArray(message.content) && message.content.some(isToolResultContent);
-  const shouldRenderLegacyToolResult =
-    (message.type === "user" || message.type === "assistant") &&
-    !!message.toolUseResult &&
-    !hasInlineToolResult;
 
   // Capture mode hide button - appears on hover
   const CaptureHideButton = isCaptureMode && onHideMessage ? (
@@ -221,6 +215,13 @@ export const ClaudeMessageNode = React.memo(({
       </div>
     );
   }
+
+  const hasInlineToolResult =
+    Array.isArray(message.content) && message.content.some(isToolResultContent);
+  const shouldRenderLegacyToolResult =
+    (message.type === "user" || message.type === "assistant") &&
+    message.toolUseResult != null &&
+    !hasInlineToolResult;
 
   // Default message rendering
   return (

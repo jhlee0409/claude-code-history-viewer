@@ -153,15 +153,16 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       }
     }
 
-    const nextUngrouped = baseUngrouped.filter(matchesProviderFilter);
-    const seenPaths = new Set(nextUngrouped.map((project) => project.path));
-
-    for (const child of movedChildren) {
-      if (!seenPaths.has(child.path)) {
-        nextUngrouped.push(child);
-        seenPaths.add(child.path);
+    const baseFiltered = baseUngrouped.filter(matchesProviderFilter);
+    const seenPaths = new Set(baseFiltered.map((project) => project.path));
+    const movedChildrenToAdd = movedChildren.filter((child) => {
+      if (seenPaths.has(child.path)) {
+        return false;
       }
-    }
+      seenPaths.add(child.path);
+      return true;
+    });
+    const nextUngrouped = [...baseFiltered, ...movedChildrenToAdd];
 
     return {
       filteredWorktreeGroups: nextGroups,
@@ -396,14 +397,18 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               const isActive = tab.id === "all"
                 ? isAllProvidersSelected
                 : selectedProviderFilters.includes(tab.id);
+              const isDisabled = tab.id !== "all" && tab.count === 0;
 
               return (
                 <button
                   key={tab.id}
                   onClick={() => handleProviderTabClick(tab.id)}
+                  disabled={isDisabled}
                   className={cn(
                     "inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-2xs font-medium transition-colors",
-                    isActive
+                    isDisabled
+                      ? "bg-muted/20 text-muted-foreground/50 border-transparent cursor-not-allowed"
+                      : isActive
                       ? "bg-accent/15 text-accent border-accent/30"
                       : "bg-muted/30 text-muted-foreground border-transparent hover:bg-accent/8 hover:text-accent"
                   )}
@@ -431,6 +436,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   : "bg-muted/30 text-muted-foreground border-transparent hover:bg-accent/8 hover:text-accent"
               )}
               title={t("project.resetProviderFilters", "Reset")}
+              aria-label={t("project.resetProviderFilters", "Reset")}
             >
               <RotateCcw className="w-3 h-3" />
               <span>{t("project.resetProviderFilters", "Reset")}</span>

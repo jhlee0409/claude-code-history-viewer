@@ -58,8 +58,8 @@ type Props = {
   skipText?: boolean;
 };
 
-// Type guard for content items
-const isContentItem = (item: unknown): item is Record<string, unknown> => {
+// Broad guard used by normalization; this intentionally does not require a "type" field.
+const isObjectItem = (item: unknown): item is Record<string, unknown> => {
   return item !== null && typeof item === "object";
 };
 
@@ -84,7 +84,7 @@ const normalizeToolExecutionEntries = (content: unknown[]): NormalizedContentEnt
   for (let index = 0; index < content.length; index += 1) {
     const item = content[index];
 
-    if (!isContentItem(item)) {
+    if (!isObjectItem(item)) {
       entries.push({
         kind: "item",
         key: `item-${index}`,
@@ -160,7 +160,7 @@ export const ClaudeContentArrayRenderer = memo(({
         }
 
         const { item, index } = entry;
-        if (!isContentItem(item)) {
+        if (!isObjectItem(item)) {
           return (
             <div key={entry.key} className={cn(layout.bodyText, "text-muted-foreground")}>
               {String(item)}
@@ -231,6 +231,8 @@ export const ClaudeContentArrayRenderer = memo(({
             return null;
 
           case "tool_use":
+            // NOTE: tool_use entries with string ids are normalized into `toolExecution`
+            // and rendered by UnifiedToolExecutionRenderer; this branch handles edge cases.
             return (
               <ToolUseRenderer
                 key={entry.key}
