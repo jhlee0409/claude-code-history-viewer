@@ -277,7 +277,7 @@ export const ClaudeMessageNode = React.memo(({
 
           {shouldRenderLegacyToolResult && (
               <ToolExecutionResultRouter
-                toolResult={message.toolUseResult}
+                toolResult={message.toolUseResult!}
                 depth={0}
                 searchQuery={searchQuery}
                 isCurrentMatch={isCurrentMatch}

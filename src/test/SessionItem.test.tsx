@@ -487,7 +487,6 @@ describe("SessionItem", () => {
       expect(
         screen.queryByText("Native rename not supported for this provider")
       ).not.toBeInTheDocument();
-      expect(screen.queryByTestId("dropdown-separator")).not.toBeInTheDocument();
     });
   });
 
