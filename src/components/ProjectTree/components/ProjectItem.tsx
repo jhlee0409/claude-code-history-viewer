@@ -14,6 +14,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   onClick,
   onContextMenu,
   variant = "default",
+  showProviderBadge = true,
 }) => {
   void _isSelected; // Reserved for future selection highlighting
   const { t } = useTranslation();
@@ -28,9 +29,11 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       ? getWorktreeLabel(project.actual_path)
       : project.name;
 
+  const providerId = project.provider ?? "claude";
   const providerLabels: Record<string, string> = {
-    codex: t("messageViewer.codex"),
-    opencode: t("messageViewer.opencode"),
+    claude: t("common.provider.claude"),
+    codex: t("common.provider.codex"),
+    opencode: t("common.provider.opencode"),
   };
 
   return (
@@ -140,15 +143,16 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       </span>
 
       {/* Provider Badge */}
-      {project.provider && project.provider !== "claude" && (
+      {showProviderBadge && (
         <span
           className={cn(
             "px-1.5 py-0.5 text-2xs font-medium rounded-full flex-shrink-0 leading-none",
-            project.provider === "codex" && "bg-green-500/15 text-green-600 dark:text-green-400",
-            project.provider === "opencode" && "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+            providerId === "claude" && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+            providerId === "codex" && "bg-green-500/15 text-green-600 dark:text-green-400",
+            providerId === "opencode" && "bg-blue-500/15 text-blue-600 dark:text-blue-400"
           )}
         >
-          {providerLabels[project.provider] ?? project.provider}
+          {providerLabels[providerId] ?? providerId}
         </span>
       )}
 
