@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { getVersion } from '@tauri-apps/api/app';
+import { UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE } from '@/utils/updateError';
 
 const CHECK_TIMEOUT_MS = 20_000; // 20 seconds
-const MANUAL_RESTART_REQUIRED_MESSAGE =
-  'Update download completed. Please restart the app manually.';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -177,7 +176,7 @@ export function useUpdater(): UseUpdaterReturn {
         isDownloading: false,
         isRestarting: false,
         error: shouldSuggestManualRestart
-          ? MANUAL_RESTART_REQUIRED_MESSAGE
+          ? UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE
           : rawErrorMessage,
       }));
     }

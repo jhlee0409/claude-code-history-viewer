@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { SimpleUpdateManager } from "../components/SimpleUpdateManager";
 import type { UseUpdaterReturn } from "../hooks/useUpdater";
 import type { UpdateSettings } from "../types/updateSettings";
+import { UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE } from "../utils/updateError";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -197,5 +198,29 @@ describe("SimpleUpdateManager", () => {
     });
 
     expect(updater.dismissUpdate).not.toHaveBeenCalled();
+  });
+
+  it("shows localized manual restart message for updater error code", async () => {
+    const updater = createUpdater({
+      isChecking: false,
+      hasUpdate: false,
+      error: UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE,
+    });
+
+    render(<SimpleUpdateManager updater={updater} />);
+
+    await waitFor(() => {
+      expect(mockStore.loadUpdateSettings).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event("manual-update-check"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error-notification")).toHaveTextContent(
+        "common.error.updateManualRestartRequired"
+      );
+    });
   });
 });

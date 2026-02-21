@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE } from '@/utils/updateError';
 
 // Use vi.hoisted to create mocks that can be referenced in vi.mock
 const { mockCheck, mockRelaunch, mockGetVersion } = vi.hoisted(() => ({
@@ -21,9 +22,6 @@ vi.mock('@tauri-apps/api/app', () => ({
 }));
 
 import { useUpdater } from './useUpdater';
-
-const MANUAL_RESTART_REQUIRED_MESSAGE =
-  'Update download completed. Please restart the app manually.';
 
 describe('useUpdater', () => {
   beforeEach(() => {
@@ -295,7 +293,7 @@ describe('useUpdater', () => {
 
       expect(result.current.state.isDownloading).toBe(false);
       expect(result.current.state.isRestarting).toBe(false);
-      expect(result.current.state.error).toBe(MANUAL_RESTART_REQUIRED_MESSAGE);
+      expect(result.current.state.error).toBe(UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE);
     });
 
     it('should ask for manual restart when updater fails after finished event', async () => {
@@ -324,7 +322,7 @@ describe('useUpdater', () => {
       expect(mockRelaunch).not.toHaveBeenCalled();
       expect(result.current.state.isDownloading).toBe(false);
       expect(result.current.state.isRestarting).toBe(false);
-      expect(result.current.state.error).toBe(MANUAL_RESTART_REQUIRED_MESSAGE);
+      expect(result.current.state.error).toBe(UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE);
     });
   });
 

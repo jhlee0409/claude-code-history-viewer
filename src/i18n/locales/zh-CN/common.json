@@ -23,6 +23,7 @@
   "common.error.unexpected": "发生意外错误",
   "common.error.updateCheckFailed": "检查更新失败",
   "common.error.updateInstallFailed": "安装更新失败",
+  "common.error.updateManualRestartRequired": "更新已成功下载。请手动重启应用。",
   "common.errorOccurred": "发生错误",
   "common.expand": "展开",
   "common.help": "帮助",

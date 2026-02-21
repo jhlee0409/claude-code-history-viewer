@@ -6,6 +6,7 @@ import { UpdateCheckingNotification } from "./UpdateCheckingNotification";
 import { UpdateErrorNotification } from "./UpdateErrorNotification";
 import { useAppStore } from "@/store/useAppStore";
 import { shouldCheckForUpdates } from "@/utils/updateSettings";
+import { resolveUpdateErrorMessage } from "@/utils/updateError";
 import { useTranslation } from "react-i18next";
 
 const AUTO_CHECK_DELAY_MS = 5_000; // 5 seconds after app start
@@ -132,7 +133,7 @@ export function SimpleUpdateManager({ updater }: SimpleUpdateManagerProps) {
   useEffect(() => {
     if (!isChecking && isManualCheck) {
       if (updateError) {
-        setErrorMessage(updateError);
+        setErrorMessage(resolveUpdateErrorMessage(updateError, t));
         setShowError(true);
       } else if (!hasUpdate) {
         setShowUpToDate(true);

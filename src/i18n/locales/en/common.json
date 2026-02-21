@@ -23,6 +23,7 @@
   "common.error.unexpected": "An unexpected error occurred",
   "common.error.updateCheckFailed": "Failed to check for updates",
   "common.error.updateInstallFailed": "Failed to install update",
+  "common.error.updateManualRestartRequired": "Update downloaded successfully. Please restart the app manually.",
   "common.errorOccurred": "An error occurred",
   "common.expand": "Expand",
   "common.help": "Help",

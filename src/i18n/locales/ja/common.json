@@ -23,6 +23,7 @@
   "common.error.unexpected": "予期しないエラーが発生しました",
   "common.error.updateCheckFailed": "アップデートの確認に失敗しました。",
   "common.error.updateInstallFailed": "アップデートのインストールに失敗しました。",
+  "common.error.updateManualRestartRequired": "アップデートのダウンロードは完了しました。アプリを手動で再起動してください。",
   "common.errorOccurred": "エラーが発生しました",
   "common.expand": "展開",
   "common.help": "ヘルプ",

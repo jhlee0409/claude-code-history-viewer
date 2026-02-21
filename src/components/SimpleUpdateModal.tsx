@@ -12,6 +12,7 @@ import { Download, AlertTriangle, X, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from "sonner";
 import type { UseUpdaterReturn } from '@/hooks/useUpdater';
+import { resolveUpdateErrorMessage } from '@/utils/updateError';
 
 interface SimpleUpdateModalProps {
   updater: UseUpdaterReturn;
@@ -58,6 +59,10 @@ export function SimpleUpdateModal({
       );
     }
   };
+
+  const localizedError = updater.state.error
+    ? resolveUpdateErrorMessage(updater.state.error, t)
+    : null;
 
   return (
     <Dialog open={isVisible} onOpenChange={onClose}>
@@ -118,11 +123,11 @@ export function SimpleUpdateModal({
           )}
 
           {/* Error display */}
-          {updater.state.error && !updater.state.isRestarting && (
+          {localizedError && !updater.state.isRestarting && (
             <div className="p-2.5 bg-destructive/10 border border-destructive/20 rounded-md">
               <div className="flex items-center gap-2 text-xs text-destructive">
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span>{t('simpleUpdateModal.errorOccurred', { error: updater.state.error })}</span>
+                <span>{t('simpleUpdateModal.errorOccurred', { error: localizedError })}</span>
               </div>
             </div>
           )}

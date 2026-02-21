@@ -23,6 +23,7 @@
   "common.error.unexpected": "예기치 않은 오류가 발생했습니다",
   "common.error.updateCheckFailed": "업데이트 확인 중 오류가 발생했습니다.",
   "common.error.updateInstallFailed": "업데이트 설치 중 오류가 발생했습니다.",
+  "common.error.updateManualRestartRequired": "업데이트가 정상적으로 다운로드되었습니다. 앱을 수동으로 다시 시작해주세요.",
   "common.errorOccurred": "오류가 발생했습니다",
   "common.expand": "펼치기",
   "common.help": "도움말",
