@@ -16,6 +16,7 @@ import {
   ToolExecutionResultRouter,
   ProgressRenderer,
   AgentProgressGroupRenderer,
+  FileHistorySnapshotRenderer,
 } from "../../messageRenderer";
 import { AgentTaskGroupRenderer, TaskOperationGroupRenderer } from "../../toolResultRenderer";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
@@ -190,6 +191,28 @@ export const ClaudeMessageNode = React.memo(({
       >
         {CaptureHideButton}
         <SummaryMessage content={summaryContent} timestamp={message.timestamp} />
+      </div>
+    );
+  }
+
+  // File history snapshot messages
+  if (message.type === "file-history-snapshot" && message.snapshot) {
+    return (
+      <div
+        data-message-uuid={message.uuid}
+        className={cn(
+          "relative w-full px-4 py-2 transition-all duration-200",
+          isCaptureMode && CAPTURE_HOVER_BG
+        )}
+      >
+        {CaptureHideButton}
+        <div className="max-w-4xl mx-auto">
+          <FileHistorySnapshotRenderer
+            messageId={message.messageId ?? ""}
+            snapshot={message.snapshot}
+            isSnapshotUpdate={Boolean(message.isSnapshotUpdate)}
+          />
+        </div>
       </div>
     );
   }

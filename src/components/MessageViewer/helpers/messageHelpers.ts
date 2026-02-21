@@ -29,6 +29,11 @@ export const hasSystemCommandContent = (message: ClaudeMessage): boolean => {
  * ARE considered empty because they have no user-visible content.
  */
 export const isEmptyMessage = (message: ClaudeMessage): boolean => {
+  // Snapshot blocks have dedicated renderer and no standard "content" payload.
+  if (message.type === "file-history-snapshot") {
+    return false;
+  }
+
   // Messages with tool use or results should be shown
   if (
     (message.type === "assistant" && message.toolUse) ||

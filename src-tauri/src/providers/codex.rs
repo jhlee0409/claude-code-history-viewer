@@ -849,6 +849,66 @@ fn convert_codex_event(
             }));
             Some(msg)
         }
+        "agent_reasoning" => {
+            let text = payload.get("text").and_then(Value::as_str)?.trim();
+            if text.is_empty() {
+                return None;
+            }
+            *counter += 1;
+            let content = serde_json::json!([{
+                "type": "thinking",
+                "thinking": text
+            }]);
+            Some(build_codex_message(
+                format!("codex-event-{counter}"),
+                session_id,
+                line_timestamp.to_string(),
+                "assistant",
+                Some("assistant"),
+                Some(content),
+                None,
+            ))
+        }
+        "agent_message" => {
+            let text = payload.get("message").and_then(Value::as_str)?.trim();
+            if text.is_empty() {
+                return None;
+            }
+            *counter += 1;
+            let content = serde_json::json!([{
+                "type": "text",
+                "text": text
+            }]);
+            Some(build_codex_message(
+                format!("codex-event-{counter}"),
+                session_id,
+                line_timestamp.to_string(),
+                "assistant",
+                Some("assistant"),
+                Some(content),
+                None,
+            ))
+        }
+        "user_message" => {
+            let text = payload.get("message").and_then(Value::as_str)?.trim();
+            if text.is_empty() {
+                return None;
+            }
+            *counter += 1;
+            let content = serde_json::json!([{
+                "type": "text",
+                "text": text
+            }]);
+            Some(build_codex_message(
+                format!("codex-event-{counter}"),
+                session_id,
+                line_timestamp.to_string(),
+                "user",
+                Some("user"),
+                Some(content),
+                None,
+            ))
+        }
         // Unsupported/duplicated Codex events are intentionally ignored.
         _ => None,
     }
@@ -902,7 +962,7 @@ fn extract_last_token_usage(payload: &Value) -> Option<(u32, u32)> {
 
 fn map_codex_tool_name(name: &str) -> &str {
     match name {
-        "exec_command" | "shell" => "Bash",
+        "exec_command" | "shell" | "write_stdin" => "Bash",
         _ => name,
     }
 }
@@ -1215,6 +1275,7 @@ mod tests {
     fn map_exec_command_to_bash() {
         assert_eq!(map_codex_tool_name("exec_command"), "Bash");
         assert_eq!(map_codex_tool_name("shell"), "Bash");
+        assert_eq!(map_codex_tool_name("write_stdin"), "Bash");
         assert_eq!(map_codex_tool_name("batch_execute"), "batch_execute");
     }
 
@@ -1543,6 +1604,87 @@ mod tests {
 
         assert_eq!(msg.message_type, "system");
         assert_eq!(msg.subtype.as_deref(), Some("microcompact_boundary"));
+    }
+
+    #[test]
+    fn convert_agent_reasoning_event_to_thinking_message() {
+        let mut counter = 0u64;
+        let msg = convert_codex_event(
+            &json!({
+                "type": "agent_reasoning",
+                "text": "**Inspecting parsers**"
+            }),
+            "session-1",
+            "2026-02-19T12:00:00Z",
+            &mut counter,
+        )
+        .expect("agent_reasoning should be converted");
+
+        assert_eq!(msg.message_type, "assistant");
+        let arr = msg
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .expect("content should be an array");
+        assert_eq!(arr[0].get("type").and_then(Value::as_str), Some("thinking"));
+        assert_eq!(
+            arr[0].get("thinking").and_then(Value::as_str),
+            Some("**Inspecting parsers**")
+        );
+    }
+
+    #[test]
+    fn convert_agent_message_event_to_assistant_text_message() {
+        let mut counter = 0u64;
+        let msg = convert_codex_event(
+            &json!({
+                "type": "agent_message",
+                "message": "Working on requested changes"
+            }),
+            "session-1",
+            "2026-02-19T12:00:00Z",
+            &mut counter,
+        )
+        .expect("agent_message should be converted");
+
+        assert_eq!(msg.message_type, "assistant");
+        let arr = msg
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .expect("content should be an array");
+        assert_eq!(arr[0].get("type").and_then(Value::as_str), Some("text"));
+        assert_eq!(
+            arr[0].get("text").and_then(Value::as_str),
+            Some("Working on requested changes")
+        );
+    }
+
+    #[test]
+    fn convert_user_message_event_to_user_text_message() {
+        let mut counter = 0u64;
+        let msg = convert_codex_event(
+            &json!({
+                "type": "user_message",
+                "message": "Please patch this file"
+            }),
+            "session-1",
+            "2026-02-19T12:00:00Z",
+            &mut counter,
+        )
+        .expect("user_message should be converted");
+
+        assert_eq!(msg.message_type, "user");
+        let arr = msg
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .expect("content should be an array");
+        assert_eq!(arr[0].get("type").and_then(Value::as_str), Some("text"));
+        assert_eq!(
+            arr[0].get("text").and_then(Value::as_str),
+            Some("Please patch this file")
+        );
     }
 
     #[test]
