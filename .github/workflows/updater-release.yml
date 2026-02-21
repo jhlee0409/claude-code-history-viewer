@@ -16,8 +16,6 @@ jobs:
       release_id: ${{ steps.create-release.outputs.result }}
 
     steps:
-      - uses: actions/checkout@v4
-
       - name: get version from tag
         run: echo "PACKAGE_VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
 
@@ -72,6 +70,7 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -88,9 +87,13 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+          add-rust-environment-hash-key: 'false'
+          key: ${{ hashFiles('src-tauri/Cargo.toml', 'src-tauri/.cargo/config.toml') }}
+          cache-workspace-crates: 'true'
+          cache-on-failure: 'true'
 
       - name: install frontend dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -114,8 +117,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-
       - name: Generate and upload latest.json
         uses: actions/github-script@v7
         with:
