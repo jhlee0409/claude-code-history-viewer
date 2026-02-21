@@ -199,7 +199,7 @@ describe("SessionItem", () => {
         />
       );
 
-      expect(screen.getByText("Archived")).toBeInTheDocument();
+      expect(screen.getByLabelText("Archived session")).toBeInTheDocument();
     });
     it("should not show archived icon for non-archived sessions", () => {
       const session = createMockSession({
