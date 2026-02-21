@@ -155,7 +155,9 @@ export function SimpleUpdateManager({ updater }: SimpleUpdateManagerProps) {
     const isPostponed =
       !!updateSettings.lastPostponedAt &&
       now - updateSettings.lastPostponedAt < updateSettings.postponeInterval;
-    const isSkipped = updateSettings.skippedVersions.includes(version);
+    const isSkipped =
+      Array.isArray(updateSettings.skippedVersions) &&
+      updateSettings.skippedVersions.includes(version);
 
     if (isPostponed || isSkipped) {
       dismissUpdate();
