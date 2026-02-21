@@ -1,0 +1,295 @@
+name: Finalize Existing Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Existing GitHub release ID
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate and upload latest.json
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releaseIdRaw = '${{ inputs.release_id }}';
+            const releaseId = Number.parseInt(releaseIdRaw, 10);
+            if (!Number.isFinite(releaseId)) {
+              throw new Error(`Invalid release_id: ${releaseIdRaw}`);
+            }
+
+            const { data: releaseData } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId
+            });
+
+            const tagName = releaseData.tag_name;
+            const version = tagName.replace(/^v/, '');
+            const pubDate = new Date().toISOString();
+            const platforms = {};
+
+            const fetchSignature = async (assetId) => {
+              try {
+                const { data } = await github.rest.repos.getReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: assetId,
+                  headers: { accept: 'application/octet-stream' }
+                });
+                return Buffer.from(data).toString('utf-8');
+              } catch (e) {
+                console.log(`Failed to fetch signature for asset ${assetId}:`, e.message);
+                return '';
+              }
+            };
+
+            const findAssetPair = (pattern, sigPattern) => {
+              const asset = releaseData.assets.find(a => a?.name && pattern.test(a.name) && !a.name.endsWith('.sig'));
+              const sig = releaseData.assets.find(a => a?.name && sigPattern.test(a.name));
+              return { asset, sig };
+            };
+
+            const getPublicUrl = (filename) =>
+              `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tagName}/${filename}`;
+
+            const macUniversal = findAssetPair(/_universal\.app\.tar\.gz$/, /_universal\.app\.tar\.gz\.sig$/);
+            if (macUniversal.asset) {
+              const signature = macUniversal.sig ? await fetchSignature(macUniversal.sig.id) : '';
+              const url = getPublicUrl(macUniversal.asset.name);
+              platforms['darwin-aarch64'] = { signature, url };
+              platforms['darwin-x86_64'] = { signature, url };
+            }
+
+            const linux = findAssetPair(/\.AppImage$/, /\.AppImage\.sig$/);
+            if (linux.asset) {
+              const signature = linux.sig ? await fetchSignature(linux.sig.id) : '';
+              platforms['linux-x86_64'] = { signature, url: getPublicUrl(linux.asset.name) };
+            }
+
+            const windows = findAssetPair(/x64-setup\.exe$/, /x64-setup\.exe\.sig$/);
+            if (windows.asset) {
+              const signature = windows.sig ? await fetchSignature(windows.sig.id) : '';
+              platforms['windows-x86_64'] = { signature, url: getPublicUrl(windows.asset.name) };
+            }
+
+            const latestJson = {
+              version,
+              notes: `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${tagName}`,
+              pub_date: pubDate,
+              platforms
+            };
+
+            console.log('latest.json:', JSON.stringify(latestJson, null, 2));
+
+            const existing = releaseData.assets.find(a => a.name === 'latest.json');
+            if (existing) {
+              await github.rest.repos.deleteReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: existing.id
+              });
+            }
+
+            const uploadUrl = releaseData.upload_url.replace('{?name,label}', '?name=latest.json');
+            await github.request({
+              method: 'POST',
+              url: uploadUrl,
+              headers: { 'content-type': 'application/json' },
+              data: JSON.stringify(latestJson, null, 2)
+            });
+
+      - name: Sync Homebrew tap cask
+        uses: actions/github-script@v7
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        with:
+          script: |
+            const releaseIdRaw = '${{ inputs.release_id }}';
+            const releaseId = Number.parseInt(releaseIdRaw, 10);
+            const tapOwner = 'jhlee0409';
+            const tapRepo = 'homebrew-tap';
+            const caskPath = 'Casks/claude-code-history-viewer.rb';
+
+            if (!Number.isFinite(releaseId)) {
+              throw new Error(`Invalid release_id: ${releaseIdRaw}`);
+            }
+            if (!process.env.HOMEBREW_TAP_TOKEN) {
+              throw new Error('HOMEBREW_TAP_TOKEN is required to publish releases safely.');
+            }
+
+            const encodedCaskPath = caskPath
+              .split('/')
+              .map(segment => encodeURIComponent(segment))
+              .join('/');
+
+            const tapApiBase = `https://api.github.com/repos/${tapOwner}/${tapRepo}`;
+            const tapHeaders = {
+              Authorization: `Bearer ${process.env.HOMEBREW_TAP_TOKEN}`,
+              Accept: 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'claude-code-history-viewer-release-workflow'
+            };
+
+            const tapRequest = async (path, options = {}) => {
+              const method = options.method || 'GET';
+              const response = await fetch(`${tapApiBase}${path}`, {
+                method,
+                headers: {
+                  ...tapHeaders,
+                  ...(options.body ? { 'Content-Type': 'application/json' } : {})
+                },
+                body: options.body ? JSON.stringify(options.body) : undefined
+              });
+
+              if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`Tap API ${method} ${path} failed (${response.status}): ${text}`);
+              }
+
+              if (response.status === 204) {
+                return null;
+              }
+
+              return await response.json();
+            };
+
+            const { data: releaseData } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId
+            });
+
+            const dmgAsset = releaseData.assets.find(a => a.name.endsWith('_universal.dmg'));
+            if (!dmgAsset) {
+              throw new Error('No universal DMG asset found. Cannot sync Homebrew cask.');
+            }
+
+            const version = releaseData.tag_name.replace(/^v/, '');
+            let sha256 = '';
+
+            if (typeof dmgAsset.digest === 'string' && dmgAsset.digest.startsWith('sha256:')) {
+              sha256 = dmgAsset.digest.replace(/^sha256:/, '').trim();
+            }
+
+            if (!/^[a-f0-9]{64}$/.test(sha256)) {
+              const { execSync } = require('child_process');
+              const fs = require('fs');
+              const os = require('os');
+              const path = require('path');
+              const tmpDmg = path.join(os.tmpdir(), `cchv-${version}-${Date.now()}.dmg`);
+
+              try {
+                const { data } = await github.rest.repos.getReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: dmgAsset.id,
+                  headers: { accept: 'application/octet-stream' }
+                });
+                fs.writeFileSync(tmpDmg, Buffer.from(data));
+              } catch (error) {
+                throw new Error(`Failed to download DMG via API (asset_id=${dmgAsset.id}): ${error.message}`);
+              }
+
+              const stat = fs.statSync(tmpDmg);
+              if (stat.size < 1024 * 1024) {
+                throw new Error(`Downloaded DMG is suspiciously small (${stat.size} bytes)`);
+              }
+
+              const shaOutput = execSync(`shasum -a 256 "${tmpDmg}"`, { encoding: 'utf8' });
+              const match = shaOutput.match(/^[a-f0-9]{64}/);
+              if (!match) {
+                throw new Error(`Failed to parse SHA256 from shasum output: ${shaOutput}`);
+              }
+              sha256 = match[0];
+
+              try { fs.unlinkSync(tmpDmg); } catch {}
+            }
+
+            console.log(`Syncing Homebrew cask: v${version}, sha256=${sha256}`);
+
+            const caskFile = await tapRequest(`/contents/${encodedCaskPath}?ref=main`);
+            if (!caskFile || Array.isArray(caskFile) || !('content' in caskFile)) {
+              throw new Error(`Unexpected cask file response for ${tapOwner}/${tapRepo}/${caskPath}`);
+            }
+
+            const currentContent = Buffer.from(caskFile.content, 'base64').toString('utf8');
+            const nextContent = currentContent
+              .replace(/version\s+"[^"]+"/, `version "${version}"`)
+              .replace(/sha256\s+"[^"]+"/, `sha256 "${sha256}"`);
+
+            if (nextContent !== currentContent) {
+              await tapRequest(`/contents/${encodedCaskPath}`, {
+                method: 'PUT',
+                body: {
+                  message: `chore: update claude-code-history-viewer to v${version}`,
+                  content: Buffer.from(nextContent).toString('base64'),
+                  sha: caskFile.sha,
+                  branch: 'main',
+                  committer: {
+                    name: 'github-actions[bot]',
+                    email: '41898282+github-actions[bot]@users.noreply.github.com'
+                  },
+                  author: {
+                    name: 'github-actions[bot]',
+                    email: '41898282+github-actions[bot]@users.noreply.github.com'
+                  }
+                }
+              });
+              console.log(`Updated ${tapOwner}/${tapRepo}/${caskPath}`);
+            } else {
+              console.log(`Cask already up to date for v${version}`);
+            }
+
+            const verifyFile = await tapRequest(`/contents/${encodedCaskPath}?ref=main`);
+            if (!verifyFile || Array.isArray(verifyFile) || !('content' in verifyFile)) {
+              throw new Error('Failed to re-read cask file for verification.');
+            }
+
+            const verifiedContent = Buffer.from(verifyFile.content, 'base64').toString('utf8');
+            if (
+              !verifiedContent.includes(`version "${version}"`) ||
+              !verifiedContent.includes(`sha256 "${sha256}"`)
+            ) {
+              throw new Error('Homebrew cask verification failed after update.');
+            }
+            console.log(`Verified Homebrew cask v${version}`);
+
+      - name: Publish release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releaseIdRaw = '${{ inputs.release_id }}';
+            const releaseId = Number.parseInt(releaseIdRaw, 10);
+            if (!Number.isFinite(releaseId)) {
+              throw new Error(`Invalid release_id: ${releaseIdRaw}`);
+            }
+
+            const { data: releaseData } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId
+            });
+
+            const { data: generatedNotes } = await github.rest.repos.generateReleaseNotes({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: releaseData.tag_name,
+            });
+
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              body: generatedNotes.body,
+              draft: false,
+            });
+
+            console.log(`Release published: ${releaseData.tag_name}`);
