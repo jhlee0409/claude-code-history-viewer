@@ -18,7 +18,7 @@ Use pnpm Package Manager
 
 ## Project Overview
 
-Claude Code History Viewer is a Tauri-based desktop application that allows users to browse and analyze their Claude Code conversation history stored in the `~/.claude` directory.
+Claude Code History Viewer is a Tauri-based desktop application that allows users to browse and analyze conversation history from multiple AI coding assistants: Claude Code (`~/.claude`), Codex CLI (`~/.codex`), and OpenCode (`~/.local/share/opencode/`).
 
 ## Development Commands
 
@@ -188,7 +188,9 @@ gh release edit v1.3.1 --notes-file /path/to/notes.md
 ### Data Flow
 
 ```
-~/.claude/projects/[project]/*.jsonl → Rust Backend → Tauri IPC → React Frontend → Virtual List
+Claude Code: ~/.claude/projects/[project]/*.jsonl  ─┐
+Codex CLI:   ~/.codex/sessions/*.jsonl              ├→ Rust Backend → Tauri IPC → React Frontend → Virtual List
+OpenCode:    ~/.local/share/opencode/storage/       ─┘
 ```
 
 ### Frontend (React + TypeScript)

@@ -4,7 +4,7 @@
 
 **浏览、搜索和分析您的 Claude Code 对话记录 — 完全离线。**
 
-读取 `~/.claude` 对话历史的桌面应用,支持数据分析、会话面板和实时监控。
+读取 Claude Code、Codex CLI 和 OpenCode 对话历史的桌面应用,支持数据分析、会话面板和实时监控。
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Downloads](https://img.shields.io/github/downloads/jhlee0409/claude-code-history-viewer/total?color=green)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
@@ -47,14 +47,16 @@
 
 | 功能 | 描述 |
 |---------|-------------|
+| **多提供商** | 统一查看 Claude Code、Codex CLI 和 OpenCode 对话 |
 | **对话浏览器** | 按项目/会话导航对话,支持工作树分组 |
 | **全局搜索** | 即时搜索所有对话内容 |
-| **分析仪表板** | Token 使用统计和 API 成本计算 |
-| **会话面板** | 多会话可视化分析,支持像素视图和属性筛选 |
+| **分析仪表板** | 按提供商统计 Token 使用量和 API 成本 |
+| **会话面板** | 多会话可视化分析,支持像素视图、属性筛选和活动时间线 |
 | **设置管理器** | 作用域感知的 Claude Code 设置编辑器,支持 MCP 服务器管理 |
 | **消息导航器** | 右侧可折叠目录,快速浏览对话内容 |
 | **实时监控** | 实时监听会话文件变化并即时更新 |
-| **会话重命名** | 原生会话重命名功能,集成搜索 |
+| **会话上下文菜单** | 复制会话 ID、恢复命令和文件路径;原生重命名集成搜索 |
+| **ANSI 颜色渲染** | 以原始 ANSI 颜色显示终端输出 |
 | **多语言** | 英语、韩语、日语、简体中文、繁体中文 |
 | **最近编辑** | 查看文件修改历史并恢复 |
 | **自动更新** | 内置更新器,支持跳过/延迟选项 |
@@ -122,8 +124,8 @@ pnpm tauri:build     # 生产构建
 ## 使用方法
 
 1. 启动应用
-2. 自动扫描 `~/.claude` 目录下的对话数据
-3. 在左侧边栏浏览项目
+2. 自动扫描所有支持的提供商 (Claude Code、Codex CLI、OpenCode) 的对话数据
+3. 在左侧边栏浏览项目 — 使用标签栏按提供商筛选
 4. 点击会话查看消息
 5. 使用标签页在消息、分析、Token 统计、最近编辑和会话面板之间切换
 

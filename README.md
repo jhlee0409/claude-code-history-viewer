@@ -4,7 +4,7 @@
 
 **Browse, search, and analyze your Claude Code conversations — all offline.**
 
-Desktop app that reads `~/.claude` conversation history with analytics, session boards, and real-time monitoring.
+Desktop app that reads conversation history from Claude Code, Codex CLI, and OpenCode with analytics, session boards, and real-time monitoring.
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Downloads](https://img.shields.io/github/downloads/jhlee0409/claude-code-history-viewer/total?color=green)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
@@ -47,14 +47,16 @@ Desktop app that reads `~/.claude` conversation history with analytics, session 
 
 | Feature | Description |
 |---------|-------------|
+| **Multi-Provider** | Unified viewer for Claude Code, Codex CLI, and OpenCode conversations |
 | **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
 | **Global Search** | Search across all conversations instantly |
-| **Analytics Dashboard** | Token usage stats and API cost calculation |
-| **Session Board** | Multi-session visual analysis with pixel view and attribute brushing |
+| **Analytics Dashboard** | Token usage stats and API cost calculation per provider |
+| **Session Board** | Multi-session visual analysis with pixel view, attribute brushing, and activity timeline |
 | **Settings Manager** | Scope-aware Claude Code settings editor with MCP server management |
 | **Message Navigator** | Right-side collapsible TOC for quick conversation navigation |
 | **Real-time Monitoring** | Live session file watching for instant updates |
-| **Session Rename** | Native session renaming with search integration |
+| **Session Context Menu** | Copy session ID, resume command, file path; native rename with search integration |
+| **ANSI Color Rendering** | Terminal output displayed with original ANSI colors |
 | **Multi-language** | English, Korean, Japanese, Chinese (Simplified & Traditional) |
 | **Recent Edits** | View file modification history and restore |
 | **Auto-update** | Built-in updater with skip/postpone options |
@@ -122,8 +124,8 @@ pnpm tauri:build     # Production build
 ## Usage
 
 1. Launch the app
-2. It automatically scans `~/.claude` for conversation data
-3. Browse projects in the left sidebar
+2. It automatically scans for conversation data from all supported providers (Claude Code, Codex CLI, OpenCode)
+3. Browse projects in the left sidebar — filter by provider using the tab bar
 4. Click a session to view messages
 5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board
 

@@ -4,7 +4,7 @@
 
 **瀏覽、搜尋和分析您的 Claude Code 對話記錄 — 完全離線。**
 
-讀取 `~/.claude` 對話記錄的桌面應用，支援資料分析、工作階段面板和即時監控。
+讀取 Claude Code、Codex CLI 和 OpenCode 對話記錄的桌面應用，支援資料分析、工作階段面板和即時監控。
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Downloads](https://img.shields.io/github/downloads/jhlee0409/claude-code-history-viewer/total?color=green)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
@@ -47,14 +47,16 @@
 
 | 功能 | 說明 |
 |---------|-------------|
+| **多提供者** | 統一檢視 Claude Code、Codex CLI 和 OpenCode 對話記錄 |
 | **對話瀏覽器** | 依專案/工作階段瀏覽對話記錄，支援工作樹分組 |
 | **全域搜尋** | 即時搜尋所有對話記錄 |
-| **分析儀表板** | Token 使用統計與 API 成本計算 |
-| **工作階段面板** | 多工作階段視覺化分析，包含像素視圖和屬性篩選 |
+| **分析儀表板** | 依提供者統計 Token 使用量與 API 成本 |
+| **工作階段面板** | 多工作階段視覺化分析，包含像素視圖、屬性篩選和活動時間軸 |
 | **設定管理器** | 具作用域感知的 Claude Code 設定編輯器，支援 MCP 伺服器管理 |
 | **訊息導航器** | 右側可摺疊目錄，快速瀏覽對話內容 |
 | **即時監控** | 即時監控工作階段檔案變更 |
-| **工作階段重新命名** | 原生工作階段重新命名功能，整合搜尋 |
+| **工作階段快捷選單** | 複製工作階段 ID、恢復指令和檔案路徑；原生重新命名整合搜尋 |
+| **ANSI 色彩渲染** | 以原始 ANSI 色彩顯示終端輸出 |
 | **多語言支援** | 英語、韓語、日語、簡體中文、繁體中文 |
 | **最近編輯** | 檢視檔案修改歷史記錄並還原 |
 | **自動更新** | 內建更新程式，支援略過或延後更新 |
@@ -122,8 +124,8 @@ pnpm tauri:build     # 正式版建置
 ## 使用方式
 
 1. 啟動應用程式
-2. 自動掃描 `~/.claude` 中的對話資料
-3. 在左側邊欄瀏覽專案
+2. 自動掃描所有支援的提供者（Claude Code、Codex CLI、OpenCode）的對話資料
+3. 在左側邊欄瀏覽專案 — 使用分頁列依提供者篩選
 4. 點擊工作階段檢視訊息
 5. 使用分頁切換訊息、分析、Token 統計、最近編輯和工作階段面板
 

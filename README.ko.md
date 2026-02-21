@@ -4,7 +4,7 @@
 
 **Claude Code 대화 기록을 탐색, 검색, 분석하세요 — 완전한 오프라인.**
 
-`~/.claude` 대화 기록을 분석, 세션 보드, 실시간 모니터링과 함께 탐색하는 데스크톱 앱.
+Claude Code, Codex CLI, OpenCode의 대화 기록을 분석, 세션 보드, 실시간 모니터링과 함께 탐색하는 데스크톱 앱.
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Downloads](https://img.shields.io/github/downloads/jhlee0409/claude-code-history-viewer/total?color=green)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
@@ -47,14 +47,16 @@
 
 | 기능 | 설명 |
 |---------|-------------|
+| **멀티 프로바이더** | Claude Code, Codex CLI, OpenCode 대화를 통합 뷰어로 탐색 |
 | **대화 브라우저** | 프로젝트/세션별 대화 탐색 (워크트리 그룹핑 지원) |
 | **글로벌 검색** | 모든 대화에서 즉시 검색 |
-| **분석 대시보드** | 토큰 사용량 통계 및 API 비용 계산 |
-| **세션 보드** | 멀티 세션 시각 분석 (픽셀 뷰, 속성 브러싱) |
+| **분석 대시보드** | 프로바이더별 토큰 사용량 통계 및 API 비용 계산 |
+| **세션 보드** | 멀티 세션 시각 분석 (픽셀 뷰, 속성 브러싱, 액티비티 타임라인) |
 | **설정 관리자** | 스코프 기반 Claude Code 설정 편집기 (MCP 서버 관리 포함) |
 | **메시지 네비게이터** | 우측 접이식 TOC로 긴 대화 빠르게 탐색 |
 | **실시간 모니터링** | 세션 파일 변경 실시간 감지 및 즉시 업데이트 |
-| **세션 이름 변경** | 네이티브 세션 이름 변경 및 검색 연동 |
+| **세션 컨텍스트 메뉴** | 세션 ID 복사, 재개 명령 복사, 파일 경로 복사; 네이티브 이름 변경 및 검색 연동 |
+| **ANSI 색상 렌더링** | 터미널 출력을 원본 ANSI 색상으로 표시 |
 | **다국어 지원** | 영어, 한국어, 일본어, 중국어 (간체 및 번체) |
 | **최근 편집** | 파일 수정 내역 확인 및 복원 |
 | **자동 업데이트** | 내장 업데이터 (건너뛰기/연기 옵션 포함) |
@@ -122,8 +124,8 @@ pnpm tauri:build     # 프로덕션 빌드
 ## 사용법
 
 1. 앱 실행
-2. `~/.claude`에서 대화 데이터 자동 스캔
-3. 좌측 사이드바에서 프로젝트 탐색
+2. 지원하는 모든 프로바이더 (Claude Code, Codex CLI, OpenCode)에서 대화 데이터 자동 스캔
+3. 좌측 사이드바에서 프로젝트 탐색 — 탭 바로 프로바이더별 필터링
 4. 세션 클릭하여 메시지 확인
 5. 탭으로 메시지, 분석, 토큰 통계, 최근 편집, 세션 보드 전환
 
