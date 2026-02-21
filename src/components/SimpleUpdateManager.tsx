@@ -252,6 +252,8 @@ export function SimpleUpdateManager({ updater }: SimpleUpdateManagerProps) {
 
           setLastCheckWasManual(true);
           setIsManualCheck(true);
+          setShowError(false);
+          setShowUpToDate(false);
 
           void runCheckAndPersist();
         }}
