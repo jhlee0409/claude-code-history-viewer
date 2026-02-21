@@ -14,12 +14,14 @@ use walkdir::WalkDir;
 pub fn detect() -> Option<ProviderInfo> {
     let base_path = get_base_path()?;
     let sessions_path = Path::new(&base_path).join("sessions");
+    let archived_sessions_path = Path::new(&base_path).join("archived_sessions");
 
     Some(ProviderInfo {
         id: "codex".to_string(),
         display_name: "Codex CLI".to_string(),
         base_path: base_path.clone(),
-        is_available: sessions_path.exists() && sessions_path.is_dir(),
+        is_available: (sessions_path.exists() && sessions_path.is_dir())
+            || (archived_sessions_path.exists() && archived_sessions_path.is_dir()),
     })
 }
 
@@ -48,18 +50,55 @@ fn get_sessions_dir() -> Result<PathBuf, String> {
     Ok(Path::new(&base_path).join("sessions"))
 }
 
-fn validate_session_path(session_path: &Path, raw_session_path: &str) -> Result<PathBuf, String> {
+fn get_archived_sessions_dir() -> Result<PathBuf, String> {
+    let base_path = get_base_path().ok_or_else(|| "Codex not found".to_string())?;
+    Ok(Path::new(&base_path).join("archived_sessions"))
+}
+
+fn get_existing_session_dirs() -> Result<Vec<PathBuf>, String> {
     let sessions_dir = get_sessions_dir()?;
-    let canonical_sessions = sessions_dir
-        .canonicalize()
-        .map_err(|e| format!("Failed to resolve Codex sessions directory: {e}"))?;
+    let archived_sessions_dir = get_archived_sessions_dir()?;
+
+    Ok([sessions_dir, archived_sessions_dir]
+        .into_iter()
+        .filter(|path| path.exists() && path.is_dir())
+        .collect())
+}
+
+fn is_rollout_jsonl(path: &Path) -> bool {
+    path.file_name()
+        .map(|name| name.to_string_lossy().starts_with("rollout-"))
+        .unwrap_or(false)
+        && path.extension().is_some_and(|ext| ext == "jsonl")
+}
+
+fn validate_session_path(session_path: &Path, raw_session_path: &str) -> Result<PathBuf, String> {
     let canonical_session = session_path
         .canonicalize()
         .map_err(|e| format!("Failed to resolve session path: {e}"))?;
 
-    if !canonical_session.starts_with(&canonical_sessions) {
+    let mut canonical_session_dirs = Vec::new();
+    for dir in [get_sessions_dir()?, get_archived_sessions_dir()?] {
+        if !dir.exists() || !dir.is_dir() {
+            continue;
+        }
+        canonical_session_dirs.push(
+            dir.canonicalize()
+                .map_err(|e| format!("Failed to resolve Codex session directory: {e}"))?,
+        );
+    }
+
+    if canonical_session_dirs.is_empty() {
+        return Err("No Codex session directories found".to_string());
+    }
+
+    let is_allowed = canonical_session_dirs
+        .iter()
+        .any(|allowed_dir| canonical_session.starts_with(allowed_dir));
+
+    if !is_allowed {
         return Err(format!(
-            "Session path is outside Codex sessions directory: {raw_session_path}"
+            "Session path is outside Codex session directories: {raw_session_path}"
         ));
     }
 
@@ -83,30 +122,29 @@ struct SessionInfo {
 
 /// Scan Codex projects (grouped by cwd from session metadata)
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let sessions_dir = get_sessions_dir()?;
+    let session_dirs = get_existing_session_dirs()?;
 
-    if !sessions_dir.exists() {
+    if session_dirs.is_empty() {
         return Ok(vec![]);
     }
 
     // Group sessions by cwd
     let mut project_map: HashMap<String, Vec<SessionInfo>> = HashMap::new();
 
-    for entry in WalkDir::new(&sessions_dir)
-        .min_depth(1)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| {
-            e.file_name().to_string_lossy().starts_with("rollout-")
-                && e.path().extension().is_some_and(|ext| ext == "jsonl")
-        })
-    {
-        let rollout_path = entry.path();
+    for session_dir in session_dirs {
+        for entry in WalkDir::new(session_dir)
+            .min_depth(1)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| is_rollout_jsonl(e.path()))
+        {
+            let rollout_path = entry.path();
 
-        if let Ok(info) = extract_session_info(rollout_path) {
-            let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
-            project_map.entry(cwd).or_default().push(info);
+            if let Ok(info) = extract_session_info(rollout_path) {
+                let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
+                project_map.entry(cwd).or_default().push(info);
+            }
         }
     }
 
@@ -149,9 +187,9 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    let sessions_dir = get_sessions_dir()?;
+    let session_dirs = get_existing_session_dirs()?;
 
-    if !sessions_dir.exists() {
+    if session_dirs.is_empty() {
         return Ok(vec![]);
     }
 
@@ -162,41 +200,40 @@ pub fn load_sessions(
 
     let mut sessions = Vec::new();
 
-    for entry in WalkDir::new(&sessions_dir)
-        .min_depth(1)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| {
-            e.file_name().to_string_lossy().starts_with("rollout-")
-                && e.path().extension().is_some_and(|ext| ext == "jsonl")
-        })
-    {
-        let rollout_path = entry.path();
+    for session_dir in session_dirs {
+        for entry in WalkDir::new(session_dir)
+            .min_depth(1)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| is_rollout_jsonl(e.path()))
+        {
+            let rollout_path = entry.path();
 
-        if let Ok(info) = extract_session_info(rollout_path) {
-            let session_cwd = info.cwd.as_deref().unwrap_or("");
-            if session_cwd != target_cwd {
-                continue;
+            if let Ok(info) = extract_session_info(rollout_path) {
+                let session_cwd = info.cwd.as_deref().unwrap_or("");
+                if session_cwd != target_cwd {
+                    continue;
+                }
+
+                sessions.push(ClaudeSession {
+                    session_id: info.file_path.clone(),
+                    actual_session_id: info.session_id,
+                    file_path: info.file_path,
+                    project_name: Path::new(target_cwd)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_default(),
+                    message_count: info.message_count,
+                    first_message_time: info.first_message_time,
+                    last_message_time: info.last_message_time,
+                    last_modified: info.last_modified,
+                    has_tool_use: info.has_tool_use,
+                    has_errors: false,
+                    summary: info.summary,
+                    provider: Some("codex".to_string()),
+                });
             }
-
-            sessions.push(ClaudeSession {
-                session_id: info.file_path.clone(),
-                actual_session_id: info.session_id,
-                file_path: info.file_path,
-                project_name: Path::new(target_cwd)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_default(),
-                message_count: info.message_count,
-                first_message_time: info.first_message_time,
-                last_message_time: info.last_message_time,
-                last_modified: info.last_modified,
-                has_tool_use: info.has_tool_use,
-                has_errors: false,
-                summary: info.summary,
-                provider: Some("codex".to_string()),
-            });
         }
     }
 
@@ -335,36 +372,35 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 
 /// Search Codex sessions for a query string
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
-    let sessions_dir = get_sessions_dir()?;
+    let session_dirs = get_existing_session_dirs()?;
 
-    if !sessions_dir.exists() {
+    if session_dirs.is_empty() {
         return Ok(vec![]);
     }
 
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    for entry in WalkDir::new(&sessions_dir)
-        .min_depth(1)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| {
-            e.file_name().to_string_lossy().starts_with("rollout-")
-                && e.path().extension().is_some_and(|ext| ext == "jsonl")
-        })
-    {
-        let rollout_path = entry.path();
+    for session_dir in session_dirs {
+        for entry in WalkDir::new(session_dir)
+            .min_depth(1)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| is_rollout_jsonl(e.path()))
+        {
+            let rollout_path = entry.path();
 
-        if let Ok(messages) = load_messages(&rollout_path.to_string_lossy()) {
-            for msg in messages {
-                if results.len() >= limit {
-                    return Ok(results);
-                }
+            if let Ok(messages) = load_messages(&rollout_path.to_string_lossy()) {
+                for msg in messages {
+                    if results.len() >= limit {
+                        return Ok(results);
+                    }
 
-                if let Some(content) = &msg.content {
-                    if search_json_value_case_insensitive(content, &query_lower) {
-                        results.push(msg);
+                    if let Some(content) = &msg.content {
+                        if search_json_value_case_insensitive(content, &query_lower) {
+                            results.push(msg);
+                        }
                     }
                 }
             }
@@ -1936,5 +1972,121 @@ mod tests {
             .iter()
             .all(|m| m.provider.as_deref() == Some("codex")));
         assert!(messages.iter().all(|m| m.session_id == "sess-1"));
+    }
+
+    #[test]
+    #[serial]
+    fn load_sessions_includes_archived_sessions() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        let archived_dir = codex_home.join("archived_sessions");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        fs::create_dir_all(&archived_dir).expect("archived dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let project_cwd = "/Users/jack/client/claude-code-history-viewer";
+        let active_rollout = sessions_dir.join("rollout-active.jsonl");
+        let archived_rollout = archived_dir.join("rollout-archived.jsonl");
+        let active_lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": "active-session", "cwd": project_cwd }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-02-21T10:00:00Z",
+                    "content": [{ "type": "input_text", "text": "active" }]
+                }
+            }),
+        ];
+        let archived_lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": "archived-session", "cwd": project_cwd }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-02-21T11:00:00Z",
+                    "content": [{ "type": "input_text", "text": "archived" }]
+                }
+            }),
+        ];
+        let active_content = active_lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let archived_content = archived_lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&active_rollout, format!("{active_content}\n"))
+            .expect("active fixture should be written");
+        fs::write(&archived_rollout, format!("{archived_content}\n"))
+            .expect("archived fixture should be written");
+
+        let sessions = load_sessions(&format!("codex://{project_cwd}"), false)
+            .expect("sessions should be loaded");
+
+        assert_eq!(sessions.len(), 2);
+        assert!(sessions.iter().any(|s| s.file_path.contains("/sessions/")));
+        assert!(sessions
+            .iter()
+            .any(|s| s.file_path.contains("/archived_sessions/")));
+    }
+
+    #[test]
+    #[serial]
+    fn load_messages_accepts_archived_session_path() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let archived_dir = codex_home.join("archived_sessions");
+        fs::create_dir_all(&archived_dir).expect("archived dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+        let rollout_path = archived_dir.join("rollout-archived-only.jsonl");
+        let lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": "archived-session", "cwd": "/tmp/project" }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "id": "item-1",
+                    "type": "message",
+                    "role": "assistant",
+                    "created_at": "2026-02-21T10:00:00Z",
+                    "content": [{ "type": "output_text", "text": "ok" }]
+                }
+            }),
+        ];
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n")).expect("fixture should be written");
+
+        let messages = load_messages(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+        )
+        .expect("archived rollout should be parsed");
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].session_id, "archived-session");
     }
 }
