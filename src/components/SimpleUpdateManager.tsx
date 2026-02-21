@@ -141,7 +141,7 @@ export function SimpleUpdateManager({ updater }: SimpleUpdateManagerProps) {
       }
       setIsManualCheck(false);
     }
-  }, [isChecking, hasUpdate, updateError, isManualCheck]);
+  }, [isChecking, hasUpdate, updateError, isManualCheck, t]);
 
   // Suppress auto-check update modal for postponed/skipped versions
   useEffect(() => {
