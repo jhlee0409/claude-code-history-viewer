@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { GithubIcon, MailIcon, InfoIcon } from "lucide-react";
+import type { FeedbackPrefill, FeedbackType } from "@/contexts/modal/context";
 import {
   Dialog,
   DialogContent,
@@ -37,12 +38,13 @@ interface SystemInfo {
 
 interface FeedbackModalProps {
   isOpen: boolean;
+  prefill?: FeedbackPrefill | null;
   onClose: () => void;
 }
 
-export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
+export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) => {
   const { t } = useTranslation();
-  const [feedbackType, setFeedbackType] = useState<string>("bug");
+  const [feedbackType, setFeedbackType] = useState<FeedbackType>("bug");
   const [subject, setSubject] = useState<string>("");
   const [body, setBody] = useState<string>("");
   const [includeSystemInfo, setIncludeSystemInfo] = useState<boolean>(true);
@@ -54,7 +56,29 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
     { value: "feature", label: t("feedback.types.feature") },
     { value: "improvement", label: t("feedback.types.improvement") },
     { value: "other", label: t("feedback.types.other") },
-  ];
+  ] as const;
+
+  const handleFeedbackTypeChange = (value: string) => {
+    if (
+      value === "bug" ||
+      value === "feature" ||
+      value === "improvement" ||
+      value === "other"
+    ) {
+      setFeedbackType(value);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || !prefill) return;
+
+    setFeedbackType(prefill.feedbackType ?? "bug");
+    setSubject(prefill.subject ?? "");
+    setBody(prefill.body ?? "");
+    if (typeof prefill.includeSystemInfo === "boolean") {
+      setIncludeSystemInfo(prefill.includeSystemInfo);
+    }
+  }, [isOpen, prefill]);
 
   const loadSystemInfo = async () => {
     try {
@@ -143,7 +167,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="feedbackType" className="text-xs">{t("feedback.type")}</Label>
-              <Select value={feedbackType} onValueChange={setFeedbackType}>
+              <Select value={feedbackType} onValueChange={handleFeedbackTypeChange}>
                 <SelectTrigger id="feedbackType" className="h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>

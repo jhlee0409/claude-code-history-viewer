@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-21T15:59:48.566Z
- * 총 키 개수: 1548
+ * 생성 시간: 2026-02-21T20:16:52.215Z
+ * 총 키 개수: 1552
  * Namespace 수: 11
  */
 
@@ -1516,7 +1516,7 @@ export type RenderersKeys =
   | 'webSearchResultRenderer.title';
 
 /**
- * update namespace의 번역 키 (68개)
+ * update namespace의 번역 키 (72개)
  * 파일: locales/{lang}/update.json
  */
 export type UpdateKeys =
@@ -1527,6 +1527,7 @@ export type UpdateKeys =
   | 'simpleUpdateModal.downloading'
   | 'simpleUpdateModal.downloadingShort'
   | 'simpleUpdateModal.errorOccurred'
+  | 'simpleUpdateModal.failureGuide'
   | 'simpleUpdateModal.hideDetails'
   | 'simpleUpdateModal.important'
   | 'simpleUpdateModal.installing'
@@ -1535,6 +1536,9 @@ export type UpdateKeys =
   | 'simpleUpdateModal.newVersion'
   | 'simpleUpdateModal.releaseName'
   | 'simpleUpdateModal.remindLater'
+  | 'simpleUpdateModal.reportIssue'
+  | 'simpleUpdateModal.reportIssuePrompt'
+  | 'simpleUpdateModal.reportIssueSubject'
   | 'simpleUpdateModal.restarting'
   | 'simpleUpdateModal.restartingDescription'
   | 'simpleUpdateModal.restartingShort'
@@ -2974,6 +2978,7 @@ export type TranslationKey =
   | 'simpleUpdateModal.downloading'
   | 'simpleUpdateModal.downloadingShort'
   | 'simpleUpdateModal.errorOccurred'
+  | 'simpleUpdateModal.failureGuide'
   | 'simpleUpdateModal.hideDetails'
   | 'simpleUpdateModal.important'
   | 'simpleUpdateModal.installing'
@@ -2982,6 +2987,9 @@ export type TranslationKey =
   | 'simpleUpdateModal.newVersion'
   | 'simpleUpdateModal.releaseName'
   | 'simpleUpdateModal.remindLater'
+  | 'simpleUpdateModal.reportIssue'
+  | 'simpleUpdateModal.reportIssuePrompt'
+  | 'simpleUpdateModal.reportIssueSubject'
   | 'simpleUpdateModal.restarting'
   | 'simpleUpdateModal.restartingDescription'
   | 'simpleUpdateModal.restartingShort'

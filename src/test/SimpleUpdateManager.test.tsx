@@ -83,6 +83,7 @@ function createUpdater(
       isChecking: false,
       hasUpdate: false,
       isDownloading: false,
+      isInstalling: false,
       isRestarting: false,
       downloadProgress: 0,
       error: null,

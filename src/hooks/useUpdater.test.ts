@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE } from '@/utils/updateError';
+import {
+  UPDATE_INSTALL_FAILED_ERROR_CODE,
+  UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE,
+} from '@/utils/updateError';
 
 // Use vi.hoisted to create mocks that can be referenced in vi.mock
 const { mockCheck, mockRelaunch, mockGetVersion } = vi.hoisted(() => ({
@@ -42,6 +45,7 @@ describe('useUpdater', () => {
       expect(result.current.state.isChecking).toBe(false);
       expect(result.current.state.hasUpdate).toBe(false);
       expect(result.current.state.isDownloading).toBe(false);
+      expect(result.current.state.isInstalling).toBe(false);
       expect(result.current.state.downloadProgress).toBe(0);
       expect(result.current.state.error).toBeNull();
 
@@ -321,6 +325,104 @@ describe('useUpdater', () => {
 
       expect(mockRelaunch).not.toHaveBeenCalled();
       expect(result.current.state.isDownloading).toBe(false);
+      expect(result.current.state.isRestarting).toBe(false);
+      expect(result.current.state.error).toBe(UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE);
+    });
+
+    it('should ask for manual restart on generic download failure after progress events', async () => {
+      const mockDownloadAndInstall = vi.fn().mockImplementation((callback) => {
+        callback({ event: 'Started', data: { contentLength: 1000 } });
+        callback({ event: 'Progress', data: { chunkLength: 700 } });
+        return Promise.reject(new Error('Download failed'));
+      });
+
+      const mockUpdate = {
+        version: '2.0.0',
+        downloadAndInstall: mockDownloadAndInstall,
+      };
+      mockCheck.mockResolvedValue(mockUpdate);
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdates();
+      });
+
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      expect(mockRelaunch).not.toHaveBeenCalled();
+      expect(result.current.state.isDownloading).toBe(false);
+      expect(result.current.state.isRestarting).toBe(false);
+      expect(result.current.state.error).toBe(UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE);
+    });
+
+    it('should map generic install-stage failure to install failed code in separated flow', async () => {
+      const mockDownload = vi.fn().mockImplementation((callback) => {
+        callback({ event: 'Started', data: { contentLength: 1000 } });
+        callback({ event: 'Progress', data: { chunkLength: 1000 } });
+        callback({ event: 'Finished' });
+        return Promise.resolve();
+      });
+      const mockInstall = vi.fn().mockRejectedValue(new Error('Download failed'));
+
+      const mockUpdate = {
+        version: '2.0.0',
+        download: mockDownload,
+        install: mockInstall,
+      };
+      mockCheck.mockResolvedValue(mockUpdate);
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdates();
+      });
+
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      expect(mockDownload).toHaveBeenCalledTimes(1);
+      expect(mockInstall).toHaveBeenCalledTimes(1);
+      expect(mockRelaunch).not.toHaveBeenCalled();
+      expect(result.current.state.isInstalling).toBe(false);
+      expect(result.current.state.isRestarting).toBe(false);
+      expect(result.current.state.error).toBe(UPDATE_INSTALL_FAILED_ERROR_CODE);
+    });
+
+    it('should ask for manual restart when relaunch fails in separated flow', async () => {
+      const mockDownload = vi.fn().mockImplementation((callback) => {
+        callback({ event: 'Started', data: { contentLength: 1000 } });
+        callback({ event: 'Progress', data: { chunkLength: 1000 } });
+        callback({ event: 'Finished' });
+        return Promise.resolve();
+      });
+      const mockInstall = vi.fn().mockResolvedValue(undefined);
+
+      const mockUpdate = {
+        version: '2.0.0',
+        download: mockDownload,
+        install: mockInstall,
+      };
+      mockCheck.mockResolvedValue(mockUpdate);
+      mockRelaunch.mockRejectedValue(new Error('Relaunch failed'));
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdates();
+      });
+
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      expect(mockDownload).toHaveBeenCalledTimes(1);
+      expect(mockInstall).toHaveBeenCalledTimes(1);
+      expect(mockRelaunch).toHaveBeenCalledTimes(1);
+      expect(result.current.state.isInstalling).toBe(false);
       expect(result.current.state.isRestarting).toBe(false);
       expect(result.current.state.error).toBe(UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE);
     });

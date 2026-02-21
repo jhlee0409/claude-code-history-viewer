@@ -1,6 +1,7 @@
 import { useState, useCallback, type ReactNode, useMemo } from "react";
 import {
   ModalContext,
+  type FeedbackPrefill,
   type FolderSelectorMode,
   type ModalType,
 } from "./context";
@@ -10,6 +11,7 @@ interface ModalState {
   folderSelector: boolean;
   globalSearch: boolean;
   folderSelectorMode: FolderSelectorMode;
+  feedbackPrefill: FeedbackPrefill | null;
 }
 
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({
@@ -20,6 +22,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
     folderSelector: false,
     globalSearch: false,
     folderSelectorMode: "notFound",
+    feedbackPrefill: null,
   });
 
   const isOpen = useCallback(
@@ -30,19 +33,32 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   const openModal = useCallback(
-    (modal: ModalType, options?: { mode?: FolderSelectorMode }) => {
+    (
+      modal: ModalType,
+      options?: {
+        mode?: FolderSelectorMode;
+        feedbackPrefill?: FeedbackPrefill;
+      }
+    ) => {
       setModalState((prev) => ({
         ...prev,
         [modal]: true,
         ...(modal === "folderSelector" &&
           options?.mode && { folderSelectorMode: options.mode }),
+        ...(modal === "feedback" && {
+          feedbackPrefill: options?.feedbackPrefill ?? null,
+        }),
       }));
     },
     []
   );
 
   const closeModal = useCallback((modal: ModalType) => {
-    setModalState((prev) => ({ ...prev, [modal]: false }));
+    setModalState((prev) => ({
+      ...prev,
+      [modal]: false,
+      ...(modal === "feedback" && { feedbackPrefill: null }),
+    }));
   }, []);
 
   const closeAllModals = useCallback(() => {
@@ -51,6 +67,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
       feedback: false,
       folderSelector: false,
       globalSearch: false,
+      feedbackPrefill: null,
     }));
   }, []);
 
@@ -58,6 +75,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
     () => ({
       isOpen,
       folderSelectorMode: modalState.folderSelectorMode,
+      feedbackPrefill: modalState.feedbackPrefill,
       openModal,
       closeModal,
       closeAllModals,
@@ -65,6 +83,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
     [
       closeAllModals,
       closeModal,
+      modalState.feedbackPrefill,
       isOpen,
       modalState.folderSelectorMode,
       openModal,

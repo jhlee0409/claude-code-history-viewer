@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { getVersion } from '@tauri-apps/api/app';
-import { UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE } from '@/utils/updateError';
+import {
+  UPDATE_INSTALL_FAILED_ERROR_CODE,
+  UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE,
+} from '@/utils/updateError';
 
 const CHECK_TIMEOUT_MS = 20_000; // 20 seconds
 
@@ -32,6 +35,7 @@ export interface UpdateState {
   isChecking: boolean;
   hasUpdate: boolean;
   isDownloading: boolean;
+  isInstalling: boolean;
   isRestarting: boolean;
   downloadProgress: number;
   error: string | null;
@@ -52,6 +56,7 @@ export function useUpdater(): UseUpdaterReturn {
     isChecking: false,
     hasUpdate: false,
     isDownloading: false,
+    isInstalling: false,
     isRestarting: false,
     downloadProgress: 0,
     error: null,
@@ -115,67 +120,141 @@ export function useUpdater(): UseUpdaterReturn {
   const downloadAndInstall = useCallback(async () => {
     if (!state.updateInfo) return;
 
-    setState((prev) => ({ ...prev, isDownloading: true, error: null }));
+    setState((prev) => ({
+      ...prev,
+      isDownloading: true,
+      isInstalling: false,
+      isRestarting: false,
+      error: null,
+    }));
+    let contentLength = 0;
+    let downloaded = 0;
+    let startedEventSeen = false;
+    let progressEventSeen = false;
     let finishedEventSeen = false;
+    let usedSeparateInstallFlow = false;
+    let downloadStepCompleted = false;
     let installStepCompleted = false;
+    let restartAttempted = false;
 
     try {
-      let contentLength = 0;
-      let downloaded = 0;
+      const onDownloadEvent = (event: unknown) => {
+        const eventType = String(
+          (event as { event?: unknown })?.event ?? ''
+        ).toLowerCase();
 
-      await state.updateInfo.downloadAndInstall((event) => {
-        switch (event.event) {
-          case 'Started':
-            contentLength = event.data.contentLength ?? 0;
+        switch (eventType) {
+          case 'started': {
+            startedEventSeen = true;
+            contentLength = Number(
+              (event as { data?: { contentLength?: unknown } })?.data?.contentLength ?? 0
+            );
             downloaded = 0;
             finishedEventSeen = false;
             setState((prev) => ({ ...prev, downloadProgress: 0 }));
             break;
-          case 'Progress': {
-            downloaded += event.data.chunkLength;
-            const progress = contentLength > 0
-              ? Math.round((downloaded / contentLength) * 100)
-              : 0;
+          }
+          case 'progress': {
+            progressEventSeen = true;
+            const chunkLength = Number(
+              (event as { data?: { chunkLength?: unknown } })?.data?.chunkLength ?? 0
+            );
+            if (Number.isFinite(chunkLength) && chunkLength > 0) {
+              downloaded += chunkLength;
+            }
+            const progress =
+              contentLength > 0
+                ? Math.round((downloaded / contentLength) * 100)
+                : 0;
             setState((prev) => ({ ...prev, downloadProgress: progress }));
             break;
           }
-          case 'Finished':
+          case 'finished':
             finishedEventSeen = true;
             setState((prev) => ({
               ...prev,
               isDownloading: false,
-              isRestarting: true,
               downloadProgress: 100,
             }));
             break;
         }
-      });
-      installStepCompleted = true;
+      };
+
+      const hasSeparateInstallApi =
+        typeof state.updateInfo.download === 'function' &&
+        typeof state.updateInfo.install === 'function';
+
+      if (hasSeparateInstallApi) {
+        usedSeparateInstallFlow = true;
+        await state.updateInfo.download(onDownloadEvent);
+        downloadStepCompleted = true;
+        setState((prev) => ({
+          ...prev,
+          isDownloading: false,
+          isInstalling: true,
+          downloadProgress: 100,
+        }));
+        await state.updateInfo.install();
+        installStepCompleted = true;
+      } else {
+        await state.updateInfo.downloadAndInstall(onDownloadEvent);
+        installStepCompleted = true;
+      }
 
       // Show restarting state before relaunch
-      setState((prev) => ({ ...prev, isDownloading: false, isRestarting: true }));
+      setState((prev) => ({
+        ...prev,
+        isDownloading: false,
+        isInstalling: false,
+        isRestarting: true,
+      }));
 
       // Brief delay to let the UI update before relaunch
       await new Promise((resolve) => setTimeout(resolve, 500));
+      restartAttempted = true;
       await relaunch();
     } catch (error) {
       const rawErrorMessage = getErrorMessage(error, 'Download failed');
-      const shouldSuggestManualRestart = installStepCompleted || finishedEventSeen;
+      const isGenericDownloadFailed = /^download failed$/i.test(
+        rawErrorMessage.trim()
+      );
+      const shouldSuggestManualRestart = usedSeparateInstallFlow
+        ? installStepCompleted || restartAttempted
+        : installStepCompleted ||
+          finishedEventSeen ||
+          (isGenericDownloadFailed && (progressEventSeen || downloaded > 0));
+      const shouldMapToInstallFailed =
+        usedSeparateInstallFlow &&
+        downloadStepCompleted &&
+        !installStepCompleted &&
+        isGenericDownloadFailed;
 
       if (shouldSuggestManualRestart) {
         console.warn(
           '[Updater] Update payload downloaded but automatic restart failed. Falling back to manual restart.',
           error
         );
+      } else {
+        console.warn('[Updater] downloadAndInstall failed before completion.', {
+          rawErrorMessage,
+          startedEventSeen,
+          progressEventSeen,
+          finishedEventSeen,
+          downloaded,
+          contentLength,
+        });
       }
 
       setState((prev) => ({
         ...prev,
         isDownloading: false,
+        isInstalling: false,
         isRestarting: false,
         error: shouldSuggestManualRestart
           ? UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE
-          : rawErrorMessage,
+          : shouldMapToInstallFailed
+            ? UPDATE_INSTALL_FAILED_ERROR_CODE
+            : rawErrorMessage,
       }));
     }
   }, [state.updateInfo]);
