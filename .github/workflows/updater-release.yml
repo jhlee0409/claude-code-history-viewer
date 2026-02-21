@@ -252,13 +252,19 @@ jobs:
               const fs = require('fs');
               const os = require('os');
               const path = require('path');
-              const dmgUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${releaseData.tag_name}/${dmgAsset.name}`;
               const tmpDmg = path.join(os.tmpdir(), `cchv-${version}-${Date.now()}.dmg`);
 
               try {
-                execSync(`curl -sfL "${dmgUrl}" -o "${tmpDmg}"`, { stdio: 'inherit' });
+                // GitHub API로 asset 다운로드 (draft release에서도 작동)
+                const { data } = await github.rest.repos.getReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: dmgAsset.id,
+                  headers: { accept: 'application/octet-stream' }
+                });
+                fs.writeFileSync(tmpDmg, Buffer.from(data));
               } catch (error) {
-                throw new Error(`Failed to download DMG: ${dmgUrl}`);
+                throw new Error(`Failed to download DMG via API (asset_id=${dmgAsset.id}): ${error.message}`);
               }
 
               const stat = fs.statSync(tmpDmg);
@@ -272,6 +278,8 @@ jobs:
                 throw new Error(`Failed to parse SHA256 from shasum output: ${shaOutput}`);
               }
               sha256 = match[0];
+
+              try { fs.unlinkSync(tmpDmg); } catch {}
             }
 
             console.log(`🍺 Syncing Homebrew cask: v${version}, sha256=${sha256}`);
