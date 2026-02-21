@@ -7,13 +7,9 @@ GitHub Release (tag push)
     ↓ updater-release.yml
     ├── Build (macOS, Linux, Windows)
     ├── Generate latest.json (auto-updater)
-    └── Trigger Homebrew tap update
-            ↓ repository_dispatch
-        jhlee0409/homebrew-tap
-            └── update-cask.yml
-                ├── Update version in Cask
-                ├── Update sha256 in Cask
-                └── Commit & push
+    ├── Update Homebrew Cask in jhlee0409/homebrew-tap (direct commit via API)
+    ├── Verify Cask version + sha256
+    └── Publish Release (only after successful Cask sync)
 ```
 
 ### In-app Updater Compatibility
@@ -31,8 +27,7 @@ The app has a built-in Tauri auto-updater that checks `latest.json` from GitHub 
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | Cask definition | `jhlee0409/homebrew-tap/Casks/claude-code-history-viewer.rb` | Homebrew install recipe |
-| Auto-update workflow | `jhlee0409/homebrew-tap/.github/workflows/update-cask.yml` | Receives dispatch, updates Cask |
-| Release trigger | `.github/workflows/updater-release.yml` | Computes SHA256, sends dispatch |
+| Release workflow | `.github/workflows/updater-release.yml` | Computes SHA256, updates Cask directly, verifies, then publishes |
 
 ### Required Secret
 
@@ -109,7 +104,7 @@ ls "/Applications/Claude Code History Viewer.app"
 
 ### `HOMEBREW_TAP_TOKEN` not configured
 
-**Symptom**: Release workflow completes but Cask is not updated.
+**Symptom**: Release workflow fails at the Homebrew sync step and release remains draft.
 
 **Fix**: Add the `HOMEBREW_TAP_TOKEN` secret (see Required Secret section above).
 

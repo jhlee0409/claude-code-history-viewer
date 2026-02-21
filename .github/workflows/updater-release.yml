@@ -123,13 +123,6 @@ jobs:
           script: |
             const releaseId = ${{ needs.create-release.outputs.release_id }};
 
-            // 릴리즈 노트 생성
-            const { data: generatedNotes } = await github.rest.repos.generateReleaseNotes({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: '${{ github.ref_name }}',
-            });
-
             // 릴리즈 정보 가져오기
             const { data: releaseData } = await github.rest.repos.getRelease({
               owner: context.repo.owner,
@@ -220,7 +213,139 @@ jobs:
               data: JSON.stringify(latestJson, null, 2)
             });
 
-            // 릴리즈 발행
+      - name: Sync Homebrew tap cask
+        uses: actions/github-script@v7
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        with:
+          github-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          script: |
+            const releaseId = ${{ needs.create-release.outputs.release_id }};
+            const tapOwner = 'jhlee0409';
+            const tapRepo = 'homebrew-tap';
+            const caskPath = 'Casks/claude-code-history-viewer.rb';
+
+            if (!process.env.HOMEBREW_TAP_TOKEN) {
+              throw new Error('HOMEBREW_TAP_TOKEN is required to publish releases safely.');
+            }
+
+            const { data: releaseData } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId
+            });
+
+            const dmgAsset = releaseData.assets.find(a => a.name.endsWith('_universal.dmg'));
+            if (!dmgAsset) {
+              throw new Error('No universal DMG asset found. Cannot sync Homebrew cask.');
+            }
+
+            const version = releaseData.tag_name.replace(/^v/, '');
+            let sha256 = '';
+
+            if (typeof dmgAsset.digest === 'string' && dmgAsset.digest.startsWith('sha256:')) {
+              sha256 = dmgAsset.digest.replace(/^sha256:/, '').trim();
+            }
+
+            if (!/^[a-f0-9]{64}$/.test(sha256)) {
+              const { execSync } = require('child_process');
+              const fs = require('fs');
+              const os = require('os');
+              const path = require('path');
+              const dmgUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${releaseData.tag_name}/${dmgAsset.name}`;
+              const tmpDmg = path.join(os.tmpdir(), `cchv-${version}-${Date.now()}.dmg`);
+
+              try {
+                execSync(`curl -sfL "${dmgUrl}" -o "${tmpDmg}"`, { stdio: 'inherit' });
+              } catch (error) {
+                throw new Error(`Failed to download DMG: ${dmgUrl}`);
+              }
+
+              const stat = fs.statSync(tmpDmg);
+              if (stat.size < 1024 * 1024) {
+                throw new Error(`Downloaded DMG is suspiciously small (${stat.size} bytes)`);
+              }
+
+              const shaOutput = execSync(`shasum -a 256 "${tmpDmg}"`, { encoding: 'utf8' });
+              const match = shaOutput.match(/^[a-f0-9]{64}/);
+              if (!match) {
+                throw new Error(`Failed to parse SHA256 from shasum output: ${shaOutput}`);
+              }
+              sha256 = match[0];
+            }
+
+            console.log(`🍺 Syncing Homebrew cask: v${version}, sha256=${sha256}`);
+
+            const { data: caskFile } = await github.rest.repos.getContent({
+              owner: tapOwner,
+              repo: tapRepo,
+              path: caskPath,
+              ref: 'main'
+            });
+
+            if (Array.isArray(caskFile) || !('content' in caskFile)) {
+              throw new Error(`Unexpected cask file response for ${tapOwner}/${tapRepo}/${caskPath}`);
+            }
+
+            const currentContent = Buffer.from(caskFile.content, 'base64').toString('utf8');
+            const nextContent = currentContent
+              .replace(/version\s+"[^"]+"/, `version "${version}"`)
+              .replace(/sha256\s+"[^"]+"/, `sha256 "${sha256}"`);
+
+            if (nextContent !== currentContent) {
+              await github.rest.repos.createOrUpdateFileContents({
+                owner: tapOwner,
+                repo: tapRepo,
+                path: caskPath,
+                message: `chore: update claude-code-history-viewer to v${version}`,
+                content: Buffer.from(nextContent).toString('base64'),
+                sha: caskFile.sha,
+                branch: 'main',
+                committer: {
+                  name: 'github-actions[bot]',
+                  email: '41898282+github-actions[bot]@users.noreply.github.com'
+                },
+                author: {
+                  name: 'github-actions[bot]',
+                  email: '41898282+github-actions[bot]@users.noreply.github.com'
+                }
+              });
+              console.log(`✅ Updated ${tapOwner}/${tapRepo}/${caskPath}`);
+            } else {
+              console.log(`✅ Cask already up to date for v${version}`);
+            }
+
+            const { data: verifyFile } = await github.rest.repos.getContent({
+              owner: tapOwner,
+              repo: tapRepo,
+              path: caskPath,
+              ref: 'main'
+            });
+
+            if (Array.isArray(verifyFile) || !('content' in verifyFile)) {
+              throw new Error('Failed to re-read cask file for verification.');
+            }
+
+            const verifiedContent = Buffer.from(verifyFile.content, 'base64').toString('utf8');
+            if (
+              !verifiedContent.includes(`version "${version}"`) ||
+              !verifiedContent.includes(`sha256 "${sha256}"`)
+            ) {
+              throw new Error('Homebrew cask verification failed after update.');
+            }
+            console.log(`✅ Verified Homebrew cask v${version}`);
+
+      - name: Publish release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releaseId = ${{ needs.create-release.outputs.release_id }};
+            const { data: generatedNotes } = await github.rest.repos.generateReleaseNotes({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ github.ref_name }}',
+            });
+
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -230,61 +355,3 @@ jobs:
             });
 
             console.log('🎉 Release published!');
-
-      - name: Trigger Homebrew tap update
-        env:
-          HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
-        if: env.HAS_TAP_TOKEN == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          script: |
-            const releaseId = ${{ needs.create-release.outputs.release_id }};
-            const { data: releaseData } = await github.rest.repos.getRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: releaseId
-            });
-
-            const dmgAsset = releaseData.assets.find(a => a.name.endsWith('_universal.dmg'));
-            if (!dmgAsset) {
-              console.log('⚠️ No universal DMG asset found, skipping tap update');
-              return;
-            }
-
-            const { execSync } = require('child_process');
-            const fs = require('fs');
-            const os = require('os');
-            const path = require('path');
-            const version = releaseData.tag_name.replace(/^v/, '');
-            const dmgUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${releaseData.tag_name}/${dmgAsset.name}`;
-            const tmpDmg = path.join(os.tmpdir(), `cchv-${version}-${Date.now()}.dmg`);
-
-            try {
-              execSync(`curl -sfL "${dmgUrl}" -o "${tmpDmg}"`, { stdio: 'inherit' });
-            } catch (error) {
-              throw new Error(`Failed to download DMG: ${dmgUrl}`);
-            }
-
-            const stat = fs.statSync(tmpDmg);
-            if (stat.size < 1024 * 1024) {
-              throw new Error(`Downloaded DMG is suspiciously small (${stat.size} bytes)`);
-            }
-
-            const shaOutput = execSync(`shasum -a 256 "${tmpDmg}"`, { encoding: 'utf8' });
-            const match = shaOutput.match(/^[a-f0-9]{64}/);
-            if (!match) {
-              throw new Error(`Failed to parse SHA256 from shasum output: ${shaOutput}`);
-            }
-            const sha256 = match[0];
-
-            await github.rest.repos.createDispatchEvent({
-              owner: 'jhlee0409',
-              repo: 'homebrew-tap',
-              event_type: 'update-cask',
-              client_payload: {
-                version: version,
-                dmg_sha256: sha256
-              }
-            });
-            console.log(`🍺 Triggered tap update: v${version}, sha256: ${sha256}`);

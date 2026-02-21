@@ -78,6 +78,14 @@ brew tap jhlee0409/tap
 brew install --cask claude-code-history-viewer
 ```
 
+Or install directly with the full cask path:
+
+```bash
+brew install --cask jhlee0409/tap/claude-code-history-viewer
+```
+
+If you see `No Cask with this name exists`, run the full cask path command above.
+
 To upgrade:
 
 ```bash

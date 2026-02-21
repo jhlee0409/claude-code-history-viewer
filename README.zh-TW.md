@@ -78,6 +78,14 @@ brew tap jhlee0409/tap
 brew install --cask claude-code-history-viewer
 ```
 
+或使用完整 Cask 路徑直接安裝:
+
+```bash
+brew install --cask jhlee0409/tap/claude-code-history-viewer
+```
+
+如果出現 `No Cask with this name exists`，請使用上面的完整路徑命令。
+
 升級:
 
 ```bash

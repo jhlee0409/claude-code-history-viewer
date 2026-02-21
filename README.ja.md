@@ -78,6 +78,14 @@ brew tap jhlee0409/tap
 brew install --cask claude-code-history-viewer
 ```
 
+または、完全なCaskパスで直接インストール:
+
+```bash
+brew install --cask jhlee0409/tap/claude-code-history-viewer
+```
+
+`No Cask with this name exists` と表示される場合は、上記の完全パスコマンドを使用してください。
+
 アップグレード:
 
 ```bash
