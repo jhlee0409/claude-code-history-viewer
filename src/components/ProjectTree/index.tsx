@@ -56,7 +56,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const {
     expandedProjects,
     setExpandedProjects,
-    toggleProject,
     isProjectExpanded,
     contextMenu,
     handleContextMenu,
@@ -517,7 +516,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 expandedProjects={expandedProjects}
                 setExpandedProjects={setExpandedProjects}
                 isProjectExpanded={isProjectExpanded}
-                toggleProject={toggleProject}
                 handleProjectClick={handleProjectClick}
                 handleContextMenu={handleContextMenu}
                 onSessionSelect={onSessionSelect}

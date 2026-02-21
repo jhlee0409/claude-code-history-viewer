@@ -23,7 +23,6 @@ interface GroupedProjectListProps {
   expandedProjects: Set<string>;
   setExpandedProjects: React.Dispatch<React.SetStateAction<Set<string>>>;
   isProjectExpanded: (path: string) => boolean;
-  toggleProject: (path: string) => void;
   handleProjectClick: (project: ClaudeProject) => void;
   handleContextMenu: (e: React.MouseEvent, project: ClaudeProject) => void;
   onSessionSelect: (session: ClaudeSession) => void;
@@ -45,7 +44,6 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   expandedProjects,
   setExpandedProjects,
   isProjectExpanded,
-  toggleProject,
   handleProjectClick,
   handleContextMenu,
   onSessionSelect,
@@ -84,7 +82,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           project={project}
           isExpanded={isExpanded}
           isSelected={selectedProject?.path === project.path}
-          onToggle={() => toggleProject(project.path)}
+          onToggle={() => handleProjectClick(project)}
           onClick={() => handleProjectClick(project)}
           onContextMenu={(e) => handleContextMenu(e, project)}
           variant={variant}
