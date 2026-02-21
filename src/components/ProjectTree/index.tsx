@@ -167,6 +167,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     if (selectedProviderFilters.includes(provider)) {
       const next = selectedProviderFilters.filter((id) => id !== provider);
       if (next.length === 0) {
+        await applyProviderSelection(selectableProviderIds);
         return;
       }
       await applyProviderSelection(next);
