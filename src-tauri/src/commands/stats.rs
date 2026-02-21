@@ -16,11 +16,50 @@ use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum StatsProvider {
     Claude,
     Codex,
     OpenCode,
+}
+
+fn all_stats_providers() -> HashSet<StatsProvider> {
+    [
+        StatsProvider::Claude,
+        StatsProvider::Codex,
+        StatsProvider::OpenCode,
+    ]
+    .into_iter()
+    .collect()
+}
+
+fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSet<StatsProvider> {
+    let Some(raw_providers) = active_providers else {
+        return all_stats_providers();
+    };
+
+    let mut unknown = Vec::new();
+    let parsed: HashSet<StatsProvider> = raw_providers
+        .into_iter()
+        .filter_map(|provider| match provider.as_str() {
+            "claude" => Some(StatsProvider::Claude),
+            "codex" => Some(StatsProvider::Codex),
+            "opencode" => Some(StatsProvider::OpenCode),
+            _ => {
+                unknown.push(provider);
+                None
+            }
+        })
+        .collect();
+
+    if !unknown.is_empty() {
+        log::warn!(
+            "Ignoring unknown providers in active_providers: {}",
+            unknown.join(", ")
+        );
+    }
+
+    parsed
 }
 
 fn detect_project_provider(project_path: &str) -> StatsProvider {
@@ -1967,34 +2006,51 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
 }
 
 #[tauri::command]
-pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStatsSummary, String> {
+pub async fn get_global_stats_summary(
+    claude_path: String,
+    active_providers: Option<Vec<String>>,
+) -> Result<GlobalStatsSummary, String> {
+    let providers_to_include = parse_active_stats_providers(active_providers);
     let projects_path = PathBuf::from(&claude_path).join("projects");
 
     // Phase 1: Collect all session files and their project names
     let mut session_files: Vec<PathBuf> = Vec::new();
     let mut project_names: HashSet<String> = HashSet::new();
-    if projects_path.exists() {
-        for project_entry in fs::read_dir(&projects_path).map_err(|e| e.to_string())? {
-            let project_entry = project_entry.map_err(|e| e.to_string())?;
-            let project_path = project_entry.path();
+    if providers_to_include.contains(&StatsProvider::Claude) && projects_path.exists() {
+        match fs::read_dir(&projects_path) {
+            Ok(entries) => {
+                for project_entry in entries {
+                    let project_entry = match project_entry {
+                        Ok(entry) => entry,
+                        Err(e) => {
+                            log::warn!("Skipping unreadable Claude project entry: {e}");
+                            continue;
+                        }
+                    };
+                    let project_path = project_entry.path();
 
-            if !project_path.is_dir() {
-                continue;
+                    if !project_path.is_dir() {
+                        continue;
+                    }
+
+                    let project_name = project_path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("Unknown")
+                        .to_string();
+                    project_names.insert(format!("claude:{project_name}"));
+
+                    for entry in WalkDir::new(&project_path)
+                        .into_iter()
+                        .filter_map(std::result::Result::ok)
+                        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+                    {
+                        session_files.push(entry.path().to_path_buf());
+                    }
+                }
             }
-
-            let project_name = project_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("Unknown")
-                .to_string();
-            project_names.insert(format!("claude:{project_name}"));
-
-            for entry in WalkDir::new(&project_path)
-                .into_iter()
-                .filter_map(std::result::Result::ok)
-                .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-            {
-                session_files.push(entry.path().to_path_buf());
+            Err(e) => {
+                log::warn!("Failed to read Claude projects directory: {e}");
             }
         }
     }
@@ -2005,13 +2061,19 @@ pub async fn get_global_stats_summary(claude_path: String) -> Result<GlobalStats
         .filter_map(process_session_file_for_global_stats)
         .collect();
 
-    let (codex_stats, codex_projects) = collect_provider_global_file_stats(StatsProvider::Codex);
-    let (opencode_stats, opencode_projects) =
-        collect_provider_global_file_stats(StatsProvider::OpenCode);
-    project_names.extend(codex_projects);
-    project_names.extend(opencode_projects);
-    file_stats.extend(codex_stats);
-    file_stats.extend(opencode_stats);
+    if providers_to_include.contains(&StatsProvider::Codex) {
+        let (codex_stats, codex_projects) =
+            collect_provider_global_file_stats(StatsProvider::Codex);
+        project_names.extend(codex_projects);
+        file_stats.extend(codex_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::OpenCode) {
+        let (opencode_stats, opencode_projects) =
+            collect_provider_global_file_stats(StatsProvider::OpenCode);
+        project_names.extend(opencode_projects);
+        file_stats.extend(opencode_stats);
+    }
 
     // Phase 3: Aggregate results
     let mut summary = GlobalStatsSummary::default();
@@ -2709,6 +2771,34 @@ mod tests {
             ),
             StatsProvider::Claude
         );
+    }
+
+    #[test]
+    fn test_parse_active_stats_providers_defaults_to_all() {
+        let providers = parse_active_stats_providers(None);
+        assert!(providers.contains(&StatsProvider::Claude));
+        assert!(providers.contains(&StatsProvider::Codex));
+        assert!(providers.contains(&StatsProvider::OpenCode));
+    }
+
+    #[test]
+    fn test_parse_active_stats_providers_filters_unknown_values() {
+        let providers =
+            parse_active_stats_providers(Some(vec!["claude".to_string(), "unknown".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Claude));
+    }
+
+    #[test]
+    fn test_parse_active_stats_providers_returns_empty_for_unknown_only_values() {
+        let providers = parse_active_stats_providers(Some(vec!["invalid".to_string()]));
+        assert!(providers.is_empty());
+    }
+
+    #[test]
+    fn test_parse_active_stats_providers_returns_empty_for_empty_list() {
+        let providers = parse_active_stats_providers(Some(vec![]));
+        assert!(providers.is_empty());
     }
 
     #[test]

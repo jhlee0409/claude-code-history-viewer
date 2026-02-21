@@ -151,6 +151,11 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             }
         }
 
+        // Skip empty project containers (e.g. temp workdirs with only memory files).
+        if session_count == 0 {
+            continue;
+        }
+
         let last_modified_str = last_modified
             .map(|lm| {
                 let dt: DateTime<Utc> = lm.into();
@@ -428,6 +433,26 @@ mod tests {
         // WalkDir should find sessions in subdirectories too
         assert_eq!(projects[0].session_count, 2);
     }
+
+    #[tokio::test]
+    async fn test_scan_projects_skips_empty_project_directories() {
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+        let project_dir = projects_dir.join("tmp-project");
+        let memory_dir = project_dir.join("memory");
+        fs::create_dir_all(&memory_dir).unwrap();
+
+        // Memory-only artifacts should not make this a visible project.
+        let checkpoint_path = memory_dir.join("checkpoint.md");
+        let mut file = File::create(checkpoint_path).unwrap();
+        file.write_all(b"# checkpoint").unwrap();
+
+        let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
     #[tokio::test]
     async fn test_get_git_log_invalid_path() {
         let result = get_git_log("/nonexistent/path".to_string(), 10).await;

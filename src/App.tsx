@@ -48,6 +48,7 @@ function App() {
     initializeApp,
     selectProject,
     selectSession,
+    clearProjectSelection,
     setSessionSearchQuery,
     setSearchFilterType,
     goToNextMatch,
@@ -111,10 +112,10 @@ function App() {
 
   const handleGlobalStatsClick = useCallback(() => {
     setIsViewingGlobalStats(true);
-    useAppStore.setState({ selectedProject: null, selectedSession: null });
+    clearProjectSelection();
     setAnalyticsCurrentView("analytics");
-    loadGlobalStats();
-  }, [loadGlobalStats, setAnalyticsCurrentView]);
+    void loadGlobalStats();
+  }, [clearProjectSelection, loadGlobalStats, setAnalyticsCurrentView]);
 
   const handleToggleSidebar = useCallback(() => {
     setIsSidebarCollapsed(prev => !prev);
@@ -239,8 +240,7 @@ function App() {
 
       // 같은 프로젝트를 다시 클릭하면 닫기 (토글)
       if (currentProject?.path === project.path) {
-        useAppStore.setState({ selectedProject: null, selectedSession: null, sessions: [] });
-        analyticsActions.clearAll();
+        clearProjectSelection();
         return;
       }
 
@@ -273,6 +273,7 @@ function App() {
       }
     },
     [
+      clearProjectSelection,
       selectProject,
       analyticsActions,
       setDateFilter,

@@ -66,6 +66,9 @@ pub async fn scan_all_projects(
         }
     }
 
+    // Hide empty containers that have no session files regardless of provider.
+    all_projects.retain(|project| project.session_count > 0);
+
     all_projects.sort_by(|a, b| {
         match (
             parse_rfc3339_utc(&a.last_modified),

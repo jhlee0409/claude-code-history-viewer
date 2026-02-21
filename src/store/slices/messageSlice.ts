@@ -29,6 +29,7 @@ import {
   canLoadMore,
   getNextOffset,
 } from "../../utils/pagination";
+import { nextRequestId, getRequestId } from "../../utils/requestId";
 
 // ============================================================================
 // State Interface
@@ -71,15 +72,18 @@ export type MessageSlice = MessageSliceState & MessageSliceActions;
 
 const TOKENS_STATS_PAGE_SIZE = 20;
 
+/** Initial pagination state — shared with `clearProjectSelection` to avoid duplication. */
+export const INITIAL_PAGINATION = {
+  currentOffset: 0,
+  pageSize: 0,
+  totalCount: 0,
+  hasMore: false,
+  isLoadingMore: false,
+} as const;
+
 const initialMessageState: MessageSliceState = {
   messages: [],
-  pagination: {
-    currentOffset: 0,
-    pageSize: 0,
-    totalCount: 0,
-    hasMore: false,
-    isLoadingMore: false,
-  },
+  pagination: { ...INITIAL_PAGINATION },
   isLoadingMessages: false,
   isLoadingTokenStats: false,
   sessionTokenStats: null,
@@ -96,8 +100,37 @@ export const createMessageSlice: StateCreator<
   [],
   [],
   MessageSlice
-> = (set, get) => ({
-  ...initialMessageState,
+> = (set, get) => {
+  let tokenStatsLoadingEpoch = 0;
+  let tokenStatsInFlight = 0;
+
+  const beginTokenStatsLoading = (): number => {
+    const epoch = tokenStatsLoadingEpoch;
+    tokenStatsInFlight += 1;
+    if (tokenStatsInFlight === 1) {
+      set({ isLoadingTokenStats: true });
+    }
+    return epoch;
+  };
+
+  const endTokenStatsLoading = (epoch: number): void => {
+    if (epoch !== tokenStatsLoadingEpoch) {
+      return;
+    }
+    tokenStatsInFlight = Math.max(0, tokenStatsInFlight - 1);
+    if (tokenStatsInFlight === 0) {
+      set({ isLoadingTokenStats: false });
+    }
+  };
+
+  const resetTokenStatsLoading = (): void => {
+    tokenStatsLoadingEpoch += 1;
+    tokenStatsInFlight = 0;
+    set({ isLoadingTokenStats: false });
+  };
+
+  return {
+    ...initialMessageState,
 
   selectSession: async (session: ClaudeSession) => {
     // Clear previous session's search index
@@ -105,13 +138,7 @@ export const createMessageSlice: StateCreator<
 
     set({
       messages: [],
-      pagination: {
-        currentOffset: 0,
-        pageSize: 0,
-        totalCount: 0,
-        hasMore: false,
-        isLoadingMore: false,
-      },
+      pagination: { ...INITIAL_PAGINATION },
       isLoadingMessages: true,
     });
 
@@ -251,13 +278,16 @@ export const createMessageSlice: StateCreator<
   },
 
   loadSessionTokenStats: async (sessionPath: string) => {
+    const requestId = nextRequestId("sessionTokenStats");
+    const loadingEpoch = beginTokenStatsLoading();
     try {
-      set({ isLoadingTokenStats: true });
       get().setError(null);
 
       const stats = await fetchSessionTokenStats(sessionPath);
+      if (requestId !== getRequestId("sessionTokenStats")) return;
       set({ sessionTokenStats: stats });
     } catch (error) {
+      if (requestId !== getRequestId("sessionTokenStats")) return;
       console.error("Failed to load session token stats:", error);
       get().setError({
         type: AppErrorType.UNKNOWN,
@@ -265,14 +295,15 @@ export const createMessageSlice: StateCreator<
       });
       set({ sessionTokenStats: null });
     } finally {
-      set({ isLoadingTokenStats: false });
+      endTokenStatsLoading(loadingEpoch);
     }
   },
 
   loadProjectTokenStats: async (projectPath: string) => {
+    const requestId = nextRequestId("projectTokenStats");
+    const loadingEpoch = beginTokenStatsLoading();
     try {
       set({
-        isLoadingTokenStats: true,
         projectTokenStats: [], // Reset on new project load
         projectTokenStatsPagination: {
           ...initialMessageState.projectTokenStatsPagination,
@@ -295,6 +326,7 @@ export const createMessageSlice: StateCreator<
         end_date: endDate?.toISOString(),
       });
 
+      if (requestId !== getRequestId("projectTokenStats")) return;
       set({
         projectTokenStats: response.items,
         projectTokenStatsPagination: {
@@ -306,6 +338,7 @@ export const createMessageSlice: StateCreator<
         },
       });
     } catch (error) {
+      if (requestId !== getRequestId("projectTokenStats")) return;
       console.error("Failed to load project token stats:", error);
       get().setError({
         type: AppErrorType.UNKNOWN,
@@ -313,7 +346,7 @@ export const createMessageSlice: StateCreator<
       });
       set({ projectTokenStats: [] });
     } finally {
-      set({ isLoadingTokenStats: false });
+      endTokenStatsLoading(loadingEpoch);
     }
   },
 
@@ -323,6 +356,9 @@ export const createMessageSlice: StateCreator<
     if (!canLoadMore(projectTokenStatsPagination)) {
       return;
     }
+
+    // Snapshot the current request ID to detect if a full reset happened mid-flight.
+    const snapshotId = getRequestId("projectTokenStats");
 
     try {
       set({
@@ -348,6 +384,7 @@ export const createMessageSlice: StateCreator<
         end_date: endDate?.toISOString(),
       });
 
+      if (snapshotId !== getRequestId("projectTokenStats")) return;
       set({
         projectTokenStats: [...projectTokenStats, ...response.items],
         projectTokenStatsPagination: {
@@ -359,6 +396,7 @@ export const createMessageSlice: StateCreator<
         },
       });
     } catch (error) {
+      if (snapshotId !== getRequestId("projectTokenStats")) return;
       console.error("Failed to load more project token stats:", error);
       set({
         projectTokenStatsPagination: {
@@ -396,6 +434,17 @@ export const createMessageSlice: StateCreator<
   },
 
   clearTokenStats: () => {
-    set({ sessionTokenStats: null, projectTokenStats: [] });
+    // Bump both request IDs so any in-flight token stats requests are invalidated.
+    nextRequestId("sessionTokenStats");
+    nextRequestId("projectTokenStats");
+    resetTokenStatsLoading();
+    set({
+      sessionTokenStats: null,
+      projectTokenStats: [],
+      projectTokenStatsPagination: createInitialPaginationWithCount(
+        TOKENS_STATS_PAGE_SIZE
+      ),
+    });
   },
-});
+  };
+};

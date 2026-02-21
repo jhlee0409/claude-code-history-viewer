@@ -12,6 +12,7 @@ import {
 import { Dialog, DialogContent, Input } from "@/components/ui";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeSession, ContentItem } from "@/types";
+import { getProviderLabel, hasNonDefaultProvider } from "@/utils/providers";
 
 type GlobalSearchResult = ClaudeMessage;
 
@@ -40,15 +41,22 @@ export const GlobalSearchModal = ({
 
     // Group results by project name
     const groupedResults = useMemo(() => {
-        const groups = new Map<string, GlobalSearchResult[]>();
+        const groups = new Map<string, { label: string; items: GlobalSearchResult[] }>();
 
         for (const result of results) {
             const projectName =
                 result.projectName || t("globalSearch.unknownProject");
-            if (!groups.has(projectName)) {
-                groups.set(projectName, []);
+            const providerLabel = getProviderLabel(
+                (key, fallback) => t(key, fallback),
+                result.provider,
+            );
+            const groupKey = `${result.provider ?? "claude"}::${projectName}`;
+            const groupLabel = `${projectName} (${providerLabel})`;
+
+            if (!groups.has(groupKey)) {
+                groups.set(groupKey, { label: groupLabel, items: [] });
             }
-            groups.get(projectName)!.push(result);
+            groups.get(groupKey)!.items.push(result);
         }
 
         return groups;
@@ -57,8 +65,8 @@ export const GlobalSearchModal = ({
     // Flatten grouped results for keyboard navigation
     const flattenedResults = useMemo(() => {
         const flat: GlobalSearchResult[] = [];
-        for (const items of groupedResults.values()) {
-            flat.push(...items);
+        for (const group of groupedResults.values()) {
+            flat.push(...group.items);
         }
         return flat;
     }, [groupedResults]);
@@ -86,7 +94,7 @@ export const GlobalSearchModal = ({
 
             setIsSearching(true);
             try {
-                const hasNonClaudeProviders = activeProviders.some((p) => p !== "claude");
+                const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
                 const searchResults = await invoke<GlobalSearchResult[]>(
                     hasNonClaudeProviders ? "search_all_providers" : "search_messages",
                     hasNonClaudeProviders
@@ -378,15 +386,15 @@ export const GlobalSearchModal = ({
                     {results.length > 0 && (
                         <div className="py-2">
                             {Array.from(groupedResults.entries()).map(
-                                ([projectName, items]) => (
-                                    <div key={projectName}>
+                                ([groupKey, group]) => (
+                                    <div key={groupKey}>
                                         {/* Project Header */}
                                         <div className="px-4 py-1.5 text-xs font-medium text-muted-foreground bg-muted sticky top-0 truncate">
-                                            {projectName}
+                                            {group.label}
                                         </div>
 
                                         {/* Results in this project */}
-                                        {items.map((result) => {
+                                        {group.items.map((result) => {
                                             const index = currentResultIndex++;
                                             const isSelected =
                                                 index === selectedIndex;

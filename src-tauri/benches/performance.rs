@@ -506,6 +506,7 @@ fn bench_get_global_stats_summary(c: &mut Criterion) {
                     rt.block_on(async {
                         claude_code_history_viewer_lib::commands::stats::get_global_stats_summary(
                             black_box(path_str.clone()),
+                            None,
                         )
                         .await
                     })

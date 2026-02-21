@@ -13,6 +13,7 @@ import type {
   SessionComparison,
   PaginatedRecentEdits,
   GlobalStatsSummary,
+  ProviderId,
 } from "../types";
 
 // ============================================================================
@@ -215,14 +216,20 @@ export async function fetchRecentEdits(
  * Fetch global statistics across all projects
  */
 export async function fetchGlobalStatsSummary(
-  claudePath: string
+  claudePath: string,
+  activeProviders?: ProviderId[]
 ): Promise<GlobalStatsSummary> {
-  const key = `globalStatsSummary:${claudePath}`;
+  const normalizedProviders = [...new Set(activeProviders ?? [])].sort();
+  const providersKey = normalizedProviders.length > 0
+    ? normalizedProviders.join(",")
+    : "all";
+  const key = `globalStatsSummary:${claudePath}:${providersKey}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
     const summary = await invoke<GlobalStatsSummary>("get_global_stats_summary", {
       claudePath,
+      activeProviders: normalizedProviders.length > 0 ? normalizedProviders : undefined,
     });
 
     if (import.meta.env.DEV) {

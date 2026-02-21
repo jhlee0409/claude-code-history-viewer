@@ -180,6 +180,7 @@ export interface AppStoreActions {
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
+  clearProjectSelection: () => void;
   setClaudePath: (path: string) => Promise<void>;
   setError: (error: AppError | null) => void;
   setSelectedSession: (session: ClaudeSession | null) => void;

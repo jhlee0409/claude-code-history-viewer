@@ -9,6 +9,7 @@ import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 import { fetchGlobalStatsSummary } from "../../services/analyticsApi";
+import { nextRequestId, getRequestId } from "../../utils/requestId";
 
 // ============================================================================
 // State Interface
@@ -47,26 +48,44 @@ export const createGlobalStatsSlice: StateCreator<
 > = (set, get) => ({
   ...initialGlobalStatsState,
 
+  // NOTE: loadGlobalStats filters by activeProviders on the server side.
+  // This is intentionally asymmetric with scanProjects (which loads all providers
+  // and filters client-side) because stats aggregation is expensive and benefits
+  // from only processing the providers the user has selected.
   loadGlobalStats: async () => {
-    const { claudePath } = get();
+    const requestId = nextRequestId("globalStats");
+    const { claudePath, activeProviders } = get();
     if (!claudePath) return;
 
     set({ isLoadingGlobalStats: true });
     get().setError(null);
 
     try {
-      const summary = await fetchGlobalStatsSummary(claudePath);
+      const summary = await fetchGlobalStatsSummary(claudePath, activeProviders);
+      if (requestId !== getRequestId("globalStats")) {
+        return;
+      }
       set({ globalSummary: summary });
     } catch (error) {
+      if (requestId !== getRequestId("globalStats")) {
+        return;
+      }
       console.error("Failed to load global stats:", error);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
       set({ globalSummary: null });
     } finally {
-      set({ isLoadingGlobalStats: false });
+      if (requestId === getRequestId("globalStats")) {
+        set({ isLoadingGlobalStats: false });
+      }
     }
   },
 
   clearGlobalStats: () => {
-    set({ globalSummary: null });
+    // Bump the request ID so any in-flight global stats requests are invalidated.
+    nextRequestId("globalStats");
+    set({
+      globalSummary: null,
+      isLoadingGlobalStats: false,
+    });
   },
 });
