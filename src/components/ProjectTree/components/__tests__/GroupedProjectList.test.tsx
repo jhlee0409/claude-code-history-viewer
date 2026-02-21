@@ -2,6 +2,7 @@ import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { ClaudeProject } from "../../../../types";
+import type { DirectoryGroup, WorktreeGroup } from "../../../../utils/worktreeUtils";
 import { GroupedProjectList } from "../GroupedProjectList";
 
 vi.mock("react-i18next", () => ({
@@ -48,29 +49,93 @@ function createProject(path: string, name: string): ClaudeProject {
 }
 
 describe("GroupedProjectList", () => {
-  it("routes chevron toggle through project click handler in flat mode", () => {
-    const project = createProject("/tmp/project-a", "project-a");
-    const handleProjectClick = vi.fn();
-
+  function renderList(options: {
+    groupingMode: "none" | "directory" | "worktree";
+    project: ClaudeProject;
+    handleProjectClick: ReturnType<typeof vi.fn>;
+    projects?: ClaudeProject[];
+    directoryGroups?: DirectoryGroup[];
+    worktreeGroups?: WorktreeGroup[];
+    expandedProjects?: Set<string>;
+  }) {
     render(
       <GroupedProjectList
-        groupingMode="none"
-        projects={[project]}
-        directoryGroups={[]}
-        worktreeGroups={[]}
+        groupingMode={options.groupingMode}
+        projects={options.projects ?? [options.project]}
+        directoryGroups={options.directoryGroups ?? []}
+        worktreeGroups={options.worktreeGroups ?? []}
         sessions={[]}
         selectedProject={null}
         selectedSession={null}
         isLoading={false}
-        expandedProjects={new Set<string>()}
+        expandedProjects={options.expandedProjects ?? new Set<string>()}
         setExpandedProjects={vi.fn()}
         isProjectExpanded={() => false}
-        handleProjectClick={handleProjectClick}
+        handleProjectClick={options.handleProjectClick}
         handleContextMenu={vi.fn()}
         onSessionSelect={vi.fn()}
         formatTimeAgo={(date) => date}
       />
     );
+  }
+
+  it("routes chevron toggle through project click handler in flat mode", () => {
+    const project = createProject("/tmp/project-a", "project-a");
+    const handleProjectClick = vi.fn();
+
+    renderList({
+      groupingMode: "none",
+      project,
+      handleProjectClick,
+    });
+
+    fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
+
+    expect(handleProjectClick).toHaveBeenCalledTimes(1);
+    expect(handleProjectClick).toHaveBeenCalledWith(project);
+  });
+
+  it("routes chevron toggle through project click handler in directory mode", () => {
+    const project = createProject("/tmp/project-a", "project-a");
+    const handleProjectClick = vi.fn();
+    const directoryGroup: DirectoryGroup = {
+      name: "tmp",
+      path: "/tmp",
+      displayPath: "/tmp",
+      projects: [project],
+    };
+
+    renderList({
+      groupingMode: "directory",
+      project,
+      handleProjectClick,
+      projects: [],
+      directoryGroups: [directoryGroup],
+      expandedProjects: new Set<string>([`dir:${directoryGroup.path}`]),
+    });
+
+    fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
+
+    expect(handleProjectClick).toHaveBeenCalledTimes(1);
+    expect(handleProjectClick).toHaveBeenCalledWith(project);
+  });
+
+  it("routes chevron toggle through project click handler in worktree mode", () => {
+    const project = createProject("/tmp/project-a", "project-a");
+    const handleProjectClick = vi.fn();
+    const worktreeGroup: WorktreeGroup = {
+      parent: project,
+      children: [],
+    };
+
+    renderList({
+      groupingMode: "worktree",
+      project,
+      handleProjectClick,
+      projects: [],
+      worktreeGroups: [worktreeGroup],
+      expandedProjects: new Set<string>([`group:${project.path}`]),
+    });
 
     fireEvent.click(screen.getByTestId(`project-toggle-${project.path}`));
 
