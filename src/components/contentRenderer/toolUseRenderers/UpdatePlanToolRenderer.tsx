@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ListChecks, Circle } from "lucide-react";
+import { ListChecks } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
@@ -59,7 +59,7 @@ export const UpdatePlanToolRenderer = memo(function UpdatePlanToolRenderer({
         )}
         {steps.map((planStep, index) => {
           const status = planStep.status ?? "pending";
-          const statusConfig = TASK_STATUS_CONFIG[status] ?? TASK_STATUS_CONFIG.pending ?? { icon: Circle, color: "text-muted-foreground" };
+          const statusConfig = TASK_STATUS_CONFIG[status] ?? TASK_STATUS_CONFIG["pending"]!;
           const { icon: StatusIcon, color } = statusConfig;
 
           return (

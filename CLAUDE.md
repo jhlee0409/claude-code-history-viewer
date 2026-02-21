@@ -189,7 +189,7 @@ gh release edit v1.3.1 --notes-file /path/to/notes.md
 
 ```
 Claude Code: ~/.claude/projects/[project]/*.jsonl  ─┐
-Codex CLI:   ~/.codex/sessions/*.jsonl              ├→ Rust Backend → Tauri IPC → React Frontend → Virtual List
+Codex CLI:   ~/.codex/sessions/**/rollout-*.jsonl   ├→ Rust Backend → Tauri IPC → React Frontend → Virtual List
 OpenCode:    ~/.local/share/opencode/storage/       ─┘
 ```
 
