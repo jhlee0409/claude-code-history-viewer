@@ -375,24 +375,6 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                     </TooltipContent>
                   </Tooltip>
                 )}
-                {isArchivedCodexSession && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-500 shrink-0">
-                        <Archive className="w-2.5 h-2.5" aria-hidden="true" />
-                        <span className="text-[9px] font-medium uppercase tracking-wide">
-                          Archived
-                        </span>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      <p className="font-medium">Archived session</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Stored under Codex `archived_sessions`.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
                 <span className="flex-1">
                   {displayName || t("session.summaryNotFound", "No summary")}
                 </span>
@@ -481,6 +463,24 @@ export const SessionItem: React.FC<SessionItemProps> = ({
           <span title={t("session.item.messageCount")}><Hash className="w-3 h-3" /></span>
           {session.message_count}
         </span>
+        {isArchivedCodexSession && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-500">
+                <Archive className="w-2.5 h-2.5" aria-hidden="true" />
+                <span className="text-[9px] font-medium uppercase tracking-wide">
+                  Archived
+                </span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs">
+              <p className="font-medium">Archived session</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Stored under Codex `archived_sessions`.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        )}
         {session.has_tool_use && (
           <span title={t("session.item.containsToolUse")}>
             <Wrench
