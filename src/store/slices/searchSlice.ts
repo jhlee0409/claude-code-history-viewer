@@ -16,6 +16,7 @@ import {
   type FullAppStore,
   createEmptySearchState,
 } from "./types";
+import { hasNonDefaultProvider } from "../../utils/providers";
 
 // ============================================================================
 // State Interface
@@ -85,7 +86,7 @@ export const createSearchSlice: StateCreator<
 
     set({ searchQuery: query });
     try {
-      const hasNonClaudeProviders = activeProviders.some((p) => p !== "claude");
+      const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
       const results = hasNonClaudeProviders
         ? await invoke<ClaudeMessage[]>("search_all_providers", {
             claudePath,

@@ -17,6 +17,7 @@ import {
   type DirectoryGroupingResult,
 } from "../../utils/worktreeUtils";
 import type { GroupingMode } from "../../types/metadata.types";
+import { DEFAULT_PROVIDER_ID } from "../../utils/providers";
 
 // ============================================================================
 // State Interface
@@ -166,8 +167,8 @@ export const createProjectSlice: StateCreator<
       const availableProviders = providers
         .filter((provider) => provider.is_available)
         .map((provider) => provider.id);
-      const scanProviders = availableProviders.length > 0 ? availableProviders : ["claude"];
-      const hasNonClaudeProviders = scanProviders.some((provider) => provider !== "claude");
+      const scanProviders = availableProviders.length > 0 ? availableProviders : [DEFAULT_PROVIDER_ID];
+      const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
       const projects = hasNonClaudeProviders
         ? await invoke<ClaudeProject[]>("scan_all_projects", {
             claudePath,

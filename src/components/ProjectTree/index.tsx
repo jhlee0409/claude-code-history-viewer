@@ -20,11 +20,15 @@ import { GroupedProjectList } from "./components/GroupedProjectList";
 import type { ProjectTreeProps } from "./types";
 import type { ProviderId } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
+import {
+  DEFAULT_PROVIDER_ID,
+  getProviderId,
+  getProviderLabel,
+  normalizeProviderIds,
+  PROVIDER_IDS,
+} from "../../utils/providers";
 
 type ProviderTabId = "all" | ProviderId;
-const PROVIDER_ORDER: ProviderId[] = ["claude", "codex", "opencode"];
-const getProviderId = (project: { provider?: ProviderId }): ProviderId =>
-  project.provider ?? "claude";
 
 export const ProjectTree: React.FC<ProjectTreeProps> = ({
   projects,
@@ -55,7 +59,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const activeProviders = useAppStore((state) => state.activeProviders);
   const detectedProviders = useAppStore((state) => state.providers);
   const setActiveProviders = useAppStore((state) => state.setActiveProviders);
-  const scanProjects = useAppStore((state) => state.scanProjects);
   const loadGlobalStats = useAppStore((state) => state.loadGlobalStats);
   const clearProjectSelection = useAppStore(
     (state) => state.clearProjectSelection
@@ -80,7 +83,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     };
 
     for (const project of projects) {
-      counts[getProviderId(project)] += 1;
+      counts[getProviderId(project.provider)] += 1;
     }
 
     return counts;
@@ -90,15 +93,15 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     const detected = detectedProviders
       .filter((provider) => provider.is_available)
       .map((provider) => provider.id as ProviderId);
-    const discoveredFromProjects = PROVIDER_ORDER.filter((id) => providerCounts[id] > 0);
-    const ordered = PROVIDER_ORDER.filter((id) =>
+    const discoveredFromProjects = PROVIDER_IDS.filter((id) => providerCounts[id] > 0);
+    const ordered = PROVIDER_IDS.filter((id) =>
       detected.includes(id) || discoveredFromProjects.includes(id)
     );
-    return ordered.length > 0 ? ordered : ["claude"];
+    return ordered.length > 0 ? ordered : [DEFAULT_PROVIDER_ID];
   }, [detectedProviders, providerCounts]);
 
   const selectedProviderFilters = useMemo<ProviderId[]>(
-    () => PROVIDER_ORDER.filter((id) => activeProviders.includes(id) && selectableProviderIds.includes(id)),
+    () => PROVIDER_IDS.filter((id) => activeProviders.includes(id) && selectableProviderIds.includes(id)),
     [activeProviders, selectableProviderIds]
   );
 
@@ -113,18 +116,18 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
   const matchesProviderFilter = useCallback(
     (project: (typeof projects)[number]) =>
-      isAllProvidersSelected || selectedProviderFilters.includes(getProviderId(project)),
+      isAllProvidersSelected || selectedProviderFilters.includes(getProviderId(project.provider)),
     [isAllProvidersSelected, selectedProviderFilters]
   );
 
   const applyProviderSelection = useCallback(
     async (nextProviders: ProviderId[]) => {
-      const normalized = PROVIDER_ORDER.filter((id) => nextProviders.includes(id));
+      const normalized = normalizeProviderIds(nextProviders);
       if (normalized.length === 0) {
         return;
       }
 
-      const current = PROVIDER_ORDER.filter((id) => activeProviders.includes(id));
+      const current = normalizeProviderIds(activeProviders);
       const isUnchanged =
         current.length === normalized.length &&
         current.every((id, index) => id === normalized[index]);
@@ -133,12 +136,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       }
 
       try {
-        if (selectedProject && !normalized.includes(getProviderId(selectedProject))) {
+        if (selectedProject && !normalized.includes(getProviderId(selectedProject.provider))) {
           clearProjectSelection();
         }
 
         setActiveProviders(normalized);
-        await scanProjects();
         if (isViewingGlobalStats) {
           await loadGlobalStats();
         }
@@ -152,7 +154,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       clearProjectSelection,
       isViewingGlobalStats,
       loadGlobalStats,
-      scanProjects,
       selectedProject,
       setActiveProviders,
     ]
@@ -179,7 +180,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       return;
     }
 
-    const next = PROVIDER_ORDER.filter(
+    const next = PROVIDER_IDS.filter(
       (id) => selectableProviderIds.includes(id) && (selectedProviderFilters.includes(id) || id === provider)
     );
     await applyProviderSelection(next.length > 0 ? next : [provider]);
@@ -248,28 +249,23 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   }, [worktreeGroups, ungroupedProjects, projects, isAllProvidersSelected, matchesProviderFilter]);
 
   const providerTabs = useMemo(
-    () => [
-      {
-        id: "all" as const,
-        label: t("session.board.controls.all", "ALL"),
-        count: providerCounts.all,
-      },
-      {
-        id: "claude" as const,
-        label: t("common.provider.claude", "Claude Code"),
-        count: providerCounts.claude,
-      },
-      {
-        id: "codex" as const,
-        label: t("common.provider.codex", "Codex CLI"),
-        count: providerCounts.codex,
-      },
-      {
-        id: "opencode" as const,
-        label: t("common.provider.opencode", "OpenCode"),
-        count: providerCounts.opencode,
-      },
-    ],
+    () => {
+      const base = [
+        {
+          id: "all" as const,
+          label: t("session.board.controls.all", "ALL"),
+          count: providerCounts.all,
+        },
+      ];
+
+      const providerTabs = PROVIDER_IDS.map((id) => ({
+        id,
+        label: getProviderLabel((key, fallback) => t(key, fallback), id),
+        count: providerCounts[id],
+      }));
+
+      return [...base, ...providerTabs];
+    },
     [providerCounts, t]
   );
 

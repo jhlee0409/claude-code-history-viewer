@@ -4,8 +4,8 @@ import { ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
-import type { ProviderId } from "../../../types";
 import { getWorktreeLabel } from "../../../utils/worktreeUtils";
+import { getProviderId, getProviderLabel } from "../../../utils/providers";
 
 export const ProjectItem: React.FC<ProjectItemProps> = ({
   project,
@@ -30,12 +30,11 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       ? getWorktreeLabel(project.actual_path)
       : project.name;
 
-  const providerId = project.provider ?? "claude";
-  const providerLabels: Record<ProviderId, string> = {
-    claude: t("common.provider.claude"),
-    codex: t("common.provider.codex"),
-    opencode: t("common.provider.opencode"),
-  };
+  const providerId = getProviderId(project.provider);
+  const providerLabel = getProviderLabel(
+    (key, fallback) => t(key, fallback),
+    providerId
+  );
 
   return (
     <div
@@ -153,7 +152,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             providerId === "opencode" && "bg-blue-500/15 text-blue-600 dark:text-blue-400"
           )}
         >
-          {providerLabels[providerId] ?? providerId}
+          {providerLabel}
         </span>
       )}
 

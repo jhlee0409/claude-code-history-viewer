@@ -10,6 +10,7 @@ import type { ProviderId, ProviderInfo } from "../../types";
 import i18n from "../../i18n";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
+import { DEFAULT_PROVIDER_ID } from "../../utils/providers";
 
 // ============================================================================
 // State Interface
@@ -35,7 +36,7 @@ export type ProviderSlice = ProviderSliceState & ProviderSliceActions;
 
 const initialProviderState: ProviderSliceState = {
   providers: [],
-  activeProviders: ["claude"],
+  activeProviders: [DEFAULT_PROVIDER_ID],
   isDetectingProviders: false,
 };
 
@@ -61,7 +62,7 @@ export const createProviderSlice: StateCreator<
       set({ providers, activeProviders });
     } catch (error) {
       console.error("Failed to detect providers:", error);
-      set({ activeProviders: ["claude"] });
+      set({ activeProviders: [DEFAULT_PROVIDER_ID] });
       toast.error(i18n.t("common.provider.detectError"));
     } finally {
       set({ isDetectingProviders: false });

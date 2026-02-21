@@ -33,25 +33,38 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
     .collect()
 }
 
-fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSet<StatsProvider> {
+fn parse_active_stats_providers(
+    active_providers: Option<Vec<String>>,
+) -> Result<HashSet<StatsProvider>, String> {
     let Some(raw_providers) = active_providers else {
-        return all_stats_providers();
+        return Ok(all_stats_providers());
     };
 
+    let mut unknown = Vec::new();
     let parsed: HashSet<StatsProvider> = raw_providers
         .into_iter()
         .filter_map(|provider| match provider.as_str() {
             "claude" => Some(StatsProvider::Claude),
             "codex" => Some(StatsProvider::Codex),
             "opencode" => Some(StatsProvider::OpenCode),
-            _ => None,
+            _ => {
+                unknown.push(provider);
+                None
+            }
         })
         .collect();
 
     if parsed.is_empty() {
-        all_stats_providers()
+        if unknown.is_empty() {
+            Err("No active providers were provided".to_string())
+        } else {
+            Err(format!(
+                "No supported providers in active_providers: {}",
+                unknown.join(", ")
+            ))
+        }
     } else {
-        parsed
+        Ok(parsed)
     }
 }
 
@@ -2003,7 +2016,7 @@ pub async fn get_global_stats_summary(
     claude_path: String,
     active_providers: Option<Vec<String>>,
 ) -> Result<GlobalStatsSummary, String> {
-    let providers_to_include = parse_active_stats_providers(active_providers);
+    let providers_to_include = parse_active_stats_providers(active_providers)?;
     let projects_path = PathBuf::from(&claude_path).join("projects");
 
     // Phase 1: Collect all session files and their project names
@@ -2755,7 +2768,7 @@ mod tests {
 
     #[test]
     fn test_parse_active_stats_providers_defaults_to_all() {
-        let providers = parse_active_stats_providers(None);
+        let providers = parse_active_stats_providers(None).unwrap();
         assert!(providers.contains(&StatsProvider::Claude));
         assert!(providers.contains(&StatsProvider::Codex));
         assert!(providers.contains(&StatsProvider::OpenCode));
@@ -2764,17 +2777,22 @@ mod tests {
     #[test]
     fn test_parse_active_stats_providers_filters_unknown_values() {
         let providers =
-            parse_active_stats_providers(Some(vec!["claude".to_string(), "unknown".to_string()]));
+            parse_active_stats_providers(Some(vec!["claude".to_string(), "unknown".to_string()]))
+                .unwrap();
         assert_eq!(providers.len(), 1);
         assert!(providers.contains(&StatsProvider::Claude));
     }
 
     #[test]
-    fn test_parse_active_stats_providers_falls_back_when_empty() {
-        let providers = parse_active_stats_providers(Some(vec!["invalid".to_string()]));
-        assert!(providers.contains(&StatsProvider::Claude));
-        assert!(providers.contains(&StatsProvider::Codex));
-        assert!(providers.contains(&StatsProvider::OpenCode));
+    fn test_parse_active_stats_providers_rejects_unknown_only_values() {
+        let result = parse_active_stats_providers(Some(vec!["invalid".to_string()]));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_active_stats_providers_rejects_empty_list() {
+        let result = parse_active_stats_providers(Some(vec![]));
+        assert!(result.is_err());
     }
 
     #[test]

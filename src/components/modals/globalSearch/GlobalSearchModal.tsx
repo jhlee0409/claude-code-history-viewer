@@ -12,6 +12,7 @@ import {
 import { Dialog, DialogContent, Input } from "@/components/ui";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeSession, ContentItem } from "@/types";
+import { getProviderLabel, hasNonDefaultProvider } from "@/utils/providers";
 
 type GlobalSearchResult = ClaudeMessage;
 
@@ -35,18 +36,6 @@ export const GlobalSearchModal = ({
         null,
     );
 
-    const getProviderLabel = useCallback((provider?: string) => {
-        switch (provider) {
-            case "codex":
-                return t("common.provider.codex", "Codex CLI");
-            case "opencode":
-                return t("common.provider.opencode", "OpenCode");
-            case "claude":
-            default:
-                return t("common.provider.claude", "Claude Code");
-        }
-    }, [t]);
-
     const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders } =
         useAppStore();
 
@@ -57,7 +46,10 @@ export const GlobalSearchModal = ({
         for (const result of results) {
             const projectName =
                 result.projectName || t("globalSearch.unknownProject");
-            const providerLabel = getProviderLabel(result.provider);
+            const providerLabel = getProviderLabel(
+                (key, fallback) => t(key, fallback),
+                result.provider,
+            );
             const groupKey = `${result.provider ?? "claude"}::${projectName}`;
             const groupLabel = `${projectName} (${providerLabel})`;
 
@@ -68,7 +60,7 @@ export const GlobalSearchModal = ({
         }
 
         return groups;
-    }, [getProviderLabel, results, t]);
+    }, [results, t]);
 
     // Flatten grouped results for keyboard navigation
     const flattenedResults = useMemo(() => {
@@ -102,7 +94,7 @@ export const GlobalSearchModal = ({
 
             setIsSearching(true);
             try {
-                const hasNonClaudeProviders = activeProviders.some((p) => p !== "claude");
+                const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
                 const searchResults = await invoke<GlobalSearchResult[]>(
                     hasNonClaudeProviders ? "search_all_providers" : "search_messages",
                     hasNonClaudeProviders
