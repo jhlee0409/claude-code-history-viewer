@@ -21,6 +21,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 🔗 **Deep Linking**: Added ability to navigate from Token Stats view directly to detailed session conversation.
 - ⚡ **Navigation Improvements**: Fixed infinite loading when switching sessions from the Board view by implementing optimistic store updates.
 
+## Version 1.5.2 (2026-02-21)
+
+### Added
+
+- 📝 **Update Notes in Modal**: Auto-update modal now shows release name and release notes from updater metadata.
+- 🐞 **One-click Issue Report from Update Failure**: Failure state now opens the feedback modal with updater diagnostics prefilled for faster bug reporting.
+
+### Changed
+
+- 🔄 **Updater Stage UX**: Download, install, and restart stages are separated and reflected in UI states for clearer progress feedback.
+
+### Fixed
+
+- ✅ **Updater Error Mapping**: Distinguishes install-stage and restart-stage failures to avoid misleading `Download failed` messages after successful payload download.
+- 🛠️ **Release Workflow Auth**: Split GitHub token usage between main repository and tap repository access in updater release workflow.
+
 
 ---
 
