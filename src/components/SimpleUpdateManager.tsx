@@ -15,7 +15,7 @@ interface SimpleUpdateManagerProps {
 }
 
 export function SimpleUpdateManager({ updater }: SimpleUpdateManagerProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const updateSettings = useAppStore((state) => state.updateSettings);
   const loadUpdateSettings = useAppStore((state) => state.loadUpdateSettings);
   const setUpdateSetting = useAppStore((state) => state.setUpdateSetting);
@@ -52,10 +52,12 @@ export function SimpleUpdateManager({ updater }: SimpleUpdateManagerProps) {
       await checkForUpdates();
       await setUpdateSetting("lastCheckedAt", Date.now());
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : t("common.error.updateCheckFailed"));
+      setErrorMessage(
+        error instanceof Error ? error.message : i18n.t("common.error.updateCheckFailed")
+      );
       setShowError(true);
     }
-  }, [checkForUpdates, setUpdateSetting, t]);
+  }, [checkForUpdates, setUpdateSetting, i18n]);
 
   const shouldRunAutoCheck = useCallback(() => {
     return shouldCheckForUpdates({
@@ -86,7 +88,7 @@ export function SimpleUpdateManager({ updater }: SimpleUpdateManagerProps) {
       } catch (error) {
         if (mounted) {
           setErrorMessage(
-            error instanceof Error ? error.message : t("common.error.updateCheckFailed")
+            error instanceof Error ? error.message : i18n.t("common.error.updateCheckFailed")
           );
           setShowError(true);
         }
@@ -98,7 +100,7 @@ export function SimpleUpdateManager({ updater }: SimpleUpdateManagerProps) {
     return () => {
       mounted = false;
     };
-  }, [loadUpdateSettings, t]);
+  }, [loadUpdateSettings, i18n]);
 
   // Auto check on app start (production only)
   useEffect(() => {
