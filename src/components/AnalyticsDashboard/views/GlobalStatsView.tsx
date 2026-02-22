@@ -4,38 +4,119 @@
  * Displays global statistics across all projects.
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, MessageCircle, Clock, Wrench, Cpu, Layers, BarChart3 } from "lucide-react";
+import {
+  Activity,
+  MessageCircle,
+  Clock,
+  Wrench,
+  Cpu,
+  Layers,
+  BarChart3,
+  Server,
+} from "lucide-react";
 import type { GlobalStatsSummary } from "../../../types";
 import { formatDuration } from "../../../utils/time";
 import { cn } from "@/lib/utils";
 import {
   MetricCard,
   SectionCard,
+  BillingBreakdownCard,
   ActivityHeatmapComponent,
   ToolUsageChart,
+  ProviderDistributionChart,
 } from "../components";
-import { formatNumber, calculateModelMetrics, getRankMedal, hasMedal } from "../utils";
+import {
+  formatNumber,
+  calculateModelMetrics,
+  calculateGlobalCostSummary,
+  getRankMedal,
+  hasMedal,
+} from "../utils";
+import { calculateConversationBreakdownCoverage } from "../../../utils/providers";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 
 interface GlobalStatsViewProps {
   globalSummary: GlobalStatsSummary;
+  globalConversationSummary: GlobalStatsSummary | null;
 }
 
-export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary }) => {
+export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
+  globalSummary,
+  globalConversationSummary,
+}) => {
   const { t } = useTranslation();
   const totalSessionTime = globalSummary.total_session_duration_minutes;
+  const costSummary = useMemo(
+    () =>
+      calculateGlobalCostSummary(
+        globalSummary.model_distribution,
+        globalSummary.total_tokens
+      ),
+    [globalSummary.model_distribution, globalSummary.total_tokens]
+  );
+  const totalEstimatedCost = costSummary.totalEstimatedCost;
+  const conversationCostSummary = useMemo(() => {
+    if (!globalConversationSummary) {
+      return null;
+    }
+    return calculateGlobalCostSummary(
+      globalConversationSummary.model_distribution,
+      globalConversationSummary.total_tokens
+    );
+  }, [globalConversationSummary]);
+
+  const billingTokens = globalSummary.total_tokens;
+  const billingCost = totalEstimatedCost;
+  const conversationBreakdownCoverage = useMemo(
+    () =>
+      calculateConversationBreakdownCoverage(globalSummary.provider_distribution),
+    [globalSummary.provider_distribution]
+  );
+
+  const formatCurrency = (value: number): string =>
+    `$${value.toLocaleString(undefined, {
+      minimumFractionDigits: value >= 100 ? 0 : 2,
+      maximumFractionDigits: value >= 100 ? 0 : 2,
+    })}`;
+
+  const lastUpdated = useMemo(() => {
+    const raw = globalSummary.date_range.last_message;
+    if (!raw) {
+      return t("analytics.lastUpdatedUnknown", "Unknown");
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      return t("analytics.lastUpdatedUnknown", "Unknown");
+    }
+    return new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(parsed);
+  }, [globalSummary.date_range.last_message, t]);
 
   return (
     <div className="flex-1 p-6 overflow-auto bg-background space-y-6 animate-stagger">
+      <p className="text-[11px] text-muted-foreground">
+        {t(
+          "analytics.providerScopeProjectTree",
+          "Provider scope follows Project Tree provider tabs."
+        )}
+      </p>
+
       {/* Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           icon={Activity}
           label={t("analytics.totalTokens")}
           value={formatNumber(globalSummary.total_tokens)}
-          subValue={`${globalSummary.total_projects} ${t("analytics.totalProjects")}`}
+          subValue={
+            `${t("analytics.estimatedCost", "Estimated Cost")}: ${formatCurrency(totalEstimatedCost)}`
+          }
           colorVariant="blue"
         />
         <MetricCard
@@ -59,8 +140,38 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
         />
       </div>
 
+      <BillingBreakdownCard
+        billingTokens={billingTokens}
+        conversationTokens={globalConversationSummary?.total_tokens ?? null}
+        billingCost={billingCost}
+        conversationCost={conversationCostSummary?.totalEstimatedCost ?? null}
+        showProviderLimitHelp={conversationBreakdownCoverage.hasLimitedProviders}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="px-2 py-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[11px]">
+          {t("analytics.estimatedLabel", "Estimated")}
+        </span>
+        <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-[11px]">
+          {t("analytics.pricingCoverage", "Pricing coverage")}: {costSummary.coveragePercent.toFixed(1)}%
+        </span>
+        <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-[11px]">
+          {t("analytics.lastUpdated", "Last updated")}: {lastUpdated}
+        </span>
+      </div>
+
       {/* Model Distribution & Tool Usage */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {globalSummary.provider_distribution.length > 0 && (
+          <SectionCard
+            title={t("analytics.providerDistribution", "Provider Distribution")}
+            icon={Server}
+            colorVariant="green"
+          >
+            <ProviderDistributionChart providers={globalSummary.provider_distribution} />
+          </SectionCard>
+        )}
+
         {globalSummary.model_distribution.length > 0 && (
           <SectionCard title={t("analytics.modelDistribution")} icon={Cpu} colorVariant="blue">
             <div className="space-y-3">
@@ -117,7 +228,11 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
           </SectionCard>
         )}
 
-        <SectionCard title={t("analytics.mostUsedToolsTitle")} icon={Wrench} colorVariant="amber">
+        <SectionCard
+          title={t("analytics.mostUsedToolsTitle")}
+          icon={Wrench}
+          colorVariant="amber"
+        >
           <ToolUsageChart tools={globalSummary.most_used_tools} />
         </SectionCard>
       </div>
@@ -171,7 +286,14 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({ globalSummary 
                           </TooltipContent>
                         </Tooltip>
                         <p className="text-[12px] text-muted-foreground">
-                          {project.sessions} sessions • {project.messages} msgs
+                          {t(
+                            "analytics.topProjectMeta",
+                            "{{sessions}} sessions • {{messages}} msgs",
+                            {
+                              sessions: project.sessions,
+                              messages: project.messages,
+                            }
+                          )}
                         </p>
                       </div>
                     </div>

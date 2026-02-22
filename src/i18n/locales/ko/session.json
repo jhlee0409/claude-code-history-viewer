@@ -70,6 +70,7 @@
   "session.board.rawText": "원본 텍스트",
   "session.board.shellCommands": "쉘 명령",
   "session.board.title": "세션 보드",
+  "session.board.description": "여러 세션을 비교해서 볼 수 있는 개요",
   "session.board.webSearch": "웹 검색/가져오기",
   "session.count": "세션: {{count}}개",
   "session.id": "세션 ID:",

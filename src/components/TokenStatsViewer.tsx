@@ -10,12 +10,14 @@ import {
   ChevronDown,
   Loader2,
 } from "lucide-react";
-import type { SessionTokenStats } from "../types";
+import type { SessionTokenStats, ProviderId } from "../types";
 import type { ProjectTokenStatsPagination } from "../store/slices/messageSlice";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { LoadingState } from "./ui/loading";
 import { SessionStatsCard } from "./SessionStatsCard";
+import { BillingBreakdownCard } from "./AnalyticsDashboard/components/BillingBreakdownCard";
+import { supportsConversationBreakdown } from "../utils/providers";
 
 /**
  * Token Stats Viewer - Mission Control Design
@@ -52,7 +54,9 @@ const TOKEN_COLORS = {
 
 interface TokenStatsViewerProps {
   sessionStats?: SessionTokenStats | null;
+  sessionConversationStats?: SessionTokenStats | null;
   projectStats?: SessionTokenStats[];
+  projectConversationStats?: SessionTokenStats[];
   pagination?: ProjectTokenStatsPagination;
   onLoadMore?: () => void;
   title?: string;
@@ -60,13 +64,16 @@ interface TokenStatsViewerProps {
   dateFilter?: { start: Date | null; end: Date | null };
   setDateFilter?: (filter: { start: Date | null; end: Date | null }) => void;
   onSessionClick?: (stats: SessionTokenStats) => void;
+  providerId?: ProviderId;
 }
 
 import { DatePickerHeader } from "./ui/DatePickerHeader";
 
 export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   sessionStats,
+  sessionConversationStats,
   projectStats = [],
+  projectConversationStats = [],
   pagination,
   onLoadMore,
   title,
@@ -74,8 +81,19 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   dateFilter,
   setDateFilter,
   onSessionClick,
+  providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const showProviderLimitHelp = !supportsConversationBreakdown(providerId);
+  const hasSessionConversationData =
+    sessionConversationStats !== null && sessionConversationStats !== undefined;
+  const projectConversationById = useMemo(
+    () =>
+      new Map(
+        projectConversationStats.map((stats) => [stats.session_id, stats] as const)
+      ),
+    [projectConversationStats]
+  );
 
   // Use projectStats directly - pagination is handled by backend
   const displayedSessions = useMemo(() => projectStats, [projectStats]);
@@ -126,6 +144,11 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
         message_count: 0,
       }
     );
+    const hasProjectConversationData = projectConversationStats.length > 0;
+    const conversationTotalTokens = projectStats.reduce((acc, stats) => {
+      const conversationStats = projectConversationById.get(stats.session_id);
+      return acc + (conversationStats?.total_tokens ?? 0);
+    }, 0);
 
     const metrics = [
       { label: t("analytics.totalTokens"), value: totalStats.total_tokens, color: "var(--metric-purple)" },
@@ -160,7 +183,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                   {t("analytics.projectStats", { count: projectStats.length })}
                 </h3>
                 <p className="text-[12px] text-muted-foreground">
-                  {t("analytics.globalOverviewDescription")}
+                  {t("analytics.projectOverallAnalysis")}
                 </p>
               </div>
             </div>
@@ -201,6 +224,14 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 </Tooltip>
               ))}
             </div>
+
+            <div className="mt-5">
+              <BillingBreakdownCard
+                billingTokens={totalStats.total_tokens}
+                conversationTokens={hasProjectConversationData ? conversationTotalTokens : null}
+                showProviderLimitHelp={showProviderLimitHelp}
+              />
+            </div>
           </div>
         </div>
 
@@ -228,7 +259,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                   showSessionId
                   compact
                   summary={stats.summary}
-                  onClick={() => onSessionClick?.(stats)}
+                  onClick={onSessionClick ? () => onSessionClick(stats) : undefined}
                 />
               </div>
             ))}
@@ -335,14 +366,23 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
 
         {/* Current Session */}
         {sessionStats && (
-          <div>
+          <div className="space-y-4">
             <h3 className="flex items-center gap-2 text-sm font-medium text-foreground/80 mb-3">
               <MessageSquare className="w-4 h-4 text-accent" />
               {t("analytics.currentSession")}
             </h3>
             <SessionStatsCard
               stats={sessionStats}
-              onClick={() => onSessionClick?.(sessionStats)}
+              onClick={onSessionClick ? () => onSessionClick(sessionStats) : undefined}
+            />
+            <BillingBreakdownCard
+              billingTokens={sessionStats.total_tokens}
+              conversationTokens={
+                hasSessionConversationData
+                  ? sessionConversationStats?.total_tokens ?? 0
+                  : null
+              }
+              showProviderLimitHelp={showProviderLimitHelp}
             />
           </div>
         )}

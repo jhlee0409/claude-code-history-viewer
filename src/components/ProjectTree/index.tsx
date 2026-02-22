@@ -351,6 +351,29 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     [selectedProject, onProjectSelect, setExpandedProjects]
   );
 
+  const handleGlobalStatsClick = useCallback(() => {
+    // Global stats 진입 시 현재 열려 있는 프로젝트 확장을 닫는다.
+    setExpandedProjects((prev) => {
+      if (prev.size === 0) {
+        return prev;
+      }
+
+      let changed = false;
+      const next = new Set<string>();
+      for (const key of prev) {
+        if (key.startsWith("dir:") || key.startsWith("group:")) {
+          next.add(key);
+          continue;
+        }
+        changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+
+    onGlobalStatsClick();
+  }, [onGlobalStatsClick, setExpandedProjects]);
+
   const sidebarStyle = isCollapsed ? { width: "48px" } : width ? { width: `${width}px` } : undefined;
 
   // Collapsed View
@@ -382,7 +405,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
           {/* Global Stats Icon */}
           <button
-            onClick={onGlobalStatsClick}
+            onClick={handleGlobalStatsClick}
             className={cn(
               "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
               isViewingGlobalStats ? "bg-accent/20 text-accent" : "text-muted-foreground hover:bg-accent/10 hover:text-accent"
@@ -565,7 +588,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             <div className="space-y-0.5 animate-stagger">
               {/* Global Stats Button */}
               <button
-                onClick={onGlobalStatsClick}
+                onClick={handleGlobalStatsClick}
                 className={cn(
                   "sidebar-item w-full flex items-center gap-3 mx-2 group",
                   "text-left transition-all duration-300",
@@ -581,7 +604,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     isViewingGlobalStats && "bg-accent/20 shadow-glow"
                   )}
                 >
-                  <span title="Global Statistics">
+                  <span title={t("project.globalStats")}>
                     <Database className="w-4 h-4 transition-transform group-hover:scale-110" />
                   </span>
                 </div>

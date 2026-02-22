@@ -4,6 +4,9 @@
  * Token statistics, analytics, and aggregated data structures.
  */
 
+export type StatsMode = "billing_total" | "conversation_only";
+export type MetricMode = "tokens" | "cost_estimated";
+
 // ============================================================================
 // Session Token Stats
 // ============================================================================
@@ -121,6 +124,14 @@ export interface ProjectRanking {
   tokens: number;
 }
 
+export interface ProviderUsageStats {
+  provider_id: string;
+  projects: number;
+  sessions: number;
+  messages: number;
+  tokens: number;
+}
+
 // ============================================================================
 // Session Comparison
 // ============================================================================
@@ -154,6 +165,7 @@ export interface GlobalStatsSummary {
   daily_stats: DailyStats[];
   activity_heatmap: ActivityHeatmap[];
   most_used_tools: ToolUsageStats[];
+  provider_distribution: ProviderUsageStats[];
   model_distribution: ModelStats[];
   top_projects: ProjectRanking[];
 }

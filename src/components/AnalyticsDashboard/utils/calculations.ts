@@ -53,6 +53,22 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
 
 const DEFAULT_PRICING: ModelPricing = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 };
 
+const SORTED_MODEL_PRICING_ENTRIES = Object.entries(MODEL_PRICING).sort(
+  (a, b) => b[0].length - a[0].length
+);
+
+const findModelPricing = (modelName: string): ModelPricing | null => {
+  for (const [key, value] of SORTED_MODEL_PRICING_ENTRIES) {
+    if (modelName.toLowerCase().includes(key)) {
+      return value;
+    }
+  }
+  return null;
+};
+
+export const hasExplicitModelPricing = (modelName: string): boolean =>
+  findModelPricing(modelName) !== null;
+
 /**
  * Calculate Claude API pricing for a model
  */
@@ -63,19 +79,7 @@ export const calculateModelPrice = (
   cacheCreationTokens: number,
   cacheReadTokens: number
 ): number => {
-  let modelPricing = DEFAULT_PRICING;
-
-  // Sort by key length descending so more specific keys match first
-  // (e.g., "gpt-4.1-mini" matches before "gpt-4.1")
-  const entries = Object.entries(MODEL_PRICING).sort(
-    (a, b) => b[0].length - a[0].length
-  );
-  for (const [key, value] of entries) {
-    if (modelName.toLowerCase().includes(key)) {
-      modelPricing = value;
-      break;
-    }
-  }
+  const modelPricing = findModelPricing(modelName) ?? DEFAULT_PRICING;
 
   const inputCost = (inputTokens / 1000000) * modelPricing.input;
   const outputCost = (outputTokens / 1000000) * modelPricing.output;

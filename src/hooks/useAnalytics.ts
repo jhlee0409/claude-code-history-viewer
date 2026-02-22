@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../store/useAppStore";
 import type { UseAnalyticsReturn } from "../types/analytics";
+import type { MetricMode, StatsMode } from "../types";
 
 export const useAnalytics = (): UseAnalyticsReturn => {
   const { t } = useTranslation();
@@ -28,7 +29,10 @@ export const useAnalytics = (): UseAnalyticsReturn => {
 
     // Store actions
     setAnalyticsCurrentView,
+    setAnalyticsStatsMode,
+    setAnalyticsMetricMode,
     setAnalyticsProjectSummary,
+    setAnalyticsProjectConversationSummary,
     setAnalyticsSessionComparison,
     setAnalyticsLoadingProjectSummary,
     setAnalyticsLoadingSessionComparison,
@@ -46,6 +50,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     loadSessionComparison,
     loadSessionTokenStats,
     loadRecentEdits,
+    loadGlobalStats,
     clearTokenStats,
     clearBoard,
   } = useAppStore();
@@ -366,6 +371,105 @@ export const useAnalytics = (): UseAnalyticsReturn => {
   }, [t, selectedProject, sessions, setAnalyticsCurrentView, clearAnalyticsErrors]);
 
   /**
+   * 통계 모드 변경
+   * - billing_total: 청구 기준(사이드체인 포함)
+   * - conversation_only: 대화 기준(사이드체인 제외)
+   *
+   * Provider 필터(activeProviders)는 프로젝트 트리 탭의 단일 소스를 그대로 사용한다.
+   */
+  const setStatsMode = useCallback(
+    async (mode: StatsMode, options?: { isViewingGlobalStats?: boolean }) => {
+      const currentMode = useAppStore.getState().analytics.statsMode;
+      if (currentMode === mode) {
+        return;
+      }
+
+      setAnalyticsStatsMode(mode);
+      clearTokenStats();
+      setAnalyticsProjectSummary(null);
+      setAnalyticsSessionComparison(null);
+      setAnalyticsProjectSummaryError(null);
+      setAnalyticsSessionComparisonError(null);
+
+      const state = useAppStore.getState();
+      const project = state.selectedProject;
+      const session = state.selectedSession;
+      const currentView = state.analytics.currentView;
+      const isGlobalScope =
+        options?.isViewingGlobalStats ?? (!project && currentView === "analytics");
+
+      try {
+        if (isGlobalScope) {
+          await loadGlobalStats();
+          return;
+        }
+
+        if (!project) {
+          return;
+        }
+
+        if (currentView === "tokenStats") {
+          await loadProjectTokenStats(project.path);
+          if (session) {
+            await loadSessionTokenStats(session.file_path);
+          }
+          return;
+        }
+
+        if (currentView === "analytics") {
+          setAnalyticsLoadingProjectSummary(true);
+          try {
+            const summary = await loadProjectStatsSummary(project.path);
+            setAnalyticsProjectSummary(summary);
+          } finally {
+            setAnalyticsLoadingProjectSummary(false);
+          }
+
+          if (session) {
+            setAnalyticsLoadingSessionComparison(true);
+            try {
+              const [comparison] = await Promise.all([
+                loadSessionComparison(session.actual_session_id, project.path),
+                loadSessionTokenStats(session.file_path),
+              ]);
+              setAnalyticsSessionComparison(comparison);
+            } finally {
+              setAnalyticsLoadingSessionComparison(false);
+            }
+          }
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : t("common.hooks.projectSummaryLoadFailed");
+        setAnalyticsProjectSummaryError(errorMessage);
+      }
+    },
+    [
+      clearTokenStats,
+      loadGlobalStats,
+      loadProjectStatsSummary,
+      loadProjectTokenStats,
+      loadSessionComparison,
+      loadSessionTokenStats,
+      setAnalyticsLoadingProjectSummary,
+      setAnalyticsLoadingSessionComparison,
+      setAnalyticsProjectSummary,
+      setAnalyticsProjectSummaryError,
+      setAnalyticsSessionComparison,
+      setAnalyticsSessionComparisonError,
+      setAnalyticsStatsMode,
+      t,
+    ]
+  );
+
+  const setMetricMode = useCallback(
+    (mode: MetricMode) => {
+      setAnalyticsMetricMode(mode);
+    },
+    [setAnalyticsMetricMode]
+  );
+
+  /**
    * 현재 뷰의 분석 데이터 강제 새로고침
    * 캐시를 무시하고 데이터를 다시 로드
    */
@@ -378,6 +482,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
         break;
       case "analytics":
         setAnalyticsProjectSummary(null);
+        setAnalyticsProjectConversationSummary(null);
         setAnalyticsSessionComparison(null);
         await switchToAnalytics();
         break;
@@ -402,6 +507,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     switchToBoard,
     clearTokenStats,
     setAnalyticsProjectSummary,
+    setAnalyticsProjectConversationSummary,
     setAnalyticsSessionComparison,
     setAnalyticsRecentEdits,
   ]);
@@ -635,6 +741,8 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       switchToRecentEdits,
       switchToSettings,
       switchToBoard,
+      setStatsMode,
+      setMetricMode,
       refreshAnalytics,
       clearAll,
     },

@@ -192,6 +192,8 @@ export type {
 
 // Stats Types
 export type {
+  StatsMode,
+  MetricMode,
   SessionTokenStats,
   PaginatedTokenStats,
   DailyStats,
@@ -201,6 +203,7 @@ export type {
   DateRange,
   ProjectStatsSummary,
   ProjectRanking,
+  ProviderUsageStats,
   SessionComparison,
   GlobalStatsSummary,
 } from "./stats.types";

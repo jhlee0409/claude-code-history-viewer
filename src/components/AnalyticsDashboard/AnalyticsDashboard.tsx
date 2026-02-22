@@ -24,7 +24,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     selectedProject,
     selectedSession,
     sessionTokenStats,
+    sessionConversationTokenStats,
     globalSummary,
+    globalConversationSummary,
     isLoadingGlobalStats,
     dateFilter,
     setDateFilter,
@@ -33,6 +35,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<"project" | "session">("project");
 
   const projectSummary = analyticsState.projectSummary;
+  const projectConversationSummary = analyticsState.projectConversationSummary;
   const sessionComparison = analyticsState.sessionComparison;
   const sessionStats = sessionTokenStats;
 
@@ -65,7 +68,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     }
 
     if (globalSummary) {
-      return <GlobalStatsView globalSummary={globalSummary} />;
+      return (
+        <GlobalStatsView
+          globalSummary={globalSummary}
+          globalConversationSummary={globalConversationSummary}
+        />
+      );
     }
 
     return (
@@ -141,7 +149,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           )}
 
           {/* Global Date Picker */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <DatePickerHeader
               dateFilter={dateFilter}
               setDateFilter={setDateFilter}
@@ -153,11 +161,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         {hasSessionData && activeTab === "session" ? (
           <SessionStatsView
             sessionStats={sessionStats}
+            conversationStats={sessionConversationTokenStats}
             sessionComparison={sessionComparison}
             totalProjectSessions={projectSummary?.total_sessions}
+            providerId={selectedProject?.provider ?? "claude"}
           />
         ) : (
-          <ProjectStatsView projectSummary={projectSummary} />
+          <ProjectStatsView
+            projectSummary={projectSummary}
+            conversationSummary={projectConversationSummary}
+            providerId={selectedProject?.provider ?? "claude"}
+          />
         )}
       </div>
     </div>

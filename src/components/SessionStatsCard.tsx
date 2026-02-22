@@ -66,7 +66,7 @@ export const SessionStatsCard = memo(({
         "bg-card/60 backdrop-blur-sm",
         "border border-border/40",
         "transition-all duration-200",
-        onClick ? "hover:border-accent hover:shadow-md cursor-pointer" : "hover:border-border/60"
+        onClick ? "hover:border-accent hover:shadow-md cursor-pointer" : "cursor-default"
       )}
       onClick={onClick}
     >

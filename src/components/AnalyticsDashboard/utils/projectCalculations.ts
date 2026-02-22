@@ -14,18 +14,54 @@ import { calculateGrowthRate } from "./calculations";
 
 /**
  * Generate full trend data from project stats
- * Maps the available daily stats to trend data
+ * Returns the latest N calendar days (default 7) and fills missing days with zero values.
  */
-export const generateTrendData = (dailyStats: DailyStats[] | undefined): DailyStatData[] => {
-  if (!dailyStats) return [];
+export const generateTrendData = (
+  dailyStats: DailyStats[] | undefined,
+  maxDays: number = 7
+): DailyStatData[] => {
+  if (maxDays <= 0) return [];
 
-  return dailyStats.map((stat) => ({
-    date: stat.date,
-    total_tokens: stat.total_tokens || 0,
-    message_count: stat.message_count || 0,
-    session_count: stat.session_count || 0,
-    active_hours: stat.active_hours || 0,
-  }));
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const statsByDate = new Map<string, DailyStatData>();
+  (dailyStats ?? []).forEach((stat) => {
+    statsByDate.set(stat.date, {
+      date: stat.date,
+      total_tokens: stat.total_tokens || 0,
+      message_count: stat.message_count || 0,
+      session_count: stat.session_count || 0,
+      active_hours: stat.active_hours || 0,
+    });
+  });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const trendData: DailyStatData[] = [];
+  for (let offset = maxDays - 1; offset >= 0; offset -= 1) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - offset);
+    const dateKey = formatLocalDate(day);
+    const existing = statsByDate.get(dateKey);
+
+    trendData.push(
+      existing ?? {
+        date: dateKey,
+        total_tokens: 0,
+        message_count: 0,
+        session_count: 0,
+        active_hours: 0,
+      }
+    );
+  }
+
+  return trendData;
 };
 
 // ============================================================================

@@ -8,24 +8,30 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageCircle, Activity, Clock, Wrench, Layers, Cpu, TrendingUp, Database } from "lucide-react";
 import { LoadingState } from "@/components/ui/loading";
-import type { ProjectStatsSummary } from "../../../types";
+import type { ProjectStatsSummary, ProviderId } from "../../../types";
 import { formatDuration } from "../../../utils/time";
 import {
   MetricCard,
   SectionCard,
+  BillingBreakdownCard,
   ActivityHeatmapComponent,
   ToolUsageChart,
   DailyTrendChart,
   TokenDistributionChart,
 } from "../components";
 import { formatNumber, generateTrendData, extractProjectGrowth } from "../utils";
+import { supportsConversationBreakdown } from "../../../utils/providers";
 
 interface ProjectStatsViewProps {
   projectSummary: ProjectStatsSummary | null;
+  conversationSummary: ProjectStatsSummary | null;
+  providerId?: ProviderId;
 }
 
 export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
   projectSummary,
+  conversationSummary,
+  providerId = "claude",
 }) => {
   const { t } = useTranslation();
 
@@ -51,6 +57,8 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
 
   // Calculate growth metrics using utility function
   const { tokenGrowth, messageGrowth } = extractProjectGrowth(projectSummary);
+  const hasConversationData = conversationSummary !== null;
+  const billingTokens = projectSummary.total_tokens;
 
   return (
     <div className="space-y-6 animate-stagger">
@@ -68,14 +76,18 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
           label={t("analytics.totalTokens")}
           value={formatNumber(projectSummary.total_tokens)}
           trend={tokenGrowth}
-          subValue={`${projectSummary.total_sessions} sessions`}
+          subValue={t("analytics.sessionCount", "{{count}} sessions", {
+            count: projectSummary.total_sessions,
+          })}
           colorVariant="blue"
         />
         <MetricCard
           icon={Clock}
           label={t("analytics.totalSessionTime")}
           value={formatDuration(projectSummary.total_session_duration)}
-          subValue={`avg: ${formatDuration(projectSummary.avg_session_duration)}`}
+          subValue={`${t("analytics.avgSessionTime", "Avg Session Time")}: ${formatDuration(
+            projectSummary.avg_session_duration
+          )}`}
           colorVariant="green"
         />
         <MetricCard
@@ -85,6 +97,12 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
           colorVariant="amber"
         />
       </div>
+
+      <BillingBreakdownCard
+        billingTokens={billingTokens}
+        conversationTokens={hasConversationData ? conversationSummary?.total_tokens ?? 0 : null}
+        showProviderLimitHelp={!supportsConversationBreakdown(providerId)}
+      />
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

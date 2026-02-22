@@ -70,6 +70,7 @@
   "session.board.rawText": "Raw Text",
   "session.board.shellCommands": "Shell Commands",
   "session.board.title": "Session Board",
+  "session.board.description": "Comparative overview of different sessions",
   "session.board.webSearch": "Web Search/Fetch",
   "session.count": "Sessions: {{count}}",
   "session.id": "Session ID:",

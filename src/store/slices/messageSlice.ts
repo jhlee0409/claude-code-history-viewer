@@ -30,6 +30,7 @@ import {
   getNextOffset,
 } from "../../utils/pagination";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
+import { supportsConversationBreakdown } from "../../utils/providers";
 
 // ============================================================================
 // State Interface
@@ -44,7 +45,9 @@ export interface MessageSliceState {
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;
   sessionTokenStats: SessionTokenStats | null;
+  sessionConversationTokenStats: SessionTokenStats | null;
   projectTokenStats: SessionTokenStats[];
+  projectConversationTokenStats: SessionTokenStats[];
   projectTokenStatsPagination: ProjectTokenStatsPagination;
 }
 
@@ -87,7 +90,9 @@ const initialMessageState: MessageSliceState = {
   isLoadingMessages: false,
   isLoadingTokenStats: false,
   sessionTokenStats: null,
+  sessionConversationTokenStats: null,
   projectTokenStats: [],
+  projectConversationTokenStats: [],
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
 };
 
@@ -127,6 +132,11 @@ export const createMessageSlice: StateCreator<
     tokenStatsLoadingEpoch += 1;
     tokenStatsInFlight = 0;
     set({ isLoadingTokenStats: false });
+  };
+
+  const canLoadConversationBreakdown = (): boolean => {
+    const provider = get().selectedProject?.provider ?? "claude";
+    return supportsConversationBreakdown(provider);
   };
 
   return {
@@ -255,13 +265,25 @@ export const createMessageSlice: StateCreator<
             await get().loadSessionTokenStats(selectedSession.file_path);
           }
         } else if (analytics.currentView === "analytics") {
-          const projectSummary = await fetchProjectStatsSummary(selectedProject.path);
+          const projectSummary = await fetchProjectStatsSummary(
+            selectedProject.path,
+            {
+              stats_mode: "billing_total",
+            }
+          );
+          const projectConversationSummary = canLoadConversationBreakdown()
+            ? await fetchProjectStatsSummary(selectedProject.path, {
+                stats_mode: "conversation_only",
+              })
+            : projectSummary;
           get().setAnalyticsProjectSummary(projectSummary);
+          get().setAnalyticsProjectConversationSummary(projectConversationSummary);
 
           if (selectedSession) {
             const sessionComparison = await fetchSessionComparison(
               selectedSession.actual_session_id,
-              selectedProject.path
+              selectedProject.path,
+              "billing_total"
             );
             get().setAnalyticsSessionComparison(sessionComparison);
           }
@@ -282,10 +304,14 @@ export const createMessageSlice: StateCreator<
     const loadingEpoch = beginTokenStatsLoading();
     try {
       get().setError(null);
-
-      const stats = await fetchSessionTokenStats(sessionPath);
+      const stats = await fetchSessionTokenStats(sessionPath, "billing_total");
+      const conversationStats = canLoadConversationBreakdown()
+        ? await fetchSessionTokenStats(sessionPath, "conversation_only").catch(
+            () => null
+          )
+        : stats;
       if (requestId !== getRequestId("sessionTokenStats")) return;
-      set({ sessionTokenStats: stats });
+      set({ sessionTokenStats: stats, sessionConversationTokenStats: conversationStats });
     } catch (error) {
       if (requestId !== getRequestId("sessionTokenStats")) return;
       console.error("Failed to load session token stats:", error);
@@ -293,7 +319,7 @@ export const createMessageSlice: StateCreator<
         type: AppErrorType.UNKNOWN,
         message: `Failed to load token stats: ${error}`,
       });
-      set({ sessionTokenStats: null });
+      set({ sessionTokenStats: null, sessionConversationTokenStats: null });
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -305,6 +331,7 @@ export const createMessageSlice: StateCreator<
     try {
       set({
         projectTokenStats: [], // Reset on new project load
+        projectConversationTokenStats: [],
         projectTokenStatsPagination: {
           ...initialMessageState.projectTokenStatsPagination,
         },
@@ -319,21 +346,32 @@ export const createMessageSlice: StateCreator<
         endDate.setHours(23, 59, 59, 999);
       }
 
-      const response = await fetchProjectTokenStats(projectPath, {
+      const billingResponse = await fetchProjectTokenStats(projectPath, {
         offset: 0,
         limit: TOKENS_STATS_PAGE_SIZE,
         start_date: dateFilter.start?.toISOString(),
         end_date: endDate?.toISOString(),
+        stats_mode: "billing_total",
       });
+      const conversationResponse = canLoadConversationBreakdown()
+        ? await fetchProjectTokenStats(projectPath, {
+            offset: 0,
+            limit: TOKENS_STATS_PAGE_SIZE,
+            start_date: dateFilter.start?.toISOString(),
+            end_date: endDate?.toISOString(),
+            stats_mode: "conversation_only",
+          }).catch(() => null)
+        : billingResponse;
 
       if (requestId !== getRequestId("projectTokenStats")) return;
       set({
-        projectTokenStats: response.items,
+        projectTokenStats: billingResponse.items,
+        projectConversationTokenStats: conversationResponse?.items ?? [],
         projectTokenStatsPagination: {
-          totalCount: response.total_count,
-          offset: response.offset,
-          limit: response.limit,
-          hasMore: response.has_more,
+          totalCount: billingResponse.total_count,
+          offset: billingResponse.offset,
+          limit: billingResponse.limit,
+          hasMore: billingResponse.has_more,
           isLoadingMore: false,
         },
       });
@@ -344,14 +382,14 @@ export const createMessageSlice: StateCreator<
         type: AppErrorType.UNKNOWN,
         message: `Failed to load project token stats: ${error}`,
       });
-      set({ projectTokenStats: [] });
+      set({ projectTokenStats: [], projectConversationTokenStats: [] });
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
   },
 
   loadMoreProjectTokenStats: async (projectPath: string) => {
-    const { projectTokenStatsPagination, projectTokenStats } = get();
+    const { projectTokenStatsPagination, projectTokenStats, projectConversationTokenStats } = get();
 
     if (!canLoadMore(projectTokenStatsPagination)) {
       return;
@@ -377,21 +415,35 @@ export const createMessageSlice: StateCreator<
         endDate.setHours(23, 59, 59, 999);
       }
 
-      const response = await fetchProjectTokenStats(projectPath, {
+      const billingResponse = await fetchProjectTokenStats(projectPath, {
         offset: nextOffset,
         limit: TOKENS_STATS_PAGE_SIZE,
         start_date: dateFilter.start?.toISOString(),
         end_date: endDate?.toISOString(),
+        stats_mode: "billing_total",
       });
+      const conversationResponse = canLoadConversationBreakdown()
+        ? await fetchProjectTokenStats(projectPath, {
+            offset: nextOffset,
+            limit: TOKENS_STATS_PAGE_SIZE,
+            start_date: dateFilter.start?.toISOString(),
+            end_date: endDate?.toISOString(),
+            stats_mode: "conversation_only",
+          }).catch(() => null)
+        : billingResponse;
 
       if (snapshotId !== getRequestId("projectTokenStats")) return;
       set({
-        projectTokenStats: [...projectTokenStats, ...response.items],
+        projectTokenStats: [...projectTokenStats, ...billingResponse.items],
+        projectConversationTokenStats: [
+          ...projectConversationTokenStats,
+          ...(conversationResponse?.items ?? []),
+        ],
         projectTokenStatsPagination: {
-          totalCount: response.total_count,
-          offset: response.offset,
-          limit: response.limit,
-          hasMore: response.has_more,
+          totalCount: billingResponse.total_count,
+          offset: billingResponse.offset,
+          limit: billingResponse.limit,
+          hasMore: billingResponse.has_more,
           isLoadingMore: false,
         },
       });
@@ -417,10 +469,20 @@ export const createMessageSlice: StateCreator<
         endDate.setHours(23, 59, 59, 999);
       }
 
-      return await fetchProjectStatsSummary(projectPath, {
+      const billing = await fetchProjectStatsSummary(projectPath, {
         start_date: dateFilter.start?.toISOString(),
         end_date: endDate?.toISOString(),
+        stats_mode: "billing_total",
       });
+      const conversation = canLoadConversationBreakdown()
+        ? await fetchProjectStatsSummary(projectPath, {
+            start_date: dateFilter.start?.toISOString(),
+            end_date: endDate?.toISOString(),
+            stats_mode: "conversation_only",
+          })
+        : billing;
+      get().setAnalyticsProjectConversationSummary(conversation);
+      return billing;
     } catch (error) {
       console.error("Failed to load project stats summary:", error);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
@@ -430,7 +492,7 @@ export const createMessageSlice: StateCreator<
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {
-    return fetchSessionComparison(sessionId, projectPath);
+    return fetchSessionComparison(sessionId, projectPath, "billing_total");
   },
 
   clearTokenStats: () => {
@@ -440,7 +502,9 @@ export const createMessageSlice: StateCreator<
     resetTokenStatsLoading();
     set({
       sessionTokenStats: null,
+      sessionConversationTokenStats: null,
       projectTokenStats: [],
+      projectConversationTokenStats: [],
       projectTokenStatsPagination: createInitialPaginationWithCount(
         TOKENS_STATS_PAGE_SIZE
       ),

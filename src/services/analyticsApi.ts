@@ -14,6 +14,7 @@ import type {
   PaginatedRecentEdits,
   GlobalStatsSummary,
   ProviderId,
+  StatsMode,
 } from "../types";
 
 // ============================================================================
@@ -47,14 +48,16 @@ async function dedupeInFlight<T>(
  * Fetch token statistics for a single session
  */
 export async function fetchSessionTokenStats(
-  sessionPath: string
+  sessionPath: string,
+  statsMode: StatsMode
 ): Promise<SessionTokenStats> {
-  const key = `sessionTokenStats:${sessionPath}`;
+  const key = `sessionTokenStats:${sessionPath}:${statsMode}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
     const stats = await invoke<SessionTokenStats>("get_session_token_stats", {
       sessionPath,
+      statsMode,
     });
 
     if (import.meta.env.DEV) {
@@ -75,6 +78,7 @@ export interface FetchProjectTokenStatsOptions {
   limit?: number;
   start_date?: string;
   end_date?: string;
+  stats_mode: StatsMode;
 }
 
 /**
@@ -82,10 +86,11 @@ export interface FetchProjectTokenStatsOptions {
  */
 export async function fetchProjectTokenStats(
   projectPath: string,
-  options: FetchProjectTokenStatsOptions = {}
+  options: FetchProjectTokenStatsOptions
 ): Promise<PaginatedTokenStats> {
   const { offset = 0, limit = DEFAULT_PAGE_SIZE, start_date, end_date } = options;
-  const key = `projectTokenStats:${projectPath}:${offset}:${limit}:${start_date ?? ""}:${end_date ?? ""}`;
+  const { stats_mode } = options;
+  const key = `projectTokenStats:${projectPath}:${offset}:${limit}:${start_date ?? ""}:${end_date ?? ""}:${stats_mode}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
@@ -95,6 +100,7 @@ export async function fetchProjectTokenStats(
       limit,
       startDate: start_date,
       endDate: end_date,
+      statsMode: stats_mode,
     });
 
     if (import.meta.env.DEV) {
@@ -117,10 +123,10 @@ export async function fetchProjectTokenStats(
  */
 export async function fetchProjectStatsSummary(
   projectPath: string,
-  options: { start_date?: string; end_date?: string } = {}
+  options: { start_date?: string; end_date?: string; stats_mode: StatsMode }
 ): Promise<ProjectStatsSummary> {
-  const { start_date, end_date } = options;
-  const key = `projectStatsSummary:${projectPath}:${start_date ?? ""}:${end_date ?? ""}`;
+  const { start_date, end_date, stats_mode } = options;
+  const key = `projectStatsSummary:${projectPath}:${start_date ?? ""}:${end_date ?? ""}:${stats_mode}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
@@ -128,6 +134,7 @@ export async function fetchProjectStatsSummary(
       projectPath,
       startDate: start_date,
       endDate: end_date,
+      statsMode: stats_mode,
     });
 
     if (import.meta.env.DEV) {
@@ -150,15 +157,17 @@ export async function fetchProjectStatsSummary(
  */
 export async function fetchSessionComparison(
   sessionId: string,
-  projectPath: string
+  projectPath: string,
+  statsMode: StatsMode
 ): Promise<SessionComparison> {
-  const key = `sessionComparison:${projectPath}:${sessionId}`;
+  const key = `sessionComparison:${projectPath}:${sessionId}:${statsMode}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
     const comparison = await invoke<SessionComparison>("get_session_comparison", {
       sessionId,
       projectPath,
+      statsMode,
     });
 
     if (import.meta.env.DEV) {
@@ -217,19 +226,21 @@ export async function fetchRecentEdits(
  */
 export async function fetchGlobalStatsSummary(
   claudePath: string,
-  activeProviders?: ProviderId[]
+  activeProviders?: ProviderId[],
+  statsMode: StatsMode = "billing_total"
 ): Promise<GlobalStatsSummary> {
   const normalizedProviders = [...new Set(activeProviders ?? [])].sort();
   const providersKey = normalizedProviders.length > 0
     ? normalizedProviders.join(",")
     : "all";
-  const key = `globalStatsSummary:${claudePath}:${providersKey}`;
+  const key = `globalStatsSummary:${claudePath}:${providersKey}:${statsMode}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
     const summary = await invoke<GlobalStatsSummary>("get_global_stats_summary", {
       claudePath,
       activeProviders: normalizedProviders.length > 0 ? normalizedProviders : undefined,
+      statsMode,
     });
 
     if (import.meta.env.DEV) {

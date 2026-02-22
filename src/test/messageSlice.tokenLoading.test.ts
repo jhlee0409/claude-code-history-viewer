@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
-import type { PaginatedTokenStats, SessionTokenStats } from "../types";
+import type { ClaudeProject, PaginatedTokenStats, SessionTokenStats } from "../types";
 import {
   createMessageSlice,
   type MessageSlice,
@@ -56,6 +56,7 @@ const buildProjectStatsResponse = (): PaginatedTokenStats => ({
 type TestStore = MessageSlice & {
   dateFilter: { start: Date | null; end: Date | null };
   setError: ReturnType<typeof vi.fn>;
+  selectedProject: ClaudeProject | null;
 };
 
 const createTestStore = () => {
@@ -63,6 +64,7 @@ const createTestStore = () => {
   return create<TestStore>()((set, get) => ({
     dateFilter: { start: null, end: null },
     setError,
+    selectedProject: null,
     ...createMessageSlice(
       set as Parameters<typeof createMessageSlice>[0],
       get as Parameters<typeof createMessageSlice>[1]
@@ -114,5 +116,35 @@ describe("messageSlice token loading state", () => {
     await sessionPromise;
 
     expect(useStore.getState().isLoadingTokenStats).toBe(false);
+  });
+
+  it("reuses billing stats as conversation stats for providers without sidechain metadata", async () => {
+    const useStore = createTestStore();
+    useStore.setState({
+      selectedProject: {
+        name: "codex-project",
+        path: "codex://project",
+        actual_path: "/tmp/codex-project",
+        session_count: 0,
+        message_count: 0,
+        last_modified: "2026-01-01T00:00:00.000Z",
+        provider: "codex",
+      },
+    });
+
+    const billingStats = buildSessionStats("session-codex");
+    mockFetchSessionTokenStats.mockResolvedValue(billingStats);
+
+    await useStore.getState().loadSessionTokenStats("/session-codex");
+
+    expect(mockFetchSessionTokenStats).toHaveBeenCalledTimes(1);
+    expect(mockFetchSessionTokenStats).toHaveBeenCalledWith(
+      "/session-codex",
+      "billing_total"
+    );
+    expect(useStore.getState().sessionTokenStats).toEqual(billingStats);
+    expect(useStore.getState().sessionConversationTokenStats).toEqual(
+      billingStats
+    );
   });
 });

@@ -92,4 +92,22 @@ describe("globalStatsSlice", () => {
     expect(useStore.getState().isLoadingGlobalStats).toBe(false);
     expect(useStore.getState().globalSummary).toBeNull();
   });
+
+  it("skips conversation-only request when selected providers do not support breakdown", async () => {
+    const useStore = createTestStore();
+    const summary = buildGlobalSummary();
+    useStore.setState({ activeProviders: ["codex"] });
+    mockFetchGlobalStatsSummary.mockResolvedValue(summary);
+
+    await useStore.getState().loadGlobalStats();
+
+    expect(mockFetchGlobalStatsSummary).toHaveBeenCalledTimes(1);
+    expect(mockFetchGlobalStatsSummary).toHaveBeenCalledWith(
+      "/tmp/claude",
+      ["codex"],
+      "billing_total"
+    );
+    expect(useStore.getState().globalSummary).toEqual(summary);
+    expect(useStore.getState().globalConversationSummary).toEqual(summary);
+  });
 });

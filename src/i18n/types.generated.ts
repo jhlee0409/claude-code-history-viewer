@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-21T20:16:52.215Z
- * 총 키 개수: 1552
+ * 생성 시간: 2026-02-22T16:29:11.091Z
+ * 총 키 개수: 1576
  * Namespace 수: 11
  */
 
@@ -169,7 +169,7 @@ export type CommonKeys =
   | 'time.start';
 
 /**
- * analytics namespace의 번역 키 (151개)
+ * analytics namespace의 번역 키 (174개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -197,8 +197,15 @@ export type AnalyticsKeys =
   | 'analytics.avgSessionTime'
   | 'analytics.avgTokensPerMessage'
   | 'analytics.belowAverage'
+  | 'analytics.billingBreakdown'
+  | 'analytics.billingBreakdownHelp'
+  | 'analytics.billingBreakdownProviderLimitHelp'
+  | 'analytics.billingFormulaLabel'
+  | 'analytics.billingTotal'
   | 'analytics.cacheCreation'
   | 'analytics.cacheRead'
+  | 'analytics.calculating'
+  | 'analytics.conversationOnly'
   | 'analytics.count'
   | 'analytics.currentSession'
   | 'analytics.currentSessionTokens'
@@ -211,21 +218,31 @@ export type AnalyticsKeys =
   | 'analytics.duration'
   | 'analytics.durationMinutes'
   | 'analytics.endTime'
+  | 'analytics.estimatedCost'
+  | 'analytics.estimatedLabel'
   | 'analytics.firstMessage'
   | 'analytics.globalOverview'
   | 'analytics.globalOverviewDescription'
+  | 'analytics.globalOverviewDescriptionMultiProvider'
+  | 'analytics.globalOverviewDescriptionSingleProvider'
   | 'analytics.heatmapTooltip'
   | 'analytics.highActivity'
   | 'analytics.hourSuffix'
   | 'analytics.input'
   | 'analytics.inputTokens'
   | 'analytics.lastMessage'
+  | 'analytics.lastUpdated'
+  | 'analytics.lastUpdatedUnknown'
   | 'analytics.legend.less'
   | 'analytics.legend.more'
   | 'analytics.loading'
   | 'analytics.loadingGlobalStats'
   | 'analytics.loadingGlobalStatsDescription'
+  | 'analytics.messageCountShort'
   | 'analytics.messages'
+  | 'analytics.metricModeCostEstimated'
+  | 'analytics.metricModeLabel'
+  | 'analytics.metricModeTokens'
   | 'analytics.min'
   | 'analytics.minutesUnit'
   | 'analytics.modelDistribution'
@@ -236,15 +253,20 @@ export type AnalyticsKeys =
   | 'analytics.noDataAvailable'
   | 'analytics.noSessions'
   | 'analytics.noTokenData'
+  | 'analytics.nonConversation'
   | 'analytics.output'
   | 'analytics.outputTokens'
+  | 'analytics.percentile'
   | 'analytics.performanceInsights'
+  | 'analytics.pricingCoverage'
   | 'analytics.projectOverallAnalysis'
   | 'analytics.projectOverview'
   | 'analytics.projectSessionAnalysis'
   | 'analytics.projectShare'
   | 'analytics.projectStats'
   | 'analytics.projectTokens'
+  | 'analytics.providerDistribution'
+  | 'analytics.providerScopeProjectTree'
   | 'analytics.rank'
   | 'analytics.recentActivity'
   | 'analytics.recentActivityTrend'
@@ -305,6 +327,7 @@ export type AnalyticsKeys =
   | 'analytics.tooltipSessions'
   | 'analytics.tooltipTokens'
   | 'analytics.topPercent'
+  | 'analytics.topProjectMeta'
   | 'analytics.topProjects'
   | 'analytics.totalLabel'
   | 'analytics.totalMessages'
@@ -326,7 +349,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (153개)
+ * session namespace의 번역 키 (154개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -376,6 +399,7 @@ export type SessionKeys =
   | 'session.board.controls.skimView'
   | 'session.board.controls.status'
   | 'session.board.controls.tool'
+  | 'session.board.description'
   | 'session.board.docUpdates'
   | 'session.board.dragToPan'
   | 'session.board.empty.description'
@@ -1711,8 +1735,15 @@ export type TranslationKey =
   | 'analytics.avgSessionTime'
   | 'analytics.avgTokensPerMessage'
   | 'analytics.belowAverage'
+  | 'analytics.billingBreakdown'
+  | 'analytics.billingBreakdownHelp'
+  | 'analytics.billingBreakdownProviderLimitHelp'
+  | 'analytics.billingFormulaLabel'
+  | 'analytics.billingTotal'
   | 'analytics.cacheCreation'
   | 'analytics.cacheRead'
+  | 'analytics.calculating'
+  | 'analytics.conversationOnly'
   | 'analytics.count'
   | 'analytics.currentSession'
   | 'analytics.currentSessionTokens'
@@ -1725,21 +1756,31 @@ export type TranslationKey =
   | 'analytics.duration'
   | 'analytics.durationMinutes'
   | 'analytics.endTime'
+  | 'analytics.estimatedCost'
+  | 'analytics.estimatedLabel'
   | 'analytics.firstMessage'
   | 'analytics.globalOverview'
   | 'analytics.globalOverviewDescription'
+  | 'analytics.globalOverviewDescriptionMultiProvider'
+  | 'analytics.globalOverviewDescriptionSingleProvider'
   | 'analytics.heatmapTooltip'
   | 'analytics.highActivity'
   | 'analytics.hourSuffix'
   | 'analytics.input'
   | 'analytics.inputTokens'
   | 'analytics.lastMessage'
+  | 'analytics.lastUpdated'
+  | 'analytics.lastUpdatedUnknown'
   | 'analytics.legend.less'
   | 'analytics.legend.more'
   | 'analytics.loading'
   | 'analytics.loadingGlobalStats'
   | 'analytics.loadingGlobalStatsDescription'
+  | 'analytics.messageCountShort'
   | 'analytics.messages'
+  | 'analytics.metricModeCostEstimated'
+  | 'analytics.metricModeLabel'
+  | 'analytics.metricModeTokens'
   | 'analytics.min'
   | 'analytics.minutesUnit'
   | 'analytics.modelDistribution'
@@ -1750,15 +1791,20 @@ export type TranslationKey =
   | 'analytics.noDataAvailable'
   | 'analytics.noSessions'
   | 'analytics.noTokenData'
+  | 'analytics.nonConversation'
   | 'analytics.output'
   | 'analytics.outputTokens'
+  | 'analytics.percentile'
   | 'analytics.performanceInsights'
+  | 'analytics.pricingCoverage'
   | 'analytics.projectOverallAnalysis'
   | 'analytics.projectOverview'
   | 'analytics.projectSessionAnalysis'
   | 'analytics.projectShare'
   | 'analytics.projectStats'
   | 'analytics.projectTokens'
+  | 'analytics.providerDistribution'
+  | 'analytics.providerScopeProjectTree'
   | 'analytics.rank'
   | 'analytics.recentActivity'
   | 'analytics.recentActivityTrend'
@@ -1819,6 +1865,7 @@ export type TranslationKey =
   | 'analytics.tooltipSessions'
   | 'analytics.tooltipTokens'
   | 'analytics.topPercent'
+  | 'analytics.topProjectMeta'
   | 'analytics.topProjects'
   | 'analytics.totalLabel'
   | 'analytics.totalMessages'
@@ -2381,6 +2428,7 @@ export type TranslationKey =
   | 'session.board.controls.skimView'
   | 'session.board.controls.status'
   | 'session.board.controls.tool'
+  | 'session.board.description'
   | 'session.board.docUpdates'
   | 'session.board.dragToPan'
   | 'session.board.empty.description'

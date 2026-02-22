@@ -104,6 +104,15 @@ pub struct ProjectRanking {
     pub tokens: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderUsageStats {
+    pub provider_id: String,
+    pub projects: u32,
+    pub sessions: u32,
+    pub messages: u32,
+    pub tokens: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GlobalStatsSummary {
     pub total_projects: u32,
@@ -116,6 +125,7 @@ pub struct GlobalStatsSummary {
     pub daily_stats: Vec<DailyStats>,
     pub activity_heatmap: Vec<ActivityHeatmap>,
     pub most_used_tools: Vec<ToolUsageStats>,
+    pub provider_distribution: Vec<ProviderUsageStats>,
     pub model_distribution: Vec<ModelStats>,
     pub top_projects: Vec<ProjectRanking>,
 }

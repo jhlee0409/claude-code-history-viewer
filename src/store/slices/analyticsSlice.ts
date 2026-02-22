@@ -9,6 +9,8 @@ import type {
   SessionComparison,
   RecentEditsResult,
   PaginatedRecentEdits,
+  MetricMode,
+  StatsMode,
 } from "../../types";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
 import { initialAnalyticsState } from "../../types/analytics";
@@ -29,7 +31,10 @@ export interface AnalyticsSliceState {
 
 export interface AnalyticsSliceActions {
   setAnalyticsCurrentView: (view: AnalyticsViewType) => void;
+  setAnalyticsStatsMode: (mode: StatsMode) => void;
+  setAnalyticsMetricMode: (mode: MetricMode) => void;
   setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => void;
+  setAnalyticsProjectConversationSummary: (summary: ProjectStatsSummary | null) => void;
   setAnalyticsSessionComparison: (comparison: SessionComparison | null) => void;
   setAnalyticsLoadingProjectSummary: (loading: boolean) => void;
   setAnalyticsLoadingSessionComparison: (loading: boolean) => void;
@@ -76,11 +81,38 @@ export const createAnalyticsSlice: StateCreator<
     }));
   },
 
+  setAnalyticsStatsMode: (mode: StatsMode) => {
+    set((state) => ({
+      analytics: {
+        ...state.analytics,
+        statsMode: mode,
+      },
+    }));
+  },
+
+  setAnalyticsMetricMode: (mode: MetricMode) => {
+    set((state) => ({
+      analytics: {
+        ...state.analytics,
+        metricMode: mode,
+      },
+    }));
+  },
+
   setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => {
     set((state) => ({
       analytics: {
         ...state.analytics,
         projectSummary: summary,
+      },
+    }));
+  },
+
+  setAnalyticsProjectConversationSummary: (summary: ProjectStatsSummary | null) => {
+    set((state) => ({
+      analytics: {
+        ...state.analytics,
+        projectConversationSummary: summary,
       },
     }));
   },

@@ -22,6 +22,8 @@ import type {
   UserSettings,
   ProviderId,
   ProviderInfo,
+  StatsMode,
+  MetricMode,
 } from "../../types";
 import type { ProjectTokenStatsPagination } from "./messageSlice";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
@@ -108,7 +110,9 @@ export interface AppStoreState {
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;
   sessionTokenStats: SessionTokenStats | null;
+  sessionConversationTokenStats: SessionTokenStats | null;
   projectTokenStats: SessionTokenStats[];
+  projectConversationTokenStats: SessionTokenStats[];
   projectTokenStatsPagination: ProjectTokenStatsPagination;
 
   // Search state
@@ -128,6 +132,7 @@ export interface AppStoreState {
 
   // Global stats state
   globalSummary: GlobalStatsSummary | null;
+  globalConversationSummary: GlobalStatsSummary | null;
   isLoadingGlobalStats: boolean;
 
   // Metadata state
@@ -211,7 +216,10 @@ export interface AppStoreActions {
 
   // Analytics actions
   setAnalyticsCurrentView: (view: AnalyticsViewType) => void;
+  setAnalyticsStatsMode: (mode: StatsMode) => void;
+  setAnalyticsMetricMode: (mode: MetricMode) => void;
   setAnalyticsProjectSummary: (summary: ProjectStatsSummary | null) => void;
+  setAnalyticsProjectConversationSummary: (summary: ProjectStatsSummary | null) => void;
   setAnalyticsSessionComparison: (comparison: SessionComparison | null) => void;
   setAnalyticsLoadingProjectSummary: (loading: boolean) => void;
   setAnalyticsLoadingSessionComparison: (loading: boolean) => void;

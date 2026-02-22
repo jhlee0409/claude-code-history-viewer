@@ -10,6 +10,7 @@ import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 import { fetchGlobalStatsSummary } from "../../services/analyticsApi";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
+import { hasAnyConversationBreakdownProvider } from "../../utils/providers";
 
 // ============================================================================
 // State Interface
@@ -17,6 +18,7 @@ import { nextRequestId, getRequestId } from "../../utils/requestId";
 
 export interface GlobalStatsSliceState {
   globalSummary: GlobalStatsSummary | null;
+  globalConversationSummary: GlobalStatsSummary | null;
   isLoadingGlobalStats: boolean;
 }
 
@@ -33,6 +35,7 @@ export type GlobalStatsSlice = GlobalStatsSliceState & GlobalStatsSliceActions;
 
 const initialGlobalStatsState: GlobalStatsSliceState = {
   globalSummary: null,
+  globalConversationSummary: null,
   isLoadingGlobalStats: false,
 };
 
@@ -61,18 +64,42 @@ export const createGlobalStatsSlice: StateCreator<
     get().setError(null);
 
     try {
-      const summary = await fetchGlobalStatsSummary(claudePath, activeProviders);
+      // Provider scope intentionally follows ProjectTree provider tabs (activeProviders).
+      // Do not introduce an independent analytics provider filter here.
+      const canLoadConversationSummary = hasAnyConversationBreakdownProvider(
+        activeProviders
+      );
+      const [summary, conversationSummary] = canLoadConversationSummary
+        ? await Promise.all([
+            fetchGlobalStatsSummary(claudePath, activeProviders, "billing_total"),
+            fetchGlobalStatsSummary(
+              claudePath,
+              activeProviders,
+              "conversation_only"
+            ),
+          ])
+        : [
+            await fetchGlobalStatsSummary(
+              claudePath,
+              activeProviders,
+              "billing_total"
+            ),
+            null,
+          ];
       if (requestId !== getRequestId("globalStats")) {
         return;
       }
-      set({ globalSummary: summary });
+      set({
+        globalSummary: summary,
+        globalConversationSummary: conversationSummary ?? summary,
+      });
     } catch (error) {
       if (requestId !== getRequestId("globalStats")) {
         return;
       }
       console.error("Failed to load global stats:", error);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
-      set({ globalSummary: null });
+      set({ globalSummary: null, globalConversationSummary: null });
     } finally {
       if (requestId === getRequestId("globalStats")) {
         set({ isLoadingGlobalStats: false });
@@ -85,6 +112,7 @@ export const createGlobalStatsSlice: StateCreator<
     nextRequestId("globalStats");
     set({
       globalSummary: null,
+      globalConversationSummary: null,
       isLoadingGlobalStats: false,
     });
   },
