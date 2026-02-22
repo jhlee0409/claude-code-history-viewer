@@ -35,6 +35,7 @@ export interface SessionStatsCardProps {
   compact?: boolean;
   summary?: string;
   onClick?: () => void;
+  hoverable?: boolean;
 }
 
 export const SessionStatsCard = memo(({
@@ -43,6 +44,7 @@ export const SessionStatsCard = memo(({
   compact = false,
   summary,
   onClick,
+  hoverable = true,
 }: SessionStatsCardProps) => {
   const { t } = useTranslation();
 
@@ -66,7 +68,11 @@ export const SessionStatsCard = memo(({
         "bg-card/60 backdrop-blur-sm",
         "border border-border/40",
         "transition-all duration-200",
-        onClick ? "hover:border-accent hover:shadow-md cursor-pointer" : "cursor-default"
+        onClick
+          ? hoverable
+            ? "hover:border-accent hover:shadow-md cursor-pointer"
+            : "cursor-pointer"
+          : "cursor-default"
       )}
       onClick={onClick}
     >

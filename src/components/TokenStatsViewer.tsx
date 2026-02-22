@@ -259,6 +259,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                   showSessionId
                   compact
                   summary={stats.summary}
+                  hoverable={false}
                   onClick={onSessionClick ? () => onSessionClick(stats) : undefined}
                 />
               </div>
@@ -373,6 +374,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             </h3>
             <SessionStatsCard
               stats={sessionStats}
+              hoverable={false}
               onClick={onSessionClick ? () => onSessionClick(sessionStats) : undefined}
             />
             <BillingBreakdownCard

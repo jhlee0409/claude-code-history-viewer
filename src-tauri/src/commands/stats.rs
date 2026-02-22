@@ -827,6 +827,10 @@ fn process_session_file_for_project_stats(
         }
     }
 
+    if stats.total_messages == 0 {
+        return None;
+    }
+
     // Calculate session duration
     const SESSION_BREAK_THRESHOLD_MINUTES: i64 = 120;
 
@@ -3211,6 +3215,56 @@ mod tests {
             true,
             StatsMode::ConversationOnly
         ));
+    }
+
+    #[tokio::test]
+    async fn test_project_summary_session_count_matches_token_list_in_conversation_mode() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let claude_path = temp_dir.path();
+        let project_dir = claude_path.join("projects").join("demo-project");
+        fs::create_dir_all(&project_dir).expect("failed to create project dir");
+
+        let session_main = project_dir.join("session-main.jsonl");
+        let session_sidechain = project_dir.join("session-sidechain.jsonl");
+
+        let mut main_file = File::create(&session_main).expect("failed to create main session");
+        let main_line = r#"{"uuid":"u1","sessionId":"s-main","timestamp":"2025-01-01T00:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"main"}],"id":"m1","model":"claude-sonnet-4","usage":{"input_tokens":50,"output_tokens":5}},"isSidechain":false}"#;
+        writeln!(main_file, "{main_line}").expect("failed to write main line");
+
+        let mut sidechain_file =
+            File::create(&session_sidechain).expect("failed to create sidechain session");
+        let sidechain_line = r#"{"uuid":"u2","sessionId":"s-side","timestamp":"2025-01-01T00:01:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"side"}],"id":"m2","model":"claude-sonnet-4","usage":{"input_tokens":70,"output_tokens":7}},"isSidechain":true}"#;
+        writeln!(sidechain_file, "{sidechain_line}").expect("failed to write sidechain line");
+
+        let project_path_str = project_dir.to_string_lossy().to_string();
+
+        let project_summary = get_project_stats_summary(
+            project_path_str.clone(),
+            None,
+            None,
+            Some("conversation_only".to_string()),
+        )
+        .await
+        .expect("failed to get project summary");
+
+        let token_list = get_project_token_stats(
+            project_path_str.clone(),
+            Some(0),
+            Some(20),
+            None,
+            None,
+            Some("conversation_only".to_string()),
+        )
+        .await
+        .expect("failed to get project token stats");
+
+        assert_eq!(
+            project_summary.total_sessions as usize,
+            token_list.total_count
+        );
+        assert_eq!(project_summary.total_sessions, 1);
+        assert_eq!(token_list.items.len(), 1);
+        assert_eq!(token_list.items[0].session_id, "s-main");
     }
 
     #[tokio::test]
