@@ -10,7 +10,11 @@ import {
   ChevronDown,
   Loader2,
 } from "lucide-react";
-import type { SessionTokenStats, ProviderId } from "../types";
+import type {
+  SessionTokenStats,
+  ProviderId,
+  ProjectStatsSummary,
+} from "../types";
 import type { ProjectTokenStatsPagination } from "../store/slices/messageSlice";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -58,6 +62,8 @@ interface TokenStatsViewerProps {
   sessionConversationStats?: SessionTokenStats | null;
   projectStats?: SessionTokenStats[];
   projectConversationStats?: SessionTokenStats[];
+  projectStatsSummary?: ProjectStatsSummary | null;
+  projectConversationStatsSummary?: ProjectStatsSummary | null;
   pagination?: ProjectTokenStatsPagination;
   onLoadMore?: () => void;
   title?: string;
@@ -75,6 +81,8 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   sessionConversationStats,
   projectStats = [],
   projectConversationStats = [],
+  projectStatsSummary,
+  projectConversationStatsSummary,
   pagination,
   onLoadMore,
   title,
@@ -90,23 +98,22 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   const showProviderLimitHelp = !supportsConversationBreakdown(providerId);
   const hasSessionConversationData =
     sessionConversationStats !== null && sessionConversationStats !== undefined;
-  const sessionSummaryById = useMemo(
-    () =>
-      new Map(
-        sessions.map((session) => [session.session_id, session.summary] as const)
-      ),
-    [sessions]
-  );
+  const sessionDisplayById = useMemo(() => {
+    const byId = new Map<string, string | undefined>();
+    for (const session of sessions) {
+      const customName = sessionMetadata[session.session_id]?.customName;
+      const displayTitle = customName || session.summary;
+      byId.set(session.actual_session_id, displayTitle);
+      byId.set(session.session_id, displayTitle);
+    }
+    return byId;
+  }, [sessions, sessionMetadata]);
+
   const resolveSessionTitle = useCallback(
     (stats: SessionTokenStats): string | undefined => {
-      const customName = sessionMetadata[stats.session_id]?.customName;
-      if (customName) {
-        return customName;
-      }
-
-      return sessionSummaryById.get(stats.session_id) ?? stats.summary;
+      return sessionDisplayById.get(stats.session_id) ?? stats.summary;
     },
-    [sessionMetadata, sessionSummaryById]
+    [sessionDisplayById]
   );
   const projectConversationById = useMemo(
     () =>
@@ -147,29 +154,48 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   const renderProjectStats = () => {
     if (!projectStats.length) return null;
 
-    const totalStats = projectStats.reduce(
-      (acc, stats) => ({
-        total_input_tokens: acc.total_input_tokens + stats.total_input_tokens,
-        total_output_tokens: acc.total_output_tokens + stats.total_output_tokens,
-        total_cache_creation_tokens: acc.total_cache_creation_tokens + stats.total_cache_creation_tokens,
-        total_cache_read_tokens: acc.total_cache_read_tokens + stats.total_cache_read_tokens,
-        total_tokens: acc.total_tokens + stats.total_tokens,
-        message_count: acc.message_count + stats.message_count,
-      }),
-      {
-        total_input_tokens: 0,
-        total_output_tokens: 0,
-        total_cache_creation_tokens: 0,
-        total_cache_read_tokens: 0,
-        total_tokens: 0,
-        message_count: 0,
-      }
-    );
-    const hasProjectConversationData = projectConversationStats.length > 0;
-    const conversationTotalTokens = projectStats.reduce((acc, stats) => {
-      const conversationStats = projectConversationById.get(stats.session_id);
-      return acc + (conversationStats?.total_tokens ?? 0);
-    }, 0);
+    const totalStats = projectStatsSummary
+      ? {
+          total_input_tokens: projectStatsSummary.token_distribution.input,
+          total_output_tokens: projectStatsSummary.token_distribution.output,
+          total_cache_creation_tokens:
+            projectStatsSummary.token_distribution.cache_creation,
+          total_cache_read_tokens: projectStatsSummary.token_distribution.cache_read,
+          total_tokens: projectStatsSummary.total_tokens,
+          message_count: projectStatsSummary.total_messages,
+        }
+      : projectStats.reduce(
+          (acc, stats) => ({
+            total_input_tokens: acc.total_input_tokens + stats.total_input_tokens,
+            total_output_tokens:
+              acc.total_output_tokens + stats.total_output_tokens,
+            total_cache_creation_tokens:
+              acc.total_cache_creation_tokens + stats.total_cache_creation_tokens,
+            total_cache_read_tokens:
+              acc.total_cache_read_tokens + stats.total_cache_read_tokens,
+            total_tokens: acc.total_tokens + stats.total_tokens,
+            message_count: acc.message_count + stats.message_count,
+          }),
+          {
+            total_input_tokens: 0,
+            total_output_tokens: 0,
+            total_cache_creation_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_tokens: 0,
+            message_count: 0,
+          }
+        );
+    const hasProjectConversationData =
+      projectConversationStatsSummary !== null &&
+      projectConversationStatsSummary !== undefined
+        ? true
+        : projectConversationStats.length > 0;
+    const conversationTotalTokens = projectConversationStatsSummary
+      ? projectConversationStatsSummary.total_tokens
+      : projectStats.reduce((acc, stats) => {
+          const conversationStats = projectConversationById.get(stats.session_id);
+          return acc + (conversationStats?.total_tokens ?? 0);
+        }, 0);
 
     const metrics = [
       { label: t("analytics.totalTokens"), value: totalStats.total_tokens, color: "var(--metric-purple)" },
@@ -201,7 +227,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-foreground">
-                  {t("analytics.projectStats", { count: projectStats.length })}
+                  {t("analytics.projectStats", { count: totalCount })}
                 </h3>
                 <p className="text-[12px] text-muted-foreground">
                   {t("analytics.projectOverallAnalysis")}
@@ -279,7 +305,10 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                   stats={stats}
                   showSessionId
                   compact
-                  summary={resolveSessionTitle(stats)}
+                  summary={
+                    resolveSessionTitle(stats) ??
+                    t("session.summaryNotFound", "No summary")
+                  }
                   hoverable={false}
                   onClick={onSessionClick ? () => onSessionClick(stats) : undefined}
                 />

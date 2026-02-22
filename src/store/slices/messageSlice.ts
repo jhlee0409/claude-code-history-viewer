@@ -48,6 +48,8 @@ export interface MessageSliceState {
   sessionConversationTokenStats: SessionTokenStats | null;
   projectTokenStats: SessionTokenStats[];
   projectConversationTokenStats: SessionTokenStats[];
+  projectTokenStatsSummary: ProjectStatsSummary | null;
+  projectConversationTokenStatsSummary: ProjectStatsSummary | null;
   projectTokenStatsPagination: ProjectTokenStatsPagination;
 }
 
@@ -93,6 +95,8 @@ const initialMessageState: MessageSliceState = {
   sessionConversationTokenStats: null,
   projectTokenStats: [],
   projectConversationTokenStats: [],
+  projectTokenStatsSummary: null,
+  projectConversationTokenStatsSummary: null,
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
 };
 
@@ -332,6 +336,8 @@ export const createMessageSlice: StateCreator<
       set({
         projectTokenStats: [], // Reset on new project load
         projectConversationTokenStats: [],
+        projectTokenStatsSummary: null,
+        projectConversationTokenStatsSummary: null,
         projectTokenStatsPagination: {
           ...initialMessageState.projectTokenStatsPagination,
         },
@@ -362,11 +368,31 @@ export const createMessageSlice: StateCreator<
             stats_mode: "conversation_only",
           }).catch(() => null)
         : billingResponse;
+      const billingSummary = await fetchProjectStatsSummary(projectPath, {
+        start_date: dateFilter.start?.toISOString(),
+        end_date: endDate?.toISOString(),
+        stats_mode: "billing_total",
+      }).catch((error) => {
+        console.warn(
+          "Failed to load project token stats summary, falling back to loaded-page aggregate:",
+          error
+        );
+        return null;
+      });
+      const conversationSummary = canLoadConversationBreakdown()
+        ? await fetchProjectStatsSummary(projectPath, {
+            start_date: dateFilter.start?.toISOString(),
+            end_date: endDate?.toISOString(),
+            stats_mode: "conversation_only",
+          }).catch(() => null)
+        : billingSummary;
 
       if (requestId !== getRequestId("projectTokenStats")) return;
       set({
         projectTokenStats: billingResponse.items,
         projectConversationTokenStats: conversationResponse?.items ?? [],
+        projectTokenStatsSummary: billingSummary,
+        projectConversationTokenStatsSummary: conversationSummary ?? billingSummary,
         projectTokenStatsPagination: {
           totalCount: billingResponse.total_count,
           offset: billingResponse.offset,
@@ -382,7 +408,12 @@ export const createMessageSlice: StateCreator<
         type: AppErrorType.UNKNOWN,
         message: `Failed to load project token stats: ${error}`,
       });
-      set({ projectTokenStats: [], projectConversationTokenStats: [] });
+      set({
+        projectTokenStats: [],
+        projectConversationTokenStats: [],
+        projectTokenStatsSummary: null,
+        projectConversationTokenStatsSummary: null,
+      });
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -505,6 +536,8 @@ export const createMessageSlice: StateCreator<
       sessionConversationTokenStats: null,
       projectTokenStats: [],
       projectConversationTokenStats: [],
+      projectTokenStatsSummary: null,
+      projectConversationTokenStatsSummary: null,
       projectTokenStatsPagination: createInitialPaginationWithCount(
         TOKENS_STATS_PAGE_SIZE
       ),

@@ -51,6 +51,8 @@ function App() {
     sessionConversationTokenStats,
     projectTokenStats,
     projectConversationTokenStats,
+    projectTokenStatsSummary,
+    projectConversationTokenStatsSummary,
     projectTokenStatsPagination,
     sessionSearch,
     initializeApp,
@@ -217,7 +219,11 @@ function App() {
   }, [computed.isMessagesView, selectSession]);
 
   const handleTokenStatClick = useCallback((stats: SessionTokenStats) => {
-    const session = sessions.find(s => s.session_id === stats.session_id);
+    const session = sessions.find(
+      (s) =>
+        s.actual_session_id === stats.session_id ||
+        s.session_id === stats.session_id
+    );
 
     if (session) {
       handleSessionSelect(session);
@@ -493,6 +499,10 @@ function App() {
                       sessionConversationStats={sessionConversationTokenStats}
                       projectStats={projectTokenStats}
                       projectConversationStats={projectConversationTokenStats}
+                      projectStatsSummary={projectTokenStatsSummary}
+                      projectConversationStatsSummary={
+                        projectConversationTokenStatsSummary
+                      }
                       providerId={selectedProject?.provider ?? "claude"}
                       pagination={projectTokenStatsPagination}
                       onLoadMore={() => selectedProject && loadMoreProjectTokenStats(selectedProject.path)}

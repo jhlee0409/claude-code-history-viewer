@@ -113,6 +113,8 @@ export interface AppStoreState {
   sessionConversationTokenStats: SessionTokenStats | null;
   projectTokenStats: SessionTokenStats[];
   projectConversationTokenStats: SessionTokenStats[];
+  projectTokenStatsSummary: ProjectStatsSummary | null;
+  projectConversationTokenStatsSummary: ProjectStatsSummary | null;
   projectTokenStatsPagination: ProjectTokenStatsPagination;
 
   // Search state

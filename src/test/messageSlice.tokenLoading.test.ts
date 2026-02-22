@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
-import type { ClaudeProject, PaginatedTokenStats, SessionTokenStats } from "../types";
+import type {
+  ClaudeProject,
+  PaginatedTokenStats,
+  ProjectStatsSummary,
+  SessionTokenStats,
+} from "../types";
 import {
   createMessageSlice,
   type MessageSlice,
@@ -8,13 +13,15 @@ import {
 
 const mockFetchSessionTokenStats = vi.fn();
 const mockFetchProjectTokenStats = vi.fn();
+const mockFetchProjectStatsSummary = vi.fn();
 
 vi.mock("../services/analyticsApi", () => ({
   fetchSessionTokenStats: (...args: unknown[]) =>
     mockFetchSessionTokenStats(...args),
   fetchProjectTokenStats: (...args: unknown[]) =>
     mockFetchProjectTokenStats(...args),
-  fetchProjectStatsSummary: vi.fn(),
+  fetchProjectStatsSummary: (...args: unknown[]) =>
+    mockFetchProjectStatsSummary(...args),
   fetchSessionComparison: vi.fn(),
 }));
 
@@ -53,6 +60,26 @@ const buildProjectStatsResponse = (): PaginatedTokenStats => ({
   has_more: false,
 });
 
+const buildProjectSummary = (): ProjectStatsSummary => ({
+  project_name: "test-project",
+  total_sessions: 1,
+  total_messages: 1,
+  total_tokens: 2,
+  avg_tokens_per_session: 2,
+  avg_session_duration: 1,
+  total_session_duration: 1,
+  most_active_hour: 0,
+  most_used_tools: [],
+  daily_stats: [],
+  activity_heatmap: [],
+  token_distribution: {
+    input: 1,
+    output: 1,
+    cache_creation: 0,
+    cache_read: 0,
+  },
+});
+
 type TestStore = MessageSlice & {
   dateFilter: { start: Date | null; end: Date | null };
   setError: ReturnType<typeof vi.fn>;
@@ -76,6 +103,8 @@ describe("messageSlice token loading state", () => {
   beforeEach(() => {
     mockFetchProjectTokenStats.mockReset();
     mockFetchSessionTokenStats.mockReset();
+    mockFetchProjectStatsSummary.mockReset();
+    mockFetchProjectStatsSummary.mockResolvedValue(buildProjectSummary());
   });
 
   it("keeps loading true until both token stats requests complete", async () => {
