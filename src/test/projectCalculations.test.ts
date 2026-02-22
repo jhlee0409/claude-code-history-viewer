@@ -2,18 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateTrendData } from "../components/AnalyticsDashboard/utils/projectCalculations";
 import type { DailyStats } from "../types";
 
-const formatLocalDate = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+const formatUtcDate = (date: Date): string => {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
 
-const localDateDaysAgo = (daysAgo: number): string => {
+const utcDateDaysAgo = (daysAgo: number): string => {
   const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() - daysAgo);
-  return formatLocalDate(date);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() - daysAgo);
+  return formatUtcDate(date);
 };
 
 describe("projectCalculations.generateTrendData", () => {
@@ -31,13 +31,13 @@ describe("projectCalculations.generateTrendData", () => {
 
     expect(result).toHaveLength(7);
     expect(result.map((item) => item.date)).toEqual([
-      localDateDaysAgo(6),
-      localDateDaysAgo(5),
-      localDateDaysAgo(4),
-      localDateDaysAgo(3),
-      localDateDaysAgo(2),
-      localDateDaysAgo(1),
-      localDateDaysAgo(0),
+      utcDateDaysAgo(6),
+      utcDateDaysAgo(5),
+      utcDateDaysAgo(4),
+      utcDateDaysAgo(3),
+      utcDateDaysAgo(2),
+      utcDateDaysAgo(1),
+      utcDateDaysAgo(0),
     ]);
     expect(result.every((item) => item.total_tokens === 0)).toBe(true);
   });
@@ -45,7 +45,7 @@ describe("projectCalculations.generateTrendData", () => {
   it("fills missing days with zeros and ignores stats outside the 7-day window", () => {
     const input: DailyStats[] = [
       {
-        date: localDateDaysAgo(0),
+        date: utcDateDaysAgo(0),
         total_tokens: 100,
         input_tokens: 60,
         output_tokens: 40,
@@ -54,7 +54,7 @@ describe("projectCalculations.generateTrendData", () => {
         active_hours: 2,
       },
       {
-        date: localDateDaysAgo(2),
+        date: utcDateDaysAgo(2),
         total_tokens: 200,
         input_tokens: 120,
         output_tokens: 80,
@@ -63,7 +63,7 @@ describe("projectCalculations.generateTrendData", () => {
         active_hours: 3,
       },
       {
-        date: localDateDaysAgo(10),
+        date: utcDateDaysAgo(10),
         total_tokens: 999,
         input_tokens: 500,
         output_tokens: 499,
@@ -76,10 +76,9 @@ describe("projectCalculations.generateTrendData", () => {
     const result = generateTrendData(input);
 
     expect(result).toHaveLength(7);
-    expect(result.find((d) => d.date === localDateDaysAgo(0))?.total_tokens).toBe(100);
-    expect(result.find((d) => d.date === localDateDaysAgo(2))?.total_tokens).toBe(200);
-    expect(result.find((d) => d.date === localDateDaysAgo(1))?.total_tokens).toBe(0);
-    expect(result.some((d) => d.date === localDateDaysAgo(10))).toBe(false);
+    expect(result.find((d) => d.date === utcDateDaysAgo(0))?.total_tokens).toBe(100);
+    expect(result.find((d) => d.date === utcDateDaysAgo(2))?.total_tokens).toBe(200);
+    expect(result.find((d) => d.date === utcDateDaysAgo(1))?.total_tokens).toBe(0);
+    expect(result.some((d) => d.date === utcDateDaysAgo(10))).toBe(false);
   });
 });
-

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 import type { GlobalStatsSummary, ProviderId } from "../types";
 import {
@@ -46,6 +46,7 @@ const buildGlobalSummary = (): GlobalStatsSummary => ({
   daily_stats: [],
   activity_heatmap: [],
   most_used_tools: [],
+  provider_distribution: [],
   model_distribution: [],
   top_projects: [],
 });
@@ -70,8 +71,17 @@ const createTestStore = () => {
 };
 
 describe("globalStatsSlice", () => {
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     mockFetchGlobalStatsSummary.mockReset();
+    consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore();
   });
 
   it("clearGlobalStats resets loading and blocks stale response overwrite", async () => {
@@ -109,5 +119,33 @@ describe("globalStatsSlice", () => {
     );
     expect(useStore.getState().globalSummary).toEqual(summary);
     expect(useStore.getState().globalConversationSummary).toEqual(summary);
+  });
+
+  it("keeps billing summary when conversation-only request fails", async () => {
+    const useStore = createTestStore();
+    const summary = buildGlobalSummary();
+    mockFetchGlobalStatsSummary
+      .mockResolvedValueOnce(summary)
+      .mockRejectedValueOnce(new Error("conversation fetch failed"));
+
+    await useStore.getState().loadGlobalStats();
+
+    expect(mockFetchGlobalStatsSummary).toHaveBeenCalledTimes(2);
+    expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
+      1,
+      "/tmp/claude",
+      ["claude"],
+      "billing_total"
+    );
+    expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/claude",
+      ["claude"],
+      "conversation_only"
+    );
+    expect(useStore.getState().globalSummary).toEqual(summary);
+    expect(useStore.getState().globalConversationSummary).toEqual(summary);
+    expect(useStore.getState().setError).toHaveBeenCalledWith(null);
+    expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
   });
 });

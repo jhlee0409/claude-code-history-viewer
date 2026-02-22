@@ -22,12 +22,7 @@ export const generateTrendData = (
 ): DailyStatData[] => {
   if (maxDays <= 0) return [];
 
-  const formatLocalDate = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
+  const formatUtcDate = (date: Date): string => date.toISOString().slice(0, 10);
 
   const statsByDate = new Map<string, DailyStatData>();
   (dailyStats ?? []).forEach((stat) => {
@@ -41,13 +36,13 @@ export const generateTrendData = (
   });
 
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  today.setUTCHours(0, 0, 0, 0);
 
   const trendData: DailyStatData[] = [];
   for (let offset = maxDays - 1; offset >= 0; offset -= 1) {
     const day = new Date(today);
-    day.setDate(today.getDate() - offset);
-    const dateKey = formatLocalDate(day);
+    day.setUTCDate(today.getUTCDate() - offset);
+    const dateKey = formatUtcDate(day);
     const existing = statsByDate.get(dateKey);
 
     trendData.push(

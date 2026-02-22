@@ -59,6 +59,10 @@ fn is_core_message_type(message_type: &str) -> bool {
     matches!(message_type, "user" | "assistant" | "system")
 }
 
+fn is_conversation_message_type(message_type: &str) -> bool {
+    matches!(message_type, "user" | "assistant")
+}
+
 fn is_non_message_noise_type(message_type: &str) -> bool {
     matches!(
         message_type,
@@ -100,6 +104,10 @@ fn should_include_stats_entry(
 
     if !mode.include_sidechain() && is_sidechain.unwrap_or(false) {
         return false;
+    }
+
+    if matches!(mode, StatsMode::ConversationOnly) {
+        return is_conversation_message_type(message_type);
     }
 
     if is_core_message_type(message_type) {
@@ -3184,6 +3192,24 @@ mod tests {
             Some(false),
             true,
             StatsMode::BillingTotal
+        ));
+        assert!(should_include_stats_entry(
+            "system",
+            Some(false),
+            true,
+            StatsMode::BillingTotal
+        ));
+        assert!(!should_include_stats_entry(
+            "system",
+            Some(false),
+            true,
+            StatsMode::ConversationOnly
+        ));
+        assert!(!should_include_stats_entry(
+            "tool_result",
+            Some(false),
+            true,
+            StatsMode::ConversationOnly
         ));
     }
 

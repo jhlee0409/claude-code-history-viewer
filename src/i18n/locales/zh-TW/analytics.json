@@ -187,6 +187,7 @@
   "analytics.pricingCoverage": "價格覆蓋率",
   "analytics.providerScopeProjectTree": "供應商範圍遵循專案樹中的供應商分頁。",
   "analytics.providerDistribution": "供應商分佈",
+  "analytics.providerDistributionMeta": "{{sessions}} 個會話 · {{projects}} 個專案",
   "analytics.globalOverviewDescriptionSingleProvider": "電腦上 {{provider}} 專案的彙整統計",
   "analytics.globalOverviewDescriptionMultiProvider": "電腦上所選供應商（{{providers}}）專案的彙整統計"
 }

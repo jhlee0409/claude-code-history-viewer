@@ -76,7 +76,14 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
                 {percentage.toFixed(1)}%
               </div>
               <div className="text-[10px] text-muted-foreground">
-                {provider.sessions} sess · {provider.projects} proj
+                {t(
+                  "analytics.providerDistributionMeta",
+                  "{{sessions}} sessions · {{projects}} projects",
+                  {
+                    sessions: provider.sessions,
+                    projects: provider.projects,
+                  }
+                )}
               </div>
             </div>
           </div>

@@ -187,6 +187,7 @@
   "analytics.pricingCoverage": "价格覆盖率",
   "analytics.providerScopeProjectTree": "提供商范围遵循项目树中的提供商标签页。",
   "analytics.providerDistribution": "提供商分布",
+  "analytics.providerDistributionMeta": "{{sessions}} 个会话 · {{projects}} 个项目",
   "analytics.globalOverviewDescriptionSingleProvider": "计算机上 {{provider}} 项目的汇总统计",
   "analytics.globalOverviewDescriptionMultiProvider": "计算机上所选提供商（{{providers}}）项目的汇总统计"
 }

@@ -69,23 +69,24 @@ export const createGlobalStatsSlice: StateCreator<
       const canLoadConversationSummary = hasAnyConversationBreakdownProvider(
         activeProviders
       );
-      const [summary, conversationSummary] = canLoadConversationSummary
-        ? await Promise.all([
-            fetchGlobalStatsSummary(claudePath, activeProviders, "billing_total"),
-            fetchGlobalStatsSummary(
-              claudePath,
-              activeProviders,
-              "conversation_only"
-            ),
-          ])
-        : [
-            await fetchGlobalStatsSummary(
-              claudePath,
-              activeProviders,
-              "billing_total"
-            ),
-            null,
-          ];
+      const summary = await fetchGlobalStatsSummary(
+        claudePath,
+        activeProviders,
+        "billing_total"
+      );
+      const conversationSummary = canLoadConversationSummary
+        ? await fetchGlobalStatsSummary(
+            claudePath,
+            activeProviders,
+            "conversation_only"
+          ).catch((error) => {
+            console.warn(
+              "Failed to load conversation-only global stats, falling back to billing total:",
+              error
+            );
+            return null;
+          })
+        : null;
       if (requestId !== getRequestId("globalStats")) {
         return;
       }

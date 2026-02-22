@@ -187,6 +187,7 @@
   "analytics.pricingCoverage": "Pricing coverage",
   "analytics.providerScopeProjectTree": "Provider scope follows Project Tree provider tabs.",
   "analytics.providerDistribution": "Provider Distribution",
+  "analytics.providerDistributionMeta": "{{sessions}} sessions · {{projects}} projects",
   "analytics.globalOverviewDescriptionSingleProvider": "Aggregated statistics for {{provider}} projects on your machine",
   "analytics.globalOverviewDescriptionMultiProvider": "Aggregated statistics for selected providers ({{providers}}) on your machine"
 }

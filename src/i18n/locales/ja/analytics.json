@@ -187,6 +187,7 @@
   "analytics.pricingCoverage": "価格適用範囲",
   "analytics.providerScopeProjectTree": "プロバイダの範囲はプロジェクトツリーのプロバイダタブに従います。",
   "analytics.providerDistribution": "プロバイダ分布",
+  "analytics.providerDistributionMeta": "{{sessions}}セッション · {{projects}}プロジェクト",
   "analytics.globalOverviewDescriptionSingleProvider": "マシン上の{{provider}}プロジェクトの統合統計",
   "analytics.globalOverviewDescriptionMultiProvider": "マシン上の選択中プロバイダ（{{providers}}）プロジェクトの統合統計"
 }

@@ -187,6 +187,7 @@
   "analytics.pricingCoverage": "가격 적용 범위",
   "analytics.providerScopeProjectTree": "프로바이더 범위는 프로젝트 트리의 프로바이더 탭을 따릅니다.",
   "analytics.providerDistribution": "프로바이더 분포",
+  "analytics.providerDistributionMeta": "{{sessions}}개 세션 · {{projects}}개 프로젝트",
   "analytics.globalOverviewDescriptionSingleProvider": "컴퓨터의 {{provider}} 프로젝트에 대한 통합 통계",
   "analytics.globalOverviewDescriptionMultiProvider": "컴퓨터의 선택된 프로바이더({{providers}}) 프로젝트에 대한 통합 통계"
 }
