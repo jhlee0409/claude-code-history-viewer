@@ -18,6 +18,7 @@ import { LoadingState } from "./ui/loading";
 import { SessionStatsCard } from "./SessionStatsCard";
 import { BillingBreakdownCard } from "./AnalyticsDashboard/components/BillingBreakdownCard";
 import { supportsConversationBreakdown } from "../utils/providers";
+import { useAppStore } from "../store/useAppStore";
 
 /**
  * Token Stats Viewer - Mission Control Design
@@ -84,9 +85,29 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const sessions = useAppStore((state) => state.sessions);
+  const sessionMetadata = useAppStore((state) => state.userMetadata.sessions);
   const showProviderLimitHelp = !supportsConversationBreakdown(providerId);
   const hasSessionConversationData =
     sessionConversationStats !== null && sessionConversationStats !== undefined;
+  const sessionSummaryById = useMemo(
+    () =>
+      new Map(
+        sessions.map((session) => [session.session_id, session.summary] as const)
+      ),
+    [sessions]
+  );
+  const resolveSessionTitle = useCallback(
+    (stats: SessionTokenStats): string | undefined => {
+      const customName = sessionMetadata[stats.session_id]?.customName;
+      if (customName) {
+        return customName;
+      }
+
+      return sessionSummaryById.get(stats.session_id) ?? stats.summary;
+    },
+    [sessionMetadata, sessionSummaryById]
+  );
   const projectConversationById = useMemo(
     () =>
       new Map(
@@ -258,7 +279,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                   stats={stats}
                   showSessionId
                   compact
-                  summary={stats.summary}
+                  summary={resolveSessionTitle(stats)}
                   hoverable={false}
                   onClick={onSessionClick ? () => onSessionClick(stats) : undefined}
                 />
@@ -374,6 +395,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             </h3>
             <SessionStatsCard
               stats={sessionStats}
+              summary={resolveSessionTitle(sessionStats)}
               hoverable={false}
               onClick={onSessionClick ? () => onSessionClick(sessionStats) : undefined}
             />
