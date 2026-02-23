@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
-import type { GlobalStatsSummary, ProviderId } from "../types";
+import type { GlobalStatsSummary, ProviderId, DateFilter } from "../types";
 import {
   createGlobalStatsSlice,
   type GlobalStatsSlice,
@@ -54,6 +54,7 @@ const buildGlobalSummary = (): GlobalStatsSummary => ({
 type TestStore = GlobalStatsSlice & {
   claudePath: string;
   activeProviders: ProviderId[];
+  dateFilter: DateFilter;
   setError: ReturnType<typeof vi.fn>;
 };
 
@@ -62,6 +63,7 @@ const createTestStore = () => {
   return create<TestStore>()((set, get) => ({
     claudePath: "/tmp/claude",
     activeProviders: ["claude"],
+    dateFilter: { start: null, end: null },
     setError,
     ...createGlobalStatsSlice(
       set as Parameters<typeof createGlobalStatsSlice>[0],
@@ -115,7 +117,9 @@ describe("globalStatsSlice", () => {
     expect(mockFetchGlobalStatsSummary).toHaveBeenCalledWith(
       "/tmp/claude",
       ["codex"],
-      "billing_total"
+      "billing_total",
+      undefined,
+      undefined,
     );
     expect(useStore.getState().globalSummary).toEqual(summary);
     expect(useStore.getState().globalConversationSummary).toEqual(summary);
@@ -135,13 +139,17 @@ describe("globalStatsSlice", () => {
       1,
       "/tmp/claude",
       ["claude"],
-      "billing_total"
+      "billing_total",
+      undefined,
+      undefined,
     );
     expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
       2,
       "/tmp/claude",
       ["claude"],
-      "conversation_only"
+      "conversation_only",
+      undefined,
+      undefined,
     );
     expect(useStore.getState().globalSummary).toEqual(summary);
     expect(useStore.getState().globalConversationSummary).toEqual(summary);

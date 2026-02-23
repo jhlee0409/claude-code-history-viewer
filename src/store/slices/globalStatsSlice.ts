@@ -57,11 +57,15 @@ export const createGlobalStatsSlice: StateCreator<
   // from only processing the providers the user has selected.
   loadGlobalStats: async () => {
     const requestId = nextRequestId("globalStats");
-    const { claudePath, activeProviders } = get();
+    const { claudePath, activeProviders, dateFilter } = get();
     if (!claudePath) return;
 
     set({ isLoadingGlobalStats: true });
     get().setError(null);
+
+    // Convert dateFilter to RFC3339 strings for the backend
+    const startDate = dateFilter.start?.toISOString();
+    const endDate = dateFilter.end?.toISOString();
 
     try {
       // Provider scope intentionally follows ProjectTree provider tabs (activeProviders).
@@ -72,13 +76,17 @@ export const createGlobalStatsSlice: StateCreator<
       const summary = await fetchGlobalStatsSummary(
         claudePath,
         activeProviders,
-        "billing_total"
+        "billing_total",
+        startDate,
+        endDate,
       );
       const conversationSummary = canLoadConversationSummary
         ? await fetchGlobalStatsSummary(
             claudePath,
             activeProviders,
-            "conversation_only"
+            "conversation_only",
+            startDate,
+            endDate,
           ).catch((error) => {
             console.warn(
               "Failed to load conversation-only global stats, falling back to billing total:",

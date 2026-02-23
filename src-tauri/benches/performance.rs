@@ -509,6 +509,8 @@ fn bench_get_global_stats_summary(c: &mut Criterion) {
                             black_box(path_str.clone()),
                             None,
                             None,
+                            None,
+                            None,
                         )
                         .await
                     })

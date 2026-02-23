@@ -402,6 +402,8 @@ struct SessionFileStats {
 fn process_session_file_for_global_stats(
     session_path: &PathBuf,
     mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionFileStats> {
     let file = fs::File::open(session_path).ok()?;
 
@@ -441,6 +443,19 @@ fn process_session_file_for_global_stats(
             continue;
         }
 
+        // Date-range filtering: parse timestamp early and skip messages outside the window.
+        // When no date limits are set, all messages pass through (preserving original behaviour).
+        let has_date_filter = s_limit.is_some() || e_limit.is_some();
+        let parsed_timestamp = entry.timestamp.as_ref().and_then(|ts_str| {
+            DateTime::parse_from_rfc3339(ts_str)
+                .ok()
+                .map(|dt| dt.with_timezone(&Utc))
+        });
+
+        if has_date_filter && !is_within_date_limits(parsed_timestamp, s_limit, e_limit) {
+            continue;
+        }
+
         stats.total_messages = stats.total_messages.saturating_add(1);
         let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
             token_usage_totals(&usage);
@@ -465,17 +480,11 @@ fn process_session_file_for_global_stats(
             }
         }
 
-        let Some(ts_str) = &entry.timestamp else {
+        let Some(timestamp) = parsed_timestamp else {
             track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
             continue;
         };
 
-        let Ok(parsed_ts) = DateTime::parse_from_rfc3339(ts_str) else {
-            track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
-            continue;
-        };
-
-        let timestamp = parsed_ts.with_timezone(&Utc);
         session_timestamps.push(timestamp);
 
         // Track first/last message
@@ -563,6 +572,8 @@ fn build_global_session_file_stats_from_messages(
     project_name: String,
     messages: &[ClaudeMessage],
     mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionFileStats> {
     if messages.is_empty() {
         return None;
@@ -576,11 +587,19 @@ fn build_global_session_file_stats_from_messages(
 
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
 
+    let has_date_filter = s_limit.is_some() || e_limit.is_some();
+
     for message in messages {
         let usage = extract_token_usage(message);
         let has_usage = token_usage_has_token_fields(&usage);
         if !should_include_stats_entry(&message.message_type, message.is_sidechain, has_usage, mode)
         {
+            continue;
+        }
+
+        // Date-range filtering: parse timestamp early and skip messages outside the window.
+        let parsed_timestamp = parse_timestamp_utc(&message.timestamp);
+        if has_date_filter && !is_within_date_limits(parsed_timestamp, s_limit, e_limit) {
             continue;
         }
 
@@ -606,7 +625,7 @@ fn build_global_session_file_stats_from_messages(
             model_entry.5 += cache_read_tokens;
         }
 
-        if let Some(timestamp) = parse_timestamp_utc(&message.timestamp) {
+        if let Some(timestamp) = parsed_timestamp {
             session_timestamps.push(timestamp);
 
             // Track first/last message
@@ -679,6 +698,8 @@ fn build_global_session_file_stats_from_messages(
 fn collect_provider_global_file_stats(
     provider: StatsProvider,
     mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
 ) -> (Vec<SessionFileStats>, HashSet<String>) {
     let mut project_keys = HashSet::new();
 
@@ -729,6 +750,8 @@ fn collect_provider_global_file_stats(
                 project_name.clone(),
                 &messages,
                 mode,
+                s_limit,
+                e_limit,
             )
         })
         .collect();
@@ -2348,9 +2371,13 @@ pub async fn get_global_stats_summary(
     claude_path: String,
     active_providers: Option<Vec<String>>,
     stats_mode: Option<String>,
+    start_date: Option<String>,
+    end_date: Option<String>,
 ) -> Result<GlobalStatsSummary, String> {
     let mode = parse_stats_mode(stats_mode);
     let providers_to_include = parse_active_stats_providers(active_providers);
+    let s_limit = parse_date_limit(start_date, "global start_date");
+    let e_limit = parse_date_limit(end_date, "global end_date");
     let projects_path = PathBuf::from(&claude_path).join("projects");
 
     // Phase 1: Collect all session files and their project names
@@ -2396,23 +2423,30 @@ pub async fn get_global_stats_summary(
     }
 
     // Phase 2: Process all session files in parallel
+    let s_ref = s_limit.as_ref();
+    let e_ref = e_limit.as_ref();
     let mut file_stats: Vec<SessionFileStats> = session_files
         .par_iter()
-        .filter_map(|path| process_session_file_for_global_stats(path, mode))
+        .filter_map(|path| process_session_file_for_global_stats(path, mode, s_ref, e_ref))
         .collect();
 
     if providers_to_include.contains(&StatsProvider::Codex) {
         let (codex_stats, codex_projects) =
-            collect_provider_global_file_stats(StatsProvider::Codex, mode);
+            collect_provider_global_file_stats(StatsProvider::Codex, mode, s_ref, e_ref);
         project_names.extend(codex_projects);
         file_stats.extend(codex_stats);
     }
 
     if providers_to_include.contains(&StatsProvider::OpenCode) {
         let (opencode_stats, opencode_projects) =
-            collect_provider_global_file_stats(StatsProvider::OpenCode, mode);
+            collect_provider_global_file_stats(StatsProvider::OpenCode, mode, s_ref, e_ref);
         project_names.extend(opencode_projects);
         file_stats.extend(opencode_stats);
+    }
+
+    // When date filtering is active, exclude sessions that ended up with zero messages
+    if s_ref.is_some() || e_ref.is_some() {
+        file_stats.retain(|s| s.total_messages > 0);
     }
 
     // Phase 3: Aggregate results
@@ -3319,6 +3353,8 @@ mod tests {
             claude_path_str.clone(),
             Some(vec!["claude".to_string()]),
             Some("billing_total".to_string()),
+            None,
+            None,
         )
         .await
         .expect("failed to get global billing stats");
@@ -3326,6 +3362,8 @@ mod tests {
             claude_path_str,
             Some(vec!["claude".to_string()]),
             Some("conversation_only".to_string()),
+            None,
+            None,
         )
         .await
         .expect("failed to get global conversation stats");

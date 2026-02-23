@@ -42,7 +42,7 @@ describe("projectCalculations.generateTrendData", () => {
     expect(result.every((item) => item.total_tokens === 0)).toBe(true);
   });
 
-  it("fills missing days with zeros and ignores stats outside the 7-day window", () => {
+  it("fills missing days with zeros and spans the actual data range", () => {
     const input: DailyStats[] = [
       {
         date: utcDateDaysAgo(0),
@@ -75,10 +75,13 @@ describe("projectCalculations.generateTrendData", () => {
 
     const result = generateTrendData(input);
 
-    expect(result).toHaveLength(7);
+    // When data spans 10 days ago to today, the range covers all 11 calendar days
+    expect(result).toHaveLength(11);
     expect(result.find((d) => d.date === utcDateDaysAgo(0))?.total_tokens).toBe(100);
     expect(result.find((d) => d.date === utcDateDaysAgo(2))?.total_tokens).toBe(200);
+    expect(result.find((d) => d.date === utcDateDaysAgo(10))?.total_tokens).toBe(999);
+    // Missing days within the range are filled with zeros
     expect(result.find((d) => d.date === utcDateDaysAgo(1))?.total_tokens).toBe(0);
-    expect(result.some((d) => d.date === utcDateDaysAgo(10))).toBe(false);
+    expect(result.find((d) => d.date === utcDateDaysAgo(5))?.total_tokens).toBe(0);
   });
 });

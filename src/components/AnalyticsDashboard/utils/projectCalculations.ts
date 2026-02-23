@@ -13,8 +13,12 @@ import { calculateGrowthRate } from "./calculations";
 // ============================================================================
 
 /**
- * Generate full trend data from project stats
- * Returns the latest N calendar days (default 7) and fills missing days with zero values.
+ * Generate full trend data from project stats.
+ *
+ * When the backend returns daily_stats that span a specific date range (e.g.
+ * because a date filter is active), the trend covers the actual data range
+ * rather than a hardcoded "today − N days" window.  When dailyStats is empty
+ * or absent the original "today − maxDays" behaviour is preserved.
  */
 export const generateTrendData = (
   dailyStats: DailyStats[] | undefined,
@@ -35,14 +39,32 @@ export const generateTrendData = (
     });
   });
 
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  // Determine the date range to display.
+  // If the backend returned data, use its actual range so that date-filtered
+  // results are displayed correctly. Otherwise fall back to "today − maxDays".
+  let endDate: Date;
+  let startDate: Date;
+
+  const sortedDates = Array.from(statsByDate.keys()).sort();
+  if (sortedDates.length > 0) {
+    const firstDateStr = sortedDates[0]!;
+    const lastDateStr = sortedDates[sortedDates.length - 1]!;
+    // Parse YYYY-MM-DD as UTC
+    const [fy, fm, fd] = firstDateStr.split("-").map(Number);
+    const [ly, lm, ld] = lastDateStr.split("-").map(Number);
+    startDate = new Date(Date.UTC(fy!, fm! - 1, fd!));
+    endDate = new Date(Date.UTC(ly!, lm! - 1, ld!));
+  } else {
+    endDate = new Date();
+    endDate.setUTCHours(0, 0, 0, 0);
+    startDate = new Date(endDate);
+    startDate.setUTCDate(endDate.getUTCDate() - (maxDays - 1));
+  }
 
   const trendData: DailyStatData[] = [];
-  for (let offset = maxDays - 1; offset >= 0; offset -= 1) {
-    const day = new Date(today);
-    day.setUTCDate(today.getUTCDate() - offset);
-    const dateKey = formatUtcDate(day);
+  const cursor = new Date(startDate);
+  while (cursor <= endDate) {
+    const dateKey = formatUtcDate(cursor);
     const existing = statsByDate.get(dateKey);
 
     trendData.push(
@@ -54,6 +76,7 @@ export const generateTrendData = (
         active_hours: 0,
       }
     );
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
   return trendData;

@@ -633,12 +633,19 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
     dateFilterKeyRef.current = currentDateFilterKey;
 
-    if (!selectedProject) {
-      return;
-    }
+    const isGlobalScope = !selectedProject && analytics.currentView === "analytics";
 
     const update = async () => {
       try {
+        if (isGlobalScope) {
+          await loadGlobalStats();
+          return;
+        }
+
+        if (!selectedProject) {
+          return;
+        }
+
         if (computed.isTokenStatsView) {
           const promises: Promise<unknown>[] = [loadProjectTokenStats(selectedProject.path)];
           if (selectedSession) {
@@ -677,17 +684,19 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       }
     };
 
-    if (computed.isTokenStatsView || computed.isAnalyticsView) {
+    if (isGlobalScope || computed.isTokenStatsView || computed.isAnalyticsView) {
       void update();
     }
   }, [
     dateFilter.start?.getTime(),
     dateFilter.end?.getTime(),
+    analytics.currentView,
     computed.isTokenStatsView,
     computed.isAnalyticsView,
     selectedSession?.actual_session_id,
     selectedSession?.file_path,
     selectedProject?.path,
+    loadGlobalStats,
     loadProjectTokenStats,
     loadSessionTokenStats,
     loadProjectStatsSummary,

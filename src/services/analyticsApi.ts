@@ -235,13 +235,16 @@ export async function fetchRecentEdits(
 export async function fetchGlobalStatsSummary(
   claudePath: string,
   activeProviders?: ProviderId[],
-  statsMode: StatsMode = "billing_total"
+  statsMode: StatsMode = "billing_total",
+  startDate?: string,
+  endDate?: string,
 ): Promise<GlobalStatsSummary> {
   const normalizedProviders = [...new Set(activeProviders ?? [])].sort();
   const providersKey = normalizedProviders.length > 0
     ? normalizedProviders.join(",")
     : "all";
-  const key = `globalStatsSummary:${claudePath}:${providersKey}:${statsMode}`;
+  const dateKey = `${startDate ?? "none"}:${endDate ?? "none"}`;
+  const key = `globalStatsSummary:${claudePath}:${providersKey}:${statsMode}:${dateKey}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
@@ -249,6 +252,8 @@ export async function fetchGlobalStatsSummary(
       claudePath,
       activeProviders: normalizedProviders.length > 0 ? normalizedProviders : undefined,
       statsMode,
+      startDate: startDate ?? undefined,
+      endDate: endDate ?? undefined,
     });
 
     if (import.meta.env.DEV) {
