@@ -269,14 +269,27 @@ export const createMessageSlice: StateCreator<
             await get().loadSessionTokenStats(selectedSession.file_path);
           }
         } else if (analytics.currentView === "analytics") {
+          const { dateFilter } = get();
+          const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
+          if (endDate) {
+            endDate.setHours(23, 59, 59, 999);
+          }
+
+          const dateOptions = {
+            start_date: dateFilter.start?.toISOString(),
+            end_date: endDate?.toISOString(),
+          };
+
           const projectSummary = await fetchProjectStatsSummary(
             selectedProject.path,
             {
+              ...dateOptions,
               stats_mode: "billing_total",
             }
           );
           const projectConversationSummary = canLoadConversationBreakdown()
             ? await fetchProjectStatsSummary(selectedProject.path, {
+                ...dateOptions,
                 stats_mode: "conversation_only",
               })
             : projectSummary;
@@ -287,7 +300,8 @@ export const createMessageSlice: StateCreator<
             const sessionComparison = await fetchSessionComparison(
               selectedSession.actual_session_id,
               selectedProject.path,
-              "billing_total"
+              "billing_total",
+              dateOptions
             );
             get().setAnalyticsSessionComparison(sessionComparison);
           }
@@ -308,9 +322,28 @@ export const createMessageSlice: StateCreator<
     const loadingEpoch = beginTokenStatsLoading();
     try {
       get().setError(null);
-      const stats = await fetchSessionTokenStats(sessionPath, "billing_total");
+      const { dateFilter } = get();
+      const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
+      if (endDate) {
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      const dateOptions = {
+        start_date: dateFilter.start?.toISOString(),
+        end_date: endDate?.toISOString(),
+      };
+
+      const stats = await fetchSessionTokenStats(
+        sessionPath,
+        "billing_total",
+        dateOptions
+      );
       const conversationStats = canLoadConversationBreakdown()
-        ? await fetchSessionTokenStats(sessionPath, "conversation_only").catch(
+        ? await fetchSessionTokenStats(
+            sessionPath,
+            "conversation_only",
+            dateOptions
+          ).catch(
             () => null
           )
         : stats;
@@ -523,7 +556,16 @@ export const createMessageSlice: StateCreator<
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {
-    return fetchSessionComparison(sessionId, projectPath, "billing_total");
+    const { dateFilter } = get();
+    const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
+    if (endDate) {
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    return fetchSessionComparison(sessionId, projectPath, "billing_total", {
+      start_date: dateFilter.start?.toISOString(),
+      end_date: endDate?.toISOString(),
+    });
   },
 
   clearTokenStats: () => {

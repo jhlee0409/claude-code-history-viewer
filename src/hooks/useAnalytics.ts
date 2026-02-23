@@ -24,7 +24,6 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     selectedSession,
     isLoadingTokenStats,
     sessionTokenStats,
-    projectTokenStats,
     dateFilter,
 
     // Store actions
@@ -75,7 +74,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
 
   /**
    * 토큰 통계 뷰로 전환
-   * 캐시 전략: 같은 프로젝트/세션의 데이터가 있으면 재사용
+   * 날짜 필터 정확성을 위해 진입 시 항상 데이터를 다시 로드한다.
    */
   const switchToTokenStats = useCallback(async () => {
     const project = useAppStore.getState().selectedProject;
@@ -86,29 +85,12 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     setAnalyticsCurrentView("tokenStats");
     clearAnalyticsErrors();
 
-    // 캐시 확인
-    const hasCachedProjectTokenStats =
-      projectTokenStats && projectTokenStats.length > 0 &&
-      projectTokenStats[0]?.project_name === project.name;
-    const hasCachedSessionTokenStats =
-      selectedSession &&
-      sessionTokenStats?.session_id === selectedSession.actual_session_id;
-
-    // 모든 데이터가 캐시되어 있으면 로드 스킵
-    if (hasCachedProjectTokenStats && (!selectedSession || hasCachedSessionTokenStats)) {
-      return;
-    }
-
     try {
       const promises: Promise<void>[] = [];
 
-      // 프로젝트 전체 통계 로드 (캐시 없으면)
-      if (!hasCachedProjectTokenStats) {
-        promises.push(loadProjectTokenStats(project.path));
-      }
+      promises.push(loadProjectTokenStats(project.path));
 
-      // 현재 세션 통계 로드 (선택된 경우, 캐시 없으면)
-      if (selectedSession && !hasCachedSessionTokenStats) {
+      if (selectedSession) {
         promises.push(loadSessionTokenStats(selectedSession.file_path));
       }
 
@@ -119,9 +101,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
   }, [
     t,
-    projectTokenStats,
     selectedSession,
-    sessionTokenStats?.session_id,
     setAnalyticsCurrentView,
     clearAnalyticsErrors,
     loadProjectTokenStats,
@@ -130,7 +110,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
 
   /**
    * 분석 뷰로 전환
-   * 캐시 전략: 같은 프로젝트/세션의 데이터가 있으면 재사용
+   * 날짜 필터 정확성을 위해 진입 시 항상 데이터를 다시 로드한다.
    * NOTE: Token Statistics 로딩과 완전히 분리됨 - 각 뷰는 독립적으로 동작
    */
   const switchToAnalytics = useCallback(async () => {
@@ -142,66 +122,30 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     setAnalyticsCurrentView("analytics");
     clearAnalyticsErrors();
 
-    // 캐시 확인: 같은 프로젝트의 데이터가 이미 있는지
-    const hasCachedProjectSummary =
-      analytics.projectSummary?.project_name === project.name;
-    const hasCachedSessionComparison =
-      selectedSession &&
-      analytics.sessionComparison?.session_id === selectedSession.actual_session_id;
-    const hasCachedSessionTokenStats =
-      selectedSession &&
-      sessionTokenStats?.session_id === selectedSession.actual_session_id;
-
-    // 모든 데이터가 캐시되어 있으면 로드 스킵
-    if (hasCachedProjectSummary && (!selectedSession || (hasCachedSessionComparison && hasCachedSessionTokenStats))) {
-      return;
-    }
-
     try {
-      // 순차 실행: 프로젝트 요약 먼저, 그 다음 세션 비교
-      // (병렬 실행 시 182개 파일을 동시에 두 번 읽어 I/O 경쟁 발생 - 4초 → 순차 시 ~200ms)
-
-      // 1. 프로젝트 요약 로드 (캐시 없으면)
-      if (!hasCachedProjectSummary) {
-        setAnalyticsLoadingProjectSummary(true);
-        try {
-          const summary = await loadProjectStatsSummary(project.path);
-          setAnalyticsProjectSummary(summary);
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : t('common.hooks.projectSummaryLoadFailed');
-          setAnalyticsProjectSummaryError(errorMessage);
-          throw error;
-        } finally {
-          setAnalyticsLoadingProjectSummary(false);
-        }
+      setAnalyticsLoadingProjectSummary(true);
+      try {
+        const summary = await loadProjectStatsSummary(project.path);
+        setAnalyticsProjectSummary(summary);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : t('common.hooks.projectSummaryLoadFailed');
+        setAnalyticsProjectSummaryError(errorMessage);
+        throw error;
+      } finally {
+        setAnalyticsLoadingProjectSummary(false);
       }
 
-      // 2. 세션 데이터 로드 (프로젝트 요약 완료 후)
       // NOTE: sessionTokenStats도 함께 로드하여 탭 표시 조건(hasSessionData)을 충족
-      if (selectedSession && (!hasCachedSessionComparison || !hasCachedSessionTokenStats)) {
+      if (selectedSession) {
         setAnalyticsLoadingSessionComparison(true);
         try {
-          const sessionPromises: Promise<unknown>[] = [];
-
-          if (!hasCachedSessionComparison) {
-            sessionPromises.push(
-              loadSessionComparison(
-                selectedSession.actual_session_id,
-                project.path
-              ).then((comparison) => {
-                setAnalyticsSessionComparison(comparison);
-              })
-            );
-          }
-
-          if (!hasCachedSessionTokenStats) {
-            sessionPromises.push(loadSessionTokenStats(selectedSession.file_path));
-          }
-
-          if (sessionPromises.length > 0) {
-            await Promise.all(sessionPromises);
-          }
+          const [comparison] = await Promise.all([
+            loadSessionComparison(selectedSession.actual_session_id, project.path),
+            loadSessionTokenStats(selectedSession.file_path),
+          ]);
+          setAnalyticsSessionComparison(comparison);
+          setAnalyticsSessionComparisonError(null);
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : t('common.hooks.sessionComparisonLoadFailed');
@@ -217,11 +161,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
   }, [
     t,
-    selectedProject,
     selectedSession,
-    analytics.projectSummary?.project_name,
-    analytics.sessionComparison?.session_id,
-    sessionTokenStats?.session_id,
     setAnalyticsCurrentView,
     clearAnalyticsErrors,
     setAnalyticsLoadingProjectSummary,
@@ -700,18 +640,40 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     const update = async () => {
       try {
         if (computed.isTokenStatsView) {
-          await loadProjectTokenStats(selectedProject.path);
+          const promises: Promise<unknown>[] = [loadProjectTokenStats(selectedProject.path)];
+          if (selectedSession) {
+            promises.push(loadSessionTokenStats(selectedSession.file_path));
+          }
+          await Promise.all(promises);
         } else if (computed.isAnalyticsView) {
           setAnalyticsLoadingProjectSummary(true);
           const summary = await loadProjectStatsSummary(selectedProject.path);
           setAnalyticsProjectSummary(summary);
+
+          if (selectedSession) {
+            setAnalyticsLoadingSessionComparison(true);
+            try {
+              const [comparison] = await Promise.all([
+                loadSessionComparison(selectedSession.actual_session_id, selectedProject.path),
+                loadSessionTokenStats(selectedSession.file_path),
+              ]);
+              setAnalyticsSessionComparison(comparison);
+              setAnalyticsSessionComparisonError(null);
+            } finally {
+              setAnalyticsLoadingSessionComparison(false);
+            }
+          } else {
+            setAnalyticsSessionComparison(null);
+          }
         }
       } catch (err) {
         const message =
           err instanceof Error ? err.message : t("common.hooks.projectSummaryLoadFailed");
         setAnalyticsProjectSummaryError(message);
       } finally {
-        setAnalyticsLoadingProjectSummary(false);
+        if (computed.isAnalyticsView) {
+          setAnalyticsLoadingProjectSummary(false);
+        }
       }
     };
 
@@ -723,11 +685,18 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     dateFilter.end?.getTime(),
     computed.isTokenStatsView,
     computed.isAnalyticsView,
+    selectedSession?.actual_session_id,
+    selectedSession?.file_path,
     selectedProject?.path,
     loadProjectTokenStats,
+    loadSessionTokenStats,
     loadProjectStatsSummary,
+    loadSessionComparison,
     setAnalyticsLoadingProjectSummary,
+    setAnalyticsLoadingSessionComparison,
     setAnalyticsProjectSummary,
+    setAnalyticsSessionComparison,
+    setAnalyticsSessionComparisonError,
     setAnalyticsProjectSummaryError,
     t
   ]);

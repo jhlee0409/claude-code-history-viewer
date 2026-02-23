@@ -309,7 +309,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                     resolveSessionTitle(stats) ??
                     t("session.summaryNotFound", "No summary")
                   }
-                  hoverable={false}
+                  hoverable={Boolean(onSessionClick)}
                   onClick={onSessionClick ? () => onSessionClick(stats) : undefined}
                 />
               </div>
@@ -425,7 +425,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             <SessionStatsCard
               stats={sessionStats}
               summary={resolveSessionTitle(sessionStats)}
-              hoverable={false}
+              hoverable={Boolean(onSessionClick)}
               onClick={onSessionClick ? () => onSessionClick(sessionStats) : undefined}
             />
             <BillingBreakdownCard

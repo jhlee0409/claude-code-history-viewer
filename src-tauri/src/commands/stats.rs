@@ -974,6 +974,24 @@ fn parse_timestamp_utc(timestamp: &str) -> Option<DateTime<Utc>> {
         .ok()
 }
 
+fn is_within_date_limits(
+    timestamp: Option<DateTime<Utc>>,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> bool {
+    if s_limit.is_none() && e_limit.is_none() {
+        return true;
+    }
+
+    let Some(ts) = timestamp else {
+        return false;
+    };
+
+    let after_start = s_limit.map(|s| ts >= *s).unwrap_or(true);
+    let before_end = e_limit.map(|e| ts <= *e).unwrap_or(true);
+    after_start && before_end
+}
+
 fn calculate_session_active_minutes(timestamps: &mut [DateTime<Utc>]) -> u32 {
     const SESSION_BREAK_THRESHOLD_MINUTES: i64 = 120;
 
@@ -1117,6 +1135,8 @@ fn build_session_token_stats_from_messages(
     summary: Option<String>,
     messages: &[ClaudeMessage],
     mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenStats> {
     if messages.is_empty() {
         return None;
@@ -1135,6 +1155,11 @@ fn build_session_token_stats_from_messages(
     let mut included_message_count = 0usize;
 
     for message in messages {
+        let parsed_timestamp = parse_timestamp_utc(&message.timestamp);
+        if !is_within_date_limits(parsed_timestamp, s_limit, e_limit) {
+            continue;
+        }
+
         let usage = extract_token_usage(message);
         let has_usage = token_usage_has_token_fields(&usage);
         if !should_include_stats_entry(&message.message_type, message.is_sidechain, has_usage, mode)
@@ -1148,7 +1173,7 @@ fn build_session_token_stats_from_messages(
         total_cache_creation_tokens += u64::from(usage.cache_creation_input_tokens.unwrap_or(0));
         total_cache_read_tokens += u64::from(usage.cache_read_input_tokens.unwrap_or(0));
 
-        if let Some(ts) = parse_timestamp_utc(&message.timestamp) {
+        if let Some(ts) = parsed_timestamp {
             if first_time.map_or(true, |current| ts < current) {
                 first_time = Some(ts);
                 first_time_raw = Some(message.timestamp.clone());
@@ -1211,6 +1236,8 @@ fn get_provider_project_token_stats(
             session.summary.clone(),
             &messages,
             mode,
+            None,
+            None,
         ) {
             all_stats.push(stats);
         }
@@ -1433,9 +1460,13 @@ fn get_provider_session_comparison(
     session_id: &str,
     project_path: &str,
     mode: StatsMode,
+    start_date: Option<String>,
+    end_date: Option<String>,
 ) -> Result<SessionComparison, String> {
     let sessions = load_provider_sessions_for_stats(provider, project_path)?;
     let mut all_sessions: Vec<SessionComparisonStats> = Vec::new();
+    let s_limit = parse_date_limit(start_date, "start_date");
+    let e_limit = parse_date_limit(end_date, "end_date");
 
     for session in &sessions {
         let messages = load_provider_messages_for_stats(provider, session)?;
@@ -1479,8 +1510,8 @@ fn get_provider_session_comparison(
             continue;
         }
 
-        let duration_seconds = match (first_time, last_time) {
-            (Some(first), Some(last)) => (last - first).num_seconds(),
+        let duration_seconds = match (first_time.as_ref(), last_time.as_ref()) {
+            (Some(first), Some(last)) => (*last - *first).num_seconds(),
             _ => 0,
         };
 
@@ -1489,6 +1520,13 @@ fn get_provider_session_comparison(
             total_tokens,
             message_count: included_message_count,
             duration_seconds,
+            last_timestamp: last_time,
+        });
+    }
+
+    if s_limit.is_some() || e_limit.is_some() {
+        all_sessions.retain(|stats| {
+            is_within_date_limits(stats.last_timestamp, s_limit.as_ref(), e_limit.as_ref())
         });
     }
 
@@ -1548,11 +1586,15 @@ fn get_provider_session_comparison(
 #[tauri::command]
 pub async fn get_session_token_stats(
     session_path: String,
+    start_date: Option<String>,
+    end_date: Option<String>,
     stats_mode: Option<String>,
 ) -> Result<SessionTokenStats, String> {
     let start = std::time::Instant::now();
     let mode = parse_stats_mode(stats_mode);
     let provider = detect_session_provider(&session_path);
+    let s_limit = parse_date_limit(start_date, "start_date");
+    let e_limit = parse_date_limit(end_date, "end_date");
 
     if provider != StatsProvider::Claude {
         let messages = match provider {
@@ -1573,13 +1615,33 @@ pub async fn get_session_token_stats(
             None,
             &messages,
             mode,
+            None,
+            None,
         )
+        .and_then(|stats| {
+            if is_within_date_limits(
+                parse_timestamp_utc(&stats.last_message_time),
+                s_limit.as_ref(),
+                e_limit.as_ref(),
+            ) {
+                Some(stats)
+            } else {
+                None
+            }
+        })
         .ok_or_else(|| "No valid messages found in session".to_string());
     }
 
     let session_path_buf = PathBuf::from(&session_path);
-    let stats = extract_session_token_stats_sync(&session_path_buf, mode)
+    let stats = extract_session_token_stats_sync(&session_path_buf, mode, None, None)
         .ok_or_else(|| "No valid messages found in session".to_string())?;
+    if !is_within_date_limits(
+        parse_timestamp_utc(&stats.last_message_time),
+        s_limit.as_ref(),
+        e_limit.as_ref(),
+    ) {
+        return Err("No valid messages found in session".to_string());
+    }
     let total_time = start.elapsed();
 
     eprintln!(
@@ -1606,6 +1668,8 @@ pub struct PaginatedTokenStats {
 fn extract_session_token_stats_sync(
     session_path: &PathBuf,
     mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenStats> {
     let file = fs::File::open(session_path).ok()?;
 
@@ -1648,6 +1712,11 @@ fn extract_session_token_stats_sync(
             }
 
             if let Ok(message) = ClaudeMessage::try_from(log_entry) {
+                let parsed_timestamp = parse_timestamp_utc(&message.timestamp);
+                if !is_within_date_limits(parsed_timestamp, s_limit, e_limit) {
+                    continue;
+                }
+
                 let usage = extract_token_usage(&message);
                 let has_usage = token_usage_has_token_fields(&usage);
                 if !should_include_stats_entry(
@@ -1672,12 +1741,22 @@ fn extract_session_token_stats_sync(
                     u64::from(usage.cache_creation_input_tokens.unwrap_or(0));
                 total_cache_read_tokens += u64::from(usage.cache_read_input_tokens.unwrap_or(0));
 
-                if first_time.is_none() || message.timestamp < first_time.as_ref().unwrap().clone()
-                {
-                    first_time = Some(message.timestamp.clone());
-                }
-                if last_time.is_none() || message.timestamp > last_time.as_ref().unwrap().clone() {
-                    last_time = Some(message.timestamp.clone());
+                if let Some(ts) = parsed_timestamp {
+                    let should_set_first = first_time
+                        .as_ref()
+                        .and_then(|raw| parse_timestamp_utc(raw))
+                        .map_or(true, |current| ts < current);
+                    if should_set_first {
+                        first_time = Some(message.timestamp.clone());
+                    }
+
+                    let should_set_last = last_time
+                        .as_ref()
+                        .and_then(|raw| parse_timestamp_utc(raw))
+                        .map_or(true, |current| ts > current);
+                    if should_set_last {
+                        last_time = Some(message.timestamp.clone());
+                    }
                 }
 
                 // Track tool usage
@@ -1774,7 +1853,7 @@ pub async fn get_project_token_stats(
     // Process all sessions in parallel using sync function
     let mut all_stats: Vec<SessionTokenStats> = session_files
         .par_iter()
-        .filter_map(|path| extract_session_token_stats_sync(path, mode))
+        .filter_map(|path| extract_session_token_stats_sync(path, mode, None, None))
         .collect();
 
     #[cfg(debug_assertions)]
@@ -2069,6 +2148,7 @@ struct SessionComparisonStats {
     total_tokens: u64,
     message_count: usize,
     duration_seconds: i64,
+    last_timestamp: Option<DateTime<Utc>>,
 }
 
 /// Process a single session file for comparison stats (lightweight)
@@ -2122,10 +2202,16 @@ fn process_session_file_for_comparison(
 
                 if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
                     let timestamp = timestamp.with_timezone(&Utc);
-                    if first_time.is_none() || timestamp < first_time.unwrap() {
+                    if first_time
+                        .as_ref()
+                        .map_or(true, |current| timestamp < *current)
+                    {
                         first_time = Some(timestamp);
                     }
-                    if last_time.is_none() || timestamp > last_time.unwrap() {
+                    if last_time
+                        .as_ref()
+                        .map_or(true, |current| timestamp > *current)
+                    {
                         last_time = Some(timestamp);
                     }
                 }
@@ -2133,8 +2219,8 @@ fn process_session_file_for_comparison(
         }
     }
 
-    let duration_seconds = match (first_time, last_time) {
-        (Some(first), Some(last)) => (last - first).num_seconds(),
+    let duration_seconds = match (first_time.as_ref(), last_time.as_ref()) {
+        (Some(first), Some(last)) => (*last - *first).num_seconds(),
         _ => 0,
     };
 
@@ -2143,6 +2229,7 @@ fn process_session_file_for_comparison(
         total_tokens,
         message_count,
         duration_seconds,
+        last_timestamp: last_time,
     })
 }
 
@@ -2150,12 +2237,21 @@ fn process_session_file_for_comparison(
 pub async fn get_session_comparison(
     session_id: String,
     project_path: String,
+    start_date: Option<String>,
+    end_date: Option<String>,
     stats_mode: Option<String>,
 ) -> Result<SessionComparison, String> {
     let mode = parse_stats_mode(stats_mode);
     let provider = detect_project_provider(&project_path);
     if provider != StatsProvider::Claude {
-        return get_provider_session_comparison(provider, &session_id, &project_path, mode);
+        return get_provider_session_comparison(
+            provider,
+            &session_id,
+            &project_path,
+            mode,
+            start_date,
+            end_date,
+        );
     }
 
     let start = std::time::Instant::now();
@@ -2174,6 +2270,14 @@ pub async fn get_session_comparison(
         .par_iter()
         .filter_map(|path| process_session_file_for_comparison(path, mode))
         .collect();
+    let mut all_sessions = all_sessions;
+    let s_limit = parse_date_limit(start_date, "start_date");
+    let e_limit = parse_date_limit(end_date, "end_date");
+    if s_limit.is_some() || e_limit.is_some() {
+        all_sessions.retain(|stats| {
+            is_within_date_limits(stats.last_timestamp, s_limit.as_ref(), e_limit.as_ref())
+        });
+    }
     let process_time = start.elapsed();
 
     let target_session = all_sessions
@@ -3363,20 +3467,108 @@ mod tests {
             global_conversation.total_tokens
         );
 
-        let session_billing =
-            get_session_token_stats(session_path_str.clone(), Some("billing_total".to_string()))
-                .await
-                .expect("failed to get session billing stats");
-        let session_conversation =
-            get_session_token_stats(session_path_str, Some("conversation_only".to_string()))
-                .await
-                .expect("failed to get session conversation stats");
+        let session_billing = get_session_token_stats(
+            session_path_str.clone(),
+            None,
+            None,
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("failed to get session billing stats");
+        let session_conversation = get_session_token_stats(
+            session_path_str,
+            None,
+            None,
+            Some("conversation_only".to_string()),
+        )
+        .await
+        .expect("failed to get session conversation stats");
 
         assert_eq!(session_billing.total_tokens, global_billing.total_tokens);
         assert_eq!(
             session_conversation.total_tokens,
             global_conversation.total_tokens
         );
+    }
+
+    #[tokio::test]
+    async fn test_session_token_stats_respects_date_filter() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let project_dir = temp_dir.path().join("projects").join("demo-project");
+        fs::create_dir_all(&project_dir).expect("failed to create project dir");
+        let session_path = project_dir.join("session-date-filter.jsonl");
+
+        let mut file = File::create(&session_path).expect("failed to create session file");
+        let day1 = r#"{"uuid":"u1","sessionId":"s-date","timestamp":"2025-01-01T12:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"day1"}],"id":"m1","model":"claude-sonnet-4","usage":{"input_tokens":10,"output_tokens":1}},"isSidechain":false}"#;
+        let day2 = r#"{"uuid":"u2","sessionId":"s-date","timestamp":"2025-01-02T12:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"day2"}],"id":"m2","model":"claude-sonnet-4","usage":{"input_tokens":20,"output_tokens":2}},"isSidechain":false}"#;
+        writeln!(file, "{day1}").expect("failed to write day1");
+        writeln!(file, "{day2}").expect("failed to write day2");
+
+        let stats = get_session_token_stats(
+            session_path.to_string_lossy().to_string(),
+            Some("2025-01-02T00:00:00Z".to_string()),
+            Some("2025-01-02T23:59:59.999Z".to_string()),
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("failed to get filtered session stats");
+
+        // Session-level filtering: include the whole session if last message is in range.
+        assert_eq!(stats.message_count, 2);
+        assert_eq!(stats.total_input_tokens, 30);
+        assert_eq!(stats.total_output_tokens, 3);
+        assert_eq!(stats.total_tokens, 33);
+
+        let filtered_out = get_session_token_stats(
+            session_path.to_string_lossy().to_string(),
+            Some("2025-01-01T00:00:00Z".to_string()),
+            Some("2025-01-01T23:59:59.999Z".to_string()),
+            Some("billing_total".to_string()),
+        )
+        .await;
+        assert!(filtered_out.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_session_comparison_respects_date_filter() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let project_dir = temp_dir.path().join("projects").join("demo-project");
+        fs::create_dir_all(&project_dir).expect("failed to create project dir");
+
+        let session_a = project_dir.join("session-a.jsonl");
+        let session_b = project_dir.join("session-b.jsonl");
+
+        let mut file_a = File::create(&session_a).expect("failed to create session a");
+        let line_a = r#"{"uuid":"ua","sessionId":"s-a","timestamp":"2025-01-01T12:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"a"}],"id":"ma","model":"claude-sonnet-4","usage":{"input_tokens":10,"output_tokens":1}},"isSidechain":false}"#;
+        writeln!(file_a, "{line_a}").expect("failed to write session a");
+
+        let mut file_b = File::create(&session_b).expect("failed to create session b");
+        let line_b = r#"{"uuid":"ub","sessionId":"s-b","timestamp":"2025-01-02T12:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"b"}],"id":"mb","model":"claude-sonnet-4","usage":{"input_tokens":20,"output_tokens":2}},"isSidechain":false}"#;
+        writeln!(file_b, "{line_b}").expect("failed to write session b");
+
+        let project_path = project_dir.to_string_lossy().to_string();
+
+        let comparison = get_session_comparison(
+            "s-b".to_string(),
+            project_path.clone(),
+            Some("2025-01-02T00:00:00Z".to_string()),
+            Some("2025-01-02T23:59:59.999Z".to_string()),
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("failed to get filtered comparison");
+        assert_eq!(comparison.session_id, "s-b");
+        assert_eq!(comparison.rank_by_tokens, 1);
+
+        let filtered_out = get_session_comparison(
+            "s-a".to_string(),
+            project_path,
+            Some("2025-01-02T00:00:00Z".to_string()),
+            Some("2025-01-02T23:59:59.999Z".to_string()),
+            Some("billing_total".to_string()),
+        )
+        .await;
+        assert!(filtered_out.is_err());
     }
 
     #[test]

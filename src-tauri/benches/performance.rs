@@ -537,6 +537,8 @@ fn bench_get_session_token_stats(c: &mut Criterion) {
                     claude_code_history_viewer_lib::commands::stats::get_session_token_stats(
                         black_box(path_str.clone()),
                         None,
+                        None,
+                        None,
                     )
                     .await
                 })

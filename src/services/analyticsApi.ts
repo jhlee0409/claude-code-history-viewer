@@ -49,15 +49,19 @@ async function dedupeInFlight<T>(
  */
 export async function fetchSessionTokenStats(
   sessionPath: string,
-  statsMode: StatsMode
+  statsMode: StatsMode,
+  options: { start_date?: string; end_date?: string } = {}
 ): Promise<SessionTokenStats> {
-  const key = `sessionTokenStats:${sessionPath}:${statsMode}`;
+  const { start_date, end_date } = options;
+  const key = `sessionTokenStats:${sessionPath}:${statsMode}:${start_date ?? ""}:${end_date ?? ""}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
     const stats = await invoke<SessionTokenStats>("get_session_token_stats", {
       sessionPath,
       statsMode,
+      startDate: start_date,
+      endDate: end_date,
     });
 
     if (import.meta.env.DEV) {
@@ -158,9 +162,11 @@ export async function fetchProjectStatsSummary(
 export async function fetchSessionComparison(
   sessionId: string,
   projectPath: string,
-  statsMode: StatsMode
+  statsMode: StatsMode,
+  options: { start_date?: string; end_date?: string } = {}
 ): Promise<SessionComparison> {
-  const key = `sessionComparison:${projectPath}:${sessionId}:${statsMode}`;
+  const { start_date, end_date } = options;
+  const key = `sessionComparison:${projectPath}:${sessionId}:${statsMode}:${start_date ?? ""}:${end_date ?? ""}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
@@ -168,6 +174,8 @@ export async function fetchSessionComparison(
       sessionId,
       projectPath,
       statsMode,
+      startDate: start_date,
+      endDate: end_date,
     });
 
     if (import.meta.env.DEV) {

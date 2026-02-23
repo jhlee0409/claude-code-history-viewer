@@ -14,6 +14,7 @@ import {
 const mockFetchSessionTokenStats = vi.fn();
 const mockFetchProjectTokenStats = vi.fn();
 const mockFetchProjectStatsSummary = vi.fn();
+const mockFetchSessionComparison = vi.fn();
 
 vi.mock("../services/analyticsApi", () => ({
   fetchSessionTokenStats: (...args: unknown[]) =>
@@ -22,7 +23,8 @@ vi.mock("../services/analyticsApi", () => ({
     mockFetchProjectTokenStats(...args),
   fetchProjectStatsSummary: (...args: unknown[]) =>
     mockFetchProjectStatsSummary(...args),
-  fetchSessionComparison: vi.fn(),
+  fetchSessionComparison: (...args: unknown[]) =>
+    mockFetchSessionComparison(...args),
 }));
 
 type Deferred<T> = {
@@ -104,6 +106,7 @@ describe("messageSlice token loading state", () => {
     mockFetchProjectTokenStats.mockReset();
     mockFetchSessionTokenStats.mockReset();
     mockFetchProjectStatsSummary.mockReset();
+    mockFetchSessionComparison.mockReset();
     mockFetchProjectStatsSummary.mockResolvedValue(buildProjectSummary());
   });
 
@@ -169,11 +172,71 @@ describe("messageSlice token loading state", () => {
     expect(mockFetchSessionTokenStats).toHaveBeenCalledTimes(1);
     expect(mockFetchSessionTokenStats).toHaveBeenCalledWith(
       "/session-codex",
-      "billing_total"
+      "billing_total",
+      {
+        start_date: undefined,
+        end_date: undefined,
+      }
     );
     expect(useStore.getState().sessionTokenStats).toEqual(billingStats);
     expect(useStore.getState().sessionConversationTokenStats).toEqual(
       billingStats
+    );
+  });
+
+  it("passes date filter boundaries to session token stats and session comparison", async () => {
+    const useStore = createTestStore();
+    const start = new Date(2026, 0, 10);
+    const end = new Date(2026, 0, 12);
+    const expectedEnd = new Date(end);
+    expectedEnd.setHours(23, 59, 59, 999);
+
+    useStore.setState({
+      dateFilter: { start, end },
+    });
+
+    const billingStats = buildSessionStats("session-date");
+    mockFetchSessionTokenStats.mockResolvedValue(billingStats);
+    mockFetchSessionComparison.mockResolvedValue({
+      session_id: "session-date",
+      percentage_of_project_tokens: 50,
+      percentage_of_project_messages: 50,
+      rank_by_tokens: 1,
+      rank_by_duration: 1,
+      is_above_average: true,
+    });
+
+    await useStore.getState().loadSessionTokenStats("/session-date");
+    await useStore
+      .getState()
+      .loadSessionComparison("session-date", "/project-date");
+
+    expect(mockFetchSessionTokenStats).toHaveBeenNthCalledWith(
+      1,
+      "/session-date",
+      "billing_total",
+      {
+        start_date: start.toISOString(),
+        end_date: expectedEnd.toISOString(),
+      }
+    );
+    expect(mockFetchSessionTokenStats).toHaveBeenNthCalledWith(
+      2,
+      "/session-date",
+      "conversation_only",
+      {
+        start_date: start.toISOString(),
+        end_date: expectedEnd.toISOString(),
+      }
+    );
+    expect(mockFetchSessionComparison).toHaveBeenCalledWith(
+      "session-date",
+      "/project-date",
+      "billing_total",
+      {
+        start_date: start.toISOString(),
+        end_date: expectedEnd.toISOString(),
+      }
     );
   });
 });
