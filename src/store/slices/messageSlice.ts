@@ -385,40 +385,51 @@ export const createMessageSlice: StateCreator<
         endDate.setHours(23, 59, 59, 999);
       }
 
-      const billingResponse = await fetchProjectTokenStats(projectPath, {
-        offset: 0,
-        limit: TOKENS_STATS_PAGE_SIZE,
+      const dateOptions = {
         start_date: dateFilter.start?.toISOString(),
         end_date: endDate?.toISOString(),
-        stats_mode: "billing_total",
-      });
-      const conversationResponse = canLoadConversationBreakdown()
-        ? await fetchProjectTokenStats(projectPath, {
-            offset: 0,
-            limit: TOKENS_STATS_PAGE_SIZE,
-            start_date: dateFilter.start?.toISOString(),
-            end_date: endDate?.toISOString(),
-            stats_mode: "conversation_only",
-          }).catch(() => null)
-        : billingResponse;
-      const billingSummary = await fetchProjectStatsSummary(projectPath, {
-        start_date: dateFilter.start?.toISOString(),
-        end_date: endDate?.toISOString(),
-        stats_mode: "billing_total",
-      }).catch((error) => {
-        console.warn(
-          "Failed to load project token stats summary, falling back to loaded-page aggregate:",
-          error
-        );
-        return null;
-      });
-      const conversationSummary = canLoadConversationBreakdown()
-        ? await fetchProjectStatsSummary(projectPath, {
-            start_date: dateFilter.start?.toISOString(),
-            end_date: endDate?.toISOString(),
-            stats_mode: "conversation_only",
-          }).catch(() => null)
-        : billingSummary;
+      };
+      const breakdown = canLoadConversationBreakdown();
+
+      const [
+        billingResponse,
+        conversationResponseRaw,
+        billingSummary,
+        conversationSummaryRaw,
+      ] = await Promise.all([
+        fetchProjectTokenStats(projectPath, {
+          offset: 0,
+          limit: TOKENS_STATS_PAGE_SIZE,
+          ...dateOptions,
+          stats_mode: "billing_total",
+        }),
+        breakdown
+          ? fetchProjectTokenStats(projectPath, {
+              offset: 0,
+              limit: TOKENS_STATS_PAGE_SIZE,
+              ...dateOptions,
+              stats_mode: "conversation_only",
+            }).catch(() => null)
+          : Promise.resolve(null),
+        fetchProjectStatsSummary(projectPath, {
+          ...dateOptions,
+          stats_mode: "billing_total",
+        }).catch((error) => {
+          console.warn(
+            "Failed to load project token stats summary, falling back to loaded-page aggregate:",
+            error
+          );
+          return null;
+        }),
+        breakdown
+          ? fetchProjectStatsSummary(projectPath, {
+              ...dateOptions,
+              stats_mode: "conversation_only",
+            }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const conversationResponse = conversationResponseRaw ?? billingResponse;
+      const conversationSummary = conversationSummaryRaw ?? billingSummary;
 
       if (requestId !== getRequestId("projectTokenStats")) return;
       set({

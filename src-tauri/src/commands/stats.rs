@@ -754,6 +754,8 @@ struct ProjectSessionFileStats {
 fn process_session_file_for_project_stats(
     session_path: &PathBuf,
     mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
 ) -> Option<ProjectSessionFileStats> {
     let file = fs::File::open(session_path).ok()?;
 
@@ -784,6 +786,12 @@ fn process_session_file_for_project_stats(
                     continue;
                 }
 
+                // Per-message date filtering
+                let parsed_ts = parse_timestamp_utc(&message.timestamp);
+                if !is_within_date_limits(parsed_ts, s_limit, e_limit) {
+                    continue;
+                }
+
                 stats.total_messages += 1;
                 let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
                     token_usage_totals(&usage);
@@ -793,8 +801,7 @@ fn process_session_file_for_project_stats(
                 stats.token_distribution.cache_creation += cache_creation_tokens;
                 stats.token_distribution.cache_read += cache_read_tokens;
 
-                if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
-                    let timestamp = timestamp.with_timezone(&Utc);
+                if let Some(timestamp) = parsed_ts {
                     session_timestamps.push(timestamp);
 
                     let hour = timestamp.hour() as u8;
@@ -962,7 +969,7 @@ fn parse_date_limit(date_str: Option<String>, label: &str) -> Option<DateTime<Ut
     match DateTime::parse_from_rfc3339(&raw) {
         Ok(dt) => Some(dt.with_timezone(&Utc)),
         Err(e) => {
-            eprintln!("Warning: invalid RFC3339 {label} '{raw}': {e}");
+            log::warn!("Invalid RFC3339 {label} '{raw}': {e}");
             None
         }
     }
@@ -1223,6 +1230,8 @@ fn get_provider_project_token_stats(
     let project_name = resolve_provider_project_name(provider, project_path);
     let mut all_stats = Vec::new();
     let sessions = load_provider_sessions_for_stats(provider, project_path)?;
+    let s_limit = parse_date_limit(start_date, "start_date");
+    let e_limit = parse_date_limit(end_date, "end_date");
 
     for session in &sessions {
         let messages = load_provider_messages_for_stats(provider, session)?;
@@ -1236,26 +1245,11 @@ fn get_provider_project_token_stats(
             session.summary.clone(),
             &messages,
             mode,
-            None,
-            None,
+            s_limit.as_ref(),
+            e_limit.as_ref(),
         ) {
             all_stats.push(stats);
         }
-    }
-
-    let s_limit = parse_date_limit(start_date, "start_date");
-    let e_limit = parse_date_limit(end_date, "end_date");
-
-    if s_limit.is_some() || e_limit.is_some() {
-        all_stats.retain(|stat| {
-            if let Some(last_ts) = parse_timestamp_utc(&stat.last_message_time) {
-                let after_start = s_limit.map(|s| last_ts >= s).unwrap_or(true);
-                let before_end = e_limit.map(|e| last_ts <= e).unwrap_or(true);
-                after_start && before_end
-            } else {
-                false
-            }
-        });
     }
 
     let total_count = all_stats.len();
@@ -1302,48 +1296,10 @@ fn get_provider_project_stats_summary(
             continue;
         }
 
-        let mut parsed_timestamps = Vec::new();
-        for message in &messages {
-            if let Some(ts) = parse_timestamp_utc(&message.timestamp) {
-                parsed_timestamps.push(ts);
-            }
-        }
-
-        if parsed_timestamps.is_empty() {
-            continue;
-        }
-
-        parsed_timestamps.sort();
-        let Some(last_ts) = parsed_timestamps.last().copied() else {
-            continue;
-        };
-        let is_after_start = s_limit.map(|s| last_ts >= s).unwrap_or(true);
-        let is_before_end = e_limit.map(|e| last_ts <= e).unwrap_or(true);
-        if !is_after_start || !is_before_end {
-            continue;
-        }
-
         let mut included_messages = 0usize;
-        for message in &messages {
-            let usage = extract_token_usage(message);
-            let has_usage = token_usage_has_token_fields(&usage);
-            if should_include_stats_entry(
-                &message.message_type,
-                message.is_sidechain,
-                has_usage,
-                mode,
-            ) {
-                included_messages += 1;
-            }
-        }
-        if included_messages == 0 {
-            continue;
-        }
-
-        summary.total_sessions += 1;
-        summary.total_messages += included_messages;
-
+        let mut parsed_timestamps = Vec::new();
         let mut session_dates = HashSet::new();
+
         for message in &messages {
             let usage = extract_token_usage(message);
             let has_usage = token_usage_has_token_fields(&usage);
@@ -1355,6 +1311,14 @@ fn get_provider_project_stats_summary(
             ) {
                 continue;
             }
+
+            // Per-message date filtering
+            let parsed_ts = parse_timestamp_utc(&message.timestamp);
+            if !is_within_date_limits(parsed_ts, s_limit.as_ref(), e_limit.as_ref()) {
+                continue;
+            }
+
+            included_messages += 1;
 
             let input_tokens = u64::from(usage.input_tokens.unwrap_or(0));
             let output_tokens = u64::from(usage.output_tokens.unwrap_or(0));
@@ -1368,7 +1332,8 @@ fn get_provider_project_stats_summary(
             summary.token_distribution.cache_creation += cache_creation_tokens;
             summary.token_distribution.cache_read += cache_read_tokens;
 
-            if let Some(timestamp) = parse_timestamp_utc(&message.timestamp) {
+            if let Some(timestamp) = parsed_ts {
+                parsed_timestamps.push(timestamp);
                 let hour = timestamp.hour() as u8;
                 let day = timestamp.weekday().num_days_from_sunday() as u8;
                 let date = timestamp.format("%Y-%m-%d").to_string();
@@ -1393,6 +1358,13 @@ fn get_provider_project_stats_summary(
 
             track_tool_usage(message, &mut tool_usage_map);
         }
+
+        if included_messages == 0 {
+            continue;
+        }
+
+        summary.total_sessions += 1;
+        summary.total_messages += included_messages;
 
         for date in session_dates {
             let entry = daily_stats_map
@@ -1491,13 +1463,19 @@ fn get_provider_session_comparison(
                 continue;
             }
 
+            // Per-message date filtering
+            let parsed_ts = parse_timestamp_utc(&message.timestamp);
+            if !is_within_date_limits(parsed_ts, s_limit.as_ref(), e_limit.as_ref()) {
+                continue;
+            }
+
             included_message_count += 1;
             total_tokens += u64::from(usage.input_tokens.unwrap_or(0))
                 + u64::from(usage.output_tokens.unwrap_or(0))
                 + u64::from(usage.cache_creation_input_tokens.unwrap_or(0))
                 + u64::from(usage.cache_read_input_tokens.unwrap_or(0));
 
-            if let Some(ts) = parse_timestamp_utc(&message.timestamp) {
+            if let Some(ts) = parsed_ts {
                 if first_time.map_or(true, |current| ts < current) {
                     first_time = Some(ts);
                 }
@@ -1520,13 +1498,6 @@ fn get_provider_session_comparison(
             total_tokens,
             message_count: included_message_count,
             duration_seconds,
-            last_timestamp: last_time,
-        });
-    }
-
-    if s_limit.is_some() || e_limit.is_some() {
-        all_sessions.retain(|stats| {
-            is_within_date_limits(stats.last_timestamp, s_limit.as_ref(), e_limit.as_ref())
         });
     }
 
@@ -1615,8 +1586,8 @@ pub async fn get_session_token_stats(
             None,
             &messages,
             mode,
-            None,
-            None,
+            s_limit.as_ref(),
+            e_limit.as_ref(),
         )
         .and_then(|stats| {
             if is_within_date_limits(
@@ -1633,8 +1604,13 @@ pub async fn get_session_token_stats(
     }
 
     let session_path_buf = PathBuf::from(&session_path);
-    let stats = extract_session_token_stats_sync(&session_path_buf, mode, None, None)
-        .ok_or_else(|| "No valid messages found in session".to_string())?;
+    let stats = extract_session_token_stats_sync(
+        &session_path_buf,
+        mode,
+        s_limit.as_ref(),
+        e_limit.as_ref(),
+    )
+    .ok_or_else(|| "No valid messages found in session".to_string())?;
     if !is_within_date_limits(
         parse_timestamp_utc(&stats.last_message_time),
         s_limit.as_ref(),
@@ -1644,8 +1620,8 @@ pub async fn get_session_token_stats(
     }
     let total_time = start.elapsed();
 
-    eprintln!(
-        "📊 get_session_token_stats: {} messages, total={}ms",
+    log::debug!(
+        "get_session_token_stats: {} messages, total={}ms",
         stats.message_count,
         total_time.as_millis()
     );
@@ -1850,49 +1826,25 @@ pub async fn get_project_token_stats(
     #[cfg(debug_assertions)]
     let scan_time = start.elapsed();
 
-    // Process all sessions in parallel using sync function
-    let mut all_stats: Vec<SessionTokenStats> = session_files
+    // Parse date limits before parallel processing so per-message filtering is applied
+    let s_limit = parse_date_limit(start_date, "start_date");
+    let e_limit = parse_date_limit(end_date, "end_date");
+
+    // Process all sessions in parallel with per-message date filtering
+    let all_stats: Vec<SessionTokenStats> = session_files
         .par_iter()
-        .filter_map(|path| extract_session_token_stats_sync(path, mode, None, None))
+        .filter_map(|path| {
+            extract_session_token_stats_sync(path, mode, s_limit.as_ref(), e_limit.as_ref())
+        })
         .collect();
 
     #[cfg(debug_assertions)]
     let process_time = start.elapsed();
 
-    // Filter by date if provided
-    let mut s_limit = None;
-    let mut e_limit = None;
-
-    if let Some(s_str) = start_date {
-        match DateTime::parse_from_rfc3339(&s_str) {
-            Ok(dt) => s_limit = Some(dt.with_timezone(&Utc)),
-            Err(e) => eprintln!("Warning: invalid RFC3339 start_date '{s_str}': {e}"),
-        }
-    }
-
-    if let Some(e_str) = end_date {
-        match DateTime::parse_from_rfc3339(&e_str) {
-            Ok(dt) => e_limit = Some(dt.with_timezone(&Utc)),
-            Err(e) => eprintln!("Warning: invalid RFC3339 end_date '{e_str}': {e}"),
-        }
-    }
-
-    if s_limit.is_some() || e_limit.is_some() {
-        all_stats.retain(|stat| {
-            if let Ok(ts_dt) = DateTime::parse_from_rfc3339(&stat.last_message_time) {
-                let ts_utc = ts_dt.with_timezone(&Utc);
-                let after_start = s_limit.map(|s| ts_utc >= s).unwrap_or(true);
-                let before_end = e_limit.map(|e| ts_utc <= e).unwrap_or(true);
-                after_start && before_end
-            } else {
-                false
-            }
-        });
-    }
-
     let total_count = all_stats.len();
 
     // Sort by total tokens (descending)
+    let mut all_stats = all_stats;
     all_stats.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
 
     // Apply pagination
@@ -1904,8 +1856,8 @@ pub async fn get_project_token_stats(
     let total_time = start.elapsed();
 
     #[cfg(debug_assertions)]
-    eprintln!(
-        "📊 get_project_token_stats: {} sessions ({} after filter), scan={}ms, process={}ms, total={}ms",
+    log::debug!(
+        "get_project_token_stats: {} sessions ({} after filter), scan={}ms, process={}ms, total={}ms",
         total_count,
         paginated_items.len(),
         scan_time.as_millis(),
@@ -1956,22 +1908,8 @@ pub async fn get_project_stats_summary(
         .unwrap_or("Unknown")
         .to_string();
 
-    let mut s_limit = None;
-    let mut e_limit = None;
-
-    if let Some(s_str) = start_date {
-        match DateTime::parse_from_rfc3339(&s_str) {
-            Ok(dt) => s_limit = Some(dt.with_timezone(&Utc)),
-            Err(e) => eprintln!("Warning: invalid RFC3339 start_date '{s_str}': {e}"),
-        }
-    }
-
-    if let Some(e_str) = end_date {
-        match DateTime::parse_from_rfc3339(&e_str) {
-            Ok(dt) => e_limit = Some(dt.with_timezone(&Utc)),
-            Err(e) => eprintln!("Warning: invalid RFC3339 end_date '{e_str}': {e}"),
-        }
-    }
+    let s_limit = parse_date_limit(start_date, "start_date");
+    let e_limit = parse_date_limit(end_date, "end_date");
 
     // Phase 1: Collect all session files
     let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
@@ -1982,26 +1920,13 @@ pub async fn get_project_stats_summary(
         .collect();
     let scan_time = start.elapsed();
 
-    // Phase 2: Process all session files in parallel
-    let mut file_stats: Vec<ProjectSessionFileStats> = session_files
+    // Phase 2: Process all session files in parallel with per-message date filtering
+    let file_stats: Vec<ProjectSessionFileStats> = session_files
         .par_iter()
-        .filter_map(|path| process_session_file_for_project_stats(path, mode))
+        .filter_map(|path| {
+            process_session_file_for_project_stats(path, mode, s_limit.as_ref(), e_limit.as_ref())
+        })
         .collect();
-
-    // Filter by date
-    if s_limit.is_some() || e_limit.is_some() {
-        file_stats.retain(|stats| {
-            if stats.timestamps.is_empty() {
-                return false;
-            }
-            let last_ts = *stats.timestamps.last().unwrap();
-
-            let is_after_start = s_limit.map(|s| last_ts >= s).unwrap_or(true);
-            let is_before_end = e_limit.map(|e| last_ts <= e).unwrap_or(true);
-
-            is_after_start && is_before_end
-        });
-    }
     let process_time = start.elapsed();
 
     // Phase 3: Aggregate results
@@ -2130,8 +2055,8 @@ pub async fn get_project_stats_summary(
         .map_or(0, |a| a.hour);
 
     let total_time = start.elapsed();
-    eprintln!(
-        "📊 get_project_stats_summary: {} sessions, scan={}ms, process={}ms, total={}ms",
+    log::debug!(
+        "get_project_stats_summary: {} sessions, scan={}ms, process={}ms, total={}ms",
         summary.total_sessions,
         scan_time.as_millis(),
         process_time.as_millis(),
@@ -2148,7 +2073,6 @@ struct SessionComparisonStats {
     total_tokens: u64,
     message_count: usize,
     duration_seconds: i64,
-    last_timestamp: Option<DateTime<Utc>>,
 }
 
 /// Process a single session file for comparison stats (lightweight)
@@ -2156,6 +2080,8 @@ struct SessionComparisonStats {
 fn process_session_file_for_comparison(
     session_path: &PathBuf,
     mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionComparisonStats> {
     let file = fs::File::open(session_path).ok()?;
 
@@ -2189,6 +2115,12 @@ fn process_session_file_for_comparison(
                     continue;
                 }
 
+                // Per-message date filtering
+                let parsed_ts = parse_timestamp_utc(&message.timestamp);
+                if !is_within_date_limits(parsed_ts, s_limit, e_limit) {
+                    continue;
+                }
+
                 if session_id.is_none() {
                     session_id = Some(message.session_id.clone());
                 }
@@ -2200,8 +2132,7 @@ fn process_session_file_for_comparison(
                     + u64::from(usage.cache_creation_input_tokens.unwrap_or(0))
                     + u64::from(usage.cache_read_input_tokens.unwrap_or(0));
 
-                if let Ok(timestamp) = DateTime::parse_from_rfc3339(&message.timestamp) {
-                    let timestamp = timestamp.with_timezone(&Utc);
+                if let Some(timestamp) = parsed_ts {
                     if first_time
                         .as_ref()
                         .map_or(true, |current| timestamp < *current)
@@ -2229,7 +2160,6 @@ fn process_session_file_for_comparison(
         total_tokens,
         message_count,
         duration_seconds,
-        last_timestamp: last_time,
     })
 }
 
@@ -2255,6 +2185,8 @@ pub async fn get_session_comparison(
     }
 
     let start = std::time::Instant::now();
+    let s_limit = parse_date_limit(start_date, "start_date");
+    let e_limit = parse_date_limit(end_date, "end_date");
 
     // Phase 1: Collect all session files
     let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
@@ -2265,19 +2197,13 @@ pub async fn get_session_comparison(
         .collect();
     let scan_time = start.elapsed();
 
-    // Phase 2: Process all session files in parallel (lightweight processing)
+    // Phase 2: Process all session files in parallel with per-message date filtering
     let all_sessions: Vec<SessionComparisonStats> = session_files
         .par_iter()
-        .filter_map(|path| process_session_file_for_comparison(path, mode))
+        .filter_map(|path| {
+            process_session_file_for_comparison(path, mode, s_limit.as_ref(), e_limit.as_ref())
+        })
         .collect();
-    let mut all_sessions = all_sessions;
-    let s_limit = parse_date_limit(start_date, "start_date");
-    let e_limit = parse_date_limit(end_date, "end_date");
-    if s_limit.is_some() || e_limit.is_some() {
-        all_sessions.retain(|stats| {
-            is_within_date_limits(stats.last_timestamp, s_limit.as_ref(), e_limit.as_ref())
-        });
-    }
     let process_time = start.elapsed();
 
     let target_session = all_sessions
@@ -2328,8 +2254,8 @@ pub async fn get_session_comparison(
     let is_above_average = target_session.total_tokens > avg_tokens;
     let total_time = start.elapsed();
 
-    eprintln!(
-        "📊 get_session_comparison: {} sessions, scan={}ms, process={}ms, total={}ms",
+    log::debug!(
+        "get_session_comparison: {} sessions, scan={}ms, process={}ms, total={}ms",
         all_sessions.len(),
         scan_time.as_millis(),
         process_time.as_millis(),
@@ -3504,6 +3430,7 @@ mod tests {
         writeln!(file, "{day1}").expect("failed to write day1");
         writeln!(file, "{day2}").expect("failed to write day2");
 
+        // Per-message filtering: only day2 (Jan 2) is in range.
         let stats = get_session_token_stats(
             session_path.to_string_lossy().to_string(),
             Some("2025-01-02T00:00:00Z".to_string()),
@@ -3513,16 +3440,31 @@ mod tests {
         .await
         .expect("failed to get filtered session stats");
 
-        // Session-level filtering: include the whole session if last message is in range.
-        assert_eq!(stats.message_count, 2);
-        assert_eq!(stats.total_input_tokens, 30);
-        assert_eq!(stats.total_output_tokens, 3);
-        assert_eq!(stats.total_tokens, 33);
+        assert_eq!(stats.message_count, 1);
+        assert_eq!(stats.total_input_tokens, 20);
+        assert_eq!(stats.total_output_tokens, 2);
+        assert_eq!(stats.total_tokens, 22);
 
-        let filtered_out = get_session_token_stats(
+        // Per-message filtering: only day1 (Jan 1) is in range.
+        let day1_stats = get_session_token_stats(
             session_path.to_string_lossy().to_string(),
             Some("2025-01-01T00:00:00Z".to_string()),
             Some("2025-01-01T23:59:59.999Z".to_string()),
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("failed to get day1 filtered session stats");
+
+        assert_eq!(day1_stats.message_count, 1);
+        assert_eq!(day1_stats.total_input_tokens, 10);
+        assert_eq!(day1_stats.total_output_tokens, 1);
+        assert_eq!(day1_stats.total_tokens, 11);
+
+        // No messages in range → error.
+        let filtered_out = get_session_token_stats(
+            session_path.to_string_lossy().to_string(),
+            Some("2024-12-01T00:00:00Z".to_string()),
+            Some("2024-12-31T23:59:59.999Z".to_string()),
             Some("billing_total".to_string()),
         )
         .await;
