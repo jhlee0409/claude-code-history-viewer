@@ -698,6 +698,17 @@ export const useAnalytics = (): UseAnalyticsReturn => {
               }
               setAnalyticsSessionComparison(comparison);
               setAnalyticsSessionComparisonError(null);
+            } catch (err) {
+              if (isStaleRequest()) {
+                return;
+              }
+              const message =
+                err instanceof Error
+                  ? err.message
+                  : t("common.hooks.sessionComparisonLoadFailed");
+              // Clear stale comparison values when the filtered comparison request fails.
+              setAnalyticsSessionComparison(null);
+              setAnalyticsSessionComparisonError(message);
             } finally {
               if (!isStaleRequest()) {
                 setAnalyticsLoadingSessionComparison(false);
@@ -705,6 +716,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
             }
           } else {
             setAnalyticsSessionComparison(null);
+            setAnalyticsSessionComparisonError(null);
           }
         }
       } catch (err) {

@@ -1961,7 +1961,7 @@ pub async fn get_project_stats_summary(
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
-    let mut session_dates: HashSet<String> = HashSet::new();
+    let mut session_count_by_date: HashMap<String, usize> = HashMap::new();
 
     for stats in file_stats {
         summary.total_messages += stats.total_messages as usize;
@@ -2000,24 +2000,22 @@ pub async fn get_project_stats_summary(
             entry.1 += tokens;
         }
 
-        // Aggregate session dates
-        session_dates.extend(stats.session_dates);
+        // Aggregate per-day session counts from this session's active dates.
+        for date in stats.session_dates {
+            *session_count_by_date.entry(date).or_insert(0) += 1;
+        }
 
         // Collect session duration
         if stats.session_duration_minutes > 0 {
             session_durations.push(stats.session_duration_minutes);
         }
 
-        // Add first date from timestamps if session has messages
-        if !stats.timestamps.is_empty() {
-            let date = stats.timestamps[0].format("%Y-%m-%d").to_string();
-            session_dates.insert(date);
-        }
+        // timestamps are preserved for duration calculations only.
     }
 
     // Phase 4: Finalize daily stats
     for (date, daily_stat) in &mut daily_stats_map {
-        daily_stat.session_count = session_dates.iter().filter(|&d| d == date).count();
+        daily_stat.session_count = session_count_by_date.get(date).copied().unwrap_or(0);
         daily_stat.active_hours = if daily_stat.message_count > 0 {
             std::cmp::min(24, std::cmp::max(1, daily_stat.message_count / 10))
         } else {
@@ -2449,9 +2447,20 @@ pub async fn get_global_stats_summary(
         file_stats.retain(|s| s.total_messages > 0);
     }
 
+    let active_project_keys: HashSet<String> = file_stats
+        .iter()
+        .map(|stats| {
+            format!(
+                "{}:{}",
+                stats_provider_id(stats.provider),
+                stats.project_name
+            )
+        })
+        .collect();
+
     // Phase 3: Aggregate results
     let mut summary = GlobalStatsSummary::default();
-    summary.total_projects = project_names.len() as u32;
+    summary.total_projects = active_project_keys.len() as u32;
     summary.total_sessions = file_stats.len() as u32;
 
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
@@ -3549,6 +3558,76 @@ mod tests {
         )
         .await;
         assert!(filtered_out.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_project_summary_daily_session_count_tracks_multiple_sessions_on_same_day() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let project_dir = temp_dir.path().join("projects").join("demo-project");
+        fs::create_dir_all(&project_dir).expect("failed to create project dir");
+
+        let session_a = project_dir.join("session-a.jsonl");
+        let session_b = project_dir.join("session-b.jsonl");
+
+        let mut file_a = File::create(&session_a).expect("failed to create session a");
+        let line_a = r#"{"uuid":"ua","sessionId":"s-a","timestamp":"2025-01-01T08:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"a"}],"id":"ma","model":"claude-sonnet-4","usage":{"input_tokens":10,"output_tokens":1}},"isSidechain":false}"#;
+        writeln!(file_a, "{line_a}").expect("failed to write session a");
+
+        let mut file_b = File::create(&session_b).expect("failed to create session b");
+        let line_b = r#"{"uuid":"ub","sessionId":"s-b","timestamp":"2025-01-01T20:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"b"}],"id":"mb","model":"claude-sonnet-4","usage":{"input_tokens":20,"output_tokens":2}},"isSidechain":false}"#;
+        writeln!(file_b, "{line_b}").expect("failed to write session b");
+
+        let summary = get_project_stats_summary(
+            project_dir.to_string_lossy().to_string(),
+            None,
+            None,
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("failed to get project summary");
+
+        assert_eq!(summary.total_sessions, 2);
+        let jan1 = summary
+            .daily_stats
+            .iter()
+            .find(|daily| daily.date == "2025-01-01")
+            .expect("missing jan1 daily stat");
+        assert_eq!(jan1.session_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_global_summary_total_projects_respects_date_filter() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let claude_path = temp_dir.path();
+        let project_a = claude_path.join("projects").join("demo-a");
+        let project_b = claude_path.join("projects").join("demo-b");
+        fs::create_dir_all(&project_a).expect("failed to create project a");
+        fs::create_dir_all(&project_b).expect("failed to create project b");
+
+        let session_a = project_a.join("session-a.jsonl");
+        let session_b = project_b.join("session-b.jsonl");
+
+        let mut file_a = File::create(&session_a).expect("failed to create session a");
+        let line_a = r#"{"uuid":"ua","sessionId":"s-a","timestamp":"2025-01-01T12:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"a"}],"id":"ma","model":"claude-sonnet-4","usage":{"input_tokens":10,"output_tokens":1}},"isSidechain":false}"#;
+        writeln!(file_a, "{line_a}").expect("failed to write session a");
+
+        let mut file_b = File::create(&session_b).expect("failed to create session b");
+        let line_b = r#"{"uuid":"ub","sessionId":"s-b","timestamp":"2025-01-10T12:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"b"}],"id":"mb","model":"claude-sonnet-4","usage":{"input_tokens":20,"output_tokens":2}},"isSidechain":false}"#;
+        writeln!(file_b, "{line_b}").expect("failed to write session b");
+
+        let summary = get_global_stats_summary(
+            claude_path.to_string_lossy().to_string(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            Some("2025-01-10T00:00:00Z".to_string()),
+            Some("2025-01-10T23:59:59.999Z".to_string()),
+        )
+        .await
+        .expect("failed to get filtered global summary");
+
+        assert_eq!(summary.total_projects, 1);
+        assert_eq!(summary.total_sessions, 1);
+        assert_eq!(summary.total_tokens, 22);
     }
 
     #[test]
