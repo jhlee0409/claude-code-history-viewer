@@ -122,7 +122,8 @@ describe("globalStatsSlice", () => {
       undefined,
     );
     expect(useStore.getState().globalSummary).toEqual(summary);
-    expect(useStore.getState().globalConversationSummary).toEqual(summary);
+    // No conversation breakdown for codex → conversationSummary stays null
+    expect(useStore.getState().globalConversationSummary).toBeNull();
   });
 
   it("keeps billing summary when conversation-only request fails", async () => {
@@ -135,25 +136,43 @@ describe("globalStatsSlice", () => {
     await useStore.getState().loadGlobalStats();
 
     expect(mockFetchGlobalStatsSummary).toHaveBeenCalledTimes(2);
+    expect(useStore.getState().globalSummary).toEqual(summary);
+    // Conversation failure → null (no implicit fallback to billing)
+    expect(useStore.getState().globalConversationSummary).toBeNull();
+    expect(useStore.getState().setError).toHaveBeenCalledWith(null);
+    expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("expands end date to end-of-day when forwarding date filter", async () => {
+    const useStore = createTestStore();
+    const summary = buildGlobalSummary();
+    const start = new Date(2026, 0, 10);
+    const end = new Date(2026, 0, 12);
+    const expectedEnd = new Date(end);
+    expectedEnd.setHours(23, 59, 59, 999);
+
+    useStore.setState({ dateFilter: { start, end } });
+    mockFetchGlobalStatsSummary
+      .mockResolvedValueOnce(summary)
+      .mockResolvedValueOnce(summary);
+
+    await useStore.getState().loadGlobalStats();
+
     expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
       1,
       "/tmp/claude",
       ["claude"],
       "billing_total",
-      undefined,
-      undefined,
+      start.toISOString(),
+      expectedEnd.toISOString(),
     );
     expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
       2,
       "/tmp/claude",
       ["claude"],
       "conversation_only",
-      undefined,
-      undefined,
+      start.toISOString(),
+      expectedEnd.toISOString(),
     );
-    expect(useStore.getState().globalSummary).toEqual(summary);
-    expect(useStore.getState().globalConversationSummary).toEqual(summary);
-    expect(useStore.getState().setError).toHaveBeenCalledWith(null);
-    expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -561,7 +561,6 @@ export const createMessageSlice: StateCreator<
     } catch (error) {
       console.error("Failed to load project stats summary:", error);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
-      window.alert(`Failed to load project stats summary: ${String(error)}`);
       throw error;
     }
   },

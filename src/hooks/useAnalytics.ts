@@ -16,6 +16,9 @@ import type { MetricMode, StatsMode } from "../types";
 export const useAnalytics = (): UseAnalyticsReturn => {
   const { t } = useTranslation();
   const dateFilterKeyRef = useRef<string | null>(null);
+  const dateFilterRequestSeqRef = useRef(0);
+  const analyticsSessionAutoloadAttemptKeyRef = useRef<string | null>(null);
+  const tokenStatsSessionAutoloadAttemptKeyRef = useRef<string | null>(null);
   const {
     // Store state
     analytics,
@@ -515,6 +518,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
 
     if (analytics.currentView === "analytics" && selectedProject && selectedSession) {
+      const autoloadKey = `${selectedSession.actual_session_id}:${dateFilter.start?.getTime() ?? "none"}:${dateFilter.end?.getTime() ?? "none"}`;
       // 캐시 확인: 이미 로드된 데이터면 스킵
       const hasCachedSessionComparison =
         analytics.sessionComparison?.session_id === selectedSession.actual_session_id;
@@ -523,8 +527,14 @@ export const useAnalytics = (): UseAnalyticsReturn => {
 
       // 둘 다 캐시되어 있으면 로드 스킵
       if (hasCachedSessionComparison && hasCachedSessionTokenStats) {
+        analyticsSessionAutoloadAttemptKeyRef.current = null;
         return;
       }
+      // Prevent infinite retries for the same session + date filter tuple.
+      if (analyticsSessionAutoloadAttemptKeyRef.current === autoloadKey) {
+        return;
+      }
+      analyticsSessionAutoloadAttemptKeyRef.current = autoloadKey;
 
       const updateSessionData = async () => {
         try {
@@ -567,6 +577,8 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     selectedProject?.path,
     selectedProject,
     selectedSession,
+    dateFilter.start?.getTime(),
+    dateFilter.end?.getTime(),
     sessionTokenStats?.session_id,
     analytics.currentView,
     analytics.sessionComparison?.session_id,
@@ -589,13 +601,20 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
 
     if (analytics.currentView === "tokenStats" && selectedSession) {
+      const autoloadKey = `${selectedSession.actual_session_id}:${dateFilter.start?.getTime() ?? "none"}:${dateFilter.end?.getTime() ?? "none"}`;
       // 캐시 확인: 이미 로드된 데이터면 스킵
       const hasCachedSessionTokenStats =
         sessionTokenStats?.session_id === selectedSession.actual_session_id;
 
       if (hasCachedSessionTokenStats) {
+        tokenStatsSessionAutoloadAttemptKeyRef.current = null;
         return;
       }
+      // Prevent infinite retries for the same session + date filter tuple.
+      if (tokenStatsSessionAutoloadAttemptKeyRef.current === autoloadKey) {
+        return;
+      }
+      tokenStatsSessionAutoloadAttemptKeyRef.current = autoloadKey;
 
       const updateSessionTokenStats = async () => {
         try {
@@ -608,6 +627,8 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       updateSessionTokenStats();
     }
   }, [
+    dateFilter.start?.getTime(),
+    dateFilter.end?.getTime(),
     selectedSession?.actual_session_id,
     selectedSession?.file_path,
     selectedSession,
@@ -632,6 +653,8 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       return;
     }
     dateFilterKeyRef.current = currentDateFilterKey;
+    const requestSeq = ++dateFilterRequestSeqRef.current;
+    const isStaleRequest = () => requestSeq !== dateFilterRequestSeqRef.current;
 
     const isGlobalScope = !selectedProject && analytics.currentView === "analytics";
 
@@ -652,9 +675,15 @@ export const useAnalytics = (): UseAnalyticsReturn => {
             promises.push(loadSessionTokenStats(selectedSession.file_path));
           }
           await Promise.all(promises);
+          if (isStaleRequest()) {
+            return;
+          }
         } else if (computed.isAnalyticsView) {
           setAnalyticsLoadingProjectSummary(true);
           const summary = await loadProjectStatsSummary(selectedProject.path);
+          if (isStaleRequest()) {
+            return;
+          }
           setAnalyticsProjectSummary(summary);
 
           if (selectedSession) {
@@ -664,20 +693,30 @@ export const useAnalytics = (): UseAnalyticsReturn => {
                 loadSessionComparison(selectedSession.actual_session_id, selectedProject.path),
                 loadSessionTokenStats(selectedSession.file_path),
               ]);
+              if (isStaleRequest()) {
+                return;
+              }
               setAnalyticsSessionComparison(comparison);
               setAnalyticsSessionComparisonError(null);
             } finally {
-              setAnalyticsLoadingSessionComparison(false);
+              if (!isStaleRequest()) {
+                setAnalyticsLoadingSessionComparison(false);
+              }
             }
           } else {
             setAnalyticsSessionComparison(null);
           }
         }
       } catch (err) {
+        if (isStaleRequest()) {
+          return;
+        }
         const message =
           err instanceof Error ? err.message : t("common.hooks.projectSummaryLoadFailed");
         setAnalyticsProjectSummaryError(message);
       } finally {
+        // Always clear loading state regardless of stale check to prevent
+        // isLoadingProjectSummary from getting stuck as true permanently.
         if (computed.isAnalyticsView) {
           setAnalyticsLoadingProjectSummary(false);
         }

@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Activity } from "lucide-react";
 import { SectionCard } from "./SectionCard";
-import { formatNumber } from "../utils";
+import { formatNumber, formatCurrency } from "../utils";
 
 interface BillingBreakdownCardProps {
   billingTokens: number;
@@ -12,12 +12,6 @@ interface BillingBreakdownCardProps {
   showProviderLimitHelp?: boolean;
   className?: string;
 }
-
-const formatCurrency = (value: number): string =>
-  `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: value >= 100 ? 0 : 2,
-    maximumFractionDigits: value >= 100 ? 0 : 2,
-  })}`;
 
 export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
   billingTokens,

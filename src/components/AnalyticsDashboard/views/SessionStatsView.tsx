@@ -45,7 +45,6 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
     () => calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
     [sessionComparison, totalProjectSessions]
   );
-  const hasConversationData = conversationStats !== null && conversationStats !== undefined;
   const billingTokens = sessionStats.total_tokens;
 
   return (
@@ -161,7 +160,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
       <BillingBreakdownCard
         billingTokens={billingTokens}
-        conversationTokens={hasConversationData ? conversationStats?.total_tokens ?? 0 : null}
+        conversationTokens={conversationStats != null ? conversationStats.total_tokens : null}
         showProviderLimitHelp={!supportsConversationBreakdown(providerId)}
       />
 

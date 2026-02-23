@@ -50,6 +50,8 @@ describe("providers utils", () => {
     expect(hasAnyConversationBreakdownProvider(["codex", "opencode"])).toBe(
       false
     );
+    expect(hasAnyConversationBreakdownProvider([])).toBe(false);
+    expect(hasAnyConversationBreakdownProvider(undefined)).toBe(false);
   });
 
   it("calculates conversation breakdown coverage by provider tokens", () => {

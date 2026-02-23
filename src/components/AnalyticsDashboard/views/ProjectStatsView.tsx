@@ -57,7 +57,6 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
 
   // Calculate growth metrics using utility function
   const { tokenGrowth, messageGrowth } = extractProjectGrowth(projectSummary);
-  const hasConversationData = conversationSummary !== null;
   const billingTokens = projectSummary.total_tokens;
 
   return (
@@ -100,7 +99,7 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
 
       <BillingBreakdownCard
         billingTokens={billingTokens}
-        conversationTokens={hasConversationData ? conversationSummary?.total_tokens ?? 0 : null}
+        conversationTokens={conversationSummary !== null ? conversationSummary.total_tokens : null}
         showProviderLimitHelp={!supportsConversationBreakdown(providerId)}
       />
 

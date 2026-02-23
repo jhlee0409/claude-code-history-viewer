@@ -90,6 +90,15 @@ export const calculateModelPrice = (
 };
 
 /**
+ * Format a number as a currency string (USD)
+ */
+export const formatCurrency = (value: number): string =>
+  `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: value >= 100 ? 0 : 2,
+    maximumFractionDigits: value >= 100 ? 0 : 2,
+  })}`;
+
+/**
  * Get heatmap color based on intensity
  */
 export const getHeatColor = (intensity: number): string => {

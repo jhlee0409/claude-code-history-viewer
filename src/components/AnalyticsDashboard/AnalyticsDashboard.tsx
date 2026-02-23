@@ -38,14 +38,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const projectConversationSummary = analyticsState.projectConversationSummary;
   const sessionComparison = analyticsState.sessionComparison;
   const sessionStats = sessionTokenStats;
-
-  useEffect(() => {
-    if (selectedSession && sessionStats && sessionComparison) {
-      setActiveTab("session");
-    } else {
-      setActiveTab("project");
-    }
-  }, [selectedSession, sessionStats, sessionComparison]);
+  const hasSessionData = selectedSession && sessionStats && sessionComparison;
 
   useEffect(() => {
     setActiveTab("project");
@@ -101,8 +94,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     );
   }
 
-  const hasSessionData = selectedSession && sessionStats && sessionComparison;
-
   return (
     <div className="flex-1 p-6 overflow-auto bg-background">
       <div className="relative">
@@ -110,8 +101,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           {/* Tab Selector */}
           {hasSessionData && (
-            <div className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg w-fit">
+            <div role="tablist" className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg w-fit">
               <button
+                role="tab"
+                aria-selected={activeTab === "project"}
                 onClick={() => setActiveTab("project")}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 text-[11px] font-medium rounded-md transition-all duration-200",
@@ -129,6 +122,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 {t("analytics.projectOverview")}
               </button>
               <button
+                role="tab"
+                aria-selected={activeTab === "session"}
                 onClick={() => setActiveTab("session")}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 text-[11px] font-medium rounded-md transition-all duration-200",

@@ -37,6 +37,7 @@ export const MetricModeToggle: React.FC<MetricModeToggleProps> = ({
             <button
               key={mode.id}
               type="button"
+              aria-pressed={active}
               onClick={() => onChange(mode.id)}
               className={cn(
                 "px-3 py-1.5 rounded-md text-[11px] font-medium transition-all duration-200",

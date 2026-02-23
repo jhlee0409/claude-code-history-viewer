@@ -50,10 +50,16 @@ export const generateTrendData = (
     const firstDateStr = sortedDates[0]!;
     const lastDateStr = sortedDates[sortedDates.length - 1]!;
     // Parse YYYY-MM-DD as UTC
-    const [fy, fm, fd] = firstDateStr.split("-").map(Number);
-    const [ly, lm, ld] = lastDateStr.split("-").map(Number);
-    startDate = new Date(Date.UTC(fy!, fm! - 1, fd!));
-    endDate = new Date(Date.UTC(ly!, lm! - 1, ld!));
+    const firstParts = firstDateStr.split("-").map(Number);
+    const lastParts = lastDateStr.split("-").map(Number);
+    const fy = firstParts[0] ?? 2026;
+    const fm = firstParts[1] ?? 1;
+    const fd = firstParts[2] ?? 1;
+    const ly = lastParts[0] ?? 2026;
+    const lm = lastParts[1] ?? 1;
+    const ld = lastParts[2] ?? 1;
+    startDate = new Date(Date.UTC(fy, fm - 1, fd));
+    endDate = new Date(Date.UTC(ly, lm - 1, ld));
   } else {
     endDate = new Date();
     endDate.setUTCHours(0, 0, 0, 0);

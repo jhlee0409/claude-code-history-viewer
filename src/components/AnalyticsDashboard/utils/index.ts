@@ -8,6 +8,7 @@
 export {
   calculateGrowthRate,
   formatNumber,
+  formatCurrency,
   calculateModelPrice,
   hasExplicitModelPricing,
   getHeatColor,

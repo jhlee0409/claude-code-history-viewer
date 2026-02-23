@@ -39,19 +39,6 @@ export interface ConversationBreakdownCoverage {
   hasLimitedProviders: boolean;
 }
 
-function parseProviderIdStrict(
-  provider?: ProviderId | string
-): ProviderId | null {
-  switch (provider) {
-    case "claude":
-    case "codex":
-    case "opencode":
-      return provider;
-    default:
-      return null;
-  }
-}
-
 export function getProviderId(provider?: ProviderId | string): ProviderId {
   switch (provider) {
     case "codex":
@@ -85,20 +72,20 @@ export function getProviderLabel(
 export function supportsConversationBreakdown(
   provider?: ProviderId | string
 ): boolean {
-  const strictProvider = parseProviderIdStrict(provider);
-  if (!strictProvider) {
+  if (!provider || !PROVIDER_IDS.includes(provider as ProviderId)) {
     return false;
   }
-  return PROVIDER_ANALYTICS_CAPABILITIES[strictProvider]
+  return PROVIDER_ANALYTICS_CAPABILITIES[provider as ProviderId]
     .supportsConversationBreakdown;
 }
 
 export function hasAnyConversationBreakdownProvider(
   providers?: readonly (ProviderId | string)[]
 ): boolean {
-  const providerScope =
-    providers && providers.length > 0 ? providers : PROVIDER_IDS;
-  return providerScope.some((provider) =>
+  if (!providers || providers.length === 0) {
+    return false;
+  }
+  return providers.some((provider) =>
     supportsConversationBreakdown(provider)
   );
 }
@@ -111,7 +98,7 @@ export function calculateConversationBreakdownCoverage(
   let hasLimitedProviders = false;
 
   for (const provider of providers) {
-    const tokens = Math.max(0, provider.tokens ?? 0);
+    const tokens = Math.max(0, provider.tokens);
     totalTokens += tokens;
 
     if (supportsConversationBreakdown(provider.provider_id)) {

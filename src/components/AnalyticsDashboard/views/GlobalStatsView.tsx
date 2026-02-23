@@ -29,6 +29,7 @@ import {
 } from "../components";
 import {
   formatNumber,
+  formatCurrency,
   calculateModelMetrics,
   calculateGlobalCostSummary,
   getRankMedal,
@@ -74,12 +75,6 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
       calculateConversationBreakdownCoverage(globalSummary.provider_distribution),
     [globalSummary.provider_distribution]
   );
-
-  const formatCurrency = (value: number): string =>
-    `$${value.toLocaleString(undefined, {
-      minimumFractionDigits: value >= 100 ? 0 : 2,
-      maximumFractionDigits: value >= 100 ? 0 : 2,
-    })}`;
 
   const lastUpdated = useMemo(() => {
     const raw = globalSummary.date_range.last_message;

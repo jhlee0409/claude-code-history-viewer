@@ -63,9 +63,14 @@ export const createGlobalStatsSlice: StateCreator<
     set({ isLoadingGlobalStats: true });
     get().setError(null);
 
-    // Convert dateFilter to RFC3339 strings for the backend
+    // Convert dateFilter to RFC3339 strings for the backend.
+    // Ensure endDate includes the full local day for parity with other stats slices.
     const startDate = dateFilter.start?.toISOString();
-    const endDate = dateFilter.end?.toISOString();
+    const endDateObj = dateFilter.end ? new Date(dateFilter.end) : null;
+    if (endDateObj) {
+      endDateObj.setHours(23, 59, 59, 999);
+    }
+    const endDate = endDateObj?.toISOString();
 
     try {
       // Provider scope intentionally follows ProjectTree provider tabs (activeProviders).
@@ -73,34 +78,36 @@ export const createGlobalStatsSlice: StateCreator<
       const canLoadConversationSummary = hasAnyConversationBreakdownProvider(
         activeProviders
       );
-      const summary = await fetchGlobalStatsSummary(
-        claudePath,
-        activeProviders,
-        "billing_total",
-        startDate,
-        endDate,
-      );
-      const conversationSummary = canLoadConversationSummary
-        ? await fetchGlobalStatsSummary(
-            claudePath,
-            activeProviders,
-            "conversation_only",
-            startDate,
-            endDate,
-          ).catch((error) => {
-            console.warn(
-              "Failed to load conversation-only global stats, falling back to billing total:",
-              error
-            );
-            return null;
-          })
-        : null;
+      const [summary, conversationSummary] = await Promise.all([
+        fetchGlobalStatsSummary(
+          claudePath,
+          activeProviders,
+          "billing_total",
+          startDate,
+          endDate,
+        ),
+        canLoadConversationSummary
+          ? fetchGlobalStatsSummary(
+              claudePath,
+              activeProviders,
+              "conversation_only",
+              startDate,
+              endDate,
+            ).catch((error) => {
+              console.warn(
+                "Failed to load conversation-only global stats:",
+                error
+              );
+              return null;
+            })
+          : Promise.resolve(null),
+      ]);
       if (requestId !== getRequestId("globalStats")) {
         return;
       }
       set({
         globalSummary: summary,
-        globalConversationSummary: conversationSummary ?? summary,
+        globalConversationSummary: conversationSummary,
       });
     } catch (error) {
       if (requestId !== getRequestId("globalStats")) {

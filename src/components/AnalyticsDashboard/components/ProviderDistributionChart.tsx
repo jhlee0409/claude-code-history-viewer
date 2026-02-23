@@ -35,8 +35,8 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
   return (
     <div className="space-y-2">
       {sortedProviders.map((provider) => {
-        const providerId = getProviderId(provider.provider_id);
-        const color = PROVIDER_COLORS[providerId] ?? "var(--metric-purple)";
+        const normalizedId = getProviderId(provider.provider_id);
+        const color = PROVIDER_COLORS[normalizedId] ?? "var(--metric-purple)";
         const percentage = totalTokens > 0 ? (provider.tokens / totalTokens) * 100 : 0;
         const barWidth = (provider.tokens / maxTokens) * 100;
 
@@ -52,7 +52,7 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline justify-between mb-1">
                 <span className="text-[11px] font-medium text-foreground/90 truncate pr-2">
-                  {getProviderLabel((key, fallback) => t(key, fallback), providerId)}
+                  {getProviderLabel((key, fallback) => t(key, fallback), provider.provider_id)}
                 </span>
                 <span className="font-mono text-[11px] font-semibold tabular-nums shrink-0 text-foreground">
                   {provider.tokens.toLocaleString()}
