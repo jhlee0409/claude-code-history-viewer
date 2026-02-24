@@ -110,7 +110,9 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           label={t("analytics.totalTokens")}
           value={formatNumber(globalSummary.total_tokens)}
           subValue={
-            `${t("analytics.estimatedCost", "Estimated Cost")}: ${formatCurrency(totalEstimatedCost)}`
+            t("analytics.estimatedCostValue", "Estimated Cost: {{cost}}", {
+              cost: formatCurrency(totalEstimatedCost),
+            })
           }
           colorVariant="blue"
         />

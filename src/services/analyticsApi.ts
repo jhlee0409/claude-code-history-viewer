@@ -92,8 +92,13 @@ export async function fetchProjectTokenStats(
   projectPath: string,
   options: FetchProjectTokenStatsOptions
 ): Promise<PaginatedTokenStats> {
-  const { offset = 0, limit = DEFAULT_PAGE_SIZE, start_date, end_date } = options;
-  const { stats_mode } = options;
+  const {
+    offset = 0,
+    limit = DEFAULT_PAGE_SIZE,
+    start_date,
+    end_date,
+    stats_mode,
+  } = options;
   const key = `projectTokenStats:${projectPath}:${offset}:${limit}:${start_date ?? ""}:${end_date ?? ""}:${stats_mode}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
@@ -234,8 +239,8 @@ export async function fetchRecentEdits(
  */
 export async function fetchGlobalStatsSummary(
   claudePath: string,
-  activeProviders?: ProviderId[],
   statsMode: StatsMode = "billing_total",
+  activeProviders?: ProviderId[],
   startDate?: string,
   endDate?: string,
 ): Promise<GlobalStatsSummary> {
@@ -252,8 +257,8 @@ export async function fetchGlobalStatsSummary(
       claudePath,
       activeProviders: normalizedProviders.length > 0 ? normalizedProviders : undefined,
       statsMode,
-      startDate: startDate ?? undefined,
-      endDate: endDate ?? undefined,
+      startDate,
+      endDate,
     });
 
     if (import.meta.env.DEV) {

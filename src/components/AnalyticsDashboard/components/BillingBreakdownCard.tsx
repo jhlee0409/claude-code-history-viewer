@@ -22,7 +22,7 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
   className,
 }) => {
   const { t } = useTranslation();
-  const hasConversationTokenData = conversationTokens !== null;
+  const hasConversationTokenData = conversationTokens != null;
   const conversationTokenValue = conversationTokens ?? 0;
   const nonConversationTokenValue = Math.max(0, billingTokens - conversationTokenValue);
   const conversationTokenRatio =
@@ -30,9 +30,9 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
   const nonConversationTokenRatio =
     billingTokens > 0 ? (nonConversationTokenValue / billingTokens) * 100 : 0;
 
-  const hasCostData = billingCost !== null;
+  const hasCostData = billingCost != null;
   const safeBillingCost = billingCost ?? 0;
-  const hasConversationCostData = conversationCost !== null;
+  const hasConversationCostData = conversationCost != null;
   const conversationCostValue = conversationCost ?? 0;
   const nonConversationCostValue = Math.max(0, safeBillingCost - conversationCostValue);
 
@@ -84,16 +84,22 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
                 {formatCurrency(safeBillingCost)}
               </p>
             )}
-            <p className="text-[10px] text-muted-foreground">100%</p>
+            <p className="text-[10px] text-muted-foreground">
+              {t("analytics.oneHundredPercent", "100%")}
+            </p>
           </div>
           <div className="p-3 rounded-lg bg-muted/30">
             <p className="text-[11px] text-muted-foreground">{t("analytics.conversationOnly", "Conversation Only")}</p>
             <p className="font-mono text-[14px] font-semibold text-foreground">
-              {hasConversationTokenData ? formatNumber(conversationTokenValue) : "—"}
+              {hasConversationTokenData
+                ? formatNumber(conversationTokenValue)
+                : t("common.dash", "—")}
             </p>
             {hasCostData && (
               <p className="font-mono text-[11px] text-muted-foreground">
-                {hasConversationCostData ? formatCurrency(conversationCostValue) : "—"}
+                {hasConversationCostData
+                  ? formatCurrency(conversationCostValue)
+                  : t("common.dash", "—")}
               </p>
             )}
             <p className="text-[10px] text-muted-foreground">
@@ -105,11 +111,15 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
           <div className="p-3 rounded-lg bg-muted/30">
             <p className="text-[11px] text-muted-foreground">{t("analytics.nonConversation", "Non-conversation")}</p>
             <p className="font-mono text-[14px] font-semibold text-foreground">
-              {hasConversationTokenData ? formatNumber(nonConversationTokenValue) : "—"}
+              {hasConversationTokenData
+                ? formatNumber(nonConversationTokenValue)
+                : t("common.dash", "—")}
             </p>
             {hasCostData && (
               <p className="font-mono text-[11px] text-muted-foreground">
-                {hasConversationCostData ? formatCurrency(nonConversationCostValue) : "—"}
+                {hasConversationCostData
+                  ? formatCurrency(nonConversationCostValue)
+                  : t("common.dash", "—")}
               </p>
             )}
             <p className="text-[10px] text-muted-foreground">

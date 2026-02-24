@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { LoadingState } from "./ui/loading";
 import { SessionStatsCard } from "./SessionStatsCard";
+import { DatePickerHeader } from "./ui/DatePickerHeader";
 import { BillingBreakdownCard } from "./AnalyticsDashboard/components/BillingBreakdownCard";
 import { supportsConversationBreakdown } from "../utils/providers";
 import { useAppStore } from "../store/useAppStore";
@@ -74,8 +75,6 @@ interface TokenStatsViewerProps {
   providerId?: ProviderId;
 }
 
-import { DatePickerHeader } from "./ui/DatePickerHeader";
-
 export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   sessionStats,
   sessionConversationStats,
@@ -96,8 +95,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   const sessions = useAppStore((state) => state.sessions);
   const sessionMetadata = useAppStore((state) => state.userMetadata.sessions);
   const showProviderLimitHelp = !supportsConversationBreakdown(providerId);
-  const hasSessionConversationData =
-    sessionConversationStats !== null && sessionConversationStats !== undefined;
+  const hasSessionConversationData = sessionConversationStats != null;
   const sessionDisplayById = useMemo(() => {
     const byId = new Map<string, string | undefined>();
     for (const session of sessions) {
@@ -186,8 +184,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
           }
         );
     const hasProjectConversationData =
-      projectConversationStatsSummary !== null &&
-      projectConversationStatsSummary !== undefined
+      projectConversationStatsSummary != null
         ? true
         : projectConversationStats.length > 0;
     const conversationTotalTokens = projectConversationStatsSummary

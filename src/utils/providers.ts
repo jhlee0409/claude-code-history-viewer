@@ -72,7 +72,7 @@ export function getProviderLabel(
 export function supportsConversationBreakdown(
   provider?: ProviderId | string
 ): boolean {
-  if (!provider || !PROVIDER_IDS.includes(provider as ProviderId)) {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
     return false;
   }
   return PROVIDER_ANALYTICS_CAPABILITIES[provider as ProviderId]
@@ -108,8 +108,10 @@ export function calculateConversationBreakdownCoverage(
     }
   }
 
+  // Align with chart math: when there are no tokens, show 0% coverage (no data)
+  // instead of treating it as vacuous 100%.
   const coveragePercent =
-    totalTokens > 0 ? (coveredTokens / totalTokens) * 100 : 100;
+    totalTokens > 0 ? (coveredTokens / totalTokens) * 100 : 0;
 
   return {
     totalTokens,

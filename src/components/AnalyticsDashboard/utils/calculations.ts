@@ -67,7 +67,7 @@ const findModelPricing = (modelName: string): ModelPricing | null => {
 };
 
 export const hasExplicitModelPricing = (modelName: string): boolean =>
-  findModelPricing(modelName) !== null;
+  findModelPricing(modelName) != null;
 
 /**
  * Calculate Claude API pricing for a model

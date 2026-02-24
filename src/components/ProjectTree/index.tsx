@@ -410,6 +410,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
               isViewingGlobalStats ? "bg-accent/20 text-accent" : "text-muted-foreground hover:bg-accent/10 hover:text-accent"
             )}
+            aria-label={t("project.globalStats")}
             title={t("project.globalStats")}
           >
             <Database className="w-4 h-4" />

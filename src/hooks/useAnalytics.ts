@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../store/useAppStore";
 import type { UseAnalyticsReturn } from "../types/analytics";
-import type { MetricMode, StatsMode } from "../types";
+import { AppErrorType, type MetricMode, type StatsMode } from "../types";
 
 export const useAnalytics = (): UseAnalyticsReturn => {
   const { t } = useTranslation();
@@ -384,6 +384,22 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : t("common.hooks.projectSummaryLoadFailed");
+        if (currentView === "analytics") {
+          setAnalyticsProjectSummaryError(errorMessage);
+          if (session != null) {
+            setAnalyticsSessionComparisonError(errorMessage);
+          }
+          return;
+        }
+
+        if (currentView === "tokenStats") {
+          useAppStore.getState().setError({
+            type: AppErrorType.UNKNOWN,
+            message: errorMessage,
+          });
+          return;
+        }
+
         setAnalyticsProjectSummaryError(errorMessage);
       }
     },

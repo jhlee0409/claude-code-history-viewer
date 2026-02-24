@@ -27,11 +27,51 @@ export const generateTrendData = (
   if (maxDays <= 0) return [];
 
   const formatUtcDate = (date: Date): string => date.toISOString().slice(0, 10);
+  const fallbackYear = new Date().getUTCFullYear();
+
+  const parseDailyDate = (value: string): Date | null => {
+    const parts = value.split("-");
+    const parsePart = (part: string | undefined, fallback: number): number | null => {
+      if (part == null || part.trim() === "") {
+        return fallback;
+      }
+      const parsed = Number(part);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const year = parsePart(parts[0], fallbackYear);
+    const month = parsePart(parts[1], 1);
+    const day = parsePart(parts[2], 1);
+
+    if (year == null || month == null || day == null) {
+      return null;
+    }
+
+    if (year <= 1970 || month < 1 || month > 12 || day < 1 || day > 31) {
+      return null;
+    }
+
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    if (
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month - 1 ||
+      parsed.getUTCDate() !== day
+    ) {
+      return null;
+    }
+
+    return parsed;
+  };
 
   const statsByDate = new Map<string, DailyStatData>();
   (dailyStats ?? []).forEach((stat) => {
-    statsByDate.set(stat.date, {
-      date: stat.date,
+    const parsedDate = parseDailyDate(stat.date);
+    if (parsedDate == null) {
+      throw new Error(`Invalid daily_stats date: ${stat.date}`);
+    }
+    const dateKey = formatUtcDate(parsedDate);
+    statsByDate.set(dateKey, {
+      date: dateKey,
       total_tokens: stat.total_tokens || 0,
       message_count: stat.message_count || 0,
       session_count: stat.session_count || 0,
@@ -49,17 +89,15 @@ export const generateTrendData = (
   if (sortedDates.length > 0) {
     const firstDateStr = sortedDates[0]!;
     const lastDateStr = sortedDates[sortedDates.length - 1]!;
-    // Parse YYYY-MM-DD as UTC
-    const firstParts = firstDateStr.split("-").map(Number);
-    const lastParts = lastDateStr.split("-").map(Number);
-    const fy = firstParts[0] ?? 2026;
-    const fm = firstParts[1] ?? 1;
-    const fd = firstParts[2] ?? 1;
-    const ly = lastParts[0] ?? 2026;
-    const lm = lastParts[1] ?? 1;
-    const ld = lastParts[2] ?? 1;
-    startDate = new Date(Date.UTC(fy, fm - 1, fd));
-    endDate = new Date(Date.UTC(ly, lm - 1, ld));
+    const firstDate = parseDailyDate(firstDateStr);
+    const lastDate = parseDailyDate(lastDateStr);
+    if (firstDate == null || lastDate == null) {
+      throw new Error(
+        `Invalid daily_stats range: first=${firstDateStr}, last=${lastDateStr}`
+      );
+    }
+    startDate = firstDate;
+    endDate = lastDate;
   } else {
     endDate = new Date();
     endDate.setUTCHours(0, 0, 0, 0);

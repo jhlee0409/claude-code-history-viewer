@@ -84,4 +84,22 @@ describe("projectCalculations.generateTrendData", () => {
     expect(result.find((d) => d.date === utcDateDaysAgo(1))?.total_tokens).toBe(0);
     expect(result.find((d) => d.date === utcDateDaysAgo(5))?.total_tokens).toBe(0);
   });
+
+  it("throws a clear error for malformed backend dates", () => {
+    const malformed: DailyStats[] = [
+      {
+        date: "bad-date",
+        total_tokens: 100,
+        input_tokens: 50,
+        output_tokens: 50,
+        message_count: 2,
+        session_count: 1,
+        active_hours: 1,
+      },
+    ];
+
+    expect(() => generateTrendData(malformed)).toThrow(
+      "Invalid daily_stats date: bad-date"
+    );
+  });
 });

@@ -428,23 +428,28 @@ fn bench_get_project_stats_summary(c: &mut Criterion) {
         let project_path = base_path.join("projects").join("test-project");
         let path_str = project_path.to_string_lossy().to_string();
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(session_count),
-            session_count,
-            |b, _| {
+        for (mode_label, mode_value) in [
+            ("default", None),
+            ("billing_total", Some("billing_total")),
+            ("conversation_only", Some("conversation_only")),
+        ] {
+            let mode = mode_value.map(str::to_string);
+            let bench_id = format!("{session_count}_{mode_label}");
+            group.bench_with_input(BenchmarkId::new("sessions_mode", bench_id), session_count, |b, _| {
+                let mode = mode.clone();
                 b.iter(|| {
                     rt.block_on(async {
                         claude_code_history_viewer_lib::commands::stats::get_project_stats_summary(
                             black_box(path_str.clone()),
                             black_box(None),
                             black_box(None),
-                            black_box(None),
+                            black_box(mode.clone()),
                         )
                         .await
                     })
                 });
-            },
-        );
+            });
+        }
     }
 
     group.finish();
@@ -499,24 +504,29 @@ fn bench_get_global_stats_summary(c: &mut Criterion) {
 
         let path_str = temp_dir.path().to_string_lossy().to_string();
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(project_count),
-            project_count,
-            |b, _| {
+        for (mode_label, mode_value) in [
+            ("default", None),
+            ("billing_total", Some("billing_total")),
+            ("conversation_only", Some("conversation_only")),
+        ] {
+            let mode = mode_value.map(str::to_string);
+            let bench_id = format!("{project_count}_{mode_label}");
+            group.bench_with_input(BenchmarkId::new("projects_mode", bench_id), project_count, |b, _| {
+                let mode = mode.clone();
                 b.iter(|| {
                     rt.block_on(async {
                         claude_code_history_viewer_lib::commands::stats::get_global_stats_summary(
                             black_box(path_str.clone()),
-                            None,
-                            None,
-                            None,
-                            None,
+                            black_box(None),
+                            black_box(mode.clone()),
+                            black_box(None),
+                            black_box(None),
                         )
                         .await
                     })
                 });
-            },
-        );
+            });
+        }
     }
 
     group.finish();
@@ -533,19 +543,82 @@ fn bench_get_session_token_stats(c: &mut Criterion) {
         let path_str = file_path.to_string_lossy().to_string();
 
         group.throughput(Throughput::Elements(*size as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, _| {
-            b.iter(|| {
-                rt.block_on(async {
-                    claude_code_history_viewer_lib::commands::stats::get_session_token_stats(
-                        black_box(path_str.clone()),
-                        None,
-                        None,
-                        None,
-                    )
-                    .await
-                })
+        for (mode_label, mode_value) in [
+            ("default", None),
+            ("billing_total", Some("billing_total")),
+            ("conversation_only", Some("conversation_only")),
+        ] {
+            let mode = mode_value.map(str::to_string);
+            let bench_id = format!("{size}_{mode_label}");
+            group.bench_with_input(BenchmarkId::new("messages_mode", bench_id), size, |b, _| {
+                let mode = mode.clone();
+                b.iter(|| {
+                    rt.block_on(async {
+                        claude_code_history_viewer_lib::commands::stats::get_session_token_stats(
+                            black_box(path_str.clone()),
+                            black_box(None),
+                            black_box(None),
+                            black_box(mode.clone()),
+                        )
+                        .await
+                    })
+                });
             });
-        });
+        }
+    }
+
+    group.finish();
+}
+
+/// Benchmark: Get session comparison
+fn bench_get_session_comparison(c: &mut Criterion) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let mut group = c.benchmark_group("get_session_comparison");
+    group.sample_size(10);
+
+    for session_count in &[5, 10, 20] {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let base_path = generate_project_structure(&temp_dir, *session_count, 100);
+        let project_path = base_path.join("projects").join("test-project");
+        let project_path_str = project_path.to_string_lossy().to_string();
+        let session_file = project_path.join("session_0.jsonl");
+        let session_id = fs::read_to_string(&session_file)
+            .ok()
+            .and_then(|content| content.lines().next().map(str::to_string))
+            .and_then(|line| serde_json::from_str::<serde_json::Value>(&line).ok())
+            .and_then(|value| {
+                value
+                    .get("sessionId")
+                    .and_then(|id| id.as_str())
+                    .map(str::to_string)
+            })
+            .expect("Failed to extract session id from generated fixture");
+
+        for (mode_label, mode_value) in [
+            ("default", None),
+            ("billing_total", Some("billing_total")),
+            ("conversation_only", Some("conversation_only")),
+        ] {
+            let mode = mode_value.map(str::to_string);
+            let bench_id = format!("{session_count}_{mode_label}");
+            group.bench_with_input(BenchmarkId::new("sessions_mode", bench_id), session_count, |b, _| {
+                let mode = mode.clone();
+                let session_id = session_id.clone();
+                let project_path_str = project_path_str.clone();
+                b.iter(|| {
+                    rt.block_on(async {
+                        claude_code_history_viewer_lib::commands::stats::get_session_comparison(
+                            black_box(session_id.clone()),
+                            black_box(project_path_str.clone()),
+                            black_box(None),
+                            black_box(None),
+                            black_box(mode.clone()),
+                        )
+                        .await
+                    })
+                });
+            });
+        }
     }
 
     group.finish();
@@ -631,6 +704,7 @@ criterion_group!(
     bench_get_project_stats_summary,
     bench_get_global_stats_summary,
     bench_get_session_token_stats,
+    bench_get_session_comparison,
     bench_get_project_token_stats,
     bench_get_recent_edits,
 );

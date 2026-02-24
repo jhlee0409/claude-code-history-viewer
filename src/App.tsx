@@ -561,7 +561,7 @@ function App() {
         {/* Status Bar */}
         <footer className="h-7 px-4 flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground">
           <div className="flex items-center gap-3 font-mono tabular-nums">
-            <span>{`v${appVersion}`}</span>
+            <span>{t("status.versionLabel", "v{{version}}", { version: appVersion })}</span>
             <span className="text-border">•</span>
             <span>{t("project.count", { count: projects.length })}</span>
             <span className="text-border">•</span>

@@ -5,6 +5,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import type {
   ClaudeMessage,
   ClaudeSession,
@@ -31,6 +32,7 @@ import {
 } from "../../utils/pagination";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { supportsConversationBreakdown } from "../../utils/providers";
+import { normalizeDateFilterOptions } from "../../utils/date";
 
 // ============================================================================
 // State Interface
@@ -269,16 +271,7 @@ export const createMessageSlice: StateCreator<
             await get().loadSessionTokenStats(selectedSession.file_path);
           }
         } else if (analytics.currentView === "analytics") {
-          const { dateFilter } = get();
-          const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-          if (endDate) {
-            endDate.setHours(23, 59, 59, 999);
-          }
-
-          const dateOptions = {
-            start_date: dateFilter.start?.toISOString(),
-            end_date: endDate?.toISOString(),
-          };
+          const dateOptions = normalizeDateFilterOptions(get().dateFilter);
 
           const projectSummary = await fetchProjectStatsSummary(
             selectedProject.path,
@@ -322,31 +315,19 @@ export const createMessageSlice: StateCreator<
     const loadingEpoch = beginTokenStatsLoading();
     try {
       get().setError(null);
-      const { dateFilter } = get();
-      const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-      if (endDate) {
-        endDate.setHours(23, 59, 59, 999);
-      }
-
-      const dateOptions = {
-        start_date: dateFilter.start?.toISOString(),
-        end_date: endDate?.toISOString(),
-      };
-
-      const stats = await fetchSessionTokenStats(
-        sessionPath,
-        "billing_total",
-        dateOptions
-      );
-      const conversationStats = canLoadConversationBreakdown()
-        ? await fetchSessionTokenStats(
-            sessionPath,
-            "conversation_only",
-            dateOptions
-          ).catch(
-            () => null
-          )
-        : stats;
+      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+      const breakdown = canLoadConversationBreakdown();
+      const [stats, conversationStatsRaw] = await Promise.all([
+        fetchSessionTokenStats(sessionPath, "billing_total", dateOptions),
+        breakdown
+          ? fetchSessionTokenStats(
+              sessionPath,
+              "conversation_only",
+              dateOptions
+            ).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const conversationStats = breakdown ? conversationStatsRaw : stats;
       if (requestId !== getRequestId("sessionTokenStats")) return;
       set({ sessionTokenStats: stats, sessionConversationTokenStats: conversationStats });
     } catch (error) {
@@ -377,18 +358,7 @@ export const createMessageSlice: StateCreator<
       });
       get().setError(null);
 
-      const { dateFilter } = get();
-
-      // Ensure end date includes the full day
-      const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-      if (endDate) {
-        endDate.setHours(23, 59, 59, 999);
-      }
-
-      const dateOptions = {
-        start_date: dateFilter.start?.toISOString(),
-        end_date: endDate?.toISOString(),
-      };
+      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
       const breakdown = canLoadConversationBreakdown();
 
       const [
@@ -428,15 +398,19 @@ export const createMessageSlice: StateCreator<
             }).catch(() => null)
           : Promise.resolve(null),
       ]);
-      const conversationResponse = conversationResponseRaw ?? billingResponse;
-      const conversationSummary = conversationSummaryRaw ?? billingSummary;
+      const conversationResponse = breakdown
+        ? conversationResponseRaw
+        : billingResponse;
+      const conversationSummary = breakdown
+        ? conversationSummaryRaw
+        : billingSummary;
 
       if (requestId !== getRequestId("projectTokenStats")) return;
       set({
         projectTokenStats: billingResponse.items,
         projectConversationTokenStats: conversationResponse?.items ?? [],
         projectTokenStatsSummary: billingSummary,
-        projectConversationTokenStatsSummary: conversationSummary ?? billingSummary,
+        projectConversationTokenStatsSummary: conversationSummary,
         projectTokenStatsPagination: {
           totalCount: billingResponse.total_count,
           offset: billingResponse.offset,
@@ -482,30 +456,28 @@ export const createMessageSlice: StateCreator<
       });
 
       const nextOffset = getNextOffset(projectTokenStatsPagination);
-      const { dateFilter } = get();
-
-      // Ensure end date includes the full day
-      const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-      if (endDate) {
-        endDate.setHours(23, 59, 59, 999);
-      }
-
-      const billingResponse = await fetchProjectTokenStats(projectPath, {
-        offset: nextOffset,
-        limit: TOKENS_STATS_PAGE_SIZE,
-        start_date: dateFilter.start?.toISOString(),
-        end_date: endDate?.toISOString(),
-        stats_mode: "billing_total",
-      });
-      const conversationResponse = canLoadConversationBreakdown()
-        ? await fetchProjectTokenStats(projectPath, {
-            offset: nextOffset,
-            limit: TOKENS_STATS_PAGE_SIZE,
-            start_date: dateFilter.start?.toISOString(),
-            end_date: endDate?.toISOString(),
-            stats_mode: "conversation_only",
-          }).catch(() => null)
-        : billingResponse;
+      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+      const breakdown = canLoadConversationBreakdown();
+      const [billingResponse, conversationResponseRaw] = await Promise.all([
+        fetchProjectTokenStats(projectPath, {
+          offset: nextOffset,
+          limit: TOKENS_STATS_PAGE_SIZE,
+          ...dateOptions,
+          stats_mode: "billing_total",
+        }),
+        breakdown
+          ? fetchProjectTokenStats(projectPath, {
+              offset: nextOffset,
+              limit: TOKENS_STATS_PAGE_SIZE,
+              ...dateOptions,
+              stats_mode: "conversation_only",
+            }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const conversationResponse =
+        breakdown && conversationResponseRaw == null
+          ? billingResponse
+          : (conversationResponseRaw ?? billingResponse);
 
       if (snapshotId !== getRequestId("projectTokenStats")) return;
       set({
@@ -536,23 +508,15 @@ export const createMessageSlice: StateCreator<
 
   loadProjectStatsSummary: async (projectPath: string) => {
     try {
-      const { dateFilter } = get();
-
-      // Ensure end date includes the full day
-      const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-      if (endDate) {
-        endDate.setHours(23, 59, 59, 999);
-      }
+      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
 
       const billing = await fetchProjectStatsSummary(projectPath, {
-        start_date: dateFilter.start?.toISOString(),
-        end_date: endDate?.toISOString(),
+        ...dateOptions,
         stats_mode: "billing_total",
       });
       const conversation = canLoadConversationBreakdown()
         ? await fetchProjectStatsSummary(projectPath, {
-            start_date: dateFilter.start?.toISOString(),
-            end_date: endDate?.toISOString(),
+            ...dateOptions,
             stats_mode: "conversation_only",
           })
         : billing;
@@ -566,16 +530,21 @@ export const createMessageSlice: StateCreator<
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {
-    const { dateFilter } = get();
-    const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-    if (endDate) {
-      endDate.setHours(23, 59, 59, 999);
+    const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+    try {
+      return await fetchSessionComparison(
+        sessionId,
+        projectPath,
+        "billing_total",
+        dateOptions
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+      console.error("Failed to load session comparison:", error);
+      toast.error(`Failed to load session comparison: ${message}`);
+      throw error;
     }
-
-    return fetchSessionComparison(sessionId, projectPath, "billing_total", {
-      start_date: dateFilter.start?.toISOString(),
-      end_date: endDate?.toISOString(),
-    });
   },
 
   clearTokenStats: () => {

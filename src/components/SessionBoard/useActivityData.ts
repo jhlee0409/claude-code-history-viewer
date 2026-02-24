@@ -49,7 +49,8 @@ function getLocalizedMonthNames(): string[] {
 /**
  * Compute the end-of-range timestamp (ms) for a date filter.
  * If `end` is at local midnight, it is treated as a date-only value
- * and the full day is included (+24h). Otherwise 1ms is added for
+ * and the full day is included by advancing one local calendar day.
+ * Otherwise 1ms is added for
  * inclusive comparison.
  */
 export function getFilterEndMs(end: Date): number {
@@ -59,7 +60,9 @@ export function getFilterEndMs(end: Date): number {
     end.getSeconds() === 0 &&
     end.getMilliseconds() === 0
   ) {
-    return end.getTime() + 24 * 60 * 60 * 1000;
+    const nextDay = new Date(end);
+    nextDay.setDate(nextDay.getDate() + 1);
+    return nextDay.getTime();
   }
   return end.getTime() + 1;
 }

@@ -15,6 +15,7 @@ import type {
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
 import { initialAnalyticsState } from "../../types/analytics";
 import type { StateCreator } from "zustand";
+import { toast } from "sonner";
 import type { FullAppStore } from "./types";
 import { fetchRecentEdits } from "../../services/analyticsApi";
 import { canLoadMore, getNextOffset } from "../../utils/pagination";
@@ -256,10 +257,13 @@ export const createAnalyticsSlice: StateCreator<
         },
       }));
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       console.error("Failed to load more recent edits:", error);
+      toast.error(`Failed to load more edits: ${message}`);
       set((state) => ({
         analytics: {
           ...state.analytics,
+          recentEditsError: `Failed to load more edits: ${message}`,
           recentEditsPagination: {
             ...state.analytics.recentEditsPagination,
             isLoadingMore: false,

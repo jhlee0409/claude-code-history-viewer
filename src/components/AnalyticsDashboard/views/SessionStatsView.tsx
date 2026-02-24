@@ -97,7 +97,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
               </div>
               <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                {formatNumber(sessionStats.total_tokens)} tokens
+                {formatNumber(sessionStats.total_tokens)} {t("analytics.tokens")}
               </div>
             </div>
 

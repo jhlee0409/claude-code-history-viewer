@@ -116,8 +116,8 @@ describe("globalStatsSlice", () => {
     expect(mockFetchGlobalStatsSummary).toHaveBeenCalledTimes(1);
     expect(mockFetchGlobalStatsSummary).toHaveBeenCalledWith(
       "/tmp/claude",
-      ["codex"],
       "billing_total",
+      ["codex"],
       undefined,
       undefined,
     );
@@ -161,16 +161,16 @@ describe("globalStatsSlice", () => {
     expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
       1,
       "/tmp/claude",
-      ["claude"],
       "billing_total",
+      ["claude"],
       start.toISOString(),
       expectedEnd.toISOString(),
     );
     expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
       2,
       "/tmp/claude",
-      ["claude"],
       "conversation_only",
+      ["claude"],
       start.toISOString(),
       expectedEnd.toISOString(),
     );

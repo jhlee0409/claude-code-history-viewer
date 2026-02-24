@@ -99,7 +99,7 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
 
       <BillingBreakdownCard
         billingTokens={billingTokens}
-        conversationTokens={conversationSummary !== null ? conversationSummary.total_tokens : null}
+        conversationTokens={conversationSummary != null ? conversationSummary.total_tokens : null}
         showProviderLimitHelp={!supportsConversationBreakdown(providerId)}
       />
 

@@ -38,7 +38,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const projectConversationSummary = analyticsState.projectConversationSummary;
   const sessionComparison = analyticsState.sessionComparison;
   const sessionStats = sessionTokenStats;
-  const hasSessionData = selectedSession && sessionStats && sessionComparison;
+  const hasSessionData =
+    selectedSession != null && sessionStats != null && sessionComparison != null;
 
   useEffect(() => {
     setActiveTab("project");

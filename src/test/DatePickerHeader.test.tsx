@@ -1,13 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import { DatePickerHeader } from "../components/ui/DatePickerHeader";
-
-const toLocalDateString = (date: Date): string => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
+import { toLocalDateString } from "./utils/dateFormatters";
 
 describe("DatePickerHeader", () => {
   it("keeps start and end aligned when end is set before start", () => {

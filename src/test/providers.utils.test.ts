@@ -66,4 +66,16 @@ describe("providers utils", () => {
     expect(coverage.coveragePercent).toBe(70);
     expect(coverage.hasLimitedProviders).toBe(true);
   });
+
+  it("returns 0% coverage when there are no tokens", () => {
+    const coverage = calculateConversationBreakdownCoverage([
+      { provider_id: "claude", tokens: 0 },
+      { provider_id: "codex", tokens: 0 },
+    ]);
+
+    expect(coverage.totalTokens).toBe(0);
+    expect(coverage.coveredTokens).toBe(0);
+    expect(coverage.coveragePercent).toBe(0);
+    expect(coverage.hasLimitedProviders).toBe(false);
+  });
 });
