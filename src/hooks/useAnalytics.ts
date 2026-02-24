@@ -726,9 +726,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
               setAnalyticsSessionComparison(null);
               setAnalyticsSessionComparisonError(message);
             } finally {
-              if (!isStaleRequest()) {
-                setAnalyticsLoadingSessionComparison(false);
-              }
+              setAnalyticsLoadingSessionComparison(false);
             }
           } else {
             setAnalyticsSessionComparison(null);

@@ -93,7 +93,7 @@
   "analytics.successRate": "成功率 {{percent}}%",
   "analytics.today": "今天",
   "analytics.tokenAnalysis": "令牌使用分析",
-  "analytics.tokenDistribution": "令牌类型分布",
+  "analytics.tokenDistribution": "令牌分布",
   "analytics.tokenDistributionByType": "按类型的令牌分布",
   "analytics.tokenRank": "令牌排名",
   "analytics.tokenTypeDistribution": "令牌类型分布",

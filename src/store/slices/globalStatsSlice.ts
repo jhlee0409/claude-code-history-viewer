@@ -97,6 +97,9 @@ export const createGlobalStatsSlice: StateCreator<
               startDate,
               endDate,
             ).catch((error) => {
+              if (requestId !== getRequestId("globalStats")) {
+                return null;
+              }
               console.warn(
                 "Failed to load conversation-only global stats:",
                 error

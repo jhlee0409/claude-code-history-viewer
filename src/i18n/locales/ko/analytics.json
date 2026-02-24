@@ -93,7 +93,7 @@
   "analytics.successRate": "성공률 {{percent}}%",
   "analytics.today": "오늘",
   "analytics.tokenAnalysis": "토큰 사용 분석",
-  "analytics.tokenDistribution": "토큰 유형별 분포",
+  "analytics.tokenDistribution": "토큰 분포",
   "analytics.tokenDistributionByType": "토큰 유형별 분포",
   "analytics.tokenRank": "토큰 순위",
   "analytics.tokenTypeDistribution": "토큰 유형별 분포",

@@ -474,10 +474,9 @@ export const createMessageSlice: StateCreator<
             }).catch(() => null)
           : Promise.resolve(null),
       ]);
-      const conversationResponse =
-        breakdown && conversationResponseRaw == null
-          ? billingResponse
-          : (conversationResponseRaw ?? billingResponse);
+      const conversationResponse = breakdown
+        ? conversationResponseRaw
+        : billingResponse;
 
       if (snapshotId !== getRequestId("projectTokenStats")) return;
       set({
