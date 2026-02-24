@@ -28,6 +28,41 @@ function warn(msg) {
   console.warn(`⚠️  ${msg}`);
 }
 
+const INTENTIONAL_UNTRANSLATED_KEY_PATTERNS = [
+  /^common\.appName$/,
+  /^common\.provider\.(claude|codex|opencode)$/,
+  /^error\.copyTemplate\.separator$/,
+  /^messageViewer\.(codex|opencode)$/,
+  /^progressRenderer\.types\.bash$/,
+  /^rendererLabels\.glob$/,
+  /^terminalExecutionResultRenderer\.(stderr|stdout)$/,
+  /^settingsManager\.mcp\.(argsPlaceholder|serverNamePlaceholder)$/,
+  /^settingsManager\.mcp\.source\.[^.]+\.file$/,
+  /^settingsManager\.mcp\.(sourceProjectMcp|sourceSettings|sourceUserMcp)$/,
+  /^settingsManager\.permissions\.directoryPlaceholder$/,
+  /^settingsManager\.presets\.badge\.mcpCount$/,
+  /^settingsManager\.scope\.(local|project|user)\.file$/,
+  /^settingsManager\.unified\.env\.keyPlaceholder$/,
+];
+
+function isIntentionallyUntranslated(key, value) {
+  if (
+    INTENTIONAL_UNTRANSLATED_KEY_PATTERNS.some((pattern) => pattern.test(key))
+  ) {
+    return true;
+  }
+
+  // CLI args, file paths, env vars, and command tokens are intentionally kept as-is.
+  if (
+    /^[A-Z0-9_]+$/.test(value) ||
+    /(^~\/|\/|\\|\.json|\.jsonl|->|→)/.test(value)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 // 1. 중복 키 감지 (JSON.parse는 중복 키를 조용히 덮어쓰므로 직접 파싱)
 function findDuplicateKeys(filePath) {
   const content = readFileSync(filePath, "utf-8");
@@ -81,6 +116,7 @@ function findUntranslated(baseData, targetData) {
       baseData[key] === value &&
       typeof value === "string" &&
       value.length > 3 &&
+      !isIntentionallyUntranslated(key, value) &&
       // 고유명사/기술용어 제외
       !/^(Claude|GitHub|Tauri|JSON|MCP|JSONL|API|URL|ID|CSV|PDF|HTML|CSS|TypeScript|JavaScript|Rust|React|Vite|ESLint|Zustand)$/i.test(
         value

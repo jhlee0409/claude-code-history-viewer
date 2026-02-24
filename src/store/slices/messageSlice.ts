@@ -5,6 +5,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import type {
   ClaudeMessage,
   ClaudeSession,
@@ -30,6 +31,8 @@ import {
   getNextOffset,
 } from "../../utils/pagination";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
+import { supportsConversationBreakdown } from "../../utils/providers";
+import { normalizeDateFilterOptions } from "../../utils/date";
 
 // ============================================================================
 // State Interface
@@ -44,7 +47,11 @@ export interface MessageSliceState {
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;
   sessionTokenStats: SessionTokenStats | null;
+  sessionConversationTokenStats: SessionTokenStats | null;
   projectTokenStats: SessionTokenStats[];
+  projectConversationTokenStats: SessionTokenStats[];
+  projectTokenStatsSummary: ProjectStatsSummary | null;
+  projectConversationTokenStatsSummary: ProjectStatsSummary | null;
   projectTokenStatsPagination: ProjectTokenStatsPagination;
 }
 
@@ -87,7 +94,11 @@ const initialMessageState: MessageSliceState = {
   isLoadingMessages: false,
   isLoadingTokenStats: false,
   sessionTokenStats: null,
+  sessionConversationTokenStats: null,
   projectTokenStats: [],
+  projectConversationTokenStats: [],
+  projectTokenStatsSummary: null,
+  projectConversationTokenStatsSummary: null,
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
 };
 
@@ -127,6 +138,11 @@ export const createMessageSlice: StateCreator<
     tokenStatsLoadingEpoch += 1;
     tokenStatsInFlight = 0;
     set({ isLoadingTokenStats: false });
+  };
+
+  const canLoadConversationBreakdown = (): boolean => {
+    const provider = get().selectedProject?.provider ?? "claude";
+    return supportsConversationBreakdown(provider);
   };
 
   return {
@@ -255,13 +271,43 @@ export const createMessageSlice: StateCreator<
             await get().loadSessionTokenStats(selectedSession.file_path);
           }
         } else if (analytics.currentView === "analytics") {
-          const projectSummary = await fetchProjectStatsSummary(selectedProject.path);
+          const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+
+          const projectSummary = await fetchProjectStatsSummary(
+            selectedProject.path,
+            {
+              ...dateOptions,
+              stats_mode: "billing_total",
+            }
+          );
+          let projectConversationSummary = projectSummary;
+          if (canLoadConversationBreakdown()) {
+            projectConversationSummary = await fetchProjectStatsSummary(
+              selectedProject.path,
+              {
+                ...dateOptions,
+                stats_mode: "conversation_only",
+              }
+            ).catch((error) => {
+              console.warn(
+                "Failed to load conversation-only project summary:",
+                error
+              );
+              toast.warning(
+                "Conversation-only project summary could not be loaded. Showing billing totals only."
+              );
+              return projectSummary;
+            });
+          }
           get().setAnalyticsProjectSummary(projectSummary);
+          get().setAnalyticsProjectConversationSummary(projectConversationSummary);
 
           if (selectedSession) {
             const sessionComparison = await fetchSessionComparison(
               selectedSession.actual_session_id,
-              selectedProject.path
+              selectedProject.path,
+              "billing_total",
+              dateOptions
             );
             get().setAnalyticsSessionComparison(sessionComparison);
           }
@@ -273,6 +319,8 @@ export const createMessageSlice: StateCreator<
       console.log("새로고침 완료");
     } catch (error) {
       console.error("새로고침 실패:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`새로고침 실패: ${message}`);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
     }
   },
@@ -282,18 +330,43 @@ export const createMessageSlice: StateCreator<
     const loadingEpoch = beginTokenStatsLoading();
     try {
       get().setError(null);
-
-      const stats = await fetchSessionTokenStats(sessionPath);
+      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+      const breakdown = canLoadConversationBreakdown();
+      const [stats, conversationStatsRaw] = await Promise.all([
+        fetchSessionTokenStats(sessionPath, "billing_total", dateOptions),
+        breakdown
+          ? fetchSessionTokenStats(
+              sessionPath,
+              "conversation_only",
+              dateOptions
+            ).catch((error) => {
+              if (requestId !== getRequestId("sessionTokenStats")) {
+                return null;
+              }
+              console.warn(
+                "Failed to load conversation-only session stats:",
+                error
+              );
+              toast.warning(
+                "Conversation-only session stats could not be loaded. Showing billing totals only."
+              );
+              return null;
+            })
+          : Promise.resolve(null),
+      ]);
+      const conversationStats = breakdown ? conversationStatsRaw : stats;
       if (requestId !== getRequestId("sessionTokenStats")) return;
-      set({ sessionTokenStats: stats });
+      set({ sessionTokenStats: stats, sessionConversationTokenStats: conversationStats });
     } catch (error) {
       if (requestId !== getRequestId("sessionTokenStats")) return;
       console.error("Failed to load session token stats:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to load session token stats: ${message}`);
       get().setError({
         type: AppErrorType.UNKNOWN,
         message: `Failed to load token stats: ${error}`,
       });
-      set({ sessionTokenStats: null });
+      set({ sessionTokenStats: null, sessionConversationTokenStats: null });
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -305,35 +378,103 @@ export const createMessageSlice: StateCreator<
     try {
       set({
         projectTokenStats: [], // Reset on new project load
+        projectConversationTokenStats: [],
+        projectTokenStatsSummary: null,
+        projectConversationTokenStatsSummary: null,
         projectTokenStatsPagination: {
           ...initialMessageState.projectTokenStatsPagination,
         },
       });
       get().setError(null);
 
-      const { dateFilter } = get();
+      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+      const breakdown = canLoadConversationBreakdown();
 
-      // Ensure end date includes the full day
-      const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-      if (endDate) {
-        endDate.setHours(23, 59, 59, 999);
-      }
-
-      const response = await fetchProjectTokenStats(projectPath, {
-        offset: 0,
-        limit: TOKENS_STATS_PAGE_SIZE,
-        start_date: dateFilter.start?.toISOString(),
-        end_date: endDate?.toISOString(),
-      });
+      const [
+        billingResponse,
+        conversationResponseRaw,
+        billingSummary,
+        conversationSummaryRaw,
+      ] = await Promise.all([
+        fetchProjectTokenStats(projectPath, {
+          offset: 0,
+          limit: TOKENS_STATS_PAGE_SIZE,
+          ...dateOptions,
+          stats_mode: "billing_total",
+        }),
+        breakdown
+          ? fetchProjectTokenStats(projectPath, {
+              offset: 0,
+              limit: TOKENS_STATS_PAGE_SIZE,
+              ...dateOptions,
+              stats_mode: "conversation_only",
+            }).catch((error) => {
+              if (requestId !== getRequestId("projectTokenStats")) {
+                return null;
+              }
+              console.warn(
+                "Failed to load conversation-only project token stats:",
+                error
+              );
+              toast.warning(
+                "Conversation-only project stats could not be loaded. Showing billing totals only."
+              );
+              return null;
+            })
+          : Promise.resolve(null),
+        fetchProjectStatsSummary(projectPath, {
+          ...dateOptions,
+          stats_mode: "billing_total",
+        }).catch((error) => {
+          if (requestId !== getRequestId("projectTokenStats")) {
+            return null;
+          }
+          console.warn(
+            "Failed to load project token stats summary, falling back to loaded-page aggregate:",
+            error
+          );
+          toast.warning(
+            "Project stats summary could not be loaded. Showing page aggregate only."
+          );
+          return null;
+        }),
+        breakdown
+          ? fetchProjectStatsSummary(projectPath, {
+              ...dateOptions,
+              stats_mode: "conversation_only",
+            }).catch((error) => {
+              if (requestId !== getRequestId("projectTokenStats")) {
+                return null;
+              }
+              console.warn(
+                "Failed to load conversation-only project summary:",
+                error
+              );
+              toast.warning(
+                "Conversation-only project summary could not be loaded. Showing billing totals only."
+              );
+              return null;
+            })
+          : Promise.resolve(null),
+      ]);
+      const conversationResponse = breakdown
+        ? conversationResponseRaw
+        : billingResponse;
+      const conversationSummary = breakdown
+        ? conversationSummaryRaw
+        : billingSummary;
 
       if (requestId !== getRequestId("projectTokenStats")) return;
       set({
-        projectTokenStats: response.items,
+        projectTokenStats: billingResponse.items,
+        projectConversationTokenStats: conversationResponse?.items ?? [],
+        projectTokenStatsSummary: billingSummary,
+        projectConversationTokenStatsSummary: conversationSummary,
         projectTokenStatsPagination: {
-          totalCount: response.total_count,
-          offset: response.offset,
-          limit: response.limit,
-          hasMore: response.has_more,
+          totalCount: billingResponse.total_count,
+          offset: billingResponse.offset,
+          limit: billingResponse.limit,
+          hasMore: billingResponse.has_more,
           isLoadingMore: false,
         },
       });
@@ -344,14 +485,19 @@ export const createMessageSlice: StateCreator<
         type: AppErrorType.UNKNOWN,
         message: `Failed to load project token stats: ${error}`,
       });
-      set({ projectTokenStats: [] });
+      set({
+        projectTokenStats: [],
+        projectConversationTokenStats: [],
+        projectTokenStatsSummary: null,
+        projectConversationTokenStatsSummary: null,
+      });
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
   },
 
   loadMoreProjectTokenStats: async (projectPath: string) => {
-    const { projectTokenStatsPagination, projectTokenStats } = get();
+    const { projectTokenStatsPagination, projectTokenStats, projectConversationTokenStats } = get();
 
     if (!canLoadMore(projectTokenStatsPagination)) {
       return;
@@ -369,29 +515,52 @@ export const createMessageSlice: StateCreator<
       });
 
       const nextOffset = getNextOffset(projectTokenStatsPagination);
-      const { dateFilter } = get();
-
-      // Ensure end date includes the full day
-      const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-      if (endDate) {
-        endDate.setHours(23, 59, 59, 999);
-      }
-
-      const response = await fetchProjectTokenStats(projectPath, {
-        offset: nextOffset,
-        limit: TOKENS_STATS_PAGE_SIZE,
-        start_date: dateFilter.start?.toISOString(),
-        end_date: endDate?.toISOString(),
-      });
+      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+      const breakdown = canLoadConversationBreakdown();
+      const [billingResponse, conversationResponseRaw] = await Promise.all([
+        fetchProjectTokenStats(projectPath, {
+          offset: nextOffset,
+          limit: TOKENS_STATS_PAGE_SIZE,
+          ...dateOptions,
+          stats_mode: "billing_total",
+        }),
+        breakdown
+          ? fetchProjectTokenStats(projectPath, {
+              offset: nextOffset,
+              limit: TOKENS_STATS_PAGE_SIZE,
+              ...dateOptions,
+              stats_mode: "conversation_only",
+            }).catch((error) => {
+              if (snapshotId !== getRequestId("projectTokenStats")) {
+                return null;
+              }
+              console.warn(
+                "Failed to load conversation-only project stats page:",
+                error
+              );
+              toast.warning(
+                "Conversation-only project stats could not be loaded. Showing billing totals only."
+              );
+              return null;
+            })
+          : Promise.resolve(null),
+      ]);
+      const conversationResponse = breakdown
+        ? conversationResponseRaw
+        : billingResponse;
 
       if (snapshotId !== getRequestId("projectTokenStats")) return;
       set({
-        projectTokenStats: [...projectTokenStats, ...response.items],
+        projectTokenStats: [...projectTokenStats, ...billingResponse.items],
+        projectConversationTokenStats: [
+          ...projectConversationTokenStats,
+          ...(conversationResponse?.items ?? []),
+        ],
         projectTokenStatsPagination: {
-          totalCount: response.total_count,
-          offset: response.offset,
-          limit: response.limit,
-          hasMore: response.has_more,
+          totalCount: billingResponse.total_count,
+          offset: billingResponse.offset,
+          limit: billingResponse.limit,
+          hasMore: billingResponse.has_more,
           isLoadingMore: false,
         },
       });
@@ -409,28 +578,54 @@ export const createMessageSlice: StateCreator<
 
   loadProjectStatsSummary: async (projectPath: string) => {
     try {
-      const { dateFilter } = get();
+      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
 
-      // Ensure end date includes the full day
-      const endDate = dateFilter.end ? new Date(dateFilter.end) : null;
-      if (endDate) {
-        endDate.setHours(23, 59, 59, 999);
-      }
-
-      return await fetchProjectStatsSummary(projectPath, {
-        start_date: dateFilter.start?.toISOString(),
-        end_date: endDate?.toISOString(),
+      const billing = await fetchProjectStatsSummary(projectPath, {
+        ...dateOptions,
+        stats_mode: "billing_total",
       });
+      const conversation = canLoadConversationBreakdown()
+        ? await fetchProjectStatsSummary(projectPath, {
+            ...dateOptions,
+            stats_mode: "conversation_only",
+          }).catch((error) => {
+            console.warn(
+              "Failed to load conversation-only project summary:",
+              error
+            );
+            toast.warning(
+              "Conversation-only project summary could not be loaded. Showing billing totals only."
+            );
+            return billing;
+          })
+        : billing;
+      get().setAnalyticsProjectConversationSummary(conversation);
+      return billing;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       console.error("Failed to load project stats summary:", error);
+      toast.error(`Failed to load project stats summary: ${message}`);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
-      window.alert(`Failed to load project stats summary: ${String(error)}`);
       throw error;
     }
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {
-    return fetchSessionComparison(sessionId, projectPath);
+    const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+    try {
+      return await fetchSessionComparison(
+        sessionId,
+        projectPath,
+        "billing_total",
+        dateOptions
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+      console.error("Failed to load session comparison:", error);
+      toast.error(`Failed to load session comparison: ${message}`);
+      throw error;
+    }
   },
 
   clearTokenStats: () => {
@@ -440,7 +635,11 @@ export const createMessageSlice: StateCreator<
     resetTokenStatsLoading();
     set({
       sessionTokenStats: null,
+      sessionConversationTokenStats: null,
       projectTokenStats: [],
+      projectConversationTokenStats: [],
+      projectTokenStatsSummary: null,
+      projectConversationTokenStatsSummary: null,
       projectTokenStatsPagination: createInitialPaginationWithCount(
         TOKENS_STATS_PAGE_SIZE
       ),

@@ -39,11 +39,20 @@ export const DatePickerHeader = ({
         if (!y || !m || !d) return;
 
         const localDate = new Date(y, m - 1, d);
-
-        setDateFilter({
+        const nextFilter: DateFilter = {
             ...dateFilter,
             [type]: localDate
-        });
+        };
+
+        // Prevent invalid ranges: keep start <= end at all times.
+        if (type === 'start' && nextFilter.end && localDate > nextFilter.end) {
+            nextFilter.end = new Date(localDate);
+        }
+        if (type === 'end' && nextFilter.start && localDate < nextFilter.start) {
+            nextFilter.start = new Date(localDate);
+        }
+
+        setDateFilter(nextFilter);
     };
 
     const clearDateFilter = () => {
@@ -64,6 +73,7 @@ export const DatePickerHeader = ({
                     type="date"
                     className="bg-transparent text-[10px] font-mono text-foreground outline-none border-b border-transparent focus:border-accent w-24 dark:[color-scheme:dark]"
                     value={formatDateForInput(dateFilter.start)}
+                    max={formatDateForInput(dateFilter.end)}
                     onChange={(e) => handleDateChange('start', e.target.value)}
                 />
                 <span className="text-muted-foreground text-[10px]">-</span>
@@ -71,6 +81,7 @@ export const DatePickerHeader = ({
                     type="date"
                     className="bg-transparent text-[10px] font-mono text-foreground outline-none border-b border-transparent focus:border-accent w-24 dark:[color-scheme:dark]"
                     value={formatDateForInput(dateFilter.end)}
+                    min={formatDateForInput(dateFilter.start)}
                     onChange={(e) => handleDateChange('end', e.target.value)}
                 />
             </div>

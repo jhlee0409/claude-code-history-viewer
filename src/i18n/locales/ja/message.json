@@ -70,7 +70,6 @@
   "navigator.title": "メッセージ",
   "navigator.toggle": "メッセージナビゲーターの切替",
   "navigator.filter": "メッセージをフィルター...",
-
   "navigator.noMessages": "このセッションにメッセージはありません",
   "navigator.close": "ナビゲーターを閉じる",
   "navigator.messageCount": "{{count}}件のメッセージ"

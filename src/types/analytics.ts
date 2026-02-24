@@ -5,6 +5,7 @@
 
 import type { ProjectStatsSummary, SessionComparison, RecentEditsResult } from './index';
 import type { RecentEditsPaginationState } from '../utils/pagination';
+import type { MetricMode, StatsMode } from "./stats.types";
 
 /**
  * Pagination state for recent edits
@@ -26,9 +27,12 @@ export type AnalyticsViewType = AnalyticsView;
 export interface AnalyticsState {
   // 현재 활성 뷰
   currentView: AnalyticsView;
+  statsMode: StatsMode;
+  metricMode: MetricMode;
 
   // 데이터 상태
   projectSummary: ProjectStatsSummary | null;
+  projectConversationSummary: ProjectStatsSummary | null;
   sessionComparison: SessionComparison | null;
   recentEdits: RecentEditsResult | null;
   recentEditsPagination: RecentEditsPagination;
@@ -56,6 +60,7 @@ export interface AnalyticsActions {
 
   // 데이터 설정
   setProjectSummary: (summary: ProjectStatsSummary | null) => void;
+  setProjectConversationSummary: (summary: ProjectStatsSummary | null) => void;
   setSessionComparison: (comparison: SessionComparison | null) => void;
   setRecentEdits: (edits: RecentEditsResult | null) => void;
   setRecentEditsSearchQuery: (query: string) => void;
@@ -75,6 +80,8 @@ export interface AnalyticsActions {
   switchToTokenStats: () => void;
   switchToAnalytics: () => void;
   switchToRecentEdits: () => void;
+  setStatsMode: (mode: StatsMode, options?: { isViewingGlobalStats?: boolean }) => Promise<void>;
+  setMetricMode: (mode: MetricMode) => void;
 
   // 초기화
   resetAnalytics: () => void;
@@ -91,7 +98,10 @@ export const initialRecentEditsPagination: RecentEditsPagination =
 
 export const initialAnalyticsState: AnalyticsState = {
   currentView: 'messages',
+  statsMode: "billing_total",
+  metricMode: "tokens",
   projectSummary: null,
+  projectConversationSummary: null,
   sessionComparison: null,
   recentEdits: null,
   recentEditsPagination: initialRecentEditsPagination,
@@ -120,6 +130,8 @@ export interface UseAnalyticsReturn {
     switchToRecentEdits: () => Promise<void>;
     switchToSettings: () => void;
     switchToBoard: () => Promise<void>;
+    setStatsMode: (mode: StatsMode, options?: { isViewingGlobalStats?: boolean }) => Promise<void>;
+    setMetricMode: (mode: MetricMode) => void;
     refreshAnalytics: () => Promise<void>;
     clearAll: () => void;
   };

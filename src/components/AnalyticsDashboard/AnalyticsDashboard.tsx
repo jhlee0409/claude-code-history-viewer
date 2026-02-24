@@ -24,7 +24,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     selectedProject,
     selectedSession,
     sessionTokenStats,
+    sessionConversationTokenStats,
     globalSummary,
+    globalConversationSummary,
     isLoadingGlobalStats,
     dateFilter,
     setDateFilter,
@@ -33,16 +35,11 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<"project" | "session">("project");
 
   const projectSummary = analyticsState.projectSummary;
+  const projectConversationSummary = analyticsState.projectConversationSummary;
   const sessionComparison = analyticsState.sessionComparison;
   const sessionStats = sessionTokenStats;
-
-  useEffect(() => {
-    if (selectedSession && sessionStats && sessionComparison) {
-      setActiveTab("session");
-    } else {
-      setActiveTab("project");
-    }
-  }, [selectedSession, sessionStats, sessionComparison]);
+  const hasSessionData =
+    selectedSession != null && sessionStats != null && sessionComparison != null;
 
   useEffect(() => {
     setActiveTab("project");
@@ -65,7 +62,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     }
 
     if (globalSummary) {
-      return <GlobalStatsView globalSummary={globalSummary} />;
+      return (
+        <GlobalStatsView
+          globalSummary={globalSummary}
+          globalConversationSummary={globalConversationSummary}
+        />
+      );
     }
 
     return (
@@ -93,8 +95,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     );
   }
 
-  const hasSessionData = selectedSession && sessionStats && sessionComparison;
-
   return (
     <div className="flex-1 p-6 overflow-auto bg-background">
       <div className="relative">
@@ -102,8 +102,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           {/* Tab Selector */}
           {hasSessionData && (
-            <div className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg w-fit">
+            <div role="tablist" className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg w-fit">
               <button
+                role="tab"
+                aria-selected={activeTab === "project"}
                 onClick={() => setActiveTab("project")}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 text-[11px] font-medium rounded-md transition-all duration-200",
@@ -121,6 +123,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 {t("analytics.projectOverview")}
               </button>
               <button
+                role="tab"
+                aria-selected={activeTab === "session"}
                 onClick={() => setActiveTab("session")}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 text-[11px] font-medium rounded-md transition-all duration-200",
@@ -141,7 +145,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           )}
 
           {/* Global Date Picker */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <DatePickerHeader
               dateFilter={dateFilter}
               setDateFilter={setDateFilter}
@@ -153,11 +157,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         {hasSessionData && activeTab === "session" ? (
           <SessionStatsView
             sessionStats={sessionStats}
+            conversationStats={sessionConversationTokenStats}
             sessionComparison={sessionComparison}
             totalProjectSessions={projectSummary?.total_sessions}
+            providerId={selectedProject?.provider ?? "claude"}
           />
         ) : (
-          <ProjectStatsView projectSummary={projectSummary} />
+          <ProjectStatsView
+            projectSummary={projectSummary}
+            conversationSummary={projectConversationSummary}
+            providerId={selectedProject?.provider ?? "claude"}
+          />
         )}
       </div>
     </div>

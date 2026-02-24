@@ -10,12 +10,20 @@ import {
   ChevronDown,
   Loader2,
 } from "lucide-react";
-import type { SessionTokenStats } from "../types";
+import type {
+  SessionTokenStats,
+  ProviderId,
+  ProjectStatsSummary,
+} from "../types";
 import type { ProjectTokenStatsPagination } from "../store/slices/messageSlice";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { LoadingState } from "./ui/loading";
 import { SessionStatsCard } from "./SessionStatsCard";
+import { DatePickerHeader } from "./ui/DatePickerHeader";
+import { BillingBreakdownCard } from "./AnalyticsDashboard/components/BillingBreakdownCard";
+import { supportsConversationBreakdown } from "../utils/providers";
+import { useAppStore } from "../store/useAppStore";
 
 /**
  * Token Stats Viewer - Mission Control Design
@@ -52,7 +60,11 @@ const TOKEN_COLORS = {
 
 interface TokenStatsViewerProps {
   sessionStats?: SessionTokenStats | null;
+  sessionConversationStats?: SessionTokenStats | null;
   projectStats?: SessionTokenStats[];
+  projectConversationStats?: SessionTokenStats[];
+  projectStatsSummary?: ProjectStatsSummary | null;
+  projectConversationStatsSummary?: ProjectStatsSummary | null;
   pagination?: ProjectTokenStatsPagination;
   onLoadMore?: () => void;
   title?: string;
@@ -60,13 +72,16 @@ interface TokenStatsViewerProps {
   dateFilter?: { start: Date | null; end: Date | null };
   setDateFilter?: (filter: { start: Date | null; end: Date | null }) => void;
   onSessionClick?: (stats: SessionTokenStats) => void;
+  providerId?: ProviderId;
 }
-
-import { DatePickerHeader } from "./ui/DatePickerHeader";
 
 export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   sessionStats,
+  sessionConversationStats,
   projectStats = [],
+  projectConversationStats = [],
+  projectStatsSummary,
+  projectConversationStatsSummary,
   pagination,
   onLoadMore,
   title,
@@ -74,8 +89,37 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   dateFilter,
   setDateFilter,
   onSessionClick,
+  providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const sessions = useAppStore((state) => state.sessions);
+  const sessionMetadata = useAppStore((state) => state.userMetadata.sessions);
+  const showProviderLimitHelp = !supportsConversationBreakdown(providerId);
+  const hasSessionConversationData = sessionConversationStats != null;
+  const sessionDisplayById = useMemo(() => {
+    const byId = new Map<string, string | undefined>();
+    for (const session of sessions) {
+      const customName = sessionMetadata[session.session_id]?.customName;
+      const displayTitle = customName || session.summary;
+      byId.set(session.actual_session_id, displayTitle);
+      byId.set(session.session_id, displayTitle);
+    }
+    return byId;
+  }, [sessions, sessionMetadata]);
+
+  const resolveSessionTitle = useCallback(
+    (stats: SessionTokenStats): string | undefined => {
+      return sessionDisplayById.get(stats.session_id) ?? stats.summary;
+    },
+    [sessionDisplayById]
+  );
+  const projectConversationById = useMemo(
+    () =>
+      new Map(
+        projectConversationStats.map((stats) => [stats.session_id, stats] as const)
+      ),
+    [projectConversationStats]
+  );
 
   // Use projectStats directly - pagination is handled by backend
   const displayedSessions = useMemo(() => projectStats, [projectStats]);
@@ -108,24 +152,47 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   const renderProjectStats = () => {
     if (!projectStats.length) return null;
 
-    const totalStats = projectStats.reduce(
-      (acc, stats) => ({
-        total_input_tokens: acc.total_input_tokens + stats.total_input_tokens,
-        total_output_tokens: acc.total_output_tokens + stats.total_output_tokens,
-        total_cache_creation_tokens: acc.total_cache_creation_tokens + stats.total_cache_creation_tokens,
-        total_cache_read_tokens: acc.total_cache_read_tokens + stats.total_cache_read_tokens,
-        total_tokens: acc.total_tokens + stats.total_tokens,
-        message_count: acc.message_count + stats.message_count,
-      }),
-      {
-        total_input_tokens: 0,
-        total_output_tokens: 0,
-        total_cache_creation_tokens: 0,
-        total_cache_read_tokens: 0,
-        total_tokens: 0,
-        message_count: 0,
-      }
-    );
+    const totalStats = projectStatsSummary
+      ? {
+          total_input_tokens: projectStatsSummary.token_distribution.input,
+          total_output_tokens: projectStatsSummary.token_distribution.output,
+          total_cache_creation_tokens:
+            projectStatsSummary.token_distribution.cache_creation,
+          total_cache_read_tokens: projectStatsSummary.token_distribution.cache_read,
+          total_tokens: projectStatsSummary.total_tokens,
+          message_count: projectStatsSummary.total_messages,
+        }
+      : projectStats.reduce(
+          (acc, stats) => ({
+            total_input_tokens: acc.total_input_tokens + stats.total_input_tokens,
+            total_output_tokens:
+              acc.total_output_tokens + stats.total_output_tokens,
+            total_cache_creation_tokens:
+              acc.total_cache_creation_tokens + stats.total_cache_creation_tokens,
+            total_cache_read_tokens:
+              acc.total_cache_read_tokens + stats.total_cache_read_tokens,
+            total_tokens: acc.total_tokens + stats.total_tokens,
+            message_count: acc.message_count + stats.message_count,
+          }),
+          {
+            total_input_tokens: 0,
+            total_output_tokens: 0,
+            total_cache_creation_tokens: 0,
+            total_cache_read_tokens: 0,
+            total_tokens: 0,
+            message_count: 0,
+          }
+        );
+    const hasProjectConversationData =
+      projectConversationStatsSummary != null
+        ? true
+        : projectConversationStats.length > 0;
+    const conversationTotalTokens = projectConversationStatsSummary
+      ? projectConversationStatsSummary.total_tokens
+      : projectStats.reduce((acc, stats) => {
+          const conversationStats = projectConversationById.get(stats.session_id);
+          return acc + (conversationStats?.total_tokens ?? 0);
+        }, 0);
 
     const metrics = [
       { label: t("analytics.totalTokens"), value: totalStats.total_tokens, color: "var(--metric-purple)" },
@@ -157,10 +224,10 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-foreground">
-                  {t("analytics.projectStats", { count: projectStats.length })}
+                  {t("analytics.projectStats", { count: totalCount })}
                 </h3>
                 <p className="text-[12px] text-muted-foreground">
-                  {t("analytics.globalOverviewDescription")}
+                  {t("analytics.projectOverallAnalysis")}
                 </p>
               </div>
             </div>
@@ -201,6 +268,14 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 </Tooltip>
               ))}
             </div>
+
+            <div className="mt-5">
+              <BillingBreakdownCard
+                billingTokens={totalStats.total_tokens}
+                conversationTokens={hasProjectConversationData ? conversationTotalTokens : null}
+                showProviderLimitHelp={showProviderLimitHelp}
+              />
+            </div>
           </div>
         </div>
 
@@ -227,8 +302,12 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                   stats={stats}
                   showSessionId
                   compact
-                  summary={stats.summary}
-                  onClick={() => onSessionClick?.(stats)}
+                  summary={
+                    resolveSessionTitle(stats) ??
+                    t("session.summaryNotFound", "No summary")
+                  }
+                  hoverable={Boolean(onSessionClick)}
+                  onClick={onSessionClick ? () => onSessionClick(stats) : undefined}
                 />
               </div>
             ))}
@@ -335,14 +414,25 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
 
         {/* Current Session */}
         {sessionStats && (
-          <div>
+          <div className="space-y-4">
             <h3 className="flex items-center gap-2 text-sm font-medium text-foreground/80 mb-3">
               <MessageSquare className="w-4 h-4 text-accent" />
               {t("analytics.currentSession")}
             </h3>
             <SessionStatsCard
               stats={sessionStats}
-              onClick={() => onSessionClick?.(sessionStats)}
+              summary={resolveSessionTitle(sessionStats)}
+              hoverable={Boolean(onSessionClick)}
+              onClick={onSessionClick ? () => onSessionClick(sessionStats) : undefined}
+            />
+            <BillingBreakdownCard
+              billingTokens={sessionStats.total_tokens}
+              conversationTokens={
+                hasSessionConversationData
+                  ? sessionConversationStats?.total_tokens ?? 0
+                  : null
+              }
+              showProviderLimitHelp={showProviderLimitHelp}
             />
           </div>
         )}

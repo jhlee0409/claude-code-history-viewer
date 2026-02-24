@@ -476,4 +476,142 @@ describe("useActivityData", () => {
       expect(bar?.totalTokens).toBe(300);
     });
   });
+
+  describe("filtered stats with dateFilter", () => {
+    it("should filter totalActiveDays and totalSessions by dateFilter range", () => {
+      const sessions: Record<string, BoardSessionData> = {
+        "1": createMockSession("1", "2024-01-15T10:00:00", 100),
+        "2": createMockSession("2", "2024-01-16T10:00:00", 150),
+        "3": createMockSession("3", "2024-01-17T10:00:00", 200),
+      };
+
+      const dateFilter: DateFilter = {
+        start: new Date("2024-01-16T00:00:00"),
+        end: new Date("2024-01-16T23:59:59.999"),
+      };
+
+      const { result } = renderHook(() =>
+        useActivityData(sessions, ["1", "2", "3"], dateFilter)
+      );
+
+      // Only Jan 16 is in the filter range
+      expect(result.current.totalActiveDays).toBe(1);
+      expect(result.current.totalSessions).toBe(1);
+    });
+
+    it("should filter streak calculations by dateFilter range", () => {
+      const sessions: Record<string, BoardSessionData> = {
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
+        "2": createMockSession("2", "2024-01-16T10:00:00"),
+        "3": createMockSession("3", "2024-01-17T10:00:00"),
+        "4": createMockSession("4", "2024-01-19T10:00:00"), // gap
+        "5": createMockSession("5", "2024-01-20T10:00:00"),
+      };
+
+      // Filter to only Jan 15-17 (3 consecutive days)
+      const dateFilter: DateFilter = {
+        start: new Date("2024-01-15T00:00:00"),
+        end: new Date("2024-01-17T23:59:59.999"),
+      };
+
+      const { result } = renderHook(() =>
+        useActivityData(sessions, ["1", "2", "3", "4", "5"], dateFilter)
+      );
+
+      expect(result.current.longestStreak).toBe(3);
+      expect(result.current.totalActiveDays).toBe(3);
+      expect(result.current.totalSessions).toBe(3);
+    });
+
+    it("should return zero stats when dateFilter excludes all sessions", () => {
+      const sessions: Record<string, BoardSessionData> = {
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
+        "2": createMockSession("2", "2024-01-16T10:00:00"),
+      };
+
+      // Filter to a date with no sessions
+      const dateFilter: DateFilter = {
+        start: new Date("2024-02-01T00:00:00"),
+        end: new Date("2024-02-01T23:59:59.999"),
+      };
+
+      const { result } = renderHook(() =>
+        useActivityData(sessions, ["1", "2"], dateFilter)
+      );
+
+      expect(result.current.totalActiveDays).toBe(0);
+      expect(result.current.totalSessions).toBe(0);
+      expect(result.current.currentStreak).toBe(0);
+      expect(result.current.longestStreak).toBe(0);
+    });
+
+    it("should show full stats when dateFilter is cleared", () => {
+      const sessions: Record<string, BoardSessionData> = {
+        "1": createMockSession("1", "2024-01-15T10:00:00", 100),
+        "2": createMockSession("2", "2024-01-16T10:00:00", 200),
+        "3": createMockSession("3", "2024-01-17T10:00:00", 300),
+      };
+
+      const { result } = renderHook(() =>
+        useActivityData(sessions, ["1", "2", "3"], { start: null, end: null })
+      );
+
+      expect(result.current.totalActiveDays).toBe(3);
+      expect(result.current.totalSessions).toBe(3);
+    });
+
+    it("should keep grid data unfiltered even with dateFilter", () => {
+      const sessions: Record<string, BoardSessionData> = {
+        "1": createMockSession("1", "2024-01-15T10:00:00", 100),
+        "2": createMockSession("2", "2024-01-16T10:00:00", 200),
+        "3": createMockSession("3", "2024-01-17T10:00:00", 300),
+      };
+
+      const dateFilter: DateFilter = {
+        start: new Date("2024-01-16T00:00:00"),
+        end: new Date("2024-01-16T23:59:59.999"),
+      };
+
+      const { result } = renderHook(() =>
+        useActivityData(sessions, ["1", "2", "3"], dateFilter)
+      );
+
+      // Grid should still contain all 3 days
+      const activeCells = result.current.weeklyGrid
+        .flat()
+        .filter(c => c.sessionCount > 0);
+      expect(activeCells).toHaveLength(3);
+
+      // dailyBars should still have all 3 days
+      expect(result.current.dailyBars).toHaveLength(3);
+
+      // maxSessionsPerDay should be based on full data
+      expect(result.current.maxSessionsPerDay).toBe(1);
+
+      // But stats should be filtered
+      expect(result.current.totalActiveDays).toBe(1);
+      expect(result.current.totalSessions).toBe(1);
+    });
+
+    it("should handle start-only dateFilter", () => {
+      const sessions: Record<string, BoardSessionData> = {
+        "1": createMockSession("1", "2024-01-15T10:00:00"),
+        "2": createMockSession("2", "2024-01-16T10:00:00"),
+        "3": createMockSession("3", "2024-01-17T10:00:00"),
+      };
+
+      const dateFilter: DateFilter = {
+        start: new Date("2024-01-16T00:00:00"),
+        end: null,
+      };
+
+      const { result } = renderHook(() =>
+        useActivityData(sessions, ["1", "2", "3"], dateFilter)
+      );
+
+      // Jan 16 and 17 should be included
+      expect(result.current.totalActiveDays).toBe(2);
+      expect(result.current.totalSessions).toBe(2);
+    });
+  });
 });

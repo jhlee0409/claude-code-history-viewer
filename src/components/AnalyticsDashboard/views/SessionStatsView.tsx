@@ -7,25 +7,30 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { BarChart3, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
-import type { SessionTokenStats, SessionComparison } from "../../../types";
+import type { SessionTokenStats, SessionComparison, ProviderId } from "../../../types";
 import { formatTime } from "../../../utils/time";
-import { SectionCard, TokenDistributionChart } from "../components";
+import { SectionCard, TokenDistributionChart, BillingBreakdownCard } from "../components";
 import {
   formatNumber,
   calculateSessionMetrics,
   calculateSessionComparisonMetrics,
 } from "../utils";
+import { supportsConversationBreakdown } from "../../../utils/providers";
 
 interface SessionStatsViewProps {
   sessionStats: SessionTokenStats;
+  conversationStats?: SessionTokenStats | null;
   sessionComparison: SessionComparison;
   totalProjectSessions?: number;
+  providerId?: ProviderId;
 }
 
 export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
   sessionStats,
+  conversationStats,
   sessionComparison,
   totalProjectSessions = 1,
+  providerId = "claude",
 }) => {
   const { t } = useTranslation();
 
@@ -40,6 +45,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
     () => calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
     [sessionComparison, totalProjectSessions]
   );
+  const billingTokens = sessionStats.total_tokens;
 
   return (
     <div className="space-y-6">
@@ -91,7 +97,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
               </div>
               <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                {formatNumber(sessionStats.total_tokens)} tokens
+                {formatNumber(sessionStats.total_tokens)} {t("analytics.tokens")}
               </div>
             </div>
 
@@ -106,7 +112,9 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {avgTokensPerMessage.toLocaleString()}
               </div>
               <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                {sessionStats.message_count} messages
+                {t("analytics.messageCountShort", "{{count}} msgs", {
+                  count: sessionStats.message_count,
+                })}
               </div>
             </div>
 
@@ -118,10 +126,15 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {durationMinutes}<span className="text-base text-muted-foreground/50">m</span>
+                {durationMinutes}
+                <span className="text-base text-muted-foreground/50">
+                  {t("analytics.minutesUnit")}
+                </span>
               </div>
               <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                Rank #{sessionComparison.rank_by_duration}
+                {t("analytics.rank", "Rank {{rank}}", {
+                  rank: sessionComparison.rank_by_duration,
+                })}
               </div>
             </div>
 
@@ -129,19 +142,27 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
               <div className="flex items-center gap-1.5 mb-1.5">
                 <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" />
                 <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Percentile
+                  {t("analytics.percentile", "Percentile")}
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
                 {percentile}%
               </div>
               <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                of {totalProjectSessions} sessions
+                {t("analytics.sessionCount", "{{count}} sessions", {
+                  count: totalProjectSessions,
+                })}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <BillingBreakdownCard
+        billingTokens={billingTokens}
+        conversationTokens={conversationStats != null ? conversationStats.total_tokens : null}
+        showProviderLimitHelp={!supportsConversationBreakdown(providerId)}
+      />
 
       {/* Token Distribution */}
       <SectionCard title={t("analytics.tokenAnalysis")} icon={BarChart3} colorVariant="purple">

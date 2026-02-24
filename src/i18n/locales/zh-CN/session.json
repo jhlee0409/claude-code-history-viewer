@@ -70,6 +70,7 @@
   "session.board.rawText": "原始文本",
   "session.board.shellCommands": "Shell命令",
   "session.board.title": "会话面板",
+  "session.board.description": "用于比较不同会话的概览",
   "session.board.webSearch": "网络搜索/获取",
   "session.count": "会话：{{count}}个",
   "session.id": "会话ID：",

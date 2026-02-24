@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
-import type { GlobalStatsSummary, ProviderId } from "../types";
+import type { GlobalStatsSummary, ProviderId, DateFilter } from "../types";
 import {
   createGlobalStatsSlice,
   type GlobalStatsSlice,
@@ -46,6 +46,7 @@ const buildGlobalSummary = (): GlobalStatsSummary => ({
   daily_stats: [],
   activity_heatmap: [],
   most_used_tools: [],
+  provider_distribution: [],
   model_distribution: [],
   top_projects: [],
 });
@@ -53,6 +54,7 @@ const buildGlobalSummary = (): GlobalStatsSummary => ({
 type TestStore = GlobalStatsSlice & {
   claudePath: string;
   activeProviders: ProviderId[];
+  dateFilter: DateFilter;
   setError: ReturnType<typeof vi.fn>;
 };
 
@@ -61,6 +63,7 @@ const createTestStore = () => {
   return create<TestStore>()((set, get) => ({
     claudePath: "/tmp/claude",
     activeProviders: ["claude"],
+    dateFilter: { start: null, end: null },
     setError,
     ...createGlobalStatsSlice(
       set as Parameters<typeof createGlobalStatsSlice>[0],
@@ -70,8 +73,17 @@ const createTestStore = () => {
 };
 
 describe("globalStatsSlice", () => {
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     mockFetchGlobalStatsSummary.mockReset();
+    consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore();
   });
 
   it("clearGlobalStats resets loading and blocks stale response overwrite", async () => {
@@ -91,5 +103,76 @@ describe("globalStatsSlice", () => {
 
     expect(useStore.getState().isLoadingGlobalStats).toBe(false);
     expect(useStore.getState().globalSummary).toBeNull();
+  });
+
+  it("skips conversation-only request when selected providers do not support breakdown", async () => {
+    const useStore = createTestStore();
+    const summary = buildGlobalSummary();
+    useStore.setState({ activeProviders: ["codex"] });
+    mockFetchGlobalStatsSummary.mockResolvedValue(summary);
+
+    await useStore.getState().loadGlobalStats();
+
+    expect(mockFetchGlobalStatsSummary).toHaveBeenCalledTimes(1);
+    expect(mockFetchGlobalStatsSummary).toHaveBeenCalledWith(
+      "/tmp/claude",
+      "billing_total",
+      ["codex"],
+      undefined,
+      undefined,
+    );
+    expect(useStore.getState().globalSummary).toEqual(summary);
+    // No conversation breakdown for codex → conversation summary falls back to billing.
+    expect(useStore.getState().globalConversationSummary).toEqual(summary);
+  });
+
+  it("keeps billing summary when conversation-only request fails", async () => {
+    const useStore = createTestStore();
+    const summary = buildGlobalSummary();
+    mockFetchGlobalStatsSummary
+      .mockResolvedValueOnce(summary)
+      .mockRejectedValueOnce(new Error("conversation fetch failed"));
+
+    await useStore.getState().loadGlobalStats();
+
+    expect(mockFetchGlobalStatsSummary).toHaveBeenCalledTimes(2);
+    expect(useStore.getState().globalSummary).toEqual(summary);
+    // Conversation failure → null (no implicit fallback to billing)
+    expect(useStore.getState().globalConversationSummary).toBeNull();
+    expect(useStore.getState().setError).toHaveBeenCalledWith(null);
+    expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("expands end date to end-of-day when forwarding date filter", async () => {
+    const useStore = createTestStore();
+    const summary = buildGlobalSummary();
+    const start = new Date(2026, 0, 10);
+    const end = new Date(2026, 0, 12);
+    const expectedEnd = new Date(end);
+    expectedEnd.setHours(23, 59, 59, 999);
+
+    useStore.setState({ dateFilter: { start, end } });
+    mockFetchGlobalStatsSummary
+      .mockResolvedValueOnce(summary)
+      .mockResolvedValueOnce(summary);
+
+    await useStore.getState().loadGlobalStats();
+
+    expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
+      1,
+      "/tmp/claude",
+      "billing_total",
+      ["claude"],
+      start.toISOString(),
+      expectedEnd.toISOString(),
+    );
+    expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/claude",
+      "conversation_only",
+      ["claude"],
+      start.toISOString(),
+      expectedEnd.toISOString(),
+    );
   });
 });

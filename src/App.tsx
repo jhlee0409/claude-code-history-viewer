@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { ProjectTree } from "./components/ProjectTree";
 import { MessageViewer } from "./components/MessageViewer";
@@ -15,7 +15,12 @@ import { useUpdater } from "./hooks/useUpdater";
 import { useResizablePanel } from "./hooks/useResizablePanel";
 
 import { useTranslation } from "react-i18next";
-import { AppErrorType, type ClaudeSession, type ClaudeProject, type SessionTokenStats } from "./types";
+import {
+  AppErrorType,
+  type ClaudeSession,
+  type ClaudeProject,
+  type SessionTokenStats,
+} from "./types";
 import type { GroupingMode } from "./types/metadata.types";
 import { AlertTriangle, MessageSquare, Database, BarChart3, FileEdit, Coins, Settings } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading";
@@ -27,6 +32,7 @@ import "./App.css";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "./layouts/Header/SettingDropdown/ModalContainer";
 import { useModal } from "@/contexts/modal";
+import { getProviderLabel, normalizeProviderIds } from "./utils/providers";
 
 function App() {
   const {
@@ -42,7 +48,11 @@ function App() {
     isLoadingTokenStats,
     error,
     sessionTokenStats,
+    sessionConversationTokenStats,
     projectTokenStats,
+    projectConversationTokenStats,
+    projectTokenStatsSummary,
+    projectConversationTokenStatsSummary,
     projectTokenStatsPagination,
     sessionSearch,
     initializeApp,
@@ -69,6 +79,7 @@ function App() {
     setDateFilter,
     isNavigatorOpen,
     toggleNavigator,
+    activeProviders,
   } = useAppStore();
 
   const {
@@ -81,6 +92,32 @@ function App() {
   const { language, loadLanguage } = useLanguageStore();
   const { openModal } = useModal();
   const updater = useUpdater();
+  const appVersion = updater.state.currentVersion || "—";
+  const globalOverviewDescription = useMemo(() => {
+    const normalized = normalizeProviderIds(activeProviders);
+
+    if (normalized.length === 0) {
+      return t("analytics.globalOverviewDescription");
+    }
+
+    const labels = normalized.map((providerId) =>
+      getProviderLabel((key, fallback) => t(key, fallback), providerId)
+    );
+
+    if (labels.length === 1) {
+      return t(
+        "analytics.globalOverviewDescriptionSingleProvider",
+        "Aggregated statistics for {{provider}} projects on your machine",
+        { provider: labels[0] }
+      );
+    }
+
+    return t(
+      "analytics.globalOverviewDescriptionMultiProvider",
+      "Aggregated statistics for selected providers ({{providers}}) on your machine",
+      { providers: labels.join(", ") }
+    );
+  }, [activeProviders, t]);
 
   const [isViewingGlobalStats, setIsViewingGlobalStats] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -182,7 +219,11 @@ function App() {
   }, [computed.isMessagesView, selectSession]);
 
   const handleTokenStatClick = useCallback((stats: SessionTokenStats) => {
-    const session = sessions.find(s => s.session_id === stats.session_id);
+    const session = sessions.find(
+      (s) =>
+        s.actual_session_id === stats.session_id ||
+        s.session_id === stats.session_id
+    );
 
     if (session) {
       handleSessionSelect(session);
@@ -389,18 +430,21 @@ function App() {
                         : computed.isRecentEditsView
                         ? t("recentEdits.title")
                         : computed.isBoardView
-                        ? "Session Board"
+                        ? t("session.board.title")
                         : t('messages.tokenStats.title')}
                     </h2>
                     <p className="text-xs text-muted-foreground">
                       {isViewingGlobalStats
-                        ? t("analytics.globalOverviewDescription")
+                        ? globalOverviewDescription
                         : computed.isSettingsView
                         ? t("settingsManager.description")
                         : computed.isRecentEditsView
                         ? t("recentEdits.description")
                         : computed.isBoardView
-                        ? "Comparative overview of different sessions"
+                        ? t(
+                            "session.board.description",
+                            "Comparative overview of different sessions"
+                          )
                         : selectedSession?.summary ||
                           t("session.summaryNotFound")}
                     </p>
@@ -439,7 +483,9 @@ function App() {
                   className="h-full"
                   options={{ scrollbars: { theme: "os-theme-custom", autoHide: "leave" } }}
                 >
-                  <AnalyticsDashboard isViewingGlobalStats={isViewingGlobalStats} />
+                  <AnalyticsDashboard
+                    isViewingGlobalStats={isViewingGlobalStats}
+                  />
                 </OverlayScrollbarsComponent>
               ) : computed.isTokenStatsView ? (
                 <OverlayScrollbarsComponent
@@ -450,7 +496,14 @@ function App() {
                     <TokenStatsViewer
                       title={t('messages.tokenStats.title')}
                       sessionStats={sessionTokenStats}
+                      sessionConversationStats={sessionConversationTokenStats}
                       projectStats={projectTokenStats}
+                      projectConversationStats={projectConversationTokenStats}
+                      projectStatsSummary={projectTokenStatsSummary}
+                      projectConversationStatsSummary={
+                        projectConversationTokenStatsSummary
+                      }
+                      providerId={selectedProject?.provider ?? "claude"}
                       pagination={projectTokenStatsPagination}
                       onLoadMore={() => selectedProject && loadMoreProjectTokenStats(selectedProject.path)}
                       isLoading={isLoadingTokenStats}
@@ -508,6 +561,8 @@ function App() {
         {/* Status Bar */}
         <footer className="h-7 px-4 flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground">
           <div className="flex items-center gap-3 font-mono tabular-nums">
+            <span>{t("status.versionLabel", "v{{version}}", { version: appVersion })}</span>
+            <span className="text-border">•</span>
             <span>{t("project.count", { count: projects.length })}</span>
             <span className="text-border">•</span>
             <span>{t("session.count", { count: sessions.length })}</span>

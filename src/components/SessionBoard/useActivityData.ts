@@ -49,7 +49,8 @@ function getLocalizedMonthNames(): string[] {
 /**
  * Compute the end-of-range timestamp (ms) for a date filter.
  * If `end` is at local midnight, it is treated as a date-only value
- * and the full day is included (+24h). Otherwise 1ms is added for
+ * and the full day is included by advancing one local calendar day.
+ * Otherwise 1ms is added for
  * inclusive comparison.
  */
 export function getFilterEndMs(end: Date): number {
@@ -59,7 +60,9 @@ export function getFilterEndMs(end: Date): number {
     end.getSeconds() === 0 &&
     end.getMilliseconds() === 0
   ) {
-    return end.getTime() + 24 * 60 * 60 * 1000;
+    const nextDay = new Date(end);
+    nextDay.setDate(nextDay.getDate() + 1);
+    return nextDay.getTime();
   }
   return end.getTime() + 1;
 }
@@ -281,9 +284,25 @@ export function useActivityData(
       }
     }
 
-    // Step 5: Compute stats
-    const { current: currentStreak, longest: longestStreak } = computeStreaks(dailyMap);
-    const totalActiveDays = Array.from(dailyMap.values()).filter(b => b.sessionCount > 0).length;
+    // Step 5: Build filtered daily map for stats (grid uses full dailyMap)
+    let statsMap = dailyMap;
+    if (hasFilter) {
+      statsMap = new Map<string, DailyBucket>();
+      for (const [dateKey, bucket] of dailyMap) {
+        const dayMs = parseDate(dateKey).getTime();
+        if (dayMs >= filterStartMs && dayMs < filterEndMs) {
+          statsMap.set(dateKey, bucket);
+        }
+      }
+    }
+
+    // Step 6: Compute stats from filtered map
+    const { current: currentStreak, longest: longestStreak } = computeStreaks(statsMap);
+    const totalActiveDays = Array.from(statsMap.values()).filter(b => b.sessionCount > 0).length;
+    let filteredTotalSessions = 0;
+    for (const bucket of statsMap.values()) {
+      filteredTotalSessions += bucket.sessionCount;
+    }
 
     return {
       weeklyGrid,
@@ -292,7 +311,7 @@ export function useActivityData(
       totalActiveDays,
       currentStreak,
       longestStreak,
-      totalSessions: allSortedSessionIds.length,
+      totalSessions: filteredTotalSessions,
       maxSessionsPerDay: maxCount,
     };
   }, [boardSessions, allSortedSessionIds, dateFilter]);

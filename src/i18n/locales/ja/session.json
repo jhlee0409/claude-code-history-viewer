@@ -70,6 +70,7 @@
   "session.board.rawText": "生テキスト",
   "session.board.shellCommands": "シェルコマンド",
   "session.board.title": "セッションボード",
+  "session.board.description": "複数セッションを比較できる概要",
   "session.board.webSearch": "ウェブ検索/取得",
   "session.count": "セッション：{{count}}件",
   "session.id": "セッションID：",

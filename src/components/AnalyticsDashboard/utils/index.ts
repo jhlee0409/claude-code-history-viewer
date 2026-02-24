@@ -8,7 +8,9 @@
 export {
   calculateGrowthRate,
   formatNumber,
+  formatCurrency,
   calculateModelPrice,
+  hasExplicitModelPricing,
   getHeatColor,
 } from "./calculations";
 
@@ -34,8 +36,10 @@ export {
 // Global-level calculations
 export {
   calculateModelMetrics,
+  calculateGlobalCostSummary,
   getRankMedal,
   hasMedal,
   type ModelDisplayMetrics,
+  type GlobalCostSummary,
   type RankMedal,
 } from "./globalCalculations";

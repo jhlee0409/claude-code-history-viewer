@@ -11,10 +11,14 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../store/useAppStore";
 import type { UseAnalyticsReturn } from "../types/analytics";
+import { AppErrorType, type MetricMode, type StatsMode } from "../types";
 
 export const useAnalytics = (): UseAnalyticsReturn => {
   const { t } = useTranslation();
   const dateFilterKeyRef = useRef<string | null>(null);
+  const dateFilterRequestSeqRef = useRef(0);
+  const analyticsSessionAutoloadAttemptKeyRef = useRef<string | null>(null);
+  const tokenStatsSessionAutoloadAttemptKeyRef = useRef<string | null>(null);
   const {
     // Store state
     analytics,
@@ -23,12 +27,14 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     selectedSession,
     isLoadingTokenStats,
     sessionTokenStats,
-    projectTokenStats,
     dateFilter,
 
     // Store actions
     setAnalyticsCurrentView,
+    setAnalyticsStatsMode,
+    setAnalyticsMetricMode,
     setAnalyticsProjectSummary,
+    setAnalyticsProjectConversationSummary,
     setAnalyticsSessionComparison,
     setAnalyticsLoadingProjectSummary,
     setAnalyticsLoadingSessionComparison,
@@ -46,6 +52,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     loadSessionComparison,
     loadSessionTokenStats,
     loadRecentEdits,
+    loadGlobalStats,
     clearTokenStats,
     clearBoard,
   } = useAppStore();
@@ -70,7 +77,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
 
   /**
    * 토큰 통계 뷰로 전환
-   * 캐시 전략: 같은 프로젝트/세션의 데이터가 있으면 재사용
+   * 날짜 필터 정확성을 위해 진입 시 항상 데이터를 다시 로드한다.
    */
   const switchToTokenStats = useCallback(async () => {
     const project = useAppStore.getState().selectedProject;
@@ -81,29 +88,12 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     setAnalyticsCurrentView("tokenStats");
     clearAnalyticsErrors();
 
-    // 캐시 확인
-    const hasCachedProjectTokenStats =
-      projectTokenStats && projectTokenStats.length > 0 &&
-      projectTokenStats[0]?.project_name === project.name;
-    const hasCachedSessionTokenStats =
-      selectedSession &&
-      sessionTokenStats?.session_id === selectedSession.actual_session_id;
-
-    // 모든 데이터가 캐시되어 있으면 로드 스킵
-    if (hasCachedProjectTokenStats && (!selectedSession || hasCachedSessionTokenStats)) {
-      return;
-    }
-
     try {
       const promises: Promise<void>[] = [];
 
-      // 프로젝트 전체 통계 로드 (캐시 없으면)
-      if (!hasCachedProjectTokenStats) {
-        promises.push(loadProjectTokenStats(project.path));
-      }
+      promises.push(loadProjectTokenStats(project.path));
 
-      // 현재 세션 통계 로드 (선택된 경우, 캐시 없으면)
-      if (selectedSession && !hasCachedSessionTokenStats) {
+      if (selectedSession) {
         promises.push(loadSessionTokenStats(selectedSession.file_path));
       }
 
@@ -114,9 +104,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
   }, [
     t,
-    projectTokenStats,
     selectedSession,
-    sessionTokenStats?.session_id,
     setAnalyticsCurrentView,
     clearAnalyticsErrors,
     loadProjectTokenStats,
@@ -125,7 +113,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
 
   /**
    * 분석 뷰로 전환
-   * 캐시 전략: 같은 프로젝트/세션의 데이터가 있으면 재사용
+   * 날짜 필터 정확성을 위해 진입 시 항상 데이터를 다시 로드한다.
    * NOTE: Token Statistics 로딩과 완전히 분리됨 - 각 뷰는 독립적으로 동작
    */
   const switchToAnalytics = useCallback(async () => {
@@ -137,66 +125,30 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     setAnalyticsCurrentView("analytics");
     clearAnalyticsErrors();
 
-    // 캐시 확인: 같은 프로젝트의 데이터가 이미 있는지
-    const hasCachedProjectSummary =
-      analytics.projectSummary?.project_name === project.name;
-    const hasCachedSessionComparison =
-      selectedSession &&
-      analytics.sessionComparison?.session_id === selectedSession.actual_session_id;
-    const hasCachedSessionTokenStats =
-      selectedSession &&
-      sessionTokenStats?.session_id === selectedSession.actual_session_id;
-
-    // 모든 데이터가 캐시되어 있으면 로드 스킵
-    if (hasCachedProjectSummary && (!selectedSession || (hasCachedSessionComparison && hasCachedSessionTokenStats))) {
-      return;
-    }
-
     try {
-      // 순차 실행: 프로젝트 요약 먼저, 그 다음 세션 비교
-      // (병렬 실행 시 182개 파일을 동시에 두 번 읽어 I/O 경쟁 발생 - 4초 → 순차 시 ~200ms)
-
-      // 1. 프로젝트 요약 로드 (캐시 없으면)
-      if (!hasCachedProjectSummary) {
-        setAnalyticsLoadingProjectSummary(true);
-        try {
-          const summary = await loadProjectStatsSummary(project.path);
-          setAnalyticsProjectSummary(summary);
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : t('common.hooks.projectSummaryLoadFailed');
-          setAnalyticsProjectSummaryError(errorMessage);
-          throw error;
-        } finally {
-          setAnalyticsLoadingProjectSummary(false);
-        }
+      setAnalyticsLoadingProjectSummary(true);
+      try {
+        const summary = await loadProjectStatsSummary(project.path);
+        setAnalyticsProjectSummary(summary);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : t('common.hooks.projectSummaryLoadFailed');
+        setAnalyticsProjectSummaryError(errorMessage);
+        throw error;
+      } finally {
+        setAnalyticsLoadingProjectSummary(false);
       }
 
-      // 2. 세션 데이터 로드 (프로젝트 요약 완료 후)
       // NOTE: sessionTokenStats도 함께 로드하여 탭 표시 조건(hasSessionData)을 충족
-      if (selectedSession && (!hasCachedSessionComparison || !hasCachedSessionTokenStats)) {
+      if (selectedSession) {
         setAnalyticsLoadingSessionComparison(true);
         try {
-          const sessionPromises: Promise<unknown>[] = [];
-
-          if (!hasCachedSessionComparison) {
-            sessionPromises.push(
-              loadSessionComparison(
-                selectedSession.actual_session_id,
-                project.path
-              ).then((comparison) => {
-                setAnalyticsSessionComparison(comparison);
-              })
-            );
-          }
-
-          if (!hasCachedSessionTokenStats) {
-            sessionPromises.push(loadSessionTokenStats(selectedSession.file_path));
-          }
-
-          if (sessionPromises.length > 0) {
-            await Promise.all(sessionPromises);
-          }
+          const [comparison] = await Promise.all([
+            loadSessionComparison(selectedSession.actual_session_id, project.path),
+            loadSessionTokenStats(selectedSession.file_path),
+          ]);
+          setAnalyticsSessionComparison(comparison);
+          setAnalyticsSessionComparisonError(null);
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : t('common.hooks.sessionComparisonLoadFailed');
@@ -212,11 +164,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
   }, [
     t,
-    selectedProject,
     selectedSession,
-    analytics.projectSummary?.project_name,
-    analytics.sessionComparison?.session_id,
-    sessionTokenStats?.session_id,
     setAnalyticsCurrentView,
     clearAnalyticsErrors,
     setAnalyticsLoadingProjectSummary,
@@ -366,6 +314,123 @@ export const useAnalytics = (): UseAnalyticsReturn => {
   }, [t, selectedProject, sessions, setAnalyticsCurrentView, clearAnalyticsErrors]);
 
   /**
+   * 통계 모드 변경
+   * - billing_total: 청구 기준(사이드체인 포함)
+   * - conversation_only: 대화 기준(사이드체인 제외)
+   *
+   * Provider 필터(activeProviders)는 프로젝트 트리 탭의 단일 소스를 그대로 사용한다.
+   */
+  const setStatsMode = useCallback(
+    async (mode: StatsMode, options?: { isViewingGlobalStats?: boolean }) => {
+      const currentMode = useAppStore.getState().analytics.statsMode;
+      if (currentMode === mode) {
+        return;
+      }
+
+      setAnalyticsStatsMode(mode);
+      clearTokenStats();
+      setAnalyticsProjectSummary(null);
+      setAnalyticsProjectConversationSummary(null);
+      setAnalyticsSessionComparison(null);
+      setAnalyticsProjectSummaryError(null);
+      setAnalyticsSessionComparisonError(null);
+
+      const state = useAppStore.getState();
+      const project = state.selectedProject;
+      const session = state.selectedSession;
+      const currentView = state.analytics.currentView;
+      const isGlobalScope =
+        options?.isViewingGlobalStats ?? (!project && currentView === "analytics");
+
+      try {
+        if (isGlobalScope) {
+          await loadGlobalStats();
+          return;
+        }
+
+        if (!project) {
+          return;
+        }
+
+        if (currentView === "tokenStats") {
+          await loadProjectTokenStats(project.path);
+          if (session) {
+            await loadSessionTokenStats(session.file_path);
+          }
+          return;
+        }
+
+        if (currentView === "analytics") {
+          setAnalyticsLoadingProjectSummary(true);
+          try {
+            const summary = await loadProjectStatsSummary(project.path);
+            setAnalyticsProjectSummary(summary);
+          } finally {
+            setAnalyticsLoadingProjectSummary(false);
+          }
+
+          if (session) {
+            setAnalyticsLoadingSessionComparison(true);
+            try {
+              const [comparison] = await Promise.all([
+                loadSessionComparison(session.actual_session_id, project.path),
+                loadSessionTokenStats(session.file_path),
+              ]);
+              setAnalyticsSessionComparison(comparison);
+            } finally {
+              setAnalyticsLoadingSessionComparison(false);
+            }
+          }
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : t("common.hooks.projectSummaryLoadFailed");
+        toast.error(errorMessage);
+        if (currentView === "analytics") {
+          setAnalyticsProjectSummaryError(errorMessage);
+          if (session != null) {
+            setAnalyticsSessionComparisonError(errorMessage);
+          }
+          return;
+        }
+
+        if (currentView === "tokenStats") {
+          useAppStore.getState().setError({
+            type: AppErrorType.UNKNOWN,
+            message: errorMessage,
+          });
+          return;
+        }
+
+        setAnalyticsProjectSummaryError(errorMessage);
+      }
+    },
+    [
+      clearTokenStats,
+      loadGlobalStats,
+      loadProjectStatsSummary,
+      loadProjectTokenStats,
+      loadSessionComparison,
+      loadSessionTokenStats,
+      setAnalyticsLoadingProjectSummary,
+      setAnalyticsLoadingSessionComparison,
+      setAnalyticsProjectSummary,
+      setAnalyticsProjectSummaryError,
+      setAnalyticsSessionComparison,
+      setAnalyticsSessionComparisonError,
+      setAnalyticsStatsMode,
+      t,
+    ]
+  );
+
+  const setMetricMode = useCallback(
+    (mode: MetricMode) => {
+      setAnalyticsMetricMode(mode);
+    },
+    [setAnalyticsMetricMode]
+  );
+
+  /**
    * 현재 뷰의 분석 데이터 강제 새로고침
    * 캐시를 무시하고 데이터를 다시 로드
    */
@@ -378,6 +443,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
         break;
       case "analytics":
         setAnalyticsProjectSummary(null);
+        setAnalyticsProjectConversationSummary(null);
         setAnalyticsSessionComparison(null);
         await switchToAnalytics();
         break;
@@ -402,6 +468,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     switchToBoard,
     clearTokenStats,
     setAnalyticsProjectSummary,
+    setAnalyticsProjectConversationSummary,
     setAnalyticsSessionComparison,
     setAnalyticsRecentEdits,
   ]);
@@ -469,6 +536,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
 
     if (analytics.currentView === "analytics" && selectedProject && selectedSession) {
+      const autoloadKey = `${selectedSession.actual_session_id}:${dateFilter.start?.getTime() ?? "none"}:${dateFilter.end?.getTime() ?? "none"}`;
       // 캐시 확인: 이미 로드된 데이터면 스킵
       const hasCachedSessionComparison =
         analytics.sessionComparison?.session_id === selectedSession.actual_session_id;
@@ -477,8 +545,14 @@ export const useAnalytics = (): UseAnalyticsReturn => {
 
       // 둘 다 캐시되어 있으면 로드 스킵
       if (hasCachedSessionComparison && hasCachedSessionTokenStats) {
+        analyticsSessionAutoloadAttemptKeyRef.current = null;
         return;
       }
+      // Prevent infinite retries for the same session + date filter tuple.
+      if (analyticsSessionAutoloadAttemptKeyRef.current === autoloadKey) {
+        return;
+      }
+      analyticsSessionAutoloadAttemptKeyRef.current = autoloadKey;
 
       const updateSessionData = async () => {
         try {
@@ -521,6 +595,8 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     selectedProject?.path,
     selectedProject,
     selectedSession,
+    dateFilter.start?.getTime(),
+    dateFilter.end?.getTime(),
     sessionTokenStats?.session_id,
     analytics.currentView,
     analytics.sessionComparison?.session_id,
@@ -543,13 +619,20 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     }
 
     if (analytics.currentView === "tokenStats" && selectedSession) {
+      const autoloadKey = `${selectedSession.actual_session_id}:${dateFilter.start?.getTime() ?? "none"}:${dateFilter.end?.getTime() ?? "none"}`;
       // 캐시 확인: 이미 로드된 데이터면 스킵
       const hasCachedSessionTokenStats =
         sessionTokenStats?.session_id === selectedSession.actual_session_id;
 
       if (hasCachedSessionTokenStats) {
+        tokenStatsSessionAutoloadAttemptKeyRef.current = null;
         return;
       }
+      // Prevent infinite retries for the same session + date filter tuple.
+      if (tokenStatsSessionAutoloadAttemptKeyRef.current === autoloadKey) {
+        return;
+      }
+      tokenStatsSessionAutoloadAttemptKeyRef.current = autoloadKey;
 
       const updateSessionTokenStats = async () => {
         try {
@@ -562,6 +645,8 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       updateSessionTokenStats();
     }
   }, [
+    dateFilter.start?.getTime(),
+    dateFilter.end?.getTime(),
     selectedSession?.actual_session_id,
     selectedSession?.file_path,
     selectedSession,
@@ -586,42 +671,109 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       return;
     }
     dateFilterKeyRef.current = currentDateFilterKey;
+    const requestSeq = ++dateFilterRequestSeqRef.current;
+    const isStaleRequest = () => requestSeq !== dateFilterRequestSeqRef.current;
 
-    if (!selectedProject) {
-      return;
-    }
+    const isGlobalScope = !selectedProject && analytics.currentView === "analytics";
 
     const update = async () => {
       try {
+        if (isGlobalScope) {
+          await loadGlobalStats();
+          return;
+        }
+
+        if (!selectedProject) {
+          return;
+        }
+
         if (computed.isTokenStatsView) {
-          await loadProjectTokenStats(selectedProject.path);
+          const promises: Promise<unknown>[] = [loadProjectTokenStats(selectedProject.path)];
+          if (selectedSession) {
+            promises.push(loadSessionTokenStats(selectedSession.file_path));
+          }
+          await Promise.all(promises);
+          if (isStaleRequest()) {
+            return;
+          }
         } else if (computed.isAnalyticsView) {
           setAnalyticsLoadingProjectSummary(true);
           const summary = await loadProjectStatsSummary(selectedProject.path);
+          if (isStaleRequest()) {
+            return;
+          }
           setAnalyticsProjectSummary(summary);
+
+          if (selectedSession) {
+            setAnalyticsLoadingSessionComparison(true);
+            try {
+              const [comparison] = await Promise.all([
+                loadSessionComparison(selectedSession.actual_session_id, selectedProject.path),
+                loadSessionTokenStats(selectedSession.file_path),
+              ]);
+              if (isStaleRequest()) {
+                return;
+              }
+              setAnalyticsSessionComparison(comparison);
+              setAnalyticsSessionComparisonError(null);
+            } catch (err) {
+              if (isStaleRequest()) {
+                return;
+              }
+              const message =
+                err instanceof Error
+                  ? err.message
+                  : t("common.hooks.sessionComparisonLoadFailed");
+              // Clear stale comparison values when the filtered comparison request fails.
+              setAnalyticsSessionComparison(null);
+              setAnalyticsSessionComparisonError(message);
+            } finally {
+              setAnalyticsLoadingSessionComparison(false);
+            }
+          } else {
+            setAnalyticsSessionComparison(null);
+            setAnalyticsSessionComparisonError(null);
+          }
         }
       } catch (err) {
+        if (isStaleRequest()) {
+          return;
+        }
         const message =
           err instanceof Error ? err.message : t("common.hooks.projectSummaryLoadFailed");
         setAnalyticsProjectSummaryError(message);
+        toast.error(message);
       } finally {
-        setAnalyticsLoadingProjectSummary(false);
+        // Always clear loading state regardless of stale check to prevent
+        // isLoadingProjectSummary from getting stuck as true permanently.
+        if (computed.isAnalyticsView) {
+          setAnalyticsLoadingProjectSummary(false);
+        }
       }
     };
 
-    if (computed.isTokenStatsView || computed.isAnalyticsView) {
+    if (isGlobalScope || computed.isTokenStatsView || computed.isAnalyticsView) {
       void update();
     }
   }, [
     dateFilter.start?.getTime(),
     dateFilter.end?.getTime(),
+    analytics.currentView,
     computed.isTokenStatsView,
     computed.isAnalyticsView,
+    selectedSession?.actual_session_id,
+    selectedSession?.file_path,
     selectedProject?.path,
+    loadGlobalStats,
     loadProjectTokenStats,
+    loadSessionTokenStats,
     loadProjectStatsSummary,
+    loadSessionComparison,
     setAnalyticsLoadingProjectSummary,
+    setAnalyticsLoadingSessionComparison,
     setAnalyticsProjectSummary,
+    setAnalyticsSessionComparison,
+    setAnalyticsSessionComparisonError,
     setAnalyticsProjectSummaryError,
     t
   ]);
@@ -635,6 +787,8 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       switchToRecentEdits,
       switchToSettings,
       switchToBoard,
+      setStatsMode,
+      setMetricMode,
       refreshAnalytics,
       clearAll,
     },
