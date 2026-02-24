@@ -52,7 +52,7 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
 | **Multi-Provider** | Unified viewer for Claude Code, Codex CLI, and OpenCode conversations |
 | **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
 | **Global Search** | Search across all conversations instantly |
-| **Analytics Dashboard** | Token usage stats and API cost calculation per provider |
+| **Analytics Dashboard** | Dual-mode token stats (billing vs conversation), cost breakdown, and provider distribution charts |
 | **Session Board** | Multi-session visual analysis with pixel view, attribute brushing, and activity timeline |
 | **Settings Manager** | Scope-aware Claude Code settings editor with MCP server management |
 | **Message Navigator** | Right-side collapsible TOC for quick conversation navigation |
