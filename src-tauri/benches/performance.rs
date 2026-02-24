@@ -435,10 +435,13 @@ fn bench_get_project_stats_summary(c: &mut Criterion) {
         ] {
             let mode = mode_value.map(str::to_string);
             let bench_id = format!("{session_count}_{mode_label}");
-            group.bench_with_input(BenchmarkId::new("sessions_mode", bench_id), session_count, |b, _| {
-                let mode = mode.clone();
-                b.iter(|| {
-                    rt.block_on(async {
+            group.bench_with_input(
+                BenchmarkId::new("sessions_mode", bench_id),
+                session_count,
+                |b, _| {
+                    let mode = mode.clone();
+                    b.iter(|| {
+                        rt.block_on(async {
                         claude_code_history_viewer_lib::commands::stats::get_project_stats_summary(
                             black_box(path_str.clone()),
                             black_box(None),
@@ -447,8 +450,9 @@ fn bench_get_project_stats_summary(c: &mut Criterion) {
                         )
                         .await
                     })
-                });
-            });
+                    });
+                },
+            );
         }
     }
 
@@ -511,10 +515,13 @@ fn bench_get_global_stats_summary(c: &mut Criterion) {
         ] {
             let mode = mode_value.map(str::to_string);
             let bench_id = format!("{project_count}_{mode_label}");
-            group.bench_with_input(BenchmarkId::new("projects_mode", bench_id), project_count, |b, _| {
-                let mode = mode.clone();
-                b.iter(|| {
-                    rt.block_on(async {
+            group.bench_with_input(
+                BenchmarkId::new("projects_mode", bench_id),
+                project_count,
+                |b, _| {
+                    let mode = mode.clone();
+                    b.iter(|| {
+                        rt.block_on(async {
                         claude_code_history_viewer_lib::commands::stats::get_global_stats_summary(
                             black_box(path_str.clone()),
                             black_box(None),
@@ -524,8 +531,9 @@ fn bench_get_global_stats_summary(c: &mut Criterion) {
                         )
                         .await
                     })
-                });
-            });
+                    });
+                },
+            );
         }
     }
 
@@ -601,23 +609,27 @@ fn bench_get_session_comparison(c: &mut Criterion) {
         ] {
             let mode = mode_value.map(str::to_string);
             let bench_id = format!("{session_count}_{mode_label}");
-            group.bench_with_input(BenchmarkId::new("sessions_mode", bench_id), session_count, |b, _| {
-                let mode = mode.clone();
-                let session_id = session_id.clone();
-                let project_path_str = project_path_str.clone();
-                b.iter(|| {
-                    rt.block_on(async {
-                        claude_code_history_viewer_lib::commands::stats::get_session_comparison(
-                            black_box(session_id.clone()),
-                            black_box(project_path_str.clone()),
-                            black_box(None),
-                            black_box(None),
-                            black_box(mode.clone()),
-                        )
-                        .await
-                    })
-                });
-            });
+            group.bench_with_input(
+                BenchmarkId::new("sessions_mode", bench_id),
+                session_count,
+                |b, _| {
+                    let mode = mode.clone();
+                    let session_id = session_id.clone();
+                    let project_path_str = project_path_str.clone();
+                    b.iter(|| {
+                        rt.block_on(async {
+                            claude_code_history_viewer_lib::commands::stats::get_session_comparison(
+                                black_box(session_id.clone()),
+                                black_box(project_path_str.clone()),
+                                black_box(None),
+                                black_box(None),
+                                black_box(mode.clone()),
+                            )
+                            .await
+                        })
+                    });
+                },
+            );
         }
     }
 
