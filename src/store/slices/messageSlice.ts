@@ -319,6 +319,8 @@ export const createMessageSlice: StateCreator<
       console.log("새로고침 완료");
     } catch (error) {
       console.error("새로고침 실패:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`새로고침 실패: ${message}`);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
     }
   },
@@ -586,12 +588,23 @@ export const createMessageSlice: StateCreator<
         ? await fetchProjectStatsSummary(projectPath, {
             ...dateOptions,
             stats_mode: "conversation_only",
+          }).catch((error) => {
+            console.warn(
+              "Failed to load conversation-only project summary:",
+              error
+            );
+            toast.warning(
+              "Conversation-only project summary could not be loaded. Showing billing totals only."
+            );
+            return billing;
           })
         : billing;
       get().setAnalyticsProjectConversationSummary(conversation);
       return billing;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       console.error("Failed to load project stats summary:", error);
+      toast.error(`Failed to load project stats summary: ${message}`);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
       throw error;
     }

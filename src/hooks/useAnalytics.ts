@@ -330,6 +330,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       setAnalyticsStatsMode(mode);
       clearTokenStats();
       setAnalyticsProjectSummary(null);
+      setAnalyticsProjectConversationSummary(null);
       setAnalyticsSessionComparison(null);
       setAnalyticsProjectSummaryError(null);
       setAnalyticsSessionComparisonError(null);
