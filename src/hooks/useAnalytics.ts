@@ -384,6 +384,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : t("common.hooks.projectSummaryLoadFailed");
+        toast.error(errorMessage);
         if (currentView === "analytics") {
           setAnalyticsProjectSummaryError(errorMessage);
           if (session != null) {
@@ -740,6 +741,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
         const message =
           err instanceof Error ? err.message : t("common.hooks.projectSummaryLoadFailed");
         setAnalyticsProjectSummaryError(message);
+        toast.error(message);
       } finally {
         // Always clear loading state regardless of stale check to prevent
         // isLoadingProjectSummary from getting stuck as true permanently.

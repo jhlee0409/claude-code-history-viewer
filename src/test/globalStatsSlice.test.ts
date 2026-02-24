@@ -122,8 +122,8 @@ describe("globalStatsSlice", () => {
       undefined,
     );
     expect(useStore.getState().globalSummary).toEqual(summary);
-    // No conversation breakdown for codex → conversationSummary stays null
-    expect(useStore.getState().globalConversationSummary).toBeNull();
+    // No conversation breakdown for codex → conversation summary falls back to billing.
+    expect(useStore.getState().globalConversationSummary).toEqual(summary);
   });
 
   it("keeps billing summary when conversation-only request fails", async () => {

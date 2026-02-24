@@ -280,12 +280,25 @@ export const createMessageSlice: StateCreator<
               stats_mode: "billing_total",
             }
           );
-          const projectConversationSummary = canLoadConversationBreakdown()
-            ? await fetchProjectStatsSummary(selectedProject.path, {
+          let projectConversationSummary = projectSummary;
+          if (canLoadConversationBreakdown()) {
+            projectConversationSummary = await fetchProjectStatsSummary(
+              selectedProject.path,
+              {
                 ...dateOptions,
                 stats_mode: "conversation_only",
-              })
-            : projectSummary;
+              }
+            ).catch((error) => {
+              console.warn(
+                "Failed to load conversation-only project summary:",
+                error
+              );
+              toast.warning(
+                "Conversation-only project summary could not be loaded. Showing billing totals only."
+              );
+              return projectSummary;
+            });
+          }
           get().setAnalyticsProjectSummary(projectSummary);
           get().setAnalyticsProjectConversationSummary(projectConversationSummary);
 
@@ -324,7 +337,19 @@ export const createMessageSlice: StateCreator<
               sessionPath,
               "conversation_only",
               dateOptions
-            ).catch(() => null)
+            ).catch((error) => {
+              if (requestId !== getRequestId("sessionTokenStats")) {
+                return null;
+              }
+              console.warn(
+                "Failed to load conversation-only session stats:",
+                error
+              );
+              toast.warning(
+                "Conversation-only session stats could not be loaded. Showing billing totals only."
+              );
+              return null;
+            })
           : Promise.resolve(null),
       ]);
       const conversationStats = breakdown ? conversationStatsRaw : stats;
@@ -333,6 +358,8 @@ export const createMessageSlice: StateCreator<
     } catch (error) {
       if (requestId !== getRequestId("sessionTokenStats")) return;
       console.error("Failed to load session token stats:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to load session token stats: ${message}`);
       get().setError({
         type: AppErrorType.UNKNOWN,
         message: `Failed to load token stats: ${error}`,
@@ -379,15 +406,33 @@ export const createMessageSlice: StateCreator<
               limit: TOKENS_STATS_PAGE_SIZE,
               ...dateOptions,
               stats_mode: "conversation_only",
-            }).catch(() => null)
+            }).catch((error) => {
+              if (requestId !== getRequestId("projectTokenStats")) {
+                return null;
+              }
+              console.warn(
+                "Failed to load conversation-only project token stats:",
+                error
+              );
+              toast.warning(
+                "Conversation-only project stats could not be loaded. Showing billing totals only."
+              );
+              return null;
+            })
           : Promise.resolve(null),
         fetchProjectStatsSummary(projectPath, {
           ...dateOptions,
           stats_mode: "billing_total",
         }).catch((error) => {
+          if (requestId !== getRequestId("projectTokenStats")) {
+            return null;
+          }
           console.warn(
             "Failed to load project token stats summary, falling back to loaded-page aggregate:",
             error
+          );
+          toast.warning(
+            "Project stats summary could not be loaded. Showing page aggregate only."
           );
           return null;
         }),
@@ -395,7 +440,19 @@ export const createMessageSlice: StateCreator<
           ? fetchProjectStatsSummary(projectPath, {
               ...dateOptions,
               stats_mode: "conversation_only",
-            }).catch(() => null)
+            }).catch((error) => {
+              if (requestId !== getRequestId("projectTokenStats")) {
+                return null;
+              }
+              console.warn(
+                "Failed to load conversation-only project summary:",
+                error
+              );
+              toast.warning(
+                "Conversation-only project summary could not be loaded. Showing billing totals only."
+              );
+              return null;
+            })
           : Promise.resolve(null),
       ]);
       const conversationResponse = breakdown
@@ -471,7 +528,19 @@ export const createMessageSlice: StateCreator<
               limit: TOKENS_STATS_PAGE_SIZE,
               ...dateOptions,
               stats_mode: "conversation_only",
-            }).catch(() => null)
+            }).catch((error) => {
+              if (snapshotId !== getRequestId("projectTokenStats")) {
+                return null;
+              }
+              console.warn(
+                "Failed to load conversation-only project stats page:",
+                error
+              );
+              toast.warning(
+                "Conversation-only project stats could not be loaded. Showing billing totals only."
+              );
+              return null;
+            })
           : Promise.resolve(null),
       ]);
       const conversationResponse = breakdown

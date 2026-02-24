@@ -116,13 +116,17 @@ export const createGlobalStatsSlice: StateCreator<
       }
       set({
         globalSummary: summary,
-        globalConversationSummary: conversationSummary,
+        globalConversationSummary: canLoadConversationSummary
+          ? conversationSummary
+          : summary,
       });
     } catch (error) {
       if (requestId !== getRequestId("globalStats")) {
         return;
       }
       console.error("Failed to load global stats:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to load global stats: ${message}`);
       get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
       set({ globalSummary: null, globalConversationSummary: null });
     } finally {
