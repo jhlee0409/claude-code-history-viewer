@@ -112,9 +112,13 @@ issues:
 serve-build: frontend-build
     cd src-tauri && cargo build --release --features webui-server
 
-# Run the built server binary (embedded assets, no --dist needed)
-serve-run: serve-build
-    ./src-tauri/target/release/claude-code-history-viewer --serve
+# Build and run server (full rebuild)
+serve-build-run: serve-build
+    -./src-tauri/target/release/claude-code-history-viewer --serve
+
+# Run the already-built server binary (no rebuild, instant start)
+serve *ARGS:
+    -./src-tauri/target/release/claude-code-history-viewer --serve {{ARGS}}
 
 # Run server in development mode (external dist/ for hot reload)
 serve-dev: frontend-build
