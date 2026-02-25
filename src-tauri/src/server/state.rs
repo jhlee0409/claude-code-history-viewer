@@ -5,10 +5,13 @@
 
 use crate::commands::metadata::MetadataState;
 use std::sync::Arc;
+use std::time::Instant;
 
 /// Shared state accessible by all Axum route handlers.
 #[derive(Clone)]
 pub struct AppState {
     /// Metadata state shared with Tauri (wrapped in Arc for Axum Clone requirement)
     pub metadata: Arc<MetadataState>,
+    /// Server start time for uptime calculation.
+    pub start_time: Instant,
 }

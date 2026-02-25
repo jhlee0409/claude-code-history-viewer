@@ -164,7 +164,10 @@ fn run_server(args: &[String]) {
     let dist_dir = parse_cli_flag(args, "--dist");
 
     let metadata = Arc::new(MetadataState::default());
-    let state = Arc::new(server::state::AppState { metadata });
+    let state = Arc::new(server::state::AppState {
+        metadata,
+        start_time: std::time::Instant::now(),
+    });
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     rt.block_on(server::start(state, &host, port, dist_dir.as_deref()));

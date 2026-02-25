@@ -38,6 +38,7 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
 - [Features](#features)
 - [Installation](#installation)
 - [Build from Source](#build-from-source)
+- [Server Mode (WebUI)](#server-mode-webui)
 - [Usage](#usage)
 - [Tech Stack](#tech-stack)
 - [Data Privacy](#data-privacy)
@@ -130,6 +131,62 @@ pnpm tauri:build     # Production build
 ```
 
 **Requirements**: Node.js 18+, pnpm, Rust toolchain
+
+## Server Mode (WebUI)
+
+Run the viewer as a headless HTTP server — no desktop environment required. Ideal for VPS, remote servers, or Docker.
+
+### Pre-built Binary
+
+Download the server binary from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases):
+
+| Platform | Asset |
+|----------|-------|
+| Linux x64 | `claude-code-history-viewer-server-linux-x64.tar.gz` |
+| macOS ARM | `claude-code-history-viewer-server-macos-arm64.tar.gz` |
+
+```bash
+tar xzf claude-code-history-viewer-server-linux-x64.tar.gz
+./claude-code-history-viewer --serve --dist ./dist --host 0.0.0.0
+# → http://<your-server-ip>:3727
+```
+
+**CLI options:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--serve` | — | **Required.** Starts the HTTP server instead of the desktop app |
+| `--dist <path>` | — | Path to the frontend build output (`dist/`) |
+| `--port <number>` | `3727` | Server port |
+| `--host <address>` | `127.0.0.1` | Bind address (`0.0.0.0` to expose to network) |
+
+### Docker
+
+```bash
+docker compose up -d
+# → http://localhost:3727
+```
+
+The `docker-compose.yml` mounts `~/.claude`, `~/.codex`, and `~/.local/share/opencode` as read-only volumes.
+
+### Build from Source (Server Only)
+
+```bash
+just serve-build           # Build frontend + server binary
+# Binary at: src-tauri/target/release/claude-code-history-viewer
+
+# Or run in development:
+just serve-dev             # Build frontend + run server
+```
+
+### Health Check
+
+```
+GET /health
+→ { "status": "ok", "version": "1.5.3", "uptime_secs": 120 }
+```
+
+> **Note:** The server exposes write APIs (settings, metadata) without authentication. Bind to `127.0.0.1` (default) or use a reverse proxy with authentication when exposing to a network.
 
 ## Usage
 

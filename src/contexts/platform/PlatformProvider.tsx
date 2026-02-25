@@ -8,12 +8,6 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
 
     return {
       platform: desktop ? "desktop" : "web",
-      capabilities: {
-        autoUpdate: desktop,
-        fileWatcher: desktop,
-        nativeDialogs: desktop,
-        systemLocale: desktop,
-      },
       isDesktop: desktop,
       isWeb: !desktop,
     };

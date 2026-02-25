@@ -106,6 +106,16 @@ issue ISSUE_NUMBER:
 issues:
     gh issue list --state open --limit 20
 
+# ===== WebUI Server Mode =====
+
+# Build server binary with WebUI server feature
+serve-build: frontend-build
+    cd src-tauri && cargo build --release --features webui-server
+
+# Run server in development mode
+serve-dev: frontend-build
+    cd src-tauri && cargo run --features webui-server -- --serve --dist ../dist
+
 # ===== Rust Testing Commands =====
 
 # Run Rust tests with cargo test

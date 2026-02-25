@@ -2,16 +2,8 @@ import { createContext, useContext } from "react";
 
 export type PlatformType = "desktop" | "web";
 
-export interface PlatformCapabilities {
-  autoUpdate: boolean;
-  fileWatcher: boolean;
-  nativeDialogs: boolean;
-  systemLocale: boolean;
-}
-
 export interface PlatformContextValue {
   platform: PlatformType;
-  capabilities: PlatformCapabilities;
   isDesktop: boolean;
   isWeb: boolean;
 }

@@ -6,12 +6,14 @@
 pub mod handlers;
 pub mod state;
 
-use axum::routing::post;
-use axum::Router;
+use axum::extract::State;
+use axum::response::Html;
+use axum::routing::{get, post};
+use axum::{Json, Router};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 
 use self::handlers as h;
 use self::state::AppState;
@@ -120,18 +122,32 @@ pub fn build_router(state: Arc<AppState>, dist_dir: Option<&str>) -> Router {
         .route("/search_all_providers", post(h::search_all_providers));
 
     let mut app = Router::new()
+        .route("/health", get(health_handler))
         .nest("/api", api)
         .with_state(state)
         .layer(cors);
 
-    // Serve React SPA build output as static files
+    // Serve React SPA build output as static files.
+    // For unknown paths, fall back to index.html with HTTP 200 so client-side routing works.
     if let Some(dist) = dist_dir {
-        let serve_dir =
-            ServeDir::new(dist).not_found_service(ServeFile::new(format!("{dist}/index.html")));
-        app = app.fallback_service(serve_dir);
+        let index_html = std::fs::read_to_string(format!("{dist}/index.html"))
+            .expect("Failed to read dist/index.html — is --dist correct?");
+        let spa_fallback = get(move || std::future::ready(Html(index_html.clone())));
+        let serve_dir = ServeDir::new(dist);
+        app = app.fallback_service(serve_dir.fallback(spa_fallback));
     }
 
     app
+}
+
+/// Health check handler returning server status, version, and uptime.
+async fn health_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let uptime_secs = state.start_time.elapsed().as_secs();
+    Json(serde_json::json!({
+        "status": "ok",
+        "version": env!("CARGO_PKG_VERSION"),
+        "uptime_secs": uptime_secs,
+    }))
 }
 
 /// Start the Axum HTTP server.

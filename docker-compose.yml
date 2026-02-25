@@ -1,0 +1,10 @@
+services:
+  webui:
+    build: .
+    ports:
+      - "3727:3727"
+    volumes:
+      - ${HOME}/.claude:/root/.claude:ro
+      - ${HOME}/.codex:/root/.codex:ro
+      - ${HOME}/.local/share/opencode:/root/.local/share/opencode:ro
+    restart: unless-stopped

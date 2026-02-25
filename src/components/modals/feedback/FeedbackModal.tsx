@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/services/api";
+import { isWebUI } from "@/utils/platform";
 import { useTranslation } from "react-i18next";
 import { GithubIcon, MailIcon, InfoIcon } from "lucide-react";
 import type { FeedbackPrefill, FeedbackType } from "@/contexts/modal/context";
@@ -145,7 +146,10 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
             }
           : null;
 
-      await api("open_github_issues", { feedback });
+      const result = await api<{ url?: string }>("open_github_issues", { feedback });
+      if (isWebUI() && result?.url) {
+        window.open(result.url, "_blank", "noopener,noreferrer");
+      }
     } catch (error) {
       console.error("Failed to open GitHub:", error);
       alert(t("feedback.openGitHubError"));
