@@ -7,6 +7,7 @@ import "./scrollbar.css";
 import App from "./App.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import "./i18n";
+import { PlatformProvider } from "./contexts/platform";
 import { ThemeProvider } from "./contexts/theme/ThemeProvider.tsx";
 import { ModalProvider } from "./contexts/modal/ModalProvider.tsx";
 import { Toaster } from "sonner";
@@ -23,12 +24,14 @@ OverlayScrollbars(document.body, {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
-      <ThemeProvider>
-        <ModalProvider>
-          <App />
-          <Toaster />
-        </ModalProvider>
-      </ThemeProvider>
+      <PlatformProvider>
+        <ThemeProvider>
+          <ModalProvider>
+            <App />
+            <Toaster />
+          </ModalProvider>
+        </ThemeProvider>
+      </PlatformProvider>
     </ErrorBoundary>
   </StrictMode>
 );

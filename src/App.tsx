@@ -32,6 +32,7 @@ import "./App.css";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "./layouts/Header/SettingDropdown/ModalContainer";
 import { useModal } from "@/contexts/modal";
+import { DesktopOnly, usePlatform } from "@/contexts/platform";
 import { getProviderLabel, normalizeProviderIds } from "./utils/providers";
 
 function App() {
@@ -91,6 +92,7 @@ function App() {
   const { t, i18n: i18nInstance } = useTranslation();
   const { language, loadLanguage } = useLanguageStore();
   const { openModal } = useModal();
+  const { isDesktop } = usePlatform();
   const updater = useUpdater();
   const appVersion = updater.state.currentVersion || "—";
   const globalOverviewDescription = useMemo(() => {
@@ -561,7 +563,11 @@ function App() {
         {/* Status Bar */}
         <footer className="h-7 px-4 flex items-center justify-between bg-sidebar border-t border-border/50 text-2xs text-muted-foreground">
           <div className="flex items-center gap-3 font-mono tabular-nums">
-            <span>{t("status.versionLabel", "v{{version}}", { version: appVersion })}</span>
+            <span>
+              {isDesktop
+                ? t("status.versionLabel", "v{{version}}", { version: appVersion })
+                : "Web"}
+            </span>
             <span className="text-border">•</span>
             <span>{t("project.count", { count: projects.length })}</span>
             <span className="text-border">•</span>
@@ -592,8 +598,10 @@ function App() {
             )}
         </footer>
 
-        {/* Update Manager */}
-        <SimpleUpdateManager updater={updater} />
+        {/* Update Manager (desktop only) */}
+        <DesktopOnly>
+          <SimpleUpdateManager updater={updater} />
+        </DesktopOnly>
       </div>
 
       {/* Modals */}

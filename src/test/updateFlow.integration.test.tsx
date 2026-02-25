@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useUpdater } from "../hooks/useUpdater";
 import { SimpleUpdateManager } from "../components/SimpleUpdateManager";
 import { SettingDropdown } from "../layouts/Header/SettingDropdown/index";
+import { PlatformProvider } from "../contexts/platform";
 import type { UpdateSettings } from "../types/updateSettings";
 
 // Simulate Tauri environment so isTauri() returns true
@@ -131,10 +132,10 @@ function UpdateFlowHarness() {
   const updater = useUpdater();
 
   return (
-    <>
+    <PlatformProvider>
       <SettingDropdown updater={updater} />
       <SimpleUpdateManager updater={updater} />
-    </>
+    </PlatformProvider>
   );
 }
 
