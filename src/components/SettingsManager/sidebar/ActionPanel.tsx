@@ -8,8 +8,8 @@
 import * as React from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
-import { save, open } from "@tauri-apps/plugin-dialog";
+import { api } from "@/services/api";
+import { saveFileDialog, openFileDialog } from "@/utils/fileDialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -109,16 +109,12 @@ export const ActionPanel: React.FC = () => {
         ? sanitizeSettings(currentSettings)
         : currentSettings;
 
-      const filePath = await save({
+      const saved = await saveFileDialog(JSON.stringify(settingsToExport, null, 2), {
         filters: [{ name: "JSON", extensions: ["json"] }],
         defaultPath: `claude-settings-${activeScope}.json`,
       });
 
-      if (filePath) {
-        await invoke("write_text_file", {
-          path: filePath,
-          content: JSON.stringify(settingsToExport, null, 2),
-        });
+      if (saved) {
         setIsExportOpen(false);
       }
     } catch (error) {
@@ -133,15 +129,11 @@ export const ActionPanel: React.FC = () => {
   const handleImportSelect = async () => {
     setIsImporting(true);
     try {
-      const filePath = await open({
+      const content = await openFileDialog({
         filters: [{ name: "JSON", extensions: ["json"] }],
-        multiple: false,
       });
 
-      if (filePath && typeof filePath === "string") {
-        const content = await invoke<string>("read_text_file", {
-          path: filePath,
-        });
+      if (content) {
         const parsed = JSON.parse(content) as ClaudeCodeSettings;
         setImportedSettings(parsed);
         setImportError(null);
@@ -162,7 +154,7 @@ export const ActionPanel: React.FC = () => {
 
     setImportError(null);
     try {
-      await invoke("save_settings", {
+      await api("save_settings", {
         scope: importScope,
         content: JSON.stringify(importedSettings, null, 2),
         projectPath: importScope !== "user" ? projectPath : undefined,

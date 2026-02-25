@@ -61,7 +61,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import type {
   UnifiedPresetData,
   UnifiedPresetInput,
@@ -133,7 +133,7 @@ export const useUnifiedPresets = (): UseUnifiedPresetsResult => {
 
     try {
       const loadedPresets =
-        await invoke<UnifiedPresetData[]>("load_unified_presets");
+        await api<UnifiedPresetData[]>("load_unified_presets");
       setPresets(loadedPresets);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -160,7 +160,7 @@ export const useUnifiedPresets = (): UseUnifiedPresetsResult => {
       setError(null);
 
       try {
-        const savedPreset = await invoke<UnifiedPresetData>(
+        const savedPreset = await api<UnifiedPresetData>(
           "save_unified_preset",
           { input }
         );
@@ -192,7 +192,7 @@ export const useUnifiedPresets = (): UseUnifiedPresetsResult => {
       setError(null);
 
       try {
-        const preset = await invoke<UnifiedPresetData | null>(
+        const preset = await api<UnifiedPresetData | null>(
           "get_unified_preset",
           { id }
         );
@@ -221,7 +221,7 @@ export const useUnifiedPresets = (): UseUnifiedPresetsResult => {
       setError(null);
 
       try {
-        await invoke("delete_unified_preset", { id });
+        await api("delete_unified_preset", { id });
         await loadPresets(); // Reload list to remove deleted item from UI
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
@@ -275,7 +275,7 @@ export const useUnifiedPresets = (): UseUnifiedPresetsResult => {
           mcpServers: existing.mcpServers,
         };
 
-        const savedPreset = await invoke<UnifiedPresetData>(
+        const savedPreset = await api<UnifiedPresetData>(
           "save_unified_preset",
           { input: duplicateInput }
         );

@@ -4,7 +4,7 @@
  * Handles global search and session search (KakaoTalk-style navigation).
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import type { ClaudeMessage, SearchFilters } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
@@ -88,13 +88,13 @@ export const createSearchSlice: StateCreator<
     try {
       const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
       const results = hasNonClaudeProviders
-        ? await invoke<ClaudeMessage[]>("search_all_providers", {
+        ? await api<ClaudeMessage[]>("search_all_providers", {
             claudePath,
             query,
             activeProviders,
             filters,
           })
-        : await invoke<ClaudeMessage[]>("search_messages", {
+        : await api<ClaudeMessage[]>("search_messages", {
             claudePath,
             query,
             filters,

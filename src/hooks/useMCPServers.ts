@@ -61,7 +61,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import type { MCPServerConfig, MCPSource, AllMCPServersResponse } from "../types";
 
 export interface UseMCPServersResult {
@@ -135,7 +135,7 @@ export const useMCPServers = (projectPath?: string): UseMCPServersResult => {
     setError(null);
 
     try {
-      const response = await invoke<AllMCPServersResponse>("get_all_mcp_servers", {
+      const response = await api<AllMCPServersResponse>("get_all_mcp_servers", {
         projectPath,
       });
 
@@ -176,7 +176,7 @@ export const useMCPServers = (projectPath?: string): UseMCPServersResult => {
       const effectiveProjectPath = targetProjectPath ?? projectPath;
 
       try {
-        await invoke("save_mcp_servers", {
+        await api("save_mcp_servers", {
           source,
           servers: JSON.stringify(servers),
           projectPath: effectiveProjectPath,

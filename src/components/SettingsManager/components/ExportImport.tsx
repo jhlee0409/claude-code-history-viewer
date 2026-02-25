@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
-import { save, open } from "@tauri-apps/plugin-dialog";
+import { api } from "@/services/api";
+import { saveFileDialog, openFileDialog } from "@/utils/fileDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -134,17 +134,10 @@ export const ExportImport: React.FC<ExportImportProps> = ({
         ? sanitizeSettings(currentSettings)
         : currentSettings;
 
-      const filePath = await save({
+      await saveFileDialog(JSON.stringify(settingsToExport, null, 2), {
         filters: [{ name: "JSON", extensions: ["json"] }],
         defaultPath: `claude-settings-${exportScope}.json`,
       });
-
-      if (filePath) {
-        await invoke("write_text_file", {
-          path: filePath,
-          content: JSON.stringify(settingsToExport, null, 2),
-        });
-      }
     } catch (error) {
       console.error("Export failed:", error);
     } finally {
@@ -155,15 +148,11 @@ export const ExportImport: React.FC<ExportImportProps> = ({
   const handleImport = async () => {
     setIsImporting(true);
     try {
-      const filePath = await open({
+      const content = await openFileDialog({
         filters: [{ name: "JSON", extensions: ["json"] }],
-        multiple: false,
       });
 
-      if (filePath && typeof filePath === "string") {
-        const content = await invoke<string>("read_text_file", {
-          path: filePath,
-        });
+      if (content) {
         const parsed = JSON.parse(content) as ClaudeCodeSettings;
         setImportedSettings(parsed);
         setIsImportPreviewOpen(true);
@@ -185,7 +174,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
     }
 
     try {
-      await invoke("save_settings", {
+      await api("save_settings", {
         scope: importScope,
         content: JSON.stringify(importedSettings, null, 2),
         projectPath: importScope !== "user" ? projectPath : undefined,
@@ -253,17 +242,10 @@ export const ExportImport: React.FC<ExportImportProps> = ({
         }
       }
 
-      const filePath = await save({
+      await saveFileDialog(JSON.stringify(backup, null, 2), {
         filters: [{ name: "JSON", extensions: ["json"] }],
         defaultPath: `claude-settings-backup-${new Date().toISOString().split("T")[0]}.json`,
       });
-
-      if (filePath) {
-        await invoke("write_text_file", {
-          path: filePath,
-          content: JSON.stringify(backup, null, 2),
-        });
-      }
     } catch (error) {
       console.error("Export all failed:", error);
     } finally {
@@ -275,15 +257,11 @@ export const ExportImport: React.FC<ExportImportProps> = ({
   const handleImportAll = async () => {
     setIsImportingAll(true);
     try {
-      const filePath = await open({
+      const content = await openFileDialog({
         filters: [{ name: "JSON", extensions: ["json"] }],
-        multiple: false,
       });
 
-      if (filePath && typeof filePath === "string") {
-        const content = await invoke<string>("read_text_file", {
-          path: filePath,
-        });
+      if (content) {
         const parsed = JSON.parse(content) as SettingsBackup;
 
         // Validate backup format
@@ -308,7 +286,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
     try {
       // Apply each scope
       if (importedBackup.scopes.user) {
-        await invoke("save_settings", {
+        await api("save_settings", {
           scope: "user",
           content: JSON.stringify(importedBackup.scopes.user, null, 2),
         });
@@ -318,7 +296,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
           console.error("Cannot apply project scope: projectPath is undefined");
           return;
         }
-        await invoke("save_settings", {
+        await api("save_settings", {
           scope: "project",
           content: JSON.stringify(importedBackup.scopes.project, null, 2),
           projectPath,
@@ -329,7 +307,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
           console.error("Cannot apply local scope: projectPath is undefined");
           return;
         }
-        await invoke("save_settings", {
+        await api("save_settings", {
           scope: "local",
           content: JSON.stringify(importedBackup.scopes.local, null, 2),
           projectPath,

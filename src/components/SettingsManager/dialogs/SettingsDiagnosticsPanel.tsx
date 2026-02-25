@@ -15,7 +15,7 @@
 import * as React from "react";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -423,7 +423,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
       if (!claudePath) return;
       setIsScanning(true);
       try {
-        const projects = await invoke<ClaudeProject[]>("scan_projects", { claudePath });
+        const projects = await api<ClaudeProject[]>("scan_projects", { claudePath });
         if (cancelled) return;
         setTotalProjectsScanned(projects.length);
 
@@ -431,7 +431,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
         for (const project of projects) {
           if (cancelled) return;
           try {
-            const settings = await invoke<AllSettingsResponse>("get_all_settings", {
+            const settings = await api<AllSettingsResponse>("get_all_settings", {
               projectPath: project.actual_path,
             });
             const label = project.actual_path.split(/[\\/]/).pop() ?? project.name;

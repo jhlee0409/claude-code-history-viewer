@@ -4,7 +4,7 @@
  * Handles message loading and session data.
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import { toast } from "sonner";
 import type {
   ClaudeMessage,
@@ -166,7 +166,7 @@ export const createMessageSlice: StateCreator<
       const start = performance.now();
 
       const provider = session.provider ?? "claude";
-      const allMessages = await invoke<ClaudeMessage[]>("load_provider_messages", {
+      const allMessages = await api<ClaudeMessage[]>("load_provider_messages", {
         provider,
         sessionPath,
       });
@@ -242,12 +242,12 @@ export const createMessageSlice: StateCreator<
       if (selectedProject) {
         const provider = selectedProject.provider ?? "claude";
         const sessions = provider !== "claude"
-          ? await invoke<ClaudeSession[]>("load_provider_sessions", {
+          ? await api<ClaudeSession[]>("load_provider_sessions", {
               provider,
               projectPath: selectedProject.path,
               excludeSidechain: get().excludeSidechain,
             })
-          : await invoke<ClaudeSession[]>("load_project_sessions", {
+          : await api<ClaudeSession[]>("load_project_sessions", {
               projectPath: selectedProject.path,
               excludeSidechain: get().excludeSidechain,
             });

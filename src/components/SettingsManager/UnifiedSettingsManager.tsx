@@ -10,7 +10,7 @@
 
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/ui/loading";
 import { RefreshCw, FolderTree } from "lucide-react";
@@ -130,7 +130,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     try {
       setIsLoading(true);
       setError(null);
-      const settingsResult = await invoke<AllSettingsResponse>("get_all_settings", { projectPath });
+      const settingsResult = await api<AllSettingsResponse>("get_all_settings", { projectPath });
       setAllSettings(settingsResult);
     } catch (err) {
       setError(String(err));
@@ -163,7 +163,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
         throw new Error("Project path is required for non-user scope settings");
       }
       try {
-        await invoke("save_settings", {
+        await api("save_settings", {
           scope,
           content: JSON.stringify(newSettings, null, 2),
           projectPath: scope !== "user" ? effectiveProjectPath : undefined,

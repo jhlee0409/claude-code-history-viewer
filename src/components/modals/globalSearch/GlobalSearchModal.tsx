@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import { useTranslation } from "react-i18next";
 import {
     Search,
@@ -95,7 +95,7 @@ export const GlobalSearchModal = ({
             setIsSearching(true);
             try {
                 const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
-                const searchResults = await invoke<GlobalSearchResult[]>(
+                const searchResults = await api<GlobalSearchResult[]>(
                     hasNonClaudeProviders ? "search_all_providers" : "search_messages",
                     hasNonClaudeProviders
                         ? { claudePath, query: trimmedQuery, activeProviders, filters: {}, limit: MAX_RESULTS }
@@ -153,7 +153,7 @@ export const GlobalSearchModal = ({
                     // Load sessions for this project via provider-aware invoke
                     const projectProvider = project.provider ?? "claude";
                     const { excludeSidechain } = useAppStore.getState();
-                    const projectSessions = await invoke<ClaudeSession[]>(
+                    const projectSessions = await api<ClaudeSession[]>(
                         projectProvider !== "claude" ? "load_provider_sessions" : "load_project_sessions",
                         projectProvider !== "claude"
                             ? { provider: projectProvider, projectPath: project.path, excludeSidechain }

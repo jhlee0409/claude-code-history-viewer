@@ -3,6 +3,9 @@ pub mod models;
 pub mod providers;
 pub mod utils;
 
+#[cfg(feature = "webui-server")]
+pub mod server;
+
 #[cfg(test)]
 pub mod test_utils;
 
@@ -41,6 +44,21 @@ use crate::commands::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Check for --serve flag (WebUI server mode)
+    #[cfg(feature = "webui-server")]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if args.iter().any(|a| a == "--serve") {
+            run_server(&args);
+            return;
+        }
+    }
+
+    run_tauri();
+}
+
+/// Run the normal Tauri desktop application.
+fn run_tauri() {
     use std::sync::{Arc, Mutex};
 
     #[allow(unused_mut)]
@@ -132,4 +150,38 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_, _| {});
+}
+
+/// Run the Axum-based `WebUI` server (headless mode).
+#[cfg(feature = "webui-server")]
+fn run_server(args: &[String]) {
+    use std::sync::Arc;
+
+    let port = parse_cli_flag(args, "--port")
+        .and_then(|v| v.parse::<u16>().ok())
+        .unwrap_or(3727);
+    let host = parse_cli_flag(args, "--host").unwrap_or_else(|| "127.0.0.1".to_string());
+    let dist_dir = parse_cli_flag(args, "--dist");
+
+    let metadata = Arc::new(MetadataState::default());
+    let state = Arc::new(server::state::AppState { metadata });
+
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+    rt.block_on(server::start(state, &host, port, dist_dir.as_deref()));
+}
+
+/// Parse a CLI flag value: `--flag value` or `--flag=value`.
+#[cfg(feature = "webui-server")]
+fn parse_cli_flag(args: &[String], flag: &str) -> Option<String> {
+    for (i, arg) in args.iter().enumerate() {
+        // --flag=value
+        if let Some(val) = arg.strip_prefix(&format!("{flag}=")) {
+            return Some(val.to_string());
+        }
+        // --flag value
+        if arg == flag {
+            return args.get(i + 1).cloned();
+        }
+    }
+    None
 }

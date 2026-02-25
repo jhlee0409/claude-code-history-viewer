@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { isTauri } from '@/utils/platform';
 import { toast } from 'sonner';
+
+type UnlistenFn = () => void;
 
 /**
  * Event payload structure from Tauri file watcher
@@ -128,11 +130,14 @@ export function useFileWatcher(options: UseFileWatcherOptions = {}): UseFileWatc
    */
   const startWatching = useCallback(async () => {
     if (isWatchingRef.current) return;
+    // File watcher is not available in web mode
+    if (!isTauri()) return;
 
     // Capture the current version for cancellation checking
     const version = watchVersionRef.current;
 
     try {
+      const { listen } = await import('@tauri-apps/api/event');
       const unlisteners: UnlistenFn[] = [];
 
       // Listen to file changed events

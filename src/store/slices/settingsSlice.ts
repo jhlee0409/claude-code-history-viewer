@@ -4,7 +4,7 @@
  * Handles filter settings and update preferences.
  */
 
-import { load } from "@tauri-apps/plugin-store";
+import { storageAdapter } from "@/services/storage";
 import { toast } from "sonner";
 import type { UpdateSettings } from "../../types/updateSettings";
 import { DEFAULT_UPDATE_SETTINGS } from "../../types/updateSettings";
@@ -84,7 +84,7 @@ export const createSettingsSlice: StateCreator<
 
   loadUpdateSettings: async () => {
     try {
-      const store = await load("settings.json", {
+      const store = await storageAdapter.load("settings.json", {
         autoSave: false,
         defaults: {},
       });
@@ -114,7 +114,7 @@ export const createSettingsSlice: StateCreator<
     set({ updateSettings: newSettings });
 
     try {
-      const store = await load("settings.json", {
+      const store = await storageAdapter.load("settings.json", {
         autoSave: false,
         defaults: {},
       });
@@ -144,7 +144,7 @@ export const createSettingsSlice: StateCreator<
     set({ sessionSortOrder: order });
 
     try {
-      const store = await load("settings.json", {
+      const store = await storageAdapter.load("settings.json", {
         autoSave: false,
         defaults: {},
       });

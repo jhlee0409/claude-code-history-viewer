@@ -5,7 +5,7 @@
  * Single source of truth for API contracts and data fetching logic.
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import type {
   SessionTokenStats,
   PaginatedTokenStats,
@@ -57,7 +57,7 @@ export async function fetchSessionTokenStats(
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
-    const stats = await invoke<SessionTokenStats>("get_session_token_stats", {
+    const stats = await api<SessionTokenStats>("get_session_token_stats", {
       sessionPath,
       statsMode,
       startDate: start_date,
@@ -103,7 +103,7 @@ export async function fetchProjectTokenStats(
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
-    const response = await invoke<PaginatedTokenStats>("get_project_token_stats", {
+    const response = await api<PaginatedTokenStats>("get_project_token_stats", {
       projectPath,
       offset,
       limit,
@@ -139,7 +139,7 @@ export async function fetchProjectStatsSummary(
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
-    const summary = await invoke<ProjectStatsSummary>("get_project_stats_summary", {
+    const summary = await api<ProjectStatsSummary>("get_project_stats_summary", {
       projectPath,
       startDate: start_date,
       endDate: end_date,
@@ -175,7 +175,7 @@ export async function fetchSessionComparison(
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
-    const comparison = await invoke<SessionComparison>("get_session_comparison", {
+    const comparison = await api<SessionComparison>("get_session_comparison", {
       sessionId,
       projectPath,
       statsMode,
@@ -213,7 +213,7 @@ export async function fetchRecentEdits(
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
-    const result = await invoke<PaginatedRecentEdits>("get_recent_edits", {
+    const result = await api<PaginatedRecentEdits>("get_recent_edits", {
       projectPath,
       offset,
       limit,
@@ -253,7 +253,7 @@ export async function fetchGlobalStatsSummary(
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
-    const summary = await invoke<GlobalStatsSummary>("get_global_stats_summary", {
+    const summary = await api<GlobalStatsSummary>("get_global_stats_summary", {
       claudePath,
       activeProviders: normalizedProviders.length > 0 ? normalizedProviders : undefined,
       statsMode,

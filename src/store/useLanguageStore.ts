@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { load } from "@tauri-apps/plugin-store";
-import { locale } from "@tauri-apps/plugin-os";
+import { storageAdapter } from "@/services/storage";
+import { isTauri } from "@/utils/platform";
 import i18n from "../i18n";
 import type { SupportedLanguage } from "../i18n";
 import { languageLocaleMap } from "../i18n";
@@ -44,7 +44,7 @@ export const useLanguageStore = create<LanguageStore>((set, get) => ({
       await i18n.changeLanguage(language);
       set({ language });
 
-      const store = await load("settings.json", { defaults: {}, autoSave: true });
+      const store = await storageAdapter.load("settings.json", { defaults: {}, autoSave: true });
       await store.set("language", language);
       await store.save();
     } catch (e) {
@@ -64,10 +64,10 @@ export const useLanguageStore = create<LanguageStore>((set, get) => ({
 
       if (!language) {
         try {
-          const store = await load("settings.json", { defaults: {}, autoSave: true });
+          const store = await storageAdapter.load("settings.json", { defaults: {}, autoSave: true });
           language = (await store.get("language")) as SupportedLanguage | null;
         } catch (e) {
-          console.log("Tauri Store not available:", e);
+          console.log("Store not available:", e);
         }
       }
 
@@ -77,8 +77,13 @@ export const useLanguageStore = create<LanguageStore>((set, get) => ({
       } else {
         let detectedLanguage: SupportedLanguage = "en";
         try {
-          const systemLocale = (await locale()) || navigator.language || "en";
-          detectedLanguage = getSupportedLanguage(systemLocale);
+          if (isTauri()) {
+            const { locale } = await import("@tauri-apps/plugin-os");
+            const systemLocale = (await locale()) || navigator.language || "en";
+            detectedLanguage = getSupportedLanguage(systemLocale);
+          } else {
+            detectedLanguage = getSupportedLanguage(navigator.language || "en");
+          }
         } catch (error) {
           console.log("Failed to get system locale:", error);
           detectedLanguage = getSupportedLanguage(navigator.language || "en");
