@@ -147,7 +147,7 @@ This auto-detects your OS/architecture and installs `cchv-server` to `/usr/local
 ### Start the Server
 
 ```bash
-cchv-server --serve --host 0.0.0.0
+cchv-server --serve
 ```
 
 Output:
@@ -178,7 +178,7 @@ Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer
 |------|---------|-------------|
 | `--serve` | — | **Required.** Starts the HTTP server instead of the desktop app |
 | `--port <number>` | `3727` | Server port |
-| `--host <address>` | `127.0.0.1` | Bind address (`0.0.0.0` to expose to network) |
+| `--host <address>` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
 | `--token <value>` | auto (uuid v4) | Custom authentication token |
 | `--no-auth` | — | Disable authentication (not recommended for public networks) |
 | `--dist <path>` | embedded | Override built-in frontend with external `dist/` directory |

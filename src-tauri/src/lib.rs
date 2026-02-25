@@ -160,7 +160,7 @@ fn run_server(args: &[String]) {
     let port = parse_cli_flag(args, "--port")
         .and_then(|v| v.parse::<u16>().ok())
         .unwrap_or(3727);
-    let host = parse_cli_flag(args, "--host").unwrap_or_else(|| "127.0.0.1".to_string());
+    let host = parse_cli_flag(args, "--host").unwrap_or_else(|| "0.0.0.0".to_string());
     let dist_dir = parse_cli_flag(args, "--dist");
 
     // Auth token: --token <value> | --no-auth | auto-generated uuid v4

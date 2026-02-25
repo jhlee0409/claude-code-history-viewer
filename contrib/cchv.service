@@ -24,12 +24,12 @@ After=network.target
 Type=simple
 # IMPORTANT: Change this to the user whose ~/.claude directory you want to serve.
 User=YOUR_USERNAME_HERE
-ExecStart=/usr/local/bin/cchv-server --serve --host 0.0.0.0
+ExecStart=/usr/local/bin/cchv-server --serve
 Restart=on-failure
 RestartSec=5
 # Pass a fixed token via environment or use --token flag:
 # Environment=CCHV_TOKEN=your-secret-token
-# ExecStart=/usr/local/bin/cchv-server --serve --host 0.0.0.0 --token your-secret-token
+# ExecStart=/usr/local/bin/cchv-server --serve --token your-secret-token
 
 [Install]
 WantedBy=multi-user.target

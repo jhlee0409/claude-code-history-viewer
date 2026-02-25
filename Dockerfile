@@ -35,4 +35,4 @@ ENV PORT=3727
 EXPOSE 3727
 
 ENTRYPOINT ["cchv-server", "--serve"]
-CMD ["--host", "0.0.0.0", "--port", "3727"]
+CMD ["--port", "3727"]
