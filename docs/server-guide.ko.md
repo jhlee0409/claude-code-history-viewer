@@ -54,13 +54,18 @@ echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudf
 sudo apt update && sudo apt install -y cloudflared
 ```
 
-**2. 서버 빌드 및 실행**
+**2. 서버 설치 및 실행**
 
 ```bash
+# Homebrew (추천)
+brew install jhlee0409/tap/cchv-server
+cchv-server --serve
+
+# 또는 소스에서 빌드
 git clone https://github.com/jhlee0409/claude-code-history-viewer.git
 cd claude-code-history-viewer
 just setup
-just serve-run
+just serve-build-run
 ```
 
 이런 출력이 나옵니다:
@@ -133,10 +138,14 @@ ssh root@203.0.113.50
 ### 3단계: cchv-server 설치
 
 ```bash
+# 방법 A: Homebrew (macOS / Linux)
+brew install jhlee0409/tap/cchv-server
+
+# 방법 B: 설치 스크립트
 curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 ```
 
-OS/아키텍처를 자동 감지해서 `/usr/local/bin/cchv-server`에 설치합니다.
+두 방법 모두 OS/아키텍처를 자동 감지해서 `cchv-server`를 PATH에 설치합니다.
 
 ### 4단계: Claude 데이터 복사
 

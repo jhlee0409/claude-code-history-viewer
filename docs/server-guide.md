@@ -54,13 +54,18 @@ echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudf
 sudo apt update && sudo apt install -y cloudflared
 ```
 
-**2. Build and start the server**
+**2. Install and start the server**
 
 ```bash
+# Homebrew (recommended)
+brew install jhlee0409/tap/cchv-server
+cchv-server --serve
+
+# Or build from source
 git clone https://github.com/jhlee0409/claude-code-history-viewer.git
 cd claude-code-history-viewer
 just setup
-just serve-run
+just serve-build-run
 ```
 
 You'll see output like:
@@ -133,10 +138,14 @@ ssh root@203.0.113.50
 ### Step 3: Install cchv-server
 
 ```bash
+# Option A: Homebrew (macOS / Linux)
+brew install jhlee0409/tap/cchv-server
+
+# Option B: One-line install script
 curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 ```
 
-This auto-detects your OS/architecture and installs to `/usr/local/bin/cchv-server`.
+Both methods auto-detect your OS/architecture and install `cchv-server` to your PATH.
 
 ### Step 4: Copy your Claude data
 

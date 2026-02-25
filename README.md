@@ -141,10 +141,14 @@ Run the viewer as a headless HTTP server — no desktop environment required. Id
 ### Quick Install
 
 ```bash
+# Homebrew (macOS / Linux)
+brew install jhlee0409/tap/cchv-server
+
+# Or one-line script
 curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 ```
 
-This auto-detects your OS/architecture and installs `cchv-server` to `/usr/local/bin`.
+Both methods install `cchv-server` to your PATH.
 
 ### Start the Server
 

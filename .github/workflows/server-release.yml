@@ -97,3 +97,69 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.artifact }}.tar.gz
+
+  # Update Homebrew formula SHA256 hashes after all builds complete
+  update-homebrew:
+    needs: build-server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download release assets and compute SHA256
+        run: |
+          BASE="https://github.com/jhlee0409/claude-code-history-viewer/releases/download/${GITHUB_REF_NAME}"
+          for asset in cchv-server-macos-arm64 cchv-server-macos-x64 cchv-server-linux-arm64 cchv-server-linux-x64; do
+            curl -fsSL -o "${asset}.tar.gz" "${BASE}/${asset}.tar.gz"
+            sha=$(sha256sum "${asset}.tar.gz" | cut -d' ' -f1)
+            echo "${asset}=${sha}" >> "$GITHUB_ENV"
+          done
+
+      - name: Update Homebrew formula
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Fetch current formula
+          gh api repos/jhlee0409/homebrew-tap/contents/Formula/cchv-server.rb \
+            --jq '.content' | base64 -d > cchv-server.rb
+
+          FILE_SHA=$(gh api repos/jhlee0409/homebrew-tap/contents/Formula/cchv-server.rb --jq '.sha')
+
+          # Replace version and SHA256 placeholders/values
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" cchv-server.rb
+          sed -i "s/sha256 \".*_MACOS_ARM64\"/sha256 \"${cchv_server_macos_arm64}\"/" cchv-server.rb
+          sed -i "s/sha256 \".*_MACOS_X64\"/sha256 \"${cchv_server_macos_x64}\"/" cchv-server.rb
+          sed -i "s/sha256 \".*_LINUX_ARM64\"/sha256 \"${cchv_server_linux_arm64}\"/" cchv-server.rb
+          sed -i "s/sha256 \".*_LINUX_X64\"/sha256 \"${cchv_server_linux_x64}\"/" cchv-server.rb
+
+          # Also handle non-placeholder SHA256 (for subsequent releases)
+          # Use line-based replacement: find the url line, then replace the next sha256 line
+          python3 -c "
+          import re, os
+          with open('cchv-server.rb') as f:
+              content = f.read()
+          v = os.environ['VERSION']
+          pairs = [
+              ('macos-arm64', os.environ.get('cchv_server_macos_arm64', '')),
+              ('macos-x64', os.environ.get('cchv_server_macos_x64', '')),
+              ('linux-arm64', os.environ.get('cchv_server_linux_arm64', '')),
+              ('linux-x64', os.environ.get('cchv_server_linux_x64', '')),
+          ]
+          for asset, sha in pairs:
+              if sha:
+                  pattern = r'(url \".*' + re.escape(asset) + r'.*\"\n\s+sha256 \")([a-fA-F0-9]+|PLACEHOLDER\w*)(\")'
+                  content = re.sub(pattern, r'\g<1>' + sha + r'\3', content)
+          content = re.sub(r'version \".*?\"', f'version \"{v}\"', content, count=1)
+          with open('cchv-server.rb', 'w') as f:
+              f.write(content)
+          "
+
+          # Push updated formula
+          gh api repos/jhlee0409/homebrew-tap/contents/Formula/cchv-server.rb \
+            -X PUT \
+            -f message="chore: update cchv-server to v${VERSION}" \
+            -f content="$(base64 -w0 < cchv-server.rb)" \
+            -f sha="${FILE_SHA}"
