@@ -103,38 +103,37 @@ pub async fn stop_file_watcher(app_handle: AppHandle) -> Result<(), String> {
     }
 }
 
-fn handle_file_event(app_handle: &AppHandle, event: &DebouncedEvent) {
+/// Convert a debounced filesystem event into a [`FileWatchEvent`] if applicable.
+///
+/// Returns `None` for non-`.jsonl` files or if project/session paths cannot be
+/// extracted.  This is the shared core used by both the Tauri desktop watcher
+/// and the `WebUI` SSE server watcher.
+pub fn to_file_watch_event(event: &DebouncedEvent) -> Option<FileWatchEvent> {
     let path = &event.path;
 
-    // Only process .jsonl files
-    if let Some(ext) = path.extension() {
-        if ext != "jsonl" {
-            return;
-        }
-    } else {
-        return;
+    if path.extension().map_or(true, |ext| ext != "jsonl") {
+        return None;
     }
 
-    // Extract project path and session path
-    let Some((project_path, session_path)) = extract_paths(path) else {
-        log::warn!("Could not extract paths from: {}", path.display());
-        return;
-    };
+    let (project_path, session_path) = extract_paths(path)?;
 
-    // Determine event type based on DebouncedEventKind
-    // All events are treated as "changed" since debouncer aggregates events
     let event_type = match event.kind {
         DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous | _ => "session-file-changed",
     };
 
-    let watch_event = FileWatchEvent {
+    Some(FileWatchEvent {
         project_path: project_path.to_string_lossy().to_string(),
         session_path: session_path.to_string_lossy().to_string(),
         event_type: event_type.to_string(),
+    })
+}
+
+fn handle_file_event(app_handle: &AppHandle, event: &DebouncedEvent) {
+    let Some(watch_event) = to_file_watch_event(event) else {
+        return;
     };
 
-    // Emit Tauri event to frontend
-    if let Err(e) = app_handle.emit(event_type, &watch_event) {
+    if let Err(e) = app_handle.emit(&watch_event.event_type, &watch_event) {
         log::error!("Failed to emit file watch event: {e}");
     }
 }

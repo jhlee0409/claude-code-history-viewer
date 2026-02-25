@@ -163,14 +163,107 @@ fn run_server(args: &[String]) {
     let host = parse_cli_flag(args, "--host").unwrap_or_else(|| "127.0.0.1".to_string());
     let dist_dir = parse_cli_flag(args, "--dist");
 
+    // Auth token: --token <value> | --no-auth | auto-generated uuid v4
+    let auth_token = resolve_auth_token(args);
+
     let metadata = Arc::new(MetadataState::default());
+    let (event_tx, _rx) =
+        tokio::sync::broadcast::channel::<crate::commands::watcher::FileWatchEvent>(256);
+
     let state = Arc::new(server::state::AppState {
         metadata,
         start_time: std::time::Instant::now(),
+        auth_token: auth_token.clone(),
+        event_tx,
     });
 
+    // Print access info
+    let addr = format!("{host}:{port}");
+    if let Some(ref token) = auth_token {
+        eprintln!("🔑 Auth token: {token}");
+        eprintln!("   Open in browser: http://{addr}?token={token}");
+    } else {
+        eprintln!("🔓 Authentication disabled (--no-auth)");
+        eprintln!("   Open in browser: http://{addr}");
+    }
+
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-    rt.block_on(server::start(state, &host, port, dist_dir.as_deref()));
+    rt.block_on(async {
+        // Start background file watcher (sends events to broadcast channel)
+        let _watcher_handle = start_server_file_watcher(&state);
+
+        server::start(state, &host, port, dist_dir.as_deref()).await;
+    });
+}
+
+/// Resolve the authentication token from CLI arguments.
+///
+/// - `--no-auth` → `None` (auth disabled)
+/// - `--token <value>` → `Some(value)` (user-supplied)
+/// - otherwise → `Some(uuid-v4)` (auto-generated)
+#[cfg(feature = "webui-server")]
+fn resolve_auth_token(args: &[String]) -> Option<String> {
+    if args.iter().any(|a| a == "--no-auth") {
+        return None;
+    }
+    if let Some(token) = parse_cli_flag(args, "--token") {
+        return Some(token);
+    }
+    Some(uuid::Uuid::new_v4().to_string())
+}
+
+/// Start a `notify`-based file watcher that pushes change events into the
+/// broadcast channel on `state.event_tx`.
+///
+/// Returns the debouncer handle — it must be kept alive for the watcher to
+/// continue running.  Returns `None` if the watched directory doesn't exist.
+#[cfg(feature = "webui-server")]
+fn start_server_file_watcher(
+    state: &std::sync::Arc<server::state::AppState>,
+) -> Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>> {
+    let home = dirs::home_dir()?;
+    let projects_dir = home.join(".claude").join("projects");
+
+    if !projects_dir.is_dir() {
+        eprintln!(
+            "⚠ {} not found; real-time file watcher disabled",
+            projects_dir.display()
+        );
+        return None;
+    }
+
+    let tx = state.event_tx.clone();
+
+    let mut debouncer = notify_debouncer_mini::new_debouncer(
+        std::time::Duration::from_millis(500),
+        move |result: Result<Vec<notify_debouncer_mini::DebouncedEvent>, notify::Error>| {
+            if let Ok(events) = result {
+                for event in events {
+                    if let Some(watch_event) = crate::commands::watcher::to_file_watch_event(&event)
+                    {
+                        // Ignore send errors (no active subscribers yet)
+                        let _ = tx.send(watch_event);
+                    }
+                }
+            }
+        },
+    )
+    .ok()?;
+
+    if debouncer
+        .watcher()
+        .watch(&projects_dir, notify::RecursiveMode::Recursive)
+        .is_err()
+    {
+        eprintln!(
+            "⚠ Failed to watch {}; real-time updates disabled",
+            projects_dir.display()
+        );
+        return None;
+    }
+
+    eprintln!("👁 File watcher active: {}", projects_dir.display());
+    Some(debouncer)
 }
 
 /// Parse a CLI flag value: `--flag value` or `--flag=value`.

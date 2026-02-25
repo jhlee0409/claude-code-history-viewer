@@ -32,3 +32,47 @@ export const getApiBase = (): string => {
   }
   return typeof window !== "undefined" ? window.location.origin : "";
 };
+
+// ---------------------------------------------------------------------------
+// Auth token helpers (WebUI server mode only)
+// ---------------------------------------------------------------------------
+
+const AUTH_TOKEN_KEY = "webui-auth-token";
+
+/**
+ * Initialise the auth token from the URL query string.
+ *
+ * Call once at app startup (before React renders).  If the URL contains
+ * `?token=<value>`, the token is persisted to `localStorage` and the
+ * query parameter is stripped from the address bar so it isn't leaked via
+ * Referer headers or browser history.
+ */
+export function initAuthToken(): void {
+  if (isTauri()) return;
+
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get("token");
+  if (token) {
+    setAuthToken(token);
+    url.searchParams.delete("token");
+    window.history.replaceState({}, "", url.toString());
+  }
+}
+
+/** Read the saved auth token (returns `null` when unavailable). */
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Persist an auth token to `localStorage`. */
+export function setAuthToken(token: string): void {
+  try {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+  } catch {
+    // localStorage unavailable (e.g. private browsing quota exceeded)
+  }
+}

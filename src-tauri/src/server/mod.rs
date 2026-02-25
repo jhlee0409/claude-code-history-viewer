@@ -6,12 +6,18 @@
 pub mod handlers;
 pub mod state;
 
-use axum::extract::State;
-use axum::response::Html;
+use axum::extract::{Request, State};
+use axum::http::StatusCode;
+use axum::middleware::Next;
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{middleware, Json, Router};
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::{Stream, StreamExt};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
@@ -26,6 +32,8 @@ pub fn build_router(state: Arc<AppState>, dist_dir: Option<&str>) -> Router {
         .allow_headers(Any);
 
     let api = Router::new()
+        // SSE endpoint for real-time file change events
+        .route("/events", get(sse_handler))
         // Project commands
         .route("/get_claude_folder_path", post(h::get_claude_folder_path))
         .route("/validate_claude_folder", post(h::validate_claude_folder))
@@ -111,7 +119,7 @@ pub fn build_router(state: Arc<AppState>, dist_dir: Option<&str>) -> Router {
         .route("/get_claude_json_config", post(h::get_claude_json_config))
         .route("/write_text_file", post(h::write_text_file))
         .route("/read_text_file", post(h::read_text_file))
-        // File watcher (disabled in web mode)
+        // File watcher (disabled in web mode — SSE replaces it)
         .route("/start_file_watcher", post(h::start_file_watcher))
         .route("/stop_file_watcher", post(h::stop_file_watcher))
         // Multi-provider commands
@@ -119,7 +127,12 @@ pub fn build_router(state: Arc<AppState>, dist_dir: Option<&str>) -> Router {
         .route("/scan_all_projects", post(h::scan_all_projects))
         .route("/load_provider_sessions", post(h::load_provider_sessions))
         .route("/load_provider_messages", post(h::load_provider_messages))
-        .route("/search_all_providers", post(h::search_all_providers));
+        .route("/search_all_providers", post(h::search_all_providers))
+        // Auth middleware — checks Bearer header or ?token= query param
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
 
     let mut app = Router::new()
         .route("/health", get(health_handler))
@@ -139,6 +152,83 @@ pub fn build_router(state: Arc<AppState>, dist_dir: Option<&str>) -> Router {
 
     app
 }
+
+// ---------------------------------------------------------------------------
+// Auth middleware
+// ---------------------------------------------------------------------------
+
+/// Axum middleware that validates a Bearer token on every `/api/*` request.
+///
+/// Accepts the token from either:
+///   - `Authorization: Bearer <token>` header (normal API calls)
+///   - `?token=<token>` query parameter (`EventSource` / SSE connections)
+///
+/// When `auth_token` is `None` (i.e. `--no-auth`), all requests pass through.
+async fn auth_middleware(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+    next: Next,
+) -> Result<impl IntoResponse, StatusCode> {
+    let Some(expected) = &state.auth_token else {
+        return Ok(next.run(request).await);
+    };
+
+    // 1. Check Authorization header
+    if let Some(header) = request.headers().get("authorization") {
+        if let Ok(value) = header.to_str() {
+            if let Some(token) = value.strip_prefix("Bearer ") {
+                if token == expected.as_str() {
+                    return Ok(next.run(request).await);
+                }
+            }
+        }
+    }
+
+    // 2. Check ?token= query parameter (for EventSource which cannot set headers)
+    if let Some(query) = request.uri().query() {
+        for pair in query.split('&') {
+            if let Some(token) = pair.strip_prefix("token=") {
+                let decoded = urlencoding::decode(token).unwrap_or_default();
+                if decoded == *expected {
+                    return Ok(next.run(request).await);
+                }
+            }
+        }
+    }
+
+    Err(StatusCode::UNAUTHORIZED)
+}
+
+// ---------------------------------------------------------------------------
+// SSE endpoint
+// ---------------------------------------------------------------------------
+
+/// Server-Sent Events endpoint streaming real-time file change notifications.
+///
+/// Clients connect via `EventSource` at `GET /api/events?token=<token>`.
+/// Each event has:
+///   - `event:` field = `session-file-changed` (matching Tauri event names)
+///   - `data:` field  = JSON-encoded `FileWatchEvent`
+async fn sse_handler(
+    State(state): State<Arc<AppState>>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let rx = state.event_tx.subscribe();
+
+    let stream = BroadcastStream::new(rx).filter_map(|result| {
+        result.ok().and_then(|file_event| {
+            let data = serde_json::to_string(&file_event).ok()?;
+            Some(Ok::<_, Infallible>(
+                Event::default().event(file_event.event_type).data(data),
+            ))
+        })
+    });
+
+    Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+// ---------------------------------------------------------------------------
+// Health check
+// ---------------------------------------------------------------------------
 
 /// Health check handler returning server status, version, and uptime.
 async fn health_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
@@ -160,7 +250,7 @@ pub async fn start(state: Arc<AppState>, host: &str, port: u16, dist_dir: Option
 
     if host != "127.0.0.1" {
         eprintln!(
-            "⚠ Warning: server is exposed to network ({addr}). Write APIs are available without authentication."
+            "⚠ Warning: server is exposed to network ({addr}). Use a token to protect API access."
         );
     }
 

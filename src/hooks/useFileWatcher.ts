@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
-import { isTauri } from '@/utils/platform';
+import { isTauri, getApiBase, getAuthToken } from '@/utils/platform';
 import { toast } from 'sonner';
 
 type UnlistenFn = () => void;
@@ -126,62 +126,86 @@ export function useFileWatcher(options: UseFileWatcherOptions = {}): UseFileWatc
   }, []);
 
   /**
-   * Start listening to file watcher events
+   * Start listening to file watcher events.
+   *
+   * - **Tauri desktop**: subscribes to native Tauri events.
+   * - **WebUI server**: opens an SSE connection to `/api/events`.
    */
   const startWatching = useCallback(async () => {
     if (isWatchingRef.current) return;
-    // File watcher is not available in web mode
-    if (!isTauri()) return;
 
     // Capture the current version for cancellation checking
     const version = watchVersionRef.current;
 
-    try {
-      const { listen } = await import('@tauri-apps/api/event');
-      const unlisteners: UnlistenFn[] = [];
+    if (isTauri()) {
+      // ---- Desktop path: Tauri event listeners ----
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const unlisteners: UnlistenFn[] = [];
 
-      // Listen to file changed events
-      const unlistenChanged = await listen<FileWatcherEvent>('session-file-changed', (event) => {
-        createDebouncedCallback(onSessionChanged, event.payload);
-      });
+        const unlistenChanged = await listen<FileWatcherEvent>('session-file-changed', (event) => {
+          createDebouncedCallback(onSessionChanged, event.payload);
+        });
+        if (watchVersionRef.current !== version) { unlistenChanged(); return; }
+        unlisteners.push(unlistenChanged);
 
-      // Check cancellation before continuing
-      if (watchVersionRef.current !== version) {
-        unlistenChanged();
-        return;
+        const unlistenCreated = await listen<FileWatcherEvent>('session-file-created', (event) => {
+          createDebouncedCallback(onSessionCreated, event.payload);
+        });
+        if (watchVersionRef.current !== version) { unlisteners.forEach((fn) => fn()); return; }
+        unlisteners.push(unlistenCreated);
+
+        const unlistenDeleted = await listen<FileWatcherEvent>('session-file-deleted', (event) => {
+          createDebouncedCallback(onSessionDeleted, event.payload);
+        });
+        if (watchVersionRef.current !== version) { unlisteners.forEach((fn) => fn()); return; }
+        unlisteners.push(unlistenDeleted);
+
+        unlistenersRef.current = unlisteners;
+        isWatchingRef.current = true;
+        setIsWatching(true);
+      } catch (error) {
+        console.error('Failed to start file watcher:', error);
+        toast.error('Failed to start file watcher');
+        isWatchingRef.current = false;
+        setIsWatching(false);
       }
-      unlisteners.push(unlistenChanged);
+    } else {
+      // ---- Web path: SSE via EventSource ----
+      try {
+        const base = getApiBase();
+        const token = getAuthToken();
+        const url = token
+          ? `${base}/api/events?token=${encodeURIComponent(token)}`
+          : `${base}/api/events`;
 
-      // Listen to file created events
-      const unlistenCreated = await listen<FileWatcherEvent>('session-file-created', (event) => {
-        createDebouncedCallback(onSessionCreated, event.payload);
-      });
+        const es = new EventSource(url);
 
-      if (watchVersionRef.current !== version) {
-        unlisteners.forEach((fn) => fn());
-        return;
+        es.addEventListener('session-file-changed', (e: MessageEvent) => {
+          const event = JSON.parse(e.data) as FileWatcherEvent;
+          createDebouncedCallback(onSessionChanged, event);
+        });
+
+        es.addEventListener('session-file-created', (e: MessageEvent) => {
+          const event = JSON.parse(e.data) as FileWatcherEvent;
+          createDebouncedCallback(onSessionCreated, event);
+        });
+
+        es.addEventListener('session-file-deleted', (e: MessageEvent) => {
+          const event = JSON.parse(e.data) as FileWatcherEvent;
+          createDebouncedCallback(onSessionDeleted, event);
+        });
+
+        // EventSource auto-reconnects on transient errors; no manual retry needed.
+
+        unlistenersRef.current = [() => es.close()];
+        isWatchingRef.current = true;
+        setIsWatching(true);
+      } catch (error) {
+        console.error('Failed to start SSE file watcher:', error);
+        isWatchingRef.current = false;
+        setIsWatching(false);
       }
-      unlisteners.push(unlistenCreated);
-
-      // Listen to file deleted events
-      const unlistenDeleted = await listen<FileWatcherEvent>('session-file-deleted', (event) => {
-        createDebouncedCallback(onSessionDeleted, event.payload);
-      });
-
-      if (watchVersionRef.current !== version) {
-        unlisteners.forEach((fn) => fn());
-        return;
-      }
-      unlisteners.push(unlistenDeleted);
-
-      unlistenersRef.current = unlisteners;
-      isWatchingRef.current = true;
-      setIsWatching(true);
-    } catch (error) {
-      console.error('Failed to start file watcher:', error);
-      toast.error('Failed to start file watcher');
-      isWatchingRef.current = false;
-      setIsWatching(false);
     }
   }, [onSessionChanged, onSessionCreated, onSessionDeleted, createDebouncedCallback]);
 

@@ -9,7 +9,7 @@
  *   const result = await api<MyType>("command_name", { key: "value" });
  */
 
-import { isTauri, getApiBase } from "@/utils/platform";
+import { isTauri, getApiBase, getAuthToken, setAuthToken } from "@/utils/platform";
 
 /**
  * Call a backend command regardless of runtime environment.
@@ -25,11 +25,27 @@ export async function api<T>(command: string, args?: Record<string, unknown>): P
   }
 
   const base = getApiBase();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getAuthToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${base}/api/${command}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(args ?? {}),
   });
+
+  // On 401, prompt for the token and retry once
+  if (response.status === 401) {
+    const entered = window.prompt("Authentication required. Enter token:");
+    if (entered) {
+      setAuthToken(entered);
+      return api<T>(command, args);
+    }
+    throw new Error("Authentication required");
+  }
 
   if (!response.ok) {
     const errorBody = await response.text();
