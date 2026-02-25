@@ -47,6 +47,9 @@ jobs:
           cache-on-failure: true
 
 
+      - name: Create dist placeholder for rust-embed
+        run: mkdir -p dist && touch dist/index.html
+
       - name: Check formatting
         working-directory: src-tauri
         run: cargo fmt --all -- --check
