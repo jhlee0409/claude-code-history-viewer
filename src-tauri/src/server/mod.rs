@@ -2,17 +2,27 @@
 //!
 //! This module is only compiled when the `webui-server` Cargo feature is enabled.
 //! It spawns an HTTP server inside Tauri's existing Tokio runtime.
+//!
+//! ## Asset serving
+//!
+//! The frontend SPA is served in one of two modes:
+//! - **Embedded** (default): assets are compiled into the binary via `rust-embed`.
+//!   This enables single-binary deployment with no external files.
+//! - **External**: `--dist <path>` serves assets from the filesystem.
+//!   Useful during development or when overriding the built-in frontend.
 
 pub mod handlers;
 pub mod state;
 
+use axum::body::Body;
 use axum::extract::{Request, State};
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
 use axum::middleware::Next;
 use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::response::{Html, IntoResponse};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{middleware, Json, Router};
+use rust_embed::Embed;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -23,6 +33,15 @@ use tower_http::services::ServeDir;
 
 use self::handlers as h;
 use self::state::AppState;
+
+/// Frontend assets embedded at compile time from the `dist/` directory.
+///
+/// When building with `cargo build --features webui-server`, the contents of
+/// `../dist` (relative to `src-tauri/`) are baked into the binary. At runtime
+/// the embedded files are served directly from memory — no filesystem access needed.
+#[derive(Embed)]
+#[folder = "../dist"]
+struct EmbeddedAssets;
 
 /// Build the complete Axum router with all API routes and SPA fallback.
 pub fn build_router(state: Arc<AppState>, dist_dir: Option<&str>) -> Router {
@@ -143,11 +162,15 @@ pub fn build_router(state: Arc<AppState>, dist_dir: Option<&str>) -> Router {
     // Serve React SPA build output as static files.
     // For unknown paths, fall back to index.html with HTTP 200 so client-side routing works.
     if let Some(dist) = dist_dir {
+        // External mode: serve from filesystem (development / override)
         let index_html = std::fs::read_to_string(format!("{dist}/index.html"))
             .expect("Failed to read dist/index.html — is --dist correct?");
         let spa_fallback = get(move || std::future::ready(Html(index_html.clone())));
         let serve_dir = ServeDir::new(dist);
         app = app.fallback_service(serve_dir.fallback(spa_fallback));
+    } else {
+        // Embedded mode: serve from rust-embed compiled assets (production default)
+        app = app.fallback(get(embedded_asset_handler));
     }
 
     app
@@ -238,6 +261,40 @@ async fn health_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::
         "version": env!("CARGO_PKG_VERSION"),
         "uptime_secs": uptime_secs,
     }))
+}
+
+// ---------------------------------------------------------------------------
+// Embedded asset handler
+// ---------------------------------------------------------------------------
+
+/// Serve a file from the compiled-in `EmbeddedAssets`.
+///
+/// - Exact file match → serve with correct `Content-Type`.
+/// - No match → serve `index.html` (SPA client-side routing fallback).
+async fn embedded_asset_handler(req: Request) -> Response {
+    let path = req.uri().path().trim_start_matches('/');
+
+    // Try the exact path first, then fall back to index.html for SPA routing.
+    let (data, mime) = if let Some(file) = EmbeddedAssets::get(path) {
+        let mime = mime_guess::from_path(path)
+            .first_or_octet_stream()
+            .to_string();
+        (file.data, mime)
+    } else if let Some(index) = EmbeddedAssets::get("index.html") {
+        (index.data, "text/html".to_string())
+    } else {
+        return (
+            StatusCode::NOT_FOUND,
+            "index.html not found in embedded assets",
+        )
+            .into_response();
+    };
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, mime)
+        .body(Body::from(data.into_owned()))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
 /// Start the Axum HTTP server.

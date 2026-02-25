@@ -1,0 +1,35 @@
+# systemd service unit for cchv-server (Claude Code History Viewer)
+#
+# Installation:
+#   1. Copy this file:
+#      sudo cp cchv.service /etc/systemd/system/cchv.service
+#
+#   2. Edit the file — set User= to your username:
+#      sudo systemctl edit --full cchv.service
+#
+#   3. Enable and start:
+#      sudo systemctl enable --now cchv.service
+#
+#   4. Check status:
+#      sudo systemctl status cchv.service
+#
+#   5. View logs:
+#      journalctl -u cchv.service -f
+
+[Unit]
+Description=Claude Code History Viewer (WebUI Server)
+After=network.target
+
+[Service]
+Type=simple
+# IMPORTANT: Change this to the user whose ~/.claude directory you want to serve.
+User=YOUR_USERNAME_HERE
+ExecStart=/usr/local/bin/cchv-server --serve --host 0.0.0.0
+Restart=on-failure
+RestartSec=5
+# Pass a fixed token via environment or use --token flag:
+# Environment=CCHV_TOKEN=your-secret-token
+# ExecStart=/usr/local/bin/cchv-server --serve --host 0.0.0.0 --token your-secret-token
+
+[Install]
+WantedBy=multi-user.target

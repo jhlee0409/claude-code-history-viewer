@@ -134,43 +134,54 @@ pnpm tauri:build     # Production build
 
 ## Server Mode (WebUI)
 
-Run the viewer as a headless HTTP server — no desktop environment required. Ideal for VPS, remote servers, or Docker.
+Run the viewer as a headless HTTP server — no desktop environment required. Ideal for VPS, remote servers, or Docker. The server binary embeds the frontend — **a single file is all you need**.
 
-### Pre-built Binary
-
-Download the server binary from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases):
-
-| Platform | Asset |
-|----------|-------|
-| Linux x64 | `claude-code-history-viewer-server-linux-x64.tar.gz` |
-| macOS ARM | `claude-code-history-viewer-server-macos-arm64.tar.gz` |
+### Quick Install
 
 ```bash
-tar xzf claude-code-history-viewer-server-linux-x64.tar.gz
-./claude-code-history-viewer --serve --dist ./dist --host 0.0.0.0
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 ```
 
-서버가 시작되면 아래처럼 출력됩니다:
+This auto-detects your OS/architecture and installs `cchv-server` to `/usr/local/bin`.
+
+### Start the Server
+
+```bash
+cchv-server --serve --host 0.0.0.0
+```
+
+Output:
 
 ```
 🔑 Auth token: b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
-   Open in browser: http://0.0.0.0:3727?token=b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
+   Open in browser: http://192.168.1.10:3727?token=b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
 👁 File watcher active: /home/user/.claude/projects
 🚀 WebUI server running at http://0.0.0.0:3727
 ```
 
-출력된 URL을 브라우저에 붙여넣으면 바로 접속됩니다. 토큰은 자동으로 브라우저에 저장되므로 이후 재입력이 필요 없습니다.
+Open the URL in your browser — the token is saved automatically.
+
+### Pre-built Binaries
+
+| Platform | Asset |
+|----------|-------|
+| Linux x64 | `cchv-server-linux-x64.tar.gz` |
+| Linux ARM64 | `cchv-server-linux-arm64.tar.gz` |
+| macOS ARM | `cchv-server-macos-arm64.tar.gz` |
+| macOS x64 | `cchv-server-macos-x64.tar.gz` |
+
+Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases).
 
 **CLI options:**
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--serve` | — | **Required.** Starts the HTTP server instead of the desktop app |
-| `--dist <path>` | — | Path to the frontend build output (`dist/`) |
 | `--port <number>` | `3727` | Server port |
 | `--host <address>` | `127.0.0.1` | Bind address (`0.0.0.0` to expose to network) |
 | `--token <value>` | auto (uuid v4) | Custom authentication token |
 | `--no-auth` | — | Disable authentication (not recommended for public networks) |
+| `--dist <path>` | embedded | Override built-in frontend with external `dist/` directory |
 
 ### Authentication
 
@@ -191,23 +202,33 @@ The server watches `~/.claude/projects/` for file changes and pushes updates to 
 docker compose up -d
 ```
 
-서버 시작 후 토큰 확인:
+Check the token after startup:
 
 ```bash
 docker compose logs webui
-# 🔑 Auth token: ... ← 이 URL을 브라우저에 붙여넣기
+# 🔑 Auth token: ... ← paste this URL in your browser
 ```
 
 The `docker-compose.yml` mounts `~/.claude`, `~/.codex`, and `~/.local/share/opencode` as read-only volumes.
 
+### systemd Service
+
+For persistent server on Linux, use the provided systemd template:
+
+```bash
+sudo cp contrib/cchv.service /etc/systemd/system/
+sudo systemctl edit --full cchv.service   # Set User= to your username
+sudo systemctl enable --now cchv.service
+```
+
 ### Build from Source (Server Only)
 
 ```bash
-just serve-build           # Build frontend + server binary
-# Binary at: src-tauri/target/release/claude-code-history-viewer
+just serve-build           # Build frontend + embed into server binary
+just serve-run             # Build and run (embedded assets)
 
-# Or run in development:
-just serve-dev             # Build frontend + run server
+# Or run in development (external dist/):
+just serve-dev             # Build frontend + run server with --dist
 ```
 
 ### Health Check
