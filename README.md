@@ -148,8 +148,18 @@ Download the server binary from [Releases](https://github.com/jhlee0409/claude-c
 ```bash
 tar xzf claude-code-history-viewer-server-linux-x64.tar.gz
 ./claude-code-history-viewer --serve --dist ./dist --host 0.0.0.0
-# → http://<your-server-ip>:3727
 ```
+
+서버가 시작되면 아래처럼 출력됩니다:
+
+```
+🔑 Auth token: b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
+   Open in browser: http://0.0.0.0:3727?token=b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
+👁 File watcher active: /home/user/.claude/projects
+🚀 WebUI server running at http://0.0.0.0:3727
+```
+
+출력된 URL을 브라우저에 붙여넣으면 바로 접속됩니다. 토큰은 자동으로 브라우저에 저장되므로 이후 재입력이 필요 없습니다.
 
 **CLI options:**
 
@@ -159,12 +169,33 @@ tar xzf claude-code-history-viewer-server-linux-x64.tar.gz
 | `--dist <path>` | — | Path to the frontend build output (`dist/`) |
 | `--port <number>` | `3727` | Server port |
 | `--host <address>` | `127.0.0.1` | Bind address (`0.0.0.0` to expose to network) |
+| `--token <value>` | auto (uuid v4) | Custom authentication token |
+| `--no-auth` | — | Disable authentication (not recommended for public networks) |
+
+### Authentication
+
+All `/api/*` endpoints are protected by Bearer token authentication. The token is auto-generated on each server start and printed to stderr.
+
+- **Browser access**: Use the `?token=...` URL printed at startup. The token is saved to `localStorage` automatically.
+- **API access**: Include `Authorization: Bearer <token>` header.
+- **Custom token**: `--token my-secret-token` to set your own.
+- **Disable**: `--no-auth` to skip authentication entirely (only use on trusted networks).
+
+### Real-time Updates
+
+The server watches `~/.claude/projects/` for file changes and pushes updates to the browser via Server-Sent Events (SSE). When you use Claude Code in another terminal, the viewer updates automatically — no manual refresh needed.
 
 ### Docker
 
 ```bash
 docker compose up -d
-# → http://localhost:3727
+```
+
+서버 시작 후 토큰 확인:
+
+```bash
+docker compose logs webui
+# 🔑 Auth token: ... ← 이 URL을 브라우저에 붙여넣기
 ```
 
 The `docker-compose.yml` mounts `~/.claude`, `~/.codex`, and `~/.local/share/opencode` as read-only volumes.
@@ -185,8 +216,6 @@ just serve-dev             # Build frontend + run server
 GET /health
 → { "status": "ok", "version": "1.5.3", "uptime_secs": 120 }
 ```
-
-> **Note:** The server exposes write APIs (settings, metadata) without authentication. Bind to `127.0.0.1` (default) or use a reverse proxy with authentication when exposing to a network.
 
 ## Usage
 

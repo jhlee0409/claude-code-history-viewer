@@ -177,14 +177,19 @@ fn run_server(args: &[String]) {
         event_tx,
     });
 
-    // Print access info
-    let addr = format!("{host}:{port}");
+    // Print access info — resolve a routable IP when bound to 0.0.0.0
+    let display_host = if host == "0.0.0.0" {
+        get_local_ip().unwrap_or_else(|| host.clone())
+    } else {
+        host.clone()
+    };
+    let display_addr = format!("{display_host}:{port}");
     if let Some(ref token) = auth_token {
         eprintln!("🔑 Auth token: {token}");
-        eprintln!("   Open in browser: http://{addr}?token={token}");
+        eprintln!("   Open in browser: http://{display_addr}?token={token}");
     } else {
         eprintln!("🔓 Authentication disabled (--no-auth)");
-        eprintln!("   Open in browser: http://{addr}");
+        eprintln!("   Open in browser: http://{display_addr}");
     }
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
@@ -194,6 +199,17 @@ fn run_server(args: &[String]) {
 
         server::start(state, &host, port, dist_dir.as_deref()).await;
     });
+}
+
+/// Detect the machine's LAN IP address by connecting a UDP socket to an
+/// external address.  No actual traffic is sent — the OS just picks the
+/// outbound interface, giving us the local IP.
+#[cfg(feature = "webui-server")]
+fn get_local_ip() -> Option<String> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    let addr = socket.local_addr().ok()?;
+    Some(addr.ip().to_string())
 }
 
 /// Resolve the authentication token from CLI arguments.
