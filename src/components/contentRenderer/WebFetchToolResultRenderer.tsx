@@ -7,6 +7,9 @@
  */
 
 import { memo } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import { Globe, FileText, Clock, AlertCircle, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -156,17 +159,20 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
           <summary className={cn(layout.smallText, "cursor-pointer hover:opacity-80", webStyles.accent)}>
             {t("webFetchToolResultRenderer.showContent")}
           </summary>
-          <pre
+          <div
             className={cn(
-              "mt-2 overflow-x-auto whitespace-pre-wrap bg-muted text-foreground",
+              "mt-2 overflow-x-auto bg-muted text-foreground",
               layout.containerPadding,
               layout.rounded,
               layout.smallText,
-              layout.codeMaxHeight
+              layout.codeMaxHeight,
+              layout.prose
             )}
           >
-            {preview}
-          </pre>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+              {preview}
+            </ReactMarkdown>
+          </div>
         </details>
       )}
     </ToolResultCard>

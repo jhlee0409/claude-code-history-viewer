@@ -11,6 +11,9 @@
  */
 
 import { memo } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import { FileText, Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
@@ -41,8 +44,10 @@ export const SummaryMessageRenderer = memo(function SummaryMessageRenderer({
           <div className={cn("font-medium mb-1", styles.title)}>
             {t("summaryMessageRenderer.title", { defaultValue: "Conversation Summary" })}
           </div>
-          <div className="text-foreground/80 whitespace-pre-wrap break-words">
-            {summary}
+          <div className={cn(layout.prose, "text-foreground/80")}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+              {summary}
+            </ReactMarkdown>
           </div>
           {leafUuid && (
             <div className={cn(`mt-2 flex items-center ${layout.smallText} text-muted-foreground`, layout.iconSpacing)}>

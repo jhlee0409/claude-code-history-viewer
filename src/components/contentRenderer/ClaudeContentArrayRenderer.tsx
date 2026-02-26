@@ -285,7 +285,7 @@ export const ClaudeContentArrayRenderer = memo(({
                     {t("claudeContentArrayRenderer.systemReminder")}
                   </span>
                 </div>
-                <div className={cn("whitespace-pre-wrap", layout.bodyText, "text-foreground")}>
+                <div className={cn(searchQuery ? "whitespace-pre-wrap" : layout.prose, layout.bodyText, "text-foreground")}>
                   {searchQuery ? (
                     <HighlightedText
                       text={reminderContent}
@@ -294,7 +294,9 @@ export const ClaudeContentArrayRenderer = memo(({
                       currentMatchIndex={currentMatchIndex}
                     />
                   ) : (
-                    reminderContent
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+                      {reminderContent}
+                    </ReactMarkdown>
                   )}
                 </div>
               </div>
