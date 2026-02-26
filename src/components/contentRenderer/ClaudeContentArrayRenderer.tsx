@@ -11,6 +11,8 @@
  */
 
 import { memo, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ThinkingRenderer } from "./ThinkingRenderer";
 import { RedactedThinkingRenderer } from "./RedactedThinkingRenderer";
 import { ToolUseRenderer } from "./ToolUseRenderer";
@@ -179,7 +181,7 @@ export const ClaudeContentArrayRenderer = memo(({
                   key={entry.key}
                   className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}
                 >
-                  <div className={cn("whitespace-pre-wrap text-foreground", layout.bodyText)}>
+                  <div className={cn(layout.prose, "text-foreground")}>
                     {searchQuery ? (
                       <HighlightedText
                         text={item.text}
@@ -188,7 +190,9 @@ export const ClaudeContentArrayRenderer = memo(({
                         currentMatchIndex={currentMatchIndex}
                       />
                     ) : (
-                      item.text
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {item.text}
+                      </ReactMarkdown>
                     )}
                   </div>
                 </div>

@@ -8,6 +8,8 @@
 
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { invoke } from "@tauri-apps/api/core";
 import {
   FileEdit,
@@ -32,6 +34,11 @@ import {
   getLineNumberStyles,
   getTokenContainerStyles,
 } from "@/utils/prismStyles";
+
+type type_isMarkdownFile = (filePath: string) => boolean;
+const isMarkdownFile: type_isMarkdownFile = (filePath: string) => {
+  return /\.(md|markdown)$/i.test(filePath);
+};
 
 export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) => {
   const { t } = useTranslation();
@@ -279,53 +286,61 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
       {/* Expanded content */}
       {isExpanded && (
         <div className="border-t border-border">
-          {/* Code content */}
+          {/* Code/Markdown content */}
           <div className="max-h-96 overflow-auto">
-            <Highlight
-              theme={isDarkMode ? themes.vsDark : themes.vsLight}
-              code={edit.content_after_change}
-              language={
-                language === "tsx" ? "typescript" : language === "jsx" ? "javascript" : language
-              }
-            >
-              {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                <pre
-                  className={className}
-                  style={getPreStyles(isDarkMode, style, {
-                    fontSize: "0.8125rem",
-                    lineHeight: "1.25rem",
-                    padding: "0.75rem",
-                  })}
-                >
-                  {tokens.map((line, i) => {
-                    const lineProps = getLineProps({ line, key: i });
-                    return (
-                      <div
-                        key={i}
-                        {...lineProps}
-                        style={getLineStyles(lineProps.style, { display: "table-row" })}
-                      >
-                        <span style={getLineNumberStyles()}>
-                          {i + 1}
-                        </span>
-                        <span style={getTokenContainerStyles()}>
-                          {line.map((token, key) => {
-                            const tokenProps = getTokenProps({ token, key });
-                            return (
-                              <span
-                                key={key}
-                                {...tokenProps}
-                                style={getTokenStyles(isDarkMode, tokenProps.style)}
-                              />
-                            );
-                          })}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </pre>
-              )}
-            </Highlight>
+            {isMarkdownFile(edit.file_path) ? (
+              <div className={cn(layout.prose, "p-3 bg-card text-foreground")}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {edit.content_after_change}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <Highlight
+                theme={isDarkMode ? themes.vsDark : themes.vsLight}
+                code={edit.content_after_change}
+                language={
+                  language === "tsx" ? "typescript" : language === "jsx" ? "javascript" : language
+                }
+              >
+                {({ className, style, tokens, getLineProps, getTokenProps }) => (
+                  <pre
+                    className={className}
+                    style={getPreStyles(isDarkMode, style, {
+                      fontSize: "0.8125rem",
+                      lineHeight: "1.25rem",
+                      padding: "0.75rem",
+                    })}
+                  >
+                    {tokens.map((line, i) => {
+                      const lineProps = getLineProps({ line, key: i });
+                      return (
+                        <div
+                          key={i}
+                          {...lineProps}
+                          style={getLineStyles(lineProps.style, { display: "table-row" })}
+                        >
+                          <span style={getLineNumberStyles()}>
+                            {i + 1}
+                          </span>
+                          <span style={getTokenContainerStyles()}>
+                            {line.map((token, key) => {
+                              const tokenProps = getTokenProps({ token, key });
+                              return (
+                                <span
+                                  key={key}
+                                  {...tokenProps}
+                                  style={getTokenStyles(isDarkMode, tokenProps.style)}
+                                />
+                              );
+                            })}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </pre>
+                )}
+              </Highlight>
+            )}
           </div>
 
           {/* Footer with stats */}
