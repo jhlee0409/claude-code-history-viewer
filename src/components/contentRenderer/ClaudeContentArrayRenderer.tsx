@@ -12,6 +12,7 @@
 
 import { memo, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { ThinkingRenderer } from "./ThinkingRenderer";
 import { RedactedThinkingRenderer } from "./RedactedThinkingRenderer";
@@ -190,7 +191,7 @@ export const ClaudeContentArrayRenderer = memo(({
                         currentMatchIndex={currentMatchIndex}
                       />
                     ) : (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
                         {item.text}
                       </ReactMarkdown>
                     )}

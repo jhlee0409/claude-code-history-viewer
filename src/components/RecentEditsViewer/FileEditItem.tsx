@@ -9,6 +9,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -34,11 +35,6 @@ import {
   getLineNumberStyles,
   getTokenContainerStyles,
 } from "@/utils/prismStyles";
-
-type type_isMarkdownFile = (filePath: string) => boolean;
-const isMarkdownFile: type_isMarkdownFile = (filePath: string) => {
-  return /\.(md|markdown)$/i.test(filePath);
-};
 
 export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) => {
   const { t } = useTranslation();
@@ -288,9 +284,9 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
         <div className="border-t border-border">
           {/* Code/Markdown content */}
           <div className="max-h-96 overflow-auto">
-            {isMarkdownFile(edit.file_path) ? (
+            {language === "markdown" ? (
               <div className={cn(layout.prose, "p-3 bg-card text-foreground")}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
                   {edit.content_after_change}
                 </ReactMarkdown>
               </div>
