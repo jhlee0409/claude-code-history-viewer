@@ -20,7 +20,7 @@ Claude Code, Codex CLI, OpenCode의 대화 기록을 분석, 세션 보드, 실�
 </div>
 
 > **프로젝트 이름 변경을 검토 중입니다** — 멀티 도구 지원(Claude Code, Codex CLI, OpenCode)을 더 잘 반영하기 위해서입니다.
-> 의견과 이름 제안을 [토론에서](https://github.com/jhlee0409/claude-code-history-viewer/discussions/149) 공유해주세요!
+> 의견과 이름 제안을 [Issue #152](https://github.com/jhlee0409/claude-code-history-viewer/issues/152)에서 공유해주세요!
 
 ---
 

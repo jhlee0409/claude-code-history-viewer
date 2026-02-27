@@ -20,7 +20,7 @@
 </div>
 
 > **我們正在考慮重新命名此專案**，以更好地反映多工具支援（Claude Code、Codex CLI、OpenCode）。
-> 請在[討論區](https://github.com/jhlee0409/claude-code-history-viewer/discussions/149)分享您的想法和命名建議！
+> 請在 [Issue #152](https://github.com/jhlee0409/claude-code-history-viewer/issues/152) 分享您的想法和命名建議！
 
 ---
 

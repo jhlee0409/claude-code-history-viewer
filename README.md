@@ -20,7 +20,7 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
 </div>
 
 > **We're considering renaming this project** to better reflect multi-tool support (Claude Code, Codex CLI, OpenCode).
-> Share your thoughts and name suggestions in [the discussion](https://github.com/jhlee0409/claude-code-history-viewer/discussions/149)!
+> Share your thoughts and name suggestions in [Issue #152](https://github.com/jhlee0409/claude-code-history-viewer/issues/152)!
 
 ---
 

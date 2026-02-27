@@ -20,7 +20,7 @@ Claude Code、Codex CLI、OpenCodeの会話履歴を分析ダッシュボード�
 </div>
 
 > **プロジェクト名の変更を検討中です** — マルチツール対応（Claude Code、Codex CLI、OpenCode）をより反映するためです。
-> ご意見や名前の提案を[ディスカッション](https://github.com/jhlee0409/claude-code-history-viewer/discussions/149)でお聞かせください！
+> ご意見や名前の提案を[Issue #152](https://github.com/jhlee0409/claude-code-history-viewer/issues/152)でお聞かせください！
 
 ---
 
