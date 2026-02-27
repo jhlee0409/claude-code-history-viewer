@@ -474,8 +474,18 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           item.getAttribute("aria-expanded") === "false"
       );
 
-      for (const sibling of siblingGroups) {
-        sibling.click();
+      const siblingGroupKeys = siblingGroups
+        .map((item) => item.getAttribute("data-tree-key"))
+        .filter((key): key is string => Boolean(key));
+
+      if (siblingGroupKeys.length > 0) {
+        setExpandedProjects((prev) => {
+          const next = new Set(prev);
+          for (const groupKey of siblingGroupKeys) {
+            next.add(groupKey);
+          }
+          return next;
+        });
       }
       announceTree(
         t(
@@ -541,7 +551,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     syncRovingTabIndex(nextItem);
     nextItem.focus();
     announceTree(describeTreeItem(nextItem));
-  }, [announceTree, describeTreeItem, syncRovingTabIndex, t]);
+  }, [announceTree, describeTreeItem, setExpandedProjects, syncRovingTabIndex, t]);
 
   useEffect(() => () => {
     if (typeaheadTimeoutRef.current) {

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { GroupHeaderProps } from "../types";
 
 export const GroupHeader: React.FC<GroupHeaderProps> = ({
+  groupKey,
   label,
   icon,
   count,
@@ -39,6 +40,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       type="button"
       role="treeitem"
       data-tree-node="group"
+      data-tree-key={groupKey}
       data-tree-expandable="true"
       aria-level={ariaLevel}
       onClick={onToggle}

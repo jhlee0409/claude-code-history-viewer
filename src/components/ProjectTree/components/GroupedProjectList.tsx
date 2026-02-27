@@ -118,6 +118,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           return (
             <div key={group.path} className="space-y-0.5" role="none">
               <GroupHeader
+                groupKey={groupKey}
                 label={group.displayPath}
                 icon={<span title="Directory"><FolderTree className="w-3.5 h-3.5" /></span>}
                 count={group.projects.length}
@@ -152,6 +153,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           return (
             <div key={group.parent.path} className="space-y-0.5" role="none">
               <GroupHeader
+                groupKey={groupKey}
                 label={group.parent.name}
                 icon={<GitBranch className="w-3.5 h-3.5" />}
                 count={allGroupProjects.length}

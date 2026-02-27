@@ -63,6 +63,7 @@ export interface SessionListProps {
 }
 
 export interface GroupHeaderProps {
+  groupKey: string;
   label: string;
   icon: React.ReactNode;
   count: number;
