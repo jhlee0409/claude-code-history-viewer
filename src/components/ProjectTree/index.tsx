@@ -647,6 +647,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     "text-muted-foreground hover:text-accent hover:bg-accent/10"
                   )}
                   title={t("project.collapseSidebar", "Collapse sidebar")}
+                  aria-label={t("project.collapseSidebar", "Collapse sidebar")}
                 >
                   <PanelLeftClose className="w-3.5 h-3.5" />
                 </button>
