@@ -9,6 +9,7 @@
     "core:default",
     "dialog:allow-open",
     "dialog:default",
+    "process:allow-restart",
     "updater:default",
     "updater:allow-check",
     "store:allow-load",

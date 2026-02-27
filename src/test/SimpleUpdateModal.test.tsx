@@ -80,8 +80,9 @@ function createUpdater(
       isDownloading: false,
       isInstalling: false,
       isRestarting: false,
+      requiresManualRestart: false,
       downloadProgress: 0,
-      error: "update.manual_restart_required",
+      error: null,
       updateInfo: null,
       currentVersion: "1.5.0",
       newVersion: "1.5.1",
@@ -116,8 +117,8 @@ describe("SimpleUpdateModal", () => {
     vi.clearAllMocks();
   });
 
-  it("shows failure guide and copy diagnostics button when update fails", () => {
-    const updater = createUpdater();
+  it("shows failure guide and report issue button when update fails", () => {
+    const updater = createUpdater({ error: "update.install_failed" });
 
     render(
       <SimpleUpdateModal
@@ -133,6 +134,27 @@ describe("SimpleUpdateModal", () => {
     expect(
       screen.getByRole("button", { name: "simpleUpdateModal.reportIssue" })
     ).toBeInTheDocument();
+  });
+
+  it("shows manual restart guidance without report issue when restart is required", () => {
+    const updater = createUpdater({ requiresManualRestart: true });
+
+    render(
+      <SimpleUpdateModal
+        updater={updater}
+        isVisible={true}
+        onClose={vi.fn()}
+        onRemindLater={vi.fn()}
+        onSkipVersion={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText("common.error.updateManualRestartRequired")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "simpleUpdateModal.reportIssue" })
+    ).not.toBeInTheDocument();
   });
 
   it("renders release notes from updater body", () => {
@@ -194,7 +216,7 @@ describe("SimpleUpdateModal", () => {
   });
 
   it("opens feedback modal with diagnostics prefilled when reporting issue", async () => {
-    const updater = createUpdater();
+    const updater = createUpdater({ error: "update.install_failed" });
     const onClose = vi.fn();
 
     render(
@@ -229,9 +251,7 @@ describe("SimpleUpdateModal", () => {
       feedbackPrefill?: { body?: string };
     };
     expect(openArgs.feedbackPrefill?.body).toContain("[Updater Diagnostics]");
-    expect(openArgs.feedbackPrefill?.body).toContain(
-      "error=update.manual_restart_required"
-    );
+    expect(openArgs.feedbackPrefill?.body).toContain("error=update.install_failed");
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

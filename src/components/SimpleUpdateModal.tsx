@@ -97,6 +97,8 @@ export function SimpleUpdateModal({
   const localizedError = updater.state.error
     ? resolveUpdateErrorMessage(updater.state.error, t)
     : null;
+  const shouldShowManualRestartNotice =
+    updater.state.requiresManualRestart && !updater.state.isRestarting;
 
   const handleReportIssue = () => {
     if (!updater.state.error) return;
@@ -122,6 +124,15 @@ export function SimpleUpdateModal({
     });
 
     onClose();
+  };
+
+  const handlePrimaryAction = () => {
+    if (updater.state.requiresManualRestart) {
+      onClose();
+      return;
+    }
+
+    handleDownload();
   };
 
   return (
@@ -220,8 +231,18 @@ export function SimpleUpdateModal({
             </div>
           )}
 
+          {/* Manual restart guidance after successful payload download */}
+          {shouldShowManualRestartNotice && (
+            <div className="p-2.5 bg-info/10 border border-info/20 rounded-md">
+              <div className="flex items-center gap-2 text-xs text-info">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{t('common.error.updateManualRestartRequired')}</span>
+              </div>
+            </div>
+          )}
+
           {/* Error display */}
-          {localizedError && !updater.state.isRestarting && (
+          {localizedError && !updater.state.isRestarting && !shouldShowManualRestartNotice && (
             <div className="p-2.5 bg-destructive/10 border border-destructive/20 rounded-md">
               <div className="flex items-center gap-2 text-xs text-destructive">
                 <AlertTriangle className="w-3.5 h-3.5" />
@@ -244,7 +265,7 @@ export function SimpleUpdateModal({
 
         <DialogFooter className="flex-col gap-2">
           <Button
-            onClick={handleDownload}
+            onClick={handlePrimaryAction}
             disabled={
               updater.state.isDownloading ||
               updater.state.isInstalling ||
@@ -253,7 +274,9 @@ export function SimpleUpdateModal({
             size="sm"
             className="w-full"
           >
-            {updater.state.isRestarting ? (
+            {updater.state.requiresManualRestart ? (
+              t('simpleUpdateModal.close')
+            ) : updater.state.isRestarting ? (
               <>
                 <RotateCw className="w-3.5 h-3.5 animate-spin" />
                 {t('simpleUpdateModal.restartingShort')}
@@ -284,7 +307,8 @@ export function SimpleUpdateModal({
               disabled={
                 updater.state.isDownloading ||
                 updater.state.isInstalling ||
-                updater.state.isRestarting
+                updater.state.isRestarting ||
+                updater.state.requiresManualRestart
               }
               className="flex-1 text-xs"
             >
@@ -297,7 +321,8 @@ export function SimpleUpdateModal({
               disabled={
                 updater.state.isDownloading ||
                 updater.state.isInstalling ||
-                updater.state.isRestarting
+                updater.state.isRestarting ||
+                updater.state.requiresManualRestart
               }
               className="flex-1 text-xs"
             >
