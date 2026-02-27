@@ -56,7 +56,7 @@ describe("MessageNavigator accessibility", () => {
       />
     );
 
-    const currentEntry = screen.getByRole("option", { name: "assistant message 2" });
+    const currentEntry = screen.getAllByRole("option")[1];
     expect(currentEntry).toHaveAttribute("tabindex", "0");
     expect(screen.getByRole("listbox")).toHaveAttribute(
       "aria-describedby",
@@ -70,7 +70,7 @@ describe("MessageNavigator accessibility", () => {
       fireEvent.keyDown(currentEntry, { key: "ArrowDown" });
     });
 
-    const movedEntry = screen.getByRole("option", { name: "assistant message 3" });
+    const movedEntry = screen.getAllByRole("option")[2];
     expect(movedEntry).toHaveAttribute("tabindex", "0");
 
     fireEvent.keyDown(movedEntry, { key: "Enter" });

@@ -1,5 +1,6 @@
 import React, { useCallback } from "react";
 import { Wrench } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { NavigatorEntryData } from "./types";
 
@@ -31,9 +32,11 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
   registerRef,
   style,
 }) => {
+  const { t } = useTranslation();
   const handleClick = useCallback(() => onClick(entry.uuid), [onClick, entry.uuid]);
 
   const roleStyle = ROLE_STYLES[entry.role] || ROLE_STYLES.system;
+  const roleLabel = t(`navigator.role.${entry.role}`, { defaultValue: entry.role });
 
   const formattedTime = entry.timestamp
     ? new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -59,7 +62,11 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
       role="option"
       aria-selected={isActive}
       aria-current={isActive ? "true" : undefined}
-      aria-label={`${entry.role} message ${entry.turnIndex}`}
+      aria-label={t("navigator.a11y.entryLabel", {
+        role: roleLabel,
+        turnIndex: entry.turnIndex,
+        defaultValue: `${roleLabel} message ${entry.turnIndex}`,
+      })}
     >
       {/* Header row: role dot + turn label + time + tool icon */}
       <div className="flex items-center gap-1.5 mb-0.5">

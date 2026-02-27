@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-27T11:46:29.404Z
- * 총 키 개수: 1599
+ * 생성 시간: 2026-02-27T15:20:44.845Z
+ * 총 키 개수: 1607
  * Namespace 수: 11
  */
 
@@ -366,12 +366,15 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (159개)
+ * session namespace의 번역 키 (162개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
+  | 'project.a11y.collapseGroup'
   | 'project.a11y.collapsedState'
+  | 'project.a11y.expandGroup'
   | 'project.a11y.expandedState'
+  | 'project.a11y.groupToggleLabel'
   | 'project.a11y.keyboardHelp'
   | 'project.addPattern'
   | 'project.collapseSidebar'
@@ -1154,7 +1157,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (75개)
+ * message namespace의 번역 키 (80개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1226,11 +1229,16 @@ export type MessageKeys =
   | 'messages.offset'
   | 'messages.tokenStats.existing'
   | 'messages.tokenStats.title'
+  | 'navigator.a11y.entryLabel'
   | 'navigator.a11y.keyboardHelp'
   | 'navigator.close'
   | 'navigator.filter'
   | 'navigator.messageCount'
   | 'navigator.noMessages'
+  | 'navigator.role.assistant'
+  | 'navigator.role.summary'
+  | 'navigator.role.system'
+  | 'navigator.role.user'
   | 'navigator.title'
   | 'navigator.toggle';
 
@@ -2343,11 +2351,16 @@ export type TranslationKey =
   | 'messages.offset'
   | 'messages.tokenStats.existing'
   | 'messages.tokenStats.title'
+  | 'navigator.a11y.entryLabel'
   | 'navigator.a11y.keyboardHelp'
   | 'navigator.close'
   | 'navigator.filter'
   | 'navigator.messageCount'
   | 'navigator.noMessages'
+  | 'navigator.role.assistant'
+  | 'navigator.role.summary'
+  | 'navigator.role.system'
+  | 'navigator.role.user'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'progressRenderer.status.completed'
@@ -2361,8 +2374,11 @@ export type TranslationKey =
   | 'progressRenderer.types.query'
   | 'progressRenderer.types.search'
   | 'progressRenderer.types.waiting'
+  | 'project.a11y.collapseGroup'
   | 'project.a11y.collapsedState'
+  | 'project.a11y.expandGroup'
   | 'project.a11y.expandedState'
+  | 'project.a11y.groupToggleLabel'
   | 'project.a11y.keyboardHelp'
   | 'project.addPattern'
   | 'project.collapseSidebar'

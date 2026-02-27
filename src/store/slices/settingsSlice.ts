@@ -111,6 +111,7 @@ export const createSettingsSlice: StateCreator<
       await store.set("fontScale", normalizedScale);
       await store.save();
     } catch (error) {
+      // Intentionally non-blocking: font scale is already applied in-memory for current session.
       console.warn("Failed to save font scale:", error);
     }
   },
@@ -126,6 +127,7 @@ export const createSettingsSlice: StateCreator<
       await store.set("highContrast", enabled);
       await store.save();
     } catch (error) {
+      // Intentionally non-blocking: contrast mode is already applied in-memory for current session.
       console.warn("Failed to save high contrast setting:", error);
     }
   },

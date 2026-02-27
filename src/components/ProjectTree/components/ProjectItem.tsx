@@ -23,6 +23,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   const isMain = variant === "main";
   const isWorktree = variant === "worktree";
   const isGrouped = isMain || isWorktree;
+  const isExpandable = project.session_count > 0;
 
   const displayName = isMain
     ? t("project.main", "main")
@@ -43,13 +44,14 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       data-tree-node="project"
       aria-level={ariaLevel}
       aria-selected={isSelected}
+      aria-expanded={isExpandable ? isExpanded : undefined}
       tabIndex={-1}
       onClick={onClick}
       onKeyDown={(e) => {
-        if (e.key === "ArrowRight" && !isExpanded) {
+        if (e.key === "ArrowRight" && isExpandable && !isExpanded) {
           e.preventDefault();
           onToggle();
-        } else if (e.key === "ArrowLeft" && isExpanded) {
+        } else if (e.key === "ArrowLeft" && isExpandable && isExpanded) {
           e.preventDefault();
           onToggle();
         }

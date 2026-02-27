@@ -587,6 +587,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 "bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
               )}
               title={t("project.expandSidebar", "Expand sidebar")}
+              aria-label={t("project.expandSidebar", "Expand sidebar")}
             >
               <PanelLeft className="w-4 h-4" />
             </button>
@@ -667,6 +668,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                       groupingMode === "none" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-accent hover:bg-accent/10"
                     )}
                     title={t("project.groupingNone", "Flat list")}
+                    aria-label={t("project.groupingNone", "Flat list")}
                   >
                     <List className="w-3 h-3" />
                   </button>
@@ -680,6 +682,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                         : "text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10"
                     )}
                     title={t("project.groupingDirectory", "Group by directory")}
+                    aria-label={t("project.groupingDirectory", "Group by directory")}
                   >
                     <FolderTree className="w-3 h-3" />
                   </button>
@@ -693,6 +696,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                         : "text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10"
                     )}
                     title={t("project.groupingWorktree", "Group by worktree")}
+                    aria-label={t("project.groupingWorktree", "Group by worktree")}
                   >
                     <GitBranch className="w-3 h-3" />
                   </button>
@@ -865,7 +869,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         <p id={keyboardHelpId} className="sr-only">
           {t(
             "project.a11y.keyboardHelp",
-            "Keyboard: use arrow keys to move, Home and End to jump, type letters to search, and star to expand sibling groups."
+            "Keyboard: use arrow keys to move, Home and End to jump, type letters to search, and star to expand collapsed sibling groups."
           )}
         </p>
 

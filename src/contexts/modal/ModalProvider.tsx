@@ -17,18 +17,24 @@ interface ModalState {
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const focusOriginsRef = useRef<Partial<Record<ModalType, HTMLElement>>>({});
+  const focusOriginsRef = useRef<Partial<Record<ModalType, HTMLElement[]>>>({});
   const openOrderRef = useRef<ModalType[]>([]);
 
   const restoreFocus = useCallback((modal: ModalType) => {
-    const target = focusOriginsRef.current[modal];
-    if (!target || !target.isConnected) return;
+    const candidates = focusOriginsRef.current[modal];
+    if (!candidates || candidates.length === 0) return false;
 
-    requestAnimationFrame(() => {
-      if (target.isConnected) {
-        target.focus();
+    for (let index = candidates.length - 1; index >= 0; index -= 1) {
+      const target = candidates[index];
+      if (!target || !target.isConnected) {
+        continue;
       }
-    });
+
+      target.focus();
+      return true;
+    }
+
+    return false;
   }, []);
 
   const [modalState, setModalState] = useState<ModalState>({
@@ -56,7 +62,8 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
     ) => {
       const activeElement = document.activeElement;
       if (activeElement instanceof HTMLElement) {
-        focusOriginsRef.current[modal] = activeElement;
+        const current = focusOriginsRef.current[modal] ?? [];
+        focusOriginsRef.current[modal] = [...current, activeElement];
       }
 
       openOrderRef.current = [...openOrderRef.current.filter((item) => item !== modal), modal];
@@ -81,11 +88,13 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
       [modal]: false,
       ...(modal === "feedback" && { feedbackPrefill: null }),
     }));
-    restoreFocus(modal);
+    if (restoreFocus(modal)) {
+      focusOriginsRef.current[modal] = [];
+    }
   }, [restoreFocus]);
 
   const closeAllModals = useCallback(() => {
-    const lastOpenedModal = openOrderRef.current[openOrderRef.current.length - 1];
+    const openedModals = [...openOrderRef.current];
     openOrderRef.current = [];
     setModalState((prev) => ({
       ...prev,
@@ -94,8 +103,11 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
       globalSearch: false,
       feedbackPrefill: null,
     }));
-    if (lastOpenedModal) {
-      restoreFocus(lastOpenedModal);
+    for (let index = openedModals.length - 1; index >= 0; index -= 1) {
+      const modal = openedModals[index];
+      if (modal && restoreFocus(modal)) {
+        break;
+      }
     }
   }, [restoreFocus]);
 

@@ -121,36 +121,34 @@ function App() {
     );
   }, [activeProviders, t]);
   const liveStatusMessage = useMemo(() => {
-    const messages: string[] = [];
-
     if (updater.state.isChecking) {
-      messages.push(t("common.settings.checking"));
-    }
-    if (computed.isAnyLoading) {
-      messages.push(t("status.loadingStats"));
-    }
-    if (isLoadingProjects) {
-      messages.push(t("status.scanning"));
-    }
-    if (isLoadingSessions) {
-      messages.push(t("status.loadingSessions"));
-    }
-    if (isLoadingMessages) {
-      messages.push(t("status.loadingMessages"));
+      return t("common.settings.checking");
     }
     if (isLoading) {
-      messages.push(t("status.initializing"));
+      return t("status.initializing");
+    }
+    if (computed.isAnyLoading) {
+      return t("status.loadingStats");
+    }
+    if (isLoadingMessages) {
+      return t("status.loadingMessages");
+    }
+    if (isLoadingProjects) {
+      return t("status.scanning");
+    }
+    if (isLoadingSessions) {
+      return t("status.loadingSessions");
     }
 
-    return messages.join(" ");
+    return "";
   }, [
-    computed.isAnyLoading,
+    updater.state.isChecking,
     isLoading,
+    computed.isAnyLoading,
     isLoadingMessages,
     isLoadingProjects,
     isLoadingSessions,
     t,
-    updater.state.isChecking,
   ]);
 
   const [isViewingGlobalStats, setIsViewingGlobalStats] = useState(false);

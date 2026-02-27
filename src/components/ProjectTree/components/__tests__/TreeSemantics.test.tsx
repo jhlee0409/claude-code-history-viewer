@@ -9,7 +9,15 @@ import { GroupedProjectList } from "../GroupedProjectList";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (
+      key: string,
+      options?: string | { defaultValue?: string; [name: string]: unknown }
+    ) => {
+      if (typeof options === "string") {
+        return options;
+      }
+      return options?.defaultValue ?? key;
+    },
   }),
 }));
 
