@@ -9,6 +9,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   icon,
   count,
   isExpanded,
+  ariaLevel = 1,
   onToggle,
   variant,
 }) => {
@@ -33,7 +34,13 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
 
   return (
     <button
+      type="button"
+      role="treeitem"
+      data-tree-node="group"
+      data-tree-expandable="true"
+      aria-level={ariaLevel}
       onClick={onToggle}
+      tabIndex={-1}
       aria-expanded={isExpanded}
       aria-label={`${isExpanded ? "Collapse" : "Expand"} ${label} group (${count} projects)`}
       className={cn(

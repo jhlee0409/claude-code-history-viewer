@@ -1,5 +1,3 @@
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-
 import {
   Tooltip,
   TooltipContent,
@@ -8,14 +6,19 @@ import {
 
 type Props = {
   children: React.ReactNode;
-  content: React.ComponentProps<typeof TooltipPrimitive.Content>;
+  content: React.ReactNode;
 } & Omit<React.ComponentProps<"button">, "children" | "title">;
 
 export const TooltipButton = ({ children, content, ...props }: Props) => {
+  const computedAriaLabel =
+    props["aria-label"] ?? (typeof content === "string" ? content : undefined);
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button {...props}>{children}</button>
+        <button type={props.type ?? "button"} {...props} aria-label={computedAriaLabel}>
+          {children}
+        </button>
       </TooltipTrigger>
       <TooltipContent>{content}</TooltipContent>
     </Tooltip>

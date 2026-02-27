@@ -77,6 +77,8 @@ function App() {
     isProjectHidden,
     dateFilter,
     setDateFilter,
+    fontScale,
+    highContrast,
     isNavigatorOpen,
     toggleNavigator,
     activeProviders,
@@ -118,6 +120,38 @@ function App() {
       { providers: labels.join(", ") }
     );
   }, [activeProviders, t]);
+  const liveStatusMessage = useMemo(() => {
+    const messages: string[] = [];
+
+    if (updater.state.isChecking) {
+      messages.push(t("common.settings.checking"));
+    }
+    if (computed.isAnyLoading) {
+      messages.push(t("status.loadingStats"));
+    }
+    if (isLoadingProjects) {
+      messages.push(t("status.scanning"));
+    }
+    if (isLoadingSessions) {
+      messages.push(t("status.loadingSessions"));
+    }
+    if (isLoadingMessages) {
+      messages.push(t("status.loadingMessages"));
+    }
+    if (isLoading) {
+      messages.push(t("status.initializing"));
+    }
+
+    return messages.join(" ");
+  }, [
+    computed.isAnyLoading,
+    isLoading,
+    isLoadingMessages,
+    isLoadingProjects,
+    isLoadingSessions,
+    t,
+    updater.state.isChecking,
+  ]);
 
   const [isViewingGlobalStats, setIsViewingGlobalStats] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -202,6 +236,15 @@ function App() {
     };
     initialize();
   }, [initializeApp, loadLanguage]);
+
+  useEffect(() => {
+    const scale = Number.isFinite(fontScale) ? fontScale / 100 : 1;
+    document.documentElement.style.setProperty("--app-font-scale", String(scale));
+  }, [fontScale]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("high-contrast", highContrast);
+  }, [highContrast]);
 
   // Restore messages when switching back to messages view with empty messages
   useEffect(() => {
@@ -357,6 +400,35 @@ function App() {
   return (
     <TooltipProvider>
       <div className="h-screen flex flex-col bg-background">
+        <nav aria-label="Skip navigation">
+          <a
+            href="#project-explorer"
+            className="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+          >
+            {t("common.a11y.skipToProjects", { defaultValue: "Skip to project explorer" })}
+          </a>
+          <a
+            href="#main-content"
+            className="absolute left-52 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+          >
+            {t("common.a11y.skipToMain", { defaultValue: "Skip to main content" })}
+          </a>
+          {isNavigatorOpen && selectedSession && (
+            <a
+              href="#message-navigator"
+              className="absolute left-[23rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+            >
+              {t("common.a11y.skipToNavigator", { defaultValue: "Skip to message navigator" })}
+            </a>
+          )}
+          <a
+            href="#app-settings-button"
+            className="absolute right-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+          >
+            {t("common.a11y.skipToSettings", { defaultValue: "Skip to settings" })}
+          </a>
+        </nav>
+
         {/* Header */}
         <Header
           analyticsActions={analyticsActions}
@@ -391,10 +463,15 @@ function App() {
             isProjectHidden={isProjectHidden}
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={handleToggleSidebar}
+            asideId="project-explorer"
           />
 
           {/* Main Content Area */}
-          <main className="flex-1 flex flex-col min-w-0 bg-background">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex-1 flex flex-col min-w-0 bg-background"
+          >
             {/* Content Header for non-message views */}
             {(computed.isTokenStatsView ||
               computed.isAnalyticsView ||
@@ -536,6 +613,7 @@ function App() {
                     onResizeStart={handleNavigatorResizeStart}
                     isCollapsed={!isNavigatorOpen}
                     onToggleCollapse={toggleNavigator}
+                    asideId="message-navigator"
                   />
                 </div>
               ) : (
@@ -591,6 +669,10 @@ function App() {
               </div>
             )}
         </footer>
+
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {liveStatusMessage}
+        </div>
 
         {/* Update Manager */}
         <SimpleUpdateManager updater={updater} />

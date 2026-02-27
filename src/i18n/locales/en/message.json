@@ -70,6 +70,7 @@
   "navigator.title": "Messages",
   "navigator.toggle": "Toggle message navigator",
   "navigator.filter": "Filter messages...",
+  "navigator.a11y.keyboardHelp": "Keyboard: use arrow keys to move between messages, Home and End to jump, and Enter to open the focused message.",
 
   "navigator.noMessages": "No messages in this session",
   "navigator.close": "Close navigator",

@@ -70,6 +70,7 @@
   "navigator.title": "訊息",
   "navigator.toggle": "切換訊息導覽器",
   "navigator.filter": "篩選訊息...",
+  "navigator.a11y.keyboardHelp": "鍵盤：使用方向鍵在訊息間移動，Home/End 跳到開頭與結尾，按 Enter 開啟目前焦點的訊息。",
   "navigator.noMessages": "此會話沒有訊息",
   "navigator.close": "關閉導覽器",
   "navigator.messageCount": "{{count}} 則訊息"

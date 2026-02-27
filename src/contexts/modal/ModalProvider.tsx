@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactNode, useMemo } from "react";
+import { useState, useCallback, type ReactNode, useMemo, useRef } from "react";
 import {
   ModalContext,
   type FeedbackPrefill,
@@ -17,6 +17,20 @@ interface ModalState {
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
+  const focusOriginsRef = useRef<Partial<Record<ModalType, HTMLElement>>>({});
+  const openOrderRef = useRef<ModalType[]>([]);
+
+  const restoreFocus = useCallback((modal: ModalType) => {
+    const target = focusOriginsRef.current[modal];
+    if (!target || !target.isConnected) return;
+
+    requestAnimationFrame(() => {
+      if (target.isConnected) {
+        target.focus();
+      }
+    });
+  }, []);
+
   const [modalState, setModalState] = useState<ModalState>({
     feedback: false,
     folderSelector: false,
@@ -40,6 +54,13 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
         feedbackPrefill?: FeedbackPrefill;
       }
     ) => {
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        focusOriginsRef.current[modal] = activeElement;
+      }
+
+      openOrderRef.current = [...openOrderRef.current.filter((item) => item !== modal), modal];
+
       setModalState((prev) => ({
         ...prev,
         [modal]: true,
@@ -54,14 +75,18 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   const closeModal = useCallback((modal: ModalType) => {
+    openOrderRef.current = openOrderRef.current.filter((item) => item !== modal);
     setModalState((prev) => ({
       ...prev,
       [modal]: false,
       ...(modal === "feedback" && { feedbackPrefill: null }),
     }));
-  }, []);
+    restoreFocus(modal);
+  }, [restoreFocus]);
 
   const closeAllModals = useCallback(() => {
+    const lastOpenedModal = openOrderRef.current[openOrderRef.current.length - 1];
+    openOrderRef.current = [];
     setModalState((prev) => ({
       ...prev,
       feedback: false,
@@ -69,7 +94,10 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
       globalSearch: false,
       feedbackPrefill: null,
     }));
-  }, []);
+    if (lastOpenedModal) {
+      restoreFocus(lastOpenedModal);
+    }
+  }, [restoreFocus]);
 
   const value = useMemo(
     () => ({

@@ -10,14 +10,14 @@ import { getProviderId, getProviderLabel } from "../../../utils/providers";
 export const ProjectItem: React.FC<ProjectItemProps> = ({
   project,
   isExpanded,
-  isSelected: _isSelected,
+  isSelected,
+  ariaLevel = 1,
   onToggle,
   onClick,
   onContextMenu,
   variant = "default",
   showProviderBadge = true,
 }) => {
-  void _isSelected; // Reserved for future selection highlighting
   const { t } = useTranslation();
 
   const isMain = variant === "main";
@@ -37,13 +37,21 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   );
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
+      role="treeitem"
+      data-tree-node="project"
+      aria-level={ariaLevel}
+      aria-selected={isSelected}
+      tabIndex={-1}
       onClick={onClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          onClick();
+        if (e.key === "ArrowRight" && !isExpanded) {
+          e.preventDefault();
+          onToggle();
+        } else if (e.key === "ArrowLeft" && isExpanded) {
+          e.preventDefault();
+          onToggle();
         }
       }}
       onContextMenu={onContextMenu}
@@ -63,22 +71,9 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
     >
       {/* Expand Icon */}
       <span
-        role="button"
-        tabIndex={0}
         aria-label={isExpanded ? t("common.collapse", "Collapse") : t("common.expand", "Expand")}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggle();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.stopPropagation();
-            e.preventDefault();
-            onToggle();
-          }
-        }}
         className={cn(
-          "transition-all duration-200 p-0.5 -m-0.5 rounded hover:bg-black/10",
+          "transition-all duration-200 p-0.5 -m-0.5 rounded",
           isExpanded
             ? isWorktree
               ? "text-emerald-500"
@@ -172,6 +167,6 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
           {project.session_count}
         </span>
       ) : null}
-    </div>
+    </button>
   );
 };
