@@ -19,6 +19,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const focusOriginsRef = useRef<Partial<Record<ModalType, HTMLElement[]>>>({});
   const openOrderRef = useRef<ModalType[]>([]);
+  const closeAllGenerationRef = useRef(0);
 
   const restoreFocus = useCallback((modal: ModalType) => {
     const candidates = focusOriginsRef.current[modal];
@@ -60,6 +61,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
         feedbackPrefill?: FeedbackPrefill;
       }
     ) => {
+      closeAllGenerationRef.current += 1;
       const activeElement = document.activeElement;
       if (activeElement instanceof HTMLElement) {
         const current = focusOriginsRef.current[modal] ?? [];
@@ -82,6 +84,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   const closeModal = useCallback((modal: ModalType) => {
+    closeAllGenerationRef.current += 1;
     openOrderRef.current = openOrderRef.current.filter((item) => item !== modal);
     setModalState((prev) => ({
       ...prev,
@@ -93,6 +96,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
   }, [restoreFocus]);
 
   const closeAllModals = useCallback(() => {
+    const generation = ++closeAllGenerationRef.current;
     const openedModals = [...openOrderRef.current];
     openOrderRef.current = [];
     setModalState((prev) => ({
@@ -103,6 +107,9 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
       feedbackPrefill: null,
     }));
     requestAnimationFrame(() => {
+      if (generation !== closeAllGenerationRef.current) {
+        return;
+      }
       for (const modal of [...openedModals].reverse()) {
         if (restoreFocus(modal)) {
           break;

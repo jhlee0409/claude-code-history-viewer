@@ -70,7 +70,7 @@
   "navigator.title": "メッセージ",
   "navigator.toggle": "メッセージナビゲーターの切替",
   "navigator.filter": "メッセージをフィルター...",
-  "navigator.a11y.keyboardHelp": "キーボード: 矢印キーでメッセージ間を移動し、Home/Endで先頭と末尾へ移動し、Enterでフォーカス中のメッセージを開きます。",
+  "navigator.a11y.keyboardHelp": "キーボード: 矢印キーでメッセージ間を移動し、Home/Endで先頭と末尾へ移動し、EnterまたはSpaceでフォーカス中のメッセージを開きます。",
   "navigator.a11y.entryLabel": "{{role}} メッセージ {{turnIndex}}",
   "navigator.role.user": "ユーザー",
   "navigator.role.assistant": "アシスタント",

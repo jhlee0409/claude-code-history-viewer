@@ -2,6 +2,7 @@
   "common.add": "Add",
   "common.appDescription": "Explore and analyze your Claude Code conversation history",
   "common.appName": "Claude Code History Viewer",
+  "common.a11y.skipNavigation": "Skip navigation",
   "common.a11y.skipToMain": "Skip to main content",
   "common.a11y.skipToNavigator": "Skip to message navigator",
   "common.a11y.skipToProjects": "Skip to project explorer",

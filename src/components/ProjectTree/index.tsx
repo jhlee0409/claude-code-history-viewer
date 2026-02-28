@@ -578,7 +578,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     return (
       <aside
         id={asideId}
-        role="navigation"
         aria-label={t("project.explorer")}
         tabIndex={-1}
         className={cn("flex-shrink-0 bg-sidebar border-r-0 flex h-full", isResizing && "select-none")}
@@ -633,7 +632,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   return (
     <aside
       id={asideId}
-      role="navigation"
       aria-label={t("project.explorer")}
       tabIndex={-1}
       className={cn("flex-shrink-0 bg-sidebar border-r-0 flex h-full", !width && "w-64", isResizing && "select-none")}

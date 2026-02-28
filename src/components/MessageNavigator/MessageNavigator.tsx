@@ -316,7 +316,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
       <p id={keyboardHelpId} className="sr-only">
         {t(
           "navigator.a11y.keyboardHelp",
-          "Keyboard: use arrow keys to move between messages, Home and End to jump, and Enter to open the focused message."
+          "Keyboard: use arrow keys to move between messages, Home and End to jump, and Enter or Space to open the focused message."
         )}
       </p>
     </aside>

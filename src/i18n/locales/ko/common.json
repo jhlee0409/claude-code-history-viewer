@@ -2,6 +2,7 @@
   "common.add": "추가",
   "common.appDescription": "Claude Code 대화 기록을 탐색하고 분석하세요",
   "common.appName": "Claude Code History Viewer",
+  "common.a11y.skipNavigation": "건너뛰기 내비게이션",
   "common.a11y.skipToMain": "메인 콘텐츠로 건너뛰기",
   "common.a11y.skipToNavigator": "메시지 내비게이터로 건너뛰기",
   "common.a11y.skipToProjects": "프로젝트 탐색기로 건너뛰기",

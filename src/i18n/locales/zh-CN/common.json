@@ -2,6 +2,7 @@
   "common.add": "添加",
   "common.appDescription": "探索和分析您的 Claude Code 对话历史",
   "common.appName": "Claude Code History Viewer",
+  "common.a11y.skipNavigation": "跳转导航",
   "common.a11y.skipToMain": "跳转到主要内容",
   "common.a11y.skipToNavigator": "跳转到消息导航",
   "common.a11y.skipToProjects": "跳转到项目浏览",

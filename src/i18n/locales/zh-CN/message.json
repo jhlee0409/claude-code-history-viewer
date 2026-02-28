@@ -70,7 +70,7 @@
   "navigator.title": "消息",
   "navigator.toggle": "切换消息导航器",
   "navigator.filter": "筛选消息...",
-  "navigator.a11y.keyboardHelp": "键盘：使用方向键在消息间移动，Home/End 跳转到开头和结尾，按 Enter 打开当前聚焦的消息。",
+  "navigator.a11y.keyboardHelp": "键盘：使用方向键在消息间移动，Home/End 跳转到开头和结尾，按 Enter 或 Space 打开当前聚焦的消息。",
   "navigator.a11y.entryLabel": "{{role}} 消息 {{turnIndex}}",
   "navigator.role.user": "用户",
   "navigator.role.assistant": "助手",

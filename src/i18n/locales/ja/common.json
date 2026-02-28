@@ -2,6 +2,7 @@
   "common.add": "追加",
   "common.appDescription": "Claude Codeの会話履歴を探索・分析します",
   "common.appName": "Claude Code History Viewer",
+  "common.a11y.skipNavigation": "スキップナビゲーション",
   "common.a11y.skipToMain": "メインコンテンツへ移動",
   "common.a11y.skipToNavigator": "メッセージナビゲーターへ移動",
   "common.a11y.skipToProjects": "プロジェクト一覧へ移動",

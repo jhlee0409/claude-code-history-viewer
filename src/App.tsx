@@ -398,7 +398,7 @@ function App() {
   return (
     <TooltipProvider>
       <div className="h-screen flex flex-col bg-background">
-        <nav aria-label="Skip navigation">
+        <nav aria-label={t("common.a11y.skipNavigation", { defaultValue: "Skip navigation" })}>
           <a
             href="#project-explorer"
             className="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
