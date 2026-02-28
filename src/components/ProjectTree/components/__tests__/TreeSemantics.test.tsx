@@ -60,6 +60,7 @@ describe("ProjectTree tree semantics", () => {
   it("renders group header as expandable treeitem", () => {
     render(
       <GroupHeader
+        groupKey="client-group"
         label="client"
         icon={<span>icon</span>}
         count={3}

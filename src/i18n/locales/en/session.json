@@ -23,6 +23,7 @@
   "project.a11y.keyboardHelp": "Keyboard: use arrow keys to move, Home and End to jump, type letters to search, and star to expand collapsed sibling groups.",
   "project.a11y.expandedState": "expanded",
   "project.a11y.collapsedState": "collapsed",
+  "project.a11y.selectedState": "selected",
   "project.a11y.expandGroup": "Expand",
   "project.a11y.collapseGroup": "Collapse",
   "project.a11y.groupToggleLabel": "{{action}} {{label}} group ({{count}} projects)",

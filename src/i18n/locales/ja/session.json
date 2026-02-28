@@ -23,6 +23,7 @@
   "project.a11y.keyboardHelp": "キーボード: 矢印キーで移動、Home/Endで先頭と末尾へ移動、文字入力で検索、アスタリスク(*)で同階層のグループを展開できます。",
   "project.a11y.expandedState": "展開済み",
   "project.a11y.collapsedState": "折りたたみ済み",
+  "project.a11y.selectedState": "選択済み",
   "project.a11y.expandGroup": "展開",
   "project.a11y.collapseGroup": "折りたたみ",
   "project.a11y.groupToggleLabel": "{{action}} {{label}} グループ ({{count}} プロジェクト)",

@@ -23,6 +23,7 @@
   "project.a11y.keyboardHelp": "키보드: 화살표 키로 이동하고, Home/End로 처음과 끝으로 이동하며, 글자를 입력해 검색하고, 별표(*)로 같은 수준의 그룹을 펼칠 수 있습니다.",
   "project.a11y.expandedState": "펼쳐짐",
   "project.a11y.collapsedState": "접힘",
+  "project.a11y.selectedState": "선택됨",
   "project.a11y.expandGroup": "펼치기",
   "project.a11y.collapseGroup": "접기",
   "project.a11y.groupToggleLabel": "{{action}} {{label}} 그룹 ({{count}}개 프로젝트)",

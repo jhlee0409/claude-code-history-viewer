@@ -404,7 +404,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       {
         expanded: t("project.a11y.expandedState", "expanded"),
         collapsed: t("project.a11y.collapsedState", "collapsed"),
-        selected: t("common.selected", "selected"),
+        selected: t("project.a11y.selectedState", "selected"),
       },
       t("project.explorer")
     );

@@ -23,6 +23,7 @@
   "project.a11y.keyboardHelp": "键盘：使用方向键移动，Home/End 跳转到开头和结尾，输入字符进行搜索，按星号(*)展开同级分组。",
   "project.a11y.expandedState": "已展开",
   "project.a11y.collapsedState": "已折叠",
+  "project.a11y.selectedState": "已选择",
   "project.a11y.expandGroup": "展开",
   "project.a11y.collapseGroup": "折叠",
   "project.a11y.groupToggleLabel": "{{action}}{{label}}分组（{{count}} 个项目）",

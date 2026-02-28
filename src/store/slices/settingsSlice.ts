@@ -158,7 +158,7 @@ export const createSettingsSlice: StateCreator<
         highContrast: savedHighContrast === true,
       });
     } catch (error) {
-      console.warn("Failed to load update settings:", error);
+      console.warn("Failed to load persisted settings:", error);
     }
   },
 

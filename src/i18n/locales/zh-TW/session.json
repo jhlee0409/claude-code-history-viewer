@@ -23,6 +23,7 @@
   "project.a11y.keyboardHelp": "鍵盤：使用方向鍵移動，Home/End 跳到開頭與結尾，輸入字元可搜尋，按星號(*)可展開同層級群組。",
   "project.a11y.expandedState": "已展開",
   "project.a11y.collapsedState": "已摺疊",
+  "project.a11y.selectedState": "已選取",
   "project.a11y.expandGroup": "展開",
   "project.a11y.collapseGroup": "摺疊",
   "project.a11y.groupToggleLabel": "{{action}}{{label}}群組（{{count}} 個專案）",

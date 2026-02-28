@@ -109,6 +109,12 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
         break;
       }
     }
+    for (let index = 0; index < openedModals.length; index += 1) {
+      const modal = openedModals[index];
+      if (modal) {
+        focusOriginsRef.current[modal] = [];
+      }
+    }
   }, [restoreFocus]);
 
   const value = useMemo(
