@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useState, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { ListTree, Search, X, PanelRightClose, PanelRight } from "lucide-react";
+import { ListTree, Search, X, PanelRightClose, PanelRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeMessage } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
@@ -33,6 +33,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   const { t } = useTranslation();
   const scrollElementRef = useRef<HTMLDivElement>(null);
   const [filterText, setFilterText] = useState("");
+  const [userOnly, setUserOnly] = useState(false);
 
   const { navigateToMessage, targetMessageUuid } = useAppStore();
 
@@ -41,14 +42,20 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
 
   // Apply local filter
   const entries = useMemo(() => {
-    if (!filterText.trim()) return allEntries;
-    const lower = filterText.toLowerCase();
-    return allEntries.filter(
-      (e) =>
-        e.preview.toLowerCase().includes(lower) ||
-        e.role.toLowerCase().includes(lower)
-    );
-  }, [allEntries, filterText]);
+    let filtered = allEntries;
+    if (userOnly) {
+      filtered = filtered.filter((e) => e.role === "user");
+    }
+    if (filterText.trim()) {
+      const lower = filterText.toLowerCase();
+      filtered = filtered.filter(
+        (e) =>
+          e.preview.toLowerCase().includes(lower) ||
+          e.role.toLowerCase().includes(lower)
+      );
+    }
+    return filtered;
+  }, [allEntries, filterText, userOnly]);
 
   // Height estimation function for @tanstack/react-virtual
   const estimateSize = useCallback((index: number) => {
@@ -151,6 +158,19 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
         <span className="text-2xs text-muted-foreground tabular-nums">
           {entries.length}
         </span>
+        <button
+          onClick={() => setUserOnly((prev) => !prev)}
+          className={cn(
+            "p-0.5 rounded transition-colors",
+            userOnly
+              ? "bg-blue-500/20 text-blue-500"
+              : "hover:bg-accent/10 text-muted-foreground hover:text-foreground"
+          )}
+          aria-label={t("navigator.userOnly", "Show user messages only")}
+          title={t("navigator.userOnly", "Show user messages only")}
+        >
+          <User className="w-3.5 h-3.5" />
+        </button>
         <button
           onClick={onToggleCollapse}
           className="p-0.5 rounded hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors"

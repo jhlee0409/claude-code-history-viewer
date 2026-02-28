@@ -21,7 +21,8 @@
         "fullscreen": false,
         "center": true,
         "visible": true,
-        "focus": true
+        "focus": true,
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {
