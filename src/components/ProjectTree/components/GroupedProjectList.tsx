@@ -50,8 +50,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   onSessionHover,
   formatTimeAgo,
 }) => {
-  const { t: _t } = useTranslation();
-  void _t; // Reserved for future i18n usage
+  const { t } = useTranslation();
 
   const toggleGroup = (groupKey: string, projectsInGroup: ClaudeProject[]) => {
     setExpandedProjects((prev) => {
@@ -120,7 +119,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
               <GroupHeader
                 groupKey={groupKey}
                 label={group.displayPath}
-                icon={<span title="Directory"><FolderTree className="w-3.5 h-3.5" /></span>}
+                icon={<span title={t("project.groupingDirectory", "Group by directory")}><FolderTree className="w-3.5 h-3.5" /></span>}
                 count={group.projects.length}
                 isExpanded={isGroupExpanded}
                 ariaLevel={1}

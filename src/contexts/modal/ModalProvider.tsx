@@ -22,11 +22,11 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
 
   const restoreFocus = useCallback((modal: ModalType) => {
     const candidates = focusOriginsRef.current[modal];
-    if (!candidates || candidates.length === 0) return false;
+    if (candidates == null || candidates.length === 0) return false;
 
     for (let index = candidates.length - 1; index >= 0; index -= 1) {
       const target = candidates[index];
-      if (!target || !target.isConnected) {
+      if (target == null || !target.isConnected) {
         continue;
       }
 
@@ -88,9 +88,8 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
       [modal]: false,
       ...(modal === "feedback" && { feedbackPrefill: null }),
     }));
-    if (restoreFocus(modal)) {
-      focusOriginsRef.current[modal] = [];
-    }
+    restoreFocus(modal);
+    focusOriginsRef.current[modal] = [];
   }, [restoreFocus]);
 
   const closeAllModals = useCallback(() => {
@@ -103,17 +102,13 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
       globalSearch: false,
       feedbackPrefill: null,
     }));
-    for (let index = openedModals.length - 1; index >= 0; index -= 1) {
-      const modal = openedModals[index];
-      if (modal && restoreFocus(modal)) {
+    for (const modal of [...openedModals].reverse()) {
+      if (restoreFocus(modal)) {
         break;
       }
     }
-    for (let index = 0; index < openedModals.length; index += 1) {
-      const modal = openedModals[index];
-      if (modal) {
-        focusOriginsRef.current[modal] = [];
-      }
+    for (const modal of openedModals) {
+      focusOriginsRef.current[modal] = [];
     }
   }, [restoreFocus]);
 
