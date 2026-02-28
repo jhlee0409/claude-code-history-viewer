@@ -28,7 +28,6 @@ import { AnsiText } from "../common/AnsiText";
 
 interface ToolExecutionResultRouterProps {
   toolResult: Record<string, unknown> | string | unknown[];
-  depth: number;
   searchQuery?: string;
   isCurrentMatch?: boolean;
   currentMatchIndex?: number;

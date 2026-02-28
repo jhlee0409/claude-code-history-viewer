@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { memo, useState, useEffect } from "react";
 import { Folder, Check, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
@@ -16,7 +16,7 @@ type Props = {
   searchQuery?: string;
 };
 
-export const StringRenderer = ({ result, searchQuery }: Props) => {
+export const StringRenderer = memo(function StringRenderer({ result, searchQuery }: Props) {
   const { t } = useTranslation();
   // 파일 트리나 디렉토리 구조인지 확인
   const isFileTree =
@@ -99,4 +99,4 @@ export const StringRenderer = ({ result, searchQuery }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});

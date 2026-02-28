@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Terminal, CheckCircle, AlertCircle, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import Markdown from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -308,7 +307,7 @@ export const CommandRenderer = ({
                 isError ? "bg-destructive/5 text-destructive" : "bg-success/5 text-success"
               )}
             >
-              <Markdown remarkPlugins={[remarkGfm]}>{output.content}</Markdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{output.content}</ReactMarkdown>
             </div>
           </div>
         );
