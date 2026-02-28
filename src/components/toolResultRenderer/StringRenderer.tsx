@@ -74,7 +74,7 @@ export const StringRenderer = ({ result, searchQuery }: Props) => {
       <Renderer.Content>
         <div className="bg-card border-border">
           {isFileTree || hasAnsiCodes(displayResult) ? (
-            <div className={`text-foreground ${layout.monoText}`}>
+            <div className={`text-foreground whitespace-pre-wrap overflow-x-auto ${layout.monoText}`}>
               <AnsiText text={displayResult} />
             </div>
           ) : (
