@@ -29,6 +29,7 @@ vi.mock("react-i18next", async () => {
 import { CommandRenderer } from "@/components/contentRenderer/CommandRenderer";
 import { TerminalExecutionResultRenderer } from "@/components/contentRenderer/TerminalExecutionResultRenderer";
 import { StringRenderer } from "@/components/toolResultRenderer/StringRenderer";
+import { ToolExecutionResultRouter } from "@/components/messageRenderer/ToolExecutionResultRouter";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 const DIM = "\x1b[2m";
@@ -218,6 +219,7 @@ describe("StringRenderer ANSI rendering", () => {
     // The AnsiText mono wrapper should NOT be present for non-ANSI text
     // (markdown rendering path instead)
     expect(container.textContent).toContain("Just plain text");
+    expect(container.querySelector("[class*='whitespace-pre-wrap']")).not.toBeInTheDocument();
   });
 
   it("renders file tree output in mono block", () => {
@@ -231,7 +233,52 @@ describe("StringRenderer ANSI rendering", () => {
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 4. Edge cases — various ANSI sequence formats
+// 4. ToolExecutionResultRouter — fallback stderr with ANSI
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+describe("ToolExecutionResultRouter ANSI rendering", () => {
+  function expandResult(container: HTMLElement) {
+    const btn = container.querySelector("button");
+    if (btn) {
+      act(() => {
+        fireEvent.click(btn);
+      });
+    }
+  }
+
+  it("renders fallback stderr with AnsiText (no raw escape codes)", () => {
+    const toolResult = {
+      stdout: "",
+      stderr: `${RED}error${OFF}: something went wrong`,
+    };
+    const { container } = render(
+      <ToolExecutionResultRouter toolResult={toolResult} />
+    );
+    expandResult(container);
+
+    expectNoRawAnsi(container);
+    expect(container.textContent).toContain("error");
+    expect(container.textContent).toContain("something went wrong");
+  });
+
+  it("renders stderr with ANSI alongside stdout metadata", () => {
+    const toolResult = {
+      stdout: "",
+      stderr: `\x1b[33mwarning\x1b[0m: deprecated API`,
+      interrupted: false,
+    };
+    const { container } = render(
+      <ToolExecutionResultRouter toolResult={toolResult} />
+    );
+    expandResult(container);
+
+    expectNoRawAnsi(container);
+    expect(container.textContent).toContain("warning");
+    expect(container.textContent).toContain("deprecated API");
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 5. Edge cases — various ANSI sequence formats
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 describe("ANSI edge cases via StringRenderer", () => {
   function expandRenderer(container: HTMLElement) {
