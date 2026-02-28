@@ -102,14 +102,16 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({
       globalSearch: false,
       feedbackPrefill: null,
     }));
-    for (const modal of [...openedModals].reverse()) {
-      if (restoreFocus(modal)) {
-        break;
+    requestAnimationFrame(() => {
+      for (const modal of [...openedModals].reverse()) {
+        if (restoreFocus(modal)) {
+          break;
+        }
       }
-    }
-    for (const modal of openedModals) {
-      focusOriginsRef.current[modal] = [];
-    }
+      for (const modal of openedModals) {
+        focusOriginsRef.current[modal] = [];
+      }
+    });
   }, [restoreFocus]);
 
   const value = useMemo(

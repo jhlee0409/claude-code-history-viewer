@@ -90,7 +90,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           showProviderBadge={showProviderBadge}
         />
         {showSessions && (
-          <div role="group">
+          <div role="none">
             <SessionList
               sessions={sessions}
               selectedSession={selectedSession}
@@ -140,7 +140,10 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
 
   // Strategy 2: Worktree Grouping
   if (groupingMode === "worktree") {
-    const displayProjects = ungroupedProjects ?? projects;
+    const groupedPaths = new Set(
+      worktreeGroups.flatMap((group) => [group.parent.path, ...group.children.map((child) => child.path)])
+    );
+    const displayProjects = ungroupedProjects ?? projects.filter((project) => !groupedPaths.has(project.path));
 
     return (
       <>
