@@ -58,7 +58,6 @@
     "react-i18next": "^15.5.3",
     "react-markdown": "^10.1.0",
     "react-window": "1.8.11",
-    "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.0.0",

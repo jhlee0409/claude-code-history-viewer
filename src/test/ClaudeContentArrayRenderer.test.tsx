@@ -81,6 +81,21 @@ describe("ClaudeContentArrayRenderer - Markdown Rendering", () => {
     expect(container.querySelectorAll("li").length).toBeGreaterThanOrEqual(3);
   });
 
+  it("should use HighlightedText instead of Markdown when searchQuery is provided", () => {
+    const { container } = render(
+      <ClaudeContentArrayRenderer
+        content={[{ type: "text", text: "**bold** and *italic* text" }]}
+        searchQuery="bold"
+      />
+    );
+
+    // Search mode: should NOT render markdown elements
+    expect(container.querySelector("strong")).toBeNull();
+    expect(container.querySelector("em")).toBeNull();
+    // Should contain the raw text with search term
+    expect(container.textContent).toContain("bold");
+  });
+
   it("should hide text when skipText is true", () => {
     const { container } = render(
       <ClaudeContentArrayRenderer

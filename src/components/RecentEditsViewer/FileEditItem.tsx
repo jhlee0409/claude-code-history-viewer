@@ -8,9 +8,7 @@
 
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import ReactMarkdown from "react-markdown";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
+import { Markdown } from "../common";
 import { invoke } from "@tauri-apps/api/core";
 import {
   FileEdit,
@@ -94,6 +92,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
     <div className="border-2 rounded-xl overflow-hidden transition-all duration-300 border-border bg-card hover:border-accent/30 hover:shadow-md">
       {/* Header */}
       <div
+        data-testid="file-edit-header"
         className={cn(
           "relative flex items-center justify-between p-4 cursor-pointer transition-all duration-300",
           edit.operation_type === "write"
@@ -285,11 +284,9 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
           {/* Code/Markdown content */}
           <div className="max-h-96 overflow-auto">
             {language === "markdown" ? (
-              <div className={cn(layout.prose, "p-3 bg-card text-foreground")}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-                  {edit.content_after_change}
-                </ReactMarkdown>
-              </div>
+              <Markdown className="p-3 bg-card text-foreground">
+                {edit.content_after_change}
+              </Markdown>
             ) : (
               <Highlight
                 theme={isDarkMode ? themes.vsDark : themes.vsLight}

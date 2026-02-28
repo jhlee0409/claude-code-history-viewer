@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { FileEditItem } from "@/components/RecentEditsViewer/FileEditItem";
 import type { FileEditData } from "@/components/RecentEditsViewer/types";
@@ -13,10 +13,6 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
-Object.assign(navigator, {
-  clipboard: { writeText: vi.fn(() => Promise.resolve()) },
-});
-
 const baseEdit: FileEditData = {
   file_path: "/path/to/file.ts",
   content_before_change: "const x = 1;",
@@ -28,8 +24,23 @@ const baseEdit: FileEditData = {
 };
 
 describe("FileEditItem", () => {
+  const originalClipboard = navigator.clipboard;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn(() => Promise.resolve()) },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: originalClipboard,
+      writable: true,
+      configurable: true,
+    });
   });
 
   it("should render file name and diff stats", () => {
@@ -48,15 +59,15 @@ describe("FileEditItem", () => {
       <FileEditItem edit={baseEdit} isDarkMode={false} />
     );
 
-    fireEvent.click(container.querySelector(".cursor-pointer")!);
+    fireEvent.click(container.querySelector("[data-testid='file-edit-header']")!);
 
     // Prism renders <pre> with code tokens
     expect(container.querySelector("pre")).toBeTruthy();
-    // Should NOT have ReactMarkdown prose wrapper
+    // Should NOT have Markdown prose wrapper
     expect(container.querySelector("[class*='prose']")).toBeNull();
   });
 
-  it("should render markdown with ReactMarkdown when expanded for .md files", () => {
+  it("should render markdown with Markdown component when expanded for .md files", () => {
     const mdEdit: FileEditData = {
       ...baseEdit,
       file_path: "/docs/README.md",
@@ -67,12 +78,29 @@ describe("FileEditItem", () => {
       <FileEditItem edit={mdEdit} isDarkMode={false} />
     );
 
-    fireEvent.click(container.querySelector(".cursor-pointer")!);
+    fireEvent.click(container.querySelector("[data-testid='file-edit-header']")!);
 
     // Should render markdown elements, not raw text
     expect(container.querySelector("strong")?.textContent).toBe("Bold text");
     expect(container.querySelector("table")).toBeTruthy();
     // Should NOT have Prism <pre> with line numbers
     expect(container.querySelector("[style*='table-row']")).toBeNull();
+  });
+
+  it("should render markdown for .markdown extension files", () => {
+    const markdownEdit: FileEditData = {
+      ...baseEdit,
+      file_path: "/docs/CHANGELOG.markdown",
+      content_after_change: "## Changelog\n\n- item 1",
+    };
+
+    const { container } = render(
+      <FileEditItem edit={markdownEdit} isDarkMode={false} />
+    );
+
+    fireEvent.click(container.querySelector("[data-testid='file-edit-header']")!);
+
+    expect(container.querySelector("h2")?.textContent).toBe("Changelog");
+    expect(container.querySelectorAll("li").length).toBeGreaterThanOrEqual(1);
   });
 });
