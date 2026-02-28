@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Terminal, CheckCircle, AlertCircle, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import Markdown from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { HighlightedText } from "../common/HighlightedText";
+import { AnsiText } from "../common/AnsiText";
+import { stripAnsiCodes } from "@/utils/ansiToHtml";
 
 type Props = {
   text: string;
@@ -257,13 +258,13 @@ export const CommandRenderer = ({
                 >
                   {searchQuery ? (
                     <HighlightedText
-                      text={output}
+                      text={stripAnsiCodes(output)}
                       searchQuery={searchQuery}
                       isCurrentMatch={isCurrentMatch}
                       currentMatchIndex={currentMatchIndex}
                     />
                   ) : (
-                    output
+                    <AnsiText text={output} />
                   )}
                 </div>
               ))}
@@ -306,7 +307,7 @@ export const CommandRenderer = ({
                 isError ? "bg-destructive/5 text-destructive" : "bg-success/5 text-success"
               )}
             >
-              <Markdown remarkPlugins={[remarkGfm]}>{output.content}</Markdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{output.content}</ReactMarkdown>
             </div>
           </div>
         );
@@ -338,13 +339,13 @@ export const CommandRenderer = ({
           >
             {searchQuery ? (
               <HighlightedText
-                text={output}
+                text={stripAnsiCodes(output)}
                 searchQuery={searchQuery}
                 isCurrentMatch={isCurrentMatch}
                 currentMatchIndex={currentMatchIndex}
               />
             ) : (
-              output
+              <AnsiText text={output} />
             )}
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { memo, useState, useEffect } from "react";
 import { Folder, Check, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
@@ -8,13 +8,15 @@ import remarkGfm from "remark-gfm";
 import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { AnsiText } from "../common/AnsiText";
+import { hasAnsiCodes } from "@/utils/ansiToHtml";
 
 type Props = {
   result: string;
   searchQuery?: string;
 };
 
-export const StringRenderer = ({ result, searchQuery }: Props) => {
+export const StringRenderer = memo(function StringRenderer({ result, searchQuery }: Props) {
   const { t } = useTranslation();
   // 파일 트리나 디렉토리 구조인지 확인
   const isFileTree =
@@ -71,8 +73,10 @@ export const StringRenderer = ({ result, searchQuery }: Props) => {
       />
       <Renderer.Content>
         <div className="bg-card border-border">
-          {isFileTree ? (
-            <div className={`text-foreground ${layout.monoText}`}>{displayResult}</div>
+          {isFileTree || hasAnsiCodes(displayResult) ? (
+            <div className={`text-foreground whitespace-pre-wrap overflow-x-auto ${layout.monoText}`}>
+              <AnsiText text={displayResult} />
+            </div>
           ) : (
             <div className={`p-3 ${layout.prose}`}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -95,4 +99,4 @@ export const StringRenderer = ({ result, searchQuery }: Props) => {
       </Renderer.Content>
     </Renderer>
   );
-};
+});
