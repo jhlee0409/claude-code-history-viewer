@@ -7,6 +7,8 @@ import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { HighlightedText } from "../common/HighlightedText";
+import { AnsiText } from "../common/AnsiText";
+import { stripAnsiCodes } from "@/utils/ansiToHtml";
 
 type Props = {
   text: string;
@@ -257,13 +259,13 @@ export const CommandRenderer = ({
                 >
                   {searchQuery ? (
                     <HighlightedText
-                      text={output}
+                      text={stripAnsiCodes(output)}
                       searchQuery={searchQuery}
                       isCurrentMatch={isCurrentMatch}
                       currentMatchIndex={currentMatchIndex}
                     />
                   ) : (
-                    output
+                    <AnsiText text={output} />
                   )}
                 </div>
               ))}
@@ -338,13 +340,13 @@ export const CommandRenderer = ({
           >
             {searchQuery ? (
               <HighlightedText
-                text={output}
+                text={stripAnsiCodes(output)}
                 searchQuery={searchQuery}
                 isCurrentMatch={isCurrentMatch}
                 currentMatchIndex={currentMatchIndex}
               />
             ) : (
-              output
+              <AnsiText text={output} />
             )}
           </div>
         </div>

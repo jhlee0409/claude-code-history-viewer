@@ -8,6 +8,8 @@ import remarkGfm from "remark-gfm";
 import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { AnsiText } from "../common/AnsiText";
+import { hasAnsiCodes } from "@/utils/ansiToHtml";
 
 type Props = {
   result: string;
@@ -71,8 +73,10 @@ export const StringRenderer = ({ result, searchQuery }: Props) => {
       />
       <Renderer.Content>
         <div className="bg-card border-border">
-          {isFileTree ? (
-            <div className={`text-foreground ${layout.monoText}`}>{displayResult}</div>
+          {isFileTree || hasAnsiCodes(displayResult) ? (
+            <div className={`text-foreground ${layout.monoText}`}>
+              <AnsiText text={displayResult} />
+            </div>
           ) : (
             <div className={`p-3 ${layout.prose}`}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>

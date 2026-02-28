@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout, type RendererVariant } from "../renderers";
 import { ToolResultCard } from "./ToolResultCard";
+import { AnsiText } from "../common/AnsiText";
 
 interface ExecutionResultLike {
   stdout?: string;
@@ -104,7 +105,7 @@ export const TerminalExecutionResultRenderer = memo(function TerminalExecutionRe
               layout.codeMaxHeight
             )}
           >
-            {stdout}
+            <AnsiText text={stdout} />
           </pre>
         </div>
       )}
@@ -121,7 +122,7 @@ export const TerminalExecutionResultRenderer = memo(function TerminalExecutionRe
               layout.codeMaxHeight
             )}
           >
-            {stderr}
+            <AnsiText text={stderr} />
           </pre>
         </div>
       )}
