@@ -27,7 +27,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/services/api";
-import type { MCPPresetData, MCPPresetInput } from "../types/mcpPreset.types";
+import type { MCPPresetData, MCPPresetInput } from "@/types";
 
 export interface UseMCPPresetsResult {
   // State

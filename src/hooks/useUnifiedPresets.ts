@@ -65,7 +65,7 @@ import { api } from "@/services/api";
 import type {
   UnifiedPresetData,
   UnifiedPresetInput,
-} from "../types/unifiedPreset";
+} from "@/types";
 
 export interface UseUnifiedPresetsResult {
   // State

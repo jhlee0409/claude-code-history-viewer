@@ -15,7 +15,7 @@ import {
   type SessionMetadata,
   type ProjectMetadata,
   type UserMetadata,
-} from "../types/metadata.types";
+} from "@/types";
 
 // ============================================================================
 // Constants Tests
