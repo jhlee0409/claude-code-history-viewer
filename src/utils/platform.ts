@@ -55,7 +55,7 @@ export function initAuthToken(): void {
   if (token) {
     setAuthToken(token);
     url.searchParams.delete("token");
-    window.history.replaceState({}, "", url.toString());
+    window.history.replaceState(window.history.state, "", url.toString());
   }
 }
 

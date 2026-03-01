@@ -114,6 +114,7 @@
   "status.loadingStats": "正在載入權杖統計...",
   "status.scanning": "正在掃描專案...",
   "status.versionLabel": "v{{version}}",
+  "status.webMode": "網頁",
   "time.day": "天",
   "time.days": "天",
   "time.end": "結束：",

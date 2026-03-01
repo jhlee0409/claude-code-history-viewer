@@ -566,7 +566,7 @@ function App() {
             <span>
               {isDesktop
                 ? t("status.versionLabel", "v{{version}}", { version: appVersion })
-                : "Web"}
+                : t("status.webMode", "Web")}
             </span>
             <span className="text-border">•</span>
             <span>{t("project.count", { count: projects.length })}</span>

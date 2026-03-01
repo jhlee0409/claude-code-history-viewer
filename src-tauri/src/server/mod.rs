@@ -15,8 +15,8 @@ pub mod handlers;
 pub mod state;
 
 use axum::body::Body;
-use axum::extract::{Request, State};
-use axum::http::{header, StatusCode};
+use axum::extract::{DefaultBodyLimit, Request, State};
+use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
@@ -28,7 +28,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 use self::handlers as h;
@@ -44,11 +44,22 @@ use self::state::AppState;
 struct EmbeddedAssets;
 
 /// Build the complete Axum router with all API routes and SPA fallback.
-pub fn build_router(state: Arc<AppState>, dist_dir: Option<&str>) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Option<&str>) -> Router {
+    // Restrict CORS when auth is enabled; permissive only for --no-auth.
+    let cors = if state.auth_token.is_some() {
+        let origin = format!("http://{host}:{port}")
+            .parse::<HeaderValue>()
+            .unwrap_or_else(|_| HeaderValue::from_static("http://localhost:3727"));
+        CorsLayer::new()
+            .allow_origin(origin)
+            .allow_methods([Method::GET, Method::POST])
+            .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+    } else {
+        CorsLayer::new()
+            .allow_origin(tower_http::cors::Any)
+            .allow_methods([Method::GET, Method::POST])
+            .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+    };
 
     let api = Router::new()
         // SSE endpoint for real-time file change events
@@ -157,7 +168,9 @@ pub fn build_router(state: Arc<AppState>, dist_dir: Option<&str>) -> Router {
         .route("/health", get(health_handler))
         .nest("/api", api)
         .with_state(state)
-        .layer(cors);
+        .layer(cors)
+        // Limit request body size to 10 MB to prevent memory exhaustion DoS
+        .layer(DefaultBodyLimit::max(10 * 1024 * 1024));
 
     // Serve React SPA build output as static files.
     // For unknown paths, fall back to index.html with HTTP 200 so client-side routing works.
@@ -200,7 +213,7 @@ async fn auth_middleware(
     if let Some(header) = request.headers().get("authorization") {
         if let Ok(value) = header.to_str() {
             if let Some(token) = value.strip_prefix("Bearer ") {
-                if token == expected.as_str() {
+                if constant_time_eq(token.as_bytes(), expected.as_bytes()) {
                     return Ok(next.run(request).await);
                 }
             }
@@ -212,7 +225,7 @@ async fn auth_middleware(
         for pair in query.split('&') {
             if let Some(token) = pair.strip_prefix("token=") {
                 let decoded = urlencoding::decode(token).unwrap_or_default();
-                if decoded == *expected {
+                if constant_time_eq(decoded.as_bytes(), expected.as_bytes()) {
                     return Ok(next.run(request).await);
                 }
             }
@@ -220,6 +233,14 @@ async fn auth_middleware(
     }
 
     Err(StatusCode::UNAUTHORIZED)
+}
+
+/// Constant-time byte comparison to prevent timing side-channel attacks on token validation.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 // ---------------------------------------------------------------------------
@@ -253,14 +274,9 @@ async fn sse_handler(
 // Health check
 // ---------------------------------------------------------------------------
 
-/// Health check handler returning server status, version, and uptime.
-async fn health_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let uptime_secs = state.start_time.elapsed().as_secs();
-    Json(serde_json::json!({
-        "status": "ok",
-        "version": env!("CARGO_PKG_VERSION"),
-        "uptime_secs": uptime_secs,
-    }))
+/// Health check handler — returns minimal status only (unauthenticated endpoint).
+async fn health_handler() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "status": "ok" }))
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +315,7 @@ async fn embedded_asset_handler(req: Request) -> Response {
 
 /// Start the Axum HTTP server.
 pub async fn start(state: Arc<AppState>, host: &str, port: u16, dist_dir: Option<&str>) {
-    let router = build_router(state, dist_dir);
+    let router = build_router(state, host, port, dist_dir);
 
     let addr: SocketAddr = format!("{host}:{port}")
         .parse()

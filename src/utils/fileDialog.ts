@@ -22,7 +22,7 @@ interface OpenDialogOptions {
 /**
  * Show a "Save file" dialog and write content.
  *
- * - Tauri: shows native save dialog, returns the chosen path (caller writes via IPC).
+ * - Tauri: shows native save dialog and writes the file via IPC.
  * - Web: triggers a browser download with the given content.
  *
  * Returns `true` if the save completed (web always returns true).
@@ -86,19 +86,35 @@ export async function openFileDialog(
     if (exts?.length) {
       input.accept = exts.join(",");
     }
+    let resolved = false;
+    const safeResolve = (val: string | null) => {
+      if (!resolved) {
+        resolved = true;
+        window.removeEventListener("focus", focusHandler);
+        resolve(val);
+      }
+    };
+
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) {
-        resolve(null);
+        safeResolve(null);
         return;
       }
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
+      reader.onload = () => safeResolve(reader.result as string);
+      reader.onerror = () => safeResolve(null);
       reader.readAsText(file);
     };
-    // User cancelled
-    input.oncancel = () => resolve(null);
+    // User cancelled — oncancel (Chrome 113+, Firefox 124+, Safari 16.4+)
+    input.oncancel = () => safeResolve(null);
+    // Fallback for older browsers: detect cancel via window focus
+    const focusHandler = () => {
+      setTimeout(() => {
+        if (!input.files?.length) safeResolve(null);
+      }, 500);
+    };
+    window.addEventListener("focus", focusHandler, { once: true });
     input.click();
   });
 }

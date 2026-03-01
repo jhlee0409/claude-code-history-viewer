@@ -1,0 +1,7 @@
+.git
+node_modules
+target
+dist
+*.tar.gz
+.claude
+.omc

@@ -114,6 +114,7 @@
   "status.loadingStats": "Loading token statistics...",
   "status.scanning": "Scanning projects...",
   "status.versionLabel": "v{{version}}",
+  "status.webMode": "Web",
   "time.day": "day",
   "time.days": "days",
   "time.end": "End:",

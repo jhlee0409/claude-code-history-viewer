@@ -40,7 +40,9 @@ macro_rules! handler_no_params {
     ($name:ident, $cmd:path) => {
         pub async fn $name() -> Result<Json<Value>, ApiError> {
             let result = $cmd().await.map_err(ApiError::from)?;
-            Ok(Json(serde_json::to_value(result).unwrap_or(Value::Null)))
+            Ok(Json(serde_json::to_value(result).map_err(|e| {
+                ApiError(format!("Serialization error: {e}"))
+            })?))
         }
     };
 }
@@ -50,7 +52,9 @@ macro_rules! handler_json {
     ($name:ident, $params:ty, $body:expr) => {
         pub async fn $name(Json(p): Json<$params>) -> Result<Json<Value>, ApiError> {
             let result = $body(p).await.map_err(ApiError::from)?;
-            Ok(Json(serde_json::to_value(result).unwrap_or(Value::Null)))
+            Ok(Json(serde_json::to_value(result).map_err(|e| {
+                ApiError(format!("Serialization error: {e}"))
+            })?))
         }
     };
 }
@@ -259,8 +263,8 @@ pub struct WriteFileParams {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RenameSessionParams {
-    pub session_path: String,
-    pub new_name: String,
+    pub file_path: String,
+    pub new_title: String,
 }
 
 #[derive(Deserialize)]
@@ -357,11 +361,15 @@ handler_no_params!(
     commands::metadata::get_metadata_folder_path
 );
 
+/// Note: scope parameter is accepted for API contract compatibility but not used
+/// by the underlying command (it always reads the global MCP config).
 pub async fn get_mcp_servers(Json(_p): Json<McpScopeParam>) -> Result<Json<Value>, ApiError> {
     let result = commands::claude_settings::get_mcp_servers()
         .await
         .map_err(ApiError::from)?;
-    Ok(Json(serde_json::to_value(result).unwrap_or(Value::Null)))
+    Ok(Json(serde_json::to_value(result).map_err(|e| {
+        ApiError(format!("Serialization error: {e}"))
+    })?))
 }
 
 // ─── Handlers: SIMPLE PARAMS ──────────────────────────────────────────────────
@@ -480,7 +488,7 @@ handler_json!(
     rename_session_native,
     RenameSessionParams,
     |p: RenameSessionParams| async move {
-        commands::session::rename_session_native(p.session_path, p.new_name).await
+        commands::session::rename_session_native(p.file_path, p.new_title).await
     }
 );
 
@@ -500,34 +508,50 @@ handler_json!(
 
 // ─── Handlers: STRUCT PARAMS ──────────────────────────────────────────────────
 
+#[derive(Deserialize)]
+pub struct SavePresetParams {
+    pub input: crate::commands::settings::PresetInput,
+}
+
 handler_json!(
     save_preset,
-    crate::commands::settings::PresetInput,
-    |p: crate::commands::settings::PresetInput| async move { commands::settings::save_preset(p).await }
+    SavePresetParams,
+    |p: SavePresetParams| async move { commands::settings::save_preset(p.input).await }
 );
+
+#[derive(Deserialize)]
+pub struct SaveMcpPresetParams2 {
+    pub input: crate::commands::mcp_presets::MCPPresetInput,
+}
 
 handler_json!(
     save_mcp_preset,
-    crate::commands::mcp_presets::MCPPresetInput,
-    |p: crate::commands::mcp_presets::MCPPresetInput| async move {
-        commands::mcp_presets::save_mcp_preset(p).await
-    }
+    SaveMcpPresetParams2,
+    |p: SaveMcpPresetParams2| async move { commands::mcp_presets::save_mcp_preset(p.input).await }
 );
+
+#[derive(Deserialize)]
+pub struct SaveUnifiedPresetParams {
+    pub input: crate::commands::unified_presets::UnifiedPresetInput,
+}
 
 handler_json!(
     save_unified_preset,
-    crate::commands::unified_presets::UnifiedPresetInput,
-    |p: crate::commands::unified_presets::UnifiedPresetInput| async move {
-        commands::unified_presets::save_unified_preset(p).await
+    SaveUnifiedPresetParams,
+    |p: SaveUnifiedPresetParams| async move {
+        commands::unified_presets::save_unified_preset(p.input).await
     }
 );
 
+#[derive(Deserialize)]
+pub struct SendFeedbackParams {
+    pub feedback: crate::commands::feedback::FeedbackData,
+}
+
 handler_json!(
     send_feedback,
-    crate::commands::feedback::FeedbackData,
-    |p: crate::commands::feedback::FeedbackData| async move {
-        commands::feedback::send_feedback(p).await
-    }
+    SendFeedbackParams,
+    |p: SendFeedbackParams| async move { commands::feedback::send_feedback(p.feedback).await }
 );
 
 /// Special handler: returns URL instead of opening browser on server.
@@ -723,7 +747,8 @@ pub async fn load_user_metadata(
             .map_err(|e| ApiError(format!("Lock error: {e}")))?;
         if let Some(ref meta) = *cached {
             return Ok(Json(
-                serde_json::to_value(meta.clone()).unwrap_or(Value::Null),
+                serde_json::to_value(meta.clone())
+                    .map_err(|e| ApiError(format!("Serialization error: {e}")))?,
             ));
         }
     }
@@ -750,13 +775,21 @@ pub async fn load_user_metadata(
         .map_err(|e| ApiError(format!("Lock error: {e}")))?;
     *cached = Some(metadata.clone());
 
-    Ok(Json(serde_json::to_value(metadata).unwrap_or(Value::Null)))
+    Ok(Json(serde_json::to_value(metadata).map_err(|e| {
+        ApiError(format!("Serialization error: {e}"))
+    })?))
+}
+
+#[derive(Deserialize)]
+pub struct SaveUserMetadataParams {
+    pub metadata: crate::models::UserMetadata,
 }
 
 pub async fn save_user_metadata(
     State(state): State<Arc<AppState>>,
-    Json(metadata): Json<crate::models::UserMetadata>,
+    Json(p): Json<SaveUserMetadataParams>,
 ) -> Result<Json<Value>, ApiError> {
+    let metadata = p.metadata;
     let meta_clone = metadata.clone();
     tokio::task::spawn_blocking(move || commands::metadata::save_metadata_to_disk(&meta_clone))
         .await
@@ -795,9 +828,9 @@ pub async fn update_session_metadata(
         .await
         .map_err(|e| ApiError(format!("Task join error: {e}")))??;
 
-    Ok(Json(
-        serde_json::to_value(metadata_to_save).unwrap_or(Value::Null),
-    ))
+    Ok(Json(serde_json::to_value(metadata_to_save).map_err(
+        |e| ApiError(format!("Serialization error: {e}")),
+    )?))
 }
 
 pub async fn update_project_metadata(
@@ -824,15 +857,21 @@ pub async fn update_project_metadata(
         .await
         .map_err(|e| ApiError(format!("Task join error: {e}")))??;
 
-    Ok(Json(
-        serde_json::to_value(metadata_to_save).unwrap_or(Value::Null),
-    ))
+    Ok(Json(serde_json::to_value(metadata_to_save).map_err(
+        |e| ApiError(format!("Serialization error: {e}")),
+    )?))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateUserSettingsParams {
+    pub settings: crate::models::UserSettings,
 }
 
 pub async fn update_user_settings(
     State(state): State<Arc<AppState>>,
-    Json(settings): Json<crate::models::UserSettings>,
+    Json(p): Json<UpdateUserSettingsParams>,
 ) -> Result<Json<Value>, ApiError> {
+    let settings = p.settings;
     let metadata_to_save = {
         let mut cached = state
             .metadata
@@ -849,9 +888,9 @@ pub async fn update_user_settings(
         .await
         .map_err(|e| ApiError(format!("Task join error: {e}")))??;
 
-    Ok(Json(
-        serde_json::to_value(metadata_to_save).unwrap_or(Value::Null),
-    ))
+    Ok(Json(serde_json::to_value(metadata_to_save).map_err(
+        |e| ApiError(format!("Serialization error: {e}")),
+    )?))
 }
 
 pub async fn is_project_hidden(
@@ -867,7 +906,9 @@ pub async fn is_project_hidden(
         .as_ref()
         .map(|m| m.is_project_hidden(&p.project_path))
         .unwrap_or(false);
-    Ok(Json(serde_json::to_value(hidden).unwrap_or(Value::Null)))
+    Ok(Json(serde_json::to_value(hidden).map_err(|e| {
+        ApiError(format!("Serialization error: {e}"))
+    })?))
 }
 
 pub async fn get_session_display_name(
@@ -884,7 +925,9 @@ pub async fn get_session_display_name(
         .and_then(|m| m.get_session(&p.session_id))
         .and_then(|s| s.custom_name.clone())
         .or(p.fallback_summary);
-    Ok(Json(serde_json::to_value(name).unwrap_or(Value::Null)))
+    Ok(Json(serde_json::to_value(name).map_err(|e| {
+        ApiError(format!("Serialization error: {e}"))
+    })?))
 }
 
 // ─── Handlers: APP_HANDLE (Disabled in web mode) ──────────────────────────────

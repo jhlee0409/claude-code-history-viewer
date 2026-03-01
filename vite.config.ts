@@ -78,7 +78,7 @@ export default defineConfig(() => ({
           }
 
           // Diff viewer bundle
-          if (id.includes("react-diff-viewer") || id.includes("diff")) {
+          if (id.includes("react-diff-viewer") || id.includes("node_modules/diff/")) {
             return "diff-viewer";
           }
 

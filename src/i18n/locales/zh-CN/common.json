@@ -114,6 +114,7 @@
   "status.loadingStats": "正在加载令牌统计...",
   "status.scanning": "正在扫描项目...",
   "status.versionLabel": "v{{version}}",
+  "status.webMode": "网页",
   "time.day": "天",
   "time.days": "天",
   "time.end": "结束：",

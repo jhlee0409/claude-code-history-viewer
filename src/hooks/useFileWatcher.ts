@@ -175,34 +175,54 @@ export function useFileWatcher(options: UseFileWatcherOptions = {}): UseFileWatc
       try {
         const base = getApiBase();
         const token = getAuthToken();
+        // Note: EventSource cannot send custom headers, so token is passed via query param.
         const url = token
           ? `${base}/api/events?token=${encodeURIComponent(token)}`
           : `${base}/api/events`;
 
         const es = new EventSource(url);
 
+        const safeParse = (data: string): FileWatcherEvent | null => {
+          try {
+            return JSON.parse(data) as FileWatcherEvent;
+          } catch (err) {
+            console.warn('Invalid SSE payload:', err);
+            return null;
+          }
+        };
+
         es.addEventListener('session-file-changed', (e: MessageEvent) => {
-          const event = JSON.parse(e.data) as FileWatcherEvent;
-          createDebouncedCallback(onSessionChanged, event);
+          const event = safeParse(e.data);
+          if (event) createDebouncedCallback(onSessionChanged, event);
         });
 
         es.addEventListener('session-file-created', (e: MessageEvent) => {
-          const event = JSON.parse(e.data) as FileWatcherEvent;
-          createDebouncedCallback(onSessionCreated, event);
+          const event = safeParse(e.data);
+          if (event) createDebouncedCallback(onSessionCreated, event);
         });
 
         es.addEventListener('session-file-deleted', (e: MessageEvent) => {
-          const event = JSON.parse(e.data) as FileWatcherEvent;
-          createDebouncedCallback(onSessionDeleted, event);
+          const event = safeParse(e.data);
+          if (event) createDebouncedCallback(onSessionDeleted, event);
         });
 
-        // EventSource auto-reconnects on transient errors; no manual retry needed.
+        // Detect permanent disconnection (e.g. 401, server shutdown)
+        es.onerror = () => {
+          if (es.readyState === EventSource.CLOSED) {
+            console.error('SSE connection closed permanently');
+            isWatchingRef.current = false;
+            setIsWatching(false);
+            toast.error('Live file watching disconnected. Refresh to reconnect.');
+          }
+          // EventSource auto-reconnects on transient errors; no manual retry needed.
+        };
 
         unlistenersRef.current = [() => es.close()];
         isWatchingRef.current = true;
         setIsWatching(true);
       } catch (error) {
         console.error('Failed to start SSE file watcher:', error);
+        toast.error('Failed to start file watcher');
         isWatchingRef.current = false;
         setIsWatching(false);
       }

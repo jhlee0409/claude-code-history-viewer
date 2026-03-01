@@ -231,7 +231,7 @@ sudo systemctl enable --now cchv.service
 
 ```bash
 just serve-build           # Build frontend + embed into server binary
-just serve-run             # Build and run (embedded assets)
+just serve-build-run       # Build and run (embedded assets)
 
 # Or run in development (external dist/):
 just serve-dev             # Build frontend + run server with --dist
@@ -241,7 +241,7 @@ just serve-dev             # Build frontend + run server with --dist
 
 ```
 GET /health
-→ { "status": "ok", "version": "1.5.3", "uptime_secs": 120 }
+→ { "status": "ok" }
 ```
 
 ## Usage

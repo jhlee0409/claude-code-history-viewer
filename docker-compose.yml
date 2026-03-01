@@ -2,9 +2,21 @@ services:
   webui:
     build: .
     ports:
-      - "3727:3727"
+      - "127.0.0.1:3727:3727"
     volumes:
-      - ${HOME}/.claude:/root/.claude:ro
-      - ${HOME}/.codex:/root/.codex:ro
-      - ${HOME}/.local/share/opencode:/root/.local/share/opencode:ro
+      - ${HOME}/.claude:/home/cchv/.claude:ro
+      - ${HOME}/.codex:/home/cchv/.codex:ro
+      - ${HOME}/.local/share/opencode:/home/cchv/.local/share/opencode:ro
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3727/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
