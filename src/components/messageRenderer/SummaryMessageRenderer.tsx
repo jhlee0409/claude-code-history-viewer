@@ -11,6 +11,7 @@
  */
 
 import { memo } from "react";
+import { Markdown } from "../common";
 import { FileText, Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
@@ -41,9 +42,9 @@ export const SummaryMessageRenderer = memo(function SummaryMessageRenderer({
           <div className={cn("font-medium mb-1", styles.title)}>
             {t("summaryMessageRenderer.title", { defaultValue: "Conversation Summary" })}
           </div>
-          <div className="text-foreground/80 whitespace-pre-wrap break-words">
+          <Markdown className="text-foreground/80">
             {summary}
-          </div>
+          </Markdown>
           {leafUuid && (
             <div className={cn(`mt-2 flex items-center ${layout.smallText} text-muted-foreground`, layout.iconSpacing)}>
               <Link2 className={layout.iconSizeSmall} />

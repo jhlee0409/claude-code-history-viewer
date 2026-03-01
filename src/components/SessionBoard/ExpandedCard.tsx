@@ -3,8 +3,7 @@ import { createPortal } from "react-dom";
 import type { ClaudeMessage } from "../../types";
 import { clsx } from "clsx";
 import { FileText, X, FileCode, AlignLeft, Bot, User, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import rehypeSanitize from "rehype-sanitize";
+import { Markdown } from "../common";
 import { useAppStore } from "../../store/useAppStore";
 import { SmartJsonDisplay } from "../SmartJsonDisplay";
 import { ToolIcon } from "../ToolIcon";
@@ -277,9 +276,9 @@ export const ExpandedCard = memo(({
 
                 <div className="flex-1 overflow-y-auto p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap select-text">
                     {isMarkdownPretty && !toolUseBlock ? (
-                        <div className="prose prose-xs dark:prose-invert max-w-none break-words">
-                            <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{content}</ReactMarkdown>
-                        </div>
+                        <Markdown className="break-words">
+                            {content}
+                        </Markdown>
                     ) : (
                         content ? content : (ToolContent || t("session.board.noContent"))
                     )}
