@@ -74,12 +74,38 @@ resolve_version() {
 
 install() {
     ARTIFACT="cchv-server-${PLATFORM}.tar.gz"
+    CHECKSUM_FILE="CHECKSUMS.sha256"
     URL="https://github.com/${REPO}/releases/download/${TAG}/${ARTIFACT}"
+    CHECKSUM_URL="https://github.com/${REPO}/releases/download/${TAG}/${CHECKSUM_FILE}"
     TMPDIR="$(mktemp -d)"
     trap 'rm -rf "$TMPDIR"' EXIT
 
     info "Downloading ${BINARY_NAME} ${TAG} for ${PLATFORM}..."
     curl -fsSL "$URL" -o "${TMPDIR}/${ARTIFACT}" || err "Download failed. Check that ${TAG} has a ${PLATFORM} build."
+
+    # Verify checksum if CHECKSUMS.sha256 is available in the release
+    if curl -fsSL "$CHECKSUM_URL" -o "${TMPDIR}/${CHECKSUM_FILE}" 2>/dev/null; then
+        info "Verifying checksum..."
+        EXPECTED=$(grep "${ARTIFACT}" "${TMPDIR}/${CHECKSUM_FILE}" | awk '{print $1}')
+        if [ -n "$EXPECTED" ]; then
+            if command -v sha256sum > /dev/null 2>&1; then
+                ACTUAL=$(sha256sum "${TMPDIR}/${ARTIFACT}" | awk '{print $1}')
+            elif command -v shasum > /dev/null 2>&1; then
+                ACTUAL=$(shasum -a 256 "${TMPDIR}/${ARTIFACT}" | awk '{print $1}')
+            else
+                info "Warning: no sha256sum or shasum found, skipping verification"
+                ACTUAL="$EXPECTED"
+            fi
+            if [ "$ACTUAL" != "$EXPECTED" ]; then
+                err "Checksum mismatch! Expected ${EXPECTED}, got ${ACTUAL}. The download may be corrupted or tampered with."
+            fi
+            ok "Checksum verified"
+        else
+            info "Warning: artifact not found in checksum file, skipping verification"
+        fi
+    else
+        info "Warning: CHECKSUMS.sha256 not available for this release, skipping verification"
+    fi
 
     info "Extracting..."
     tar xzf "${TMPDIR}/${ARTIFACT}" -C "$TMPDIR"
@@ -88,6 +114,7 @@ install() {
     if [ -w "$INSTALL_DIR" ]; then
         mv "${TMPDIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
     else
+        info "Elevated permissions required to install to ${INSTALL_DIR}"
         sudo mv "${TMPDIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
     fi
     chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
