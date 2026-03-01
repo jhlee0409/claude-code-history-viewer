@@ -127,6 +127,7 @@
   "status.loadingStats": "토큰 통계 로딩 중...",
   "status.scanning": "프로젝트 스캔 중...",
   "status.versionLabel": "v{{version}}",
+  "status.webMode": "웹",
   "time.day": "일",
   "time.days": "일",
   "time.end": "종료:",

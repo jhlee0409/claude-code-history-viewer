@@ -4,8 +4,8 @@
  * Handles project/folder scanning and session listing.
  */
 
-import { invoke } from "@tauri-apps/api/core";
-import { load } from "@tauri-apps/plugin-store";
+import { api } from "@/services/api";
+import { storageAdapter } from "@/services/storage";
 import type { ClaudeProject, ClaudeSession, AppError } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
@@ -75,7 +75,7 @@ const initialProjectState: ProjectSliceState = {
 
 const isTauriAvailable = () => {
   try {
-    return typeof window !== "undefined" && typeof invoke === "function";
+    return typeof window !== "undefined" && typeof api === "function";
   } catch {
     return false;
   }
@@ -104,14 +104,14 @@ export const createProjectSlice: StateCreator<
 
       // Try to load saved settings first
       try {
-        const store = await load("settings.json", {
+        const store = await storageAdapter.load("settings.json", {
           autoSave: false,
           defaults: {},
         });
         const savedPath = await store.get<string>("claudePath");
 
         if (savedPath) {
-          const isValid = await invoke<boolean>("validate_claude_folder", {
+          const isValid = await api<boolean>("validate_claude_folder", {
             path: savedPath,
           });
           if (isValid) {
@@ -127,7 +127,7 @@ export const createProjectSlice: StateCreator<
       }
 
       // Try default path
-      const claudePath = await invoke<string>("get_claude_folder_path");
+      const claudePath = await api<string>("get_claude_folder_path");
       set({ claudePath });
       await get().loadMetadata();
       await get().detectProviders();
@@ -175,11 +175,11 @@ export const createProjectSlice: StateCreator<
       const scanProviders = availableProviders.length > 0 ? availableProviders : [DEFAULT_PROVIDER_ID];
       const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
       const projects = hasNonClaudeProviders
-        ? await invoke<ClaudeProject[]>("scan_all_projects", {
+        ? await api<ClaudeProject[]>("scan_all_projects", {
             claudePath,
             activeProviders: scanProviders,
           })
-        : await invoke<ClaudeProject[]>("scan_projects", {
+        : await api<ClaudeProject[]>("scan_projects", {
             claudePath,
           });
       const duration = performance.now() - start;
@@ -239,12 +239,12 @@ export const createProjectSlice: StateCreator<
     try {
       const provider = project.provider ?? "claude";
       const sessions = provider !== "claude"
-        ? await invoke<ClaudeSession[]>("load_provider_sessions", {
+        ? await api<ClaudeSession[]>("load_provider_sessions", {
             provider,
             projectPath: project.path,
             excludeSidechain: get().excludeSidechain,
           })
-        : await invoke<ClaudeSession[]>("load_project_sessions", {
+        : await api<ClaudeSession[]>("load_project_sessions", {
             projectPath: project.path,
             excludeSidechain: get().excludeSidechain,
           });
@@ -280,7 +280,7 @@ export const createProjectSlice: StateCreator<
     set({ claudePath: path });
 
     try {
-      const store = await load("settings.json", {
+      const store = await storageAdapter.load("settings.json", {
         autoSave: false,
         defaults: {},
       });

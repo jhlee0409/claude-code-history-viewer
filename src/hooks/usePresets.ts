@@ -28,7 +28,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import type { PresetData, PresetInput } from "../types";
 import { settingsToJson, jsonToSettings } from "../types";
 import { useAppStore } from "../store/useAppStore";
@@ -71,7 +71,7 @@ export const usePresets = (): UsePresetsResult => {
     setError(null);
 
     try {
-      const loadedPresets = await invoke<PresetData[]>("load_presets");
+      const loadedPresets = await api<PresetData[]>("load_presets");
       setPresets(loadedPresets);
     } catch (err) {
       const errorMessage =
@@ -90,7 +90,7 @@ export const usePresets = (): UsePresetsResult => {
       setError(null);
 
       try {
-        const savedPreset = await invoke<PresetData>("save_preset", { input });
+        const savedPreset = await api<PresetData>("save_preset", { input });
         await loadPresets(); // Reload list
         return savedPreset;
       } catch (err) {
@@ -112,7 +112,7 @@ export const usePresets = (): UsePresetsResult => {
       setError(null);
 
       try {
-        const preset = await invoke<PresetData | null>("get_preset", { id });
+        const preset = await api<PresetData | null>("get_preset", { id });
         return preset;
       } catch (err) {
         const errorMessage =
@@ -132,7 +132,7 @@ export const usePresets = (): UsePresetsResult => {
       setError(null);
 
       try {
-        await invoke("delete_preset", { id });
+        await api("delete_preset", { id });
         await loadPresets(); // Reload list
       } catch (err) {
         const errorMessage =

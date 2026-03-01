@@ -106,6 +106,24 @@ issue ISSUE_NUMBER:
 issues:
     gh issue list --state open --limit 20
 
+# ===== WebUI Server Mode =====
+
+# Build server binary with embedded frontend (single binary)
+serve-build: frontend-build
+    cd src-tauri && cargo build --release --features webui-server
+
+# Build and run server (full rebuild)
+serve-build-run: serve-build
+    -./src-tauri/target/release/claude-code-history-viewer --serve
+
+# Run the already-built server binary (no rebuild, instant start)
+serve *ARGS:
+    -./src-tauri/target/release/claude-code-history-viewer --serve {{ARGS}}
+
+# Run server in development mode (external dist/ for hot reload)
+serve-dev: frontend-build
+    cd src-tauri && cargo run --features webui-server -- --serve --dist ../dist
+
 # ===== Rust Testing Commands =====
 
 # Run Rust tests with cargo test

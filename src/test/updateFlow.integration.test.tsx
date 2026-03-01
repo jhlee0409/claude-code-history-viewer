@@ -1,9 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useUpdater } from "../hooks/useUpdater";
 import { SimpleUpdateManager } from "../components/SimpleUpdateManager";
 import { SettingDropdown } from "../layouts/Header/SettingDropdown/index";
+import { PlatformProvider } from "../contexts/platform";
 import type { UpdateSettings } from "../types/updateSettings";
+
+// Simulate Tauri environment so isTauri() returns true
+beforeAll(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).__TAURI_INTERNALS__ = {};
+});
+afterAll(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete (window as any).__TAURI_INTERNALS__;
+});
 
 const {
   mockCheck,
@@ -129,10 +140,10 @@ function UpdateFlowHarness() {
   const updater = useUpdater();
 
   return (
-    <>
+    <PlatformProvider>
       <SettingDropdown updater={updater} />
       <SimpleUpdateManager updater={updater} />
-    </>
+    </PlatformProvider>
   );
 }
 

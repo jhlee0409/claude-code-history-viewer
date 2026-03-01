@@ -12,13 +12,13 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { useMCPServers } from "../hooks/useMCPServers";
 import type { AllMCPServersResponse, MCPServerConfig } from "../types";
 
-// Mock Tauri invoke
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(),
+// Mock unified API adapter
+vi.mock("@/services/api", () => ({
+  api: vi.fn(),
 }));
 
-import { invoke } from "@tauri-apps/api/core";
-const mockInvoke = vi.mocked(invoke);
+import { api } from "@/services/api";
+const mockInvoke = vi.mocked(api);
 
 // ============================================================================
 // Test Data Fixtures

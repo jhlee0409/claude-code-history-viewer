@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import { isAbsolutePath } from "@/utils/pathUtils";
 import type { ProviderId } from "@/types";
 
@@ -64,7 +64,7 @@ export const useNativeRename = (): UseNativeRenameReturn => {
         setError(null);
 
         try {
-          return await invoke<NativeRenameResult>("rename_opencode_session_title", {
+          return await api<NativeRenameResult>("rename_opencode_session_title", {
             sessionPath: filePath,
             newTitle: normalizedTitle,
           });
@@ -94,7 +94,7 @@ export const useNativeRename = (): UseNativeRenameReturn => {
       setError(null);
 
       try {
-        const result = await invoke<NativeRenameResult>("rename_session_native", {
+        const result = await api<NativeRenameResult>("rename_session_native", {
           filePath,
           newTitle: normalizedTitle,
         });

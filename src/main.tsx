@@ -7,9 +7,15 @@ import "./scrollbar.css";
 import App from "./App.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import "./i18n";
+import { PlatformProvider } from "./contexts/platform";
 import { ThemeProvider } from "./contexts/theme/ThemeProvider.tsx";
 import { ModalProvider } from "./contexts/modal/ModalProvider.tsx";
 import { Toaster } from "sonner";
+import { initAuthToken } from "./utils/platform";
+
+// Initialise WebUI auth token from URL before anything else.
+// (No-op in Tauri desktop mode.)
+initAuthToken();
 
 // Apply OverlayScrollbars globally to body
 OverlayScrollbars(document.body, {
@@ -23,12 +29,14 @@ OverlayScrollbars(document.body, {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
-      <ThemeProvider>
-        <ModalProvider>
-          <App />
-          <Toaster />
-        </ModalProvider>
-      </ThemeProvider>
+      <PlatformProvider>
+        <ThemeProvider>
+          <ModalProvider>
+            <App />
+            <Toaster />
+          </ModalProvider>
+        </ThemeProvider>
+      </PlatformProvider>
     </ErrorBoundary>
   </StrictMode>
 );

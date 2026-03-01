@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { check, Update } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
-import { getVersion } from '@tauri-apps/api/app';
+import { isTauri } from '@/utils/platform';
 import {
   UPDATE_INSTALL_FAILED_ERROR_CODE,
 } from '@/utils/updateError';
@@ -30,6 +28,9 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Update = any;
+
 export interface UpdateState {
   isChecking: boolean;
   hasUpdate: boolean;
@@ -51,7 +52,30 @@ export interface UseUpdaterReturn {
   dismissUpdate: () => void;
 }
 
+const WEB_INITIAL_STATE: UpdateState = {
+  isChecking: false,
+  hasUpdate: false,
+  isDownloading: false,
+  isInstalling: false,
+  isRestarting: false,
+  requiresManualRestart: false,
+  downloadProgress: 0,
+  error: null,
+  updateInfo: null,
+  currentVersion: 'web',
+  newVersion: null,
+};
+
+const WEB_NOOP_RETURN: UseUpdaterReturn = {
+  state: WEB_INITIAL_STATE,
+  checkForUpdates: () => Promise.resolve(null),
+  downloadAndInstall: () => Promise.resolve(),
+  dismissUpdate: () => {},
+};
+
 export function useUpdater(): UseUpdaterReturn {
+  const tauriMode = isTauri();
+
   const [state, setState] = useState<UpdateState>({
     isChecking: false,
     hasUpdate: false,
@@ -62,23 +86,33 @@ export function useUpdater(): UseUpdaterReturn {
     downloadProgress: 0,
     error: null,
     updateInfo: null,
-    currentVersion: '',
+    currentVersion: tauriMode ? '' : 'web',
     newVersion: null,
   });
 
-  // Load current version on mount
+  // Load current version on mount (Tauri only)
   useEffect(() => {
-    getVersion().then((version) => {
-      setState((prev) => ({ ...prev, currentVersion: version }));
-    });
-  }, []);
+    if (!tauriMode) return;
+    import('@tauri-apps/api/app')
+      .then(({ getVersion }) =>
+        getVersion()?.then((version: string) => {
+          setState((prev) => ({ ...prev, currentVersion: version }));
+        })
+      )
+      .catch(() => {
+        /* version fetch is non-critical */
+      });
+  }, [tauriMode]);
 
   const checkForUpdates = useCallback(async (): Promise<Update | null> => {
+    if (!tauriMode) return null;
     setState((prev) => ({ ...prev, isChecking: true, error: null }));
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+
       // Race between check and timeout
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(
@@ -118,10 +152,10 @@ export function useUpdater(): UseUpdaterReturn {
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
     }
-  }, []);
+  }, [tauriMode]);
 
   const downloadAndInstall = useCallback(async () => {
-    if (!state.updateInfo) return;
+    if (!tauriMode || !state.updateInfo) return;
 
     setState((prev) => ({
       ...prev,
@@ -216,6 +250,7 @@ export function useUpdater(): UseUpdaterReturn {
       // Brief delay to let the UI update before relaunch
       await new Promise((resolve) => setTimeout(resolve, 500));
       restartAttempted = true;
+      const { relaunch } = await import('@tauri-apps/plugin-process');
       await relaunch();
     } catch (error) {
       const rawErrorMessage = getErrorMessage(error, 'Download failed');
@@ -262,7 +297,7 @@ export function useUpdater(): UseUpdaterReturn {
             : rawErrorMessage,
       }));
     }
-  }, [state.updateInfo]);
+  }, [tauriMode, state.updateInfo]);
 
   const dismissUpdate = useCallback(() => {
     setState((prev) => ({
@@ -274,6 +309,10 @@ export function useUpdater(): UseUpdaterReturn {
       error: null,
     }));
   }, []);
+
+  if (!tauriMode) {
+    return WEB_NOOP_RETURN;
+  }
 
   return {
     state,

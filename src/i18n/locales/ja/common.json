@@ -127,6 +127,7 @@
   "status.loadingStats": "トークン統計を読み込み中...",
   "status.scanning": "プロジェクトをスキャン中...",
   "status.versionLabel": "v{{version}}",
+  "status.webMode": "Web",
   "time.day": "日",
   "time.days": "日",
   "time.end": "終了:",

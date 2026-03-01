@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import type { FullAppStore } from "./types";
 import type {
     BoardSessionData,
@@ -125,7 +125,7 @@ export const createBoardSlice: StateCreator<
                     return;
                 }
                 try {
-                    projectCommits = await invoke<import("../../types").GitCommit[]>(
+                    projectCommits = await api<import("../../types").GitCommit[]>(
                         "get_git_log",
                         { actualPath: selectedProject.actual_path, limit: 1000 }
                     );
@@ -144,7 +144,7 @@ export const createBoardSlice: StateCreator<
                         return null;
                     }
                     const provider = session.provider ?? "claude";
-                    const messages = await invoke<ClaudeMessage[]>(
+                    const messages = await api<ClaudeMessage[]>(
                         "load_provider_messages",
                         { provider, sessionPath: session.file_path }
                     );

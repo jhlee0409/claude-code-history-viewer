@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
 import { useTranslation } from "react-i18next";
 import { useModal } from "@/contexts/modal";
+import { DesktopOnly } from "@/contexts/platform";
 import { ThemeMenuGroup } from "./ThemeMenuGroup";
 import { LanguageMenuGroup } from "./LanguageMenuGroup";
 import { FilterMenuGroup } from "./FilterMenuGroup";
@@ -73,23 +74,25 @@ export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
           <DropdownMenuSeparator />
           <LanguageMenuGroup />
 
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => {
-              window.dispatchEvent(new Event('manual-update-check'));
-            }}
-            disabled={updater.state.isChecking}
-          >
-            <RefreshCw
-              className={cn(
-                "mr-2 h-4 w-4 text-foreground",
-                updater.state.isChecking && "animate-spin"
-              )}
-            />
-            {updater.state.isChecking
-              ? t('common.settings.checking')
-              : t('common.settings.checkUpdate')}
-          </DropdownMenuItem>
+          <DesktopOnly>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                window.dispatchEvent(new Event('manual-update-check'));
+              }}
+              disabled={updater.state.isChecking}
+            >
+              <RefreshCw
+                className={cn(
+                  "mr-2 h-4 w-4 text-foreground",
+                  updater.state.isChecking && "animate-spin"
+                )}
+              />
+              {updater.state.isChecking
+                ? t('common.settings.checking')
+                : t('common.settings.checkUpdate')}
+            </DropdownMenuItem>
+          </DesktopOnly>
         </DropdownMenuContent>
       </DropdownMenu>
     </>

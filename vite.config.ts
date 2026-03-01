@@ -11,13 +11,12 @@ export default defineConfig(() => ({
     react(),
     tailwindcss(),
     // Bundle analyzer disabled - uncomment to enable
-    // mode === "production" &&
-    //   visualizer({
-    //     open: true,
-    //     filename: "dist/bundle-stats.html",
-    //     gzipSize: true,
-    //     brotliSize: true,
-    //   }),
+    // visualizer({
+    //   open: true,
+    //   filename: "dist/bundle-stats.html",
+    //   gzipSize: true,
+    //   brotliSize: true,
+    // }),
   ].filter(Boolean),
 
   build: {
@@ -27,6 +26,22 @@ export default defineConfig(() => ({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
+          // === i18n locale data (split by language to avoid one mega-chunk) ===
+          if (id.includes("i18n/locales/en/")) return "i18n-en";
+          if (id.includes("i18n/locales/ko/")) return "i18n-ko";
+          if (id.includes("i18n/locales/ja/")) return "i18n-ja";
+          if (id.includes("i18n/locales/zh-CN/")) return "i18n-zh-cn";
+          if (id.includes("i18n/locales/zh-TW/")) return "i18n-zh-tw";
+
+          // i18n runtime libraries
+          if (
+            id.includes("i18next") ||
+            id.includes("react-i18next") ||
+            id.includes("i18next-browser-languagedetector")
+          ) {
+            return "i18n-vendor";
+          }
+
           // Core React bundle
           if (id.includes("react") || id.includes("react-dom")) {
             return "react-vendor";
@@ -37,7 +52,10 @@ export default defineConfig(() => ({
             id.includes("@headlessui") ||
             id.includes("@radix-ui") ||
             id.includes("tailwind-merge") ||
-            id.includes("clsx")
+            id.includes("clsx") ||
+            id.includes("class-variance-authority") ||
+            id.includes("cmdk") ||
+            id.includes("sonner")
           ) {
             return "ui-vendor";
           }
@@ -60,7 +78,7 @@ export default defineConfig(() => ({
           }
 
           // Diff viewer bundle
-          if (id.includes("react-diff-viewer") || id.includes("diff")) {
+          if (id.includes("react-diff-viewer") || id.includes("node_modules/diff/")) {
             return "diff-viewer";
           }
 
@@ -73,6 +91,11 @@ export default defineConfig(() => ({
             id.includes("unist")
           ) {
             return "markdown";
+          }
+
+          // Search library
+          if (id.includes("flexsearch")) {
+            return "search-vendor";
           }
 
           // Data/state management bundle
@@ -96,6 +119,16 @@ export default defineConfig(() => ({
             id.includes("@tanstack/react-virtual")
           ) {
             return "virtual-scroll";
+          }
+
+          // Scrollbar + misc vendor
+          if (id.includes("overlayscrollbars")) {
+            return "scrollbar-vendor";
+          }
+
+          // ANSI terminal rendering
+          if (id.includes("ansi-to-html")) {
+            return "ansi-vendor";
           }
         },
       },

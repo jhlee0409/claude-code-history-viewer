@@ -4,7 +4,7 @@
  * Manages user metadata stored in ~/.claude-history-viewer/user-data.json
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import type { StateCreator } from "zustand";
 import type {
   UserMetadata,
@@ -100,7 +100,7 @@ export const createMetadataSlice: StateCreator<
     set({ isMetadataLoading: true, metadataError: null });
 
     try {
-      const metadata = await invoke<UserMetadata>("load_user_metadata");
+      const metadata = await api<UserMetadata>("load_user_metadata");
       set({
         userMetadata: metadata,
         isMetadataLoaded: true,
@@ -121,7 +121,7 @@ export const createMetadataSlice: StateCreator<
     const { userMetadata } = get();
 
     try {
-      await invoke("save_user_metadata", { metadata: userMetadata });
+      await api("save_user_metadata", { metadata: userMetadata });
     } catch (error) {
       console.error("Failed to save user metadata:", error);
       set({ metadataError: String(error) });
@@ -137,7 +137,7 @@ export const createMetadataSlice: StateCreator<
     const mergedSession: SessionMetadata = { ...existingSession, ...update };
 
     try {
-      const updatedMetadata = await invoke<UserMetadata>(
+      const updatedMetadata = await api<UserMetadata>(
         "update_session_metadata",
         {
           sessionId,
@@ -160,7 +160,7 @@ export const createMetadataSlice: StateCreator<
     const mergedProject: ProjectMetadata = { ...existingProject, ...update };
 
     try {
-      const updatedMetadata = await invoke<UserMetadata>(
+      const updatedMetadata = await api<UserMetadata>(
         "update_project_metadata",
         {
           projectPath,
@@ -182,7 +182,7 @@ export const createMetadataSlice: StateCreator<
     };
 
     try {
-      const updatedMetadata = await invoke<UserMetadata>("update_user_settings", {
+      const updatedMetadata = await api<UserMetadata>("update_user_settings", {
         settings: mergedSettings,
       });
       set({ userMetadata: updatedMetadata });

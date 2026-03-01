@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
+import { isWebUI } from "@/utils/platform";
 import { useTranslation } from "react-i18next";
 import { GithubIcon, MailIcon, InfoIcon } from "lucide-react";
 import type { FeedbackPrefill, FeedbackType } from "@/contexts/modal/context";
@@ -82,7 +83,7 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
 
   const loadSystemInfo = async () => {
     try {
-      const info = await invoke<SystemInfo>("get_system_info");
+      const info = await api<SystemInfo>("get_system_info");
       setSystemInfo(info);
     } catch (error) {
       console.error("Failed to load system info:", error);
@@ -112,7 +113,7 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
         feedback_type: feedbackType,
       };
 
-      await invoke("send_feedback", { feedback: feedbackData });
+      await api("send_feedback", { feedback: feedbackData });
 
       setSubject("");
       setBody("");
@@ -145,7 +146,10 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
             }
           : null;
 
-      await invoke("open_github_issues", { feedback });
+      const result = await api<{ url?: string }>("open_github_issues", { feedback });
+      if (isWebUI() && result?.url) {
+        window.open(result.url, "_blank", "noopener,noreferrer");
+      }
     } catch (error) {
       console.error("Failed to open GitHub:", error);
       alert(t("feedback.openGitHubError"));

@@ -42,7 +42,7 @@ fn get_metadata_folder() -> Result<PathBuf, String> {
 }
 
 /// Get the user data file path (~/.claude-history-viewer/user-data.json)
-fn get_user_data_path() -> Result<PathBuf, String> {
+pub(crate) fn get_user_data_path() -> Result<PathBuf, String> {
     Ok(get_metadata_folder()?.join("user-data.json"))
 }
 
@@ -97,7 +97,7 @@ pub async fn load_user_metadata(state: State<'_, MetadataState>) -> Result<UserM
 }
 
 /// Internal helper to save metadata to disk (blocking)
-fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), String> {
+pub(crate) fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), String> {
     ensure_metadata_folder()?;
     let path = get_user_data_path()?;
 

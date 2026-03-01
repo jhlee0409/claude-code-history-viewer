@@ -1,5 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
+
+// Simulate Tauri environment so isTauri() returns true
+beforeAll(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).__TAURI_INTERNALS__ = {};
+});
+afterAll(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete (window as any).__TAURI_INTERNALS__;
+});
 
 // Use vi.hoisted to create mocks that can be referenced in vi.mock
 const { mockListen, mockToastError } = vi.hoisted(() => ({

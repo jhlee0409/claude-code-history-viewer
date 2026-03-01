@@ -15,8 +15,8 @@ import type { UserMetadata } from "../types";
 // ============================================================================
 
 const mockInvoke = vi.fn();
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (...args: unknown[]) => mockInvoke(...args),
+vi.mock("@/services/api", () => ({
+  api: (...args: unknown[]) => mockInvoke(...args),
 }));
 
 // ============================================================================

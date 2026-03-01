@@ -38,6 +38,7 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
 - [Features](#features)
 - [Installation](#installation)
 - [Build from Source](#build-from-source)
+- [Server Mode (WebUI)](#server-mode-webui)
 - [Usage](#usage)
 - [Accessibility](#accessibility)
 - [Tech Stack](#tech-stack)
@@ -131,6 +132,118 @@ pnpm tauri:build     # Production build
 ```
 
 **Requirements**: Node.js 18+, pnpm, Rust toolchain
+
+## Server Mode (WebUI)
+
+Run the viewer as a headless HTTP server — no desktop environment required. Ideal for VPS, remote servers, or Docker. The server binary embeds the frontend — **a single file is all you need**.
+
+> **New to server deployment?** See the full [Server Mode Guide](docs/server-guide.md) ([한국어](docs/server-guide.ko.md)) for step-by-step instructions covering local testing, VPS setup, Docker, and more.
+
+### Quick Install
+
+```bash
+# Homebrew (macOS / Linux)
+brew install jhlee0409/tap/cchv-server
+
+# Or one-line script
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+```
+
+Both methods install `cchv-server` to your PATH.
+
+### Start the Server
+
+```bash
+cchv-server --serve
+```
+
+Output:
+
+```
+🔑 Auth token: b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
+   Open in browser: http://192.168.1.10:3727?token=b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
+👁 File watcher active: /home/user/.claude/projects
+🚀 WebUI server running at http://0.0.0.0:3727
+```
+
+Open the URL in your browser — the token is saved automatically.
+
+### Pre-built Binaries
+
+| Platform | Asset |
+|----------|-------|
+| Linux x64 | `cchv-server-linux-x64.tar.gz` |
+| Linux ARM64 | `cchv-server-linux-arm64.tar.gz` |
+| macOS ARM | `cchv-server-macos-arm64.tar.gz` |
+| macOS x64 | `cchv-server-macos-x64.tar.gz` |
+
+Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases).
+
+**CLI options:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--serve` | — | **Required.** Starts the HTTP server instead of the desktop app |
+| `--port <number>` | `3727` | Server port |
+| `--host <address>` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
+| `--token <value>` | auto (uuid v4) | Custom authentication token |
+| `--no-auth` | — | Disable authentication (not recommended for public networks) |
+| `--dist <path>` | embedded | Override built-in frontend with external `dist/` directory |
+
+### Authentication
+
+All `/api/*` endpoints are protected by Bearer token authentication. The token is auto-generated on each server start and printed to stderr.
+
+- **Browser access**: Use the `?token=...` URL printed at startup. The token is saved to `localStorage` automatically.
+- **API access**: Include `Authorization: Bearer <token>` header.
+- **Custom token**: `--token my-secret-token` to set your own.
+- **Disable**: `--no-auth` to skip authentication entirely (only use on trusted networks).
+
+### Real-time Updates
+
+The server watches `~/.claude/projects/` for file changes and pushes updates to the browser via Server-Sent Events (SSE). When you use Claude Code in another terminal, the viewer updates automatically — no manual refresh needed.
+
+### Docker
+
+```bash
+docker compose up -d
+```
+
+Check the token after startup:
+
+```bash
+docker compose logs webui
+# 🔑 Auth token: ... ← paste this URL in your browser
+```
+
+The `docker-compose.yml` mounts `~/.claude`, `~/.codex`, and `~/.local/share/opencode` as read-only volumes.
+
+### systemd Service
+
+For persistent server on Linux, use the provided systemd template:
+
+```bash
+sudo cp contrib/cchv.service /etc/systemd/system/
+sudo systemctl edit --full cchv.service   # Set User= to your username
+sudo systemctl enable --now cchv.service
+```
+
+### Build from Source (Server Only)
+
+```bash
+just serve-build           # Build frontend + embed into server binary
+just serve-build-run       # Build and run (embedded assets)
+
+# Or run in development (external dist/):
+just serve-dev             # Build frontend + run server with --dist
+```
+
+### Health Check
+
+```
+GET /health
+→ { "status": "ok" }
+```
 
 ## Usage
 

@@ -9,7 +9,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "../common";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import {
   FileEdit,
   FilePlus,
@@ -66,7 +66,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
     setErrorMessage(null);
     try {
       setRestoreStatus("loading");
-      await invoke("restore_file", {
+      await api("restore_file", {
         filePath: edit.file_path,
         content: edit.content_after_change,
       });

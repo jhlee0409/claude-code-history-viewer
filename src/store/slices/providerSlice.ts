@@ -4,7 +4,7 @@
  * Manages multi-provider detection and filtering state.
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "@/services/api";
 import { toast } from "sonner";
 import type { ProviderId, ProviderInfo } from "../../types";
 import i18n from "../../i18n";
@@ -55,7 +55,7 @@ export const createProviderSlice: StateCreator<
   detectProviders: async () => {
     set({ isDetectingProviders: true });
     try {
-      const providers = await invoke<ProviderInfo[]>("detect_providers");
+      const providers = await api<ProviderInfo[]>("detect_providers");
       const activeProviders = providers
         .filter((p) => p.is_available)
         .map((p) => p.id as ProviderId);
