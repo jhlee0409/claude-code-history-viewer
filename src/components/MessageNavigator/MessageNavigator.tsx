@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useState, useMemo } from "react";
+import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { ListTree, Search, X, PanelRightClose, PanelRight } from "lucide-react";
@@ -20,6 +20,7 @@ interface MessageNavigatorProps {
   onResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  asideId?: string;
 }
 
 export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
@@ -29,10 +30,14 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   onResizeStart,
   isCollapsed,
   onToggleCollapse,
+  asideId = "message-navigator",
 }) => {
   const { t } = useTranslation();
+  const keyboardHelpId = `${asideId}-keyboard-help`;
   const scrollElementRef = useRef<HTMLDivElement>(null);
+  const entryRefs = useRef(new Map<string, HTMLButtonElement>());
   const [filterText, setFilterText] = useState("");
+  const [focusedIndex, setFocusedIndex] = useState(0);
 
   const { navigateToMessage, targetMessageUuid } = useAppStore();
 
@@ -81,6 +86,68 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
     [navigateToMessage]
   );
 
+  useEffect(() => {
+    if (entries.length === 0) {
+      setFocusedIndex(0);
+      return;
+    }
+
+    if (targetMessageUuid) {
+      const selectedIndex = entries.findIndex((entry) => entry.uuid === targetMessageUuid);
+      if (selectedIndex >= 0) {
+        setFocusedIndex(selectedIndex);
+        return;
+      }
+    }
+
+    setFocusedIndex((prev) => Math.max(0, Math.min(prev, entries.length - 1)));
+  }, [entries, targetMessageUuid]);
+
+  const focusEntryAt = useCallback((index: number) => {
+    const clampedIndex = Math.max(0, Math.min(index, entries.length - 1));
+    const entry = entries[clampedIndex];
+    if (!entry) return;
+
+    setFocusedIndex(clampedIndex);
+    virtualizer.scrollToIndex(clampedIndex, { align: "auto" });
+
+    requestAnimationFrame(() => {
+      entryRefs.current.get(entry.uuid)?.focus();
+    });
+  }, [entries, virtualizer]);
+
+  const handleEntryKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (entries.length === 0) return;
+
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        focusEntryAt(focusedIndex + 1);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        focusEntryAt(focusedIndex - 1);
+        break;
+      case "Home":
+        event.preventDefault();
+        focusEntryAt(0);
+        break;
+      case "End":
+        event.preventDefault();
+        focusEntryAt(entries.length - 1);
+        break;
+      case "Enter":
+      case " ":
+        if (entries[focusedIndex]) {
+          event.preventDefault();
+          navigateToMessage(entries[focusedIndex].uuid);
+        }
+        break;
+      default:
+        break;
+    }
+  }, [entries, focusEntryAt, focusedIndex, navigateToMessage]);
+
   // Get virtual items
   const virtualItems = virtualizer.getVirtualItems();
 
@@ -88,8 +155,10 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   if (isCollapsed) {
     return (
       <aside
+        id={asideId}
         role="complementary"
         aria-label={t("navigator.title")}
+        tabIndex={-1}
         className={cn(
           "flex-shrink-0 bg-sidebar border-l border-border/50 flex h-full",
           isResizing && "select-none"
@@ -128,8 +197,11 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   // Expanded view
   return (
     <aside
+      id={asideId}
       role="complementary"
       aria-label={t("navigator.title")}
+      aria-describedby={keyboardHelpId}
+      tabIndex={-1}
       className={cn(
         "relative flex flex-col bg-sidebar border-l border-border/50 h-full",
         isResizing && "select-none"
@@ -194,6 +266,9 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
       ) : (
         <div
           ref={scrollElementRef}
+          role="listbox"
+          aria-label={t("navigator.title")}
+          aria-describedby={keyboardHelpId}
           className="flex-1 overflow-auto"
           style={{ contain: "strict" }}
         >
@@ -213,7 +288,17 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
                   key={entry.uuid}
                   entry={entry}
                   isActive={entry.uuid === targetMessageUuid}
+                  isFocused={virtualItem.index === focusedIndex}
                   onClick={handleEntryClick}
+                  onFocus={() => setFocusedIndex(virtualItem.index)}
+                  onNavigate={handleEntryKeyDown}
+                  registerRef={(element) => {
+                    if (element) {
+                      entryRefs.current.set(entry.uuid, element);
+                    } else {
+                      entryRefs.current.delete(entry.uuid);
+                    }
+                  }}
                   style={{
                     position: "absolute",
                     top: 0,
@@ -227,6 +312,13 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           </div>
         </div>
       )}
+
+      <p id={keyboardHelpId} className="sr-only">
+        {t(
+          "navigator.a11y.keyboardHelp",
+          "Keyboard: use arrow keys to move between messages, Home and End to jump, and Enter or Space to open the focused message."
+        )}
+      </p>
     </aside>
   );
 };

@@ -70,6 +70,12 @@
   "navigator.title": "메시지",
   "navigator.toggle": "메시지 네비게이터 토글",
   "navigator.filter": "메시지 필터...",
+  "navigator.a11y.keyboardHelp": "키보드: 화살표 키로 메시지 사이를 이동하고, Home/End로 처음과 끝으로 이동하며, Enter 또는 Space로 선택한 메시지를 엽니다.",
+  "navigator.a11y.entryLabel": "{{role}} 메시지 {{turnIndex}}",
+  "navigator.role.user": "사용자",
+  "navigator.role.assistant": "어시스턴트",
+  "navigator.role.system": "시스템",
+  "navigator.role.summary": "요약",
   "navigator.noMessages": "이 세션에 메시지가 없습니다",
   "navigator.close": "네비게이터 닫기",
   "navigator.messageCount": "{{count}}개 메시지"

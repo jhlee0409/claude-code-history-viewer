@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-02-24T01:30:39.522Z
- * 총 키 개수: 1581
+ * 생성 시간: 2026-02-28T21:45:41.410Z
+ * 총 키 개수: 1609
  * Namespace 수: 11
  */
 
@@ -40,10 +40,15 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (125개)
+ * common namespace의 번역 키 (138개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
+  | 'common.a11y.skipNavigation'
+  | 'common.a11y.skipToMain'
+  | 'common.a11y.skipToNavigator'
+  | 'common.a11y.skipToProjects'
+  | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
   | 'common.appName'
@@ -102,11 +107,19 @@ export type CommonKeys =
   | 'common.save'
   | 'common.saving'
   | 'common.selectFolder'
+  | 'common.settings.accessibility.highContrast'
+  | 'common.settings.accessibility.title'
   | 'common.settings.changeFolder'
   | 'common.settings.checkUpdate'
   | 'common.settings.checking'
   | 'common.settings.filter.showSystemMessages'
   | 'common.settings.filter.title'
+  | 'common.settings.font.100'
+  | 'common.settings.font.110'
+  | 'common.settings.font.120'
+  | 'common.settings.font.130'
+  | 'common.settings.font.90'
+  | 'common.settings.font.title'
   | 'common.settings.language.description'
   | 'common.settings.language.title'
   | 'common.settings.theme.dark'
@@ -354,14 +367,23 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (154개)
+ * session namespace의 번역 키 (163개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
+  | 'project.a11y.collapseGroup'
+  | 'project.a11y.collapsedState'
+  | 'project.a11y.expandGroup'
+  | 'project.a11y.expandedState'
+  | 'project.a11y.groupToggleLabel'
+  | 'project.a11y.keyboardHelp'
+  | 'project.a11y.selectedState'
   | 'project.addPattern'
   | 'project.collapseSidebar'
   | 'project.count'
+  | 'project.currentSelection'
   | 'project.expandSidebar'
+  | 'project.expandedSiblingGroups'
   | 'project.explorer'
   | 'project.globalStats'
   | 'project.globalStatsDescription'
@@ -1137,7 +1159,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (74개)
+ * message namespace의 번역 키 (80개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1209,10 +1231,16 @@ export type MessageKeys =
   | 'messages.offset'
   | 'messages.tokenStats.existing'
   | 'messages.tokenStats.title'
+  | 'navigator.a11y.entryLabel'
+  | 'navigator.a11y.keyboardHelp'
   | 'navigator.close'
   | 'navigator.filter'
   | 'navigator.messageCount'
   | 'navigator.noMessages'
+  | 'navigator.role.assistant'
+  | 'navigator.role.summary'
+  | 'navigator.role.system'
+  | 'navigator.role.user'
   | 'navigator.title'
   | 'navigator.toggle';
 
@@ -1960,6 +1988,11 @@ export type TranslationKey =
   | 'commandRenderer.status'
   | 'commandRenderer.systemNote'
   | 'commandRenderer.unknownContentType'
+  | 'common.a11y.skipNavigation'
+  | 'common.a11y.skipToMain'
+  | 'common.a11y.skipToNavigator'
+  | 'common.a11y.skipToProjects'
+  | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
   | 'common.appName'
@@ -2018,11 +2051,19 @@ export type TranslationKey =
   | 'common.save'
   | 'common.saving'
   | 'common.selectFolder'
+  | 'common.settings.accessibility.highContrast'
+  | 'common.settings.accessibility.title'
   | 'common.settings.changeFolder'
   | 'common.settings.checkUpdate'
   | 'common.settings.checking'
   | 'common.settings.filter.showSystemMessages'
   | 'common.settings.filter.title'
+  | 'common.settings.font.100'
+  | 'common.settings.font.110'
+  | 'common.settings.font.120'
+  | 'common.settings.font.130'
+  | 'common.settings.font.90'
+  | 'common.settings.font.title'
   | 'common.settings.language.description'
   | 'common.settings.language.title'
   | 'common.settings.theme.dark'
@@ -2313,10 +2354,16 @@ export type TranslationKey =
   | 'messages.offset'
   | 'messages.tokenStats.existing'
   | 'messages.tokenStats.title'
+  | 'navigator.a11y.entryLabel'
+  | 'navigator.a11y.keyboardHelp'
   | 'navigator.close'
   | 'navigator.filter'
   | 'navigator.messageCount'
   | 'navigator.noMessages'
+  | 'navigator.role.assistant'
+  | 'navigator.role.summary'
+  | 'navigator.role.system'
+  | 'navigator.role.user'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'progressRenderer.status.completed'
@@ -2330,10 +2377,19 @@ export type TranslationKey =
   | 'progressRenderer.types.query'
   | 'progressRenderer.types.search'
   | 'progressRenderer.types.waiting'
+  | 'project.a11y.collapseGroup'
+  | 'project.a11y.collapsedState'
+  | 'project.a11y.expandGroup'
+  | 'project.a11y.expandedState'
+  | 'project.a11y.groupToggleLabel'
+  | 'project.a11y.keyboardHelp'
+  | 'project.a11y.selectedState'
   | 'project.addPattern'
   | 'project.collapseSidebar'
   | 'project.count'
+  | 'project.currentSelection'
   | 'project.expandSidebar'
+  | 'project.expandedSiblingGroups'
   | 'project.explorer'
   | 'project.globalStats'
   | 'project.globalStatsDescription'

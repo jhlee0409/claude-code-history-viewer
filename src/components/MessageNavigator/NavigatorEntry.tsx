@@ -1,12 +1,17 @@
 import React, { useCallback } from "react";
 import { Wrench } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { NavigatorEntryData } from "./types";
 
 interface NavigatorEntryProps {
   entry: NavigatorEntryData;
   isActive: boolean;
+  isFocused: boolean;
   onClick: (uuid: string) => void;
+  onFocus: () => void;
+  onNavigate: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
+  registerRef: (element: HTMLButtonElement | null) => void;
   style?: React.CSSProperties;
 }
 
@@ -20,23 +25,31 @@ const ROLE_STYLES = {
 export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
   entry,
   isActive,
+  isFocused,
   onClick,
+  onFocus,
+  onNavigate,
+  registerRef,
   style,
 }) => {
+  const { t } = useTranslation();
   const handleClick = useCallback(() => onClick(entry.uuid), [onClick, entry.uuid]);
 
   const roleStyle = ROLE_STYLES[entry.role] || ROLE_STYLES.system;
+  const roleLabel = t(`navigator.role.${entry.role}`, { defaultValue: entry.role });
 
   const formattedTime = entry.timestamp
     ? new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "";
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
+      ref={registerRef}
+      tabIndex={isFocused ? 0 : -1}
       className={cn(
-        "px-3 py-2 cursor-pointer border-l-2 transition-colors",
+        "w-full text-left px-3 py-2 cursor-pointer border-l-2 transition-colors outline-none",
+        "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
         "hover:bg-accent/10",
         isActive
           ? "border-l-accent bg-accent/5"
@@ -44,13 +57,16 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
       )}
       style={style}
       onClick={handleClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handleClick();
-        }
-      }}
+      onFocus={onFocus}
+      onKeyDown={onNavigate}
+      role="option"
+      aria-selected={isActive}
       aria-current={isActive ? "true" : undefined}
+      aria-label={t("navigator.a11y.entryLabel", {
+        role: roleLabel,
+        turnIndex: entry.turnIndex,
+        defaultValue: `${roleLabel} message ${entry.turnIndex}`,
+      })}
     >
       {/* Header row: role dot + turn label + time + tool icon */}
       <div className="flex items-center gap-1.5 mb-0.5">
@@ -69,7 +85,7 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
       <p className="text-xs text-foreground/80 line-clamp-2 leading-relaxed">
         {entry.preview}
       </p>
-    </div>
+    </button>
   );
 });
 

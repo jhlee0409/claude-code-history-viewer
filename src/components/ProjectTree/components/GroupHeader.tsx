@@ -1,17 +1,21 @@
 // src/components/ProjectTree/components/GroupHeader.tsx
 import React from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { GroupHeaderProps } from "../types";
 
 export const GroupHeader: React.FC<GroupHeaderProps> = ({
+  groupKey,
   label,
   icon,
   count,
   isExpanded,
+  ariaLevel = 1,
   onToggle,
   variant,
 }) => {
+  const { t } = useTranslation();
   const variantColors = {
     directory: {
       text: "text-blue-600 dark:text-blue-400",
@@ -33,9 +37,23 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
 
   return (
     <button
+      type="button"
+      role="treeitem"
+      data-tree-node="group"
+      data-tree-key={groupKey}
+      data-tree-expandable="true"
+      aria-level={ariaLevel}
       onClick={onToggle}
+      tabIndex={-1}
       aria-expanded={isExpanded}
-      aria-label={`${isExpanded ? "Collapse" : "Expand"} ${label} group (${count} projects)`}
+      aria-label={t("project.a11y.groupToggleLabel", {
+        action: isExpanded
+          ? t("project.a11y.collapseGroup", "Collapse")
+          : t("project.a11y.expandGroup", "Expand"),
+        label,
+        count,
+        defaultValue: `${isExpanded ? "Collapse" : "Expand"} ${label} group (${count} projects)`,
+      })}
       className={cn(
         "w-full px-4 py-2 flex items-center gap-2.5",
         "text-left transition-all duration-300",
