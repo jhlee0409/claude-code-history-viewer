@@ -354,7 +354,7 @@ just serve-dev    # dist/ 디렉토리에서 서빙 (내장 아님)
 
 ```
 GET /health
-→ { "status": "ok", "version": "1.5.3", "uptime_secs": 120 }
+→ { "status": "ok" }
 ```
 
 ---

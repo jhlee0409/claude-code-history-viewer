@@ -364,7 +364,7 @@ The server watches `~/.claude/projects/` and pushes file changes to the browser 
 
 ```
 GET /health
-→ { "status": "ok", "version": "1.5.3", "uptime_secs": 120 }
+→ { "status": "ok" }
 ```
 
 ---
