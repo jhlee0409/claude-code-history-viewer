@@ -7,6 +7,7 @@
  */
 
 import { memo } from "react";
+import { Markdown } from "../common";
 import { Globe, FileText, Clock, AlertCircle, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -95,9 +96,33 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
   const getPreview = (): string | null => {
     if (!source) return null;
     if (source.type === "text" && source.data) {
-      return source.data.length > TEXT_PREVIEW_LENGTH
-        ? source.data.substring(0, TEXT_PREVIEW_LENGTH) + "..."
-        : source.data;
+      if (source.data.length <= TEXT_PREVIEW_LENGTH) return source.data;
+
+      // Truncate at line boundary to avoid breaking markdown syntax
+      const lines = source.data.split("\n");
+      const previewLines: string[] = [];
+      let charCount = 0;
+      for (const line of lines) {
+        if (charCount + line.length > TEXT_PREVIEW_LENGTH && previewLines.length > 0) break;
+        previewLines.push(line);
+        charCount += line.length + 1; // +1 for newline
+      }
+
+      // If truncated preview has an unclosed code fence, remove it
+      const preview = previewLines.join("\n");
+      const fenceCount = (preview.match(/^```/gm) || []).length;
+      if (fenceCount % 2 !== 0) {
+        while (previewLines.length > 0) {
+          const last = previewLines[previewLines.length - 1] ?? "";
+          if (last.startsWith("```") || last.trim() === "") {
+            previewLines.pop();
+          } else {
+            break;
+          }
+        }
+      }
+
+      return previewLines.join("\n") + "\n...";
     }
     if (source.type === "base64" && source.media_type === "application/pdf") {
       return t("webFetchToolResultRenderer.pdfDocument");
@@ -156,9 +181,9 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
           <summary className={cn(layout.smallText, "cursor-pointer hover:opacity-80", webStyles.accent)}>
             {t("webFetchToolResultRenderer.showContent")}
           </summary>
-          <pre
+          <Markdown
             className={cn(
-              "mt-2 overflow-x-auto whitespace-pre-wrap bg-muted text-foreground",
+              "mt-2 overflow-x-auto bg-muted text-foreground",
               layout.containerPadding,
               layout.rounded,
               layout.smallText,
@@ -166,7 +191,7 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
             )}
           >
             {preview}
-          </pre>
+          </Markdown>
         </details>
       )}
     </ToolResultCard>

@@ -85,6 +85,7 @@ function createUpdater(
       isDownloading: false,
       isInstalling: false,
       isRestarting: false,
+      requiresManualRestart: false,
       downloadProgress: 0,
       error: null,
       updateInfo: null,

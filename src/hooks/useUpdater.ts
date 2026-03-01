@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { isTauri } from '@/utils/platform';
 import {
   UPDATE_INSTALL_FAILED_ERROR_CODE,
-  UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE,
 } from '@/utils/updateError';
 
 const CHECK_TIMEOUT_MS = 20_000; // 20 seconds
@@ -38,6 +37,7 @@ export interface UpdateState {
   isDownloading: boolean;
   isInstalling: boolean;
   isRestarting: boolean;
+  requiresManualRestart: boolean;
   downloadProgress: number;
   error: string | null;
   updateInfo: Update | null;
@@ -58,6 +58,7 @@ const WEB_INITIAL_STATE: UpdateState = {
   isDownloading: false,
   isInstalling: false,
   isRestarting: false,
+  requiresManualRestart: false,
   downloadProgress: 0,
   error: null,
   updateInfo: null,
@@ -81,6 +82,7 @@ export function useUpdater(): UseUpdaterReturn {
     isDownloading: false,
     isInstalling: false,
     isRestarting: false,
+    requiresManualRestart: false,
     downloadProgress: 0,
     error: null,
     updateInfo: null,
@@ -130,6 +132,7 @@ export function useUpdater(): UseUpdaterReturn {
         hasUpdate: !!update,
         updateInfo: update,
         newVersion: update?.version ?? null,
+        requiresManualRestart: false,
       }));
 
       return update ?? null;
@@ -141,6 +144,7 @@ export function useUpdater(): UseUpdaterReturn {
         hasUpdate: false,
         updateInfo: null,
         newVersion: null,
+        requiresManualRestart: false,
         error: errorMessage,
       }));
 
@@ -158,6 +162,7 @@ export function useUpdater(): UseUpdaterReturn {
       isDownloading: true,
       isInstalling: false,
       isRestarting: false,
+      requiresManualRestart: false,
       error: null,
     }));
     let contentLength = 0;
@@ -284,8 +289,9 @@ export function useUpdater(): UseUpdaterReturn {
         isDownloading: false,
         isInstalling: false,
         isRestarting: false,
+        requiresManualRestart: shouldSuggestManualRestart,
         error: shouldSuggestManualRestart
-          ? UPDATE_MANUAL_RESTART_REQUIRED_ERROR_CODE
+          ? null
           : shouldMapToInstallFailed
             ? UPDATE_INSTALL_FAILED_ERROR_CODE
             : rawErrorMessage,
@@ -299,6 +305,7 @@ export function useUpdater(): UseUpdaterReturn {
       hasUpdate: false,
       updateInfo: null,
       newVersion: null,
+      requiresManualRestart: false,
       error: null,
     }));
   }, []);

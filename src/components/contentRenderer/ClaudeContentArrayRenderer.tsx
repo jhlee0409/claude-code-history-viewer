@@ -11,6 +11,7 @@
  */
 
 import { memo, useMemo } from "react";
+import { Markdown } from "../common";
 import { ThinkingRenderer } from "./ThinkingRenderer";
 import { RedactedThinkingRenderer } from "./RedactedThinkingRenderer";
 import { ToolUseRenderer } from "./ToolUseRenderer";
@@ -179,18 +180,20 @@ export const ClaudeContentArrayRenderer = memo(({
                   key={entry.key}
                   className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}
                 >
-                  <div className={cn("whitespace-pre-wrap text-foreground", layout.bodyText)}>
-                    {searchQuery ? (
+                  {searchQuery ? (
+                    <div className={cn("whitespace-pre-wrap text-foreground", layout.bodyText)}>
                       <HighlightedText
                         text={item.text}
                         searchQuery={searchQuery}
                         isCurrentMatch={isCurrentMatch}
                         currentMatchIndex={currentMatchIndex}
                       />
-                    ) : (
-                      item.text
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <Markdown className="text-foreground">
+                      {item.text}
+                    </Markdown>
+                  )}
                 </div>
               );
             }
@@ -280,18 +283,20 @@ export const ClaudeContentArrayRenderer = memo(({
                     {t("claudeContentArrayRenderer.systemReminder")}
                   </span>
                 </div>
-                <div className={cn("whitespace-pre-wrap", layout.bodyText, "text-foreground")}>
-                  {searchQuery ? (
+                {searchQuery ? (
+                  <div className={cn("whitespace-pre-wrap text-foreground", layout.bodyText)}>
                     <HighlightedText
                       text={reminderContent}
                       searchQuery={searchQuery}
                       isCurrentMatch={isCurrentMatch}
                       currentMatchIndex={currentMatchIndex}
                     />
-                  ) : (
-                    reminderContent
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <Markdown className="text-foreground">
+                    {reminderContent}
+                  </Markdown>
+                )}
               </div>
             );
           }

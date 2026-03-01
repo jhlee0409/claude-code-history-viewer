@@ -31,7 +31,12 @@ export function UpToDateNotification({
   if (!isVisible) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right-full duration-300">
+    <div
+      className="fixed top-4 right-4 z-50 animate-in slide-in-from-right-full duration-300"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       <div className="bg-card rounded-lg shadow-lg border border-border p-4 min-w-80 max-w-sm">
         <div className="flex items-start space-x-3">
           <div className="p-2 rounded-full bg-success/10">
@@ -52,6 +57,7 @@ export function UpToDateNotification({
           <button
             onClick={onClose}
             className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+            aria-label={t("common.close")}
           >
             <X className="w-4 h-4" />
           </button>

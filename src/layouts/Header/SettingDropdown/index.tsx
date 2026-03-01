@@ -18,6 +18,8 @@ import { DesktopOnly } from "@/contexts/platform";
 import { ThemeMenuGroup } from "./ThemeMenuGroup";
 import { LanguageMenuGroup } from "./LanguageMenuGroup";
 import { FilterMenuGroup } from "./FilterMenuGroup";
+import { FontMenuGroup } from "./FontMenuGroup";
+import { AccessibilityMenuGroup } from "./AccessibilityMenuGroup";
 
 interface SettingDropdownProps {
   updater: UseUpdaterReturn;
@@ -34,6 +36,7 @@ export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
+            id="app-settings-button"
             className="p-2 rounded-lg transition-colors cursor-pointer relative text-muted-foreground/50 hover:text-foreground/80 hover:bg-muted"
             aria-label={t("common.settings.title")}
           >
@@ -58,6 +61,12 @@ export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <FilterMenuGroup />
+
+          <DropdownMenuSeparator />
+          <FontMenuGroup />
+
+          <DropdownMenuSeparator />
+          <AccessibilityMenuGroup />
 
           <DropdownMenuSeparator />
           <ThemeMenuGroup />

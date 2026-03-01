@@ -19,6 +19,7 @@ export function buildUpdateDiagnostics({
     isDownloading: state.isDownloading,
     isInstalling: state.isInstalling,
     isRestarting: state.isRestarting,
+    requiresManualRestart: state.requiresManualRestart,
     downloadProgress: state.downloadProgress,
     userAgent:
       typeof navigator !== 'undefined' && navigator.userAgent
@@ -36,6 +37,7 @@ export function buildUpdateDiagnostics({
     `isDownloading=${info.isDownloading}`,
     `isInstalling=${info.isInstalling}`,
     `isRestarting=${info.isRestarting}`,
+    `requiresManualRestart=${info.requiresManualRestart}`,
     `downloadProgress=${info.downloadProgress}`,
     `userAgent=${info.userAgent}`,
   ].join('\n');

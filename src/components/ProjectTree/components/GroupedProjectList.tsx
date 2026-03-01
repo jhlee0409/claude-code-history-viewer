@@ -50,8 +50,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   onSessionHover,
   formatTimeAgo,
 }) => {
-  const { t: _t } = useTranslation();
-  void _t; // Reserved for future i18n usage
+  const { t } = useTranslation();
 
   const toggleGroup = (groupKey: string, projectsInGroup: ClaudeProject[]) => {
     setExpandedProjects((prev) => {
@@ -71,17 +70,19 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
 
   const renderProjectWithSessions = (
     project: ClaudeProject,
-    variant: "default" | "main" | "worktree" = "default"
+    variant: "default" | "main" | "worktree" = "default",
+    ariaLevel = 1
   ) => {
     const isExpanded = isProjectExpanded(project.path);
     const showSessions = isExpanded && selectedProject?.path === project.path;
 
     return (
-      <div key={project.path}>
+      <div key={project.path} role="none">
         <ProjectItem
           project={project}
           isExpanded={isExpanded}
           isSelected={selectedProject?.path === project.path}
+          ariaLevel={ariaLevel}
           onToggle={() => handleProjectClick(project)}
           onClick={() => handleProjectClick(project)}
           onContextMenu={(e) => handleContextMenu(e, project)}
@@ -89,15 +90,17 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           showProviderBadge={showProviderBadge}
         />
         {showSessions && (
-          <SessionList
-            sessions={sessions}
-            selectedSession={selectedSession}
-            isLoading={isLoading}
-            onSessionSelect={onSessionSelect}
-            onSessionHover={onSessionHover}
-            formatTimeAgo={formatTimeAgo}
-            variant={variant}
-          />
+          <div role="none">
+            <SessionList
+              sessions={sessions}
+              selectedSession={selectedSession}
+              isLoading={isLoading}
+              onSessionSelect={onSessionSelect}
+              onSessionHover={onSessionHover}
+              formatTimeAgo={formatTimeAgo}
+              variant={variant}
+            />
+          </div>
         )}
       </div>
     );
@@ -112,18 +115,20 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           const isGroupExpanded = expandedProjects.has(groupKey);
 
           return (
-            <div key={group.path} className="space-y-0.5">
+            <div key={group.path} className="space-y-0.5" role="none">
               <GroupHeader
+                groupKey={groupKey}
                 label={group.displayPath}
-                icon={<span title="Directory"><FolderTree className="w-3.5 h-3.5" /></span>}
+                icon={<span title={t("project.groupingDirectory", "Group by directory")}><FolderTree className="w-3.5 h-3.5" /></span>}
                 count={group.projects.length}
                 isExpanded={isGroupExpanded}
+                ariaLevel={1}
                 onToggle={() => toggleGroup(groupKey, group.projects)}
                 variant="directory"
               />
               {isGroupExpanded && (
-                <div className="ml-4 pl-3 border-l-2 border-blue-500/20 space-y-0.5">
-                  {group.projects.map((project) => renderProjectWithSessions(project, "default"))}
+                <div role="group" className="ml-4 pl-3 border-l-2 border-blue-500/20 space-y-0.5">
+                  {group.projects.map((project) => renderProjectWithSessions(project, "default", 2))}
                 </div>
               )}
             </div>
@@ -135,7 +140,10 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
 
   // Strategy 2: Worktree Grouping
   if (groupingMode === "worktree") {
-    const displayProjects = ungroupedProjects ?? projects;
+    const groupedPaths = new Set(
+      worktreeGroups.flatMap((group) => [group.parent.path, ...group.children.map((child) => child.path)])
+    );
+    const displayProjects = ungroupedProjects ?? projects.filter((project) => !groupedPaths.has(project.path));
 
     return (
       <>
@@ -145,30 +153,32 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           const allGroupProjects = [group.parent, ...group.children];
 
           return (
-            <div key={group.parent.path} className="space-y-0.5">
+            <div key={group.parent.path} className="space-y-0.5" role="none">
               <GroupHeader
+                groupKey={groupKey}
                 label={group.parent.name}
                 icon={<GitBranch className="w-3.5 h-3.5" />}
                 count={allGroupProjects.length}
                 isExpanded={isGroupExpanded}
+                ariaLevel={1}
                 onToggle={() => toggleGroup(groupKey, allGroupProjects)}
                 variant="worktree"
               />
               {isGroupExpanded && (
-                <div className="ml-4 pl-3 border-l-2 border-emerald-500/20 space-y-0.5">
+                <div role="group" className="ml-4 pl-3 border-l-2 border-emerald-500/20 space-y-0.5">
                   {allGroupProjects.map((project, idx) =>
-                    renderProjectWithSessions(project, idx === 0 ? "main" : "worktree")
+                    renderProjectWithSessions(project, idx === 0 ? "main" : "worktree", 2)
                   )}
                 </div>
               )}
             </div>
           );
         })}
-        {displayProjects.map((project) => renderProjectWithSessions(project, "default"))}
+        {displayProjects.map((project) => renderProjectWithSessions(project, "default", 1))}
       </>
     );
   }
 
   // Strategy 3: No Grouping (Flat List)
-  return <>{projects.map((project) => renderProjectWithSessions(project, "default"))}</>;
+  return <>{projects.map((project) => renderProjectWithSessions(project, "default", 1))}</>;
 };

@@ -203,6 +203,7 @@
 
   /* === Noise/Texture === */
   --noise-opacity: 0.025;
+  --app-font-scale: 1;
 }
 
 /* === Dark Theme (Primary - Command Center) === */
@@ -337,28 +338,64 @@
   --noise-opacity: 0.04;
 }
 
+.high-contrast {
+  --foreground: oklch(0.06 0 0);
+  --background: oklch(1 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.06 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.06 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.2 0 0);
+  --border: oklch(0.35 0 0);
+  --input: oklch(0.98 0 0);
+  --ring: oklch(0.25 0 0);
+  --accent: oklch(0.25 0 0);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.4 0.16 25);
+  --destructive-foreground: oklch(1 0 0);
+}
+
+.dark.high-contrast {
+  --foreground: oklch(0.98 0 0);
+  --background: oklch(0.03 0 0);
+  --card: oklch(0.05 0 0);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.05 0 0);
+  --popover-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.11 0 0);
+  --muted-foreground: oklch(0.9 0 0);
+  --border: oklch(0.65 0 0);
+  --input: oklch(0.1 0 0);
+  --ring: oklch(0.95 0 0);
+  --accent: oklch(0.9 0 0);
+  --accent-foreground: oklch(0.08 0 0);
+  --destructive: oklch(0.78 0.18 25);
+  --destructive-foreground: oklch(0.08 0 0);
+}
+
 /* === Theme inline mapping === */
 @theme inline {
   /* Typography Scale */
   --font-family-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
-  --font-size-2xs: 0.6875rem;
-  --font-size-2xs--line-height: 0.9375rem;
-  --font-size-xs: 0.8125rem;
-  --font-size-xs--line-height: 1.0625rem;
-  --font-size-sm: 0.9375rem;
-  --font-size-sm--line-height: 1.3125rem;
-  --font-size-base: 1.0625rem;
-  --font-size-base--line-height: 1.5625rem;
-  --font-size-lg: 1.1875rem;
-  --font-size-lg--line-height: 1.8125rem;
-  --font-size-xl: 1.3125rem;
-  --font-size-xl--line-height: 1.8125rem;
-  --font-size-2xl: 1.5625rem;
-  --font-size-2xl--line-height: 2.0625rem;
-  --font-size-3xl: 1.9375rem;
-  --font-size-3xl--line-height: 2.3125rem;
+  --font-size-2xs: calc(0.6875rem * var(--app-font-scale));
+  --font-size-2xs--line-height: calc(0.9375rem * var(--app-font-scale));
+  --font-size-xs: calc(0.8125rem * var(--app-font-scale));
+  --font-size-xs--line-height: calc(1.0625rem * var(--app-font-scale));
+  --font-size-sm: calc(0.9375rem * var(--app-font-scale));
+  --font-size-sm--line-height: calc(1.3125rem * var(--app-font-scale));
+  --font-size-base: calc(1.0625rem * var(--app-font-scale));
+  --font-size-base--line-height: calc(1.5625rem * var(--app-font-scale));
+  --font-size-lg: calc(1.1875rem * var(--app-font-scale));
+  --font-size-lg--line-height: calc(1.8125rem * var(--app-font-scale));
+  --font-size-xl: calc(1.3125rem * var(--app-font-scale));
+  --font-size-xl--line-height: calc(1.8125rem * var(--app-font-scale));
+  --font-size-2xl: calc(1.5625rem * var(--app-font-scale));
+  --font-size-2xl--line-height: calc(2.0625rem * var(--app-font-scale));
+  --font-size-3xl: calc(1.9375rem * var(--app-font-scale));
+  --font-size-3xl--line-height: calc(2.3125rem * var(--app-font-scale));
 
   /* Radius */
   --radius-sm: var(--radius-sm);
@@ -1516,13 +1553,13 @@
 
   /* === Custom Text Sizes === */
   .text-2xs {
-    font-size: 0.6875rem;
-    line-height: 0.9375rem;
+    font-size: calc(0.6875rem * var(--app-font-scale));
+    line-height: calc(0.9375rem * var(--app-font-scale));
   }
 
   .text-3xs {
-    font-size: 0.625rem;
-    line-height: 0.8125rem;
+    font-size: calc(0.625rem * var(--app-font-scale));
+    line-height: calc(0.8125rem * var(--app-font-scale));
   }
 
   /* === Text Wrapping === */

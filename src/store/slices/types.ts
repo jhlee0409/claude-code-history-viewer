@@ -129,6 +129,8 @@ export interface AppStoreState {
   // Settings state
   excludeSidechain: boolean;
   showSystemMessages: boolean;
+  fontScale: number;
+  highContrast: boolean;
   updateSettings: UpdateSettings;
   sessionSortOrder: import("../../types/metadata.types").SessionSortOrder;
 
@@ -239,6 +241,8 @@ export interface AppStoreActions {
   // Settings actions
   setExcludeSidechain: (exclude: boolean) => void;
   setShowSystemMessages: (show: boolean) => void;
+  setFontScale: (scale: number) => Promise<void>;
+  setHighContrast: (enabled: boolean) => Promise<void>;
   loadUpdateSettings: () => Promise<void>;
   setUpdateSetting: <K extends keyof UpdateSettings>(
     key: K,

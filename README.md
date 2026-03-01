@@ -20,7 +20,7 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
 </div>
 
 > **We're considering renaming this project** to better reflect multi-tool support (Claude Code, Codex CLI, OpenCode).
-> Share your thoughts and name suggestions in [the discussion](https://github.com/jhlee0409/claude-code-history-viewer/discussions/149)!
+> Share your thoughts and name suggestions in [Issue #152](https://github.com/jhlee0409/claude-code-history-viewer/issues/152)!
 
 ---
 
@@ -40,6 +40,7 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
 - [Build from Source](#build-from-source)
 - [Server Mode (WebUI)](#server-mode-webui)
 - [Usage](#usage)
+- [Accessibility](#accessibility)
 - [Tech Stack](#tech-stack)
 - [Data Privacy](#data-privacy)
 - [Troubleshooting](#troubleshooting)
@@ -251,6 +252,22 @@ GET /health
 3. Browse projects in the left sidebar — filter by provider using the tab bar
 4. Click a session to view messages
 5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board
+
+## Accessibility
+
+The app includes accessibility features for keyboard-only, low-vision, and screen-reader users.
+
+- Keyboard-first navigation:
+  - Skip links for Project Explorer, Main Content, Message Navigator, and Settings
+  - Project tree navigation with `ArrowUp/ArrowDown/Home/End`, type-ahead search, and `*` to expand sibling groups
+  - Message navigator navigation with `ArrowUp/ArrowDown/Home/End` and `Enter` to open the focused message
+- Visual accessibility:
+  - Persistent global font size scaling (`90%`, `100%`, `110%`, `120%`, `130%`)
+  - High contrast mode toggle in settings
+- Screen reader support:
+  - Landmark and tree/list semantics (`navigation`, `tree`, `treeitem`, `group`, `listbox`, `option`)
+  - Live announcements for status/loading and project tree navigation/selection changes
+  - Inline keyboard-help descriptions via `aria-describedby`
 
 ## Tech Stack
 

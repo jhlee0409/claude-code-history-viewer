@@ -1,5 +1,5 @@
 // src/components/ProjectTree/index.tsx
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Folder,
   Database,
@@ -21,6 +21,12 @@ import { GroupedProjectList } from "./components/GroupedProjectList";
 import type { ProjectTreeProps } from "./types";
 import type { ProviderId } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
+import {
+  buildTreeItemAnnouncement,
+  findTypeaheadMatchIndex,
+  getNextTreeItemIndex,
+  type TreeNavigationKey,
+} from "./treeKeyboard";
 import {
   DEFAULT_PROVIDER_ID,
   getProviderId,
@@ -55,8 +61,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   isProjectHidden,
   isCollapsed = false,
   onToggleCollapse,
+  asideId = "project-explorer",
 }) => {
   const { t, i18n } = useTranslation();
+  const keyboardHelpId = `${asideId}-keyboard-help`;
   const activeProviders = useAppStore((state) => state.activeProviders);
   const detectedProviders = useAppStore((state) => state.providers);
   const isDetectingProviders = useAppStore((state) => state.isDetectingProviders);
@@ -375,11 +383,203 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   }, [onGlobalStatsClick, setExpandedProjects]);
 
   const sidebarStyle = isCollapsed ? { width: "48px" } : width ? { width: `${width}px` } : undefined;
+  const treeRef = useRef<HTMLDivElement>(null);
+  const typeaheadQueryRef = useRef("");
+  const typeaheadTimeoutRef = useRef<number | null>(null);
+  const [treeAnnouncement, setTreeAnnouncement] = useState("");
+
+  const announceTree = useCallback((message: string) => {
+    if (!message) return;
+    setTreeAnnouncement((previous) => (previous === message ? `${message} ` : message));
+  }, []);
+
+  const describeTreeItem = useCallback((item: HTMLElement) => {
+    const rawLabel = item.getAttribute("aria-label") || item.textContent || "";
+    return buildTreeItemAnnouncement(
+      rawLabel,
+      {
+        ariaExpanded: item.getAttribute("aria-expanded") as "true" | "false" | null,
+        ariaSelected: item.getAttribute("aria-selected") as "true" | "false" | null,
+      },
+      {
+        expanded: t("project.a11y.expandedState", "expanded"),
+        collapsed: t("project.a11y.collapsedState", "collapsed"),
+        selected: t("project.a11y.selectedState", "selected"),
+      },
+      t("project.explorer")
+    );
+  }, [t]);
+
+  const syncRovingTabIndex = useCallback((preferredItem?: HTMLElement) => {
+    const tree = treeRef.current;
+    if (!tree) return;
+
+    const treeItems = Array.from(
+      tree.querySelectorAll<HTMLElement>('[role="treeitem"]')
+    );
+    if (treeItems.length === 0) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    const focusedItem = activeElement instanceof HTMLElement
+      ? activeElement.closest<HTMLElement>('[role="treeitem"]')
+      : null;
+
+    const selectedItem = treeItems.find((item) => item.getAttribute("aria-selected") === "true");
+    const fallbackItem = selectedItem ?? treeItems[0];
+    const nextTabStop = preferredItem ?? focusedItem ?? fallbackItem;
+
+    for (const item of treeItems) {
+      item.tabIndex = item === nextTabStop ? 0 : -1;
+    }
+  }, []);
+
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => syncRovingTabIndex());
+    return () => cancelAnimationFrame(frameId);
+  }, [
+    syncRovingTabIndex,
+    filteredProjects.length,
+    filteredDirectoryGroups.length,
+    filteredWorktreeGroups.length,
+    filteredUngroupedProjects.length,
+    groupingMode,
+    selectedProject?.path,
+    isViewingGlobalStats,
+  ]);
+
+  const handleTreeKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    const treeItems = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]')
+    );
+    if (treeItems.length === 0) {
+      return;
+    }
+
+    const currentItem = (event.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]');
+    const currentIndex = currentItem ? treeItems.indexOf(currentItem) : -1;
+    if (currentIndex < 0) {
+      return;
+    }
+
+    if (event.key === "*") {
+      event.preventDefault();
+      const currentLevel = Number(currentItem?.getAttribute("aria-level") ?? "1");
+      const siblingGroups = treeItems.filter(
+        (item) =>
+          item !== currentItem &&
+          Number(item.getAttribute("aria-level") ?? "1") === currentLevel &&
+          item.getAttribute("data-tree-expandable") === "true" &&
+          item.getAttribute("aria-expanded") === "false"
+      );
+
+      const siblingGroupKeys = siblingGroups
+        .map((item) => item.getAttribute("data-tree-key"))
+        .filter((key): key is string => Boolean(key));
+
+      if (siblingGroupKeys.length > 0) {
+        setExpandedProjects((prev) => {
+          const next = new Set(prev);
+          for (const groupKey of siblingGroupKeys) {
+            next.add(groupKey);
+          }
+          return next;
+        });
+      }
+      announceTree(
+        t(
+          "project.expandedSiblingGroups",
+          "Expanded {{count}} sibling groups",
+          { count: siblingGroups.length }
+        )
+      );
+      return;
+    }
+
+    if (
+      event.key.length === 1 &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey
+    ) {
+      const nextQuery = `${typeaheadQueryRef.current}${event.key.toLowerCase()}`;
+      typeaheadQueryRef.current = nextQuery;
+      if (typeaheadTimeoutRef.current) {
+        window.clearTimeout(typeaheadTimeoutRef.current);
+      }
+      typeaheadTimeoutRef.current = window.setTimeout(() => {
+        typeaheadQueryRef.current = "";
+        typeaheadTimeoutRef.current = null;
+      }, 500);
+
+      const labels = treeItems.map((item) => item.textContent ?? "");
+      const matchIndex = findTypeaheadMatchIndex(labels, currentIndex, nextQuery);
+      if (matchIndex >= 0) {
+        event.preventDefault();
+        const nextItem = treeItems[matchIndex];
+        syncRovingTabIndex(nextItem);
+        nextItem?.focus();
+        if (nextItem) {
+          announceTree(describeTreeItem(nextItem));
+        }
+      }
+      return;
+    }
+
+    if (
+      event.key !== "ArrowDown" &&
+      event.key !== "ArrowUp" &&
+      event.key !== "Home" &&
+      event.key !== "End"
+    ) {
+      return;
+    }
+
+    const nextIndex = getNextTreeItemIndex(
+      currentIndex,
+      treeItems.length,
+      event.key as TreeNavigationKey
+    );
+    if (nextIndex === currentIndex || nextIndex < 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const nextItem = treeItems[nextIndex];
+    if (!nextItem) return;
+    syncRovingTabIndex(nextItem);
+    nextItem.focus();
+    announceTree(describeTreeItem(nextItem));
+  }, [announceTree, describeTreeItem, setExpandedProjects, syncRovingTabIndex, t]);
+
+  useEffect(() => () => {
+    if (typeaheadTimeoutRef.current) {
+      window.clearTimeout(typeaheadTimeoutRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    const tree = treeRef.current;
+    if (!tree) return;
+
+    const selectedItem = tree.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]');
+    if (!selectedItem) return;
+
+    announceTree(
+      t("project.currentSelection", "Selected: {{item}}", {
+        item: describeTreeItem(selectedItem),
+      })
+    );
+  }, [announceTree, describeTreeItem, isViewingGlobalStats, selectedProject?.path, t]);
 
   // Collapsed View
   if (isCollapsed) {
     return (
       <aside
+        id={asideId}
+        aria-label={t("project.explorer")}
+        tabIndex={-1}
         className={cn("flex-shrink-0 bg-sidebar border-r-0 flex h-full", isResizing && "select-none")}
         style={sidebarStyle}
       >
@@ -396,6 +596,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 "bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
               )}
               title={t("project.expandSidebar", "Expand sidebar")}
+              aria-label={t("project.expandSidebar", "Expand sidebar")}
             >
               <PanelLeft className="w-4 h-4" />
             </button>
@@ -430,6 +631,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
   return (
     <aside
+      id={asideId}
+      aria-label={t("project.explorer")}
+      tabIndex={-1}
       className={cn("flex-shrink-0 bg-sidebar border-r-0 flex h-full", !width && "w-64", isResizing && "select-none")}
       style={sidebarStyle}
     >
@@ -451,6 +655,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     "text-muted-foreground hover:text-accent hover:bg-accent/10"
                   )}
                   title={t("project.collapseSidebar", "Collapse sidebar")}
+                  aria-label={t("project.collapseSidebar", "Collapse sidebar")}
                 >
                   <PanelLeftClose className="w-3.5 h-3.5" />
                 </button>
@@ -472,6 +677,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                       groupingMode === "none" ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-accent hover:bg-accent/10"
                     )}
                     title={t("project.groupingNone", "Flat list")}
+                    aria-label={t("project.groupingNone", "Flat list")}
                   >
                     <List className="w-3 h-3" />
                   </button>
@@ -485,6 +691,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                         : "text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10"
                     )}
                     title={t("project.groupingDirectory", "Group by directory")}
+                    aria-label={t("project.groupingDirectory", "Group by directory")}
                   >
                     <FolderTree className="w-3 h-3" />
                   </button>
@@ -498,6 +705,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                         : "text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10"
                     )}
                     title={t("project.groupingWorktree", "Group by worktree")}
+                    aria-label={t("project.groupingWorktree", "Group by worktree")}
                   >
                     <GitBranch className="w-3 h-3" />
                   </button>
@@ -586,10 +794,30 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               <p className="text-sm text-muted-foreground">{t("project.notFound")}</p>
             </div>
           ) : (
-            <div className="space-y-0.5 animate-stagger">
+            <div
+              ref={treeRef}
+              role="tree"
+              aria-label={t("project.explorer")}
+              aria-describedby={keyboardHelpId}
+              onKeyDown={handleTreeKeyDown}
+              onFocusCapture={(event) => {
+                const target = event.target as HTMLElement;
+                const treeItem = target.closest<HTMLElement>('[role="treeitem"]');
+                if (treeItem) {
+                  syncRovingTabIndex(treeItem);
+                  announceTree(describeTreeItem(treeItem));
+                }
+              }}
+              className="space-y-0.5 animate-stagger"
+            >
               {/* Global Stats Button */}
               <button
                 onClick={handleGlobalStatsClick}
+                role="treeitem"
+                data-tree-node="global"
+                aria-level={1}
+                aria-selected={isViewingGlobalStats}
+                tabIndex={-1}
                 className={cn(
                   "sidebar-item w-full flex items-center gap-3 mx-2 group",
                   "text-left transition-all duration-300",
@@ -646,6 +874,17 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             </div>
           )}
         </OverlayScrollbarsComponent>
+
+        <p id={keyboardHelpId} className="sr-only">
+          {t(
+            "project.a11y.keyboardHelp",
+            "Keyboard: use arrow keys to move, Home and End to jump, type letters to search, and star to expand collapsed sibling groups."
+          )}
+        </p>
+
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {treeAnnouncement}
+        </div>
       </div>
 
       {/* Resize Handle - Outside scroll area */}

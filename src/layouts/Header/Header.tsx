@@ -76,7 +76,11 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
   };
 
   return (
-    <header className="h-12 flex items-center justify-between px-4 bg-sidebar border-b border-border/50">
+    <header
+      id="app-header"
+      role="banner"
+      className="h-12 flex items-center justify-between px-4 bg-sidebar border-b border-border/50"
+    >
 
       {/* Left: Logo & Title */}
       <div className="flex items-center gap-2.5">

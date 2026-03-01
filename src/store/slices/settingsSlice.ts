@@ -19,6 +19,8 @@ import type { FullAppStore } from "./types";
 export interface SettingsSliceState {
   excludeSidechain: boolean;
   showSystemMessages: boolean;
+  fontScale: number;
+  highContrast: boolean;
   updateSettings: UpdateSettings;
   sessionSortOrder: SessionSortOrder;
 }
@@ -26,6 +28,8 @@ export interface SettingsSliceState {
 export interface SettingsSliceActions {
   setExcludeSidechain: (exclude: boolean) => void;
   setShowSystemMessages: (show: boolean) => void;
+  setFontScale: (scale: number) => Promise<void>;
+  setHighContrast: (enabled: boolean) => Promise<void>;
   loadUpdateSettings: () => Promise<void>;
   setUpdateSetting: <K extends keyof UpdateSettings>(
     key: K,
@@ -42,9 +46,22 @@ export type SettingsSlice = SettingsSliceState & SettingsSliceActions;
 // Initial State
 // ============================================================================
 
+const DEFAULT_FONT_SCALE = 100;
+const MIN_FONT_SCALE = 90;
+const MAX_FONT_SCALE = 130;
+
+const normalizeFontScale = (value: unknown): number => {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return DEFAULT_FONT_SCALE;
+  }
+  return Math.min(MAX_FONT_SCALE, Math.max(MIN_FONT_SCALE, Math.round(value / 10) * 10));
+};
+
 const initialSettingsState: SettingsSliceState = {
   excludeSidechain: true,
   showSystemMessages: false,
+  fontScale: DEFAULT_FONT_SCALE,
+  highContrast: false,
   updateSettings: DEFAULT_UPDATE_SETTINGS,
   sessionSortOrder: "newest",
 };
@@ -82,6 +99,39 @@ export const createSettingsSlice: StateCreator<
     }
   },
 
+  setFontScale: async (scale: number) => {
+    const normalizedScale = normalizeFontScale(scale);
+    set({ fontScale: normalizedScale });
+
+    try {
+      const store = await storageAdapter.load("settings.json", {
+        autoSave: false,
+        defaults: {},
+      });
+      await store.set("fontScale", normalizedScale);
+      await store.save();
+    } catch (error) {
+      // Intentionally non-blocking: font scale is already applied in-memory for current session.
+      console.warn("Failed to save font scale:", error);
+    }
+  },
+
+  setHighContrast: async (enabled: boolean) => {
+    set({ highContrast: enabled });
+
+    try {
+      const store = await storageAdapter.load("settings.json", {
+        autoSave: false,
+        defaults: {},
+      });
+      await store.set("highContrast", enabled);
+      await store.save();
+    } catch (error) {
+      // Intentionally non-blocking: contrast mode is already applied in-memory for current session.
+      console.warn("Failed to save high contrast setting:", error);
+    }
+  },
+
   loadUpdateSettings: async () => {
     try {
       const store = await storageAdapter.load("settings.json", {
@@ -100,8 +150,15 @@ export const createSettingsSlice: StateCreator<
       if (savedSortOrder) {
         set({ sessionSortOrder: savedSortOrder });
       }
+
+      const savedFontScale = await store.get<number>("fontScale");
+      const savedHighContrast = await store.get<boolean>("highContrast");
+      set({
+        fontScale: normalizeFontScale(savedFontScale),
+        highContrast: savedHighContrast === true,
+      });
     } catch (error) {
-      console.warn("Failed to load update settings:", error);
+      console.warn("Failed to load persisted settings:", error);
     }
   },
 

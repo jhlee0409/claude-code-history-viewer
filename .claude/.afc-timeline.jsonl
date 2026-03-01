@@ -1,0 +1,6 @@
+{"ts":"2026-02-23T16:36:42Z","event":"pipeline-end","msg":"Pipeline complete: review-fixes","feature":"review-fixes","phase":"clean"}
+{"ts":"2026-02-25T14:32:49Z","event":"pipeline-end","msg":"Pipeline complete: webui-server-mode","feature":"webui-server-mode","phase":"clean"}
+{"ts":"2026-02-25T15:39:02Z","event":"pipeline-start","msg":"Auto pipeline: webui-server-completion","feature":"webui-server-completion","phase":"spec"}
+{"ts":"2026-02-25T15:49:33Z","event":"pipeline-end","msg":"Pipeline complete: webui-server-completion","feature":"webui-server-completion","phase":"clean"}
+{"ts":"2026-02-25T16:23:25Z","event":"pipeline-start","msg":"Auto pipeline: server-token-auth","feature":"server-token-auth","phase":"spec"}
+{"ts":"2026-02-25T16:28:27Z","event":"pipeline-end","msg":"Pipeline complete: server-token-auth","feature":"server-token-auth","phase":"clean"}

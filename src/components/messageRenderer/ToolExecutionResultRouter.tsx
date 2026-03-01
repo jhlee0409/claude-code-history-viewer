@@ -24,10 +24,10 @@ import { formatClaudeErrorOutput } from "../../utils/messageUtils";
 import { Renderer } from "../../shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
+import { AnsiText } from "../common/AnsiText";
 
 interface ToolExecutionResultRouterProps {
   toolResult: Record<string, unknown> | string | unknown[];
-  depth: number;
   searchQuery?: string;
   isCurrentMatch?: boolean;
   currentMatchIndex?: number;
@@ -411,7 +411,7 @@ export const ToolExecutionResultRouter: React.FC<
           <div className="mb-2">
             <div className="text-destructive">{t("toolResult.error")}:</div>
             <pre className={`${layout.bodyText} whitespace-pre-wrap bg-destructive/5 p-2 rounded border border-destructive/30 max-h-96 overflow-y-auto text-destructive`}>
-              {formatClaudeErrorOutput(stderr)}
+              <AnsiText text={formatClaudeErrorOutput(stderr)} />
             </pre>
           </div>
         )}

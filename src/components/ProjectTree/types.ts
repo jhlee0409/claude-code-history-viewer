@@ -35,6 +35,7 @@ export interface ProjectTreeProps {
   // Collapse props
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  asideId?: string;
 }
 
 export type GroupingStrategy = "none" | "directory" | "worktree";
@@ -43,6 +44,7 @@ export interface ProjectItemProps {
   project: ClaudeProject;
   isExpanded: boolean;
   isSelected: boolean;
+  ariaLevel?: number;
   onToggle: () => void;
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
@@ -61,10 +63,12 @@ export interface SessionListProps {
 }
 
 export interface GroupHeaderProps {
+  groupKey: string;
   label: string;
   icon: React.ReactNode;
   count: number;
   isExpanded: boolean;
+  ariaLevel?: number;
   onToggle: () => void;
   variant: "directory" | "worktree";
 }
