@@ -154,7 +154,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
 
-      if (content) {
+      if (content != null) {
         const parsed = JSON.parse(content) as ClaudeCodeSettings;
         setImportedSettings(parsed);
         setIsImportPreviewOpen(true);
@@ -266,7 +266,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
 
-      if (content) {
+      if (content != null) {
         const parsed = JSON.parse(content) as SettingsBackup;
 
         // Validate backup format

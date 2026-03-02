@@ -119,7 +119,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           isSelected ? "text-accent font-medium" : "text-sidebar-foreground/70"
         )}
         onDoubleClick={onDoubleClick}
-        title={t("session.rename", "Double-click to rename")}
+        title={t("session.renameHint", "Double-click to rename")}
       >
         {hasClaudeCodeName && (
           <Tooltip>
@@ -137,7 +137,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                   aria-hidden="true"
                 />
                 <span className="text-[9px] font-medium text-blue-400 uppercase tracking-wide">
-                  CLI
+                  {t("session.cliSync.badge", "CLI")}
                 </span>
               </button>
             </TooltipTrigger>
@@ -173,8 +173,8 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
               "hover:bg-accent/20 text-muted-foreground hover:text-accent",
               isContextMenuOpen && "opacity-100"
             )}
-            title={t("session.rename", "Rename session")}
-            aria-label={t("session.rename", "Rename session")}
+            title={t("session.renameAction", "Rename session")}
+            aria-label={t("session.renameAction", "Rename session")}
           >
             <Pencil className="w-3 h-3" />
           </button>
@@ -182,7 +182,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem onClick={onRenameClick}>
             <Pencil className="w-3 h-3 mr-2" />
-            {t("session.rename", "Rename")}
+            {t("session.renameMenuItem", "Rename")}
           </DropdownMenuItem>
           {hasCustomName && (
             <DropdownMenuItem onClick={onResetCustomName}>

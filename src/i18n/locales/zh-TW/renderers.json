@@ -152,7 +152,7 @@
   "gitWorkflowRenderer.status": "狀態:",
   "gitWorkflowRenderer.viewDiff": "查看Diff",
   "globalSearch.close": "關閉",
-  "globalSearch.description": "搜尋所有專案和工作階段",
+  "globalSearch.description": "搜尋所有專案和會話",
   "globalSearch.hint": "輸入以搜尋所有對話",
   "globalSearch.navigate": "導航",
   "globalSearch.noPreview": "無預覽",

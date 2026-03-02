@@ -623,11 +623,17 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
             <div className="flex items-center gap-1.5">
               <LoadingSpinner size="xs" variant="muted" />
               <span>
-                {computed.isAnyLoading && t("status.loadingStats")}
-                {isLoadingProjects && t("status.scanning")}
-                {isLoadingSessions && t("status.loadingSessions")}
-                {isLoadingMessages && t("status.loadingMessages")}
-                {isLoading && t("status.initializing")}
+                {isLoading
+                  ? t("status.initializing")
+                  : isLoadingProjects
+                    ? t("status.scanning")
+                    : isLoadingSessions
+                      ? t("status.loadingSessions")
+                      : isLoadingMessages
+                        ? t("status.loadingMessages")
+                        : computed.isAnyLoading
+                          ? t("status.loadingStats")
+                          : null}
               </span>
             </div>
           )}
