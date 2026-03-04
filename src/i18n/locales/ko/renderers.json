@@ -61,6 +61,7 @@
   "captureMode.preview.fitToScreen": "화면에 맞춤",
   "captureMode.preview.zoomLevel": "{{percent}}%",
   "captureMode.preview.dimensions": "{{width}} × {{height}}",
+  "captureMode.preview.imageAlt": "스크린샷 미리보기 이미지",
   "captureMode.selectMessages": "메시지를 클릭하여 선택",
   "captureMode.modifierHintMac": "⇧: 범위 · ⌘: 토글",
   "captureMode.modifierHintOther": "Shift: 범위 · Ctrl: 토글",

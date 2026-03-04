@@ -61,6 +61,7 @@
   "captureMode.preview.fitToScreen": "画面に合わせる",
   "captureMode.preview.zoomLevel": "{{percent}}%",
   "captureMode.preview.dimensions": "{{width}} × {{height}}",
+  "captureMode.preview.imageAlt": "スクリーンショットのプレビュー画像",
   "captureMode.selectMessages": "メッセージをクリックして選択",
   "captureMode.modifierHintMac": "⇧: 範囲 · ⌘: 切替",
   "captureMode.modifierHintOther": "Shift: 範囲 · Ctrl: 切替",

@@ -22,6 +22,7 @@
   "messageContentDisplay.copyMessage": "메시지 복사하기",
   "messageContentDisplay.showLess": "접기",
   "messageContentDisplay.showMore": "더 보기...",
+  "messageContentDisplay.showMoreRows": "{{count}}개 행 더 보기...",
   "messageViewer.allMessagesLoaded": "모든 메시지를 불러왔습니다 ({{count}}개)",
   "messageViewer.branch": "분기",
   "messageViewer.checkConsole": "콘솔에서 자세한 오류 정보를 확인하세요.",

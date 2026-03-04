@@ -7,6 +7,7 @@ use axum::extract::State;
 use axum::Json;
 use serde::Deserialize;
 use serde_json::Value;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::state::AppState;
@@ -494,6 +495,9 @@ handler_json!(
     save_screenshot,
     SaveScreenshotParams,
     |p: SaveScreenshotParams| async move {
+        // WebUI endpoint must stay within safe export directories.
+        let path = PathBuf::from(&p.path);
+        commands::claude_settings::is_safe_path(&path)?;
         commands::claude_settings::save_screenshot(p.path, p.data).await
     }
 );

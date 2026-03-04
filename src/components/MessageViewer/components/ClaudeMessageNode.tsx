@@ -34,7 +34,7 @@ const CAPTURE_HOVER_BG = "group-hover/capture:bg-red-500/5 group-hover/capture:r
 const SELECTED_BG = "bg-blue-500/10 ring-1 ring-blue-500/40";
 
 // Click priority: interactive elements take precedence over capture selection
-const INTERACTIVE_SELECTOR = "button, a, summary, details, input, select, textarea, [role='button']";
+const INTERACTIVE_SELECTOR = "button, a, summary, input, select, textarea, [role='button']";
 
 export const ClaudeMessageNode = React.memo(({
   message,

@@ -19,6 +19,15 @@ interface OpenDialogOptions {
   title?: string;
 }
 
+function uint8ArrayToBase64(data: Uint8Array): string {
+  const CHUNK_SIZE = 0x8000;
+  const chunks: string[] = [];
+  for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+    chunks.push(String.fromCharCode(...data.subarray(i, i + CHUNK_SIZE)));
+  }
+  return btoa(chunks.join(""));
+}
+
 /**
  * Show a "Save file" dialog and write content.
  *
@@ -67,36 +76,35 @@ export async function saveBinaryFileDialog(
   data: Uint8Array,
   options?: SaveDialogOptions & { mimeType?: string },
 ): Promise<boolean> {
-  if (isTauri()) {
-    const dialogModule = await import("@tauri-apps/plugin-dialog");
-    const filePath = await dialogModule.save(options);
-    if (!filePath) return false;
+  try {
+    if (isTauri()) {
+      const dialogModule = await import("@tauri-apps/plugin-dialog");
+      const filePath = await dialogModule.save(options);
+      if (!filePath) return false;
 
-    // Convert to base64 for IPC transfer
-    let binary = "";
-    for (let i = 0; i < data.length; i++) {
-      binary += String.fromCharCode(data[i]!);
+      const base64Data = uint8ArrayToBase64(data);
+
+      const { api } = await import("@/services/api");
+      await api("save_screenshot", { path: filePath, data: base64Data });
+      return true;
     }
-    const base64Data = btoa(binary);
 
-    const { api } = await import("@/services/api");
-    await api("save_screenshot", { path: filePath, data: base64Data });
+    // Web fallback: Blob download
+    const filename = options?.defaultPath ?? "download.png";
+    const mimeType = options?.mimeType ?? "image/png";
+    const blob = new Blob([data], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
     return true;
+  } catch {
+    return false;
   }
-
-  // Web fallback: Blob download
-  const filename = options?.defaultPath ?? "download.png";
-  const mimeType = options?.mimeType ?? "image/png";
-  const blob = new Blob([data], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  return true;
 }
 
 /**

@@ -61,6 +61,7 @@
   "captureMode.preview.fitToScreen": "Fit to screen",
   "captureMode.preview.zoomLevel": "{{percent}}%",
   "captureMode.preview.dimensions": "{{width}} × {{height}}",
+  "captureMode.preview.imageAlt": "Screenshot preview image",
   "captureMode.selectMessages": "Click messages to select",
   "captureMode.modifierHintMac": "⇧: range · ⌘: toggle",
   "captureMode.modifierHintOther": "Shift: range · Ctrl: toggle",

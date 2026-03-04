@@ -61,6 +61,7 @@
   "captureMode.preview.fitToScreen": "適應螢幕",
   "captureMode.preview.zoomLevel": "{{percent}}%",
   "captureMode.preview.dimensions": "{{width}} × {{height}}",
+  "captureMode.preview.imageAlt": "截圖預覽影像",
   "captureMode.selectMessages": "點擊訊息進行選取",
   "captureMode.modifierHintMac": "⇧: 範圍 · ⌘: 切換",
   "captureMode.modifierHintOther": "Shift: 範圍 · Ctrl: 切換",

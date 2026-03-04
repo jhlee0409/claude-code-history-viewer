@@ -5,7 +5,7 @@
  * Supports zoom (wheel + buttons) and drag-to-pan.
  */
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useId } from "react";
 import { createPortal } from "react-dom";
 import { X, ZoomIn, ZoomOut, Maximize2, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -34,6 +34,9 @@ export function ScreenshotPreviewModal({
 }: ScreenshotPreviewModalProps) {
   const { t } = useTranslation();
   const viewportRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   const {
     zoom,
@@ -61,13 +64,55 @@ export function ScreenshotPreviewModal({
     return () => cancelAnimationFrame(raf);
   }, [width, height, resetZoom]);
 
-  // ESC to close
+  // Focus management + keyboard interactions
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (e.key !== "Tab") return;
+      const root = modalRef.current;
+      if (!root) return;
+
+      const focusableElements = root.querySelectorAll<HTMLElement>(
+        "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
+      );
+      if (focusableElements.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      const first = focusableElements[0]!;
+      const last = focusableElements[focusableElements.length - 1]!;
+      const active = document.activeElement as HTMLElement | null;
+
+      if (e.shiftKey) {
+        if (!active || !root.contains(active) || active === first) {
+          e.preventDefault();
+          last.focus();
+        }
+        return;
+      }
+
+      if (!active || !root.contains(active) || active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
+
+    lastFocusedElementRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    modalRef.current?.focus();
+
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      lastFocusedElementRef.current?.focus();
+    };
   }, [onClose]);
 
   // Lock body scroll
@@ -91,9 +136,15 @@ export function ScreenshotPreviewModal({
 
   return createPortal(
     <div
+      ref={modalRef}
       style={{ position: "fixed", inset: 0, zIndex: 99999 }}
       className="flex flex-col bg-black/95 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      tabIndex={-1}
     >
+      <h2 id={titleId} className="sr-only">{t("captureMode.preview.title")}</h2>
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-900/90 border-b border-zinc-800">
         {/* Left: dimensions */}
@@ -183,6 +234,7 @@ export function ScreenshotPreviewModal({
         style={{ cursor: isDragging ? "grabbing" : "grab" }}
         onWheel={handleWheel}
         onMouseDown={(e) => {
+          if (e.button !== 0) return;
           setIsDragging(true);
           handleMouseDown(e);
         }}
@@ -198,7 +250,7 @@ export function ScreenshotPreviewModal({
       >
         <img
           src={dataUrl}
-          alt="Screenshot preview"
+          alt={t("captureMode.preview.imageAlt")}
           draggable={false}
           style={{
             transformOrigin: "0 0",

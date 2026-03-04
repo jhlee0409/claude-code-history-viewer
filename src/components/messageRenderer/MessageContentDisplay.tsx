@@ -42,6 +42,7 @@ const getTextInfo = (text: string) => {
 
 // Collapsible table component for markdown
 const CollapsibleTable = ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useCaptureExpandState(false);
 
   // Extract thead and tbody from children
@@ -98,8 +99,8 @@ const CollapsibleTable = ({ children, ...props }: React.HTMLAttributes<HTMLTable
           )} />
           <span>
             {isExpanded
-              ? "Show less"
-              : `Show ${rowCount - TABLE_ROW_LIMIT} more rows...`}
+              ? t("messageContentDisplay.showLess")
+              : t("messageContentDisplay.showMoreRows", { count: rowCount - TABLE_ROW_LIMIT })}
           </span>
         </button>
       )}

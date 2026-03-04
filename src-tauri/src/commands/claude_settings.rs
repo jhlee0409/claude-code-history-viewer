@@ -568,7 +568,7 @@ pub async fn get_claude_json_config(
 ///
 /// # Returns
 /// Ok(()) if path is safe, error message if not
-fn is_safe_path(path: &Path) -> Result<(), String> {
+pub(crate) fn is_safe_path(path: &Path) -> Result<(), String> {
     let home = dirs::home_dir().ok_or("Could not find home directory")?;
     let allowed_dirs = [
         home.join(".claude-history-viewer").join("exports"),
@@ -634,8 +634,8 @@ pub async fn write_text_file(path: String, content: String) -> Result<(), String
 
 /// Save screenshot binary data to a user-selected path.
 ///
-/// The path is expected to come from a native save dialog,
-/// so no directory restriction is enforced (user explicitly chose the location).
+/// The path is expected to come from a native save dialog and must be absolute.
+/// Directory allowlisting for `WebUI` callers is enforced at the HTTP handler layer.
 ///
 /// # Arguments
 /// * `path` - Absolute path chosen by user via save dialog
@@ -645,6 +645,15 @@ pub async fn save_screenshot(path: String, data: String) -> Result<(), String> {
     use base64::Engine;
     tauri::async_runtime::spawn_blocking(move || {
         let path = PathBuf::from(&path);
+        if !path.is_absolute() {
+            return Err("Path must be absolute".to_string());
+        }
+        if path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err("Path cannot contain '..' components".to_string());
+        }
 
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {

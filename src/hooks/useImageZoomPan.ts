@@ -124,7 +124,6 @@ export function useImageZoomPan() {
 
   return {
     ...state,
-    isDragging: isDragging.current,
     zoomIn,
     zoomOut,
     resetZoom,

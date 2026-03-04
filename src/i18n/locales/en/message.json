@@ -22,6 +22,7 @@
   "messageContentDisplay.copyMessage": "Copy Message",
   "messageContentDisplay.showLess": "Show less",
   "messageContentDisplay.showMore": "Show more...",
+  "messageContentDisplay.showMoreRows": "Show {{count}} more rows...",
   "messageViewer.allMessagesLoaded": "All messages loaded ({{count}} messages)",
   "messageViewer.branch": "Branch",
   "messageViewer.checkConsole": "Check the console for detailed error information.",

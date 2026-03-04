@@ -257,7 +257,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const orderedMessageUuids = useMemo(
     () =>
       flattenedMessages
-        .filter((item): item is Extract<typeof item, { type: "message" }> => item.type === "message")
+        .filter(
+          (item): item is Extract<typeof item, { type: "message" }> =>
+            item.type === "message" &&
+            !item.isGroupMember &&
+            !item.isProgressGroupMember &&
+            !item.isTaskOperationGroupMember,
+        )
         .map((item) => item.message.uuid),
     [flattenedMessages],
   );
@@ -284,7 +290,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // Screenshot handler — capture to preview modal
   const handleScreenshot = useCallback(async () => {
-    if (!hasSelection) return;
+    if (!hasSelection || selectedVisibleCount === 0) {
+      setCaptureToast({
+        type: "error",
+        message: t("captureMode.selectMessages"),
+      });
+      return;
+    }
     if (selectedVisibleCount > MAX_CAPTURE_MESSAGES) {
       setCaptureToast({
         type: "error",
@@ -295,37 +307,44 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
     // 1. Mount the capture renderer
     setIsCapturing(true);
+    try {
+      // 2. Wait for React to render + browser to lay out the content
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
 
-    // 2. Wait for React to render + browser to lay out the content
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
+      // 3. Capture the rendered element → open preview (no file save yet)
+      const el = offScreenRef.current;
+      if (!el) {
+        setCaptureToast({ type: "error", message: t("captureMode.captureError") });
+        return;
+      }
 
-    // 3. Capture the rendered element → open preview (no file save yet)
-    const el = offScreenRef.current;
-    if (!el) {
+      const result = await captureAndPreview(el, selectedSession?.session_id);
+      if (!result.success && result.message) {
+        setCaptureToast({ type: "error", message: result.message });
+      }
+    } catch {
+      setCaptureToast({ type: "error", message: t("captureMode.captureError") });
+    } finally {
       setIsCapturing(false);
-      return;
-    }
-
-    const result = await captureAndPreview(el, selectedSession?.session_id);
-    setIsCapturing(false);
-
-    if (!result.success && result.message) {
-      setCaptureToast({ type: "error", message: result.message });
     }
   }, [hasSelection, selectedVisibleCount, captureAndPreview, setIsCapturing, selectedSession?.session_id, t]);
 
   // Save from preview modal
   const handlePreviewSave = useCallback(async () => {
-    const result = await savePreview();
-    if (result.message) {
-      setCaptureToast({
-        type: result.success ? "success" : "error",
-        message: result.message,
-      });
+    try {
+      const result = await savePreview();
+      if (result.message) {
+        setCaptureToast({
+          type: result.success ? "success" : "error",
+          message: result.message,
+        });
+      }
+    } catch {
+      setCaptureToast({ type: "error", message: t("captureMode.captureError") });
     }
-  }, [savePreview]);
+  }, [savePreview, t]);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -809,6 +828,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       {/* Capture toast notification */}
       {captureToast && (
         <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           className={cn(
             "fixed bottom-6 left-1/2 -translate-x-1/2 z-50",
             "px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium",

@@ -22,6 +22,7 @@
   "messageContentDisplay.copyMessage": "複製訊息",
   "messageContentDisplay.showLess": "收起",
   "messageContentDisplay.showMore": "展開更多...",
+  "messageContentDisplay.showMoreRows": "再顯示 {{count}} 列...",
   "messageViewer.allMessagesLoaded": "已載入所有訊息 ({{count}}則)",
   "messageViewer.branch": "分支",
   "messageViewer.checkConsole": "請查看主控台以取得詳細錯誤資訊。",

@@ -61,6 +61,7 @@
   "captureMode.preview.fitToScreen": "适应屏幕",
   "captureMode.preview.zoomLevel": "{{percent}}%",
   "captureMode.preview.dimensions": "{{width}} × {{height}}",
+  "captureMode.preview.imageAlt": "截图预览图像",
   "captureMode.selectMessages": "点击消息进行选择",
   "captureMode.modifierHintMac": "⇧: 范围 · ⌘: 切换",
   "captureMode.modifierHintOther": "Shift: 范围 · Ctrl: 切换",

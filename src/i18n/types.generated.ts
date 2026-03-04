@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-03-04T09:58:33.811Z
- * 총 키 개수: 1641
+ * 생성 시간: 2026-03-04T14:15:16.046Z
+ * 총 키 개수: 1655
  * Namespace 수: 11
  */
 
@@ -1181,7 +1181,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (80개)
+ * message namespace의 번역 키 (81개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1208,6 +1208,7 @@ export type MessageKeys =
   | 'messageContentDisplay.copyMessage'
   | 'messageContentDisplay.showLess'
   | 'messageContentDisplay.showMore'
+  | 'messageContentDisplay.showMoreRows'
   | 'messageViewer.allMessagesLoaded'
   | 'messageViewer.branch'
   | 'messageViewer.checkConsole'
@@ -1267,7 +1268,7 @@ export type MessageKeys =
   | 'navigator.toggle';
 
 /**
- * renderers namespace의 번역 키 (332개)
+ * renderers namespace의 번역 키 (345개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1314,12 +1315,25 @@ export type RenderersKeys =
   | 'captureMode.clearSelection'
   | 'captureMode.done'
   | 'captureMode.enter'
+  | 'captureMode.exit'
   | 'captureMode.hiddenCount'
   | 'captureMode.hideBlock'
+  | 'captureMode.modifierHintMac'
+  | 'captureMode.modifierHintOther'
+  | 'captureMode.preview.cancel'
+  | 'captureMode.preview.dimensions'
+  | 'captureMode.preview.fitToScreen'
+  | 'captureMode.preview.imageAlt'
+  | 'captureMode.preview.save'
+  | 'captureMode.preview.title'
+  | 'captureMode.preview.zoomIn'
+  | 'captureMode.preview.zoomLevel'
+  | 'captureMode.preview.zoomOut'
   | 'captureMode.rangeEnd'
   | 'captureMode.rangeStart'
   | 'captureMode.restoreAll'
   | 'captureMode.screenshot'
+  | 'captureMode.selectMessages'
   | 'captureMode.selectRange'
   | 'captureMode.selectedCount'
   | 'captureMode.tooManyMessages'
@@ -1972,12 +1986,25 @@ export type TranslationKey =
   | 'captureMode.clearSelection'
   | 'captureMode.done'
   | 'captureMode.enter'
+  | 'captureMode.exit'
   | 'captureMode.hiddenCount'
   | 'captureMode.hideBlock'
+  | 'captureMode.modifierHintMac'
+  | 'captureMode.modifierHintOther'
+  | 'captureMode.preview.cancel'
+  | 'captureMode.preview.dimensions'
+  | 'captureMode.preview.fitToScreen'
+  | 'captureMode.preview.imageAlt'
+  | 'captureMode.preview.save'
+  | 'captureMode.preview.title'
+  | 'captureMode.preview.zoomIn'
+  | 'captureMode.preview.zoomLevel'
+  | 'captureMode.preview.zoomOut'
   | 'captureMode.rangeEnd'
   | 'captureMode.rangeStart'
   | 'captureMode.restoreAll'
   | 'captureMode.screenshot'
+  | 'captureMode.selectMessages'
   | 'captureMode.selectRange'
   | 'captureMode.selectedCount'
   | 'captureMode.tooManyMessages'
@@ -2362,6 +2389,7 @@ export type TranslationKey =
   | 'messageContentDisplay.copyMessage'
   | 'messageContentDisplay.showLess'
   | 'messageContentDisplay.showMore'
+  | 'messageContentDisplay.showMoreRows'
   | 'messageViewer.allMessagesLoaded'
   | 'messageViewer.branch'
   | 'messageViewer.checkConsole'

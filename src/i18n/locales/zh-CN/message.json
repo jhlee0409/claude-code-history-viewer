@@ -22,6 +22,7 @@
   "messageContentDisplay.copyMessage": "复制消息",
   "messageContentDisplay.showLess": "收起",
   "messageContentDisplay.showMore": "展开更多...",
+  "messageContentDisplay.showMoreRows": "再显示 {{count}} 行...",
   "messageViewer.allMessagesLoaded": "已加载所有消息 ({{count}}条)",
   "messageViewer.branch": "分支",
   "messageViewer.checkConsole": "请查看控制台以获取详细错误信息。",
