@@ -2,7 +2,7 @@
  * Capture Mode Slice
  *
  * Handles capture mode state for hiding message blocks during screenshot capture.
- * Uses hybrid approach: hiding only applies when capture mode is active.
+ * Uses explorer-style multi-selection with Shift (range) and Cmd/Ctrl (toggle).
  */
 
 import type { StateCreator } from "zustand";
@@ -17,10 +17,10 @@ export interface CaptureModeSliceState {
   isCaptureMode: boolean;
   /** List of hidden message UUIDs (persisted across mode toggles) */
   hiddenMessageIds: string[];
-  /** UUID of range selection start message */
-  rangeStart: string | null;
-  /** UUID of range selection end message */
-  rangeEnd: string | null;
+  /** Selected message UUIDs (ordered by selection) */
+  selectedMessageIds: string[];
+  /** UUID of the selection anchor (for Shift range selection) */
+  selectionAnchor: string | null;
   /** True during image generation (loading state) */
   isCapturing: boolean;
 }
@@ -42,10 +42,14 @@ export interface CaptureModeSliceActions {
   isMessageHidden: (uuid: string) => boolean;
   /** Get count of hidden messages */
   getHiddenCount: () => number;
-  /** Toggle range selection point (first click = start, second click = end) */
-  toggleRangePoint: (uuid: string) => void;
-  /** Clear range selection */
-  clearRange: () => void;
+  /** Handle a selection click with modifier keys */
+  handleSelectionClick: (
+    uuid: string,
+    orderedUuids: string[],
+    modifiers: { shift: boolean; cmdOrCtrl: boolean },
+  ) => void;
+  /** Clear current selection */
+  clearSelection: () => void;
   /** Set capturing loading state */
   setIsCapturing: (v: boolean) => void;
 }
@@ -59,10 +63,24 @@ export type CaptureModeSlice = CaptureModeSliceState & CaptureModeSliceActions;
 const initialCaptureModeState: CaptureModeSliceState = {
   isCaptureMode: false,
   hiddenMessageIds: [],
-  rangeStart: null,
-  rangeEnd: null,
+  selectedMessageIds: [],
+  selectionAnchor: null,
   isCapturing: false,
 };
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/** Get range of UUIDs between two UUIDs in an ordered list */
+function getRange(orderedUuids: string[], fromUuid: string, toUuid: string): string[] {
+  const fromIdx = orderedUuids.indexOf(fromUuid);
+  const toIdx = orderedUuids.indexOf(toUuid);
+  if (fromIdx === -1 || toIdx === -1) return [toUuid];
+  const lo = Math.min(fromIdx, toIdx);
+  const hi = Math.max(fromIdx, toIdx);
+  return orderedUuids.slice(lo, hi + 1);
+}
 
 // ============================================================================
 // Slice Creator
@@ -81,7 +99,12 @@ export const createCaptureModeSlice: StateCreator<
   },
 
   exitCaptureMode: () => {
-    set({ isCaptureMode: false, rangeStart: null, rangeEnd: null, isCapturing: false });
+    set({
+      isCaptureMode: false,
+      selectedMessageIds: [],
+      selectionAnchor: null,
+      isCapturing: false,
+    });
   },
 
   hideMessage: (uuid: string) => {
@@ -112,7 +135,6 @@ export const createCaptureModeSlice: StateCreator<
 
   isMessageHidden: (uuid: string) => {
     const { isCaptureMode, hiddenMessageIds } = get();
-    // Only consider messages hidden when in capture mode
     return isCaptureMode && hiddenMessageIds.includes(uuid);
   },
 
@@ -120,27 +142,55 @@ export const createCaptureModeSlice: StateCreator<
     return get().hiddenMessageIds.length;
   },
 
-  toggleRangePoint: (uuid: string) => {
-    const { rangeStart, rangeEnd } = get();
-    if (rangeStart == null) {
-      // First click: set start
-      set({ rangeStart: uuid, rangeEnd: null });
-    } else if (rangeEnd == null) {
-      if (uuid === rangeStart) {
-        // Clicking the same message deselects
-        set({ rangeStart: null });
+  handleSelectionClick: (
+    uuid: string,
+    orderedUuids: string[],
+    { shift, cmdOrCtrl },
+  ) => {
+    const { selectedMessageIds, selectionAnchor } = get();
+
+    if (!shift && !cmdOrCtrl) {
+      // Plain click: select only this message, set anchor
+      set({ selectedMessageIds: [uuid], selectionAnchor: uuid });
+      return;
+    }
+
+    if (cmdOrCtrl && !shift) {
+      // Cmd/Ctrl click: toggle individual, set anchor
+      const existing = new Set(selectedMessageIds);
+      if (existing.has(uuid)) {
+        existing.delete(uuid);
       } else {
-        // Second click: set end
-        set({ rangeEnd: uuid });
+        existing.add(uuid);
       }
-    } else {
-      // Both set: start fresh
-      set({ rangeStart: uuid, rangeEnd: null });
+      set({ selectedMessageIds: [...existing], selectionAnchor: uuid });
+      return;
+    }
+
+    if (shift && !cmdOrCtrl) {
+      // Shift click: replace selection with range from anchor to clicked
+      const anchor = selectionAnchor ?? uuid;
+      const range = getRange(orderedUuids, anchor, uuid);
+      set({ selectedMessageIds: range });
+      // Anchor stays
+      return;
+    }
+
+    // Shift + Cmd/Ctrl: add range to existing selection
+    {
+      const anchor = selectionAnchor ?? uuid;
+      const range = getRange(orderedUuids, anchor, uuid);
+      const merged = new Set(selectedMessageIds);
+      for (const id of range) {
+        merged.add(id);
+      }
+      set({ selectedMessageIds: [...merged] });
+      // Anchor stays
     }
   },
 
-  clearRange: () => {
-    set({ rangeStart: null, rangeEnd: null });
+  clearSelection: () => {
+    set({ selectedMessageIds: [], selectionAnchor: null });
   },
 
   setIsCapturing: (v: boolean) => {

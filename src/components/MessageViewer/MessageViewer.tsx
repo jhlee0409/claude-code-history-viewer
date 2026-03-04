@@ -17,10 +17,12 @@ import type { MessageViewerProps } from "./types";
 import { VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
 import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
 import { OffScreenCaptureRenderer } from "./components/OffScreenCaptureRenderer";
+import { ScreenshotPreviewModal } from "./components/ScreenshotPreviewModal";
 import { useSearchState } from "./hooks/useSearchState";
 import { useScrollNavigation } from "./hooks/useScrollNavigation";
 import { useMessageVirtualization } from "./hooks/useMessageVirtualization";
-import { useCaptureScreenshot, MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
+import { useCapturePreview } from "../../hooks/useCapturePreview";
+import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
 import {
   groupAgentTasks,
   groupAgentProgressMessages,
@@ -51,24 +53,29 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const {
     isCaptureMode,
     hiddenMessageIds,
+    selectedMessageIds,
     enterCaptureMode,
     hideMessage,
     showMessage,
     restoreMessages,
-    // Range selection state
-    rangeStart,
-    rangeEnd,
     isCapturing,
-    toggleRangePoint,
-    clearRange,
+    handleSelectionClick,
+    clearSelection,
     // Navigation state
     targetMessageUuid,
     shouldHighlightTarget,
     clearTargetMessage,
   } = useAppStore();
 
-  // Screenshot capture hook
-  const { captureElement } = useCaptureScreenshot();
+  // Screenshot preview hook
+  const {
+    previewDataUrl,
+    previewWidth,
+    previewHeight,
+    captureAndPreview,
+    savePreview,
+    discardPreview,
+  } = useCapturePreview();
   const { setIsCapturing } = useAppStore();
   const offScreenRef = useRef<HTMLDivElement>(null);
   const [captureToast, setCaptureToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -240,62 +247,37 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     isCaptureMode,
   });
 
-  // Range position lookup: maps uuid → "start" | "end" | "in-range"
-  const rangePositionMap = useMemo(() => {
-    const map = new Map<string, "start" | "end" | "in-range">();
-    if (!rangeStart) return map;
+  // Set of selected message UUIDs for O(1) lookup
+  const selectedSet = useMemo(
+    () => new Set(selectedMessageIds),
+    [selectedMessageIds],
+  );
 
-    if (rangeStart && !rangeEnd) {
-      map.set(rangeStart, "start");
-      return map;
-    }
+  // Ordered list of message UUIDs (for range selection)
+  const orderedMessageUuids = useMemo(
+    () =>
+      flattenedMessages
+        .filter((item): item is Extract<typeof item, { type: "message" }> => item.type === "message")
+        .map((item) => item.message.uuid),
+    [flattenedMessages],
+  );
 
-    if (!rangeEnd) return map;
-
-    // Find indices in flattenedMessages
-    let startIdx = -1;
-    let endIdx = -1;
-    for (let i = 0; i < flattenedMessages.length; i++) {
-      const item = flattenedMessages[i];
-      if (item == null || item.type !== "message") continue;
-      if (item.message.uuid === rangeStart) startIdx = i;
-      if (item.message.uuid === rangeEnd) endIdx = i;
-    }
-
-    if (startIdx === -1 || endIdx === -1) return map;
-
-    const lo = Math.min(startIdx, endIdx);
-    const hi = Math.max(startIdx, endIdx);
-
-    for (let i = lo; i <= hi; i++) {
-      const item = flattenedMessages[i];
-      if (item == null || item.type !== "message") continue;
-      const uuid = item.message.uuid;
-      if (uuid === rangeStart) map.set(uuid, "start");
-      else if (uuid === rangeEnd) map.set(uuid, "end");
-      else map.set(uuid, "in-range");
-    }
-
-    return map;
-  }, [rangeStart, rangeEnd, flattenedMessages]);
-
-  // Count selected visible messages in range (excluding hidden)
-  const selectedRangeCount = useMemo(() => {
-    if (!rangeStart || !rangeEnd) return 0;
+  // Count selected visible messages (excluding hidden)
+  const selectedVisibleCount = useMemo(() => {
     const hiddenSet = new Set(hiddenMessageIds);
     let count = 0;
-    for (const [uuid] of rangePositionMap) {
+    for (const uuid of selectedMessageIds) {
       if (!hiddenSet.has(uuid)) count++;
     }
     return count;
-  }, [rangePositionMap, rangeStart, rangeEnd, hiddenMessageIds]);
+  }, [selectedMessageIds, hiddenMessageIds]);
 
-  const hasRange = rangeStart != null && rangeEnd != null;
+  const hasSelection = selectedMessageIds.length > 0;
 
-  // Screenshot handler
+  // Screenshot handler — capture to preview modal
   const handleScreenshot = useCallback(async () => {
-    if (!hasRange) return;
-    if (selectedRangeCount > MAX_CAPTURE_MESSAGES) {
+    if (!hasSelection) return;
+    if (selectedVisibleCount > MAX_CAPTURE_MESSAGES) {
       setCaptureToast({
         type: "error",
         message: t("captureMode.tooManyMessages", { max: MAX_CAPTURE_MESSAGES }),
@@ -303,7 +285,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       return;
     }
 
-    // 1. Mount the capture renderer (triggers React render cycle)
+    // 1. Mount the capture renderer
     setIsCapturing(true);
 
     // 2. Wait for React to render + browser to lay out the content
@@ -311,23 +293,31 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
 
-    // 3. Capture the rendered element
+    // 3. Capture the rendered element → open preview (no file save yet)
     const el = offScreenRef.current;
     if (!el) {
       setIsCapturing(false);
       return;
     }
 
-    const result = await captureElement(el, selectedSession?.session_id);
+    const result = await captureAndPreview(el, selectedSession?.session_id);
     setIsCapturing(false);
 
+    if (!result.success && result.message) {
+      setCaptureToast({ type: "error", message: result.message });
+    }
+  }, [hasSelection, selectedVisibleCount, captureAndPreview, setIsCapturing, selectedSession?.session_id, t]);
+
+  // Save from preview modal
+  const handlePreviewSave = useCallback(async () => {
+    const result = await savePreview();
     if (result.message) {
       setCaptureToast({
         type: result.success ? "success" : "error",
         message: result.message,
       });
     }
-  }, [hasRange, selectedRangeCount, captureElement, setIsCapturing, selectedSession?.session_id, t]);
+  }, [savePreview]);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -626,10 +616,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       {/* Capture Mode Toolbar */}
       {isCaptureMode && (
         <CaptureModeToolbar
-          selectedCount={selectedRangeCount}
-          hasRange={hasRange}
+          selectedCount={selectedVisibleCount}
+          hasSelection={hasSelection}
           onScreenshot={handleScreenshot}
-          onClearRange={clearRange}
+          onClearSelection={clearSelection}
         />
       )}
 
@@ -727,9 +717,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
               const messageMatchIndex = (isMessage && currentMatchUuid === item.message.uuid) ? currentMatch?.matchIndex : undefined;
 
-              const itemRangePosition = isMessage
-                ? rangePositionMap.get(item.message.uuid) ?? null
-                : null;
+              const itemIsSelected = isMessage && selectedSet.has(item.message.uuid);
+
+              // Selection click handler that passes orderedUuids to the store
+              const handleRangeSelect = isCaptureMode
+                ? (uuid: string, modifiers: { shift: boolean; cmdOrCtrl: boolean }) => {
+                    handleSelectionClick(uuid, orderedMessageUuids, modifiers);
+                  }
+                : undefined;
 
               return (
                 <VirtualizedMessageRow
@@ -746,8 +741,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   onHideMessage={hideMessage}
                   onRestoreOne={showMessage}
                   onRestoreAll={restoreMessages}
-                  onRangeSelect={isCaptureMode ? toggleRangePoint : undefined}
-                  rangePosition={itemRangePosition}
+                  isSelected={itemIsSelected}
+                  onRangeSelect={handleRangeSelect}
                 />
               );
             })}
@@ -790,13 +785,23 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       </OverlayScrollbarsComponent>
 
       {/* Capture renderer — only mounted during active capture */}
-      {isCapturing && hasRange && rangeStart && rangeEnd && (
+      {isCapturing && hasSelection && (
         <OffScreenCaptureRenderer
           ref={offScreenRef}
           flattenedMessages={flattenedMessages}
-          rangeStart={rangeStart}
-          rangeEnd={rangeEnd}
+          selectedMessageIds={selectedMessageIds}
           hiddenMessageIds={hiddenMessageIds}
+        />
+      )}
+
+      {/* Screenshot preview modal */}
+      {previewDataUrl && (
+        <ScreenshotPreviewModal
+          dataUrl={previewDataUrl}
+          width={previewWidth}
+          height={previewHeight}
+          onSave={handlePreviewSave}
+          onClose={discardPreview}
         />
       )}
 

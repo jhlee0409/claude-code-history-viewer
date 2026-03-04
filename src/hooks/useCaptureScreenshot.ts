@@ -11,21 +11,9 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { saveBinaryFileDialog } from "../utils/fileDialog";
+import { dataUrlToUint8Array } from "../utils/imageUtils";
 
 export const MAX_CAPTURE_MESSAGES = 50;
-
-/**
- * Convert a data URL to a Uint8Array of the binary content.
- */
-function dataUrlToUint8Array(dataUrl: string): Uint8Array {
-  const base64 = dataUrl.split(",")[1] ?? "";
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
 
 export function useCaptureScreenshot() {
   const { t } = useTranslation();

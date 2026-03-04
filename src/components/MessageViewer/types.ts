@@ -47,9 +47,9 @@ export interface MessageNodeProps {
   // Capture mode
   isCaptureMode?: boolean;
   onHideMessage?: (uuid: string) => void;
-  // Range selection
-  onRangeSelect?: (uuid: string) => void;
-  rangePosition?: "start" | "end" | "in-range" | null;
+  // Multi-selection
+  isSelected?: boolean;
+  onRangeSelect?: (uuid: string, modifiers: { shift: boolean; cmdOrCtrl: boolean }) => void;
 }
 
 export interface MessageHeaderProps {

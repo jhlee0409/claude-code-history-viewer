@@ -18,10 +18,8 @@ import { ClaudeMessageNode } from "./ClaudeMessageNode";
 interface OffScreenCaptureRendererProps {
   /** All flattened messages */
   flattenedMessages: FlattenedMessage[];
-  /** UUID of range start */
-  rangeStart: string;
-  /** UUID of range end */
-  rangeEnd: string;
+  /** Selected message UUIDs to render */
+  selectedMessageIds: string[];
   /** Hidden message UUIDs to exclude */
   hiddenMessageIds: string[];
 }
@@ -34,10 +32,15 @@ export const OffScreenCaptureRenderer = forwardRef<
   HTMLDivElement,
   OffScreenCaptureRendererProps
 >(function OffScreenCaptureRenderer(
-  { flattenedMessages, rangeStart, rangeEnd, hiddenMessageIds },
+  { flattenedMessages, selectedMessageIds, hiddenMessageIds },
   ref,
 ) {
   const { t } = useTranslation();
+
+  const selectedSet = useMemo(
+    () => new Set(selectedMessageIds),
+    [selectedMessageIds],
+  );
 
   const hiddenSet = useMemo(
     () => new Set(hiddenMessageIds),
@@ -45,32 +48,17 @@ export const OffScreenCaptureRenderer = forwardRef<
   );
 
   const messagesToRender = useMemo(() => {
-    let startIdx = -1;
-    let endIdx = -1;
-
+    const result: FlattenedMessageItem[] = [];
     for (let i = 0; i < flattenedMessages.length; i++) {
       const item = flattenedMessages[i];
       if (item == null || item.type !== "message") continue;
-      if (item.message.uuid === rangeStart) startIdx = i;
-      if (item.message.uuid === rangeEnd) endIdx = i;
-    }
-
-    if (startIdx === -1 || endIdx === -1) return [];
-
-    const lo = Math.min(startIdx, endIdx);
-    const hi = Math.max(startIdx, endIdx);
-
-    const result: FlattenedMessageItem[] = [];
-    for (let i = lo; i <= hi; i++) {
-      const item = flattenedMessages[i];
-      if (item == null || item.type !== "message") continue;
+      if (!selectedSet.has(item.message.uuid)) continue;
       if (hiddenSet.has(item.message.uuid)) continue;
       if (item.isGroupMember || item.isProgressGroupMember || item.isTaskOperationGroupMember) continue;
       result.push(item);
     }
-
     return result;
-  }, [flattenedMessages, rangeStart, rangeEnd, hiddenSet]);
+  }, [flattenedMessages, selectedSet, hiddenSet]);
 
   if (messagesToRender.length === 0) return null;
 

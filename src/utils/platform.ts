@@ -12,6 +12,14 @@ declare global {
   }
 }
 
+/** True when the current platform is macOS. */
+export const isMacOS = (): boolean =>
+  typeof navigator !== "undefined" && /mac/i.test(navigator.userAgent);
+
+/** True when the action modifier key is held (Cmd on macOS, Ctrl elsewhere). */
+export const isActionModifier = (e: { metaKey: boolean; ctrlKey: boolean }): boolean =>
+  isMacOS() ? e.metaKey : e.ctrlKey;
+
 /** True when running inside the Tauri desktop shell. */
 export const isTauri = (): boolean =>
   typeof window !== "undefined" && window.__TAURI_INTERNALS__ != null;

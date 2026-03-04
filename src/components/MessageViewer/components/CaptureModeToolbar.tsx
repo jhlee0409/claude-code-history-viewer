@@ -9,19 +9,20 @@ import { Camera, Loader2, RotateCcw, X, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "../../../store/useAppStore";
+import { isMacOS } from "../../../utils/platform";
 
 interface CaptureModeToolbarProps {
   selectedCount: number;
-  hasRange: boolean;
+  hasSelection: boolean;
   onScreenshot: () => void;
-  onClearRange: () => void;
+  onClearSelection: () => void;
 }
 
 export function CaptureModeToolbar({
   selectedCount,
-  hasRange,
+  hasSelection,
   onScreenshot,
-  onClearRange,
+  onClearSelection,
 }: CaptureModeToolbarProps) {
   const { t } = useTranslation();
   const {
@@ -54,7 +55,7 @@ export function CaptureModeToolbar({
         </div>
 
         {/* Divider */}
-        {(hiddenCount > 0 || hasRange) && (
+        {(hiddenCount > 0 || hasSelection) && (
           <div className="h-4 w-px bg-zinc-800" />
         )}
 
@@ -75,8 +76,8 @@ export function CaptureModeToolbar({
           </button>
         )}
 
-        {/* Range selection info */}
-        {hasRange && (
+        {/* Selection info */}
+        {hasSelection && (
           <>
             {hiddenCount > 0 && <div className="h-4 w-px bg-zinc-800" />}
             <div className="flex items-center gap-2">
@@ -84,7 +85,7 @@ export function CaptureModeToolbar({
                 {t("captureMode.selectedCount", { count: selectedCount })}
               </span>
               <button
-                onClick={onClearRange}
+                onClick={onClearSelection}
                 className="text-zinc-500 hover:text-zinc-300 transition-colors"
                 title={t("captureMode.clearSelection")}
                 aria-label={t("captureMode.clearSelection")}
@@ -95,10 +96,14 @@ export function CaptureModeToolbar({
           </>
         )}
 
-        {/* Range selection hint */}
-        {!hasRange && (
+        {/* Selection hint with OS-specific modifier keys */}
+        {!hasSelection && (
           <span className="text-xs text-zinc-600 italic">
-            {t("captureMode.selectRange")}
+            {t("captureMode.selectMessages")}
+            {" · "}
+            {isMacOS()
+              ? t("captureMode.modifierHintMac")
+              : t("captureMode.modifierHintOther")}
           </span>
         )}
       </div>
@@ -106,7 +111,7 @@ export function CaptureModeToolbar({
       {/* Right: Screenshot + Exit buttons */}
       <div className="flex items-center gap-2">
         {/* Screenshot button */}
-        {hasRange && (
+        {hasSelection && (
           <button
             onClick={onScreenshot}
             disabled={isCapturing}
