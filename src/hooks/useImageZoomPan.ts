@@ -7,7 +7,7 @@
  * - resetZoom: fit image to viewport (no upscale)
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
@@ -28,6 +28,8 @@ export function useImageZoomPan() {
 
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
 
@@ -98,11 +100,11 @@ export function useImageZoomPan() {
       dragStart.current = {
         x: e.clientX,
         y: e.clientY,
-        panX: state.panX,
-        panY: state.panY,
+        panX: stateRef.current.panX,
+        panY: stateRef.current.panY,
       };
     },
-    [state.panX, state.panY],
+    [],
   );
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {

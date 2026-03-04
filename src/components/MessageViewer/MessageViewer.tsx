@@ -262,6 +262,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     [flattenedMessages],
   );
 
+  // Stable selection handler (avoids creating new function per row in render loop)
+  const handleRangeSelect = useCallback(
+    (uuid: string, modifiers: { shift: boolean; cmdOrCtrl: boolean }) => {
+      handleSelectionClick(uuid, orderedMessageUuids, modifiers);
+    },
+    [handleSelectionClick, orderedMessageUuids],
+  );
+
   // Count selected visible messages (excluding hidden)
   const selectedVisibleCount = useMemo(() => {
     const hiddenSet = new Set(hiddenMessageIds);
@@ -719,13 +727,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
               const itemIsSelected = isMessage && selectedSet.has(item.message.uuid);
 
-              // Selection click handler that passes orderedUuids to the store
-              const handleRangeSelect = isCaptureMode
-                ? (uuid: string, modifiers: { shift: boolean; cmdOrCtrl: boolean }) => {
-                    handleSelectionClick(uuid, orderedMessageUuids, modifiers);
-                  }
-                : undefined;
-
               return (
                 <VirtualizedMessageRow
                   key={virtualRow.key}
@@ -742,7 +743,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   onRestoreOne={showMessage}
                   onRestoreAll={restoreMessages}
                   isSelected={itemIsSelected}
-                  onRangeSelect={handleRangeSelect}
+                  onRangeSelect={isCaptureMode ? handleRangeSelect : undefined}
                 />
               );
             })}

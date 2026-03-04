@@ -5,7 +5,7 @@
  * Supports zoom (wheel + buttons) and drag-to-pan.
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, ZoomIn, ZoomOut, Maximize2, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -86,6 +86,7 @@ export function ScreenshotPreviewModal({
     resetZoom(rect.width - 32, rect.height - 32, width, height);
   }, [width, height, resetZoom]);
 
+  const [isDragging, setIsDragging] = useState(false);
   const zoomPercent = Math.round(zoom * 100);
 
   return createPortal(
@@ -179,19 +180,19 @@ export function ScreenshotPreviewModal({
       <div
         ref={viewportRef}
         className="flex-1 overflow-hidden"
-        style={{ cursor: "grab" }}
+        style={{ cursor: isDragging ? "grabbing" : "grab" }}
         onWheel={handleWheel}
         onMouseDown={(e) => {
-          (e.currentTarget as HTMLDivElement).style.cursor = "grabbing";
+          setIsDragging(true);
           handleMouseDown(e);
         }}
         onMouseMove={handleMouseMove}
-        onMouseUp={(e) => {
-          (e.currentTarget as HTMLDivElement).style.cursor = "grab";
+        onMouseUp={() => {
+          setIsDragging(false);
           handleMouseUp();
         }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.cursor = "grab";
+        onMouseLeave={() => {
+          setIsDragging(false);
           handleMouseUp();
         }}
       >
