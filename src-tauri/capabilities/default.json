@@ -17,6 +17,7 @@
     "store:allow-get",
     "store:allow-set",
     "store:allow-save",
-    "opener:allow-reveal-item-in-dir"
+    "opener:allow-reveal-item-in-dir",
+    "opener:allow-open-url"
   ]
 }
