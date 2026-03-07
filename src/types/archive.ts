@@ -32,6 +32,13 @@ export interface ArchiveSessionInfo {
   sizeBytes: number;
   subagentCount: number;
   subagentSizeBytes: number;
+  subagents: SubagentFileInfo[];
+}
+
+export interface SubagentFileInfo {
+  fileName: string;
+  sizeBytes: number;
+  messageCount: number;
 }
 
 export interface ArchiveDiskUsage {
@@ -61,6 +68,4 @@ export interface ExportResult {
   sessionId: string;
 }
 
-export type ArchiveViewTab = 'overview' | 'browse' | 'export';
-
-export type ExportFormat = 'json';
+export type ArchiveViewTab = 'overview' | 'browse';

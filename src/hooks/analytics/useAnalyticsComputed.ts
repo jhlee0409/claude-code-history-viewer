@@ -13,6 +13,7 @@ export function useAnalyticsComputed() {
       isRecentEditsView: analytics.currentView === "recentEdits",
       isSettingsView: analytics.currentView === "settings",
       isBoardView: analytics.currentView === "board",
+      isArchiveView: analytics.currentView === "archive",
       hasAnyError: !!(
         analytics.projectSummaryError ||
         analytics.sessionComparisonError ||

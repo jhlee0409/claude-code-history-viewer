@@ -9,6 +9,7 @@ import {
   FileEdit,
   Coins,
   Settings,
+  Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/ui/loading";
@@ -23,6 +24,7 @@ import { RecentEditsViewer } from "@/components/RecentEditsViewer";
 import { SimpleUpdateManager } from "@/components/SimpleUpdateManager";
 import { SettingsManager } from "@/components/SettingsManager";
 import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
+import { ArchiveManager } from "@/components/ArchiveManager";
 import { BottomTabBar } from "@/components/mobile/BottomTabBar";
 import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
 import { Header } from "@/layouts/Header/Header";
@@ -360,12 +362,15 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               computed.isRecentEditsView ||
               computed.isSettingsView ||
               computed.isBoardView ||
+              computed.isArchiveView ||
               (isViewingGlobalStats && !computed.isSettingsView)) && (
               <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
                     {isViewingGlobalStats ? (
                       <Database className="w-5 h-5 text-accent" />
+                    ) : computed.isArchiveView ? (
+                      <Archive className="w-5 h-5 text-accent" />
                     ) : computed.isSettingsView ? (
                       <Settings className="w-5 h-5 text-accent" />
                     ) : computed.isAnalyticsView ? (
@@ -382,9 +387,11 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                     <h2 className="text-sm font-semibold text-foreground">
                       {isViewingGlobalStats
                         ? t("analytics.globalOverview")
-                        : computed.isSettingsView
-                          ? t("settingsManager.title")
-                          : computed.isAnalyticsView
+                        : computed.isArchiveView
+                          ? t("archive.title")
+                          : computed.isSettingsView
+                            ? t("settingsManager.title")
+                            : computed.isAnalyticsView
                             ? t("analytics.dashboard")
                             : computed.isRecentEditsView
                               ? t("recentEdits.title")
@@ -395,9 +402,11 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                     <p className="text-xs text-muted-foreground">
                       {isViewingGlobalStats
                         ? globalOverviewDescription
-                        : computed.isSettingsView
-                          ? t("settingsManager.description")
-                          : computed.isRecentEditsView
+                        : computed.isArchiveView
+                          ? t("archive.description")
+                          : computed.isSettingsView
+                            ? t("settingsManager.description")
+                            : computed.isRecentEditsView
                             ? t("recentEdits.description")
                             : computed.isBoardView
                               ? t(
@@ -464,7 +473,13 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
 
             {/* Content */}
             <div className="flex-1 overflow-hidden">
-              {computed.isSettingsView ? (
+              {computed.isArchiveView ? (
+                <div className="h-full flex flex-col p-3 md:p-6">
+                  <ArchiveManager
+                    className="flex-1 min-h-0"
+                  />
+                </div>
+              ) : computed.isSettingsView ? (
                 <div className="h-full flex flex-col p-3 md:p-6">
                   <SettingsManager
                     projectPath={selectedProject?.actual_path}
@@ -673,6 +688,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                   break;
                 case "settings":
                   analyticsActions.switchToSettings();
+                  break;
+                case "archive":
+                  analyticsActions.switchToArchive();
                   break;
               }
             }}

@@ -13,8 +13,9 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/ui/loading";
-import { RefreshCw, FolderTree } from "lucide-react";
+import { RefreshCw, FolderTree, Archive, ChevronRight } from "lucide-react";
 import { useMCPServers } from "@/hooks/useMCPServers";
+import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
 import type {
   AllSettingsResponse,
   SettingsScope,
@@ -94,6 +95,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   className,
 }) => {
   const { t } = useTranslation();
+  const { switchToArchive } = useAnalyticsNavigation();
 
   // Settings state
   const [allSettings, setAllSettings] = React.useState<AllSettingsResponse | null>(null);
@@ -252,6 +254,22 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   return (
     <SettingsManagerContext.Provider value={contextValue}>
       <div className={`flex flex-col ${className || ""}`}>
+        {/* Archive Manager Link (mobile access point) */}
+        <button
+          type="button"
+          onClick={switchToArchive}
+          className="flex items-center gap-3 p-3 mb-4 rounded-lg border border-border/50 bg-card hover:bg-muted/50 transition-colors text-left w-full md:hidden"
+        >
+          <div className="w-8 h-8 rounded-md bg-accent/10 flex items-center justify-center shrink-0">
+            <Archive className="w-4 h-4 text-accent" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{t("archive.settings.link")}</p>
+            <p className="text-xs text-muted-foreground">{t("archive.settings.linkDescription")}</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
+
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4 shrink-0">
           <h2 className="text-xl font-semibold">{t("settingsManager.title")}</h2>

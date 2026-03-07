@@ -2,8 +2,10 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Archive,
+  Bot,
   ChevronDown,
   ChevronRight,
+  Download,
   FolderOpen,
   Plus,
   Trash2,
@@ -26,11 +28,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAppStore } from '@/store/useAppStore';
 import { archiveApi } from '@/services/archiveApi';
+import { api } from '@/services/api';
 import { formatBytes } from '@/utils/formatters';
 import { toast } from 'sonner';
 import { isTauri } from '@/utils/platform';
 import { ArchiveCreateDialog } from './ArchiveCreateDialog';
-import type { ArchiveEntry } from '@/types';
+import type { ArchiveEntry, ArchiveSessionInfo } from '@/types';
+
+const joinArchivePath = (...parts: string[]) =>
+  parts
+    .map((part, index) => {
+      const normalized = part.replace(/\\/g, '/');
+      if (index === 0) {
+        return normalized.replace(/\/+$/g, '');
+      }
+      return normalized.replace(/^\/+|\/+$/g, '');
+    })
+    .filter(Boolean)
+    .join('/');
 
 export const ArchiveBrowser: React.FC = () => {
   const { t } = useTranslation();
@@ -42,6 +57,7 @@ export const ArchiveBrowser: React.FC = () => {
     loadArchiveSessions,
     loadDiskUsage,
     clearArchiveError,
+    exportSession,
   } = useAppStore();
 
   // Local state
@@ -54,6 +70,7 @@ export const ArchiveBrowser: React.FC = () => {
 
   // Rename form state
   const [renameName, setRenameName] = useState('');
+  const [exportingSessionId, setExportingSessionId] = useState<string | null>(null);
 
   const formId = React.useId();
   const expandedArchiveIdRef = useRef(expandedArchiveId);
@@ -110,6 +127,11 @@ export const ArchiveBrowser: React.FC = () => {
     if (!targetArchive || !renameName.trim()) return;
     try {
       await renameArchive(targetArchive.id, renameName.trim());
+      // Archive ID changes after rename (name-based format).
+      // Collapse the expanded archive to avoid stale ID reference.
+      if (expandedArchiveId === targetArchive.id) {
+        setExpandedArchiveId(null);
+      }
       toast.success(t('archive.browse.rename.success', { name: renameName.trim() }));
       setIsRenameOpen(false);
       setTargetArchive(null);
@@ -117,6 +139,71 @@ export const ArchiveBrowser: React.FC = () => {
       toast.error(t('archive.error.renameFailed'));
     }
   };
+
+  const handleExportFile = useCallback(
+    async (filePath: string, downloadName: string, trackingId: string) => {
+      setExportingSessionId(trackingId);
+      try {
+        const content = await exportSession(filePath, 'json');
+
+        if (isTauri()) {
+          const { save } = await import('@tauri-apps/plugin-dialog');
+          const savePath = await save({
+            defaultPath: downloadName,
+            filters: [{ name: 'JSON', extensions: ['json'] }],
+          });
+          if (savePath) {
+            await api('write_text_file', { path: savePath, content });
+            toast.success(t('archive.export.success'));
+          }
+        } else {
+          const blob = new Blob([content], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          try {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = downloadName;
+            a.click();
+          } finally {
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }
+          toast.success(t('archive.export.success'));
+        }
+      } catch {
+        toast.error(t('archive.error.exportFailed'));
+      } finally {
+        setExportingSessionId(null);
+      }
+    },
+    [exportSession, t]
+  );
+
+  const handleExportSession = useCallback(
+    (archiveId: string, session: ArchiveSessionInfo) => {
+      if (!archiveBasePath) return;
+      const filePath = joinArchivePath(archiveBasePath, archiveId, 'sessions', session.fileName);
+      const downloadName = `${session.summary || session.sessionId}.json`;
+      handleExportFile(filePath, downloadName, session.sessionId);
+    },
+    [archiveBasePath, handleExportFile]
+  );
+
+  const handleExportSubagent = useCallback(
+    (archiveId: string, sessionId: string, subagentFileName: string) => {
+      if (!archiveBasePath) return;
+      const filePath = joinArchivePath(
+        archiveBasePath,
+        archiveId,
+        'subagents',
+        sessionId,
+        subagentFileName
+      );
+      const stem = subagentFileName.replace(/\.jsonl$/, '');
+      const downloadName = `${stem}.json`;
+      handleExportFile(filePath, downloadName, `${sessionId}/${subagentFileName}`);
+    },
+    [archiveBasePath, handleExportFile]
+  );
 
   const archives = archive.manifest?.archives ?? [];
 
@@ -252,37 +339,95 @@ export const ArchiveBrowser: React.FC = () => {
                   ) : (
                     <div className="space-y-1 mt-2">
                       {archive.currentArchiveSessions.map((session) => (
-                        <div
-                          key={session.sessionId}
-                          className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/30 transition-colors"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs truncate">
-                              {session.summary || session.fileName}
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-2xs text-muted-foreground">
-                                {t('archive.browse.sessions.messages', {
-                                  count: session.messageCount,
-                                })}
-                              </span>
-                              {session.subagentCount > 0 && (
-                                <>
-                                  <span className="text-muted-foreground/40">·</span>
-                                  <span className="text-2xs text-muted-foreground">
-                                    {t('archive.browse.sessions.subagents', {
-                                      count: session.subagentCount,
-                                    })}
-                                  </span>
-                                </>
-                              )}
-                              <span className="text-muted-foreground/40">·</span>
-                              <span className="text-2xs text-muted-foreground">
-                                {formatBytes(session.sizeBytes)}
-                              </span>
+                        <div key={session.sessionId}>
+                          <div className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
+                            <MessageSquare className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs truncate">
+                                {session.summary || session.fileName}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-2xs text-muted-foreground">
+                                  {t('archive.browse.sessions.messages', {
+                                    count: session.messageCount,
+                                  })}
+                                </span>
+                                {session.subagentCount > 0 && (
+                                  <>
+                                    <span className="text-muted-foreground/40">·</span>
+                                    <span className="text-2xs text-muted-foreground">
+                                      {t('archive.browse.sessions.subagents', {
+                                        count: session.subagentCount,
+                                      })}
+                                    </span>
+                                  </>
+                                )}
+                                <span className="text-muted-foreground/40">·</span>
+                                <span className="text-2xs text-muted-foreground">
+                                  {formatBytes(session.sizeBytes)}
+                                </span>
+                              </div>
                             </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 shrink-0"
+                              aria-label={t('archive.browse.sessions.export')}
+                              disabled={exportingSessionId === session.sessionId}
+                              onClick={() => handleExportSession(entry.id, session)}
+                            >
+                              {exportingSessionId === session.sessionId ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Download className="w-3.5 h-3.5" />
+                              )}
+                            </Button>
                           </div>
+                          {session.subagents.length > 0 && (
+                            <div className="ml-6 pl-2 border-l border-border/30 space-y-0.5">
+                              {session.subagents.map((subagent) => {
+                                const trackingId = `${session.sessionId}/${subagent.fileName}`;
+                                return (
+                                  <div
+                                    key={subagent.fileName}
+                                    className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/20 transition-colors"
+                                  >
+                                    <Bot className="w-3 h-3 text-muted-foreground/60 shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-2xs truncate text-muted-foreground">
+                                        {subagent.fileName.replace(/\.jsonl$/, '')}
+                                      </p>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-2xs text-muted-foreground/60">
+                                          {t('archive.browse.sessions.messages', {
+                                            count: subagent.messageCount,
+                                          })}
+                                        </span>
+                                        <span className="text-muted-foreground/30">·</span>
+                                        <span className="text-2xs text-muted-foreground/60">
+                                          {formatBytes(subagent.sizeBytes)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 shrink-0"
+                                      aria-label={t('archive.browse.sessions.export')}
+                                      disabled={exportingSessionId === trackingId}
+                                      onClick={() => handleExportSubagent(entry.id, session.sessionId, subagent.fileName)}
+                                    >
+                                      {exportingSessionId === trackingId ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <Download className="w-3 h-3" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

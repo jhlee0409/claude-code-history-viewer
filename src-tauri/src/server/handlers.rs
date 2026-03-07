@@ -966,3 +966,130 @@ pub async fn stop_file_watcher() -> Result<Json<Value>, ApiError> {
         "disabled": true
     })))
 }
+
+// ─── Handlers: ARCHIVE ────────────────────────────────────────────────────────
+
+handler_no_params!(
+    get_archive_base_path,
+    commands::archive::get_archive_base_path
+);
+handler_no_params!(list_archives, commands::archive::list_archives);
+handler_no_params!(
+    get_archive_disk_usage,
+    commands::archive::get_archive_disk_usage
+);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateArchiveParams {
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    pub session_file_paths: Vec<String>,
+    pub source_provider: String,
+    pub source_project_path: String,
+    pub source_project_name: String,
+    #[serde(default = "default_true")]
+    pub include_subagents: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+handler_json!(
+    create_archive,
+    CreateArchiveParams,
+    |p: CreateArchiveParams| async move {
+        commands::archive::create_archive(
+            p.name,
+            p.description,
+            p.session_file_paths,
+            p.source_provider,
+            p.source_project_path,
+            p.source_project_name,
+            p.include_subagents,
+        )
+        .await
+    }
+);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveIdParam {
+    pub archive_id: String,
+}
+
+handler_json!(
+    delete_archive,
+    ArchiveIdParam,
+    |p: ArchiveIdParam| async move { commands::archive::delete_archive(p.archive_id).await }
+);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenameArchiveParams {
+    pub archive_id: String,
+    pub new_name: String,
+}
+
+handler_json!(
+    rename_archive,
+    RenameArchiveParams,
+    |p: RenameArchiveParams| async move {
+        commands::archive::rename_archive(p.archive_id, p.new_name).await
+    }
+);
+
+handler_json!(
+    get_archive_sessions,
+    ArchiveIdParam,
+    |p: ArchiveIdParam| async move { commands::archive::get_archive_sessions(p.archive_id).await }
+);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadArchiveMessagesParams {
+    pub archive_id: String,
+    pub session_file_name: String,
+}
+
+handler_json!(
+    load_archive_session_messages,
+    LoadArchiveMessagesParams,
+    |p: LoadArchiveMessagesParams| async move {
+        commands::archive::load_archive_session_messages(p.archive_id, p.session_file_name).await
+    }
+);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpiringSessionsParams {
+    pub project_path: String,
+    #[serde(default)]
+    pub threshold_days: Option<i64>,
+}
+
+handler_json!(
+    get_expiring_sessions,
+    ExpiringSessionsParams,
+    |p: ExpiringSessionsParams| async move {
+        commands::archive::get_expiring_sessions(p.project_path, p.threshold_days.unwrap_or(7))
+            .await
+    }
+);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportSessionParams {
+    pub session_file_path: String,
+    pub format: String,
+}
+
+handler_json!(
+    export_session,
+    ExportSessionParams,
+    |p: ExportSessionParams| async move {
+        commands::archive::export_session(p.session_file_path, p.format).await
+    }
+);

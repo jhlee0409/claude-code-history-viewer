@@ -17,6 +17,7 @@ import enRenderers from './locales/en/renderers.json';
 import enUpdate from './locales/en/update.json';
 import enFeedback from './locales/en/feedback.json';
 import enRecentEdits from './locales/en/recentEdits.json';
+import enArchive from './locales/en/archive.json';
 
 // Korean
 import koCommon from './locales/ko/common.json';
@@ -30,6 +31,7 @@ import koRenderers from './locales/ko/renderers.json';
 import koUpdate from './locales/ko/update.json';
 import koFeedback from './locales/ko/feedback.json';
 import koRecentEdits from './locales/ko/recentEdits.json';
+import koArchive from './locales/ko/archive.json';
 
 // Japanese
 import jaCommon from './locales/ja/common.json';
@@ -43,6 +45,7 @@ import jaRenderers from './locales/ja/renderers.json';
 import jaUpdate from './locales/ja/update.json';
 import jaFeedback from './locales/ja/feedback.json';
 import jaRecentEdits from './locales/ja/recentEdits.json';
+import jaArchive from './locales/ja/archive.json';
 
 // Simplified Chinese
 import zhCNCommon from './locales/zh-CN/common.json';
@@ -56,6 +59,7 @@ import zhCNRenderers from './locales/zh-CN/renderers.json';
 import zhCNUpdate from './locales/zh-CN/update.json';
 import zhCNFeedback from './locales/zh-CN/feedback.json';
 import zhCNRecentEdits from './locales/zh-CN/recentEdits.json';
+import zhCNArchive from './locales/zh-CN/archive.json';
 
 // Traditional Chinese
 import zhTWCommon from './locales/zh-TW/common.json';
@@ -69,6 +73,7 @@ import zhTWRenderers from './locales/zh-TW/renderers.json';
 import zhTWUpdate from './locales/zh-TW/update.json';
 import zhTWFeedback from './locales/zh-TW/feedback.json';
 import zhTWRecentEdits from './locales/zh-TW/recentEdits.json';
+import zhTWArchive from './locales/zh-TW/archive.json';
 
 export const supportedLanguages = {
   en: 'English',
@@ -107,6 +112,7 @@ export const namespaces = [
   'update',
   'feedback',
   'recentEdits',
+  'archive',
 ] as const;
 
 export type Namespace = (typeof namespaces)[number];
@@ -137,7 +143,8 @@ const resources = {
       enRenderers,
       enUpdate,
       enFeedback,
-      enRecentEdits
+      enRecentEdits,
+      enArchive
     ),
   },
   ko: {
@@ -152,7 +159,8 @@ const resources = {
       koRenderers,
       koUpdate,
       koFeedback,
-      koRecentEdits
+      koRecentEdits,
+      koArchive
     ),
   },
   ja: {
@@ -167,7 +175,8 @@ const resources = {
       jaRenderers,
       jaUpdate,
       jaFeedback,
-      jaRecentEdits
+      jaRecentEdits,
+      jaArchive
     ),
   },
   'zh-CN': {
@@ -182,7 +191,8 @@ const resources = {
       zhCNRenderers,
       zhCNUpdate,
       zhCNFeedback,
-      zhCNRecentEdits
+      zhCNRecentEdits,
+      zhCNArchive
     ),
   },
   'zh-TW': {
@@ -197,7 +207,8 @@ const resources = {
       zhTWRenderers,
       zhTWUpdate,
       zhTWFeedback,
-      zhTWRecentEdits
+      zhTWRecentEdits,
+      zhTWArchive
     ),
   },
 };

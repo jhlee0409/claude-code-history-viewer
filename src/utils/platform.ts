@@ -122,6 +122,21 @@ export function setAuthToken(token: string): void {
   }
 }
 
+/**
+ * Open a URL in the system default browser.
+ *
+ * In Tauri mode, uses `@tauri-apps/plugin-opener` to open links externally.
+ * In WebUI/browser mode, falls back to `window.open`.
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(url);
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
 /** Remove persisted auth token from `localStorage`. */
 export function clearAuthToken(): void {
   try {

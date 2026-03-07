@@ -57,7 +57,7 @@ export interface ArchiveSliceActions {
   loadArchiveSessions: (id: string) => Promise<void>;
   loadDiskUsage: () => Promise<void>;
   loadExpiringSessions: (projectPath: string, thresholdDays?: number) => Promise<void>;
-  exportSession: (path: string, format: 'markdown' | 'json') => Promise<string>;
+  exportSession: (path: string, format: 'json') => Promise<string>;
   setArchiveActiveTab: (tab: ArchiveViewTab) => void;
   clearArchiveError: () => void;
   resetArchive: () => void;

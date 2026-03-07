@@ -2,7 +2,7 @@
  * useProjectSessions
  *
  * Loads sessions for a given project independently from the global store.
- * Used by ArchiveCreateDialog and ArchiveExport to avoid coupling to sidebar selection.
+ * Used by ArchiveCreateDialog to avoid coupling to sidebar selection.
  */
 
 import { useState, useCallback, useMemo } from 'react';

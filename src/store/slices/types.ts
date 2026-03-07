@@ -181,6 +181,9 @@ export interface AppStoreState {
   providers: ProviderInfo[];
   activeProviders: ProviderId[];
   isDetectingProviders: boolean;
+
+  // Archive state
+  archive: import('../slices/archiveSlice').ArchiveSliceState['archive'];
 }
 
 export interface AppStoreActions {
@@ -324,6 +327,27 @@ export interface AppStoreActions {
   detectProviders: () => Promise<void>;
   toggleProvider: (id: ProviderId) => void;
   setActiveProviders: (ids: ProviderId[]) => void;
+
+  // Archive actions
+  loadArchives: () => Promise<void>;
+  createArchive: (params: {
+    name: string;
+    description?: string | null;
+    sessionFilePaths: string[];
+    sourceProvider: string;
+    sourceProjectPath: string;
+    sourceProjectName: string;
+    includeSubagents?: boolean;
+  }) => Promise<import('../../types').ArchiveEntry>;
+  deleteArchive: (id: string) => Promise<void>;
+  renameArchive: (id: string, name: string) => Promise<void>;
+  loadArchiveSessions: (id: string) => Promise<void>;
+  loadDiskUsage: () => Promise<void>;
+  loadExpiringSessions: (projectPath: string, thresholdDays?: number) => Promise<void>;
+  exportSession: (path: string, format: 'json') => Promise<string>;
+  setArchiveActiveTab: (tab: import('../../types').ArchiveViewTab) => void;
+  clearArchiveError: () => void;
+  resetArchive: () => void;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;

@@ -250,3 +250,16 @@ export type {
   UpdateSettings,
 } from "./updateSettings";
 export { DEFAULT_UPDATE_SETTINGS } from "./updateSettings";
+
+// Archive Types
+export type {
+  ArchiveManifest,
+  ArchiveEntry,
+  ArchiveSessionInfo,
+  SubagentFileInfo,
+  ArchiveDiskUsage,
+  ArchiveDiskEntry,
+  ExpiringSession,
+  ExportResult,
+  ArchiveViewTab,
+} from "./archive";

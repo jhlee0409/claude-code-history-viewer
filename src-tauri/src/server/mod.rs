@@ -162,6 +162,20 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
         .route("/load_provider_sessions", post(h::load_provider_sessions))
         .route("/load_provider_messages", post(h::load_provider_messages))
         .route("/search_all_providers", post(h::search_all_providers))
+        // Archive commands
+        .route("/get_archive_base_path", post(h::get_archive_base_path))
+        .route("/list_archives", post(h::list_archives))
+        .route("/create_archive", post(h::create_archive))
+        .route("/delete_archive", post(h::delete_archive))
+        .route("/rename_archive", post(h::rename_archive))
+        .route("/get_archive_sessions", post(h::get_archive_sessions))
+        .route(
+            "/load_archive_session_messages",
+            post(h::load_archive_session_messages),
+        )
+        .route("/get_archive_disk_usage", post(h::get_archive_disk_usage))
+        .route("/get_expiring_sessions", post(h::get_expiring_sessions))
+        .route("/export_session", post(h::export_session))
         // Auth middleware — checks Bearer header or ?token= query param
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

@@ -10,6 +10,11 @@ pub mod server;
 pub mod test_utils;
 
 use crate::commands::{
+    archive::{
+        create_archive, delete_archive, export_session, get_archive_base_path,
+        get_archive_disk_usage, get_archive_sessions, get_expiring_sessions, list_archives,
+        load_archive_session_messages, rename_archive,
+    },
     claude_settings::{
         get_all_mcp_servers, get_all_settings, get_claude_json_config, get_mcp_servers,
         get_settings_by_scope, read_text_file, save_mcp_servers, save_screenshot, save_settings,
@@ -147,7 +152,18 @@ fn run_tauri() {
             scan_all_projects,
             load_provider_sessions,
             load_provider_messages,
-            search_all_providers
+            search_all_providers,
+            // Archive commands
+            get_archive_base_path,
+            list_archives,
+            create_archive,
+            delete_archive,
+            rename_archive,
+            get_archive_sessions,
+            load_archive_session_messages,
+            get_archive_disk_usage,
+            get_expiring_sessions,
+            export_session
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
