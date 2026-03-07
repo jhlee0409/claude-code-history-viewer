@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, FileText, FileJson, Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -17,8 +17,6 @@ import { useProjectSessions } from '@/hooks/useProjectSessions';
 import { api } from '@/services/api';
 import { toast } from 'sonner';
 import { isTauri } from '@/utils/platform';
-import type { ExportFormat } from '@/types';
-import { cn } from '@/lib/utils';
 
 export const ArchiveExport: React.FC = () => {
   const { t } = useTranslation();
@@ -40,7 +38,6 @@ export const ArchiveExport: React.FC = () => {
   // Local project selection
   const [selectedProjectPath, setSelectedProjectPath] = useState<string>('');
   const [selectedSessionPath, setSelectedSessionPath] = useState<string>('');
-  const [format, setFormat] = useState<ExportFormat>('markdown');
   const [preview, setPreview] = useState<string | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
@@ -76,35 +73,25 @@ export const ArchiveExport: React.FC = () => {
     }
 
     try {
-      const content = await exportSession(selectedSessionPath, format);
+      const content = await exportSession(selectedSessionPath, 'json');
 
       if (isTauri()) {
-        // Use Tauri save dialog
         const { save } = await import('@tauri-apps/plugin-dialog');
-        const ext = format === 'markdown' ? 'md' : 'json';
         const filePath = await save({
-          defaultPath: `session-export.${ext}`,
-          filters: [
-            {
-              name: format === 'markdown' ? 'Markdown' : 'JSON',
-              extensions: [ext],
-            },
-          ],
+          defaultPath: 'session-export.json',
+          filters: [{ name: 'JSON', extensions: ['json'] }],
         });
         if (filePath) {
           await api('write_text_file', { path: filePath, content });
           toast.success(t('archive.export.success'));
         }
       } else {
-        // Web download
-        const blob = new Blob([content], {
-          type: format === 'markdown' ? 'text/markdown' : 'application/json',
-        });
+        const blob = new Blob([content], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         try {
           const a = document.createElement('a');
           a.href = url;
-          a.download = `session-export.${format === 'markdown' ? 'md' : 'json'}`;
+          a.download = 'session-export.json';
           a.click();
         } finally {
           setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -120,8 +107,7 @@ export const ArchiveExport: React.FC = () => {
     if (!selectedSessionPath) return;
     setIsPreviewLoading(true);
     try {
-      const content = await exportSession(selectedSessionPath, format);
-      // Show first 100 lines
+      const content = await exportSession(selectedSessionPath, 'json');
       const lines = content.split('\n').slice(0, 100).join('\n');
       setPreview(lines);
     } catch {
@@ -202,57 +188,6 @@ export const ArchiveExport: React.FC = () => {
                 {t('archive.export.noSessions')}
               </p>
             )}
-          </div>
-
-          {/* Format selection */}
-          <div className="space-y-2">
-            <Label>{t('archive.export.format')}</Label>
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label={t('archive.export.format')}>
-              <button
-                type="button"
-                aria-pressed={format === 'markdown'}
-                onClick={() => {
-                  setFormat('markdown');
-                  setPreview(null);
-                }}
-                className={cn(
-                  'flex items-center gap-2 p-3 rounded-lg border transition-colors text-left',
-                  format === 'markdown'
-                    ? 'border-accent bg-accent/5'
-                    : 'border-border hover:bg-muted/30'
-                )}
-              >
-                <FileText className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">{t('archive.export.formatMarkdown')}</p>
-                  <p className="text-2xs text-muted-foreground">
-                    {t('archive.export.formatMarkdownDescription')}
-                  </p>
-                </div>
-              </button>
-              <button
-                type="button"
-                aria-pressed={format === 'json'}
-                onClick={() => {
-                  setFormat('json');
-                  setPreview(null);
-                }}
-                className={cn(
-                  'flex items-center gap-2 p-3 rounded-lg border transition-colors text-left',
-                  format === 'json'
-                    ? 'border-accent bg-accent/5'
-                    : 'border-border hover:bg-muted/30'
-                )}
-              >
-                <FileJson className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">{t('archive.export.formatJson')}</p>
-                  <p className="text-2xs text-muted-foreground">
-                    {t('archive.export.formatJsonDescription')}
-                  </p>
-                </div>
-              </button>
-            </div>
           </div>
 
           {/* Action buttons */}

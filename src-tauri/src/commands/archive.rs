@@ -417,184 +417,6 @@ fn find_subagent_files(session_file_path: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Converts a JSONL file to a Markdown string.
-///
-/// Format:
-/// ```markdown
-/// # Session
-///
-/// ## User
-/// <content>
-///
-/// ## Assistant
-/// <content>
-///
-/// ### Tool Use: <name>
-/// ```json
-/// <input>
-/// ```
-///
-/// <details><summary>Thinking</summary>
-/// <content>
-/// </details>
-/// ```
-fn jsonl_to_markdown(path: &Path) -> Result<String, String> {
-    let file = fs::File::open(path).map_err(|e| format!("Failed to read session file: {e}"))?;
-    let reader = BufReader::new(file);
-    let mut output = String::from("# Session\n\n");
-
-    for line_result in reader.lines() {
-        let line = line_result.map_err(|e| format!("Failed to read line: {e}"))?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        let val: serde_json::Value = match serde_json::from_str(&line) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-
-        let msg_type = val
-            .get("type")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-
-        match msg_type {
-            "user" => {
-                let content_val = val
-                    .get("message")
-                    .and_then(|m| m.get("content"))
-                    .or_else(|| val.get("message"));
-
-                if let Some(cv) = content_val {
-                    output.push_str("## User\n\n");
-                    append_content_value(cv, &mut output);
-                    output.push('\n');
-                }
-            }
-            "assistant" => {
-                let message = val.get("message");
-                if let Some(msg) = message {
-                    if let Some(content_arr) = msg.get("content").and_then(|c| c.as_array()) {
-                        for item in content_arr {
-                            let item_type = item
-                                .get("type")
-                                .and_then(serde_json::Value::as_str)
-                                .unwrap_or("");
-                            match item_type {
-                                "text" => {
-                                    output.push_str("## Assistant\n\n");
-                                    let text = item
-                                        .get("text")
-                                        .and_then(serde_json::Value::as_str)
-                                        .unwrap_or("");
-                                    output.push_str(text);
-                                    output.push_str("\n\n");
-                                }
-                                "tool_use" => {
-                                    let name = item
-                                        .get("name")
-                                        .and_then(serde_json::Value::as_str)
-                                        .unwrap_or("unknown");
-                                    output.push_str(&format!("### Tool Use: {name}\n\n"));
-                                    if let Some(input) = item.get("input") {
-                                        let input_str =
-                                            serde_json::to_string_pretty(input).unwrap_or_default();
-                                        output.push_str("```json\n");
-                                        output.push_str(&input_str);
-                                        output.push_str("\n```\n\n");
-                                    }
-                                }
-                                "thinking" => {
-                                    let thinking = item
-                                        .get("thinking")
-                                        .and_then(serde_json::Value::as_str)
-                                        .unwrap_or("");
-                                    output.push_str("<details><summary>Thinking</summary>\n\n");
-                                    output.push_str(thinking);
-                                    output.push_str("\n\n</details>\n\n");
-                                }
-                                _ => {
-                                    // Other content types: serialize as JSON block
-                                    let raw =
-                                        serde_json::to_string_pretty(item).unwrap_or_default();
-                                    output.push_str("```json\n");
-                                    output.push_str(&raw);
-                                    output.push_str("\n```\n\n");
-                                }
-                            }
-                        }
-                    } else if let Some(content_str) =
-                        msg.get("content").and_then(serde_json::Value::as_str)
-                    {
-                        output.push_str("## Assistant\n\n");
-                        output.push_str(content_str);
-                        output.push_str("\n\n");
-                    }
-                }
-            }
-            "summary" => {
-                if let Some(s) = val.get("summary").and_then(serde_json::Value::as_str) {
-                    output.push_str("## Summary\n\n");
-                    output.push_str(s);
-                    output.push_str("\n\n");
-                }
-            }
-            _ => {
-                // system, progress, file-history-snapshot etc. — skip
-            }
-        }
-    }
-
-    Ok(output)
-}
-
-/// Appends a content value (string or array) to the output buffer.
-fn append_content_value(val: &serde_json::Value, output: &mut String) {
-    if let Some(s) = val.as_str() {
-        output.push_str(s);
-        output.push_str("\n\n");
-    } else if let Some(arr) = val.as_array() {
-        for item in arr {
-            let item_type = item
-                .get("type")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("");
-            match item_type {
-                "text" => {
-                    let text = item
-                        .get("text")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("");
-                    output.push_str(text);
-                    output.push_str("\n\n");
-                }
-                "tool_result" => {
-                    let content = item
-                        .get("content")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("");
-                    let is_error = item
-                        .get("is_error")
-                        .and_then(serde_json::Value::as_bool)
-                        .unwrap_or(false);
-                    if is_error {
-                        output.push_str("**Error:**\n\n");
-                    }
-                    output.push_str("```\n");
-                    output.push_str(content);
-                    output.push_str("\n```\n\n");
-                }
-                _ => {
-                    let raw = serde_json::to_string_pretty(item).unwrap_or_default();
-                    output.push_str("```json\n");
-                    output.push_str(&raw);
-                    output.push_str("\n```\n\n");
-                }
-            }
-        }
-    }
-}
-
 /// Converts a JSONL file to a pretty-printed JSON array string.
 fn jsonl_to_json_array(path: &Path) -> Result<String, String> {
     let file = fs::File::open(path).map_err(|e| format!("Failed to read session file: {e}"))?;
@@ -1354,11 +1176,10 @@ pub async fn export_session(
             .to_string();
 
         let content = match format.as_str() {
-            "markdown" => jsonl_to_markdown(&path)?,
             "json" => jsonl_to_json_array(&path)?,
             other => {
                 return Err(format!(
-                    "Unsupported export format '{other}': must be 'markdown' or 'json'"
+                    "Unsupported export format '{other}': must be 'json'"
                 ))
             }
         };
@@ -1528,47 +1349,6 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(parsed.is_array());
         assert_eq!(parsed.as_array().unwrap().len(), 2);
-    }
-
-    #[test]
-    fn test_jsonl_to_markdown_user_and_assistant() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("session.jsonl");
-        let content = r#"{"type":"user","message":{"role":"user","content":"hello world"}}
-{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi there"}]}}
-"#;
-        fs::write(&path, content).unwrap();
-        let md = jsonl_to_markdown(&path).unwrap();
-        assert!(md.contains("# Session"));
-        assert!(md.contains("## User"));
-        assert!(md.contains("hello world"));
-        assert!(md.contains("## Assistant"));
-        assert!(md.contains("hi there"));
-    }
-
-    #[test]
-    fn test_jsonl_to_markdown_tool_use() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("session.jsonl");
-        let content = r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{"path":"/tmp/f.txt"}}]}}
-"#;
-        fs::write(&path, content).unwrap();
-        let md = jsonl_to_markdown(&path).unwrap();
-        assert!(md.contains("### Tool Use: Read"));
-        assert!(md.contains("```json"));
-    }
-
-    #[test]
-    fn test_jsonl_to_markdown_thinking() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("session.jsonl");
-        let content = r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"deep thoughts"}]}}
-"#;
-        fs::write(&path, content).unwrap();
-        let md = jsonl_to_markdown(&path).unwrap();
-        assert!(md.contains("<details><summary>Thinking</summary>"));
-        assert!(md.contains("deep thoughts"));
-        assert!(md.contains("</details>"));
     }
 
     #[tokio::test]
@@ -1748,23 +1528,6 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&result.content).unwrap();
         assert!(parsed.is_array());
         assert_eq!(parsed.as_array().unwrap().len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_export_session_markdown() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("export_md.jsonl");
-        let content = r#"{"type":"user","timestamp":"2026-01-01T00:00:00Z","message":{"role":"user","content":"hello"}}
-"#;
-        fs::write(&path, content).unwrap();
-
-        let result = export_session(path.to_string_lossy().to_string(), "markdown".to_string())
-            .await
-            .unwrap();
-
-        assert_eq!(result.format, "markdown");
-        assert!(result.content.contains("# Session"));
-        assert!(result.content.contains("hello"));
     }
 
     #[tokio::test]
