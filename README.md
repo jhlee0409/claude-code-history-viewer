@@ -1,10 +1,12 @@
 <div align="center">
 
+<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+
 # Claude Code History Viewer
 
-**Browse, search, and analyze your Claude Code conversations — all offline.**
+**The unified history viewer for AI coding assistants.**
 
-Desktop app that reads conversation history from Claude Code, Codex CLI, and OpenCode with analytics, session boards, and real-time monitoring.
+Browse, search, and analyze conversations from **Claude Code**, **Codex CLI**, and **OpenCode** — as a desktop app or headless server. 100% offline.
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -19,9 +21,6 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
 
 </div>
 
-> **We're considering renaming this project** to better reflect multi-tool support (Claude Code, Codex CLI, OpenCode).
-> Share your thoughts and name suggestions in [Issue #152](https://github.com/jhlee0409/claude-code-history-viewer/issues/152)!
-
 ---
 
 <p align="center">
@@ -32,6 +31,47 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
   <img width="49%" alt="Token Statistics" src="https://github.com/user-attachments/assets/d30f3709-1afb-4f76-8f06-1033a3cb7f4a" />
   <img width="49%" alt="Recent Edits" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
 </p>
+
+## Quick Start
+
+**Desktop app** — download and run:
+
+| Platform | Download |
+|----------|----------|
+| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+
+**Homebrew** (macOS):
+
+```bash
+brew install --cask jhlee0409/tap/claude-code-history-viewer
+```
+
+**Headless server** — access from any browser:
+
+```bash
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://...install-server.sh | sh
+cchv-server --serve                       # → http://localhost:3727
+```
+
+See [Server Mode](#server-mode-webui) for Docker, VPS, and systemd setup.
+
+---
+
+## Why This Exists
+
+AI coding assistants generate thousands of conversation messages, but none of them provide a way to look back at your history across tools. CCHV solves this.
+
+**Three assistants. One viewer.** Switch between Claude Code, Codex CLI, and OpenCode sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
+
+| Provider | Data Location | What You Get |
+|----------|--------------|--------------|
+| **Claude Code** | `~/.claude/projects/` | Full conversation history, tool use, thinking, costs |
+| **Codex CLI** | `~/.codex/sessions/` | Session rollouts with agent responses |
+| **OpenCode** | `~/.local/share/opencode/` | Conversation sessions and tool results |
+
+No vendor lock-in. No cloud dependency. Your local conversation files, beautifully rendered.
 
 ## Table of Contents
 
@@ -49,16 +89,34 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
 
 ## Features
 
+### Core
+
 | Feature | Description |
 |---------|-------------|
-| **Multi-Provider** | Unified viewer for Claude Code, Codex CLI, and OpenCode conversations |
+| **Multi-Provider Support** | Unified viewer for **Claude Code**, **Codex CLI**, and **OpenCode** — filter by provider, compare across tools |
 | **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
-| **Global Search** | Search across all conversations instantly |
+| **Global Search** | Search across all conversations from all providers instantly |
 | **Analytics Dashboard** | Dual-mode token stats (billing vs conversation), cost breakdown, and provider distribution charts |
 | **Session Board** | Multi-session visual analysis with pixel view, attribute brushing, and activity timeline |
 | **Settings Manager** | Scope-aware Claude Code settings editor with MCP server management |
 | **Message Navigator** | Right-side collapsible TOC for quick conversation navigation |
 | **Real-time Monitoring** | Live session file watching for instant updates |
+
+### New in v1.6.0
+
+| Feature | Description |
+|---------|-------------|
+| **WebUI Server Mode** | Run as a headless web server with `--serve` — access from any browser, deploy on VPS/Docker |
+| **Screenshot Capture** | Long screenshot with range selection, preview modal, and multi-selection export |
+| **Archive Management** | Create, browse, rename, and export session archives with per-file download |
+| **Accessibility** | Full keyboard navigation, screen reader support, font scaling, and high contrast mode |
+| **Mobile UI** | Responsive 390px viewport support with bottom tab bar |
+| **External Links** | All links open in system browser instead of the app's WebView |
+
+### More
+
+| Feature | Description |
+|---------|-------------|
 | **Session Context Menu** | Copy session ID, resume command, file path; native rename with search integration |
 | **ANSI Color Rendering** | Terminal output displayed with original ANSI colors |
 | **Multi-language** | English, Korean, Japanese, Chinese (Simplified & Traditional) |
@@ -66,14 +124,6 @@ Desktop app that reads conversation history from Claude Code, Codex CLI, and Ope
 | **Auto-update** | Built-in updater with skip/postpone options |
 
 ## Installation
-
-Download the latest release for your platform:
-
-| Platform | Download |
-|----------|----------|
-| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 
 ### Homebrew (macOS)
 
@@ -197,6 +247,7 @@ All `/api/*` endpoints are protected by Bearer token authentication. The token i
 - **Browser access**: Use the `?token=...` URL printed at startup. The token is saved to `localStorage` automatically.
 - **API access**: Include `Authorization: Bearer <token>` header.
 - **Custom token**: `--token my-secret-token` to set your own.
+- **Environment variable**: `CCHV_TOKEN=your-token cchv-server --serve` (useful for systemd/Docker).
 - **Disable**: `--no-auth` to skip authentication entirely (only use on trusted networks).
 
 ### Real-time Updates

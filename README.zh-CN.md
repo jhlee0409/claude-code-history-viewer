@@ -1,10 +1,12 @@
 <div align="center">
 
+<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+
 # Claude Code History Viewer
 
-**浏览、搜索和分析您的 Claude Code 对话记录 — 完全离线。**
+**AI 编程助手的统一历史查看器。**
 
-读取 Claude Code、Codex CLI 和 OpenCode 对话历史的桌面应用,支持数据分析、会话面板和实时监控。
+浏览、搜索和分析 **Claude Code**、**Codex CLI** 和 **OpenCode** 的对话记录 — 桌面应用或无头服务器。100% 离线。
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -19,9 +21,6 @@
 
 </div>
 
-> **我们正在考虑重命名此项目**，以更好地反映多工具支持（Claude Code、Codex CLI、OpenCode）。
-> 请在 [Issue #152](https://github.com/jhlee0409/claude-code-history-viewer/issues/152) 分享您的想法和命名建议！
-
 ---
 
 <p align="center">
@@ -33,12 +32,55 @@
   <img width="49%" alt="Recent Edits" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
 </p>
 
+## 快速开始
+
+**桌面应用** — 下载并运行：
+
+| 平台 | 下载 |
+|----------|----------|
+| macOS (通用) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+
+**Homebrew** (macOS)：
+
+```bash
+brew install --cask jhlee0409/tap/claude-code-history-viewer
+```
+
+**无头服务器** — 从浏览器访问：
+
+```bash
+brew install jhlee0409/tap/cchv-server   # 或: curl -fsSL https://...install-server.sh | sh
+cchv-server --serve                       # → http://localhost:3727
+```
+
+Docker、VPS、systemd 设置请参阅[服务器模式](#服务器模式-webui)。
+
+---
+
+## 为什么做这个
+
+AI 编程助手生成了数千条对话消息，但它们都不提供跨工具回顾历史的方式。CCHV 解决了这个问题。
+
+**三个助手。一个查看器。** 在 Claude Code、Codex CLI 和 OpenCode 会话之间无缝切换 — 比较 Token 用量、跨提供商搜索、在一个界面中分析你的工作流。
+
+| 提供商 | 数据位置 | 获取内容 |
+|----------|--------------|--------------|
+| **Claude Code** | `~/.claude/projects/` | 完整对话历史、工具使用、思维过程、成本 |
+| **Codex CLI** | `~/.codex/sessions/` | 包含代理响应的会话记录 |
+| **OpenCode** | `~/.local/share/opencode/` | 对话会话和工具结果 |
+
+无供应商锁定。无云依赖。本地对话文件，精美呈现。
+
 ## 目录
 
 - [功能特性](#功能特性)
 - [安装](#安装)
 - [从源码构建](#从源码构建)
+- [服务器模式 (WebUI)](#服务器模式-webui)
 - [使用方法](#使用方法)
+- [无障碍](#无障碍)
 - [技术栈](#技术栈)
 - [数据隐私](#数据隐私)
 - [常见问题](#常见问题)
@@ -47,16 +89,34 @@
 
 ## 功能特性
 
+### 核心
+
 | 功能 | 描述 |
 |---------|-------------|
-| **多提供商** | 统一查看 Claude Code、Codex CLI 和 OpenCode 对话 |
+| **多提供商支持** | 统一查看 **Claude Code**、**Codex CLI** 和 **OpenCode** 对话 — 按提供商筛选、跨工具比较 |
 | **对话浏览器** | 按项目/会话导航对话,支持工作树分组 |
-| **全局搜索** | 即时搜索所有对话内容 |
+| **全局搜索** | 即时搜索所有提供商的对话内容 |
 | **分析仪表板** | 双模式 Token 统计（计费 vs 对话）、成本明细、提供商分布图表 |
 | **会话面板** | 多会话可视化分析,支持像素视图、属性筛选和活动时间线 |
 | **设置管理器** | 作用域感知的 Claude Code 设置编辑器,支持 MCP 服务器管理 |
 | **消息导航器** | 右侧可折叠目录,快速浏览对话内容 |
 | **实时监控** | 实时监听会话文件变化并即时更新 |
+
+### v1.6.0 新增
+
+| 功能 | 描述 |
+|---------|-------------|
+| **WebUI 服务器模式** | 使用 `--serve` 作为无头 Web 服务器运行 — 从浏览器访问，部署到 VPS/Docker |
+| **截图捕获** | 支持范围选择、预览模态框和多选导出的长截图 |
+| **归档管理** | 创建、浏览、重命名和导出会话归档，支持逐文件下载 |
+| **无障碍** | 完整键盘导航、屏幕阅读器支持、字体缩放和高对比度模式 |
+| **移动端 UI** | 390px 视口支持，底部标签栏 |
+| **外部链接** | 所有链接在系统浏览器中打开，而非 WebView |
+
+### 更多
+
+| 功能 | 描述 |
+|---------|-------------|
 | **会话上下文菜单** | 复制会话 ID、恢复命令和文件路径;原生重命名集成搜索 |
 | **ANSI 颜色渲染** | 以原始 ANSI 颜色显示终端输出 |
 | **多语言** | 英语、韩语、日语、简体中文、繁体中文 |
@@ -64,14 +124,6 @@
 | **自动更新** | 内置更新器,支持跳过/延迟选项 |
 
 ## 安装
-
-下载适合您平台的最新版本:
-
-| 平台 | 下载 |
-|----------|----------|
-| macOS (通用) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 
 ### Homebrew (macOS)
 
@@ -131,6 +183,116 @@ pnpm tauri:build     # 生产构建
 
 **系统要求**: Node.js 18+, pnpm, Rust 工具链
 
+## 服务器模式 (WebUI)
+
+无需桌面环境，作为无头 HTTP 服务器运行 — 适合 VPS、远程服务器或 Docker。服务器二进制文件内嵌前端 — **只需一个文件**。
+
+> **初次部署服务器？** 请参阅完整的[服务器模式指南](docs/server-guide.md)，涵盖本地测试、VPS 设置、Docker 等详细步骤。
+
+### 快速安装
+
+```bash
+# Homebrew (macOS / Linux)
+brew install jhlee0409/tap/cchv-server
+
+# 或一行脚本
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+```
+
+### 启动服务器
+
+```bash
+cchv-server --serve
+```
+
+输出:
+
+```
+🔑 Auth token: b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
+   Open in browser: http://192.168.1.10:3727?token=b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
+👁 File watcher active: /home/user/.claude/projects
+🚀 WebUI server running at http://0.0.0.0:3727
+```
+
+在浏览器中打开 URL — 令牌会自动保存。
+
+### 预构建二进制文件
+
+| 平台 | 资产 |
+|----------|-------|
+| Linux x64 | `cchv-server-linux-x64.tar.gz` |
+| Linux ARM64 | `cchv-server-linux-arm64.tar.gz` |
+| macOS ARM | `cchv-server-macos-arm64.tar.gz` |
+| macOS x64 | `cchv-server-macos-x64.tar.gz` |
+
+从 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 下载。
+
+**CLI 选项:**
+
+| 标志 | 默认值 | 描述 |
+|------|---------|-------------|
+| `--serve` | — | **必需。** 启动 HTTP 服务器而非桌面应用 |
+| `--port <number>` | `3727` | 服务器端口 |
+| `--host <address>` | `0.0.0.0` | 绑定地址（仅本地: `127.0.0.1`） |
+| `--token <value>` | 自动 (uuid v4) | 自定义认证令牌 |
+| `--no-auth` | — | 禁用认证（不建议在公共网络使用） |
+| `--dist <path>` | 内嵌 | 使用外部 `dist/` 目录替代内嵌前端 |
+
+### 认证
+
+所有 `/api/*` 端点受 Bearer 令牌认证保护。令牌在每次服务器启动时自动生成并输出到 stderr。
+
+- **浏览器访问**: 使用启动时输出的 `?token=...` URL。令牌自动保存到 `localStorage`。
+- **API 访问**: 包含 `Authorization: Bearer <token>` 请求头。
+- **自定义令牌**: `--token my-secret-token` 设置自定义令牌。
+- **禁用**: `--no-auth` 跳过认证（仅在可信网络使用）。
+
+### 实时更新
+
+服务器监控 `~/.claude/projects/` 的文件变化，并通过 SSE（Server-Sent Events）将更新推送到浏览器。在另一个终端使用 Claude Code 时，查看器自动更新 — 无需手动刷新。
+
+### Docker
+
+```bash
+docker compose up -d
+```
+
+启动后检查令牌:
+
+```bash
+docker compose logs webui
+# 🔑 Auth token: ... ← 将此 URL 粘贴到浏览器
+```
+
+`docker-compose.yml` 将 `~/.claude`、`~/.codex` 和 `~/.local/share/opencode` 作为只读卷挂载。
+
+### systemd 服务
+
+在 Linux 上持久运行服务器，使用提供的 systemd 模板:
+
+```bash
+sudo cp contrib/cchv.service /etc/systemd/system/
+sudo systemctl edit --full cchv.service   # 将 User= 设为您的用户名
+sudo systemctl enable --now cchv.service
+```
+
+### 从源码构建（仅服务器）
+
+```bash
+just serve-build           # 构建前端 + 嵌入服务器二进制文件
+just serve-build-run       # 构建并运行（嵌入资产）
+
+# 或以开发模式运行（外部 dist/）:
+just serve-dev             # 构建前端 + 使用 --dist 运行服务器
+```
+
+### 健康检查
+
+```
+GET /health
+→ { "status": "ok" }
+```
+
 ## 使用方法
 
 1. 启动应用
@@ -138,6 +300,22 @@ pnpm tauri:build     # 生产构建
 3. 在左侧边栏浏览项目 — 使用标签栏按提供商筛选
 4. 点击会话查看消息
 5. 使用标签页在消息、分析、Token 统计、最近编辑和会话面板之间切换
+
+## 无障碍
+
+为键盘操作、低视力和屏幕阅读器用户提供无障碍功能。
+
+- 键盘优先导航：
+  - 项目浏览器、主内容区、消息导航器和设置的跳转链接
+  - `ArrowUp/ArrowDown/Home/End` 导航项目树，预搜索，`*` 展开兄弟组
+  - `ArrowUp/ArrowDown/Home/End` 和 `Enter` 导航消息导航器并打开聚焦的消息
+- 视觉无障碍：
+  - 全局字体大小缩放（`90%`、`100%`、`110%`、`120%`、`130%`）
+  - 设置中高对比度模式切换
+- 屏幕阅读器支持：
+  - 地标和树/列表语义（`navigation`、`tree`、`treeitem`、`group`、`listbox`、`option`）
+  - 状态/加载和项目树导航/选择变更的实时播报
+  - 通过 `aria-describedby` 提供内联键盘帮助说明
 
 ## 技术栈
 
