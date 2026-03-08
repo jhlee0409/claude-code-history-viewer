@@ -535,19 +535,24 @@ fn find_subagent_files(session_file_path: &Path) -> Vec<PathBuf> {
 
     let mut files = Vec::new();
     for dir in &candidate_dirs {
-        if dir.exists() && dir.is_dir() {
-            if let Ok(rd) = fs::read_dir(dir) {
-                for entry in rd.flatten() {
-                    let p = entry.path();
-                    // Skip symlinks for security
-                    if let Ok(meta) = fs::symlink_metadata(&p) {
-                        if meta.file_type().is_symlink() {
-                            continue;
-                        }
+        let Ok(dir_meta) = fs::symlink_metadata(dir) else {
+            continue;
+        };
+        if dir_meta.file_type().is_symlink() || !dir_meta.is_dir() {
+            continue;
+        }
+
+        if let Ok(rd) = fs::read_dir(dir) {
+            for entry in rd.flatten() {
+                let p = entry.path();
+                // Skip symlinks for security
+                if let Ok(meta) = fs::symlink_metadata(&p) {
+                    if meta.file_type().is_symlink() {
+                        continue;
                     }
-                    if p.extension().and_then(|e| e.to_str()) == Some("jsonl") {
-                        files.push(p);
-                    }
+                }
+                if p.extension().and_then(|e| e.to_str()) == Some("jsonl") {
+                    files.push(p);
                 }
             }
         }
@@ -981,7 +986,11 @@ pub async fn rename_archive(archive_id: String, new_name: String) -> Result<Stri
         let old_dir = archives_dir.join(&archive_id);
         let new_dir = archives_dir.join(&new_id);
 
-        if archive_id != new_id && old_dir.exists() {
+        if !ensure_real_directory(&old_dir, "Archive directory")? {
+            return Err(format!("Archive not found: {archive_id}"));
+        }
+
+        if archive_id != new_id {
             if new_dir.exists() {
                 return Err(format!(
                     "Target directory already exists: {}",
@@ -1870,6 +1879,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_rename_archive_missing_source_dir_rejected() {
+        let _temp = setup_test_env();
+
+        let session_dir = tempfile::tempdir().unwrap();
+        let session_path = session_dir.path().join("rename_missing.jsonl");
+        fs::write(&session_path, r#"{"type":"user","timestamp":"2026-01-01T00:00:00Z","message":{"role":"user","content":"hello"}}"#).unwrap();
+
+        let entry = create_archive(
+            "Original Name".to_string(),
+            None,
+            vec![session_path.to_string_lossy().to_string()],
+            "claude".to_string(),
+            "/p".to_string(),
+            "p".to_string(),
+            false,
+        )
+        .await
+        .unwrap();
+
+        let archive_dir = get_archives_dir().unwrap().join(&entry.id);
+        fs::remove_dir_all(&archive_dir).unwrap();
+
+        let err = rename_archive(entry.id.clone(), "Renamed".to_string())
+            .await
+            .unwrap_err();
+        assert!(err.contains("Archive not found"));
+
+        let manifest = load_manifest().unwrap();
+        let stored = manifest.archives.iter().find(|a| a.id == entry.id).unwrap();
+        assert_eq!(stored.name, "Original Name");
+    }
+
+    #[tokio::test]
     async fn test_get_archive_sessions() {
         let _temp = setup_test_env();
 
@@ -1897,6 +1939,29 @@ mod tests {
         assert_eq!(sessions[0].file_name, "sess_abc.jsonl");
         assert_eq!(sessions[0].first_message_time, "2026-02-01T08:00:00Z");
         assert_eq!(sessions[0].summary, Some("A good talk".to_string()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_find_subagent_files_skips_symlinked_candidate_dir() {
+        let project_dir = tempfile::tempdir().unwrap();
+        let sessions_dir = project_dir.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).unwrap();
+
+        let session_path = sessions_dir.join("agent_run.jsonl");
+        fs::write(&session_path, "{}\n").unwrap();
+
+        let external_dir = tempfile::tempdir().unwrap();
+        let external_subagents = external_dir.path().join("agent_run");
+        fs::create_dir_all(&external_subagents).unwrap();
+        fs::write(external_subagents.join("linked.jsonl"), "{}\n").unwrap();
+
+        let project_subagents = sessions_dir.join("subagents");
+        fs::create_dir_all(&project_subagents).unwrap();
+        unix_fs::symlink(&external_subagents, project_subagents.join("agent_run")).unwrap();
+
+        let files = find_subagent_files(&session_path);
+        assert!(files.is_empty());
     }
 
     #[tokio::test]
