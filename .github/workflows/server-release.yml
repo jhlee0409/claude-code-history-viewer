@@ -102,14 +102,19 @@ jobs:
           cp src-tauri/target/${{ matrix.target }}/release/claude-code-history-viewer release/cchv-server
           cd release && tar czf ../${{ matrix.artifact }}.tar.gz cchv-server
 
-      - name: Wait for release to be created
+      - name: Wait for release to be published
         run: |
-          for i in $(seq 1 30); do
-            if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
-              echo "Release ${GITHUB_REF_NAME} found"
+          echo "Waiting for release ${GITHUB_REF_NAME} to be published (non-draft)..."
+          for i in $(seq 1 60); do
+            DRAFT=$(gh api "repos/${{ github.repository }}/releases/tags/${GITHUB_REF_NAME}" --jq '.draft' 2>/dev/null || echo "not_found")
+            if [ "$DRAFT" = "false" ]; then
+              echo "Release ${GITHUB_REF_NAME} is published!"
               break
+            elif [ "$DRAFT" = "not_found" ]; then
+              echo "Release not found yet... (attempt $i/60)"
+            else
+              echo "Release is still draft... (attempt $i/60)"
             fi
-            echo "Waiting for release... (attempt $i/30)"
             sleep 10
           done
         env:
