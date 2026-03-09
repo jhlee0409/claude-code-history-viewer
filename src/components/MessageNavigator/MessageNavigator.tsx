@@ -203,7 +203,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
       aria-describedby={keyboardHelpId}
       tabIndex={-1}
       className={cn(
-        "relative flex flex-col bg-sidebar border-l border-border/50 h-full",
+        "relative flex flex-col bg-sidebar border-l border-border/50 h-full overflow-hidden",
         isResizing && "select-none",
         width == null && "w-full"
       )}
