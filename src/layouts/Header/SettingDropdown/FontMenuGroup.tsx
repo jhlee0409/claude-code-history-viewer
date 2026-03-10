@@ -1,5 +1,7 @@
 import {
-  DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
@@ -15,31 +17,44 @@ const FONT_SCALE_OPTIONS = [
   { value: 130, labelKey: "common.settings.font.130" as const },
 ];
 
+const radioItemClass =
+  "pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground";
+
 export const FontMenuGroup = () => {
   const { t } = useTranslation();
   const { fontScale, setFontScale } = useAppStore();
 
   return (
-    <>
-      <DropdownMenuLabel>{t("common.settings.font.title")}</DropdownMenuLabel>
-      <DropdownMenuRadioGroup
-        value={String(fontScale)}
-        onValueChange={(value) => {
-          const nextScale = Number(value);
-          if (Number.isFinite(nextScale)) {
-            void setFontScale(nextScale);
-          }
-        }}
-      >
-        {FONT_SCALE_OPTIONS.map(({ value, labelKey }) => (
-          <DropdownMenuRadioItem key={value} value={String(value)}>
-            <Type className="mr-2 h-4 w-4 text-foreground" />
-            <span>
-              {t(labelKey)} ({value}%)
-            </span>
-          </DropdownMenuRadioItem>
-        ))}
-      </DropdownMenuRadioGroup>
-    </>
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Type className="mr-2 h-4 w-4 text-foreground" />
+        <span>
+          {t("common.settings.font.title")} · {fontScale}%
+        </span>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuRadioGroup
+          value={String(fontScale)}
+          onValueChange={(value) => {
+            const nextScale = Number(value);
+            if (Number.isFinite(nextScale)) {
+              void setFontScale(nextScale);
+            }
+          }}
+        >
+          {FONT_SCALE_OPTIONS.map(({ value, labelKey }) => (
+            <DropdownMenuRadioItem
+              key={value}
+              value={String(value)}
+              className={radioItemClass}
+            >
+              <span>
+                {t(labelKey)} ({value}%)
+              </span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 };

@@ -32,8 +32,7 @@ export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
   const isCheckingForUpdates = updater.state.isChecking;
 
   return (
-    <>
-      <DropdownMenu>
+    <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             id="app-settings-button"
@@ -46,7 +45,7 @@ export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
             )}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-56 max-h-[calc(100vh-80px)] overflow-y-auto">
           <DropdownMenuLabel>{t('common.settings.title')}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -94,7 +93,6 @@ export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
             </DropdownMenuItem>
           </DesktopOnly>
         </DropdownMenuContent>
-      </DropdownMenu>
-    </>
+    </DropdownMenu>
   );
 };
