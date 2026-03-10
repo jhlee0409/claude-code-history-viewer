@@ -2,13 +2,16 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { supportedLanguages, type SupportedLanguage } from "@/i18n";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useTranslation } from "react-i18next";
 import { Globe } from "lucide-react";
-import { cn } from "@/lib/utils";
+
+const radioItemClass =
+  "pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground";
 
 export const LanguageMenuGroup = () => {
   const { language, setLanguage } = useLanguageStore();
@@ -24,21 +27,24 @@ export const LanguageMenuGroup = () => {
         </span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
-        {Object.entries(supportedLanguages).map(([code, name]) => (
-          <DropdownMenuItem
-            key={code}
-            className={cn(
-              language === code && "bg-accent text-accent-foreground"
-            )}
-            onClick={() => {
-              if (code in supportedLanguages) {
-                setLanguage(code as SupportedLanguage);
-              }
-            }}
-          >
-            <span>{name}</span>
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuRadioGroup
+          value={language}
+          onValueChange={(value) => {
+            if (value in supportedLanguages) {
+              void setLanguage(value as SupportedLanguage);
+            }
+          }}
+        >
+          {Object.entries(supportedLanguages).map(([code, name]) => (
+            <DropdownMenuRadioItem
+              key={code}
+              value={code}
+              className={radioItemClass}
+            >
+              <span>{name}</span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );

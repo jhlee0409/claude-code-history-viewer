@@ -28,12 +28,9 @@ export const FilterMenuGroup = () => {
         </span>
         <Switch
           checked={showSystemMessages}
-          onCheckedChange={setShowSystemMessages}
-          aria-label={t("common.settings.filter.showSystemMessages", {
-            defaultValue: "시스템 메시지 표시",
-          })}
+          aria-hidden="true"
+          tabIndex={-1}
           className="ml-2"
-          onClick={(e) => e.stopPropagation()}
         />
       </DropdownMenuItem>
     </>

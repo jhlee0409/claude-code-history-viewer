@@ -26,10 +26,9 @@ export const AccessibilityMenuGroup = () => {
         </span>
         <Switch
           checked={highContrast}
-          onCheckedChange={(checked) => void setHighContrast(checked)}
-          aria-label={t("common.settings.accessibility.highContrast")}
+          aria-hidden="true"
+          tabIndex={-1}
           className="ml-2"
-          onClick={(e) => e.stopPropagation()}
         />
       </DropdownMenuItem>
     </>

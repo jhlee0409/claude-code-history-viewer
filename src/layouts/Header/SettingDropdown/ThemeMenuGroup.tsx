@@ -2,11 +2,11 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { useTranslation } from "react-i18next";
 import { Sun, Moon, Laptop } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/theme";
 
 const THEME_ITEMS = [
@@ -14,6 +14,9 @@ const THEME_ITEMS = [
   { icon: Moon, labelKey: "common.settings.theme.dark", value: "dark" },
   { icon: Laptop, labelKey: "common.settings.theme.system", value: "system" },
 ] as const;
+
+const radioItemClass =
+  "gap-2 pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground";
 
 export const ThemeMenuGroup = () => {
   const { theme, setTheme } = useTheme();
@@ -32,22 +35,25 @@ export const ThemeMenuGroup = () => {
         </span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
-        {THEME_ITEMS.map(({ icon: Icon, labelKey, value }) => (
-          <DropdownMenuItem
-            key={value}
-            className={cn(
-              theme === value && "bg-accent text-accent-foreground"
-            )}
-            onClick={() => {
-              if (value === "light" || value === "dark" || value === "system") {
-                void setTheme(value);
-              }
-            }}
-          >
-            <Icon className="mr-2 h-4 w-4" />
-            <span>{t(labelKey)}</span>
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuRadioGroup
+          value={theme}
+          onValueChange={(value) => {
+            if (value === "light" || value === "dark" || value === "system") {
+              void setTheme(value);
+            }
+          }}
+        >
+          {THEME_ITEMS.map(({ icon: Icon, labelKey, value }) => (
+            <DropdownMenuRadioItem
+              key={value}
+              value={value}
+              className={radioItemClass}
+            >
+              <Icon className="h-4 w-4" />
+              <span>{t(labelKey)}</span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );

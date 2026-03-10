@@ -2,12 +2,12 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { useAppStore } from "@/store/useAppStore";
 import { useTranslation } from "react-i18next";
 import { Type } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const FONT_SCALE_OPTIONS = [
   { value: 90, labelKey: "common.settings.font.90" as const },
@@ -16,6 +16,9 @@ const FONT_SCALE_OPTIONS = [
   { value: 120, labelKey: "common.settings.font.120" as const },
   { value: 130, labelKey: "common.settings.font.130" as const },
 ];
+
+const radioItemClass =
+  "pl-2 [&>span:first-child]:hidden data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground";
 
 export const FontMenuGroup = () => {
   const { t } = useTranslation();
@@ -30,23 +33,27 @@ export const FontMenuGroup = () => {
         </span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
-        {FONT_SCALE_OPTIONS.map(({ value, labelKey }) => (
-          <DropdownMenuItem
-            key={value}
-            className={cn(
-              fontScale === value && "bg-accent text-accent-foreground"
-            )}
-            onClick={() => {
-              if (Number.isFinite(value)) {
-                void setFontScale(value);
-              }
-            }}
-          >
-            <span>
-              {t(labelKey)} ({value}%)
-            </span>
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuRadioGroup
+          value={String(fontScale)}
+          onValueChange={(value) => {
+            const nextScale = Number(value);
+            if (Number.isFinite(nextScale)) {
+              void setFontScale(nextScale);
+            }
+          }}
+        >
+          {FONT_SCALE_OPTIONS.map(({ value, labelKey }) => (
+            <DropdownMenuRadioItem
+              key={value}
+              value={String(value)}
+              className={radioItemClass}
+            >
+              <span>
+                {t(labelKey)} ({value}%)
+              </span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );
