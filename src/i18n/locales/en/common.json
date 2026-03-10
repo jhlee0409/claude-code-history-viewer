@@ -146,5 +146,7 @@
   "time.minute": "minute",
   "time.minutes": "minutes",
   "time.start": "Start:",
-  "time.secondShort": "s"
+  "time.secondShort": "s",
+  "time.today": "Today",
+  "time.yesterday": "Yesterday"
 }

@@ -69,7 +69,9 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                   : t("messageViewer.system")}
         </span>
         <span>·</span>
-        <span>{formatTimeShort(message.timestamp)}</span>
+        <span title={formatTime(message.timestamp)}>
+          {formatTimeShort(message.timestamp)}
+        </span>
         {message.isSidechain && (
           <span className="px-1.5 py-0.5 text-xs font-mono bg-warning/20 text-warning-foreground rounded-full">
             {t("messageViewer.branch")}

@@ -10,6 +10,7 @@ import type {
   FlattenedMessage,
   FlattenedMessageItem,
   HiddenBlocksPlaceholder,
+  DateDividerItem,
   AgentProgressGroup,
   AgentTaskGroupResult,
   AgentProgressGroupResult,
@@ -27,6 +28,7 @@ interface GroupContext {
 import { getParentUuid } from "./messageHelpers";
 import { getAgentIdFromProgress } from "./agentProgressHelpers";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
+import { isSameDay } from "../../../utils/time";
 
 interface FlattenOptions {
   messages: ClaudeMessage[];
@@ -238,7 +240,47 @@ export function flattenMessageTree({
 }
 
 /**
+ * Create a date key string (YYYY-MM-DD) from a timestamp.
+ */
+function toDateKey(timestamp: string): string {
+  const d = new Date(timestamp);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Maybe insert a date divider before a message if the date changed.
+ * Returns the divider item or null.
+ */
+function maybeDateDivider(
+  message: ClaudeMessage,
+  lastTimestamp: string | null,
+): DateDividerItem | null {
+  if (!message.timestamp) return null;
+
+  // First message always gets a divider
+  if (lastTimestamp == null) {
+    return {
+      type: "date-divider",
+      timestamp: message.timestamp,
+      dateKey: toDateKey(message.timestamp),
+    };
+  }
+
+  // Insert divider when date changes
+  if (!isSameDay(lastTimestamp, message.timestamp)) {
+    return {
+      type: "date-divider",
+      timestamp: message.timestamp,
+      dateKey: toDateKey(message.timestamp),
+    };
+  }
+
+  return null;
+}
+
+/**
  * Flatten messages and insert placeholders where hidden messages were.
+ * Also inserts date dividers when the date changes between messages.
  */
 function flattenWithPlaceholders(
   messages: ClaudeMessage[],
@@ -246,20 +288,32 @@ function flattenWithPlaceholders(
   groups: GroupContext
 ): FlattenedMessage[] {
   if (hiddenSet.size === 0) {
-    // No hidden messages - return regular flattened list
-    return messages.map((message, index) =>
-      createFlattenedMessage(
-        message,
-        0,
-        index,
-        groups
-      )
-    );
+    // No hidden messages - return regular flattened list with date dividers
+    const result: FlattenedMessage[] = [];
+    let lastTimestamp: string | null = null;
+
+    for (let index = 0; index < messages.length; index++) {
+      const message = messages[index]!;
+
+      const divider = maybeDateDivider(message, lastTimestamp);
+      if (divider) {
+        result.push(divider);
+      }
+
+      result.push(createFlattenedMessage(message, 0, index, groups));
+
+      if (message.timestamp) {
+        lastTimestamp = message.timestamp;
+      }
+    }
+
+    return result;
   }
 
   const result: FlattenedMessage[] = [];
   let pendingHiddenUuids: string[] = [];
   let visibleMessageIndex = 0;
+  let lastVisibleTimestamp: string | null = null;
 
   for (const message of messages) {
     if (hiddenSet.has(message.uuid)) {
@@ -277,6 +331,12 @@ function flattenWithPlaceholders(
         pendingHiddenUuids = [];
       }
 
+      // Insert date divider if date changed
+      const divider = maybeDateDivider(message, lastVisibleTimestamp);
+      if (divider) {
+        result.push(divider);
+      }
+
       // Add visible message with correct originalIndex
       result.push(
         createFlattenedMessage(
@@ -287,6 +347,10 @@ function flattenWithPlaceholders(
         )
       );
       visibleMessageIndex++;
+
+      if (message.timestamp) {
+        lastVisibleTimestamp = message.timestamp;
+      }
     }
   }
 

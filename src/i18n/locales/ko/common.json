@@ -146,5 +146,7 @@
   "time.minute": "분",
   "time.minutes": "분",
   "time.start": "시작:",
-  "time.secondShort": "초"
+  "time.secondShort": "초",
+  "time.today": "오늘",
+  "time.yesterday": "어제"
 }

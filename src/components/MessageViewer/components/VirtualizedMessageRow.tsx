@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { SearchFilterType } from "../../../store/useAppStore";
 import type { FlattenedMessage } from "../types";
 import { ClaudeMessageNode } from "./ClaudeMessageNode";
+import { DateDivider } from "./DateDivider";
 import { HiddenBlocksIndicator } from "./HiddenBlocksIndicator";
 
 interface VirtualizedMessageRowProps {
@@ -56,6 +57,25 @@ export const VirtualizedMessageRow = forwardRef<
   },
   ref
 ) {
+  // Handle date divider
+  if (item.type === "date-divider") {
+    return (
+      <div
+        ref={ref}
+        data-index={virtualRow.index}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          transform: `translateY(${virtualRow.start}px)`,
+        }}
+      >
+        <DateDivider timestamp={item.timestamp} />
+      </div>
+    );
+  }
+
   // Handle hidden blocks placeholder
   if (item.type === "hidden-placeholder") {
     return (

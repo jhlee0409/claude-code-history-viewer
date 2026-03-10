@@ -15,6 +15,7 @@ import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
 // Local imports
 import type { MessageViewerProps } from "./types";
 import { VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
+import { FloatingDateOverlay } from "./components/FloatingDateOverlay";
 import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
 import { OffScreenCaptureRenderer } from "./components/OffScreenCaptureRenderer";
 import { ScreenshotPreviewModal } from "./components/ScreenshotPreviewModal";
@@ -697,13 +698,22 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         />
       )}
 
-      <OverlayScrollbarsComponent
-        ref={scrollContainerRef}
-        className="flex-1"
-        options={{
-          scrollbars: { theme: "os-theme-custom", autoHide: "leave", autoHideDelay: 400 },
-        }}
-      >
+      <div className="relative flex-1 min-h-0">
+        {/* Floating date overlay — outside scroll container to stay fixed */}
+        {flattenedMessages.length > 0 && scrollElementReady && (
+          <FloatingDateOverlay
+            virtualRows={virtualRows}
+            flattenedMessages={flattenedMessages}
+          />
+        )}
+
+        <OverlayScrollbarsComponent
+          ref={scrollContainerRef}
+          className="h-full"
+          options={{
+            scrollbars: { theme: "os-theme-custom", autoHide: "leave", autoHideDelay: 400 },
+          }}
+        >
         {/* 디버깅 정보 */}
         {import.meta.env.DEV && (
           <div className="bg-warning/10 p-2 text-xs text-warning-foreground border-b border-warning/20 space-y-1">
@@ -849,7 +859,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             </button>
           )}
         </div>
-      </OverlayScrollbarsComponent>
+        </OverlayScrollbarsComponent>
+      </div>
 
       {/* Capture renderer — only mounted during active capture */}
       {isCapturing && hasSelection && (

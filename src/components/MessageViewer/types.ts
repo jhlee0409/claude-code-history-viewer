@@ -131,6 +131,15 @@ export interface FlattenedMessageItem {
   taskRegistry?: Map<string, TaskInfo>;
 }
 
+/** Date divider item inserted when date changes between messages */
+export interface DateDividerItem {
+  type: "date-divider";
+  /** ISO timestamp of the first message on this new date */
+  timestamp: string;
+  /** Pre-formatted date key for deduplication (YYYY-MM-DD) */
+  dateKey: string;
+}
+
 /** Placeholder indicating hidden blocks in capture mode */
 export interface HiddenBlocksPlaceholder {
   type: "hidden-placeholder";
@@ -141,4 +150,4 @@ export interface HiddenBlocksPlaceholder {
 }
 
 /** Union type for all items in the flattened list */
-export type FlattenedMessage = FlattenedMessageItem | HiddenBlocksPlaceholder;
+export type FlattenedMessage = FlattenedMessageItem | HiddenBlocksPlaceholder | DateDividerItem;

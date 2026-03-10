@@ -146,5 +146,7 @@
   "time.minute": "分钟",
   "time.minutes": "分钟",
   "time.start": "开始：",
-  "time.secondShort": "秒"
+  "time.secondShort": "秒",
+  "time.today": "今天",
+  "time.yesterday": "昨天"
 }

@@ -44,6 +44,57 @@ export const formatDateCompact = (timestamp: string): string => {
   });
 };
 
+/**
+ * Compare whether two timestamps fall on the same calendar day.
+ */
+export const isSameDay = (a: string, b: string): boolean => {
+  const dateA = new Date(a);
+  const dateB = new Date(b);
+  return (
+    dateA.getFullYear() === dateB.getFullYear() &&
+    dateA.getMonth() === dateB.getMonth() &&
+    dateA.getDate() === dateB.getDate()
+  );
+};
+
+/**
+ * Format a timestamp as a date divider label.
+ * Returns "Today", "Yesterday", or a full date like "Friday, June 27, 2025".
+ */
+export const formatDateDivider = (timestamp: string): string => {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const currentLanguage = i18n.language || "en";
+  const locale = getLocale(currentLanguage);
+
+  // Check today
+  if (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  ) {
+    return i18n.t("time.today");
+  }
+
+  // Check yesterday
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (
+    date.getFullYear() === yesterday.getFullYear() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getDate() === yesterday.getDate()
+  ) {
+    return i18n.t("time.yesterday");
+  }
+
+  return date.toLocaleDateString(locale, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
 export const formatDuration = (minutes: number): string => {
   if (minutes < 1) {
     return i18n.t("time.lessThanMinute");

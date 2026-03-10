@@ -6,10 +6,15 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
 // https://vite.dev/config/
-export default defineConfig(() => ({
+export default defineConfig(() => {
+  const useMock = process.env.VITE_MOCK === "1";
+
+  return {
   plugins: [
     react(),
     tailwindcss(),
+    // Mock API plugin for browser testing (VITE_MOCK=1 pnpm dev)
+    useMock ? import("./dev-mock-server").then(m => m.mockApiPlugin()) : null,
     // Bundle analyzer disabled - uncomment to enable
     // visualizer({
     //   open: true,
@@ -171,4 +176,5 @@ export default defineConfig(() => ({
       ["src-tauri/tests/**", "node"],
     ],
   },
-}));
+};
+});

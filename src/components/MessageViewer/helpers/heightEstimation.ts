@@ -31,6 +31,11 @@ export function estimateMessageHeight(item: FlattenedMessage): number {
     return 40; // Compact placeholder height
   }
 
+  // Date divider has fixed height
+  if (item.type === "date-divider") {
+    return 36;
+  }
+
   const { message, isGroupMember, isProgressGroupMember, isTaskOperationGroupMember, agentTaskGroup, agentProgressGroup } = item;
 
   // Group members are hidden (height: 0)
