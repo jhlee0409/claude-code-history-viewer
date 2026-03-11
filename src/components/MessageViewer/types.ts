@@ -136,8 +136,6 @@ export interface DateDividerItem {
   type: "date-divider";
   /** ISO timestamp of the first message on this new date */
   timestamp: string;
-  /** Pre-formatted date key for deduplication (YYYY-MM-DD) */
-  dateKey: string;
 }
 
 /** Placeholder indicating hidden blocks in capture mode */

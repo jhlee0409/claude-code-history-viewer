@@ -6,15 +6,18 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
 // https://vite.dev/config/
-export default defineConfig(() => {
+export default defineConfig(async () => {
   const useMock = process.env.VITE_MOCK === "1";
+  const mockPlugin = useMock
+    ? (await import("./dev-mock-server")).mockApiPlugin()
+    : null;
 
   return {
   plugins: [
     react(),
     tailwindcss(),
     // Mock API plugin for browser testing (VITE_MOCK=1 pnpm dev)
-    useMock ? import("./dev-mock-server").then(m => m.mockApiPlugin()) : null,
+    mockPlugin,
     // Bundle analyzer disabled - uncomment to enable
     // visualizer({
     //   open: true,
@@ -30,7 +33,7 @@ export default defineConfig(() => {
 
     rollupOptions: {
       output: {
-        manualChunks: (id) => {
+        manualChunks: (id: string) => {
           // === i18n locale data (split by language to avoid one mega-chunk) ===
           if (id.includes("i18n/locales/en/")) return "i18n-en";
           if (id.includes("i18n/locales/ko/")) return "i18n-ko";

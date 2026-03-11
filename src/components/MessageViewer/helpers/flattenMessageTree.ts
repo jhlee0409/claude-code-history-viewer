@@ -240,14 +240,6 @@ export function flattenMessageTree({
 }
 
 /**
- * Create a date key string (YYYY-MM-DD) from a timestamp.
- */
-function toDateKey(timestamp: string): string {
-  const d = new Date(timestamp);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/**
  * Maybe insert a date divider before a message if the date changed.
  * Returns the divider item or null.
  */
@@ -262,7 +254,6 @@ function maybeDateDivider(
     return {
       type: "date-divider",
       timestamp: message.timestamp,
-      dateKey: toDateKey(message.timestamp),
     };
   }
 
@@ -271,7 +262,6 @@ function maybeDateDivider(
     return {
       type: "date-divider",
       timestamp: message.timestamp,
-      dateKey: toDateKey(message.timestamp),
     };
   }
 
