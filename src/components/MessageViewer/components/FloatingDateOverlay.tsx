@@ -21,7 +21,7 @@ type FloatingDateOverlayProps = {
 };
 
 /** How long (ms) after scrolling stops before the overlay fades out. */
-const FADE_OUT_DELAY_MS = 1500;
+const FADE_OUT_DELAY_MS = 3000;
 
 /**
  * Find the current date label based on the first visible virtual row.
