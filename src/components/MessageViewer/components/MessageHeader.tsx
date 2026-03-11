@@ -8,6 +8,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { HelpCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { formatTime, formatTimeShort } from "../../../utils/time";
 import { getShortModelName } from "../../../utils/model";
 import { getToolName } from "../../../utils/toolUtils";
@@ -69,9 +70,16 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                   : t("messageViewer.system")}
         </span>
         <span>·</span>
-        <span title={formatTime(message.timestamp)}>
-          {formatTimeShort(message.timestamp)}
-        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className="cursor-default">
+              {formatTimeShort(message.timestamp)}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={4}>
+            {formatTime(message.timestamp)}
+          </TooltipContent>
+        </Tooltip>
         {message.isSidechain && (
           <span className="px-1.5 py-0.5 text-xs font-mono bg-warning/20 text-warning-foreground rounded-full">
             {t("messageViewer.branch")}
