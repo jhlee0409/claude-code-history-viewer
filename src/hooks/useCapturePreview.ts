@@ -35,9 +35,11 @@ export function useCapturePreview() {
     async (containerEl: HTMLElement, sessionId?: string) => {
       try {
         const { toPng } = await import("html-to-image");
+        const backgroundColor =
+          getComputedStyle(document.body).backgroundColor || "#09090b";
         const dataUrl = await toPng(containerEl, {
           pixelRatio: 2,
-          backgroundColor: "#09090b",
+          backgroundColor,
         });
 
         // Decode dimensions from the data URL

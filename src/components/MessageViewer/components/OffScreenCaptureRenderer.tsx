@@ -66,17 +66,16 @@ export const OffScreenCaptureRenderer = forwardRef<
     <>
       {/* Layer 1: Capture target — on-screen so browser computes layout,
           but behind the backdrop (z-index: 99997) */}
-      <CaptureExpandProvider value={{ forceExpanded: true }}>
+      <CaptureExpandProvider value={{ forceExpanded: false }}>
         <div
           ref={ref}
+          className="bg-background text-foreground"
           style={{
             position: "fixed",
             top: 0,
             left: 0,
             zIndex: 99997,
             width: "800px",
-            backgroundColor: "#09090b",
-            color: "#fafafa",
             fontFamily:
               'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           }}
