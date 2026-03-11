@@ -76,7 +76,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
               {formatTimeShort(message.timestamp)}
             </button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" sideOffset={4}>
+          <TooltipContent side="top" sideOffset={4}>
             {formatTime(message.timestamp)}
           </TooltipContent>
         </Tooltip>
