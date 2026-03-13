@@ -855,10 +855,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
         </OverlayScrollbarsComponent>
 
-        {/* Floating action buttons — outside scroll container to avoid clipping */}
-        <div className="fixed bottom-[8.5rem] md:bottom-10 right-3 md:right-2 flex flex-col gap-2 z-50">
-          {/* Export */}
-          {!isCaptureMode && messages.length > 0 && (
+        {/* Floating export button — top-right of message area */}
+        {!isCaptureMode && messages.length > 0 && (
+          <div className="absolute top-2 right-4 z-30">
             <DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -867,14 +866,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                       type="button"
                       disabled={isExporting}
                       className={cn(
-                        "p-3 rounded-full shadow-lg transition-all duration-300",
+                        "p-2.5 rounded-full shadow-lg transition-all duration-300",
                         "bg-accent/60 hover:bg-accent text-accent-foreground",
                         "hover:scale-110 focus:outline-none focus:ring-4 focus:ring-accent/30",
                         "disabled:opacity-50 disabled:cursor-not-allowed"
                       )}
                       aria-label={t("session.export.button")}
                     >
-                      <Download className="w-3 h-3" />
+                      <Download className="w-3.5 h-3.5" />
                     </button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
@@ -882,7 +881,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   {isExporting ? t("session.export.exporting") : t("session.export.button")}
                 </TooltipContent>
               </Tooltip>
-              <DropdownMenuContent side="top" align="end">
+              <DropdownMenuContent side="bottom" align="end">
                 <DropdownMenuItem onClick={() => handleExport("markdown")}>
                   {t("session.export.markdown")}
                 </DropdownMenuItem>
@@ -894,7 +893,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
+          </div>
+        )}
+
+        {/* Floating scroll buttons — bottom-right of message area */}
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-30">
           {/* Scroll to top */}
           {showScrollToTop && (
             <button
