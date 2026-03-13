@@ -11,6 +11,14 @@ import { toast } from "sonner";
 import type { ExportFormat } from "@/types/export";
 import type { ClaudeMessage } from "@/types";
 
+function sanitizeFilename(name: string): string {
+  // Remove filesystem-invalid characters (Windows: <>:"/\|?*, also control chars)
+  // eslint-disable-next-line no-control-regex
+  const safe = name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim();
+  // Limit length to avoid path issues
+  return safe.slice(0, 200) || "conversation";
+}
+
 export function useExport(messages: ClaudeMessage[], sessionName: string) {
   const { t } = useTranslation();
   const [isExporting, setIsExporting] = useState(false);
@@ -21,6 +29,7 @@ export function useExport(messages: ClaudeMessage[], sessionName: string) {
       setIsExporting(true);
 
       try {
+        const safeName = sanitizeFilename(sessionName);
         let content: string;
         let defaultPath: string;
         let mimeType: string;
@@ -29,21 +38,21 @@ export function useExport(messages: ClaudeMessage[], sessionName: string) {
           case "markdown": {
             const { exportToMarkdown } = await import("@/services/export/markdownExporter");
             content = exportToMarkdown(messages, sessionName);
-            defaultPath = `${sessionName}.md`;
+            defaultPath = `${safeName}.md`;
             mimeType = "text/markdown";
             break;
           }
           case "json": {
             const { exportToJson } = await import("@/services/export/jsonExporter");
             content = exportToJson(messages, sessionName);
-            defaultPath = `${sessionName}.json`;
+            defaultPath = `${safeName}.json`;
             mimeType = "application/json";
             break;
           }
           case "html": {
             const { exportToHtml } = await import("@/services/export/htmlExporter");
             content = exportToHtml(messages, sessionName);
-            defaultPath = `${sessionName}.html`;
+            defaultPath = `${safeName}.html`;
             mimeType = "text/html";
             break;
           }

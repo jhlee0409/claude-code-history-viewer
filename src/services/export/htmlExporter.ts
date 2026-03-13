@@ -77,13 +77,26 @@ function isExportable(m: ClaudeMessage): boolean {
     && m.type !== "file-history-snapshot";
 }
 
-// Configure marked to escape raw HTML (XSS prevention)
+function isSafeUrl(url: string): boolean {
+  const trimmed = url.trim().toLowerCase();
+  return /^(https?:|mailto:|#|\/)/i.test(trimmed);
+}
+
+// Configure marked to escape raw HTML and sanitize URLs (XSS prevention)
 // while still rendering Markdown syntax (headings, bold, code, etc.)
 const safeMarked = new Marked({ breaks: true });
 safeMarked.use({
   renderer: {
     html({ text }: { text: string }) {
       return escapeHtml(text);
+    },
+    link({ href, text }: { href: string; text: string }) {
+      if (!isSafeUrl(href)) return escapeHtml(text);
+      return `<a href="${escapeHtml(href)}">${text}</a>`;
+    },
+    image({ href, text }: { href: string; text: string }) {
+      if (!isSafeUrl(href)) return escapeHtml(text ?? "");
+      return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text ?? "")}" />`;
     },
   },
 });

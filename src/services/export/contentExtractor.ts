@@ -26,6 +26,18 @@ function summarizeInput(input: Record<string, unknown>): string {
   return parts.join(", ");
 }
 
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+/**
+ * Safely read a nested field from an untyped content object.
+ * ContentItem union is wide — we use runtime checks to access nested data.
+ */
+function nested(item: Record<string, unknown>, key: string): unknown {
+  return (item.content as Record<string, unknown> | undefined)?.[key];
+}
+
 export function extractBlocks(content: string | ContentItem[] | Record<string, unknown> | undefined): ExtractedBlock[] {
   if (content == null) return [];
   if (typeof content === "string") return [{ kind: "text", text: content }];
@@ -35,17 +47,19 @@ export function extractBlocks(content: string | ContentItem[] | Record<string, u
 
   for (const item of content) {
     if (!("type" in item)) continue;
+    // Cast for flexible field access across the wide ContentItem union
+    const raw = item as unknown as Record<string, unknown>;
 
     switch (item.type) {
       case "text":
-        if ("text" in item && typeof item.text === "string") {
-          blocks.push({ kind: "text", text: item.text });
+        if ("text" in raw && typeof raw.text === "string") {
+          blocks.push({ kind: "text", text: raw.text });
         }
         break;
 
       case "thinking":
-        if ("thinking" in item && typeof item.thinking === "string") {
-          blocks.push({ kind: "thinking", text: item.thinking });
+        if ("thinking" in raw && typeof raw.thinking === "string") {
+          blocks.push({ kind: "thinking", text: raw.thinking });
         }
         break;
 
@@ -54,62 +68,83 @@ export function extractBlocks(content: string | ContentItem[] | Record<string, u
         break;
 
       case "tool_use":
-        if ("name" in item && typeof item.name === "string") {
-          const input = "input" in item && typeof item.input === "object" && item.input != null
-            ? summarizeInput(item.input as Record<string, unknown>)
+        if ("name" in raw && typeof raw.name === "string") {
+          const input = typeof raw.input === "object" && raw.input != null
+            ? summarizeInput(raw.input as Record<string, unknown>)
             : "";
-          const detail = input ? `${item.name}(${input})` : item.name;
+          const detail = input ? `${raw.name}(${input})` : raw.name;
           blocks.push({ kind: "tool", text: detail });
         }
         break;
 
       case "tool_result":
-        if ("content" in item) {
-          const c = item.content;
-          const isError = "is_error" in item && item.is_error;
+        if ("content" in raw) {
+          const c = raw.content;
+          const isError = raw.is_error === true;
           const prefix = isError ? "[Error] " : "";
           if (typeof c === "string") {
-            const truncated = c.length > 500 ? `${c.slice(0, 500)}...` : c;
-            blocks.push({ kind: "result", text: `${prefix}${truncated}` });
+            blocks.push({ kind: "result", text: `${prefix}${truncate(c, 500)}` });
           } else {
             blocks.push({ kind: "result", text: `${prefix}[Tool result]` });
           }
         }
         break;
 
+      // ServerToolUseContent: { name, input }
       case "server_tool_use":
-        if ("name" in item && typeof item.name === "string") {
-          blocks.push({ kind: "tool", text: `[Server: ${item.name}]` });
+        if (typeof raw.name === "string") {
+          const input = typeof raw.input === "object" && raw.input != null
+            ? summarizeInput(raw.input as Record<string, unknown>)
+            : "";
+          const detail = input ? `${raw.name}(${input})` : raw.name;
+          blocks.push({ kind: "tool", text: `[Server: ${detail}]` });
         }
         break;
 
-      case "web_search_tool_result":
-        if ("search_results" in item && Array.isArray(item.search_results)) {
-          const urls = item.search_results
+      // WebSearchToolResultContent: { content: WebSearchResultItem[] | WebSearchToolError }
+      // WebSearchResultItem: { type: "web_search_result", title, url }
+      case "web_search_tool_result": {
+        const c = raw.content;
+        if (Array.isArray(c)) {
+          const urls = c
             .slice(0, 5)
-            .map((r: Record<string, unknown>) => r.url ?? r.title ?? "")
+            .map((r: Record<string, unknown>) => r.title ?? r.url ?? "")
             .filter(Boolean)
             .join(", ");
-          blocks.push({ kind: "search", text: `[Web search: ${urls}]` });
+          blocks.push({ kind: "search", text: urls ? `[Web search: ${urls}]` : "[Web search results]" });
         } else {
           blocks.push({ kind: "search", text: "[Web search results]" });
         }
         break;
+      }
 
-      case "web_fetch_tool_result":
-        if ("url" in item && typeof item.url === "string") {
-          blocks.push({ kind: "search", text: `[Web fetch: ${item.url}]` });
-        } else {
-          blocks.push({ kind: "search", text: "[Web fetch result]" });
-        }
+      // WebFetchToolResultContent: { content: WebFetchResult | WebFetchError }
+      // WebFetchResult: { type: "web_fetch_result", url, content? }
+      case "web_fetch_tool_result": {
+        const c = raw.content as Record<string, unknown> | undefined;
+        const url = typeof c?.url === "string" ? c.url : undefined;
+        blocks.push({ kind: "search", text: url ? `[Web fetch: ${url}]` : "[Web fetch result]" });
         break;
+      }
 
+      // CodeExecutionToolResultContent: { content: { stdout?, stderr? } }
       case "code_execution_tool_result":
-      case "bash_code_execution_tool_result":
+      case "bash_code_execution_tool_result": {
+        const stdout = nested(raw, "stdout");
+        const stderr = nested(raw, "stderr");
+        const output = typeof stdout === "string" && stdout ? truncate(stdout, 300) : "";
+        const err = typeof stderr === "string" && stderr ? `[stderr] ${truncate(stderr, 200)}` : "";
+        const text = [output, err].filter(Boolean).join("\n") || `[${item.type}]`;
+        blocks.push({ kind: "code", text });
+        break;
+      }
+
+      // TextEditorCodeExecutionToolResultContent: { content: { operation?, path?, success? } }
       case "text_editor_code_execution_tool_result": {
-        const stdout = "stdout" in item && typeof item.stdout === "string" ? item.stdout : "";
-        const truncated = stdout.length > 300 ? `${stdout.slice(0, 300)}...` : stdout;
-        blocks.push({ kind: "code", text: truncated || `[${item.type}]` });
+        const c = raw.content as Record<string, unknown> | undefined;
+        const op = typeof c?.operation === "string" ? c.operation : "unknown";
+        const path = typeof c?.path === "string" ? c.path : "";
+        blocks.push({ kind: "code", text: path ? `[File ${op}: ${path}]` : `[File ${op}]` });
         break;
       }
 
@@ -122,33 +157,56 @@ export function extractBlocks(content: string | ContentItem[] | Record<string, u
         break;
 
       case "document":
-        if ("title" in item && typeof item.title === "string") {
-          blocks.push({ kind: "media", text: `[Document: ${item.title}]` });
+        if (typeof raw.title === "string") {
+          blocks.push({ kind: "media", text: `[Document: ${raw.title}]` });
         } else {
           blocks.push({ kind: "media", text: "[Document]" });
         }
         break;
 
       case "search_result":
-        if ("title" in item && typeof item.title === "string") {
-          blocks.push({ kind: "search", text: `[Search: ${item.title}]` });
+        if (typeof raw.title === "string") {
+          blocks.push({ kind: "search", text: `[Search: ${raw.title}]` });
         } else {
           blocks.push({ kind: "search", text: "[Search result]" });
         }
         break;
 
-      case "mcp_tool_use":
-        if ("name" in item && typeof item.name === "string") {
-          blocks.push({ kind: "tool", text: `[MCP: ${item.name}]` });
+      // MCPToolUseContent: { server_name, tool_name, input }
+      case "mcp_tool_use": {
+        const server = typeof raw.server_name === "string" ? raw.server_name : "";
+        const tool = typeof raw.tool_name === "string" ? raw.tool_name : "";
+        const name = server && tool ? `${server}.${tool}` : tool || server || "unknown";
+        const input = typeof raw.input === "object" && raw.input != null
+          ? summarizeInput(raw.input as Record<string, unknown>)
+          : "";
+        const detail = input ? `${name}(${input})` : name;
+        blocks.push({ kind: "tool", text: `[MCP: ${detail}]` });
+        break;
+      }
+
+      // MCPToolResultContent: { content: MCPToolResultData | string, is_error? }
+      case "mcp_tool_result": {
+        const c = raw.content;
+        const isError = raw.is_error === true;
+        const prefix = isError ? "[Error] " : "";
+        if (typeof c === "string") {
+          blocks.push({ kind: "result", text: `${prefix}${truncate(c, 500)}` });
+        } else if (typeof c === "object" && c != null && "text" in (c as Record<string, unknown>)) {
+          const text = (c as Record<string, unknown>).text;
+          if (typeof text === "string") {
+            blocks.push({ kind: "result", text: `${prefix}${truncate(text, 500)}` });
+          } else {
+            blocks.push({ kind: "result", text: `${prefix}[MCP result]` });
+          }
+        } else {
+          blocks.push({ kind: "result", text: `${prefix}[MCP result]` });
         }
         break;
-
-      case "mcp_tool_result":
-        blocks.push({ kind: "result", text: "[MCP result]" });
-        break;
+      }
 
       default:
-        blocks.push({ kind: "text", text: `[${String((item as Record<string, unknown>).type)}]` });
+        blocks.push({ kind: "text", text: `[${String(raw.type)}]` });
         break;
     }
   }

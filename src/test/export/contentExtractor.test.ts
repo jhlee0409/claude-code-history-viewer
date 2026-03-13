@@ -22,12 +22,14 @@ describe("contentExtractor", () => {
   });
 
   it("should extract thinking as thinking kind", () => {
-    const blocks = extractBlocks([{ type: "thinking", thinking: "Let me think..." }]);
+    const blocks = extractBlocks([
+      { type: "thinking", thinking: "Let me think...", signature: "sig123" },
+    ]);
     expect(blocks[0]).toEqual({ kind: "thinking", text: "Let me think..." });
   });
 
   it("should handle redacted thinking", () => {
-    const blocks = extractBlocks([{ type: "redacted_thinking" }]);
+    const blocks = extractBlocks([{ type: "redacted_thinking", data: "encrypted" }]);
     expect(blocks[0]).toEqual({ kind: "thinking", text: "[Redacted thinking]" });
   });
 
@@ -64,23 +66,127 @@ describe("contentExtractor", () => {
   });
 
   it("should handle image content", () => {
-    const blocks = extractBlocks([{ type: "image" }]);
+    const blocks = extractBlocks([
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+    ]);
     expect(blocks[0]).toEqual({ kind: "media", text: "[Image]" });
   });
 
-  it("should handle server_tool_use", () => {
-    const blocks = extractBlocks([{ type: "server_tool_use", id: "s1", name: "web_search" }]);
-    expect(blocks[0]).toEqual({ kind: "tool", text: "[Server: web_search]" });
+  it("should handle server_tool_use with input", () => {
+    const blocks = extractBlocks([
+      { type: "server_tool_use", id: "s1", name: "web_search", input: { query: "tauri pdf" } },
+    ]);
+    expect(blocks[0]?.kind).toBe("tool");
+    expect(blocks[0]?.text).toContain("web_search");
+    expect(blocks[0]?.text).toContain("query: tauri pdf");
+  });
+
+  it("should handle web_search_tool_result with content array", () => {
+    const blocks = extractBlocks([
+      {
+        type: "web_search_tool_result",
+        tool_use_id: "s1",
+        content: [
+          { type: "web_search_result", title: "Tauri Docs", url: "https://tauri.app", encrypted_content: "..." },
+          { type: "web_search_result", title: "MDN", url: "https://mdn.io", encrypted_content: "..." },
+        ],
+      },
+    ]);
+    expect(blocks[0]?.kind).toBe("search");
+    expect(blocks[0]?.text).toContain("Tauri Docs");
+    expect(blocks[0]?.text).toContain("MDN");
+  });
+
+  it("should handle web_fetch_tool_result with nested url", () => {
+    const blocks = extractBlocks([
+      {
+        type: "web_fetch_tool_result",
+        tool_use_id: "f1",
+        content: { type: "web_fetch_result", url: "https://example.com" },
+      },
+    ]);
+    expect(blocks[0]?.kind).toBe("search");
+    expect(blocks[0]?.text).toContain("https://example.com");
+  });
+
+  it("should handle code_execution_tool_result with nested stdout", () => {
+    const blocks = extractBlocks([
+      {
+        type: "code_execution_tool_result",
+        tool_use_id: "c1",
+        content: { type: "code_execution_result", stdout: "Hello World", stderr: "", return_code: 0 },
+      },
+    ]);
+    expect(blocks[0]?.kind).toBe("code");
+    expect(blocks[0]?.text).toContain("Hello World");
+  });
+
+  it("should handle bash_code_execution_tool_result with stderr", () => {
+    const blocks = extractBlocks([
+      {
+        type: "bash_code_execution_tool_result",
+        tool_use_id: "b1",
+        content: { type: "bash_code_execution_result", stdout: "", stderr: "command not found", return_code: 1 },
+      },
+    ]);
+    expect(blocks[0]?.kind).toBe("code");
+    expect(blocks[0]?.text).toContain("[stderr]");
+    expect(blocks[0]?.text).toContain("command not found");
+  });
+
+  it("should handle text_editor_code_execution_tool_result", () => {
+    const blocks = extractBlocks([
+      {
+        type: "text_editor_code_execution_tool_result",
+        tool_use_id: "e1",
+        content: { type: "text_editor_code_execution_result", operation: "edit", path: "/src/index.ts", success: true },
+      },
+    ]);
+    expect(blocks[0]?.kind).toBe("code");
+    expect(blocks[0]?.text).toContain("edit");
+    expect(blocks[0]?.text).toContain("/src/index.ts");
   });
 
   it("should handle document with title", () => {
-    const blocks = extractBlocks([{ type: "document", title: "README.md" }]);
+    const blocks = extractBlocks([
+      { type: "document", source: { type: "base64", media_type: "application/pdf", data: "..." }, title: "README.md" },
+    ]);
     expect(blocks[0]).toEqual({ kind: "media", text: "[Document: README.md]" });
   });
 
-  it("should handle mcp_tool_use", () => {
-    const blocks = extractBlocks([{ type: "mcp_tool_use", name: "query-docs" }]);
-    expect(blocks[0]).toEqual({ kind: "tool", text: "[MCP: query-docs]" });
+  it("should handle mcp_tool_use with server_name and tool_name", () => {
+    const blocks = extractBlocks([
+      { type: "mcp_tool_use", id: "m1", server_name: "context7", tool_name: "query-docs", input: { query: "tauri" } },
+    ]);
+    expect(blocks[0]?.kind).toBe("tool");
+    expect(blocks[0]?.text).toContain("context7.query-docs");
+    expect(blocks[0]?.text).toContain("query: tauri");
+  });
+
+  it("should handle mcp_tool_result with text content", () => {
+    const blocks = extractBlocks([
+      {
+        type: "mcp_tool_result",
+        tool_use_id: "m1",
+        content: { type: "text", text: "Documentation result" },
+      },
+    ]);
+    expect(blocks[0]?.kind).toBe("result");
+    expect(blocks[0]?.text).toContain("Documentation result");
+  });
+
+  it("should handle mcp_tool_result with error", () => {
+    const blocks = extractBlocks([
+      {
+        type: "mcp_tool_result",
+        tool_use_id: "m1",
+        content: "Server unavailable",
+        is_error: true,
+      },
+    ]);
+    expect(blocks[0]?.kind).toBe("result");
+    expect(blocks[0]?.text).toContain("[Error]");
+    expect(blocks[0]?.text).toContain("Server unavailable");
   });
 
   it("should handle unknown types with type label", () => {
