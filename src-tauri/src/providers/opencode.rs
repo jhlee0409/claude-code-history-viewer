@@ -101,7 +101,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 
     // 2. Read from JSON files (fallback / merge)
     let projects_dir = storage_path.join("project");
-    if projects_dir.exists() {
+    if is_non_symlink_dir(&projects_dir) {
         let entries = fs::read_dir(&projects_dir).map_err(|e| e.to_string())?;
 
         for entry in entries.flatten() {
@@ -151,7 +151,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                 .to_string();
 
             let sessions_dir = storage_path.join("session").join(&project_id);
-            let session_count = if sessions_dir.exists() {
+            let session_count = if is_non_symlink_dir(&sessions_dir) {
                 fs::read_dir(&sessions_dir)
                     .map(|entries| {
                         entries
@@ -270,7 +270,7 @@ pub fn load_sessions(
                 .unwrap_or_else(|| created_at.clone());
 
             let messages_dir = storage_path.join("message").join(&session_id);
-            let message_count = if messages_dir.exists() {
+            let message_count = if is_non_symlink_dir(&messages_dir) {
                 fs::read_dir(&messages_dir)
                     .map(|entries| {
                         entries
@@ -501,7 +501,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     }
 
     // 2. Search JSON files (skip sessions already covered by SQLite)
-    if !session_root.exists() {
+    if !is_non_symlink_dir(&session_root) {
         return Ok(results);
     }
 
@@ -571,6 +571,14 @@ fn is_non_symlink_dir(path: &Path) -> bool {
 // ============================================================================
 // SQLite helpers
 // ============================================================================
+
+/// Escape `%`, `_`, and `\` for use in a `SQLite` LIKE pattern with `ESCAPE '\'`.
+fn escape_like_pattern(input: &str) -> String {
+    input
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
 
 /// Build a map of `project_id -> HashSet<session_id>` from the `SQLite` DB.
 /// Opens a single connection and queries all sessions at once.
@@ -886,11 +894,12 @@ fn search_from_db(
 ) -> Option<(Vec<ClaudeMessage>, HashSet<String>)> {
     let conn = open_db(base_path)?;
 
-    let search_pattern = format!("%{query_lower}%");
+    let escaped = escape_like_pattern(query_lower);
+    let search_pattern = format!("%{escaped}%");
     let mut stmt = conn
         .prepare(
             "SELECT DISTINCT p.session_id FROM part p
-             WHERE LOWER(p.data) LIKE ?1
+             WHERE LOWER(p.data) LIKE ?1 ESCAPE '\\'
              LIMIT ?2",
         )
         .ok()?;
