@@ -411,7 +411,8 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
     }
 
     if let Some(opencode_base) = providers::opencode::get_base_path() {
-        let storage = PathBuf::from(opencode_base).join("storage");
+        let base = PathBuf::from(&opencode_base);
+        let storage = base.join("storage");
         let session = storage.join("session");
         let message = storage.join("message");
         if session.is_dir() {
@@ -419,6 +420,11 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
         if message.is_dir() {
             paths.push(message);
+        }
+        // Watch opencode.db for SQLite-based storage changes
+        let db_path = base.join("opencode.db");
+        if db_path.is_file() {
+            paths.push(base);
         }
     }
 

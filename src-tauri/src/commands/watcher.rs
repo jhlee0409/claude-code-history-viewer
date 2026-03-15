@@ -149,6 +149,8 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
         }
         // OpenCode storage files
         "json" => extract_opencode_paths(path),
+        // OpenCode SQLite database change — emit broad refresh for all OpenCode projects
+        "db" | "db-wal" => extract_opencode_db_event(path),
         _ => None,
     }
 }
@@ -221,6 +223,20 @@ fn extract_codex_paths(path: &Path) -> Option<(String, String)> {
         "codex://watch".to_string(),
         path.to_string_lossy().to_string(),
     ))
+}
+
+/// Handle `OpenCode` `SQLite` database file changes.
+///
+/// Since we cannot determine which project/session changed from a DB write,
+/// emit a broad event with `"opencode://*"` so the frontend refreshes all
+/// `OpenCode` data.
+fn extract_opencode_db_event(path: &Path) -> Option<(String, String)> {
+    let filename = path.file_name()?.to_str()?;
+    if filename.starts_with("opencode.") {
+        Some(("opencode://*".to_string(), "opencode://*".to_string()))
+    } else {
+        None
+    }
 }
 
 /// Extract `OpenCode` virtual identifiers from storage JSON files.
