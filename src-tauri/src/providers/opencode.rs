@@ -86,7 +86,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
             }
             // Supplement session count with JSON-only sessions
             let sessions_dir = storage_path.join("session").join(&id);
-            if sessions_dir.exists() {
+            if is_non_symlink_dir(&sessions_dir) {
                 let db_ids = db_sessions_by_project.get(&id);
                 let json_only = count_json_sessions_excluding(
                     &sessions_dir,
@@ -218,7 +218,7 @@ pub fn load_sessions(
 
     // 2. Read from JSON files
     let sessions_dir = storage_path.join("session").join(project_id);
-    if sessions_dir.exists() {
+    if is_non_symlink_dir(&sessions_dir) {
         for entry in fs::read_dir(&sessions_dir)
             .map_err(|e| e.to_string())?
             .flatten()
@@ -561,6 +561,13 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     Ok(results)
 }
 
+/// Check that a path is a real directory (not a symlink).
+fn is_non_symlink_dir(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_dir() && !m.file_type().is_symlink())
+        .unwrap_or(false)
+}
+
 // ============================================================================
 // SQLite helpers
 // ============================================================================
@@ -594,6 +601,9 @@ fn count_json_sessions_excluding(
     sessions_dir: &Path,
     exclude_ids: Option<&HashSet<String>>,
 ) -> usize {
+    if !is_non_symlink_dir(sessions_dir) {
+        return 0;
+    }
     fs::read_dir(sessions_dir)
         .map(|entries| {
             entries
