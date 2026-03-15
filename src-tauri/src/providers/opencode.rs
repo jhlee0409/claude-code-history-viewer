@@ -926,11 +926,7 @@ fn search_from_db(
         }
     }
 
-    if results.is_empty() {
-        None
-    } else {
-        Some((results, searched_set))
-    }
+    Some((results, searched_set))
 }
 
 // ============================================================================
