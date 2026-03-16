@@ -57,6 +57,8 @@ export interface ClaudeProject {
   provider?: ProviderId;
   /** Storage type (json, sqlite) — OpenCode only */
   storage_type?: "json" | "sqlite";
+  /** Label for custom Claude directory source (e.g., "Personal") */
+  custom_directory_label?: string;
 }
 
 export interface ClaudeSession {

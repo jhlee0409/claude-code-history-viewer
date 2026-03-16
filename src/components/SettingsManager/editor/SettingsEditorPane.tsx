@@ -22,6 +22,7 @@ import { PermissionsSection } from "../sections/PermissionsSection";
 import { MCPServersSection } from "../sections/MCPServersSection";
 import { HooksSection } from "../sections/HooksSection";
 import { EnvVarsSection } from "../sections/EnvVarsSection";
+import { CustomDirectoriesSection } from "../sections/CustomDirectoriesSection";
 import { EmptyState } from "../components/EmptyState";
 import type { ClaudeCodeSettings } from "@/types";
 
@@ -308,6 +309,14 @@ export const SettingsEditorPane: React.FC = () => {
                   onToggle={() => toggleSection("general")}
                   onChange={handleSettingsChange}
                   readOnly={isReadOnly}
+                />
+              </div>
+
+              {/* Custom Directories Section (app-level, not Claude Code config) */}
+              <div ref={(el) => { sectionRefs.current["customDirs"] = el; }}>
+                <CustomDirectoriesSection
+                  isExpanded={expandedSections.has("customDirs")}
+                  onToggle={() => toggleSection("customDirs")}
                 />
               </div>
 

@@ -108,6 +108,7 @@ export type {
 
 // Project & Metadata Types
 export type {
+  CustomClaudePath,
   SessionMetadata,
   ProjectMetadata,
   GroupingMode,

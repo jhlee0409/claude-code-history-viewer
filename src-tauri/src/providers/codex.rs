@@ -175,6 +175,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                 git_info: None,
                 provider: Some("codex".to_string()),
                 storage_type: None,
+                custom_directory_label: None,
             }
         })
         .collect();

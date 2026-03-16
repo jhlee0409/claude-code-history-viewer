@@ -48,6 +48,14 @@ export type GroupingMode = "none" | "worktree" | "directory";
 // User Settings
 // ============================================================================
 
+/** A user-registered custom Claude configuration directory */
+export interface CustomClaudePath {
+  /** Absolute path to the Claude config directory */
+  path: string;
+  /** User-defined display label (e.g., "Personal") */
+  label?: string;
+}
+
 /** Global user settings */
 export interface UserSettings {
   /** Glob patterns for projects to hide (e.g., "folders-dg-*") */
@@ -58,6 +66,8 @@ export interface UserSettings {
   worktreeGroupingUserSet?: boolean;
   /** Project tree grouping mode: none, worktree, or directory */
   groupingMode?: GroupingMode;
+  /** Additional Claude configuration directories to scan */
+  customClaudePaths?: CustomClaudePath[];
 }
 
 // ============================================================================

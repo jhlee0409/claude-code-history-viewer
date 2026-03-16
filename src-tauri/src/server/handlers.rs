@@ -288,6 +288,8 @@ pub struct ScanAllProjectsParams {
     pub claude_path: Option<String>,
     #[serde(default)]
     pub active_providers: Option<Vec<String>>,
+    #[serde(default)]
+    pub custom_claude_paths: Option<Vec<commands::multi_provider::CustomClaudePathParam>>,
 }
 
 #[derive(Deserialize)]
@@ -318,6 +320,8 @@ pub struct SearchAllProvidersParams {
     pub filters: Option<Value>,
     #[serde(default)]
     pub limit: Option<usize>,
+    #[serde(default)]
+    pub custom_claude_paths: Option<Vec<commands::multi_provider::CustomClaudePathParam>>,
 }
 
 #[derive(Deserialize)]
@@ -710,7 +714,12 @@ handler_json!(
     scan_all_projects,
     ScanAllProjectsParams,
     |p: ScanAllProjectsParams| async move {
-        commands::multi_provider::scan_all_projects(p.claude_path, p.active_providers).await
+        commands::multi_provider::scan_all_projects(
+            p.claude_path,
+            p.active_providers,
+            p.custom_claude_paths,
+        )
+        .await
     }
 );
 
@@ -745,6 +754,7 @@ handler_json!(
             p.active_providers,
             p.filters,
             p.limit,
+            p.custom_claude_paths,
         )
         .await
     }

@@ -42,6 +42,9 @@ pub struct ClaudeProject {
     /// Storage type (json, sqlite)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_type: Option<String>,
+    /// Label for custom Claude directory source (e.g., "Personal")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_directory_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

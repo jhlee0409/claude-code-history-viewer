@@ -396,6 +396,27 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         if claude_projects.is_dir() {
             paths.push(claude_projects);
         }
+
+        // Load custom Claude paths from user-data.json
+        let user_data_path = home.join(".claude-history-viewer").join("user-data.json");
+        if let Ok(content) = std::fs::read_to_string(&user_data_path) {
+            if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(custom_paths) = metadata
+                    .get("settings")
+                    .and_then(|s| s.get("customClaudePaths"))
+                    .and_then(|v| v.as_array())
+                {
+                    for entry in custom_paths {
+                        if let Some(path_str) = entry.get("path").and_then(|p| p.as_str()) {
+                            let custom_projects = PathBuf::from(path_str).join("projects");
+                            if custom_projects.is_dir() {
+                                paths.push(custom_projects);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if let Some(codex_base) = providers::codex::get_base_path() {

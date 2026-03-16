@@ -182,6 +182,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                 git_info: None,
                 provider: Some("opencode".to_string()),
                 storage_type: Some("json".to_string()),
+                custom_directory_label: None,
             });
         }
     }
@@ -691,6 +692,7 @@ fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
                 git_info: None,
                 provider: Some("opencode".to_string()),
                 storage_type: Some("sqlite".to_string()),
+                custom_directory_label: None,
             })
         })
         .ok()?;

@@ -501,5 +501,20 @@
   "settingsManager.visual.denyList": "拒绝的权限",
   "settingsManager.visual.model": "模型",
   "settingsManager.visual.saved": "设置已成功保存",
-  "settingsManager.visual.selectModel": "选择模型"
+  "settingsManager.visual.selectModel": "选择模型",
+  "settings.customDirectories": "自定义 Claude 目录",
+  "settings.customDirectories.description": "添加额外的 Claude 配置目录以搜索对话历史。",
+  "settings.customDirectories.default": "默认",
+  "settings.customDirectories.detected": "已检测",
+  "settings.customDirectories.addDirectory": "添加目录",
+  "settings.customDirectories.addDirectoryManual": "手动输入路径",
+  "settings.customDirectories.label": "标签",
+  "settings.customDirectories.labelPlaceholder": "例如：Personal、Work",
+  "settings.customDirectories.path": "路径",
+  "settings.customDirectories.pathPlaceholder": ".claude 目录的绝对路径",
+  "settings.customDirectories.remove": "删除",
+  "settings.customDirectories.removeConfirm": "删除此自定义目录？历史文件不会被删除。",
+  "settings.customDirectories.invalidPath": "无效路径：目录必须包含 'projects' 子文件夹。",
+  "settings.customDirectories.duplicatePath": "此目录已注册。",
+  "settings.customDirectories.empty": "尚未添加自定义目录。"
 }

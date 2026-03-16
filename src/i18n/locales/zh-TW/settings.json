@@ -501,5 +501,20 @@
   "settingsManager.visual.denyList": "拒絕的權限",
   "settingsManager.visual.model": "模型",
   "settingsManager.visual.saved": "設定已成功儲存",
-  "settingsManager.visual.selectModel": "選擇模型"
+  "settingsManager.visual.selectModel": "選擇模型",
+  "settings.customDirectories": "自訂 Claude 目錄",
+  "settings.customDirectories.description": "新增額外的 Claude 設定目錄以搜尋對話歷史。",
+  "settings.customDirectories.default": "預設",
+  "settings.customDirectories.detected": "已偵測",
+  "settings.customDirectories.addDirectory": "新增目錄",
+  "settings.customDirectories.addDirectoryManual": "手動輸入路徑",
+  "settings.customDirectories.label": "標籤",
+  "settings.customDirectories.labelPlaceholder": "例如：Personal、Work",
+  "settings.customDirectories.path": "路徑",
+  "settings.customDirectories.pathPlaceholder": ".claude 目錄的絕對路徑",
+  "settings.customDirectories.remove": "刪除",
+  "settings.customDirectories.removeConfirm": "刪除此自訂目錄？歷史檔案不會被刪除。",
+  "settings.customDirectories.invalidPath": "無效路徑：目錄必須包含 'projects' 子資料夾。",
+  "settings.customDirectories.duplicatePath": "此目錄已註冊。",
+  "settings.customDirectories.empty": "尚未新增自訂目錄。"
 }

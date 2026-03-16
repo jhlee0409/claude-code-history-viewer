@@ -187,6 +187,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             git_info,
             provider: None,
             storage_type: None,
+            custom_directory_label: None,
         });
     }
 
