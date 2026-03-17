@@ -312,7 +312,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
                   }
 
                   // Image type (base64 or URL) with media type and URL scheme allowlists
-                  if (contentItem.type === "image" && contentItem.source && typeof contentItem.source === "object") {
+                  if (contentItem.type === "image" && contentItem.source != null && typeof contentItem.source === "object") {
                     const source = contentItem.source as Record<string, unknown>;
                     const ALLOWED_MEDIA_TYPES = /^image\/(jpeg|png|gif|webp|bmp|svg\+xml)$/;
                     if (
@@ -330,6 +330,8 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
                     ) {
                       return <ImageRenderer key={idx} imageUrl={source.url} />;
                     }
+                    // Avoid falling back to raw object rendering for image payloads
+                    return null;
                   }
 
                   // Tool reference type
