@@ -39,6 +39,9 @@ struct CachedSessionMetadata {
     /// First assistant text (for multi-tier fallback)
     #[serde(default)]
     first_assistant_text: Option<String>,
+    /// Rename name from /rename command
+    #[serde(default)]
+    rename_name: Option<String>,
 }
 
 /// Session metadata cache file structure
@@ -50,7 +53,7 @@ struct SessionMetadataCache {
     entries: HashMap<String, CachedSessionMetadata>,
 }
 
-const CACHE_VERSION: u32 = 6;
+const CACHE_VERSION: u32 = 7;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -126,6 +129,8 @@ struct IncrementalParseState {
     last_user_content: Option<String>,
     /// First assistant text (already known, for fallback)
     first_assistant_text: Option<String>,
+    /// Rename name from /rename command (already known)
+    rename_name: Option<String>,
 }
 
 /// Minimal struct for fast line classification (avoids full parsing)
@@ -152,6 +157,8 @@ struct SessionMetadataEntry {
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
     summary: Option<String>,
+    subtype: Option<String>,
+    content: Option<serde_json::Value>,
     #[serde(rename = "toolUse")]
     tool_use: Option<serde_json::Value>,
     #[serde(rename = "toolUseResult")]
@@ -194,6 +201,8 @@ struct SessionExtractionResult {
     last_user_content: Option<String>,
     /// First assistant text (for incremental caching)
     first_assistant_text: Option<String>,
+    /// Rename name from /rename command (for caching)
+    rename_name: Option<String>,
 }
 
 /// Fast session metadata extraction with two-phase parsing:
@@ -245,6 +254,7 @@ fn extract_session_metadata_internal(
         mut first_user_content,
         mut last_user_content,
         mut first_assistant_text,
+        mut rename_name,
     ) = if let Some(ref state) = incremental_state {
         (
             state.start_offset,
@@ -259,10 +269,11 @@ fn extract_session_metadata_internal(
             state.first_user_content.clone(),
             state.last_user_content.clone(),
             state.first_assistant_text.clone(),
+            state.rename_name.clone(),
         )
     } else {
         (
-            0u64, 0usize, 0usize, None, None, None, None, false, false, None, None, None,
+            0u64, 0usize, 0usize, None, None, None, None, false, false, None, None, None, None,
         )
     };
 
@@ -304,7 +315,19 @@ fn extract_session_metadata_internal(
                     continue;
                 }
 
-                // Skip system message types
+                // Extract rename name from system/local_command messages before skipping
+                if entry.message_type == "system" {
+                    if entry.subtype.as_deref() == Some("local_command") {
+                        if let Some(ref content) = entry.content {
+                            if let Some(name) = extract_rename_from_content(content) {
+                                rename_name = Some(name);
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                // Skip other system message types
                 if is_system_message_type(&entry.message_type) {
                     continue;
                 }
@@ -428,7 +451,23 @@ fn extract_session_metadata_internal(
                 continue;
             }
 
-            // Skip system message types
+            // Extract rename from system messages (using fast string check before full parse)
+            if classifier.message_type == "system" {
+                if line.contains("Session renamed to: ") {
+                    if let Ok(entry) = serde_json::from_str::<SessionMetadataEntry>(&line) {
+                        if entry.subtype.as_deref() == Some("local_command") {
+                            if let Some(ref content) = entry.content {
+                                if let Some(name) = extract_rename_from_content(content) {
+                                    rename_name = Some(name);
+                                }
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+
+            // Skip other system message types
             if is_system_message_type(&classifier.message_type) {
                 continue;
             }
@@ -483,7 +522,10 @@ fn extract_session_metadata_internal(
         .to_string();
 
     let project_name = extract_project_name(&raw_project_name);
-    let final_summary = session_summary
+    // Rename name takes highest priority, then existing summary fallback chain
+    let final_summary = rename_name
+        .clone()
+        .or(session_summary)
         .or(first_user_content.clone())
         .or(first_assistant_text.clone())
         .or(last_user_content.clone());
@@ -513,6 +555,7 @@ fn extract_session_metadata_internal(
         first_user_content,
         last_user_content,
         first_assistant_text,
+        rename_name,
     })
 }
 
@@ -529,6 +572,22 @@ const SYSTEM_MESSAGE_TYPES: [&str; 4] = [
 #[inline]
 fn is_system_message_type(message_type: &str) -> bool {
     SYSTEM_MESSAGE_TYPES.contains(&message_type)
+}
+
+/// Extract session rename name from a `system/local_command` message content.
+/// Matches the pattern: `<local-command-stdout>Session renamed to: {name}</local-command-stdout>`
+/// Returns None if the content doesn't match the rename pattern or the name is empty.
+fn extract_rename_from_content(content: &serde_json::Value) -> Option<String> {
+    let text = content.as_str()?;
+    const PREFIX: &str = "<local-command-stdout>Session renamed to: ";
+    const SUFFIX: &str = "</local-command-stdout>";
+    let rest = text.strip_prefix(PREFIX)?;
+    let name = rest.strip_suffix(SUFFIX)?;
+    let name = name.trim();
+    if name.is_empty() {
+        return None;
+    }
+    Some(name.to_string())
 }
 
 /// Fast classification of a line without full parsing
@@ -781,6 +840,7 @@ pub async fn load_project_sessions(
                             first_user_content: cached.first_user_content.clone(),
                             last_user_content: cached.last_user_content.clone(),
                             first_assistant_text: cached.first_assistant_text.clone(),
+                            rename_name: cached.rename_name.clone(),
                         },
                     ));
                     continue;
@@ -847,6 +907,7 @@ pub async fn load_project_sessions(
                     first_user_content,
                     last_user_content,
                     first_assistant_text,
+                    cached_rename_name,
                 ) = match &result_opt {
                     Some(result) => (
                         Some(result.session.clone()),
@@ -857,8 +918,9 @@ pub async fn load_project_sessions(
                         result.first_user_content.clone(),
                         result.last_user_content.clone(),
                         result.first_assistant_text.clone(),
+                        result.rename_name.clone(),
                     ),
-                    None => (None, 0, 0, false, false, None, None, None),
+                    None => (None, 0, 0, false, false, None, None, None, None),
                 };
 
                 cache.entries.insert(
@@ -874,6 +936,7 @@ pub async fn load_project_sessions(
                         first_user_content,
                         last_user_content,
                         first_assistant_text,
+                        rename_name: cached_rename_name,
                     },
                 );
                 cache_updated = true;
@@ -2095,5 +2158,177 @@ mod tests {
         assert_eq!(result.len(), 1);
         // Should fall back to user message since assistant text is too short
         assert_eq!(result[0].summary, Some("User fallback message".to_string()));
+    }
+
+    fn create_sample_rename_message(name: &str) -> String {
+        format!(
+            r#"{{"type":"system","subtype":"local_command","content":"<local-command-stdout>Session renamed to: {name}</local-command-stdout>","timestamp":"2025-06-26T10:05:00Z","sessionId":"session-1"}}"#
+        )
+    }
+
+    #[tokio::test]
+    async fn test_should_extract_rename_from_system_message() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_rename_message("MyProject")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("MyProject".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_use_last_rename_when_multiple() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_rename_message("Alpha"),
+            create_sample_rename_message("Beta")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("Beta".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_prioritize_rename_over_other_summaries() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_summary_message("Auto summary"),
+            create_sample_rename_message("Custom Name")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Rename takes priority over summary message
+        assert_eq!(result[0].summary, Some("Custom Name".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_fallback_to_existing_summary() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // No rename message — should use first user content as summary
+        let content = format!(
+            "{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello world"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("Hello world".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_not_count_system_as_message() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_rename_message("MyProject")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // System message should not be counted
+        assert_eq!(result[0].message_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_should_ignore_empty_rename() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello world"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            r#"{"type":"system","subtype":"local_command","content":"<local-command-stdout>Session renamed to: </local-command-stdout>","timestamp":"2025-06-26T10:05:00Z","sessionId":"session-1"}"#
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Empty rename should be ignored, falls back to first user content
+        assert_eq!(result[0].summary, Some("Hello world".to_string()));
+    }
+
+    #[test]
+    fn test_extract_rename_from_content() {
+        // Valid rename
+        let content = serde_json::json!(
+            "<local-command-stdout>Session renamed to: MyProject</local-command-stdout>"
+        );
+        assert_eq!(
+            extract_rename_from_content(&content),
+            Some("MyProject".to_string())
+        );
+
+        // Empty name
+        let content =
+            serde_json::json!("<local-command-stdout>Session renamed to: </local-command-stdout>");
+        assert_eq!(extract_rename_from_content(&content), None);
+
+        // Not a rename message
+        let content =
+            serde_json::json!("<local-command-stdout>Some other command</local-command-stdout>");
+        assert_eq!(extract_rename_from_content(&content), None);
+
+        // Non-string content
+        let content = serde_json::json!(42);
+        assert_eq!(extract_rename_from_content(&content), None);
+
+        // Name with special characters
+        let content = serde_json::json!(
+            "<local-command-stdout>Session renamed to: My [Project] v2.0</local-command-stdout>"
+        );
+        assert_eq!(
+            extract_rename_from_content(&content),
+            Some("My [Project] v2.0".to_string())
+        );
     }
 }
