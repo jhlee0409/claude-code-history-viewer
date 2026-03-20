@@ -77,6 +77,7 @@
   "navigator.role.assistant": "助理",
   "navigator.role.system": "系統",
   "navigator.role.summary": "摘要",
+  "navigator.userOnly": "僅顯示使用者訊息",
   "navigator.noMessages": "此會話沒有訊息",
   "navigator.close": "關閉導覽器",
   "navigator.messageCount": "{{count}} 則訊息"

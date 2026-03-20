@@ -78,6 +78,7 @@
   "navigator.role.system": "System",
   "navigator.role.summary": "Summary",
 
+  "navigator.userOnly": "Show user messages only",
   "navigator.noMessages": "No messages in this session",
   "navigator.close": "Close navigator",
   "navigator.messageCount": "{{count}} messages"

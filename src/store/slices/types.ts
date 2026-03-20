@@ -166,6 +166,9 @@ export interface AppStoreState {
   dateFilter: import("../../types/board.types").DateFilter;
   isTimelineExpanded: boolean;
 
+  // Filter state
+  userOnlyFilter: boolean;
+
   // Navigation state
   targetMessageUuid: string | null;
   shouldHighlightTarget: boolean;
@@ -312,6 +315,10 @@ export interface AppStoreActions {
   setMarkdownPretty: (pretty: boolean) => void;
   setDateFilter: (filter: import("../../types/board.types").DateFilter) => void;
   toggleTimeline: () => void;
+
+  // Filter actions
+  setUserOnlyFilter: (enabled: boolean) => void;
+  toggleUserOnlyFilter: () => void;
 
   // Watcher actions
   setWatcherEnabled: (enabled: boolean) => void;

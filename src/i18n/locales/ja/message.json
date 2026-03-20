@@ -77,6 +77,7 @@
   "navigator.role.assistant": "アシスタント",
   "navigator.role.system": "システム",
   "navigator.role.summary": "要約",
+  "navigator.userOnly": "ユーザーメッセージのみ表示",
   "navigator.noMessages": "このセッションにメッセージはありません",
   "navigator.close": "ナビゲーターを閉じる",
   "navigator.messageCount": "{{count}}件のメッセージ"

@@ -700,7 +700,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  disabled={isExporting || messages.length === 0}
+                  disabled={isExporting || displayMessages.length === 0}
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap",
                     "transition-all duration-200",

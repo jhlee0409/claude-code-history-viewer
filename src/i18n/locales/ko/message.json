@@ -77,6 +77,7 @@
   "navigator.role.assistant": "어시스턴트",
   "navigator.role.system": "시스템",
   "navigator.role.summary": "요약",
+  "navigator.userOnly": "사용자 메시지만 표시",
   "navigator.noMessages": "이 세션에 메시지가 없습니다",
   "navigator.close": "네비게이터 닫기",
   "navigator.messageCount": "{{count}}개 메시지"
