@@ -104,7 +104,7 @@ export const WebSearchRenderer = ({
 
                       return (
                         <div className={layout.prose}>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                             {result}
                           </ReactMarkdown>
                         </div>
@@ -128,7 +128,7 @@ export const WebSearchRenderer = ({
                               <div key={idx}>
                                 {item && typeof item === "object" && "text" in item && typeof item.text === "string" ? (
                                   <div className={layout.prose}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                                       {item.text}
                                     </ReactMarkdown>
                                   </div>
@@ -195,7 +195,7 @@ const SearchResultItem = ({
     )}
     {description && (
       <div className={`${layout.bodyText} leading-relaxed text-foreground/80`}>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
           {description}
         </ReactMarkdown>
       </div>

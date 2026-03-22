@@ -255,7 +255,7 @@ export const FileContent = ({
               </div>
               {language === "markdown" ? (
                 <div className={`p-4 bg-tool-file/5 text-foreground ${layout.prose}`}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                     {displayContent}
                   </ReactMarkdown>
                 </div>

@@ -501,5 +501,20 @@
   "settingsManager.visual.denyList": "Denied Permissions",
   "settingsManager.visual.model": "Model",
   "settingsManager.visual.saved": "Settings saved successfully",
-  "settingsManager.visual.selectModel": "Select model"
+  "settingsManager.visual.selectModel": "Select model",
+  "settings.customDirectories": "Custom Claude Directories",
+  "settings.customDirectories.description": "Add additional Claude configuration directories to scan for conversation history.",
+  "settings.customDirectories.default": "Default",
+  "settings.customDirectories.detected": "Detected",
+  "settings.customDirectories.addDirectory": "Add Directory",
+  "settings.customDirectories.addDirectoryManual": "Enter path manually",
+  "settings.customDirectories.label": "Label",
+  "settings.customDirectories.labelPlaceholder": "e.g., Personal, Work",
+  "settings.customDirectories.path": "Path",
+  "settings.customDirectories.pathPlaceholder": "Absolute path to .claude directory",
+  "settings.customDirectories.remove": "Remove",
+  "settings.customDirectories.removeConfirm": "Remove this custom directory? History files will not be deleted.",
+  "settings.customDirectories.invalidPath": "Invalid path: directory must contain a 'projects' subfolder.",
+  "settings.customDirectories.duplicatePath": "This directory is already registered.",
+  "settings.customDirectories.empty": "No custom directories added yet."
 }

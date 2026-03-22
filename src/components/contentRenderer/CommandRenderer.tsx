@@ -15,6 +15,8 @@ type Props = {
   searchQuery?: string;
   isCurrentMatch?: boolean;
   currentMatchIndex?: number;
+  /** Color variant — "accent" (default, blue) for assistant context, "system" (amber) for system messages */
+  variant?: "accent" | "system";
 };
 
 interface CommandGroup {
@@ -33,14 +35,33 @@ interface CaveatBlock {
   content: string;
 }
 
+const VARIANT_COLORS = {
+  accent: {
+    text: "text-accent",
+    bg: "bg-accent/10",
+    border: "border-accent/30",
+    hover: "hover:bg-accent/20",
+    argBg: "bg-tool-search/20 text-tool-search",
+  },
+  system: {
+    text: "text-amber-400",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/30",
+    hover: "hover:bg-amber-500/20",
+    argBg: "bg-amber-500/15 text-amber-300",
+  },
+} as const;
+
 export const CommandRenderer = ({
   text,
   searchQuery,
   isCurrentMatch = false,
   currentMatchIndex = 0,
+  variant = "accent",
 }: Props) => {
   const { t } = useTranslation();
   const [isCommandExpanded, setIsCommandExpanded] = useCaptureExpandState("command", false);
+  const colors = VARIANT_COLORS[variant];
 
   // Auto-expand on search query match
   useEffect(() => {
@@ -167,7 +188,7 @@ export const CommandRenderer = ({
     <div className="space-y-2">
       {/* Command Group (with optional inline stdout output) */}
       {hasCommandGroup && (
-        <div className={cn(layout.rounded, "border bg-accent/10 border-accent/30")}>
+        <div className={cn(layout.rounded, "border", colors.bg, colors.border)}>
           {hasExpandableContent ? (
             <button
               onClick={() => setIsCommandExpanded(prev => !prev)}
@@ -178,25 +199,27 @@ export const CommandRenderer = ({
                 layout.iconGap,
                 layout.headerPadding,
                 layout.rounded,
-                "text-left hover:bg-accent/20 transition-colors"
+                "text-left transition-colors",
+                colors.hover
               )}
             >
               <ChevronRight
                 className={cn(
                   layout.iconSize,
-                  "transition-transform text-accent",
+                  "transition-transform",
+                  colors.text,
                   isCommandExpanded && "rotate-90"
                 )}
               />
-              <Terminal className={cn(layout.iconSize, "text-accent")} />
-              <span className={cn(layout.titleText, "text-accent")}>
+              <Terminal className={cn(layout.iconSize, colors.text)} />
+              <span className={cn(layout.titleText, colors.text)}>
                 {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
               </span>
             </button>
           ) : (
             <div className={cn("flex items-center", layout.iconGap, layout.headerPadding)}>
-              <Terminal className={cn(layout.iconSize, "text-accent")} />
-              <span className={cn(layout.titleText, "text-accent")}>
+              <Terminal className={cn(layout.iconSize, colors.text)} />
+              <span className={cn(layout.titleText, colors.text)}>
                 {commandGroup.name ? commandGroup.name : t("commandRenderer.commandExecution")}
               </span>
             </div>
@@ -207,10 +230,10 @@ export const CommandRenderer = ({
               {/* Command args if present */}
               {commandGroup.args && (
                 <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-                  <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px] text-accent")}>
+                  <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px]", colors.text)}>
                     {t("commandRenderer.arguments")}
                   </span>
-                  <code className={cn("px-1.5 py-0.5 text-[11px]", layout.rounded, "font-mono whitespace-pre-wrap bg-tool-search/20 text-tool-search")}>
+                  <code className={cn("px-1.5 py-0.5 text-[11px]", layout.rounded, "font-mono whitespace-pre-wrap", colors.argBg)}>
                     {searchQuery ? (
                       <HighlightedText
                         text={commandGroup.args}
@@ -228,10 +251,10 @@ export const CommandRenderer = ({
               {/* Command message/status if present */}
               {commandGroup.message && (
                 <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-                  <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px] text-accent")}>
+                  <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px]", colors.text)}>
                     {t("commandRenderer.status")}
                   </span>
-                  <span className={cn("text-[11px] italic text-accent")}>
+                  <span className={cn("text-[11px] italic", colors.text)}>
                     {searchQuery ? (
                       <HighlightedText
                         text={commandGroup.message}
@@ -308,7 +331,7 @@ export const CommandRenderer = ({
                 isError ? "bg-destructive/5 text-destructive" : "bg-success/5 text-success"
               )}
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{output.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>{output.content}</ReactMarkdown>
             </div>
           </div>
         );
@@ -366,7 +389,7 @@ export const CommandRenderer = ({
       {/* Remaining Text */}
       {withoutCommands && (
         <div className={layout.prose}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
             {withoutCommands}
           </ReactMarkdown>
         </div>

@@ -108,7 +108,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                 "content" in msg.message ? (
                   typeof msg.message.content === "string" ? (
                     <div className="prose prose-sm max-w-none prose-gray">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                         {msg.message.content}
                       </ReactMarkdown>
                     </div>
@@ -120,7 +120,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                             {item.type === "text" &&
                               typeof item.text === "string" && (
                                 <div className="prose prose-sm max-w-none prose-gray">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                                     {item.text}
                                   </ReactMarkdown>
                                 </div>

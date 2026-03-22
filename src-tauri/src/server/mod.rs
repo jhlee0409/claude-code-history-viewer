@@ -67,6 +67,10 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
         // Project commands
         .route("/get_claude_folder_path", post(h::get_claude_folder_path))
         .route("/validate_claude_folder", post(h::validate_claude_folder))
+        .route(
+            "/validate_custom_claude_dir",
+            post(h::validate_custom_claude_dir),
+        )
         .route("/scan_projects", post(h::scan_projects))
         .route("/get_git_log", post(h::get_git_log))
         // Session commands

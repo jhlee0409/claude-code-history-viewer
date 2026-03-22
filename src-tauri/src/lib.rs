@@ -31,7 +31,10 @@ use crate::commands::{
         detect_providers, load_provider_messages, load_provider_sessions, scan_all_projects,
         search_all_providers,
     },
-    project::{get_claude_folder_path, get_git_log, scan_projects, validate_claude_folder},
+    project::{
+        get_claude_folder_path, get_git_log, scan_projects, validate_claude_folder,
+        validate_custom_claude_dir,
+    },
     session::{
         get_recent_edits, get_session_message_count, load_project_sessions, load_session_messages,
         load_session_messages_paginated, rename_opencode_session_title, rename_session_native,
@@ -111,6 +114,7 @@ fn run_tauri() {
         .invoke_handler(tauri::generate_handler![
             get_claude_folder_path,
             validate_claude_folder,
+            validate_custom_claude_dir,
             scan_projects,
             get_git_log,
             load_project_sessions,
@@ -395,6 +399,29 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         let claude_projects = home.join(".claude").join("projects");
         if claude_projects.is_dir() {
             paths.push(claude_projects);
+        }
+
+        // Load custom Claude paths from user-data.json
+        let user_data_path = home.join(".claude-history-viewer").join("user-data.json");
+        if let Ok(content) = std::fs::read_to_string(&user_data_path) {
+            if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(custom_paths) = metadata
+                    .get("settings")
+                    .and_then(|s| s.get("customClaudePaths"))
+                    .and_then(|v| v.as_array())
+                {
+                    for entry in custom_paths {
+                        if let Some(path_str) = entry.get("path").and_then(|p| p.as_str()) {
+                            let custom_base = PathBuf::from(path_str);
+                            if let Ok(canonical_projects) =
+                                crate::utils::validate_custom_claude_path(&custom_base)
+                            {
+                                paths.push(canonical_projects);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

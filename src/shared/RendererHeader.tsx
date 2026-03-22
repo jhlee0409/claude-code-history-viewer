@@ -88,8 +88,8 @@ const RendererHeader = ({
 
   if (!enableToggle) {
     return (
-      <div className={cn("flex items-center justify-between", layout.headerPadding, layout.headerHeight)}>
-        <div className={cn("flex items-center min-w-0 flex-1", layout.iconGap)}>
+      <div className={cn("flex flex-wrap items-center gap-y-0.5", layout.headerPadding, layout.headerHeight)}>
+        <div className={cn("flex items-center flex-1 min-w-[10ch]", layout.iconGap)}>
           {hasError ? (
             <X className={cn(layout.iconSize, "shrink-0 text-destructive")} />
           ) : (
@@ -98,6 +98,7 @@ const RendererHeader = ({
           <span
             className={cn(
               layout.titleText,
+              "truncate",
               titleClassName,
               hasError && "text-destructive"
             )}
@@ -105,24 +106,30 @@ const RendererHeader = ({
             {`${title} ${hasError ? t('common.errorOccurred') : ""}`}
           </span>
         </div>
-        <div className={cn("flex items-center min-w-0 overflow-hidden", layout.iconGap, layout.smallText)}>
+        <div className={cn("flex items-center shrink-0 ml-auto", layout.iconGap, layout.smallText)}>
           {rightContent}
         </div>
       </div>
     );
   }
   return (
-    <button
-      type="button"
-      onClick={toggle}
+    <div
       className={cn(
-        "w-full flex items-center justify-between text-left",
+        "w-full flex flex-wrap items-center gap-y-0.5",
         layout.headerPadding,
-        layout.headerHeight,
-        "hover:bg-muted/50 transition-colors"
+        layout.headerHeight
       )}
     >
-      <div className={cn("flex items-center min-w-0 flex-1", layout.iconGap)}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={isOpen}
+        className={cn(
+          "flex items-center text-left flex-1 min-w-[10ch]",
+          layout.iconGap,
+          "hover:bg-muted/50 transition-colors rounded-sm -m-1 p-1"
+        )}
+      >
         <ChevronRight
           className={cn(
             layout.iconSize,
@@ -138,17 +145,23 @@ const RendererHeader = ({
         <span
           className={cn(
             layout.titleText,
+            "truncate",
             titleClassName,
             hasError && "text-destructive"
           )}
         >
           {`${title} ${hasError ? t('common.errorOccurred') : ""}`}
         </span>
-      </div>
-      <div className={cn("flex items-center min-w-0 overflow-hidden", layout.iconGap, layout.smallText)}>
-        {rightContent}
-      </div>
-    </button>
+      </button>
+      {rightContent && (
+        <div
+          className={cn("flex items-center shrink-0 ml-auto", layout.iconGap, layout.smallText)}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {rightContent}
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -17,6 +17,7 @@ import type { MessageViewerProps } from "./types";
 import { VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
 import { FloatingDateOverlay } from "./components/FloatingDateOverlay";
 import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
+import { FilterToolbar } from "./components/FilterToolbar";
 import { OffScreenCaptureRenderer } from "./components/OffScreenCaptureRenderer";
 import { ScreenshotPreviewModal } from "./components/ScreenshotPreviewModal";
 import { useSearchState } from "./hooks/useSearchState";
@@ -30,6 +31,7 @@ import {
   groupTaskOperations,
 } from "./helpers";
 import { useAppStore } from "../../store/useAppStore";
+import { extractClaudeMessageContent } from "../../utils/messageUtils";
 import { useExpandRegistry } from "../../store/expandRegistryStore";
 import { useExport } from "../../hooks/useExport";
 import {
@@ -75,17 +77,56 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     targetMessageUuid,
     shouldHighlightTarget,
     clearTargetMessage,
+    messageFilter,
   } = useAppStore();
 
-  // Export hook
+  // Apply role + content type filters
+  const displayMessages = useMemo(() => {
+    const { roles, contentTypes } = messageFilter;
+    const allRoles = roles.user && roles.assistant;
+    const allContent = contentTypes.text && contentTypes.thinking && contentTypes.toolCalls && contentTypes.commands;
+    if (allRoles && allContent) return messages;
+
+    return messages.filter((msg) => {
+      // Role filter
+      if (msg.type === "user") return roles.user;
+      if (msg.type === "assistant") {
+        if (!roles.assistant) return false;
+        // Content type filter — check if assistant message has any visible content left
+        if (!allContent) {
+          const hasText = contentTypes.text && !!extractClaudeMessageContent(msg);
+          const hasContentArray = Array.isArray(msg.content) && msg.content.some((item: unknown) => {
+            if (!item || typeof item !== "object") return false;
+            const typed = item as Record<string, unknown>;
+            const t = typed.type as string;
+            if (t === "text") return contentTypes.text;
+            if (t === "thinking" || t === "redacted_thinking") return contentTypes.thinking;
+            if (t === "tool_use" || t === "tool_result" || t === "server_tool_use"
+              || t === "web_search_tool_result" || t === "mcp_tool_use" || t === "mcp_tool_result"
+              || t === "web_fetch_tool_result" || t === "code_execution_tool_result"
+              || t === "bash_code_execution_tool_result" || t === "text_editor_code_execution_tool_result"
+              || t === "tool_search_tool_result") return contentTypes.toolCalls;
+            if (t === "command") return contentTypes.commands;
+            return true; // image, document, search_result — always show
+          });
+          const hasLegacyTool = contentTypes.toolCalls && !!(msg.toolUse || msg.toolUseResult);
+          if (!hasText && !hasContentArray && !hasLegacyTool) return false;
+        }
+        return true;
+      }
+      return true; // system/summary/other
+    });
+  }, [messages, messageFilter]);
+
+  // Export hook — uses role-filtered displayMessages
   const { isExporting, exportConversation } = useExport(
-    messages,
+    displayMessages,
     selectedSession?.project_name ?? selectedSession?.session_id ?? "conversation",
   );
   const handleExport = useCallback((format: ExportFormat) => {
-    if (isExporting || messages.length === 0) return;
+    if (isExporting || displayMessages.length === 0) return;
     void exportConversation(format);
-  }, [isExporting, messages.length, exportConversation]);
+  }, [isExporting, displayMessages.length, exportConversation]);
 
   // Clear expand registry on session change
   const clearExpandStates = useExpandRegistry((s) => s.clearAll);
@@ -144,9 +185,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // const isTarget = isMessage && shouldHighlightTarget && targetMessageUuid === item.message.uuid;
   // const isCurrentMatch = (isMessage && currentMatchUuid === item.message.uuid) || isTarget;
 
-
-  // 카카오톡 스타일: 항상 전체 메시지 표시 (필터링 없음)
-  const displayMessages = messages;
 
   // Deduplicate messages for grouping
   const uniqueMessages = useMemo(() => {
@@ -540,7 +578,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         role="search"
         className={cn(
           "flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2 lg:py-2.5 border-b sticky top-0 z-10",
-          "flex-wrap lg:flex-nowrap",
+          "flex-wrap",
           "bg-gradient-to-r from-zinc-900/95 via-zinc-800/95 to-zinc-900/95",
           "backdrop-blur-sm border-zinc-700/50"
         )}
@@ -592,7 +630,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         </div>
 
         {/* Search Input - Glass morphism */}
-        <div className="relative flex-1 min-w-0 group order-1 lg:order-none w-full lg:w-auto">
+        <div className="relative flex-1 group order-1 lg:order-none w-full lg:w-auto">
           <Search className={cn(
             "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4",
             "text-zinc-500 group-focus-within:text-zinc-300 transition-colors"
@@ -700,7 +738,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  disabled={isExporting || messages.length === 0}
+                  disabled={isExporting || displayMessages.length === 0}
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap",
                     "transition-all duration-200",
@@ -734,6 +772,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           </div>
         )}
       </div>
+
+      {/* Filter Toolbar */}
+      {!isCaptureMode && messages.length > 0 && (
+        <FilterToolbar totalCount={messages.length} filteredCount={displayMessages.length} />
+      )}
 
       {/* Capture Mode Toolbar */}
       {isCaptureMode && (

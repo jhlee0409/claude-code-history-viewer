@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/ui/loading";
+import { Card } from "@/components/ui/card";
 import { RefreshCw, FolderTree, Archive, ChevronRight } from "lucide-react";
 import { useMCPServers } from "@/hooks/useMCPServers";
 import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
@@ -26,6 +27,7 @@ import type {
 import { SettingsSidebar } from "./sidebar/SettingsSidebar";
 import { SettingsEditorPane } from "./editor/SettingsEditorPane";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
+import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -108,6 +110,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 
   // Panel state
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("editor");
+  const [isCustomDirsExpanded, setIsCustomDirsExpanded] = React.useState(false);
 
   // Pending changes state (shared across components for dirty tracking)
   const [pendingSettings, setPendingSettings] = React.useState<ClaudeCodeSettings | null>(null);
@@ -304,12 +307,23 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             error={error}
           />
         ) : (
-          <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
-            {/* Left Sidebar */}
-            <SettingsSidebar availableScopes={availableScopes} />
+          <div className="flex flex-col gap-4 flex-1 min-h-0">
+            {/* Custom Directories — app-level setting, independent of Claude Code scope */}
+            <Card className="shrink-0">
+              <CustomDirectoriesSection
+                isExpanded={isCustomDirsExpanded}
+                onToggle={(open) => setIsCustomDirsExpanded(open)}
+              />
+            </Card>
 
-            {/* Main Content Area */}
-            {activePanel === "editor" ? <SettingsEditorPane /> : <SettingsDiagnosticsPanel />}
+            {/* Claude Code Settings */}
+            <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
+              {/* Left Sidebar */}
+              <SettingsSidebar availableScopes={availableScopes} />
+
+              {/* Main Content Area */}
+              {activePanel === "editor" ? <SettingsEditorPane /> : <SettingsDiagnosticsPanel />}
+            </div>
           </div>
         )}
       </div>

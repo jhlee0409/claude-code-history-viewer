@@ -13,5 +13,6 @@ expression: session
   "last_modified": "2025-01-01T12:00:00Z",
   "has_tool_use": true,
   "has_errors": false,
-  "summary": "Test conversation summary"
+  "summary": "Test conversation summary",
+  "is_renamed": false
 }

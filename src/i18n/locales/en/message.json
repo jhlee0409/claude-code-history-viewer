@@ -78,7 +78,21 @@
   "navigator.role.system": "System",
   "navigator.role.summary": "Summary",
 
+  "navigator.userOnly": "Show user messages only",
   "navigator.noMessages": "No messages in this session",
   "navigator.close": "Close navigator",
-  "navigator.messageCount": "{{count}} messages"
+  "navigator.messageCount": "{{count}} messages",
+
+  "filter.title": "Filter",
+  "filter.roles": "Roles",
+  "filter.role.user": "User",
+  "filter.role.assistant": "Assistant",
+  "filter.contentTypes": "Content Types",
+  "filter.content.text": "Text",
+  "filter.content.thinking": "Thinking",
+  "filter.content.toolCalls": "Tool Calls",
+  "filter.content.commands": "Commands",
+  "filter.reset": "Reset Filters",
+  "filter.active": "Filters active",
+  "filter.showing": "{{filtered}} / {{total}}"
 }

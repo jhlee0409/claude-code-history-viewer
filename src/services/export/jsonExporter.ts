@@ -5,7 +5,8 @@
  */
 
 import type { ClaudeMessage } from "@/types";
-import { extractBlocks, blocksToPlainText, isExportable } from "./contentExtractor";
+import { extractBlocks, filterBlocksByContentType, blocksToPlainText, isExportable } from "./contentExtractor";
+import type { MessageFilterContentTypes } from "@/store/slices/filterSlice";
 
 interface ExportedMessage {
   role: "user" | "assistant";
@@ -20,14 +21,18 @@ interface ExportedMessage {
 }
 
 
-export function exportToJson(messages: ClaudeMessage[], sessionName: string): string {
+export function exportToJson(messages: ClaudeMessage[], sessionName: string, contentTypeFilter?: MessageFilterContentTypes): string {
   const filtered = messages.filter(isExportable);
 
   const exportedMessages: ExportedMessage[] = filtered.map((msg) => {
     const base: ExportedMessage = {
       role: msg.type === "user" ? "user" : "assistant",
       timestamp: msg.timestamp,
-      content: blocksToPlainText(extractBlocks(msg.content)),
+      content: blocksToPlainText(
+        contentTypeFilter && msg.type === "assistant"
+          ? filterBlocksByContentType(extractBlocks(msg.content), contentTypeFilter)
+          : extractBlocks(msg.content)
+      ),
     };
 
     if (msg.type === "assistant") {

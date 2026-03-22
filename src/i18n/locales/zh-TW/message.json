@@ -77,7 +77,21 @@
   "navigator.role.assistant": "助理",
   "navigator.role.system": "系統",
   "navigator.role.summary": "摘要",
+  "navigator.userOnly": "僅顯示使用者訊息",
   "navigator.noMessages": "此會話沒有訊息",
   "navigator.close": "關閉導覽器",
-  "navigator.messageCount": "{{count}} 則訊息"
+  "navigator.messageCount": "{{count}} 則訊息",
+
+  "filter.title": "篩選",
+  "filter.roles": "角色",
+  "filter.role.user": "使用者",
+  "filter.role.assistant": "助理",
+  "filter.contentTypes": "內容類型",
+  "filter.content.text": "文字",
+  "filter.content.thinking": "思考過程",
+  "filter.content.toolCalls": "工具呼叫",
+  "filter.content.commands": "指令",
+  "filter.reset": "重設篩選",
+  "filter.active": "篩選已啟用",
+  "filter.showing": "{{filtered}} / {{total}}"
 }

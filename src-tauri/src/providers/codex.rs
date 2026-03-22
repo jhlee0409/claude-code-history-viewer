@@ -175,6 +175,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                 git_info: None,
                 provider: Some("codex".to_string()),
                 storage_type: None,
+                custom_directory_label: None,
             }
         })
         .collect();
@@ -232,6 +233,7 @@ pub fn load_sessions(
                     has_tool_use: info.has_tool_use,
                     has_errors: false,
                     summary: info.summary,
+                    is_renamed: false,
                     provider: Some("codex".to_string()),
                     storage_type: None,
                 });

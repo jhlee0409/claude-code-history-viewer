@@ -80,7 +80,7 @@ export const StringRenderer = memo(function StringRenderer({ result, searchQuery
             </div>
           ) : (
             <div className={`p-3 ${layout.prose}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                 {displayResult}
               </ReactMarkdown>
             </div>

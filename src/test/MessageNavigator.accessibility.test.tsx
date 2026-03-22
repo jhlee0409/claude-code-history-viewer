@@ -8,6 +8,8 @@ const { navigateToMessageMock, useAppStoreMock } = vi.hoisted(() => {
   const state = {
     navigateToMessage,
     targetMessageUuid: "message-2",
+    userOnlyFilter: false,
+    toggleUserOnlyFilter: vi.fn(),
   };
 
   return {

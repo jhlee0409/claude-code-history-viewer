@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ExportFormat } from "@/types/export";
 import type { ClaudeMessage } from "@/types";
+import { useAppStore } from "@/store/useAppStore";
 
 function sanitizeFilename(name: string): string {
   // Remove filesystem-invalid characters (Windows: <>:"/\|?*, also control chars)
@@ -22,6 +23,7 @@ function sanitizeFilename(name: string): string {
 export function useExport(messages: ClaudeMessage[], sessionName: string) {
   const { t } = useTranslation();
   const [isExporting, setIsExporting] = useState(false);
+  const { messageFilter, isMessageFilterActive } = useAppStore();
 
   const exportConversation = useCallback(
     async (format: ExportFormat) => {
@@ -34,24 +36,27 @@ export function useExport(messages: ClaudeMessage[], sessionName: string) {
         let defaultPath: string;
         let mimeType: string;
 
+        // Pass content type filter to exporters when filters are active
+        const ctFilter = isMessageFilterActive() ? messageFilter.contentTypes : undefined;
+
         switch (format) {
           case "markdown": {
             const { exportToMarkdown } = await import("@/services/export/markdownExporter");
-            content = exportToMarkdown(messages, sessionName);
+            content = exportToMarkdown(messages, sessionName, ctFilter);
             defaultPath = `${safeName}.md`;
             mimeType = "text/markdown";
             break;
           }
           case "json": {
             const { exportToJson } = await import("@/services/export/jsonExporter");
-            content = exportToJson(messages, sessionName);
+            content = exportToJson(messages, sessionName, ctFilter);
             defaultPath = `${safeName}.json`;
             mimeType = "application/json";
             break;
           }
           case "html": {
             const { exportToHtml } = await import("@/services/export/htmlExporter");
-            content = exportToHtml(messages, sessionName);
+            content = exportToHtml(messages, sessionName, ctFilter);
             defaultPath = `${safeName}.html`;
             mimeType = "text/html";
             break;
@@ -75,7 +80,7 @@ export function useExport(messages: ClaudeMessage[], sessionName: string) {
         setIsExporting(false);
       }
     },
-    [messages, sessionName, t],
+    [messages, sessionName, t, messageFilter, isMessageFilterActive],
   );
 
   return { isExporting, exportConversation };

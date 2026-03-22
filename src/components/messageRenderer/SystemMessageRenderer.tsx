@@ -267,7 +267,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
     );
   }
 
-  // Handle local_command with command tags
+  // Handle local_command — delegate directly to CommandRenderer (no extra wrapper)
   const hasCommandTags =
     content &&
     (content.includes("<command-") ||
@@ -277,17 +277,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
       content.includes("-stderr>"));
 
   if (hasCommandTags && content) {
-    return (
-      <div className={cn(`${config.bgColor} border ${config.borderColor}`, layout.rounded, layout.containerPadding)}>
-        <div className={cn(`flex items-center mb-2 ${layout.smallText}`, layout.iconSpacing)}>
-          <Icon className={cn(layout.iconSize, config.color)} />
-          <span className={`font-medium ${config.color}`}>
-            {getSubtypeLabel(subtype)}
-          </span>
-        </div>
-        <CommandRenderer text={content} />
-      </div>
-    );
+    return <CommandRenderer text={content} variant="system" />;
   }
 
   // Handle regular content or empty

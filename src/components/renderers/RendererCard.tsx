@@ -155,12 +155,12 @@ const CardHeader = memo(function CardHeader({
     return (
       <div
         className={cn(
-          "flex items-center justify-between",
+          "flex flex-wrap items-center gap-y-0.5",
           layout.headerPadding,
           layout.headerHeight
         )}
       >
-        <div className={cn("flex items-center", layout.iconGap)}>
+        <div className={cn("flex items-center flex-1 min-w-[10ch]", layout.iconGap)}>
           {hasError ? (
             <X className={cn(layout.iconSize, "shrink-0 text-destructive")} />
           ) : (
@@ -170,7 +170,8 @@ const CardHeader = memo(function CardHeader({
             className={cn(
               layout.titleText,
               titleClassName || styles.title,
-              hasError && "text-destructive"
+              hasError && "text-destructive",
+              "truncate"
             )}
           >
             {hasError ? `${title} ${t("common.errorOccurred")}` : title}
@@ -178,7 +179,7 @@ const CardHeader = memo(function CardHeader({
         </div>
         <div
           className={cn(
-            "flex items-center shrink-0",
+            "flex items-center shrink-0 ml-auto",
             layout.iconGap,
             layout.smallText
           )}
@@ -193,7 +194,7 @@ const CardHeader = memo(function CardHeader({
   return (
     <div
       className={cn(
-        "w-full flex items-center justify-between",
+        "w-full flex flex-wrap items-center gap-y-0.5",
         layout.headerPadding,
         layout.headerHeight
       )}
@@ -204,7 +205,7 @@ const CardHeader = memo(function CardHeader({
         onClick={toggle}
         aria-expanded={isExpanded}
         className={cn(
-          "flex items-center text-left flex-1 min-w-0",
+          "flex items-center text-left flex-1 min-w-[10ch]",
           layout.iconGap,
           "hover:bg-muted/50 transition-colors rounded-sm -m-1 p-1",
           "min-h-[44px] md:min-h-0"
@@ -237,7 +238,7 @@ const CardHeader = memo(function CardHeader({
       {rightContent && (
         <div
           className={cn(
-            "flex items-center shrink-0",
+            "flex items-center shrink-0 ml-auto",
             layout.iconGap,
             layout.smallText
           )}

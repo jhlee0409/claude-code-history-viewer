@@ -19,6 +19,7 @@ export interface SessionNameEditorProps {
   displayName: string | undefined;
   hasCustomName: boolean;
   hasClaudeCodeName: boolean;
+  isNamed: boolean;
   isSelected: boolean;
   isContextMenuOpen: boolean;
   providerId: string;

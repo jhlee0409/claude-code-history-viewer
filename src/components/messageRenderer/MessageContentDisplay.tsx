@@ -137,20 +137,25 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
   if (!content) return null;
 
   if (typeof content === "string") {
+    // Strip code blocks (``` ... ```) and inline code (` ... `) before testing
+    // so that tags mentioned inside code examples don't trigger special renderers
+    const contentWithoutCode = content
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/~~~[\s\S]*?~~~/g, "")
+      .replace(/`[^`\n]*`/g, "");
+
     // Check for task-notification tags (agent task results)
-    if (hasTaskNotification(content)) {
+    if (hasTaskNotification(contentWithoutCode)) {
       return <TaskNotificationRenderer text={content} />;
     }
 
-    // Check for actual XML command tags (not inside backticks/code)
-    // Must have opening tag followed by content and closing tag
     const hasCommandTags =
-      /<command-name>[\s\S]*?<\/command-name>/.test(content) ||
-      /<command-message>[\s\S]*?<\/command-message>/.test(content) ||
-      /<command-args>[\s\S]*?<\/command-args>/.test(content) ||
-      /<local-command-caveat>[\s\S]*?<\/local-command-caveat>/.test(content) ||
-      /<[^>]*-stdout>[\s\S]*?<\/[^>]*>/.test(content) ||
-      /<[^>]*-stderr>[\s\S]*?<\/[^>]*>/.test(content);
+      /<command-name>[\s\S]*?<\/command-name>/.test(contentWithoutCode) ||
+      /<command-message>[\s\S]*?<\/command-message>/.test(contentWithoutCode) ||
+      /<command-args>[\s\S]*?<\/command-args>/.test(contentWithoutCode) ||
+      /<local-command-caveat>[\s\S]*?<\/local-command-caveat>/.test(contentWithoutCode) ||
+      /<[^>]*-stdout>[\s\S]*?<\/[^>]*>/.test(contentWithoutCode) ||
+      /<[^>]*-stderr>[\s\S]*?<\/[^>]*>/.test(contentWithoutCode);
 
     if (hasCommandTags) {
       return <CommandRenderer text={content} />;
@@ -275,6 +280,7 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
             )}>
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
+                skipHtml
                 components={{
                   table: CollapsibleTable,
                 }}

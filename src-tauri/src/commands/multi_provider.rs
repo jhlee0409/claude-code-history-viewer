@@ -1,8 +1,17 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers;
 use crate::utils::parse_rfc3339_utc;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cmp::Ordering;
+
+/// Parameter for passing custom Claude paths from frontend
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomClaudePathParam {
+    pub path: String,
+    pub label: Option<String>,
+}
 
 /// Detect all available providers
 #[tauri::command]
@@ -15,6 +24,7 @@ pub async fn detect_providers() -> Result<Vec<providers::ProviderInfo>, String> 
 pub async fn scan_all_projects(
     claude_path: Option<String>,
     active_providers: Option<Vec<String>>,
+    custom_claude_paths: Option<Vec<CustomClaudePathParam>>,
 ) -> Result<Vec<ClaudeProject>, String> {
     let providers_to_scan = active_providers.unwrap_or_else(|| {
         vec![
@@ -26,7 +36,7 @@ pub async fn scan_all_projects(
 
     let mut all_projects = Vec::new();
 
-    // Claude
+    // Claude (default path)
     if providers_to_scan.iter().any(|p| p == "claude") {
         let claude_base = claude_path.or_else(providers::claude::get_base_path);
         if let Some(base) = claude_base {
@@ -41,6 +51,31 @@ pub async fn scan_all_projects(
                 }
                 Err(e) => {
                     log::warn!("Claude scan failed: {e}");
+                }
+            }
+        }
+
+        // Claude (custom paths)
+        if let Some(ref custom_paths) = custom_claude_paths {
+            for custom in custom_paths {
+                let custom_base = std::path::PathBuf::from(&custom.path);
+                if let Err(e) = crate::utils::validate_custom_claude_path(&custom_base) {
+                    log::warn!("Skipping invalid custom Claude path: {e}");
+                    continue;
+                }
+                match crate::commands::project::scan_projects(custom.path.clone()).await {
+                    Ok(mut projects) => {
+                        for p in &mut projects {
+                            if p.provider.is_none() {
+                                p.provider = Some("claude".to_string());
+                            }
+                            p.custom_directory_label.clone_from(&custom.label);
+                        }
+                        all_projects.extend(projects);
+                    }
+                    Err(e) => {
+                        log::warn!("Custom Claude path scan failed ({}): {e}", custom.path);
+                    }
                 }
             }
         }
@@ -143,6 +178,7 @@ pub async fn search_all_providers(
     active_providers: Option<Vec<String>>,
     filters: Option<Value>,
     limit: Option<usize>,
+    custom_claude_paths: Option<Vec<CustomClaudePathParam>>,
 ) -> Result<Vec<ClaudeMessage>, String> {
     let max_results = limit.unwrap_or(100);
     let search_filters =
@@ -181,6 +217,36 @@ pub async fn search_all_providers(
                 }
                 Err(e) => {
                     log::warn!("Claude search failed: {e}");
+                }
+            }
+        }
+
+        // Claude search (custom paths)
+        if let Some(ref custom_paths) = custom_claude_paths {
+            for custom in custom_paths {
+                let custom_base = std::path::PathBuf::from(&custom.path);
+                if crate::utils::validate_custom_claude_path(&custom_base).is_err() {
+                    continue;
+                }
+                match crate::commands::session::search_messages(
+                    custom.path.clone(),
+                    query.clone(),
+                    search_filters.clone(),
+                    Some(max_results),
+                )
+                .await
+                {
+                    Ok(mut results) => {
+                        for m in &mut results {
+                            if m.provider.is_none() {
+                                m.provider = Some("claude".to_string());
+                            }
+                        }
+                        all_results.extend(results);
+                    }
+                    Err(e) => {
+                        log::warn!("Custom Claude path search failed ({}): {e}", custom.path);
+                    }
                 }
             }
         }

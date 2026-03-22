@@ -57,6 +57,9 @@ type Props = {
   currentMatchIndex?: number;
   skipToolResults?: boolean;
   skipText?: boolean;
+  skipThinking?: boolean;
+  skipCommands?: boolean;
+  skipToolCalls?: boolean;
 };
 
 // Broad guard used by normalization; this intentionally does not require a "type" field.
@@ -136,6 +139,9 @@ export const ClaudeContentArrayRenderer = memo(({
   currentMatchIndex = 0,
   skipToolResults = false,
   skipText = false,
+  skipThinking = false,
+  skipCommands = false,
+  skipToolCalls = false,
 }: Props) => {
   const { t } = useTranslation();
   const normalizedContent = useMemo(
@@ -151,6 +157,7 @@ export const ClaudeContentArrayRenderer = memo(({
     <div className="space-y-2">
       {normalizedContent.map((entry) => {
         if (entry.kind === "toolExecution") {
+          if (skipToolCalls) return null;
           return (
             <UnifiedToolExecutionRenderer
               key={entry.key}
@@ -220,6 +227,7 @@ export const ClaudeContentArrayRenderer = memo(({
             return null;
 
           case "thinking":
+            if (skipThinking) return null;
             if (typeof item.thinking === "string") {
               return (
                 <ThinkingRenderer
@@ -235,6 +243,7 @@ export const ClaudeContentArrayRenderer = memo(({
             return null;
 
           case "tool_use":
+            if (skipToolCalls) return null;
             // NOTE: tool_use entries with string ids are normalized into `toolExecution`
             // and rendered by UnifiedToolExecutionRenderer; this branch handles edge cases.
             return (
@@ -248,7 +257,7 @@ export const ClaudeContentArrayRenderer = memo(({
             );
 
           case "tool_result":
-            if (skipToolResults) return null;
+            if (skipToolCalls || skipToolResults) return null;
             return (
               <ClaudeToolResultItem
                 key={entry.key}
@@ -261,6 +270,7 @@ export const ClaudeContentArrayRenderer = memo(({
             );
 
           case "command": {
+            if (skipCommands) return null;
             // Handle command items with content that may contain command XML
             const commandContent = typeof item.content === "string" ? item.content : "";
             if (!commandContent) return null;
@@ -303,6 +313,7 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           case "redacted_thinking":
+            if (skipThinking) return null;
             return (
               <RedactedThinkingRenderer
                 key={entry.key}
@@ -311,6 +322,7 @@ export const ClaudeContentArrayRenderer = memo(({
             );
 
           case "server_tool_use": {
+            if (skipToolCalls) return null;
             if (!isServerToolUseContent(item)) {
               return null;
             }
@@ -325,6 +337,7 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           case "web_search_tool_result": {
+            if (skipToolCalls) return null;
             if (!isWebSearchToolResultContent(item)) {
               return null;
             }
@@ -362,6 +375,7 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           case "mcp_tool_use": {
+            if (skipToolCalls) return null;
             if (!isMCPToolUseContent(item)) {
               return null;
             }
@@ -377,6 +391,7 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           case "mcp_tool_result": {
+            if (skipToolCalls) return null;
             if (!isMCPToolResultContent(item)) {
               return null;
             }
@@ -391,6 +406,7 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           case "web_fetch_tool_result": {
+            if (skipToolCalls) return null;
             if (!isWebFetchToolResultContent(item)) {
               return null;
             }
@@ -404,6 +420,7 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           case "code_execution_tool_result": {
+            if (skipToolCalls) return null;
             if (!isCodeExecutionToolResultContent(item)) {
               return null;
             }
@@ -417,6 +434,7 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           case "bash_code_execution_tool_result": {
+            if (skipToolCalls) return null;
             if (!isBashCodeExecutionToolResultContent(item)) {
               return null;
             }
@@ -430,6 +448,7 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           case "text_editor_code_execution_tool_result": {
+            if (skipToolCalls) return null;
             if (!isTextEditorCodeExecutionToolResultContent(item)) {
               return null;
             }
@@ -443,6 +462,7 @@ export const ClaudeContentArrayRenderer = memo(({
           }
 
           case "tool_search_tool_result": {
+            if (skipToolCalls) return null;
             if (!isToolSearchToolResultContent(item)) {
               return null;
             }

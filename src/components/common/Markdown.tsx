@@ -26,7 +26,7 @@ interface MarkdownProps {
 export const Markdown = memo(function Markdown({ children, className }: MarkdownProps) {
   return (
     <div className={cn(layout.prose, className)}>
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} skipHtml>
         {children}
       </ReactMarkdown>
     </div>

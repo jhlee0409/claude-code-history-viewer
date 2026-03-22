@@ -40,6 +40,7 @@ export function useSessionEditing(session: ClaudeSession) {
   const hasClaudeCodeNamePattern = /^\[.+?\]\s/.test(localSummary ?? "");
   const hasClaudeCodeName =
     providerId === "claude" && (hasClaudeCodeNameMeta || hasClaudeCodeNamePattern);
+  const isNamed = hasCustomName || hasClaudeCodeName || !!session.is_renamed;
 
   const startEditing = useCallback(() => {
     setEditValue(displayName || "");
@@ -203,6 +204,7 @@ export function useSessionEditing(session: ClaudeSession) {
     displayName,
     hasCustomName,
     hasClaudeCodeName,
+    isNamed,
     providerId,
     supportsNativeRename,
     isArchivedCodexSession,

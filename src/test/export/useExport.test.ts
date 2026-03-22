@@ -35,6 +35,17 @@ vi.mock("sonner", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+  initReactI18next: { type: "3rdParty", init: vi.fn() },
+}));
+
+vi.mock("@/store/useAppStore", () => ({
+  useAppStore: () => ({
+    messageFilter: {
+      roles: { user: true, assistant: true },
+      contentTypes: { text: true, thinking: true, toolCalls: true, commands: true },
+    },
+    isMessageFilterActive: () => false,
+  }),
 }));
 
 function makeMessage(type: "user" | "assistant", content: string): ClaudeMessage {

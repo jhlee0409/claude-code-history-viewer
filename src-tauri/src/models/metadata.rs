@@ -194,6 +194,17 @@ impl ProjectMetadata {
     }
 }
 
+/// A user-registered custom Claude configuration directory
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomClaudePath {
+    /// Absolute path to the Claude config directory (e.g., "~/.claude-personal")
+    pub path: String,
+    /// User-defined display label (e.g., "Personal")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
 /// Global user settings
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -213,6 +224,10 @@ pub struct UserSettings {
     /// Project tree grouping mode: "none", "worktree", or "directory"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grouping_mode: Option<String>,
+
+    /// Additional Claude configuration directories to scan
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_claude_paths: Vec<CustomClaudePath>,
 }
 
 #[cfg(test)]

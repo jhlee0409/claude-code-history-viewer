@@ -5,7 +5,8 @@
  */
 
 import type { ClaudeMessage } from "@/types";
-import { extractBlocks, isExportable, type ExtractedBlock } from "./contentExtractor";
+import { extractBlocks, filterBlocksByContentType, isExportable, type ExtractedBlock } from "./contentExtractor";
+import type { MessageFilterContentTypes } from "@/store/slices/filterSlice";
 
 function formatTimestamp(timestamp: string): { date: string; time: string } {
   const d = new Date(timestamp);
@@ -38,7 +39,7 @@ function blockToMarkdown(block: ExtractedBlock): string {
   }
 }
 
-export function exportToMarkdown(messages: ClaudeMessage[], sessionName: string): string {
+export function exportToMarkdown(messages: ClaudeMessage[], sessionName: string, contentTypeFilter?: MessageFilterContentTypes): string {
   const filtered = messages.filter(isExportable);
 
   const firstTimestamp = filtered[0]?.timestamp;
@@ -71,7 +72,8 @@ export function exportToMarkdown(messages: ClaudeMessage[], sessionName: string)
       : "";
     lines.push(`**${role}** ${time}${model}`, "");
 
-    const blocks = extractBlocks(msg.content);
+    let blocks = extractBlocks(msg.content);
+    if (contentTypeFilter && msg.type === "assistant") blocks = filterBlocksByContentType(blocks, contentTypeFilter);
     for (const block of blocks) {
       lines.push(blockToMarkdown(block), "");
     }

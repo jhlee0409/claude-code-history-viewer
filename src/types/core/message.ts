@@ -203,6 +203,9 @@ export interface ClaudeSystemMessage extends BaseClaudeMessage {
   stopReasonSystem?: string;
   preventedContinuation?: boolean;
 
+  // turn_duration fields
+  durationMs?: number;
+
   // boundary fields
   compactMetadata?: { trigger?: string; preTokens?: number };
   microcompactMetadata?: { trigger?: string; preTokens?: number };

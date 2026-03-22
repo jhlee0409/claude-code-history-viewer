@@ -32,10 +32,13 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       : project.name;
 
   const providerId = getProviderId(project.provider);
-  const providerLabel = getProviderLabel(
+  const baseProviderLabel = getProviderLabel(
     (key, fallback) => t(key, fallback),
     providerId
   );
+  const providerLabel = project.custom_directory_label
+    ? `${baseProviderLabel} (${project.custom_directory_label})`
+    : baseProviderLabel;
 
   return (
     <button

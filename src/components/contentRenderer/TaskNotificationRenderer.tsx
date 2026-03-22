@@ -192,7 +192,7 @@ const TaskRow = memo(function TaskRow({
             )}>
               {notification.result ? (
                 <div className={cn(layout.prose, "text-2xs")}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                     {notification.result}
                   </ReactMarkdown>
                 </div>
@@ -442,7 +442,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               {isDetailsExpanded ? (
                 // Full content
                 <div className={cn(layout.prose, "text-2xs animate-fade-in")}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                     {remainingText}
                   </ReactMarkdown>
                 </div>
@@ -457,7 +457,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                     "text-2xs",
                     "line-clamp-3 text-muted-foreground"
                   )}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                       {getPreviewLines(remainingText, 3)}
                     </ReactMarkdown>
                   </div>

@@ -1456,6 +1456,7 @@ pub async fn get_expiring_sessions(
                     has_tool_use: false,
                     has_errors: false,
                     summary,
+                    is_renamed: false,
                     provider: None,
                     storage_type: None,
                 };

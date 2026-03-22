@@ -87,12 +87,15 @@ export const createSearchSlice: StateCreator<
     set({ searchQuery: query });
     try {
       const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
-      const results = hasNonClaudeProviders
+      const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
+      const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
+      const results = (hasNonClaudeProviders || hasCustomPaths)
         ? await api<ClaudeMessage[]>("search_all_providers", {
             claudePath,
             query,
             activeProviders,
             filters,
+            customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
           })
         : await api<ClaudeMessage[]>("search_messages", {
             claudePath,

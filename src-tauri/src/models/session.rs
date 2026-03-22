@@ -42,6 +42,9 @@ pub struct ClaudeProject {
     /// Storage type (json, sqlite)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_type: Option<String>,
+    /// Label for custom Claude directory source (e.g., "Personal")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_directory_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +60,9 @@ pub struct ClaudeSession {
     pub has_tool_use: bool,
     pub has_errors: bool,
     pub summary: Option<String>,
+    /// Whether this session was explicitly renamed via the /rename command
+    #[serde(default)]
+    pub is_renamed: bool,
     /// Provider identifier (claude, codex, opencode)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
@@ -92,6 +98,7 @@ mod tests {
             has_tool_use: true,
             has_errors: false,
             summary: Some("Test conversation".to_string()),
+            is_renamed: false,
             provider: None,
             storage_type: None,
         };

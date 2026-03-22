@@ -55,6 +55,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
             displayName={editing.displayName}
             hasCustomName={editing.hasCustomName}
             hasClaudeCodeName={editing.hasClaudeCodeName}
+            isNamed={editing.isNamed}
             isSelected={isSelected}
             isContextMenuOpen={editing.isContextMenuOpen}
             providerId={editing.providerId}

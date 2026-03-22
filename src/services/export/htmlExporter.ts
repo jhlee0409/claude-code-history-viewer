@@ -6,7 +6,8 @@
 
 import { Marked } from "marked";
 import type { ClaudeMessage } from "@/types";
-import { extractBlocks, isExportable, type ExtractedBlock } from "./contentExtractor";
+import { extractBlocks, filterBlocksByContentType, isExportable, type ExtractedBlock } from "./contentExtractor";
+import type { MessageFilterContentTypes } from "@/store/slices/filterSlice";
 
 const CSS = `
 body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; background: #fff; color: #1a1a1a; line-height: 1.6; }
@@ -124,7 +125,7 @@ function blockToHtml(block: ExtractedBlock): string {
   }
 }
 
-export function exportToHtml(messages: ClaudeMessage[], sessionName: string): string {
+export function exportToHtml(messages: ClaudeMessage[], sessionName: string, contentTypeFilter?: MessageFilterContentTypes): string {
   const filtered = messages.filter(isExportable);
 
   const firstTimestamp = filtered[0]?.timestamp;
@@ -147,7 +148,8 @@ export function exportToHtml(messages: ClaudeMessage[], sessionName: string): st
       ? `<span class="model">${escapeHtml(msg.model)}</span>`
       : "";
 
-    const blocks = extractBlocks(msg.content);
+    let blocks = extractBlocks(msg.content);
+    if (contentTypeFilter && msg.type === "assistant") blocks = filterBlocksByContentType(blocks, contentTypeFilter);
     const contentHtml = blocks.map(blockToHtml).join("\n");
 
     // Token usage

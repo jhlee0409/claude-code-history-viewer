@@ -11,6 +11,7 @@ import type {
   SessionMetadata,
   ProjectMetadata,
   UserSettings,
+  CustomClaudePath,
 } from "../../types";
 import { DEFAULT_USER_METADATA } from "../../types";
 import { matchGlobPattern } from "../../utils/globUtils";
@@ -67,6 +68,12 @@ export interface MetadataSliceActions {
   addHiddenPattern: (pattern: string) => Promise<void>;
   /** Remove a hidden pattern */
   removeHiddenPattern: (pattern: string) => Promise<void>;
+  /** Add a custom Claude directory path */
+  addCustomClaudePath: (path: string, label?: string) => Promise<void>;
+  /** Remove a custom Claude directory path */
+  removeCustomClaudePath: (path: string) => Promise<void>;
+  /** Update label for a custom Claude directory path */
+  updateCustomClaudePathLabel: (path: string, label: string) => Promise<void>;
   /** Clear metadata error */
   clearMetadataError: () => void;
 }
@@ -188,7 +195,9 @@ export const createMetadataSlice: StateCreator<
       set({ userMetadata: updatedMetadata });
     } catch (error) {
       console.error("Failed to update user settings:", error);
-      set({ metadataError: String(error) });
+      const message = String(error);
+      set({ metadataError: message });
+      throw new Error(message);
     }
   },
 
@@ -244,6 +253,45 @@ export const createMetadataSlice: StateCreator<
     const currentPatterns = userMetadata.settings.hiddenPatterns || [];
     await get().updateUserSettings({
       hiddenPatterns: currentPatterns.filter((p) => p !== pattern),
+    });
+  },
+
+  addCustomClaudePath: async (path: string, label?: string) => {
+    const { userMetadata } = get();
+    const currentPaths = userMetadata.settings.customClaudePaths ?? [];
+    // Normalize: trim trailing slashes for consistent comparison
+    const normalized = path.replace(/[\\/]+$/, "");
+    // Prevent duplicates
+    if (currentPaths.some((cp) => cp.path.replace(/[\\/]+$/, "") === normalized)) {
+      return;
+    }
+    const entry: CustomClaudePath = { path: normalized, label };
+    await get().updateUserSettings({
+      customClaudePaths: [...currentPaths, entry],
+    });
+  },
+
+  removeCustomClaudePath: async (path: string) => {
+    const { userMetadata } = get();
+    const currentPaths = userMetadata.settings.customClaudePaths ?? [];
+    const normalized = path.replace(/[\\/]+$/, "");
+    await get().updateUserSettings({
+      customClaudePaths: currentPaths.filter(
+        (cp) => cp.path.replace(/[\\/]+$/, "") !== normalized
+      ),
+    });
+  },
+
+  updateCustomClaudePathLabel: async (path: string, label: string) => {
+    const { userMetadata } = get();
+    const currentPaths = userMetadata.settings.customClaudePaths ?? [];
+    const normalized = path.replace(/[\\/]+$/, "");
+    await get().updateUserSettings({
+      customClaudePaths: currentPaths.map((cp) =>
+        cp.path.replace(/[\\/]+$/, "") === normalized
+          ? { ...cp, label: label || undefined }
+          : cp
+      ),
     });
   },
 

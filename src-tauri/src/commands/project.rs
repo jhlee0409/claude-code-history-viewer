@@ -104,6 +104,20 @@ pub async fn validate_claude_folder(path: String) -> Result<bool, String> {
     Ok(false)
 }
 
+/// Validate a custom Claude configuration directory.
+///
+/// Unlike `validate_claude_folder` (which expects a `.claude` directory),
+/// this accepts any absolute directory containing a `projects/` subfolder
+/// and applies symlink safety checks.
+#[tauri::command]
+pub async fn validate_custom_claude_dir(path: String) -> Result<bool, String> {
+    let path_buf = PathBuf::from(&path);
+    match crate::utils::validate_custom_claude_path(&path_buf) {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
 #[tauri::command]
 pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, String> {
     #[cfg(debug_assertions)]
@@ -187,6 +201,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             git_info,
             provider: None,
             storage_type: None,
+            custom_directory_label: None,
         });
     }
 

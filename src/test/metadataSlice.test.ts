@@ -428,9 +428,11 @@ describe("metadataSlice", () => {
 
       mockInvoke.mockRejectedValue(new Error("Settings update failed"));
 
-      await useStore.getState().updateUserSettings({
-        worktreeGrouping: true,
-      });
+      await expect(
+        useStore.getState().updateUserSettings({
+          worktreeGrouping: true,
+        })
+      ).rejects.toThrow("Settings update failed");
 
       expect(useStore.getState().metadataError).toBe(
         "Error: Settings update failed"

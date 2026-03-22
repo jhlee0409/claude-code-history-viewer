@@ -207,6 +207,7 @@ mod project_snapshots {
             git_info: None,
             provider: None,
             storage_type: None,
+            custom_directory_label: None,
         };
 
         assert_json_snapshot!("claude_project", project);
@@ -231,6 +232,7 @@ mod session_snapshots {
             has_tool_use: true,
             has_errors: false,
             summary: Some("Test conversation summary".to_string()),
+            is_renamed: false,
             provider: None,
             storage_type: None,
         };

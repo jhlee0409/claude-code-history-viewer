@@ -174,10 +174,13 @@ export const createProjectSlice: StateCreator<
         .map((provider) => provider.id);
       const scanProviders = availableProviders.length > 0 ? availableProviders : [DEFAULT_PROVIDER_ID];
       const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
-      const projects = hasNonClaudeProviders
+      const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
+      const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
+      const projects = (hasNonClaudeProviders || hasCustomPaths)
         ? await api<ClaudeProject[]>("scan_all_projects", {
             claudePath,
             activeProviders: scanProviders,
+            customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
           })
         : await api<ClaudeProject[]>("scan_projects", {
             claudePath,

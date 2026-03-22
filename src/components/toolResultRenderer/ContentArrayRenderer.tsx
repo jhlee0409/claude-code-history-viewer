@@ -158,7 +158,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                       itemObj.text.includes("</thinking>") ? (
                         <ThinkingRenderer thinking={itemObj.text} searchQuery={searchQuery} />
                       ) : (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                           {itemObj.text}
                         </ReactMarkdown>
                       )}

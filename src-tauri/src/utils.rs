@@ -90,6 +90,59 @@ pub fn is_safe_storage_id(id: &str) -> bool {
     matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
 }
 
+/// Validates that a custom Claude directory path is safe to use.
+///
+/// Checks: absolute path, not a symlink (base and projects/), projects/ exists and is a dir.
+/// Returns the canonicalized `projects/` path on success.
+pub fn validate_custom_claude_path(base_path: &Path) -> Result<std::path::PathBuf, String> {
+    if !base_path.is_absolute() {
+        return Err(format!(
+            "Custom path must be absolute: {}",
+            base_path.display()
+        ));
+    }
+
+    // Reject symlinked base
+    let base_meta = std::fs::symlink_metadata(base_path)
+        .map_err(|e| format!("Cannot read metadata for {}: {e}", base_path.display()))?;
+    if base_meta.file_type().is_symlink() {
+        return Err(format!(
+            "Custom path must not be a symlink: {}",
+            base_path.display()
+        ));
+    }
+
+    let projects_path = base_path.join("projects");
+
+    // Reject symlinked projects/
+    let projects_meta = std::fs::symlink_metadata(&projects_path)
+        .map_err(|_| format!("No projects/ directory in {}", base_path.display()))?;
+    if projects_meta.file_type().is_symlink() {
+        return Err(format!(
+            "projects/ must not be a symlink in {}",
+            base_path.display()
+        ));
+    }
+    if !projects_meta.is_dir() {
+        return Err(format!(
+            "projects/ is not a directory in {}",
+            base_path.display()
+        ));
+    }
+
+    // Canonicalize and verify containment
+    let canonical_base = std::fs::canonicalize(base_path)
+        .map_err(|e| format!("Failed to canonicalize {}: {e}", base_path.display()))?;
+    let canonical_projects = std::fs::canonicalize(&projects_path)
+        .map_err(|e| format!("Failed to canonicalize projects/: {e}"))?;
+
+    if !canonical_projects.starts_with(&canonical_base) {
+        return Err("projects/ path escapes the base directory".to_string());
+    }
+
+    Ok(canonical_projects)
+}
+
 /// Recursively searches JSON string values for a lowercase query.
 ///
 /// `query_lower` must already be lowercased by the caller.

@@ -77,7 +77,21 @@
   "navigator.role.assistant": "アシスタント",
   "navigator.role.system": "システム",
   "navigator.role.summary": "要約",
+  "navigator.userOnly": "ユーザーメッセージのみ表示",
   "navigator.noMessages": "このセッションにメッセージはありません",
   "navigator.close": "ナビゲーターを閉じる",
-  "navigator.messageCount": "{{count}}件のメッセージ"
+  "navigator.messageCount": "{{count}}件のメッセージ",
+
+  "filter.title": "フィルター",
+  "filter.roles": "ロール",
+  "filter.role.user": "ユーザー",
+  "filter.role.assistant": "アシスタント",
+  "filter.contentTypes": "コンテンツタイプ",
+  "filter.content.text": "テキスト",
+  "filter.content.thinking": "思考プロセス",
+  "filter.content.toolCalls": "ツール呼び出し",
+  "filter.content.commands": "コマンド",
+  "filter.reset": "フィルターをリセット",
+  "filter.active": "フィルター有効",
+  "filter.showing": "{{filtered}} / {{total}}"
 }

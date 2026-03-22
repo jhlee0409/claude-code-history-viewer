@@ -135,10 +135,65 @@ describe("AnsiText Component", () => {
       const { container } = render(
         <AnsiText text="test" className="custom-class text-red-500" />
       );
-      
+
       const span = container.querySelector("span");
       expect(span).toHaveClass("custom-class");
       expect(span).toHaveClass("text-red-500");
+    });
+  });
+
+  describe("URL linkification", () => {
+    it("renders clickable links for https URLs", () => {
+      const { container } = render(
+        <AnsiText text="Visit https://github.com/user/repo for details" />
+      );
+
+      const link = container.querySelector("a.ansi-url");
+      expect(link).toBeInTheDocument();
+      expect(link?.getAttribute("href")).toBe("https://github.com/user/repo");
+      expect(link?.textContent).toBe("https://github.com/user/repo");
+    });
+
+    it("renders clickable links inside ANSI-styled text", () => {
+      const { container } = render(
+        <AnsiText text="\x1b[34mhttps://example.com/path\x1b[0m" />
+      );
+
+      const link = container.querySelector("a.ansi-url");
+      expect(link).toBeInTheDocument();
+      // Verify the link href starts with the expected URL
+      const href = link?.getAttribute("href") ?? "";
+      expect(href).toMatch(/^https:\/\/example\.com\/path/);
+    });
+
+    it("does not create links for javascript: protocol", () => {
+      const { container } = render(
+        <AnsiText text="javascript:alert(1)" />
+      );
+
+      expect(container.querySelector("a")).toBeNull();
+    });
+
+    it("renders multiple links in one text", () => {
+      const { container } = render(
+        <AnsiText text="See https://a.com and https://b.com" />
+      );
+
+      const links = container.querySelectorAll("a.ansi-url");
+      expect(links).toHaveLength(2);
+      expect(links[0]?.getAttribute("href")).toBe("https://a.com");
+      expect(links[1]?.getAttribute("href")).toBe("https://b.com");
+    });
+
+    it("excludes trailing punctuation from link", () => {
+      const { container } = render(
+        <AnsiText text="Check https://example.com." />
+      );
+
+      const link = container.querySelector("a.ansi-url");
+      expect(link?.getAttribute("href")).toBe("https://example.com");
+      // The period should not be inside the link
+      expect(link?.textContent).toBe("https://example.com");
     });
   });
 });

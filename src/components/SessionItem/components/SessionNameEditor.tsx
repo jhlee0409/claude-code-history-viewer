@@ -32,6 +32,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   displayName,
   hasCustomName,
   hasClaudeCodeName,
+  isNamed,
   isSelected,
   isContextMenuOpen,
   providerId,
@@ -154,7 +155,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             </TooltipContent>
           </Tooltip>
         )}
-        <span className="flex-1">
+        <span className={cn("flex-1", isNamed ? "font-bold" : "italic opacity-70")}>
           {displayName || t("session.summaryNotFound", "No summary")}
         </span>
       </span>

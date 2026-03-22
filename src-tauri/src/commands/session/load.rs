@@ -39,6 +39,9 @@ struct CachedSessionMetadata {
     /// First assistant text (for multi-tier fallback)
     #[serde(default)]
     first_assistant_text: Option<String>,
+    /// Rename name from /rename command
+    #[serde(default)]
+    rename_name: Option<String>,
 }
 
 /// Session metadata cache file structure
@@ -50,7 +53,7 @@ struct SessionMetadataCache {
     entries: HashMap<String, CachedSessionMetadata>,
 }
 
-const CACHE_VERSION: u32 = 6;
+const CACHE_VERSION: u32 = 8;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -80,6 +83,13 @@ fn save_cache(project_path: &str, cache: &SessionMetadataCache) {
             .unwrap_or(0);
         let tmp_path = cache_path.with_extension(format!("json.{nonce}.tmp"));
         if fs::write(&tmp_path, content.as_bytes()).is_ok() {
+            // On Windows, fs::rename fails if the destination already exists
+            #[cfg(target_os = "windows")]
+            {
+                if cache_path.exists() {
+                    let _ = fs::remove_file(&cache_path);
+                }
+            }
             let _ = fs::rename(&tmp_path, &cache_path);
         }
     }
@@ -126,6 +136,8 @@ struct IncrementalParseState {
     last_user_content: Option<String>,
     /// First assistant text (already known, for fallback)
     first_assistant_text: Option<String>,
+    /// Rename name from /rename command (already known)
+    rename_name: Option<String>,
 }
 
 /// Minimal struct for fast line classification (avoids full parsing)
@@ -133,6 +145,7 @@ struct IncrementalParseState {
 struct LineClassifier {
     #[serde(rename = "type")]
     message_type: String,
+    subtype: Option<String>,
     #[serde(rename = "isSidechain")]
     is_sidechain: Option<bool>,
     #[serde(rename = "isMeta")]
@@ -152,6 +165,8 @@ struct SessionMetadataEntry {
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
     summary: Option<String>,
+    subtype: Option<String>,
+    content: Option<serde_json::Value>,
     #[serde(rename = "toolUse")]
     tool_use: Option<serde_json::Value>,
     #[serde(rename = "toolUseResult")]
@@ -194,6 +209,8 @@ struct SessionExtractionResult {
     last_user_content: Option<String>,
     /// First assistant text (for incremental caching)
     first_assistant_text: Option<String>,
+    /// Rename name from /rename command (for caching)
+    rename_name: Option<String>,
 }
 
 /// Fast session metadata extraction with two-phase parsing:
@@ -245,6 +262,7 @@ fn extract_session_metadata_internal(
         mut first_user_content,
         mut last_user_content,
         mut first_assistant_text,
+        mut rename_name,
     ) = if let Some(ref state) = incremental_state {
         (
             state.start_offset,
@@ -259,10 +277,11 @@ fn extract_session_metadata_internal(
             state.first_user_content.clone(),
             state.last_user_content.clone(),
             state.first_assistant_text.clone(),
+            state.rename_name.clone(),
         )
     } else {
         (
-            0u64, 0usize, 0usize, None, None, None, None, false, false, None, None, None,
+            0u64, 0usize, 0usize, None, None, None, None, false, false, None, None, None, None,
         )
     };
 
@@ -304,7 +323,15 @@ fn extract_session_metadata_internal(
                     continue;
                 }
 
-                // Skip system message types
+                // Extract rename name from system/local_command messages before skipping
+                if entry.message_type == "system" {
+                    if let Some(name) = try_extract_rename(&entry) {
+                        rename_name = Some(name);
+                    }
+                    continue;
+                }
+
+                // Skip other system message types
                 if is_system_message_type(&entry.message_type) {
                     continue;
                 }
@@ -428,7 +455,19 @@ fn extract_session_metadata_internal(
                 continue;
             }
 
-            // Skip system message types
+            // Extract rename from system messages (using fast string check before full parse)
+            if classifier.message_type == "system" {
+                if line.contains("Session renamed to: ") {
+                    if let Ok(entry) = serde_json::from_str::<SessionMetadataEntry>(&line) {
+                        if let Some(name) = try_extract_rename(&entry) {
+                            rename_name = Some(name);
+                        }
+                    }
+                }
+                continue;
+            }
+
+            // Skip other system message types
             if is_system_message_type(&classifier.message_type) {
                 continue;
             }
@@ -483,7 +522,10 @@ fn extract_session_metadata_internal(
         .to_string();
 
     let project_name = extract_project_name(&raw_project_name);
-    let final_summary = session_summary
+    // Rename name takes highest priority, then existing summary fallback chain
+    let final_summary = rename_name
+        .clone()
+        .or(session_summary)
         .or(first_user_content.clone())
         .or(first_assistant_text.clone())
         .or(last_user_content.clone());
@@ -503,6 +545,7 @@ fn extract_session_metadata_internal(
             has_tool_use,
             has_errors,
             summary: final_summary,
+            is_renamed: rename_name.is_some(),
             provider: None,
             storage_type: None,
         },
@@ -513,22 +556,66 @@ fn extract_session_metadata_internal(
         first_user_content,
         last_user_content,
         first_assistant_text,
+        rename_name,
     })
 }
 
-/// System message types that should be excluded from the viewer
-/// These are internal system messages, not part of the conversation
-const SYSTEM_MESSAGE_TYPES: [&str; 4] = [
+/// Message types that should always be excluded from the viewer
+const EXCLUDED_MESSAGE_TYPES: [&str; 5] = [
     "progress",
     "queue-operation",
     "file-history-snapshot",
-    "system",
+    "last-prompt",
+    "pr-link",
 ];
 
-/// Check if a message type is a system type (should be excluded)
+/// System subtypes that are internal metadata (excluded from the viewer).
+/// Subtypes NOT in this list (`local_command`, `compact_boundary`, `api_error`, etc.)
+/// are shown to the user via `SystemMessageRenderer`.
+const HIDDEN_SYSTEM_SUBTYPES: [&str; 2] = ["stop_hook_summary", "turn_duration"];
+
+/// Check if a message should be excluded from the viewer.
+/// For "system" type, only specific subtypes are hidden; others are shown.
 #[inline]
 fn is_system_message_type(message_type: &str) -> bool {
-    SYSTEM_MESSAGE_TYPES.contains(&message_type)
+    EXCLUDED_MESSAGE_TYPES.contains(&message_type)
+}
+
+/// Check if a system message should be hidden based on its subtype
+#[inline]
+fn is_hidden_system_subtype(subtype: Option<&str>) -> bool {
+    match subtype {
+        Some(st) => HIDDEN_SYSTEM_SUBTYPES.contains(&st),
+        None => true, // system messages without subtype are internal metadata
+    }
+}
+
+/// Extract session rename name from a `system/local_command` message content.
+/// Matches the pattern: `<local-command-stdout>Session renamed to: {name}</local-command-stdout>`
+/// Returns None if the content doesn't match the rename pattern or the name is empty.
+fn extract_rename_from_content(content: &serde_json::Value) -> Option<String> {
+    let text = content.as_str()?;
+    const PREFIX: &str = "<local-command-stdout>Session renamed to: ";
+    const SUFFIX: &str = "</local-command-stdout>";
+    let rest = text.strip_prefix(PREFIX)?;
+    let name = rest.strip_suffix(SUFFIX)?;
+    let name = name.trim();
+    if name.is_empty() {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+/// Try to extract a rename name from a `SessionMetadataEntry`.
+/// Returns `Some(name)` if the entry is a `system/local_command` rename message.
+fn try_extract_rename(entry: &SessionMetadataEntry) -> Option<String> {
+    if entry.message_type != "system" {
+        return None;
+    }
+    if entry.subtype.as_deref() != Some("local_command") {
+        return None;
+    }
+    entry.content.as_ref().and_then(extract_rename_from_content)
 }
 
 /// Fast classification of a line without full parsing
@@ -781,6 +868,7 @@ pub async fn load_project_sessions(
                             first_user_content: cached.first_user_content.clone(),
                             last_user_content: cached.last_user_content.clone(),
                             first_assistant_text: cached.first_assistant_text.clone(),
+                            rename_name: cached.rename_name.clone(),
                         },
                     ));
                     continue;
@@ -847,6 +935,7 @@ pub async fn load_project_sessions(
                     first_user_content,
                     last_user_content,
                     first_assistant_text,
+                    cached_rename_name,
                 ) = match &result_opt {
                     Some(result) => (
                         Some(result.session.clone()),
@@ -857,8 +946,9 @@ pub async fn load_project_sessions(
                         result.first_user_content.clone(),
                         result.last_user_content.clone(),
                         result.first_assistant_text.clone(),
+                        result.rename_name.clone(),
                     ),
-                    None => (None, 0, 0, false, false, None, None, None),
+                    None => (None, 0, 0, false, false, None, None, None, None),
                 };
 
                 cache.entries.insert(
@@ -874,6 +964,7 @@ pub async fn load_project_sessions(
                         first_user_content,
                         last_user_content,
                         first_assistant_text,
+                        rename_name: cached_rename_name,
                     },
                 );
                 cache_updated = true;
@@ -1241,7 +1332,15 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
             let mut line_bytes = mmap[start..end].to_vec();
 
             parse_line_simd(line_num, &mut line_bytes, false)
-                .filter(|msg| !is_system_message_type(&msg.message_type))
+                .filter(|msg| {
+                    if is_system_message_type(&msg.message_type) {
+                        return false;
+                    }
+                    if msg.message_type == "system" {
+                        return !is_hidden_system_subtype(msg.subtype.as_deref());
+                    }
+                    true
+                })
                 .map(|msg| (line_num, msg))
         })
         .collect();
@@ -1279,6 +1378,11 @@ fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
             return false;
         }
         if is_system_message_type(&classifier.message_type) {
+            return false;
+        }
+        if classifier.message_type == "system"
+            && is_hidden_system_subtype(classifier.subtype.as_deref())
+        {
             return false;
         }
         if classifier.is_meta.unwrap_or(false) {
@@ -2095,5 +2199,261 @@ mod tests {
         assert_eq!(result.len(), 1);
         // Should fall back to user message since assistant text is too short
         assert_eq!(result[0].summary, Some("User fallback message".to_string()));
+    }
+
+    fn create_sample_rename_message(name: &str) -> String {
+        format!(
+            r#"{{"type":"system","subtype":"local_command","content":"<local-command-stdout>Session renamed to: {name}</local-command-stdout>","timestamp":"2025-06-26T10:05:00Z","sessionId":"session-1"}}"#
+        )
+    }
+
+    #[tokio::test]
+    async fn test_should_extract_rename_from_system_message() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_rename_message("MyProject")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("MyProject".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_use_last_rename_when_multiple() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_rename_message("Alpha"),
+            create_sample_rename_message("Beta")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("Beta".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_prioritize_rename_over_other_summaries() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_summary_message("Auto summary"),
+            create_sample_rename_message("Custom Name")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Rename takes priority over summary message
+        assert_eq!(result[0].summary, Some("Custom Name".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_fallback_to_existing_summary() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // No rename message — should use first user content as summary
+        let content = format!(
+            "{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello world"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("Hello world".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_not_count_system_as_message() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_rename_message("MyProject")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // System message should not be counted
+        assert_eq!(result[0].message_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_should_ignore_empty_rename() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello world"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            r#"{"type":"system","subtype":"local_command","content":"<local-command-stdout>Session renamed to: </local-command-stdout>","timestamp":"2025-06-26T10:05:00Z","sessionId":"session-1"}"#
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Empty rename should be ignored, falls back to first user content
+        assert_eq!(result[0].summary, Some("Hello world".to_string()));
+    }
+
+    #[test]
+    fn test_extract_rename_from_content() {
+        // Valid rename
+        let content = serde_json::json!(
+            "<local-command-stdout>Session renamed to: MyProject</local-command-stdout>"
+        );
+        assert_eq!(
+            extract_rename_from_content(&content),
+            Some("MyProject".to_string())
+        );
+
+        // Empty name
+        let content =
+            serde_json::json!("<local-command-stdout>Session renamed to: </local-command-stdout>");
+        assert_eq!(extract_rename_from_content(&content), None);
+
+        // Not a rename message
+        let content =
+            serde_json::json!("<local-command-stdout>Some other command</local-command-stdout>");
+        assert_eq!(extract_rename_from_content(&content), None);
+
+        // Non-string content
+        let content = serde_json::json!(42);
+        assert_eq!(extract_rename_from_content(&content), None);
+
+        // Name with special characters
+        let content = serde_json::json!(
+            "<local-command-stdout>Session renamed to: My [Project] v2.0</local-command-stdout>"
+        );
+        assert_eq!(
+            extract_rename_from_content(&content),
+            Some("My [Project] v2.0".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_phase2_rename_beyond_metadata_lines() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Build a fixture with > METADATA_PHASE_LINES (100) to force Phase 2 parsing
+        let mut content = String::new();
+        for i in 1..=60 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(
+                    &format!("uuid-u{i}"),
+                    "session-1",
+                    &format!("User message {i}")
+                )
+            ));
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_assistant_message(
+                    &format!("uuid-a{i}"),
+                    "session-1",
+                    &format!("Assistant reply {i}")
+                )
+            ));
+        }
+        // Append rename message after line 120 (beyond METADATA_PHASE_LINES=100)
+        content.push_str(&format!("{}\n", create_sample_rename_message("LateRename")));
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Rename in Phase 2 (beyond metadata lines) should still be detected
+        assert_eq!(result[0].summary, Some("LateRename".to_string()));
+        // System message should not be counted (60 user + 60 assistant = 120)
+        assert_eq!(result[0].message_count, 120);
+    }
+
+    #[tokio::test]
+    async fn test_incremental_append_then_rename() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.jsonl");
+
+        // Initial content — populate cache
+        let mut content = String::new();
+        for i in 1..=5 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(
+                    &format!("uuid-u{i}"),
+                    "session-1",
+                    &format!("Message {i}")
+                )
+            ));
+        }
+        std::fs::write(&file_path, &content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("Message 1".to_string()));
+        assert_eq!(result[0].message_count, 5);
+
+        // Append a rename message — triggers incremental parsing
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file_path)
+            .unwrap();
+        writeln!(file, "{}", create_sample_rename_message("AppendedRename")).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Incremental parse should pick up the rename
+        assert_eq!(result[0].summary, Some("AppendedRename".to_string()));
+        // System message not counted
+        assert_eq!(result[0].message_count, 5);
     }
 }

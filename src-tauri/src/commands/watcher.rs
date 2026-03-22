@@ -27,6 +27,7 @@ static OPENCODE_SESSION_PROJECT_CACHE: std::sync::OnceLock<Mutex<OpenCodeSession
 pub async fn start_file_watcher(
     app_handle: AppHandle,
     claude_folder_path: String,
+    custom_claude_paths: Option<Vec<super::multi_provider::CustomClaudePathParam>>,
 ) -> Result<String, String> {
     let base_path = PathBuf::from(&claude_folder_path);
     let projects_path = base_path.join("projects");
@@ -84,6 +85,30 @@ pub async fn start_file_watcher(
         .watcher()
         .watch(&canonical_projects, RecursiveMode::Recursive)
         .map_err(|e| format!("Failed to watch directory: {e}"))?;
+
+    // Also watch custom Claude directories if provided
+    if let Some(custom_paths) = custom_claude_paths {
+        for custom in &custom_paths {
+            let custom_base = PathBuf::from(&custom.path);
+            match crate::utils::validate_custom_claude_path(&custom_base) {
+                Ok(canonical_projects) => {
+                    if debouncer
+                        .watcher()
+                        .watch(&canonical_projects, RecursiveMode::Recursive)
+                        .is_ok()
+                    {
+                        log::info!(
+                            "File watcher added custom path: {}",
+                            canonical_projects.display()
+                        );
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Skipping invalid custom watch path: {e}");
+                }
+            }
+        }
+    }
 
     // Store the debouncer in app state to prevent it from being dropped
     let watcher_state: tauri::State<WatcherMap> = app_handle.state();

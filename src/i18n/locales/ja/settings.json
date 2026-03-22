@@ -501,5 +501,20 @@
   "settingsManager.visual.denyList": "拒否された権限",
   "settingsManager.visual.model": "モデル",
   "settingsManager.visual.saved": "設定が正常に保存されました",
-  "settingsManager.visual.selectModel": "モデルを選択"
+  "settingsManager.visual.selectModel": "モデルを選択",
+  "settings.customDirectories": "カスタムClaudeディレクトリ",
+  "settings.customDirectories.description": "会話履歴を検索する追加のClaude設定ディレクトリを登録します。",
+  "settings.customDirectories.default": "デフォルト",
+  "settings.customDirectories.detected": "検出済み",
+  "settings.customDirectories.addDirectory": "ディレクトリを追加",
+  "settings.customDirectories.addDirectoryManual": "パスを直接入力",
+  "settings.customDirectories.label": "ラベル",
+  "settings.customDirectories.labelPlaceholder": "例: Personal, Work",
+  "settings.customDirectories.path": "パス",
+  "settings.customDirectories.pathPlaceholder": ".claudeディレクトリの絶対パス",
+  "settings.customDirectories.remove": "削除",
+  "settings.customDirectories.removeConfirm": "このカスタムディレクトリを削除しますか？履歴ファイルは削除されません。",
+  "settings.customDirectories.invalidPath": "無効なパス: 'projects'サブフォルダが必要です。",
+  "settings.customDirectories.duplicatePath": "このディレクトリは既に登録されています。",
+  "settings.customDirectories.empty": "カスタムディレクトリは登録されていません。"
 }
