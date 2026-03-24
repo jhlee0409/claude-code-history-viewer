@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["claude", "codex", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["claude", "codex", "gemini", "opencode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -9,6 +9,7 @@ const PROVIDER_TRANSLATIONS: Record<
 > = {
   claude: { key: "common.provider.claude", fallback: "Claude Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
+  gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
 };
 
@@ -24,6 +25,7 @@ const PROVIDER_ANALYTICS_CAPABILITIES: Record<
 > = {
   claude: { supportsConversationBreakdown: true },
   codex: { supportsConversationBreakdown: false },
+  gemini: { supportsConversationBreakdown: false },
   opencode: { supportsConversationBreakdown: false },
 };
 
@@ -42,6 +44,7 @@ export interface ConversationBreakdownCoverage {
 export function getProviderId(provider?: ProviderId | string): ProviderId {
   switch (provider) {
     case "codex":
+    case "gemini":
     case "opencode":
     case "claude":
       return provider;

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod claude;
 pub mod codex;
+pub mod gemini;
 pub mod opencode;
 
 /// Provider identifier
@@ -10,6 +11,7 @@ pub mod opencode;
 pub enum ProviderId {
     Claude,
     Codex,
+    Gemini,
     OpenCode,
 }
 
@@ -18,6 +20,7 @@ impl ProviderId {
         match self {
             Self::Claude => "claude",
             Self::Codex => "codex",
+            Self::Gemini => "gemini",
             Self::OpenCode => "opencode",
         }
     }
@@ -26,6 +29,7 @@ impl ProviderId {
         match s {
             "claude" => Some(Self::Claude),
             "codex" => Some(Self::Codex),
+            "gemini" => Some(Self::Gemini),
             "opencode" => Some(Self::OpenCode),
             _ => None,
         }
@@ -35,6 +39,7 @@ impl ProviderId {
         match self {
             Self::Claude => "Claude Code",
             Self::Codex => "Codex CLI",
+            Self::Gemini => "Gemini CLI",
             Self::OpenCode => "OpenCode",
         }
     }
@@ -57,6 +62,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = codex::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = gemini::detect() {
         providers.push(info);
     }
     if let Some(info) = opencode::detect() {

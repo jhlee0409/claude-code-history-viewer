@@ -30,6 +30,7 @@ pub async fn scan_all_projects(
         vec![
             "claude".to_string(),
             "codex".to_string(),
+            "gemini".to_string(),
             "opencode".to_string(),
         ]
     });
@@ -91,6 +92,16 @@ pub async fn scan_all_projects(
         }
     }
 
+    // Gemini
+    if providers_to_scan.iter().any(|p| p == "gemini") {
+        match providers::gemini::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Gemini scan failed: {e}");
+            }
+        }
+    }
+
     // OpenCode
     if providers_to_scan.iter().any(|p| p == "opencode") {
         match providers::opencode::scan_projects() {
@@ -140,6 +151,7 @@ pub async fn load_provider_sessions(
             Ok(sessions)
         }
         "codex" => providers::codex::load_sessions(&project_path, exclude),
+        "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
@@ -163,6 +175,7 @@ pub async fn load_provider_messages(
             messages
         }
         "codex" => providers::codex::load_messages(&session_path)?,
+        "gemini" => providers::gemini::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
@@ -189,6 +202,7 @@ pub async fn search_all_providers(
         vec![
             "claude".to_string(),
             "codex".to_string(),
+            "gemini".to_string(),
             "opencode".to_string(),
         ]
     });
@@ -258,6 +272,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Codex search failed: {e}");
+            }
+        }
+    }
+
+    // Gemini
+    if providers_to_search.iter().any(|p| p == "gemini") {
+        match providers::gemini::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Gemini search failed: {e}");
             }
         }
     }
