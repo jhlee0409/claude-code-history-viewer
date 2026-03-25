@@ -149,6 +149,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             "px-1.5 py-0.5 text-2xs font-medium rounded-full flex-shrink-0 leading-none",
             providerId === "claude" && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
             providerId === "codex" && "bg-green-500/15 text-green-600 dark:text-green-400",
+            providerId === "gemini" && "bg-purple-500/15 text-purple-600 dark:text-purple-400",
             providerId === "opencode" && "bg-blue-500/15 text-blue-600 dark:text-blue-400"
           )}
         >

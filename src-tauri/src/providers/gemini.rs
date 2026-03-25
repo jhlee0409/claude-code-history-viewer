@@ -119,6 +119,10 @@ pub fn load_sessions(
     let dir = project_path
         .strip_prefix("gemini://")
         .unwrap_or(project_path);
+
+    // Validate project path is inside Gemini data directory
+    validate_gemini_path(dir)?;
+
     let chats_dir = PathBuf::from(dir).join("chats");
 
     if !chats_dir.is_dir() {
@@ -301,21 +305,28 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // Path validation & file helpers
 // ============================================================================
 
-/// Validate that `session_path` is a real file inside `~/.gemini/tmp/`
-fn validate_session_path(session_path: &str) -> Result<PathBuf, String> {
-    let path = PathBuf::from(session_path)
+/// Resolve and validate that a path is inside `~/.gemini/tmp/`
+fn validate_gemini_path(raw_path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(raw_path)
         .canonicalize()
-        .map_err(|e| format!("Invalid session path: {e}"))?;
+        .map_err(|e| format!("Invalid path: {e}"))?;
 
     let base = get_base_path().ok_or("No Gemini base path")?;
-    let tmp_dir = PathBuf::from(&base).join("tmp");
+    let canonical_tmp = PathBuf::from(&base)
+        .join("tmp")
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve Gemini tmp directory: {e}"))?;
 
-    // tmp_dir might not exist yet or might be a relative path — canonicalize it too
-    if let Ok(canonical_tmp) = tmp_dir.canonicalize() {
-        if !path.starts_with(&canonical_tmp) {
-            return Err("Session path is outside Gemini data directory".to_string());
-        }
+    if !path.starts_with(&canonical_tmp) {
+        return Err("Path is outside Gemini data directory".to_string());
     }
+
+    Ok(path)
+}
+
+/// Validate that `session_path` is a real file inside `~/.gemini/tmp/`
+fn validate_session_path(session_path: &str) -> Result<PathBuf, String> {
+    let path = validate_gemini_path(session_path)?;
 
     if !path.is_file() {
         return Err(format!("Session file not found: {session_path}"));
@@ -681,11 +692,23 @@ fn convert_gemini_part(part: &Value) -> Option<Value> {
         }));
     }
 
-    // inlineData (base64 image/file)
+    // inlineData (base64 image/file — branch on mimeType)
     if let Some(inline) = part.get("inlineData") {
+        let mime = inline.get("mimeType").and_then(Value::as_str).unwrap_or("");
+        if mime.starts_with("image/") {
+            return Some(serde_json::json!({
+                "type": "image",
+                "source": inline
+            }));
+        }
+        // Non-image inline data → document block
         return Some(serde_json::json!({
-            "type": "image",
-            "source": inline
+            "type": "document",
+            "source": {
+                "type": "base64",
+                "media_type": mime,
+                "data": inline.get("data").and_then(Value::as_str).unwrap_or("")
+            }
         }));
     }
 
