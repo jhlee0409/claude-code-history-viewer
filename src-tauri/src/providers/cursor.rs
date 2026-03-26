@@ -117,12 +117,15 @@ pub fn load_sessions(
     let ws_db_path = PathBuf::from(ws_path).join("state.vscdb");
     let composers = read_workspace_composers(&ws_db_path)?;
 
-    let project_name = PathBuf::from(ws_path)
-        .parent()
-        .and_then(|p| p.file_name())
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
+    // Read workspace.json to get the real project folder name
+    let workspace_json = PathBuf::from(ws_path).join("workspace.json");
+    let project_name = read_workspace_folder(&workspace_json)
+        .and_then(|folder| {
+            PathBuf::from(&folder)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+        })
+        .unwrap_or_else(|| "Cursor".to_string());
 
     let mut sessions: Vec<ClaudeSession> = composers
         .iter()
@@ -181,6 +184,8 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 
     let conn = Connection::open_with_flags(&global_db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(|e| format!("Failed to open Cursor DB: {e}"))?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| format!("Failed to set busy timeout: {e}"))?;
 
     // Get composer data (ordered bubble list)
     let composer_key = format!("composerData:{composer_id}");
@@ -259,6 +264,8 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 
     let conn = Connection::open_with_flags(&global_db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(|e| format!("Failed to open Cursor DB: {e}"))?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| format!("Failed to set busy timeout: {e}"))?;
 
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
@@ -334,6 +341,7 @@ fn read_workspace_composers(ws_db_path: &Path) -> Result<Vec<Value>, String> {
 
     let conn = Connection::open_with_flags(ws_db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(|e| format!("Failed to open workspace DB: {e}"))?;
+    let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
 
     let data: Result<String, _> = conn.query_row(
         "SELECT value FROM ItemTable WHERE key = 'composer.composerData'",
@@ -411,13 +419,18 @@ fn convert_user_bubble(
         for img in images {
             if let Some(url) = img.as_str() {
                 if url.starts_with("data:image/") {
-                    // Extract base64 from data URI
-                    if let Some((_header, data)) = url.split_once(',') {
+                    // Parse mime type from data URI: "data:image/png;base64,..."
+                    if let Some((header, data)) = url.split_once(',') {
+                        let media_type = header
+                            .strip_prefix("data:")
+                            .and_then(|h| h.split_once(';'))
+                            .map(|(mime, _)| mime)
+                            .unwrap_or("image/png");
                         content_blocks.push(serde_json::json!({
                             "type": "image",
                             "source": {
                                 "type": "base64",
-                                "media_type": "image/png",
+                                "media_type": media_type,
                                 "data": data
                             }
                         }));

@@ -28,10 +28,18 @@ pub fn detect() -> Option<ProviderInfo> {
 /// Scan for all Aider projects
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let mut projects = Vec::new();
+    let mut seen_paths = std::collections::HashSet::new();
 
     for search_dir in get_search_dirs() {
         if let Some(files) = find_history_files(&search_dir, 100) {
             for history_path in files {
+                // Deduplicate across overlapping search directories
+                let canonical = history_path
+                    .canonicalize()
+                    .unwrap_or_else(|_| history_path.clone());
+                if !seen_paths.insert(canonical) {
+                    continue;
+                }
                 let project_dir = history_path.parent().ok_or("Invalid history file path")?;
 
                 let project_name = project_dir
@@ -87,7 +95,13 @@ pub fn load_sessions(
         .strip_prefix("aider://")
         .unwrap_or(project_path);
 
-    let history_path = PathBuf::from(dir).join(HISTORY_FILE);
+    // Validate path is absolute and points to a real directory
+    let dir_path = PathBuf::from(dir);
+    if !dir_path.is_absolute() {
+        return Err("Aider project path must be absolute".to_string());
+    }
+
+    let history_path = dir_path.join(HISTORY_FILE);
     if !history_path.is_file() {
         return Ok(Vec::new());
     }
@@ -133,6 +147,15 @@ pub fn load_sessions(
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     // session_path format: aider://<history_file_path>#<session_index>
     let (file_path, session_index) = parse_session_path(session_path)?;
+
+    // Validate: must be absolute, must end with the expected filename
+    let path = PathBuf::from(&file_path);
+    if !path.is_absolute() {
+        return Err("Session path must be absolute".to_string());
+    }
+    if path.file_name().and_then(|n| n.to_str()) != Some(HISTORY_FILE) {
+        return Err(format!("Invalid Aider history file: {file_path}"));
+    }
 
     let content =
         fs::read_to_string(&file_path).map_err(|e| format!("Failed to read history: {e}"))?;

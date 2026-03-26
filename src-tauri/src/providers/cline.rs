@@ -346,7 +346,17 @@ fn parse_session_path(session_path: &str) -> Result<(PathBuf, String), String> {
         .split_once(':')
         .ok_or_else(|| format!("Invalid session path: {session_path}"))?;
 
-    Ok((PathBuf::from(base), task_id.to_string()))
+    let base_path = PathBuf::from(base);
+    if !base_path.is_absolute() {
+        return Err("Cline base path must be absolute".to_string());
+    }
+
+    // Reject path traversal in task_id
+    if task_id.contains("..") || task_id.contains('/') || task_id.contains('\\') {
+        return Err(format!("Invalid task ID: {task_id}"));
+    }
+
+    Ok((base_path, task_id.to_string()))
 }
 
 /// Convert a `ClineMessage` to `ClaudeMessage`
@@ -491,18 +501,19 @@ fn convert_say_message(
             if text.is_empty() {
                 return None;
             }
+            // Render as a text block with terminal styling (the command tool_use
+            // is in the preceding "command" message — they are paired by ordering)
             let content = serde_json::json!([{
-                "type": "tool_result",
-                "tool_use_id": format!("cline_cmd_{uuid}"),
-                "content": text
+                "type": "text",
+                "text": format!("```\n{text}\n```")
             }]);
             Some(build_provider_message(
                 "cline",
                 uuid.to_string(),
                 session_id,
                 timestamp.to_string(),
-                "user",
-                Some("user"),
+                "assistant",
+                Some("assistant"),
                 Some(content),
                 None,
             ))
