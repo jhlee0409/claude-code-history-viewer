@@ -669,25 +669,7 @@ pub async fn save_screenshot(path: String, data: String) -> Result<(), String> {
     use base64::Engine;
     tauri::async_runtime::spawn_blocking(move || {
         let path = PathBuf::from(&path);
-        if !path.is_absolute() {
-            return Err("Path must be absolute".to_string());
-        }
-        if path
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-        {
-            return Err("Path cannot contain '..' components".to_string());
-        }
-
-        // Ensure parent directory exists
-        if let Some(parent) = path.parent() {
-            if !parent.exists() {
-                return Err(format!(
-                    "Parent directory does not exist: {}",
-                    parent.display()
-                ));
-            }
-        }
+        validate_dialog_path(&path)?;
 
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(&data)
