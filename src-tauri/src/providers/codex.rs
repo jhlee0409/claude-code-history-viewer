@@ -122,10 +122,8 @@ struct SessionInfo {
 
 /// Scan Codex projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    crate::utils::require_absolute_path(base_path, "Codex base path")?;
     let base = Path::new(base_path);
-    if base_path.trim().is_empty() || !base.is_absolute() {
-        return Err("Codex base path must be a non-empty absolute path".to_string());
-    }
 
     let sessions_dir = base.join("sessions");
     let archived_sessions_dir = base.join("archived_sessions");

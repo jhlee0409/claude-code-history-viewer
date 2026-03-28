@@ -63,9 +63,7 @@ pub fn get_base_path() -> Option<String> {
 
 /// Scan `OpenCode` projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
-    if base_path.trim().is_empty() || !Path::new(base_path).is_absolute() {
-        return Err("OpenCode base path must be a non-empty absolute path".to_string());
-    }
+    crate::utils::require_absolute_path(base_path, "OpenCode base path")?;
 
     let storage_path = Path::new(base_path).join("storage");
 

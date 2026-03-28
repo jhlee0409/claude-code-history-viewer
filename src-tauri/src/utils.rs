@@ -91,6 +91,14 @@ pub fn is_safe_storage_id(id: &str) -> bool {
     matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
 }
 
+/// Validates that a path is a non-empty absolute path.
+pub fn require_absolute_path(path: &str, label: &str) -> Result<(), String> {
+    if path.trim().is_empty() || !Path::new(path).is_absolute() {
+        return Err(format!("{label} must be a non-empty absolute path"));
+    }
+    Ok(())
+}
+
 /// Validates that a custom Claude directory path is safe to use.
 ///
 /// Checks: absolute path, not a symlink (base and projects/), projects/ exists and is a dir.

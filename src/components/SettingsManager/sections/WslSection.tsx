@@ -48,7 +48,11 @@ function WslSectionInner({ isExpanded, onToggle }: WslSectionProps) {
   const [distroError, setDistroError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!wslSettings.enabled) return;
+    if (!wslSettings.enabled) {
+      setDistros([]);
+      setDistroError(null);
+      return;
+    }
 
     let cancelled = false;
 
