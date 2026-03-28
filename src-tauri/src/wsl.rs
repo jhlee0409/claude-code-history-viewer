@@ -64,6 +64,11 @@ pub fn detect_distros() -> Vec<WslDistro> {
             is_default: subkey_name == default_guid,
         });
     }
+    distros.sort_by(|a, b| {
+        b.is_default
+            .cmp(&a.is_default)
+            .then_with(|| a.name.cmp(&b.name))
+    });
     distros
 }
 
