@@ -13,19 +13,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { ChevronDown, ChevronRight, Terminal } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/services/api";
 import { isWindows, isTauri } from "@/utils/platform";
+import type { WslDistro } from "@/types";
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface WslDistro {
-  name: string;
-  isDefault: boolean;
-}
 
 interface WslSectionProps {
   isExpanded: boolean;
@@ -77,9 +75,9 @@ function WslSectionInner({ isExpanded, onToggle }: WslSectionProps) {
     };
   }, [wslSettings.enabled]);
 
-  const handleToggleEnabled = async () => {
+  const handleToggleEnabled = async (checked: boolean) => {
     try {
-      await setWslEnabled(!wslSettings.enabled);
+      await setWslEnabled(checked);
     } catch (err) {
       console.error("Failed to toggle WSL enabled:", err);
     }
@@ -112,16 +110,16 @@ function WslSectionInner({ isExpanded, onToggle }: WslSectionProps) {
           </p>
 
           {/* Enable toggle */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+          <div className="flex items-center justify-between">
+            <Label htmlFor="wsl-enabled" className="text-sm cursor-pointer">
+              {t("settings.wsl.enable")}
+            </Label>
+            <Switch
+              id="wsl-enabled"
               checked={wslSettings.enabled}
-              onChange={handleToggleEnabled}
-              aria-label={t("settings.wsl.enable")}
-              className="h-4 w-4 rounded border-border"
+              onCheckedChange={handleToggleEnabled}
             />
-            <span className="text-sm">{t("settings.wsl.enable")}</span>
-          </label>
+          </div>
 
           {/* Distros list (only shown when enabled) */}
           {wslSettings.enabled && (
@@ -159,7 +157,7 @@ function WslSectionInner({ isExpanded, onToggle }: WslSectionProps) {
                         <span className="text-sm font-mono">{distro.name}</span>
                         {distro.isDefault && (
                           <span className="text-xs rounded bg-primary/10 px-1.5 py-0.5 text-primary">
-                            default
+                            {t("settings.wsl.defaultBadge")}
                           </span>
                         )}
                       </label>
@@ -183,7 +181,7 @@ function WslSectionInner({ isExpanded, onToggle }: WslSectionProps) {
 // ============================================================================
 
 export function WslSection(props: WslSectionProps) {
-  const [wslAvailable, setWslAvailable] = useState<boolean | null>(null);
+  const [wslAvailable, setWslAvailable] = useState(false);
 
   useEffect(() => {
     // Only run availability check on Windows Tauri

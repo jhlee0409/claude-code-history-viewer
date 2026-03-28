@@ -523,5 +523,6 @@
   "settings.wsl.distros": "検出されたディストリビューション",
   "settings.wsl.noDistros": "WSLディストリビューションが見つかりません",
   "settings.wsl.scanning": "WSLをスキャン中...",
-  "settings.wsl.slowWarning": "WSLファイルアクセスはネイティブより遅い場合があります"
+  "settings.wsl.slowWarning": "WSLファイルアクセスはネイティブより遅い場合があります",
+  "settings.wsl.defaultBadge": "デフォルト"
 }

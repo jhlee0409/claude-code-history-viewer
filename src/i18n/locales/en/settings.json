@@ -523,5 +523,6 @@
   "settings.wsl.distros": "Detected distributions",
   "settings.wsl.noDistros": "No WSL distributions found",
   "settings.wsl.scanning": "Scanning WSL...",
-  "settings.wsl.slowWarning": "WSL file access may be slower than native"
+  "settings.wsl.slowWarning": "WSL file access may be slower than native",
+  "settings.wsl.defaultBadge": "default"
 }

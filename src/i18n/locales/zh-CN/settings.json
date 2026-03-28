@@ -523,5 +523,6 @@
   "settings.wsl.distros": "检测到的发行版",
   "settings.wsl.noDistros": "未找到 WSL 发行版",
   "settings.wsl.scanning": "正在扫描 WSL...",
-  "settings.wsl.slowWarning": "WSL 文件访问可能比本地慢"
+  "settings.wsl.slowWarning": "WSL 文件访问可能比本地慢",
+  "settings.wsl.defaultBadge": "默认"
 }

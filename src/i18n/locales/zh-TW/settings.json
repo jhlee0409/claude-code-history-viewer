@@ -523,5 +523,6 @@
   "settings.wsl.distros": "偵測到的發行版",
   "settings.wsl.noDistros": "未找到 WSL 發行版",
   "settings.wsl.scanning": "正在掃描 WSL...",
-  "settings.wsl.slowWarning": "WSL 檔案存取可能比本機慢"
+  "settings.wsl.slowWarning": "WSL 檔案存取可能比本機慢",
+  "settings.wsl.defaultBadge": "預設"
 }

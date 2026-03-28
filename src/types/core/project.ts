@@ -56,6 +56,14 @@ export interface CustomClaudePath {
   label?: string;
 }
 
+/** A WSL distribution detected on the system */
+export interface WslDistro {
+  /** Distribution name (e.g., "Ubuntu", "Debian") */
+  name: string;
+  /** Whether this is the default WSL distribution */
+  isDefault: boolean;
+}
+
 /** WSL (Windows Subsystem for Linux) integration settings */
 export interface WslSettings {
   /** Whether WSL scanning is enabled */

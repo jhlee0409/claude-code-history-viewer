@@ -147,24 +147,11 @@ pub async fn scan_all_projects(
         }
     }
 
-    // WSL scanning (Windows only — on other platforms, detect_distros returns empty)
+    // WSL scanning
     if wsl_enabled.unwrap_or(false) {
         let excluded = wsl_excluded_distros.unwrap_or_default();
-        let distros = crate::wsl::detect_distros();
 
-        for distro in &distros {
-            if excluded.contains(&distro.name) {
-                continue;
-            }
-
-            let home_path = match crate::wsl::resolve_home_path(&distro.name) {
-                Ok(p) => p,
-                Err(e) => {
-                    log::warn!("WSL: Could not resolve home for '{}': {e}", distro.name);
-                    continue;
-                }
-            };
-
+        for (distro, home_path) in resolve_active_wsl_distros(&excluded) {
             let wsl_label = format!("WSL: {}", distro.name);
 
             // CLI-based providers and their Linux data paths relative to home
@@ -444,27 +431,11 @@ pub async fn search_all_providers(
         }
     }
 
-    // WSL search (Windows only — currently Claude only)
+    // WSL search (currently Claude only)
     if wsl_enabled.unwrap_or(false) && providers_to_search.iter().any(|p| p == "claude") {
         let excluded = wsl_excluded_distros.unwrap_or_default();
-        let distros = crate::wsl::detect_distros();
 
-        for distro in &distros {
-            if excluded.contains(&distro.name) {
-                continue;
-            }
-
-            let home_path = match crate::wsl::resolve_home_path(&distro.name) {
-                Ok(p) => p,
-                Err(e) => {
-                    log::warn!(
-                        "WSL search: Could not resolve home for '{}': {e}",
-                        distro.name
-                    );
-                    continue;
-                }
-            };
-
+        for (distro, home_path) in resolve_active_wsl_distros(&excluded) {
             let claude_linux_path = home_path.join(".claude");
             if let Some(unc_path) =
                 crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path)
@@ -511,6 +482,26 @@ pub async fn search_all_providers(
     all_results.truncate(max_results);
 
     Ok(all_results)
+}
+
+/// Resolve active (non-excluded) WSL distros with their home paths.
+fn resolve_active_wsl_distros(
+    excluded: &[String],
+) -> Vec<(crate::wsl::WslDistro, std::path::PathBuf)> {
+    let distros = crate::wsl::detect_distros();
+    let mut result = Vec::new();
+    for distro in distros {
+        if excluded.contains(&distro.name) {
+            continue;
+        }
+        match crate::wsl::resolve_home_path(&distro.name) {
+            Ok(home) => result.push((distro, home)),
+            Err(e) => {
+                log::warn!("WSL: Could not resolve home for '{}': {e}", distro.name);
+            }
+        }
+    }
+    result
 }
 
 fn merge_tool_execution_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMessage> {
