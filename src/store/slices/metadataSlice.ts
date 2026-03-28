@@ -12,6 +12,7 @@ import type {
   ProjectMetadata,
   UserSettings,
   CustomClaudePath,
+  WslSettings,
 } from "../../types";
 import { DEFAULT_USER_METADATA } from "../../types";
 import { matchGlobPattern } from "../../utils/globUtils";
@@ -74,6 +75,10 @@ export interface MetadataSliceActions {
   removeCustomClaudePath: (path: string) => Promise<void>;
   /** Update label for a custom Claude directory path */
   updateCustomClaudePathLabel: (path: string, label: string) => Promise<void>;
+  /** Enable or disable WSL scanning */
+  setWslEnabled: (enabled: boolean) => Promise<void>;
+  /** Toggle a WSL distro in/out of the excluded list */
+  toggleWslDistro: (distroName: string) => Promise<void>;
   /** Clear metadata error */
   clearMetadataError: () => void;
 }
@@ -293,6 +298,21 @@ export const createMetadataSlice: StateCreator<
           : cp
       ),
     });
+  },
+
+  setWslEnabled: async (enabled: boolean) => {
+    const current = get().userMetadata?.settings ?? {};
+    const wsl: WslSettings = current.wsl ?? { enabled: false, excludedDistros: [] };
+    await get().updateUserSettings({ wsl: { ...wsl, enabled } });
+  },
+
+  toggleWslDistro: async (distroName: string) => {
+    const current = get().userMetadata?.settings ?? {};
+    const wsl: WslSettings = current.wsl ?? { enabled: false, excludedDistros: [] };
+    const excluded = wsl.excludedDistros.includes(distroName)
+      ? wsl.excludedDistros.filter((d: string) => d !== distroName)
+      : [...wsl.excludedDistros, distroName];
+    await get().updateUserSettings({ wsl: { ...wsl, excludedDistros: excluded } });
   },
 
   clearMetadataError: () => {

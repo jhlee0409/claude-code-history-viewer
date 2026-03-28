@@ -56,6 +56,22 @@ export interface CustomClaudePath {
   label?: string;
 }
 
+/** A WSL distribution detected on the system */
+export interface WslDistro {
+  /** Distribution name (e.g., "Ubuntu", "Debian") */
+  name: string;
+  /** Whether this is the default WSL distribution */
+  isDefault: boolean;
+}
+
+/** WSL (Windows Subsystem for Linux) integration settings */
+export interface WslSettings {
+  /** Whether WSL scanning is enabled */
+  enabled: boolean;
+  /** List of WSL distro names to exclude from scanning */
+  excludedDistros: string[];
+}
+
 /** Global user settings */
 export interface UserSettings {
   /** Glob patterns for projects to hide (e.g., "folders-dg-*") */
@@ -68,6 +84,8 @@ export interface UserSettings {
   groupingMode?: GroupingMode;
   /** Additional Claude configuration directories to scan */
   customClaudePaths?: CustomClaudePath[];
+  /** WSL integration settings (Windows only) */
+  wsl?: WslSettings;
 }
 
 // ============================================================================

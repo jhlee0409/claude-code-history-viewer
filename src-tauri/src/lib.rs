@@ -2,6 +2,7 @@ pub mod commands;
 pub mod models;
 pub mod providers;
 pub mod utils;
+pub mod wsl;
 
 #[cfg(feature = "webui-server")]
 pub mod server;
@@ -49,6 +50,7 @@ use crate::commands::{
         delete_unified_preset, get_unified_preset, load_unified_presets, save_unified_preset,
     },
     watcher::{start_file_watcher, stop_file_watcher},
+    wsl::{detect_wsl_distros, is_wsl_available},
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -191,7 +193,10 @@ fn run_tauri() {
             load_archive_session_messages,
             get_archive_disk_usage,
             get_expiring_sessions,
-            export_session
+            export_session,
+            // WSL commands
+            detect_wsl_distros,
+            is_wsl_available
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

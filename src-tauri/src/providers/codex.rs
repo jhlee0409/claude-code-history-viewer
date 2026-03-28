@@ -120,9 +120,22 @@ struct SessionInfo {
     summary: Option<String>,
 }
 
-/// Scan Codex projects (grouped by cwd from session metadata)
-pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let session_dirs = get_existing_session_dirs()?;
+/// Scan Codex projects from a specific base path.
+pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    crate::utils::require_absolute_path(base_path, "Codex base path")?;
+    let base = Path::new(base_path);
+
+    let sessions_dir = base.join("sessions");
+    let archived_sessions_dir = base.join("archived_sessions");
+
+    let session_dirs: Vec<PathBuf> = [sessions_dir, archived_sessions_dir]
+        .into_iter()
+        .filter(|path| {
+            std::fs::symlink_metadata(path)
+                .map(|m| m.file_type().is_dir())
+                .unwrap_or(false)
+        })
+        .collect();
 
     if session_dirs.is_empty() {
         return Ok(vec![]);
@@ -182,6 +195,12 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
+}
+
+/// Scan Codex projects from the default location.
+pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    let base = get_base_path().ok_or("Codex base path not found")?;
+    scan_projects_from_path(&base)
 }
 
 /// Load sessions for a Codex project (filtered by cwd)

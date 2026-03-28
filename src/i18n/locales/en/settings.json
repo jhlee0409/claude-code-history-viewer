@@ -516,5 +516,14 @@
   "settings.customDirectories.removeConfirm": "Remove this custom directory? History files will not be deleted.",
   "settings.customDirectories.invalidPath": "Invalid path: directory must contain a 'projects' subfolder.",
   "settings.customDirectories.duplicatePath": "This directory is already registered.",
-  "settings.customDirectories.empty": "No custom directories added yet."
+  "settings.customDirectories.empty": "No custom directories added yet.",
+  "settings.wsl.title": "WSL History Scanning",
+  "settings.wsl.description": "Scan for AI assistant history inside WSL distributions",
+  "settings.wsl.enable": "Enable WSL scanning",
+  "settings.wsl.distros": "Detected distributions",
+  "settings.wsl.noDistros": "No WSL distributions found",
+  "settings.wsl.scanning": "Scanning WSL...",
+  "settings.wsl.slowWarning": "WSL file access may be slower than native",
+  "settings.wsl.defaultBadge": "default",
+  "settings.wsl.detectError": "Failed to detect WSL distributions"
 }

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-03-15T08:08:32.015Z
- * 총 키 개수: 1668
+ * 생성 시간: 2026-03-28T04:13:32.935Z
+ * 총 키 개수: 1722
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (152개)
+ * common namespace의 번역 키 (156개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -105,9 +105,13 @@ export type CommonKeys =
   | 'common.noDataAvailable'
   | 'common.ok'
   | 'common.pending'
+  | 'common.provider.aider'
   | 'common.provider.claude'
+  | 'common.provider.cline'
   | 'common.provider.codex'
+  | 'common.provider.cursor'
   | 'common.provider.detectError'
+  | 'common.provider.gemini'
   | 'common.provider.opencode'
   | 'common.refresh'
   | 'common.remove'
@@ -567,7 +571,7 @@ export type SessionKeys =
   | 'session.title';
 
 /**
- * settings namespace의 번역 키 (503개)
+ * settings namespace의 번역 키 (527개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -589,6 +593,30 @@ export type SettingsKeys =
   | 'folderPicker.validationError'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
+  | 'settings.customDirectories'
+  | 'settings.customDirectories.addDirectory'
+  | 'settings.customDirectories.addDirectoryManual'
+  | 'settings.customDirectories.default'
+  | 'settings.customDirectories.description'
+  | 'settings.customDirectories.detected'
+  | 'settings.customDirectories.duplicatePath'
+  | 'settings.customDirectories.empty'
+  | 'settings.customDirectories.invalidPath'
+  | 'settings.customDirectories.label'
+  | 'settings.customDirectories.labelPlaceholder'
+  | 'settings.customDirectories.path'
+  | 'settings.customDirectories.pathPlaceholder'
+  | 'settings.customDirectories.remove'
+  | 'settings.customDirectories.removeConfirm'
+  | 'settings.wsl.defaultBadge'
+  | 'settings.wsl.description'
+  | 'settings.wsl.detectError'
+  | 'settings.wsl.distros'
+  | 'settings.wsl.enable'
+  | 'settings.wsl.noDistros'
+  | 'settings.wsl.scanning'
+  | 'settings.wsl.slowWarning'
+  | 'settings.wsl.title'
   | 'settingsManager.analyzer.backupCreated'
   | 'settingsManager.analyzer.backupDescription'
   | 'settingsManager.analyzer.backupError'
@@ -1194,10 +1222,22 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (81개)
+ * message namespace의 번역 키 (94개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
+  | 'filter.active'
+  | 'filter.content.commands'
+  | 'filter.content.text'
+  | 'filter.content.thinking'
+  | 'filter.content.toolCalls'
+  | 'filter.contentTypes'
+  | 'filter.reset'
+  | 'filter.role.assistant'
+  | 'filter.role.user'
+  | 'filter.roles'
+  | 'filter.showing'
+  | 'filter.title'
   | 'message.allLoaded'
   | 'message.branch'
   | 'message.checkConsole'
@@ -1278,10 +1318,11 @@ export type MessageKeys =
   | 'navigator.role.system'
   | 'navigator.role.user'
   | 'navigator.title'
-  | 'navigator.toggle';
+  | 'navigator.toggle'
+  | 'navigator.userOnly';
 
 /**
- * renderers namespace의 번역 키 (345개)
+ * renderers namespace의 번역 키 (358개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1460,17 +1501,28 @@ export type RenderersKeys =
   | 'gitWorkflowRenderer.gitWorkflow'
   | 'gitWorkflowRenderer.status'
   | 'gitWorkflowRenderer.viewDiff'
+  | 'globalSearch.allProjects'
+  | 'globalSearch.clearSearch'
   | 'globalSearch.close'
   | 'globalSearch.description'
+  | 'globalSearch.filterType.all'
+  | 'globalSearch.filterType.assistant'
+  | 'globalSearch.filterType.user'
   | 'globalSearch.hint'
   | 'globalSearch.navigate'
+  | 'globalSearch.navigationFailed'
   | 'globalSearch.noPreview'
   | 'globalSearch.noResults'
   | 'globalSearch.placeholder'
   | 'globalSearch.results'
+  | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
   | 'globalSearch.select'
+  | 'globalSearch.sessionNotFound'
   | 'globalSearch.shortcutHint'
+  | 'globalSearch.tips.filters'
+  | 'globalSearch.tips.minChars'
+  | 'globalSearch.tips.navigate'
   | 'globalSearch.title'
   | 'globalSearch.unknownProject'
   | 'imageRenderer.cannotLoadImage'
@@ -1525,6 +1577,8 @@ export type RenderersKeys =
   | 'rendererLabels.subject'
   | 'rendererLabels.task'
   | 'rendererLabels.type'
+  | 'renderers.containerUpload.description'
+  | 'renderers.containerUpload.title'
   | 'renderers.globToolRenderer.path'
   | 'renderers.globToolRenderer.pattern'
   | 'renderers.readToolRenderer.limit'
@@ -2133,9 +2187,13 @@ export type TranslationKey =
   | 'common.noDataAvailable'
   | 'common.ok'
   | 'common.pending'
+  | 'common.provider.aider'
   | 'common.provider.claude'
+  | 'common.provider.cline'
   | 'common.provider.codex'
+  | 'common.provider.cursor'
   | 'common.provider.detectError'
+  | 'common.provider.gemini'
   | 'common.provider.opencode'
   | 'common.refresh'
   | 'common.remove'
@@ -2333,6 +2391,18 @@ export type TranslationKey =
   | 'fileHistorySnapshotRenderer.trackedFiles'
   | 'fileHistorySnapshotRenderer.update'
   | 'fileListRenderer.fileList'
+  | 'filter.active'
+  | 'filter.content.commands'
+  | 'filter.content.text'
+  | 'filter.content.thinking'
+  | 'filter.content.toolCalls'
+  | 'filter.contentTypes'
+  | 'filter.reset'
+  | 'filter.role.assistant'
+  | 'filter.role.user'
+  | 'filter.roles'
+  | 'filter.showing'
+  | 'filter.title'
   | 'folderPicker.backButton'
   | 'folderPicker.change'
   | 'folderPicker.folderSelectError'
@@ -2353,17 +2423,28 @@ export type TranslationKey =
   | 'gitWorkflowRenderer.gitWorkflow'
   | 'gitWorkflowRenderer.status'
   | 'gitWorkflowRenderer.viewDiff'
+  | 'globalSearch.allProjects'
+  | 'globalSearch.clearSearch'
   | 'globalSearch.close'
   | 'globalSearch.description'
+  | 'globalSearch.filterType.all'
+  | 'globalSearch.filterType.assistant'
+  | 'globalSearch.filterType.user'
   | 'globalSearch.hint'
   | 'globalSearch.navigate'
+  | 'globalSearch.navigationFailed'
   | 'globalSearch.noPreview'
   | 'globalSearch.noResults'
   | 'globalSearch.placeholder'
   | 'globalSearch.results'
+  | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
   | 'globalSearch.select'
+  | 'globalSearch.sessionNotFound'
   | 'globalSearch.shortcutHint'
+  | 'globalSearch.tips.filters'
+  | 'globalSearch.tips.minChars'
+  | 'globalSearch.tips.navigate'
   | 'globalSearch.title'
   | 'globalSearch.unknownProject'
   | 'imageRenderer.cannotLoadImage'
@@ -2462,6 +2543,7 @@ export type TranslationKey =
   | 'navigator.role.user'
   | 'navigator.title'
   | 'navigator.toggle'
+  | 'navigator.userOnly'
   | 'progressRenderer.status.completed'
   | 'progressRenderer.status.error'
   | 'progressRenderer.status.running'
@@ -2550,6 +2632,8 @@ export type TranslationKey =
   | 'rendererLabels.subject'
   | 'rendererLabels.task'
   | 'rendererLabels.type'
+  | 'renderers.containerUpload.description'
+  | 'renderers.containerUpload.title'
   | 'renderers.globToolRenderer.path'
   | 'renderers.globToolRenderer.pattern'
   | 'renderers.readToolRenderer.limit'
@@ -2714,6 +2798,30 @@ export type TranslationKey =
   | 'session.title'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
+  | 'settings.customDirectories'
+  | 'settings.customDirectories.addDirectory'
+  | 'settings.customDirectories.addDirectoryManual'
+  | 'settings.customDirectories.default'
+  | 'settings.customDirectories.description'
+  | 'settings.customDirectories.detected'
+  | 'settings.customDirectories.duplicatePath'
+  | 'settings.customDirectories.empty'
+  | 'settings.customDirectories.invalidPath'
+  | 'settings.customDirectories.label'
+  | 'settings.customDirectories.labelPlaceholder'
+  | 'settings.customDirectories.path'
+  | 'settings.customDirectories.pathPlaceholder'
+  | 'settings.customDirectories.remove'
+  | 'settings.customDirectories.removeConfirm'
+  | 'settings.wsl.defaultBadge'
+  | 'settings.wsl.description'
+  | 'settings.wsl.detectError'
+  | 'settings.wsl.distros'
+  | 'settings.wsl.enable'
+  | 'settings.wsl.noDistros'
+  | 'settings.wsl.scanning'
+  | 'settings.wsl.slowWarning'
+  | 'settings.wsl.title'
   | 'settingsManager.analyzer.backupCreated'
   | 'settingsManager.analyzer.backupDescription'
   | 'settingsManager.analyzer.backupError'
@@ -3477,6 +3585,7 @@ export type TranslationPrefix =
   | 'fileEditRenderer'
   | 'fileHistorySnapshotRenderer'
   | 'fileListRenderer'
+  | 'filter'
   | 'folderPicker'
   | 'gitWorkflowRenderer'
   | 'globalSearch'

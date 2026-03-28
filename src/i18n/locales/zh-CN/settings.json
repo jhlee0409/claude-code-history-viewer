@@ -516,5 +516,14 @@
   "settings.customDirectories.removeConfirm": "删除此自定义目录？历史文件不会被删除。",
   "settings.customDirectories.invalidPath": "无效路径：目录必须包含 'projects' 子文件夹。",
   "settings.customDirectories.duplicatePath": "此目录已注册。",
-  "settings.customDirectories.empty": "尚未添加自定义目录。"
+  "settings.customDirectories.empty": "尚未添加自定义目录。",
+  "settings.wsl.title": "WSL 历史扫描",
+  "settings.wsl.description": "扫描 WSL 发行版中的 AI 助手历史记录",
+  "settings.wsl.enable": "启用 WSL 扫描",
+  "settings.wsl.distros": "检测到的发行版",
+  "settings.wsl.noDistros": "未找到 WSL 发行版",
+  "settings.wsl.scanning": "正在扫描 WSL...",
+  "settings.wsl.slowWarning": "WSL 文件访问可能比本地慢",
+  "settings.wsl.defaultBadge": "默认",
+  "settings.wsl.detectError": "检测 WSL 发行版失败"
 }

@@ -16,6 +16,10 @@ declare global {
 export const isMacOS = (): boolean =>
   typeof navigator !== "undefined" && /mac/i.test(navigator.userAgent);
 
+/** True when the current platform is Windows. */
+export const isWindows = (): boolean =>
+  typeof navigator !== "undefined" && /windows/i.test(navigator.userAgent);
+
 /** True when the action modifier key is held (Cmd on macOS, Ctrl elsewhere). */
 export const isActionModifier = (e: { metaKey: boolean; ctrlKey: boolean }): boolean =>
   isMacOS() ? e.metaKey : e.ctrlKey;

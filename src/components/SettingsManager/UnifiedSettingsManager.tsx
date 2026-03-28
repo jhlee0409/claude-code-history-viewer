@@ -28,6 +28,7 @@ import { SettingsSidebar } from "./sidebar/SettingsSidebar";
 import { SettingsEditorPane } from "./editor/SettingsEditorPane";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
+import { WslSection } from "./sections/WslSection";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -111,6 +112,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   // Panel state
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("editor");
   const [isCustomDirsExpanded, setIsCustomDirsExpanded] = React.useState(false);
+  const [isWslExpanded, setIsWslExpanded] = React.useState(false);
 
   // Pending changes state (shared across components for dirty tracking)
   const [pendingSettings, setPendingSettings] = React.useState<ClaudeCodeSettings | null>(null);
@@ -313,6 +315,14 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <CustomDirectoriesSection
                 isExpanded={isCustomDirsExpanded}
                 onToggle={(open) => setIsCustomDirsExpanded(open)}
+              />
+            </Card>
+
+            {/* WSL Settings — Windows Tauri only, hidden on other platforms */}
+            <Card className="shrink-0">
+              <WslSection
+                isExpanded={isWslExpanded}
+                onToggle={(open) => setIsWslExpanded(open)}
               />
             </Card>
 

@@ -11,6 +11,7 @@ pub mod settings;
 pub mod stats;
 pub mod unified_presets;
 pub mod watcher;
+pub mod wsl;
 
 #[cfg(test)]
 mod proptest_examples;

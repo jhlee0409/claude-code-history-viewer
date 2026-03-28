@@ -61,20 +61,29 @@ pub fn get_base_path() -> Option<String> {
     }
 }
 
-/// Scan `OpenCode` projects
-pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
-    let storage_path = Path::new(&base_path).join("storage");
+/// Scan `OpenCode` projects from a specific base path.
+pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    crate::utils::require_absolute_path(base_path, "OpenCode base path")?;
+
+    let storage_path = Path::new(base_path).join("storage");
+
+    // Reject symlinked storage root
+    if std::fs::symlink_metadata(&storage_path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Ok(Vec::new());
+    }
 
     let mut projects = Vec::new();
     let mut seen_ids: HashSet<String> = HashSet::new();
 
     // Pre-build DB session ID set per project (single connection, reused for all projects)
     let db_sessions_by_project: std::collections::HashMap<String, HashSet<String>> =
-        build_db_session_map(&base_path).unwrap_or_default();
+        build_db_session_map(base_path).unwrap_or_default();
 
     // 1. Read from SQLite (preferred, newer source)
-    if let Some(db_projects) = scan_projects_from_db(&base_path) {
+    if let Some(db_projects) = scan_projects_from_db(base_path) {
         for mut p in db_projects {
             let id = p
                 .path
@@ -189,6 +198,12 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
+}
+
+/// Scan `OpenCode` projects from the default location.
+pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    let base = get_base_path().ok_or("OpenCode base path not found")?;
+    scan_projects_from_path(&base)
 }
 
 /// Load sessions for an `OpenCode` project

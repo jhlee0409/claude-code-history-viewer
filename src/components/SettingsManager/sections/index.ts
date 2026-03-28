@@ -4,3 +4,4 @@ export { MCPServersSection } from "./MCPServersSection";
 export { HooksSection } from "./HooksSection";
 export { EnvVarsSection } from "./EnvVarsSection";
 export { CustomDirectoriesSection } from "./CustomDirectoriesSection";
+export { WslSection } from "./WslSection";

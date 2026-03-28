@@ -89,6 +89,7 @@ export const createSearchSlice: StateCreator<
       const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
       const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
       const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
+      const settings = get().userMetadata?.settings;
       const results = (hasNonClaudeProviders || hasCustomPaths)
         ? await api<ClaudeMessage[]>("search_all_providers", {
             claudePath,
@@ -96,6 +97,8 @@ export const createSearchSlice: StateCreator<
             activeProviders,
             filters,
             customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
+            wslEnabled: settings?.wsl?.enabled ?? false,
+            wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
           })
         : await api<ClaudeMessage[]>("search_messages", {
             claudePath,

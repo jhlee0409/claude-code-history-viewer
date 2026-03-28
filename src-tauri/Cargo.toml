@@ -64,6 +64,9 @@ tokio-stream = { version = "0.1", optional = true, features = ["sync"] }
 rust-embed = { version = "8", optional = true }
 mime_guess = { version = "2", optional = true }
 
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+
 [dev-dependencies]
 # Core testing utilities
 tempfile = "3.24.0"

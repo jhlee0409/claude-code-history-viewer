@@ -290,6 +290,10 @@ pub struct ScanAllProjectsParams {
     pub active_providers: Option<Vec<String>>,
     #[serde(default)]
     pub custom_claude_paths: Option<Vec<commands::multi_provider::CustomClaudePathParam>>,
+    #[serde(default)]
+    pub wsl_enabled: Option<bool>,
+    #[serde(default)]
+    pub wsl_excluded_distros: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -322,6 +326,10 @@ pub struct SearchAllProvidersParams {
     pub limit: Option<usize>,
     #[serde(default)]
     pub custom_claude_paths: Option<Vec<commands::multi_provider::CustomClaudePathParam>>,
+    #[serde(default)]
+    pub wsl_enabled: Option<bool>,
+    #[serde(default)]
+    pub wsl_excluded_distros: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -730,6 +738,8 @@ handler_json!(
             p.claude_path,
             p.active_providers,
             p.custom_claude_paths,
+            p.wsl_enabled,
+            p.wsl_excluded_distros,
         )
         .await
     }
@@ -767,6 +777,8 @@ handler_json!(
             p.filters,
             p.limit,
             p.custom_claude_paths,
+            p.wsl_enabled,
+            p.wsl_excluded_distros,
         )
         .await
     }

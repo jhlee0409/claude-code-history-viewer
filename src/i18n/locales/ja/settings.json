@@ -516,5 +516,14 @@
   "settings.customDirectories.removeConfirm": "このカスタムディレクトリを削除しますか？履歴ファイルは削除されません。",
   "settings.customDirectories.invalidPath": "無効なパス: 'projects'サブフォルダが必要です。",
   "settings.customDirectories.duplicatePath": "このディレクトリは既に登録されています。",
-  "settings.customDirectories.empty": "カスタムディレクトリは登録されていません。"
+  "settings.customDirectories.empty": "カスタムディレクトリは登録されていません。",
+  "settings.wsl.title": "WSL 履歴スキャン",
+  "settings.wsl.description": "WSLディストリビューション内のAIアシスタント履歴をスキャンします",
+  "settings.wsl.enable": "WSLスキャンを有効化",
+  "settings.wsl.distros": "検出されたディストリビューション",
+  "settings.wsl.noDistros": "WSLディストリビューションが見つかりません",
+  "settings.wsl.scanning": "WSLをスキャン中...",
+  "settings.wsl.slowWarning": "WSLファイルアクセスはネイティブより遅い場合があります",
+  "settings.wsl.defaultBadge": "デフォルト",
+  "settings.wsl.detectError": "WSLディストリビューションの検出に失敗しました"
 }

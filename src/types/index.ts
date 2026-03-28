@@ -110,6 +110,8 @@ export type {
 // Project & Metadata Types
 export type {
   CustomClaudePath,
+  WslDistro,
+  WslSettings,
   SessionMetadata,
   ProjectMetadata,
   GroupingMode,

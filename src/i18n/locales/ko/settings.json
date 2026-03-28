@@ -516,5 +516,14 @@
   "settings.customDirectories.removeConfirm": "이 커스텀 디렉토리를 삭제하시겠습니까? 히스토리 파일은 삭제되지 않습니다.",
   "settings.customDirectories.invalidPath": "유효하지 않은 경로: 'projects' 하위 폴더가 있어야 합니다.",
   "settings.customDirectories.duplicatePath": "이미 등록된 디렉토리입니다.",
-  "settings.customDirectories.empty": "등록된 커스텀 디렉토리가 없습니다."
+  "settings.customDirectories.empty": "등록된 커스텀 디렉토리가 없습니다.",
+  "settings.wsl.title": "WSL 히스토리 스캔",
+  "settings.wsl.description": "WSL 배포판 내 AI 어시스턴트 히스토리를 스캔합니다",
+  "settings.wsl.enable": "WSL 스캔 활성화",
+  "settings.wsl.distros": "감지된 배포판",
+  "settings.wsl.noDistros": "WSL 배포판을 찾을 수 없습니다",
+  "settings.wsl.scanning": "WSL 스캔 중...",
+  "settings.wsl.slowWarning": "WSL 파일 접근은 네이티브보다 느릴 수 있습니다",
+  "settings.wsl.defaultBadge": "기본값",
+  "settings.wsl.detectError": "WSL 배포판 감지에 실패했습니다"
 }

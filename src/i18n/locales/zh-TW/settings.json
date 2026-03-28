@@ -516,5 +516,14 @@
   "settings.customDirectories.removeConfirm": "刪除此自訂目錄？歷史檔案不會被刪除。",
   "settings.customDirectories.invalidPath": "無效路徑：目錄必須包含 'projects' 子資料夾。",
   "settings.customDirectories.duplicatePath": "此目錄已註冊。",
-  "settings.customDirectories.empty": "尚未新增自訂目錄。"
+  "settings.customDirectories.empty": "尚未新增自訂目錄。",
+  "settings.wsl.title": "WSL 歷史掃描",
+  "settings.wsl.description": "掃描 WSL 發行版中的 AI 助手歷史記錄",
+  "settings.wsl.enable": "啟用 WSL 掃描",
+  "settings.wsl.distros": "偵測到的發行版",
+  "settings.wsl.noDistros": "未找到 WSL 發行版",
+  "settings.wsl.scanning": "正在掃描 WSL...",
+  "settings.wsl.slowWarning": "WSL 檔案存取可能比本機慢",
+  "settings.wsl.defaultBadge": "預設",
+  "settings.wsl.detectError": "偵測 WSL 發行版失敗"
 }
