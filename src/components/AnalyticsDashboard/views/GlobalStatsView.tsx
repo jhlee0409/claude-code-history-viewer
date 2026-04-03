@@ -19,8 +19,6 @@ import {
 import type { GlobalStatsSummary } from "../../../types";
 import { formatDuration } from "../../../utils/time";
 import { cn } from "@/lib/utils";
-import { useAppStore } from "../../../store/useAppStore";
-import { DatePickerHeader } from "../../ui/DatePickerHeader";
 import {
   MetricCard,
   SectionCard,
@@ -50,7 +48,6 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
   globalConversationSummary,
 }) => {
   const { t } = useTranslation();
-  const { dateFilter, setDateFilter } = useAppStore();
   const totalSessionTime = globalSummary.total_session_duration_minutes;
   const costSummary = useMemo(
     () =>
@@ -105,11 +102,6 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           "Provider scope follows Project Tree provider tabs."
         )}
       </p>
-      <DatePickerHeader
-        dateFilter={dateFilter}
-        setDateFilter={setDateFilter}
-        className="bg-card/50 w-fit"
-      />
 
       {/* Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">

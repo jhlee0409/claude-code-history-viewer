@@ -63,10 +63,19 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
     if (globalSummary) {
       return (
-        <GlobalStatsView
-          globalSummary={globalSummary}
-          globalConversationSummary={globalConversationSummary}
-        />
+        <div className="flex-1 flex flex-col overflow-auto bg-background">
+          <div className="p-3 md:p-6 pb-0">
+            <DatePickerHeader
+              dateFilter={dateFilter}
+              setDateFilter={setDateFilter}
+              className="bg-card/50 w-fit"
+            />
+          </div>
+          <GlobalStatsView
+            globalSummary={globalSummary}
+            globalConversationSummary={globalConversationSummary}
+          />
+        </div>
       );
     }
 
