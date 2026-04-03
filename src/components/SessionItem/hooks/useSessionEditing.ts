@@ -165,6 +165,10 @@ export function useSessionEditing(session: ClaudeSession) {
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       setIsContextMenuOpen(false);
+      if (!session.file_path || !session.file_path.startsWith("/")) {
+        toast.error(t("session.revealError", "Could not reveal file"));
+        return;
+      }
       try {
         const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
         await revealItemInDir(session.file_path);
