@@ -27,6 +27,7 @@ RUN cargo build --release --features webui-server
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
+    libgtk-3-0 libwebkit2gtk-4.1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Run as non-root user for security
