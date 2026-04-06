@@ -2054,6 +2054,133 @@ mod tests {
 
     #[test]
     #[serial]
+    fn load_messages_dedup_multi_turn_conversation() {
+        // Simulates a realistic multi-turn Codex conversation where each
+        // user/assistant message appears as both response_item and event_msg.
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home.join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+        let rollout_path = sessions_dir.join("rollout-multiturn.jsonl");
+
+        let lines = [
+            json!({
+                "timestamp": "2026-03-01T10:00:00Z",
+                "type": "session_meta",
+                "payload": { "id": "sess-multi" }
+            }),
+            // Turn 1: user
+            json!({
+                "timestamp": "2026-03-01T10:00:01Z",
+                "type": "response_item",
+                "payload": {
+                    "id": "u1", "type": "message", "role": "user",
+                    "content": [{ "type": "input_text", "text": "first question" }]
+                }
+            }),
+            json!({
+                "timestamp": "2026-03-01T10:00:01Z",
+                "type": "event_msg",
+                "payload": { "type": "user_message", "message": "first question" }
+            }),
+            // Turn 1: assistant
+            json!({
+                "timestamp": "2026-03-01T10:00:02Z",
+                "type": "response_item",
+                "payload": {
+                    "id": "a1", "type": "message", "role": "assistant",
+                    "content": [{ "type": "output_text", "text": "first answer" }]
+                }
+            }),
+            json!({
+                "timestamp": "2026-03-01T10:00:02Z",
+                "type": "event_msg",
+                "payload": { "type": "agent_message", "message": "first answer" }
+            }),
+            // Turn 2: user
+            json!({
+                "timestamp": "2026-03-01T10:00:03Z",
+                "type": "response_item",
+                "payload": {
+                    "id": "u2", "type": "message", "role": "user",
+                    "content": [{ "type": "input_text", "text": "follow-up" }]
+                }
+            }),
+            json!({
+                "timestamp": "2026-03-01T10:00:03Z",
+                "type": "event_msg",
+                "payload": { "type": "user_message", "message": "follow-up" }
+            }),
+            // Turn 2: assistant
+            json!({
+                "timestamp": "2026-03-01T10:00:04Z",
+                "type": "response_item",
+                "payload": {
+                    "id": "a2", "type": "message", "role": "assistant",
+                    "content": [{ "type": "output_text", "text": "second answer" }]
+                }
+            }),
+            json!({
+                "timestamp": "2026-03-01T10:00:04Z",
+                "type": "event_msg",
+                "payload": { "type": "agent_message", "message": "second answer" }
+            }),
+            // Turn 3: user (final, no assistant reply yet)
+            json!({
+                "timestamp": "2026-03-01T10:00:05Z",
+                "type": "response_item",
+                "payload": {
+                    "id": "u3", "type": "message", "role": "user",
+                    "content": [{ "type": "input_text", "text": "one more thing" }]
+                }
+            }),
+            json!({
+                "timestamp": "2026-03-01T10:00:05Z",
+                "type": "event_msg",
+                "payload": { "type": "user_message", "message": "one more thing" }
+            }),
+        ];
+
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n")).expect("fixture should be written");
+
+        let messages = load_messages(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+        )
+        .expect("rollout should be parsed");
+
+        // 5 messages: user, assistant, user, assistant, user (no duplicates)
+        // Without the fix this would be 10 messages.
+        assert_eq!(messages.len(), 5);
+
+        let expected = [
+            ("user", "first question"),
+            ("assistant", "first answer"),
+            ("user", "follow-up"),
+            ("assistant", "second answer"),
+            ("user", "one more thing"),
+        ];
+        for (i, (msg_type, text)) in expected.iter().enumerate() {
+            assert_eq!(messages[i].message_type, *msg_type, "message {i} type");
+            let actual_text = messages[i]
+                .content
+                .as_ref()
+                .and_then(Value::as_array)
+                .and_then(|arr| arr[0].get("text"))
+                .and_then(Value::as_str);
+            assert_eq!(actual_text, Some(*text), "message {i} content");
+        }
+    }
+
+    #[test]
+    #[serial]
     fn load_sessions_includes_archived_sessions() {
         let tmp = TempDir::new().expect("temp dir should be created");
         let codex_home = tmp.path().join("codex-home");
