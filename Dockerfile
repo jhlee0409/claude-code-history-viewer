@@ -3,15 +3,16 @@
 
 # ── Stage 1: Build frontend ──────────────────────────────────────────
 FROM node:20-slim AS frontend
-RUN corepack enable && corepack install
+RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
+RUN corepack install
 RUN pnpm install --frozen-lockfile --prefer-offline
-COPY . .
+COPY . ./
 RUN pnpm exec tsc --build . && pnpm exec vite build
 
 # ── Stage 2: Build Rust server binary (with embedded frontend) ──────
-FROM rust:1.82-bookworm AS backend
+FROM rust:1-bookworm AS backend
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
     && rm -rf /var/lib/apt/lists/*
@@ -26,6 +27,7 @@ RUN cargo build --release --features webui-server
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
+    libgtk-3-0 libwebkit2gtk-4.1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Run as non-root user for security
