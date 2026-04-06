@@ -8,6 +8,7 @@ import {
   Terminal,
   Copy,
   FileText,
+  FolderOpen,
   Play,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -50,6 +51,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   onCopySessionId,
   onCopyResumeCommand,
   onCopyFilePath,
+  onRevealInFinder,
   onContextMenuOpenChange,
 }) => {
   const { t } = useTranslation();
@@ -222,6 +224,10 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
           <DropdownMenuItem onClick={onCopyFilePath}>
             <FileText className="w-3 h-3 mr-2" />
             {t("session.copyFilePath", "Copy File Path")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onRevealInFinder}>
+            <FolderOpen className="w-3 h-3 mr-2" />
+            {t("session.showJsonlFile", "Show JSONL File")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

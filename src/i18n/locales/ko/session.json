@@ -90,6 +90,8 @@
   "session.copiedResumeCommand": "재개 명령어가 복사되었습니다",
   "session.copiedSessionId": "세션 ID가 복사되었습니다",
   "session.copyFilePath": "파일 경로 복사",
+  "session.showJsonlFile": "JSONL 파일 보기",
+  "session.revealError": "파일을 열 수 없습니다",
   "session.copyResumeCommand": "재개 명령어 복사",
   "session.copySessionId": "세션 ID 복사",
   "session.count": "세션: {{count}}개",

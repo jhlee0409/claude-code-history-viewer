@@ -90,6 +90,8 @@
   "session.copiedResumeCommand": "再開コマンドをコピーしました",
   "session.copiedSessionId": "セッションIDをコピーしました",
   "session.copyFilePath": "ファイルパスをコピー",
+  "session.showJsonlFile": "JSONLファイルを表示",
+  "session.revealError": "ファイルを表示できませんでした",
   "session.copyResumeCommand": "再開コマンドをコピー",
   "session.copySessionId": "セッションIDをコピー",
   "session.count": "セッション：{{count}}件",

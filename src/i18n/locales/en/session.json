@@ -90,6 +90,8 @@
   "session.copiedResumeCommand": "Resume command copied",
   "session.copiedSessionId": "Session ID copied",
   "session.copyFilePath": "Copy File Path",
+  "session.showJsonlFile": "Show JSONL File",
+  "session.revealError": "Could not reveal file",
   "session.copyResumeCommand": "Copy Resume Command",
   "session.copySessionId": "Copy Session ID",
   "session.count": "Sessions: {{count}}",

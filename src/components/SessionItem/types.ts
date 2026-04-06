@@ -37,6 +37,7 @@ export interface SessionNameEditorProps {
   onCopySessionId: (e: React.MouseEvent) => void;
   onCopyResumeCommand: (e: React.MouseEvent) => void;
   onCopyFilePath: (e: React.MouseEvent) => void;
+  onRevealInFinder: (e: React.MouseEvent) => void;
   onContextMenuOpenChange: (open: boolean) => void;
 }
 

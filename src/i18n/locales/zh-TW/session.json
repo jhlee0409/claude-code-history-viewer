@@ -90,6 +90,8 @@
   "session.copiedResumeCommand": "恢復命令已複製",
   "session.copiedSessionId": "會話ID已複製",
   "session.copyFilePath": "複製檔案路徑",
+  "session.showJsonlFile": "顯示 JSONL 檔案",
+  "session.revealError": "無法顯示檔案",
   "session.copyResumeCommand": "複製恢復命令",
   "session.copySessionId": "複製會話ID",
   "session.count": "會話：{{count}}個",
