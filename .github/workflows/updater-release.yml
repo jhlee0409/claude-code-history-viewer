@@ -133,16 +133,32 @@ jobs:
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          $version = (Get-Content package.json | ConvertFrom-Json).version
-          $exePath = "src-tauri/target/release/Claude Code History Viewer.exe"
-
-          if (-not (Test-Path $exePath)) {
-            Write-Error "Exe not found at: $exePath"
+          # Derive version from git tag (same source as create-release job)
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          if (-not $version) {
+            Write-Error "Could not determine version from github.ref_name"
             exit 1
           }
 
+          # Dynamically find the main exe, excluding setup/installer/uninstall binaries
+          $exe = Get-ChildItem "src-tauri/target/release/*.exe" |
+            Where-Object { $_.Name -notmatch '(?i)(setup|install|uninstall)' } |
+            Select-Object -First 1
+
+          if (-not $exe) {
+            Write-Error "No application exe found in src-tauri/target/release/"
+            exit 1
+          }
+          Write-Output "Found exe: $($exe.FullName)"
+
+          # Stage exe to a temp folder so the zip contains just the exe at root level
+          $stageDir = New-Item -ItemType Directory -Path (Join-Path $env:TEMP "portable-stage")
+          Copy-Item $exe.FullName -Destination $stageDir
+
           $zipName = "Claude.Code.History.Viewer_${version}_x64-portable.zip"
-          Compress-Archive -Path $exePath -DestinationPath $zipName
+          Compress-Archive -Path (Join-Path $stageDir "*") -DestinationPath $zipName
+          Remove-Item -Recurse -Force $stageDir
+
           Write-Output "Created portable zip: $zipName"
           Write-Output "PORTABLE_ZIP_PATH=$zipName" >> $env:GITHUB_ENV
 
