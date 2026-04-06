@@ -45,15 +45,12 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
     // Trash the .jsonl first (authoritative artifact), then the associated folder
     trash::delete(path).map_err(|e| format!("Failed to move session file to trash: {e}"))?;
 
-    // Trash the associated folder (<uuid>/) if it exists alongside the JSONL file
+    // Best-effort trash of associated folder — don't fail if it can't be trashed
+    // since the primary .jsonl file is already gone
     let associated_dir = path.with_extension("");
     if let Ok(dir_meta) = fs::symlink_metadata(&associated_dir) {
-        if dir_meta.file_type().is_symlink() {
-            return Err("Associated session folder cannot be a symlink".to_string());
-        }
-        if dir_meta.is_dir() {
-            trash::delete(&associated_dir)
-                .map_err(|e| format!("Failed to move session folder to trash: {e}"))?;
+        if !dir_meta.file_type().is_symlink() && dir_meta.is_dir() {
+            let _ = trash::delete(&associated_dir);
         }
     }
 

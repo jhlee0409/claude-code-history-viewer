@@ -185,6 +185,10 @@ export function useSessionEditing(session: ClaudeSession) {
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       setIsContextMenuOpen(false);
+      if (!session.file_path || !isAbsolutePath(session.file_path)) {
+        toast.error(t("session.deleteError", "Failed to delete session"));
+        return;
+      }
       try {
         const { ask } = await import("@tauri-apps/plugin-dialog");
         const confirmed = await ask(
