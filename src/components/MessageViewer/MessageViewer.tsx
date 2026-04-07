@@ -822,7 +822,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               |{" "}
               {t("messageViewer.debugInfo.file", {
                 fileName: selectedSession?.file_path
-                  ?.split("/")
+                  ?.split(/[\\/]/)
                   .pop()
                   ?.slice(0, 20),
               })}

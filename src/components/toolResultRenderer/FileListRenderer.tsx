@@ -31,11 +31,12 @@ export const FileListRenderer = ({
         <div className="space-y-1">
           {(toolResult.filenames as string[]).map(
             (filePath: string, idx: number) => {
-              const pathParts = filePath.split("/");
+              const normalizedPath = filePath.replace(/\\/g, "/");
+              const pathParts = normalizedPath.split("/");
               const fileName = pathParts[pathParts.length - 1] || filePath;
-              const directory = filePath.substring(
+              const directory = normalizedPath.substring(
                 0,
-                filePath.lastIndexOf("/")
+                normalizedPath.lastIndexOf("/")
               );
 
               return (

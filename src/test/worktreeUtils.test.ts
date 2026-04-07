@@ -357,13 +357,13 @@ describe("toDisplayPath", () => {
   });
 
   it("should handle Windows paths with forward slashes", () => {
-    // Note: Windows paths are not currently supported, returned as-is
-    expect(toDisplayPath("C:/Users/jack/Documents")).toBe("C:/Users/jack/Documents");
+    // Windows paths: home dir C:/Users/jack is replaced with ~
+    expect(toDisplayPath("C:/Users/jack/Documents")).toBe("~/Documents");
   });
 
   it("should handle Windows paths with backslashes", () => {
-    // Note: Windows paths are not currently supported, returned as-is
-    expect(toDisplayPath("C:\\Users\\jack\\Documents")).toBe("C:\\Users\\jack\\Documents");
+    // Windows paths: home dir C:\Users\jack is replaced with ~
+    expect(toDisplayPath("C:\\Users\\jack\\Documents")).toBe("~\\Documents");
   });
 });
 

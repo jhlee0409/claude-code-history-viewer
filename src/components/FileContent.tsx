@@ -44,7 +44,7 @@ export const FileContent = ({
   // 파일 확장자에 따른 언어 결정
   const getLanguageFromPath = (path: string) => {
     const ext = path.split(".").pop()?.toLowerCase();
-    const fileName = path.split("/").pop()?.toLowerCase() || "";
+    const fileName = path.split(/[\\/]/).pop()?.toLowerCase() || "";
 
     switch (ext) {
       case "rs":

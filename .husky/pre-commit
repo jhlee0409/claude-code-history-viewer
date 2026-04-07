@@ -1,1 +1,14 @@
+# Ensure cargo is on PATH (Windows: .rustup toolchain may not be in hook PATH)
+if ! command -v cargo >/dev/null 2>&1; then
+  for _dir in \
+    "$HOME/.cargo/bin" \
+    "$HOME/.rustup/toolchains/stable-x86_64-pc-windows-msvc/bin" \
+    "$HOME/.rustup/toolchains/stable-x86_64-pc-windows-gnu/bin"; do
+    if [ -f "$_dir/cargo" ] || [ -f "$_dir/cargo.exe" ]; then
+      export PATH="$_dir:$PATH"
+      break
+    fi
+  done
+fi
+
 pnpm exec lint-staged

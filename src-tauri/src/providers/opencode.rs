@@ -43,7 +43,7 @@ pub fn get_base_path() -> Option<String> {
         }
     }
 
-    // XDG data directory
+    // XDG data directory (Linux/macOS)
     if let Ok(xdg_data) = std::env::var("XDG_DATA_HOME") {
         let path = PathBuf::from(&xdg_data).join("opencode");
         if path.exists() {
@@ -51,14 +51,27 @@ pub fn get_base_path() -> Option<String> {
         }
     }
 
-    // Default: ~/.local/share/opencode
     let home = dirs::home_dir()?;
-    let opencode_path = home.join(".local").join("share").join("opencode");
-    if opencode_path.exists() {
-        Some(opencode_path.to_string_lossy().to_string())
-    } else {
-        None
+
+    // Windows: %APPDATA%\opencode
+    #[cfg(target_os = "windows")]
+    {
+        let path = home.join("AppData").join("Roaming").join("opencode");
+        if path.exists() {
+            return Some(path.to_string_lossy().to_string());
+        }
     }
+
+    // Default: ~/.local/share/opencode (Linux/macOS)
+    #[cfg(not(target_os = "windows"))]
+    {
+        let opencode_path = home.join(".local").join("share").join("opencode");
+        if opencode_path.exists() {
+            return Some(opencode_path.to_string_lossy().to_string());
+        }
+    }
+
+    None
 }
 
 /// Scan `OpenCode` projects from a specific base path.

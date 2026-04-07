@@ -60,8 +60,17 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::symlink;
     use tempfile::TempDir;
+
+    #[cfg(unix)]
+    fn create_symlink(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+        std::os::unix::fs::symlink(src, dst)
+    }
+
+    #[cfg(windows)]
+    fn create_symlink(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+        std::os::windows::fs::symlink_file(src, dst)
+    }
 
     #[tokio::test]
     async fn reject_relative_path() {
@@ -73,24 +82,33 @@ mod tests {
 
     #[tokio::test]
     async fn reject_non_jsonl_extension() {
-        let err = delete_session("/tmp/session.txt".into()).await.unwrap_err();
+        let path = std::env::temp_dir().join("session.txt");
+        let err = delete_session(path.to_string_lossy().into())
+            .await
+            .unwrap_err();
         assert_eq!(err, "Only .jsonl session files can be deleted");
     }
 
     #[tokio::test]
     async fn reject_session_id_with_dots() {
-        let err = delete_session("/tmp/a..b.jsonl".into()).await.unwrap_err();
-        assert_eq!(err, "Invalid session ID format");
-    }
-
-    #[tokio::test]
-    async fn reject_session_id_with_spaces() {
-        let err = delete_session("/tmp/bad name.jsonl".into())
+        let path = std::env::temp_dir().join("a..b.jsonl");
+        let err = delete_session(path.to_string_lossy().into())
             .await
             .unwrap_err();
         assert_eq!(err, "Invalid session ID format");
     }
 
+    #[tokio::test]
+    async fn reject_session_id_with_spaces() {
+        let path = std::env::temp_dir().join("bad name.jsonl");
+        let err = delete_session(path.to_string_lossy().into())
+            .await
+            .unwrap_err();
+        assert_eq!(err, "Invalid session ID format");
+    }
+
+    // Windows requires elevated privileges for symlinks; skip in standard CI
+    #[cfg_attr(windows, ignore)]
     #[tokio::test]
     async fn reject_symlink() {
         let dir = TempDir::new().unwrap();
@@ -98,7 +116,7 @@ mod tests {
         fs::write(&real_file, "{}").unwrap();
 
         let link_path = dir.path().join("link.jsonl");
-        symlink(&real_file, &link_path).unwrap();
+        create_symlink(&real_file, &link_path).unwrap();
 
         let err = delete_session(link_path.to_string_lossy().into())
             .await

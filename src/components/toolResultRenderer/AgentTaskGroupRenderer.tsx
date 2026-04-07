@@ -139,7 +139,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
                 layout.monoText,
                 "text-foreground/70 truncate max-w-[300px]"
               )}>
-                {task.outputFile.split("/").pop()}
+                {task.outputFile.split(/[\\/]/).pop()}
               </code>
               <button
                 type="button"

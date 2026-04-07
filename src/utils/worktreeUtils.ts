@@ -60,10 +60,10 @@ export function decodeProjectPath(sessionStoragePath: string): string {
  * e.g., /tmp/vibe-kanban/my-project -> my-project
  */
 export function extractProjectName(path: string): string {
-  // Remove trailing slash if present
-  const cleanPath = path.endsWith("/") ? path.slice(0, -1) : path;
-  // Get the last segment
-  const segments = cleanPath.split("/");
+  // Remove trailing slash/backslash if present
+  const cleanPath = path.endsWith("/") || path.endsWith("\\") ? path.slice(0, -1) : path;
+  // Get the last segment (handles both Unix / and Windows \)
+  const segments = cleanPath.split(/[\\/]/);
   return segments[segments.length - 1] || "";
 }
 
@@ -209,9 +209,15 @@ export interface DirectoryGroupingResult {
  * // Returns: "/Users/jack/client"
  */
 export function getParentDirectory(actualPath: string): string {
-  const segments = actualPath.split("/").filter(Boolean);
+  const segments = actualPath.split(/[\\/]/).filter(Boolean);
   if (segments.length <= 1) {
     return "/";
+  }
+  // Windows path: C:\Users\jack\project → C:/Users/jack (normalise to forward slashes)
+  const firstSegment = segments[0] ?? "";
+  const isWindowsPath = /^[A-Za-z]:$/.test(firstSegment);
+  if (isWindowsPath) {
+    return firstSegment + "/" + segments.slice(1, -1).join("/");
   }
   return "/" + segments.slice(0, -1).join("/");
 }
@@ -246,6 +252,10 @@ function detectHomePath(path: string): string | null {
   // Linux: /home/username/...
   const linuxMatch = path.match(/^(\/home\/[^/]+)/);
   if (linuxMatch?.[1]) return linuxMatch[1];
+
+  // Windows: C:\Users\username\... or C:/Users/username/...
+  const winMatch = path.match(/^([A-Za-z]:[/\\]Users[/\\][^/\\]+)/);
+  if (winMatch?.[1]) return winMatch[1];
 
   return null;
 }
@@ -282,7 +292,7 @@ export function groupProjectsByDirectory(
   const groups: DirectoryGroup[] = [];
 
   for (const [dirPath, dirProjects] of directoryMap) {
-    const segments = dirPath.split("/").filter(Boolean);
+    const segments = dirPath.split(/[\\/]/).filter(Boolean);
     const name = segments[segments.length - 1] || "/";
 
     groups.push({
