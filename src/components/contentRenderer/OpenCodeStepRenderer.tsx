@@ -25,7 +25,6 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
 
     return (
       <div className={cn("border", layout.rounded, styles.container)}>
-        {/* Header */}
         <div className={cn("flex items-center justify-between", layout.containerPadding, "pb-0")}>
           <div className="flex items-center gap-1.5">
             <Activity size={14} className={styles.title} />
@@ -39,7 +38,7 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
               </code>
             )}
           </div>
-          {cost > 0 && (
+          {totalTokens > 0 && (
             <span className={cn(layout.smallText, "font-mono text-muted-foreground")}>
               <Coins size={10} className="inline mr-0.5" />
               ${cost.toFixed(4)}
@@ -47,14 +46,10 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
           )}
         </div>
 
-        {/* Reason */}
-        <div className={cn(layout.containerPadding, "pt-1 pb-1.5")}>
-          <span className={cn(layout.bodyText, "text-muted-foreground")}>
-            {t(`renderers.opencodeStep.reason.${reason}`, reason)}
-          </span>
-        </div>
+        <span className={cn(layout.bodyText, layout.containerPadding, "pt-1 pb-1.5 block text-muted-foreground")}>
+          {t(`renderers.opencodeStep.reason.${reason}`, reason)}
+        </span>
 
-        {/* Token breakdown */}
         {totalTokens > 0 && (
           <div className={cn(
             "flex flex-wrap gap-x-3 gap-y-0.5 border-t border-border/50",
