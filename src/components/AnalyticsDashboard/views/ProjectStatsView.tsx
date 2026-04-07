@@ -106,8 +106,8 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <SectionCard title={t("analytics.activityHeatmapTitle")} icon={Layers} colorVariant="green">
-          {projectSummary.activity_heatmap.length > 0 ? (
-            <ActivityHeatmapComponent data={projectSummary.activity_heatmap} />
+          {projectSummary.daily_stats.length > 0 ? (
+            <ActivityHeatmapComponent data={projectSummary.daily_stats} />
           ) : (
             <div className="text-center py-8 text-muted-foreground text-[12px]">
               {t("analytics.No activity data available")}

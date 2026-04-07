@@ -21,6 +21,7 @@
   "analytics.Cache Read": "Cache Read",
   "analytics.cacheCreation": "Cache Creation",
   "analytics.cacheRead": "Cache Read",
+  "analytics.calendarTotal": "Total: {{count}} messages",
   "analytics.calculating": "Calculating",
   "analytics.conversationOnly": "Conversation Only",
   "analytics.count": "{{count}} times",

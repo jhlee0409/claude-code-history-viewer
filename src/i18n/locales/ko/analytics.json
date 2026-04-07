@@ -21,6 +21,7 @@
   "analytics.Cache Read": "캐시 읽기",
   "analytics.cacheCreation": "캐시 생성",
   "analytics.cacheRead": "캐시 읽기",
+  "analytics.calendarTotal": "총: {{count}}개 메시지",
   "analytics.calculating": "계산 중",
   "analytics.conversationOnly": "대화만",
   "analytics.count": "{{count}}회",

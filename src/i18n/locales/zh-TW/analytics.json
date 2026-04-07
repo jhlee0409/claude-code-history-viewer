@@ -21,6 +21,7 @@
   "analytics.Cache Read": "快取讀取",
   "analytics.cacheCreation": "快取建立",
   "analytics.cacheRead": "快取讀取",
+  "analytics.calendarTotal": "總計: {{count}}則訊息",
   "analytics.calculating": "計算中",
   "analytics.conversationOnly": "僅對話",
   "analytics.count": "{{count}}次",

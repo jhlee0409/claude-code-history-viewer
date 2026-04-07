@@ -237,8 +237,8 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
       {/* Heatmap & Top Projects */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <SectionCard title={t("analytics.activityHeatmapTitle")} icon={Layers} colorVariant="green">
-          {globalSummary.activity_heatmap.length > 0 ? (
-            <ActivityHeatmapComponent data={globalSummary.activity_heatmap} />
+          {globalSummary.daily_stats.length > 0 ? (
+            <ActivityHeatmapComponent data={globalSummary.daily_stats} />
           ) : (
             <div className="text-center py-8 text-muted-foreground text-[12px]">
               {t("analytics.No activity data available")}

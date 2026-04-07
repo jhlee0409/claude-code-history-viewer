@@ -21,6 +21,7 @@
   "analytics.Cache Read": "キャッシュ読み取り",
   "analytics.cacheCreation": "キャッシュ作成",
   "analytics.cacheRead": "キャッシュ読み取り",
+  "analytics.calendarTotal": "合計: {{count}}件のメッセージ",
   "analytics.calculating": "計算中",
   "analytics.conversationOnly": "会話のみ",
   "analytics.count": "{{count}}回",
