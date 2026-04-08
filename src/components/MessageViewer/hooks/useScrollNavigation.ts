@@ -307,16 +307,16 @@ export const useScrollNavigation = ({
     const prevLength = prevMessagesLengthRef.current;
     prevMessagesLengthRef.current = messagesLength;
 
-    // Only auto-scroll when messages are appended (not on initial load or session switch)
     if (
       prevLength > 0 &&
       messagesLength > prevLength &&
       isNearBottomRef.current &&
       scrollReadyForSessionId === selectedSessionId
     ) {
-      requestAnimationFrame(() => {
+      const rafId = requestAnimationFrame(() => {
         scrollToBottom();
       });
+      return () => cancelAnimationFrame(rafId);
     }
   }, [messagesLength, scrollToBottom, scrollReadyForSessionId, selectedSessionId]);
 

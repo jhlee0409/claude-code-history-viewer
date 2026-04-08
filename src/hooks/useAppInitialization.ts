@@ -25,14 +25,12 @@ export function useAppInitialization(deps: {
   const highContrast = useAppStore((s) => s.highContrast);
   const watcherEnabled = useAppStore((s) => s.watcherEnabled);
   const triggerSessionRefresh = useAppStore((s) => s.triggerSessionRefresh);
-  const triggerProjectRefresh = useAppStore((s) => s.triggerProjectRefresh);
 
   const handleSessionChanged = useCallback(
     (event: { projectPath: string; sessionPath: string }) => {
       triggerSessionRefresh(event.projectPath, event.sessionPath);
-      triggerProjectRefresh(event.projectPath);
     },
-    [triggerSessionRefresh, triggerProjectRefresh]
+    [triggerSessionRefresh]
   );
 
   // File watcher: auto-refresh when session files change on disk
