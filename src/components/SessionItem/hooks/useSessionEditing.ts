@@ -8,6 +8,22 @@ import {
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeSession } from "@/types";
 
+function legacyCopy(text: string): void {
+  const handleCopy = (event: ClipboardEvent) => {
+    event.preventDefault();
+    event.clipboardData?.setData("text/plain", text);
+  };
+
+  try {
+    document.addEventListener("copy", handleCopy);
+    if (typeof document.execCommand !== "function" || !document.execCommand("copy")) {
+      throw new Error("Clipboard unavailable");
+    }
+  } finally {
+    document.removeEventListener("copy", handleCopy);
+  }
+}
+
 export function useSessionEditing(session: ClaudeSession) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
@@ -122,7 +138,15 @@ export function useSessionEditing(session: ClaudeSession) {
       e.stopPropagation();
       setIsContextMenuOpen(false);
       try {
-        await navigator.clipboard.writeText(text);
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch {
+            legacyCopy(text);
+          }
+        } else {
+          legacyCopy(text);
+        }
         toast.success(successMsg);
       } catch {
         toast.error(t("copyButton.error", "Copy failed"));
