@@ -37,7 +37,7 @@ export function useAppInitialization(deps: {
   useFileWatcher({
     onSessionChanged: handleSessionChanged,
     enabled: watcherEnabled,
-    debounceMs: 500,
+    debounceMs: 100,
   });
 
   // Language loading + app initialization

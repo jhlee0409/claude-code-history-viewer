@@ -261,6 +261,12 @@ export const useScrollNavigation = ({
     let scrollElementRef: HTMLElement | null = null;
 
     const handleScroll = () => {
+      // Update near-bottom ref immediately for accurate auto-scroll decisions
+      const vp = getScrollViewport();
+      if (vp) {
+        isNearBottomRef.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < SCROLL_THRESHOLD_PX;
+      }
+
       if (throttleTimer) return;
 
       throttleTimer = setTimeout(() => {
@@ -270,7 +276,6 @@ export const useScrollNavigation = ({
             const { scrollTop, scrollHeight, clientHeight } = viewport;
             const isNearBottom = scrollHeight - scrollTop - clientHeight < SCROLL_THRESHOLD_PX;
             const isNearTop = scrollTop < SCROLL_THRESHOLD_PX;
-            isNearBottomRef.current = isNearBottom;
             setShowScrollToBottom(!isNearBottom && messagesLength > MIN_MESSAGES_FOR_SCROLL_BUTTONS);
             setShowScrollToTop(!isNearTop && messagesLength > MIN_MESSAGES_FOR_SCROLL_BUTTONS);
           }
@@ -302,6 +307,11 @@ export const useScrollNavigation = ({
     };
   }, [messagesLength, getScrollViewport]);
 
+  // Reset prevMessagesLength on session switch
+  useEffect(() => {
+    prevMessagesLengthRef.current = 0;
+  }, [selectedSessionId]);
+
   // Auto-scroll to bottom when new messages arrive and user was already at bottom
   useEffect(() => {
     const prevLength = prevMessagesLengthRef.current;
@@ -311,6 +321,7 @@ export const useScrollNavigation = ({
       prevLength > 0 &&
       messagesLength > prevLength &&
       isNearBottomRef.current &&
+      !targetMessageUuid &&
       scrollReadyForSessionId === selectedSessionId
     ) {
       const rafId = requestAnimationFrame(() => {
@@ -318,7 +329,7 @@ export const useScrollNavigation = ({
       });
       return () => cancelAnimationFrame(rafId);
     }
-  }, [messagesLength, scrollToBottom, scrollReadyForSessionId, selectedSessionId]);
+  }, [messagesLength, scrollToBottom, scrollReadyForSessionId, selectedSessionId, targetMessageUuid]);
 
   return {
     showScrollToTop,
