@@ -9,15 +9,25 @@ import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeSession } from "@/types";
 
 function legacyCopy(text: string): void {
+  let copied = false;
+
   const handleCopy = (event: ClipboardEvent) => {
     event.preventDefault();
-    event.clipboardData?.setData("text/plain", text);
+    if (!event.clipboardData) {
+      return;
+    }
+
+    event.clipboardData.setData("text/plain", text);
+    copied = true;
   };
 
   try {
     document.addEventListener("copy", handleCopy);
     if (typeof document.execCommand !== "function" || !document.execCommand("copy")) {
       throw new Error("Clipboard unavailable");
+    }
+    if (!copied) {
+      throw new Error("Clipboard payload unavailable");
     }
   } finally {
     document.removeEventListener("copy", handleCopy);

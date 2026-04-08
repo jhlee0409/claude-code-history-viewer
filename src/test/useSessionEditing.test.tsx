@@ -109,4 +109,42 @@ describe("useSessionEditing clipboard actions", () => {
     );
     expect(toast.success).toHaveBeenCalledWith("Session ID copied");
   });
+
+  it("reports copy failure when fallback cannot write clipboard payload", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("permission denied"));
+    const addEventListener = vi.spyOn(document, "addEventListener");
+    const execCommand = vi.fn().mockImplementation((command: string) => {
+      expect(command).toBe("copy");
+      const copyHandler = addEventListener.mock.calls.find(
+        ([eventName]) => eventName === "copy"
+      )?.[1] as EventListener | undefined;
+      expect(copyHandler).toBeDefined();
+      copyHandler?.({
+        preventDefault: vi.fn(),
+        clipboardData: null,
+      } as unknown as ClipboardEvent);
+      return true;
+    });
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+
+    const { result } = renderHook(() => useSessionEditing(session));
+
+    await act(async () => {
+      await result.current.handleCopySessionId({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Copy failed");
+  });
 });
