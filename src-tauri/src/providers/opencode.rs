@@ -1128,45 +1128,75 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                 }
             }
             "step-finish" => {
-                // Real field is "tokens" with "input", "output", "reasoning",
-                // and "cache" object containing "read" and "write"
-                if let Some(t) = part.get("tokens") {
-                    let cache_obj = t.get("cache");
-                    let new_usage = TokenUsage {
-                        input_tokens: t.get("input").and_then(Value::as_u64).map(|v| v as u32),
-                        output_tokens: t.get("output").and_then(Value::as_u64).map(|v| v as u32),
-                        cache_creation_input_tokens: cache_obj
+                let reason = part
+                    .get("reason")
+                    .and_then(Value::as_str)
+                    .unwrap_or("completed");
+                let snapshot = part.get("snapshot").and_then(Value::as_str).unwrap_or("");
+                let snapshot_preview: String = snapshot.chars().take(8).collect();
+                let step_cost = part.get("cost").and_then(Value::as_f64).unwrap_or(0.0);
+
+                // Extract token usage if available
+                let (input, output, reasoning, cache_read, cache_write) =
+                    if let Some(t) = part.get("tokens") {
+                        let cache_obj = t.get("cache");
+                        let i = t.get("input").and_then(Value::as_u64).map(|v| v as u32);
+                        let o = t.get("output").and_then(Value::as_u64).map(|v| v as u32);
+                        let r = t.get("reasoning").and_then(Value::as_u64).map(|v| v as u32);
+                        let cw = cache_obj
                             .and_then(|c| c.get("write"))
                             .and_then(Value::as_u64)
-                            .map(|v| v as u32),
-                        cache_read_input_tokens: cache_obj
+                            .map(|v| v as u32);
+                        let cr = cache_obj
                             .and_then(|c| c.get("read"))
                             .and_then(Value::as_u64)
-                            .map(|v| v as u32),
-                        service_tier: None,
-                    };
-                    // Accumulate tokens across multiple step-finish parts
-                    usage = match usage {
-                        Some(prev) => Some(TokenUsage {
-                            input_tokens: sum_opt(prev.input_tokens, new_usage.input_tokens),
-                            output_tokens: sum_opt(prev.output_tokens, new_usage.output_tokens),
-                            cache_creation_input_tokens: sum_opt(
-                                prev.cache_creation_input_tokens,
-                                new_usage.cache_creation_input_tokens,
-                            ),
-                            cache_read_input_tokens: sum_opt(
-                                prev.cache_read_input_tokens,
-                                new_usage.cache_read_input_tokens,
-                            ),
+                            .map(|v| v as u32);
+
+                        let new_usage = TokenUsage {
+                            input_tokens: i,
+                            output_tokens: o,
+                            cache_creation_input_tokens: cw,
+                            cache_read_input_tokens: cr,
                             service_tier: None,
-                        }),
-                        None => Some(new_usage),
+                        };
+                        usage = match usage {
+                            Some(prev) => Some(TokenUsage {
+                                input_tokens: sum_opt(prev.input_tokens, new_usage.input_tokens),
+                                output_tokens: sum_opt(prev.output_tokens, new_usage.output_tokens),
+                                cache_creation_input_tokens: sum_opt(
+                                    prev.cache_creation_input_tokens,
+                                    new_usage.cache_creation_input_tokens,
+                                ),
+                                cache_read_input_tokens: sum_opt(
+                                    prev.cache_read_input_tokens,
+                                    new_usage.cache_read_input_tokens,
+                                ),
+                                service_tier: None,
+                            }),
+                            None => Some(new_usage),
+                        };
+                        (i, o, r, cr, cw)
+                    } else {
+                        (None, None, None, None, None)
                     };
-                }
-                // "cost" is at the top level of step-finish parts
-                let part_cost = part.get("cost").and_then(Value::as_f64);
-                if let Some(c) = part_cost {
-                    cost_usd = Some(cost_usd.unwrap_or(0.0) + c);
+
+                content_items.push(serde_json::json!({
+                    "type": "opencode_step",
+                    "reason": reason,
+                    "snapshot": snapshot_preview,
+                    "cost": step_cost,
+                    "tokens": {
+                        "input": input.unwrap_or(0),
+                        "output": output.unwrap_or(0),
+                        "reasoning": reasoning.unwrap_or(0),
+                        "cache_read": cache_read.unwrap_or(0),
+                        "cache_write": cache_write.unwrap_or(0)
+                    }
+                }));
+
+                // Accumulate cost
+                if step_cost > 0.0 {
+                    cost_usd = Some(cost_usd.unwrap_or(0.0) + step_cost);
                 }
             }
             "compaction" => {
@@ -1239,16 +1269,8 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                     }));
                 }
             }
-            "step-start" => {
-                let snapshot = part.get("snapshot").and_then(|v| v.as_str()).unwrap_or("");
-                if !snapshot.is_empty() {
-                    content_items.push(serde_json::json!({
-                        "type": "text",
-                        "text": format!("[Step Start] snapshot: {}", &snapshot[..snapshot.len().min(8)])
-                    }));
-                }
-            }
-            // Skip: snapshot, agent, subtask, retry
+            // step-start is redundant — step-finish contains all useful data
+            // Skip: step-start, snapshot, agent, subtask, retry
             _ => {}
         }
     }

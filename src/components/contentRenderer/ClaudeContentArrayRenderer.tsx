@@ -29,6 +29,7 @@ import { BashCodeExecutionToolResultRenderer } from "./BashCodeExecutionToolResu
 import { TextEditorCodeExecutionToolResultRenderer } from "./TextEditorCodeExecutionToolResultRenderer";
 import { ToolSearchToolResultRenderer } from "./ToolSearchToolResultRenderer";
 import { ContainerUploadRenderer } from "./ContainerUploadRenderer";
+import { OpenCodeStepRenderer } from "./OpenCodeStepRenderer";
 import { UnifiedToolExecutionRenderer } from "./UnifiedToolExecutionRenderer";
 import { ClaudeToolResultItem } from "../toolResultRenderer";
 import { HighlightedText } from "../common/HighlightedText";
@@ -473,6 +474,25 @@ export const ClaudeContentArrayRenderer = memo(({
                 key={entry.key}
                 toolUseId={item.tool_use_id}
                 content={item.content}
+              />
+            );
+          }
+
+          case "opencode_step": {
+            const tok = (item.tokens ?? {}) as Record<string, number>;
+            return (
+              <OpenCodeStepRenderer
+                key={entry.key}
+                reason={typeof item.reason === "string" ? item.reason : "completed"}
+                snapshot={typeof item.snapshot === "string" ? item.snapshot : ""}
+                cost={typeof item.cost === "number" ? item.cost : 0}
+                tokens={{
+                  input: tok.input ?? 0,
+                  output: tok.output ?? 0,
+                  reasoning: tok.reasoning ?? 0,
+                  cache_read: tok.cache_read ?? 0,
+                  cache_write: tok.cache_write ?? 0,
+                }}
               />
             );
           }
