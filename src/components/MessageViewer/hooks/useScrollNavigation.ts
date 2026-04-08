@@ -63,6 +63,9 @@ export const useScrollNavigation = ({
   // 스크롤이 완료된 세션 ID (현재 세션과 비교하여 오버레이 표시 여부 결정)
   const [scrollReadyForSessionId, setScrollReadyForSessionId] = useState<string | null>(null);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks whether user is near bottom for auto-scroll on new messages
+  const isNearBottomRef = useRef(true);
+  const prevMessagesLengthRef = useRef(0);
 
   // Helper to get the scroll viewport element
   const getScrollViewport = useCallback(() => {
@@ -267,6 +270,7 @@ export const useScrollNavigation = ({
             const { scrollTop, scrollHeight, clientHeight } = viewport;
             const isNearBottom = scrollHeight - scrollTop - clientHeight < SCROLL_THRESHOLD_PX;
             const isNearTop = scrollTop < SCROLL_THRESHOLD_PX;
+            isNearBottomRef.current = isNearBottom;
             setShowScrollToBottom(!isNearBottom && messagesLength > MIN_MESSAGES_FOR_SCROLL_BUTTONS);
             setShowScrollToTop(!isNearTop && messagesLength > MIN_MESSAGES_FOR_SCROLL_BUTTONS);
           }
@@ -297,6 +301,24 @@ export const useScrollNavigation = ({
       }
     };
   }, [messagesLength, getScrollViewport]);
+
+  // Auto-scroll to bottom when new messages arrive and user was already at bottom
+  useEffect(() => {
+    const prevLength = prevMessagesLengthRef.current;
+    prevMessagesLengthRef.current = messagesLength;
+
+    // Only auto-scroll when messages are appended (not on initial load or session switch)
+    if (
+      prevLength > 0 &&
+      messagesLength > prevLength &&
+      isNearBottomRef.current &&
+      scrollReadyForSessionId === selectedSessionId
+    ) {
+      requestAnimationFrame(() => {
+        scrollToBottom();
+      });
+    }
+  }, [messagesLength, scrollToBottom, scrollReadyForSessionId, selectedSessionId]);
 
   return {
     showScrollToTop,

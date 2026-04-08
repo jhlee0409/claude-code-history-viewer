@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { type SupportedLanguage } from "@/i18n";
 import { useTranslation } from "react-i18next";
+import { useFileWatcher } from "./useFileWatcher";
 
 /**
  * App initialization side effects:
@@ -22,6 +23,24 @@ export function useAppInitialization(deps: {
   const selectSession = useAppStore((s) => s.selectSession);
   const fontScale = useAppStore((s) => s.fontScale);
   const highContrast = useAppStore((s) => s.highContrast);
+  const watcherEnabled = useAppStore((s) => s.watcherEnabled);
+  const triggerSessionRefresh = useAppStore((s) => s.triggerSessionRefresh);
+  const triggerProjectRefresh = useAppStore((s) => s.triggerProjectRefresh);
+
+  const handleSessionChanged = useCallback(
+    (event: { projectPath: string; sessionPath: string }) => {
+      triggerSessionRefresh(event.projectPath, event.sessionPath);
+      triggerProjectRefresh(event.projectPath);
+    },
+    [triggerSessionRefresh, triggerProjectRefresh]
+  );
+
+  // File watcher: auto-refresh when session files change on disk
+  useFileWatcher({
+    onSessionChanged: handleSessionChanged,
+    enabled: watcherEnabled,
+    debounceMs: 500,
+  });
 
   // Language loading + app initialization
   useEffect(() => {
