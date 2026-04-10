@@ -205,6 +205,18 @@ pub struct CustomClaudePath {
     pub label: Option<String>,
 }
 
+/// WSL (Windows Subsystem for Linux) integration settings
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WslSettings {
+    /// Whether WSL scanning is enabled
+    #[serde(default)]
+    pub enabled: bool,
+    /// List of WSL distro names to exclude from scanning
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub excluded_distros: Vec<String>,
+}
+
 /// Global user settings
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -228,6 +240,10 @@ pub struct UserSettings {
     /// Additional Claude configuration directories to scan
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom_claude_paths: Vec<CustomClaudePath>,
+
+    /// WSL integration settings (Windows only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wsl: Option<WslSettings>,
 }
 
 #[cfg(test)]
@@ -316,5 +332,29 @@ mod tests {
         let deserialized: UserMetadata = serde_json::from_str(&json).unwrap();
 
         assert_eq!(metadata, deserialized);
+    }
+
+    #[test]
+    fn test_wsl_settings_roundtrip() {
+        let mut metadata = UserMetadata::new();
+        metadata.settings.wsl = Some(WslSettings {
+            enabled: true,
+            excluded_distros: vec!["Debian".to_string()],
+        });
+
+        let json = serde_json::to_string(&metadata).unwrap();
+        let deserialized: UserMetadata = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(metadata, deserialized);
+        let wsl = deserialized.settings.wsl.unwrap();
+        assert!(wsl.enabled);
+        assert_eq!(wsl.excluded_distros, vec!["Debian"]);
+    }
+
+    #[test]
+    fn test_wsl_settings_defaults_when_absent() {
+        let json = r#"{"version":1,"sessions":{},"projects":{},"settings":{}}"#;
+        let metadata: UserMetadata = serde_json::from_str(json).unwrap();
+        assert!(metadata.settings.wsl.is_none());
     }
 }
