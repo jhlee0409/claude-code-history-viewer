@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn test_wsl_settings_defaults_when_absent() {
-        let json = r#"{"version":1,"sessions":{},"projects":{},"settings":{}}"#;
+        let json = r#"{"sessions":{},"projects":{},"settings":{}}"#;
         let metadata: UserMetadata = serde_json::from_str(json).unwrap();
         assert!(metadata.settings.wsl.is_none());
     }
