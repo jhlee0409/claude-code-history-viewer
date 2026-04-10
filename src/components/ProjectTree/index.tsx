@@ -231,15 +231,16 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     await applyProviderSelection(next.length > 0 ? next : [provider]);
   }, [applyProviderSelection, isAllProvidersSelected, selectableProviderIds, selectedProviderFilters]);
 
+  const normalizedSearchTerm = useMemo(() => searchTerm.toLowerCase(), [searchTerm]);
+
   const matchesSearch = useCallback(
     (project: (typeof projects)[number]) => {
-      if (!searchTerm) return true;
-      const term = searchTerm.toLowerCase();
+      if (!normalizedSearchTerm) return true;
       const name = (project.name ?? "").toLowerCase();
       const path = (project.actual_path ?? project.path ?? "").toLowerCase();
-      return name.includes(term) || path.includes(term);
+      return name.includes(normalizedSearchTerm) || path.includes(normalizedSearchTerm);
     },
-    [searchTerm]
+    [normalizedSearchTerm]
   );
 
   const filteredProjects = useMemo(
@@ -823,7 +824,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         {/* Search */}
         <div className="px-3 py-2 border-b border-accent/10">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" aria-hidden="true" focusable="false" />
             <input
               type="text"
               value={searchTerm}
@@ -834,6 +835,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             />
             {searchTerm && (
               <button
+                type="button"
                 onClick={() => setSearchTerm("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors"
                 aria-label={t("common.clear", "Clear")}
