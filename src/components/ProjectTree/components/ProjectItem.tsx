@@ -124,7 +124,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       {/* Project Name */}
       <span
         className={cn(
-          "truncate flex-1 transition-colors",
+          "whitespace-nowrap flex-1 transition-colors",
           isGrouped ? "text-xs" : "text-sm",
           isExpanded
             ? isWorktree

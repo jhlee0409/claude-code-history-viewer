@@ -26,6 +26,7 @@
   "project.notFound": "Project not found",
   "project.removePattern": "Remove pattern",
   "project.resetProviderFilters": "Reset",
+  "project.searchPlaceholder": "Search projects...",
   "project.selectToView": "Select a project to view analytics",
   "project.title": "Project:",
   "project.unhide": "Show project",

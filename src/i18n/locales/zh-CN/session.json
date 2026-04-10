@@ -26,6 +26,7 @@
   "project.notFound": "未找到项目",
   "project.removePattern": "删除模式",
   "project.resetProviderFilters": "重置",
+  "project.searchPlaceholder": "搜索项目...",
   "project.selectToView": "选择项目以查看分析",
   "project.title": "项目：",
   "project.unhide": "显示项目",
