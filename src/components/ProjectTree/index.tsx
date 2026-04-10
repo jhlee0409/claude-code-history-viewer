@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   RotateCcw,
+  Search,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -84,6 +85,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     handleContextMenu,
     closeContextMenu,
   } = useProjectTreeState(groupingMode);
+
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Wrap session select to also close mobile drawer
   const handleSessionSelect = useCallback(
@@ -228,28 +231,44 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     await applyProviderSelection(next.length > 0 ? next : [provider]);
   }, [applyProviderSelection, isAllProvidersSelected, selectableProviderIds, selectedProviderFilters]);
 
+  const matchesSearch = useCallback(
+    (project: (typeof projects)[number]) => {
+      if (!searchTerm) return true;
+      const term = searchTerm.toLowerCase();
+      const name = (project.name ?? "").toLowerCase();
+      const path = (project.actual_path ?? project.path ?? "").toLowerCase();
+      return name.includes(term) || path.includes(term);
+    },
+    [searchTerm]
+  );
+
   const filteredProjects = useMemo(
-    () => projects.filter(matchesProviderFilter),
-    [projects, matchesProviderFilter]
+    () => projects.filter((p) => matchesProviderFilter(p) && matchesSearch(p)),
+    [projects, matchesProviderFilter, matchesSearch]
   );
 
   const filteredDirectoryGroups = useMemo(() => {
-    if (isAllProvidersSelected) {
+    const filterFn = (p: (typeof projects)[number]) =>
+      matchesProviderFilter(p) && matchesSearch(p);
+
+    if (isAllProvidersSelected && !searchTerm) {
       return directoryGroups;
     }
 
     return directoryGroups
       .map((group) => ({
         ...group,
-        projects: group.projects.filter(matchesProviderFilter),
+        projects: group.projects.filter(filterFn),
       }))
       .filter((group) => group.projects.length > 0);
-  }, [directoryGroups, isAllProvidersSelected, matchesProviderFilter]);
+  }, [directoryGroups, isAllProvidersSelected, matchesProviderFilter, matchesSearch, searchTerm]);
 
   const { filteredWorktreeGroups, filteredUngroupedProjects } = useMemo(() => {
     const baseUngrouped = ungroupedProjects ?? projects;
+    const filterFn = (p: (typeof projects)[number]) =>
+      matchesProviderFilter(p) && matchesSearch(p);
 
-    if (isAllProvidersSelected) {
+    if (isAllProvidersSelected && !searchTerm) {
       return {
         filteredWorktreeGroups: worktreeGroups,
         filteredUngroupedProjects: baseUngrouped,
@@ -260,8 +279,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     const movedChildren: (typeof projects)[number][] = [];
 
     for (const group of worktreeGroups) {
-      const includeParent = matchesProviderFilter(group.parent);
-      const matchingChildren = group.children.filter(matchesProviderFilter);
+      const includeParent = filterFn(group.parent);
+      const matchingChildren = group.children.filter(filterFn);
 
       if (includeParent) {
         nextGroups.push({
@@ -273,7 +292,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       }
     }
 
-    const baseFiltered = baseUngrouped.filter(matchesProviderFilter);
+    const baseFiltered = baseUngrouped.filter(filterFn);
     const seenPaths = new Set(baseFiltered.map((project) => project.path));
     const movedChildrenToAdd = movedChildren.filter((child) => {
       if (seenPaths.has(child.path)) {
@@ -288,7 +307,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       filteredWorktreeGroups: nextGroups,
       filteredUngroupedProjects: nextUngrouped,
     };
-  }, [worktreeGroups, ungroupedProjects, projects, isAllProvidersSelected, matchesProviderFilter]);
+  }, [worktreeGroups, ungroupedProjects, projects, isAllProvidersSelected, matchesProviderFilter, matchesSearch, searchTerm]);
 
   const providerTabs = useMemo(
     () => {
@@ -801,6 +820,30 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           </div>
         </div>
 
+        {/* Search */}
+        <div className="px-3 py-2 border-b border-accent/10">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={t("project.searchPlaceholder", "Search projects...")}
+              className="w-full pl-8 pr-8 py-1.5 text-xs bg-muted/30 border border-transparent rounded-md placeholder:text-muted-foreground/40 focus:outline-none focus:border-accent/30 focus:bg-muted/50 transition-colors"
+              aria-label={t("project.searchPlaceholder", "Search projects...")}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                aria-label={t("common.clear", "Clear")}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Projects List */}
         <OverlayScrollbarsComponent
           className="relative flex-1 py-2"
@@ -811,7 +854,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               autoHideDelay: 400,
             },
             overflow: {
-              x: "hidden",
+              x: "scroll",
             },
           }}
         >

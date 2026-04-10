@@ -26,6 +26,7 @@
   "project.notFound": "프로젝트를 찾을 수 없습니다",
   "project.removePattern": "패턴 제거",
   "project.resetProviderFilters": "초기화",
+  "project.searchPlaceholder": "프로젝트 검색...",
   "project.selectToView": "분석을 보려면 프로젝트를 선택하세요",
   "project.title": "프로젝트:",
   "project.unhide": "프로젝트 표시",

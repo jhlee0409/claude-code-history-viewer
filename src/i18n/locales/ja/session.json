@@ -26,6 +26,7 @@
   "project.notFound": "プロジェクトが見つかりません",
   "project.removePattern": "パターンを削除",
   "project.resetProviderFilters": "リセット",
+  "project.searchPlaceholder": "プロジェクトを検索...",
   "project.selectToView": "分析を表示するにはプロジェクトを選択してください",
   "project.title": "プロジェクト：",
   "project.unhide": "プロジェクトを表示",
