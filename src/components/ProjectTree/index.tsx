@@ -232,7 +232,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     await applyProviderSelection(next.length > 0 ? next : [provider]);
   }, [applyProviderSelection, isAllProvidersSelected, selectableProviderIds, selectedProviderFilters]);
 
-  const normalizedSearchTerm = useMemo(() => searchTerm.toLowerCase(), [searchTerm]);
+  const normalizedSearchTerm = useMemo(() => searchTerm.trim().toLowerCase(), [searchTerm]);
 
   const matchesSearch = useCallback(
     (project: (typeof projects)[number]) => {
@@ -253,7 +253,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     const filterFn = (p: (typeof projects)[number]) =>
       matchesProviderFilter(p) && matchesSearch(p);
 
-    if (isAllProvidersSelected && !searchTerm) {
+    if (isAllProvidersSelected && !normalizedSearchTerm) {
       return directoryGroups;
     }
 
@@ -263,14 +263,14 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         projects: group.projects.filter(filterFn),
       }))
       .filter((group) => group.projects.length > 0);
-  }, [directoryGroups, isAllProvidersSelected, matchesProviderFilter, matchesSearch, searchTerm]);
+  }, [directoryGroups, isAllProvidersSelected, matchesProviderFilter, matchesSearch, normalizedSearchTerm]);
 
   const { filteredWorktreeGroups, filteredUngroupedProjects } = useMemo(() => {
     const baseUngrouped = ungroupedProjects ?? projects;
     const filterFn = (p: (typeof projects)[number]) =>
       matchesProviderFilter(p) && matchesSearch(p);
 
-    if (isAllProvidersSelected && !searchTerm) {
+    if (isAllProvidersSelected && !normalizedSearchTerm) {
       return {
         filteredWorktreeGroups: worktreeGroups,
         filteredUngroupedProjects: baseUngrouped,
@@ -309,7 +309,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       filteredWorktreeGroups: nextGroups,
       filteredUngroupedProjects: nextUngrouped,
     };
-  }, [worktreeGroups, ungroupedProjects, projects, isAllProvidersSelected, matchesProviderFilter, matchesSearch, searchTerm]);
+  }, [worktreeGroups, ungroupedProjects, projects, isAllProvidersSelected, matchesProviderFilter, matchesSearch, normalizedSearchTerm]);
 
   const providerTabs = useMemo(
     () => {
