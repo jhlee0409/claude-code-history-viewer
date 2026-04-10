@@ -87,6 +87,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   } = useProjectTreeState(groupingMode);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const searchInputId = React.useId();
 
   // Wrap session select to also close mobile drawer
   const handleSessionSelect = useCallback(
@@ -825,13 +826,16 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         <div className="px-3 py-2 border-b border-accent/10">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" aria-hidden="true" focusable="false" />
+            <label htmlFor={searchInputId} className="sr-only">
+              {t("project.searchPlaceholder", "Search projects...")}
+            </label>
             <input
+              id={searchInputId}
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={t("project.searchPlaceholder", "Search projects...")}
               className="w-full pl-8 pr-8 py-1.5 text-xs bg-muted/30 border border-transparent rounded-md placeholder:text-muted-foreground/40 focus:outline-none focus:border-accent/30 focus:bg-muted/50 transition-colors"
-              aria-label={t("project.searchPlaceholder", "Search projects...")}
             />
             {searchTerm && (
               <button
