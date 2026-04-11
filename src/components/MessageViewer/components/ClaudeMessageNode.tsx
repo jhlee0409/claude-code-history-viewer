@@ -64,13 +64,11 @@ export const ClaudeMessageNode = React.memo(({
   const navigateToSubagent = useAppStore((s) => s.navigateToSubagent);
 
   const handleViewSubagent = subagentSessions.length > 0
-    ? (agentId: string) => {
-        // Try to match by agent_id substring
-        const match = subagentSessions.find(
-          (sa) => sa.agent_id.includes(agentId) || agentId.includes(sa.agent_id)
-        );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    ? (_agentId: string) => {
+        const match = subagentSessions[0];
         if (match) {
-          navigateToSubagent(match);
+          void navigateToSubagent(match);
         }
       }
     : undefined;

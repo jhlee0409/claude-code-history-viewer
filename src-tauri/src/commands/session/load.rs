@@ -1368,7 +1368,6 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
 
 /// Metadata for a single subagent conversation file
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SubagentSession {
     pub agent_id: String,
     pub file_path: String,
@@ -1385,6 +1384,9 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
     use crate::utils::find_subagent_files;
 
     let path = PathBuf::from(&session_path);
+    if !path.is_absolute() {
+        return Err("session_path must be an absolute path".to_string());
+    }
     let subagent_files = find_subagent_files(&path);
 
     if subagent_files.is_empty() {
@@ -1427,9 +1429,10 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
     Ok(sessions)
 }
 
-/// Lightweight metadata extraction from a subagent JSONL file.
+/// Metadata extraction from a subagent JSONL file.
 ///
-/// Reads only the first and last lines to get timestamps and summary.
+/// Scans all lines to count messages, extract first/last timestamps, and find
+/// the first user message content as a summary.
 fn extract_subagent_metadata(
     path: &PathBuf,
 ) -> (usize, Option<String>, Option<String>, Option<String>) {

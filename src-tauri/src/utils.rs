@@ -483,6 +483,8 @@ pub fn find_subagent_files(session_file_path: &Path) -> Vec<std::path::PathBuf> 
             }
         }
     }
+    files.sort();
+    files.dedup();
     files
 }
 

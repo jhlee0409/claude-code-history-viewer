@@ -167,6 +167,7 @@ export const createMessageSlice: StateCreator<
       pagination: { ...INITIAL_PAGINATION },
       isLoadingMessages: true,
       subagentSessions: [],
+      parentSessionStack: [],
     });
 
     // Reset message filters on session switch
@@ -672,10 +673,15 @@ export const createMessageSlice: StateCreator<
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
         sessionPath,
       });
-      set({ subagentSessions: subagents });
+      // Guard: only update if still viewing the same session
+      if (get().selectedSession?.file_path === sessionPath) {
+        set({ subagentSessions: subagents });
+      }
     } catch {
       // Graceful fallback: older sessions won't have subagents
-      set({ subagentSessions: [] });
+      if (get().selectedSession?.file_path === sessionPath) {
+        set({ subagentSessions: [] });
+      }
     }
   },
 

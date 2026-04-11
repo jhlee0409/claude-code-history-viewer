@@ -155,8 +155,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
           <button
             type="button"
             onClick={() => {
-              const id = str(input, "description") ?? toolId;
-              onViewSubagent(id);
+              onViewSubagent(toolId);
             }}
             className={cn(
               "mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium",
