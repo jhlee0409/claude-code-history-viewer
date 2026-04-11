@@ -76,6 +76,8 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
       if (y + rect.height > window.innerHeight) {
         y = window.innerHeight - rect.height - 8;
       }
+      x = Math.max(8, x);
+      y = Math.max(8, y);
       setAdjustedPosition({ x, y });
     }
   }, [position]);
@@ -88,6 +90,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
 
   const handleAction = (handler: ((e: React.MouseEvent) => void) | (() => void)) => {
     return (e: React.MouseEvent) => {
+      e.stopPropagation();
       handler(e);
       onClose();
     };
@@ -97,6 +100,8 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
     <div
       ref={menuRef}
       role="menu"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       className={cn(
         "fixed z-50 min-w-[200px] rounded-lg border shadow-lg",
         "bg-popover border-border",
