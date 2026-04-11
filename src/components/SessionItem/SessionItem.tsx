@@ -1,9 +1,10 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { NativeRenameDialog } from "@/components/NativeRenameDialog";
 import { useSessionEditing } from "./hooks/useSessionEditing";
 import { SessionHeader } from "./components/SessionHeader";
 import { SessionNameEditor } from "./components/SessionNameEditor";
+import { SessionContextMenu } from "./components/SessionContextMenu";
 import { SessionMeta } from "./components/SessionMeta";
 import type { SessionItemProps } from "./types";
 
@@ -15,12 +16,26 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   formatTimeAgo,
 }) => {
   const editing = useSessionEditing(session);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const handleClick = useCallback(() => {
     if (!editing.isEditing && !isSelected) {
       onSelect();
     }
   }, [editing.isEditing, isSelected, onSelect]);
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      editing.setIsContextMenuOpen(false);
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    },
+    [editing]
+  );
+
+  const handleContextMenuClose = useCallback(() => {
+    setContextMenu(null);
+  }, []);
 
   return (
     <div
@@ -34,6 +49,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
       )}
       style={{ width: "calc(100% - 8px)" }}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
       onMouseEnter={() => {
         if (!editing.isEditing && onHover) {
           onHover();
@@ -86,6 +102,25 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         isSelected={isSelected}
         formatTimeAgo={formatTimeAgo}
       />
+
+      {/* Right-click Context Menu */}
+      {contextMenu && (
+        <SessionContextMenu
+          position={contextMenu}
+          hasCustomName={editing.hasCustomName}
+          supportsNativeRename={editing.supportsNativeRename}
+          providerId={editing.providerId}
+          onClose={handleContextMenuClose}
+          onRenameClick={editing.handleRenameClick}
+          onResetCustomName={() => void editing.resetCustomName()}
+          onNativeRenameClick={editing.handleNativeRenameClick}
+          onCopySessionId={editing.handleCopySessionId}
+          onCopyResumeCommand={editing.handleCopyResumeCommand}
+          onCopyFilePath={editing.handleCopyFilePath}
+          onRevealInFinder={editing.handleRevealInFinder}
+          onDeleteSession={editing.handleDeleteSession}
+        />
+      )}
 
       {/* Native Rename Dialog */}
       <NativeRenameDialog
