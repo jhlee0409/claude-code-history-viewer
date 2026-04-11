@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Pencil,
   RotateCcw,
@@ -65,7 +65,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
     };
   }, [onClose]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (menuRef.current) {
       const rect = menuRef.current.getBoundingClientRect();
       let x = position.x;
@@ -96,6 +96,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   return (
     <div
       ref={menuRef}
+      role="menu"
       className={cn(
         "fixed z-50 min-w-[200px] rounded-lg border shadow-lg",
         "bg-popover border-border",
@@ -104,13 +105,13 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
       style={{ left: adjustedPosition.x, top: adjustedPosition.y }}
     >
       <div className="p-1">
-        <button onClick={handleAction(onRenameClick)} className={menuItemClass}>
+        <button role="menuitem" onClick={handleAction(onRenameClick)} className={menuItemClass}>
           <Pencil className="w-3.5 h-3.5" />
           <span>{t("session.renameMenuItem", "Rename")}</span>
         </button>
 
         {hasCustomName && (
-          <button onClick={handleAction(onResetCustomName)} className={menuItemClass}>
+          <button role="menuitem" onClick={handleAction(onResetCustomName)} className={menuItemClass}>
             <RotateCcw className="w-3.5 h-3.5" />
             <span>{t("session.resetName", "Reset name")}</span>
           </button>
@@ -119,7 +120,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
         {supportsNativeRename && (
           <>
             <div className="my-1 border-t border-border/50" />
-            <button onClick={handleAction(onNativeRenameClick)} className={menuItemClass}>
+            <button role="menuitem" onClick={handleAction(onNativeRenameClick)} className={menuItemClass}>
               <Terminal className="w-3.5 h-3.5" />
               <span>
                 {providerId === "opencode"
@@ -132,24 +133,24 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
 
         <div className="my-1 border-t border-border/50" />
 
-        <button onClick={handleAction(onCopySessionId)} className={menuItemClass}>
+        <button role="menuitem" onClick={handleAction(onCopySessionId)} className={menuItemClass}>
           <Copy className="w-3.5 h-3.5" />
           <span>{t("session.copySessionId", "Copy Session ID")}</span>
         </button>
 
         {providerId === "claude" && (
-          <button onClick={handleAction(onCopyResumeCommand)} className={menuItemClass}>
+          <button role="menuitem" onClick={handleAction(onCopyResumeCommand)} className={menuItemClass}>
             <Play className="w-3.5 h-3.5" />
             <span>{t("session.copyResumeCommand", "Copy Resume Command")}</span>
           </button>
         )}
 
-        <button onClick={handleAction(onCopyFilePath)} className={menuItemClass}>
+        <button role="menuitem" onClick={handleAction(onCopyFilePath)} className={menuItemClass}>
           <FileText className="w-3.5 h-3.5" />
           <span>{t("session.copyFilePath", "Copy File Path")}</span>
         </button>
 
-        <button onClick={handleAction(onRevealInFinder)} className={menuItemClass}>
+        <button role="menuitem" onClick={handleAction(onRevealInFinder)} className={menuItemClass}>
           <FolderOpen className="w-3.5 h-3.5" />
           <span>{t("session.showJsonlFile", "Show JSONL File")}</span>
         </button>
@@ -157,6 +158,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
         <div className="my-1 border-t border-border/50" />
 
         <button
+          role="menuitem"
           onClick={handleAction(onDeleteSession)}
           className={cn(menuItemClass, "text-destructive hover:text-destructive")}
         >

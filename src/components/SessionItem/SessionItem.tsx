@@ -27,10 +27,15 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
+      editing.setIsContextMenuOpen(false);
       setContextMenu({ x: e.clientX, y: e.clientY });
     },
-    []
+    [editing]
   );
+
+  const handleContextMenuClose = useCallback(() => {
+    setContextMenu(null);
+  }, []);
 
   return (
     <div
@@ -105,7 +110,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
           hasCustomName={editing.hasCustomName}
           supportsNativeRename={editing.supportsNativeRename}
           providerId={editing.providerId}
-          onClose={() => setContextMenu(null)}
+          onClose={handleContextMenuClose}
           onRenameClick={editing.handleRenameClick}
           onResetCustomName={() => void editing.resetCustomName()}
           onNativeRenameClick={editing.handleNativeRenameClick}
