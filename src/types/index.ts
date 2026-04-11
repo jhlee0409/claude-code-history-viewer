@@ -192,6 +192,7 @@ export {
 // Session State
 export type {
   AppState,
+  SubagentSession,
 } from "./session.types";
 
 // Stats Types

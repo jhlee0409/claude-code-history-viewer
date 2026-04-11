@@ -5,6 +5,7 @@ export type ToolResultLike = Record<string, unknown>;
 export interface Props {
   toolUse: Record<string, unknown>;
   toolResults: ToolResultLike[];
+  onViewSubagent?: (agentId: string) => void;
 }
 
 export const truncate = (text: string, max = PREVIEW_MAX_LEN) =>

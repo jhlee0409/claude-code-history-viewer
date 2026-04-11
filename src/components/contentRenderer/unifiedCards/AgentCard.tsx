@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Bot,
   ChevronDown, ChevronRight, PlayCircle, Timer, Cpu, Hammer,
+  ExternalLink,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -44,7 +45,7 @@ function formatTokens(n: number): string {
   return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
-export const AgentCard = memo(function AgentCard({ toolUse, toolResults }: Props) {
+export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewSubagent }: Props) {
   const { t } = useTranslation();
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isResultOpen, setIsResultOpen] = useState(false);
@@ -147,6 +148,27 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults }: Props
           </div>
         ) : (
           <ResultBlock results={toolResults} />
+        )}
+
+        {/* View SubAgent conversation */}
+        {onViewSubagent && (
+          <button
+            type="button"
+            onClick={() => {
+              const id = str(input, "description") ?? toolId;
+              onViewSubagent(id);
+            }}
+            className={cn(
+              "mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium",
+              layout.rounded,
+              "bg-primary/10 text-primary hover:bg-primary/20 transition-colors",
+              "border border-primary/20",
+            )}
+            aria-label={t("renderers.agentTool.viewConversation", { defaultValue: "View Conversation" })}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            {t("renderers.agentTool.viewConversation", { defaultValue: "View Conversation" })}
+          </button>
         )}
       </Renderer.Content>
     </Renderer>

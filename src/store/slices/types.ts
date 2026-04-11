@@ -24,6 +24,7 @@ import type {
   ProviderInfo,
   StatsMode,
   MetricMode,
+  SubagentSession,
 } from "../../types";
 import type { ProjectTokenStatsPagination } from "./messageSlice";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
@@ -116,6 +117,8 @@ export interface AppStoreState {
   projectTokenStatsSummary: ProjectStatsSummary | null;
   projectConversationTokenStatsSummary: ProjectStatsSummary | null;
   projectTokenStatsPagination: ProjectTokenStatsPagination;
+  subagentSessions: SubagentSession[];
+  parentSessionStack: ClaudeSession[];
 
   // Search state
   searchQuery: string;
@@ -217,6 +220,9 @@ export interface AppStoreActions {
     projectPath: string
   ) => Promise<SessionComparison>;
   clearTokenStats: () => void;
+  loadSubagents: (sessionPath: string) => Promise<void>;
+  navigateToSubagent: (subagent: SubagentSession) => Promise<void>;
+  navigateBackToParent: () => Promise<void>;
 
   // Search actions
   searchMessages: (query: string, filters?: SearchFilters) => Promise<void>;

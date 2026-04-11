@@ -1362,6 +1362,140 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     Ok(messages)
 }
 
+// ============================================================================
+// SubAgent Session Discovery
+// ============================================================================
+
+/// Metadata for a single subagent conversation file
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentSession {
+    pub agent_id: String,
+    pub file_path: String,
+    pub message_count: usize,
+    pub file_size: u64,
+    pub first_message_time: Option<String>,
+    pub last_message_time: Option<String>,
+    pub summary: Option<String>,
+}
+
+/// Returns subagent sessions for a given parent session file.
+#[tauri::command]
+pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
+    use crate::utils::find_subagent_files;
+
+    let path = PathBuf::from(&session_path);
+    let subagent_files = find_subagent_files(&path);
+
+    if subagent_files.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut sessions: Vec<SubagentSession> = Vec::new();
+    for sa_path in subagent_files {
+        let file_name = sa_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+
+        // Extract agent_id: "agent-acompact-35a20cf6" → "acompact-35a20cf6"
+        let agent_id = file_name
+            .strip_prefix("agent-")
+            .unwrap_or(&file_name)
+            .to_string();
+
+        let file_size = fs::metadata(&sa_path).map(|m| m.len()).unwrap_or(0);
+
+        // Quick scan: first and last lines + line count
+        let (message_count, first_time, last_time, summary) = extract_subagent_metadata(&sa_path);
+
+        sessions.push(SubagentSession {
+            agent_id,
+            file_path: sa_path.to_string_lossy().to_string(),
+            message_count,
+            file_size,
+            first_message_time: first_time,
+            last_message_time: last_time,
+            summary,
+        });
+    }
+
+    // Sort by first_message_time ascending
+    sessions.sort_by(|a, b| a.first_message_time.cmp(&b.first_message_time));
+
+    Ok(sessions)
+}
+
+/// Lightweight metadata extraction from a subagent JSONL file.
+///
+/// Reads only the first and last lines to get timestamps and summary.
+fn extract_subagent_metadata(
+    path: &PathBuf,
+) -> (usize, Option<String>, Option<String>, Option<String>) {
+    let file = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return (0, None, None, None),
+    };
+    let reader = std::io::BufReader::new(file);
+    let mut line_count: usize = 0;
+    let mut first_time: Option<String> = None;
+    let mut last_time: Option<String> = None;
+    let mut summary: Option<String> = None;
+
+    for line_result in reader.lines() {
+        let Ok(line) = line_result else { continue };
+        if line.trim().is_empty() {
+            continue;
+        }
+        line_count += 1;
+
+        // Parse only the fields we need with a minimal struct
+        #[derive(serde::Deserialize)]
+        struct MinimalEntry {
+            timestamp: Option<String>,
+            #[serde(rename = "type")]
+            msg_type: Option<String>,
+            message: Option<MinimalMessage>,
+        }
+        #[derive(serde::Deserialize)]
+        struct MinimalMessage {
+            role: Option<String>,
+            content: Option<serde_json::Value>,
+        }
+
+        if let Ok(entry) = serde_json::from_str::<MinimalEntry>(&line) {
+            if let Some(ref ts) = entry.timestamp {
+                if first_time.is_none() {
+                    first_time = Some(ts.clone());
+                }
+                last_time = Some(ts.clone());
+            }
+
+            // Extract summary from first user message content
+            if summary.is_none() && entry.msg_type.as_deref() == Some("user") {
+                if let Some(msg) = &entry.message {
+                    if msg.role.as_deref() == Some("user") {
+                        let text = match &msg.content {
+                            Some(serde_json::Value::String(s)) => Some(s.clone()),
+                            Some(serde_json::Value::Array(arr)) => arr.iter().find_map(|item| {
+                                item.get("text").and_then(|t| t.as_str()).map(String::from)
+                            }),
+                            _ => None,
+                        };
+                        if let Some(t) = text {
+                            let truncated: String = t.chars().take(100).collect();
+                            summary = Some(truncated);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (line_count, first_time, last_time, summary)
+}
+
 /// Fast line classifier for simd-json (mutable slice)
 fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
     if line

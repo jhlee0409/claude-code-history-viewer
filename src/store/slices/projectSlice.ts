@@ -283,6 +283,8 @@ export const createProjectSlice: StateCreator<
       pagination: { ...INITIAL_PAGINATION },
       isLoadingMessages: false,
       isLoadingSessions: false,
+      subagentSessions: [],
+      parentSessionStack: [],
     });
 
     get().clearSessionSearch();

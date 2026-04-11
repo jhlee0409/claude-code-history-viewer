@@ -438,6 +438,54 @@ pub fn build_provider_message(
     }
 }
 
+/// Finds subagent JSONL files for a given session file.
+///
+/// Checks two candidate directory layouts:
+/// 1. `{parent}/{stem}/subagents/`  — Claude Code native layout
+/// 2. `{parent}/subagents/{stem}/`  — archive layout (backward compat)
+///
+/// Symlinks are rejected for security.
+pub fn find_subagent_files(session_file_path: &Path) -> Vec<std::path::PathBuf> {
+    let parent = match session_file_path.parent() {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+    let stem = match session_file_path.file_stem().and_then(|s| s.to_str()) {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+
+    let candidate_dirs = [
+        parent.join(stem).join("subagents"), // native: {uuid}/subagents/
+        parent.join("subagents").join(stem), // archive compat: subagents/{uuid}/
+    ];
+
+    let mut files = Vec::new();
+    for dir in &candidate_dirs {
+        let Ok(dir_meta) = fs::symlink_metadata(dir) else {
+            continue;
+        };
+        if dir_meta.file_type().is_symlink() || !dir_meta.is_dir() {
+            continue;
+        }
+
+        if let Ok(rd) = fs::read_dir(dir) {
+            for entry in rd.flatten() {
+                let p = entry.path();
+                if let Ok(meta) = fs::symlink_metadata(&p) {
+                    if meta.file_type().is_symlink() {
+                        continue;
+                    }
+                }
+                if p.extension().and_then(|e| e.to_str()) == Some("jsonl") {
+                    files.push(p);
+                }
+            }
+        }
+    }
+    files
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

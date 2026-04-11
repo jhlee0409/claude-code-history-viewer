@@ -7,7 +7,7 @@
 
 import { useRef, useCallback, useMemo, useState, useEffect } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
-import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download } from "lucide-react";
+import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
@@ -78,6 +78,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     shouldHighlightTarget,
     clearTargetMessage,
     messageFilter,
+    // SubAgent navigation
+    subagentSessions,
+    parentSessionStack,
+    navigateToSubagent,
+    navigateBackToParent,
   } = useAppStore();
 
   // Apply role + content type filters
@@ -787,6 +792,73 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           onScreenshot={handleScreenshot}
           onClearSelection={clearSelection}
         />
+      )}
+
+      {/* SubAgent: Back to parent breadcrumb */}
+      {parentSessionStack.length > 0 && (
+        <div className={cn(
+          "flex items-center gap-2 px-4 py-2 border-b",
+          "bg-primary/5 border-primary/20",
+        )}>
+          <button
+            type="button"
+            onClick={() => void navigateBackToParent()}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md",
+              "bg-primary/10 text-primary hover:bg-primary/20 transition-colors",
+            )}
+            aria-label={t("renderers.agentTool.backToParent", { defaultValue: "Back to parent session" })}
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            {t("renderers.agentTool.backToParent", { defaultValue: "Back to parent session" })}
+          </button>
+          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Bot className="w-3.5 h-3.5" />
+            {selectedSession?.summary ?? selectedSession?.actual_session_id}
+          </span>
+        </div>
+      )}
+
+      {/* SubAgent sessions panel */}
+      {subagentSessions.length > 0 && parentSessionStack.length === 0 && (
+        <div className={cn(
+          "border-b border-border/50 px-4 py-2",
+          "bg-muted/30",
+        )}>
+          <div className="flex items-center gap-2 mb-1.5">
+            <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">
+              {t("renderers.agentTool.subagentSessions", { defaultValue: "SubAgent Sessions" })}
+            </span>
+            <span className="text-[10px] text-muted-foreground/70 bg-muted rounded-full px-1.5">
+              {subagentSessions.length}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {subagentSessions.map((sa) => (
+              <button
+                key={sa.file_path}
+                type="button"
+                onClick={() => void navigateToSubagent(sa)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md",
+                  "bg-background border border-border/50 hover:border-primary/40 hover:bg-primary/5",
+                  "transition-colors",
+                )}
+                title={sa.summary ?? sa.agent_id}
+              >
+                <Bot className="w-3 h-3 text-muted-foreground" />
+                <span className="max-w-[200px] truncate">
+                  {sa.summary ?? sa.agent_id}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {t("renderers.agentTool.messages", { count: sa.message_count, defaultValue: "{{count}} messages" })}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="relative flex-1 min-h-0">

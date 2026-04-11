@@ -4,6 +4,7 @@
 //! archived sessions stored in ~/.claude-history-viewer/archives/
 
 use crate::models::ClaudeSession;
+use crate::utils::find_subagent_files;
 use chrono::Utc;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -506,58 +507,6 @@ fn dir_size(path: &Path) -> u64 {
         }
     }
     total
-}
-
-/// Looks for subagent JSONL files adjacent to a session file.
-///
-/// The convention is: subagents live in a directory named `subagents/` relative to
-/// the session file's parent directory, inside a subdirectory named after the
-/// session stem (without extension).
-///
-/// e.g. for `/path/to/sessions/abc123.jsonl`:
-///   subagents would be under `/path/to/subagents/abc123/`
-fn find_subagent_files(session_file_path: &Path) -> Vec<PathBuf> {
-    let parent = match session_file_path.parent() {
-        Some(p) => p,
-        None => return Vec::new(),
-    };
-    let stem = match session_file_path.file_stem().and_then(|s| s.to_str()) {
-        Some(s) => s,
-        None => return Vec::new(),
-    };
-
-    // Subagent files could be relative to the session directory's parent
-    // (i.e., sibling `subagents/` directory) or relative to the session directory itself.
-    let mut candidate_dirs = vec![parent.join("subagents").join(stem)];
-    if let Some(gp) = parent.parent() {
-        candidate_dirs.push(gp.join("subagents").join(stem));
-    }
-
-    let mut files = Vec::new();
-    for dir in &candidate_dirs {
-        let Ok(dir_meta) = fs::symlink_metadata(dir) else {
-            continue;
-        };
-        if dir_meta.file_type().is_symlink() || !dir_meta.is_dir() {
-            continue;
-        }
-
-        if let Ok(rd) = fs::read_dir(dir) {
-            for entry in rd.flatten() {
-                let p = entry.path();
-                // Skip symlinks for security
-                if let Ok(meta) = fs::symlink_metadata(&p) {
-                    if meta.file_type().is_symlink() {
-                        continue;
-                    }
-                }
-                if p.extension().and_then(|e| e.to_str()) == Some("jsonl") {
-                    files.push(p);
-                }
-            }
-        }
-    }
-    files
 }
 
 /// Converts a JSONL file to a pretty-printed JSON array string.

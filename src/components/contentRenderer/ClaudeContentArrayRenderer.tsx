@@ -63,6 +63,7 @@ type Props = {
   skipThinking?: boolean;
   skipCommands?: boolean;
   skipToolCalls?: boolean;
+  onViewSubagent?: (agentId: string) => void;
 };
 
 // Broad guard used by normalization; this intentionally does not require a "type" field.
@@ -145,6 +146,7 @@ export const ClaudeContentArrayRenderer = memo(({
   skipThinking = false,
   skipCommands = false,
   skipToolCalls = false,
+  onViewSubagent,
 }: Props) => {
   const { t } = useTranslation();
   const normalizedContent = useMemo(
@@ -166,6 +168,7 @@ export const ClaudeContentArrayRenderer = memo(({
               key={entry.key}
               toolUse={entry.toolUse}
               toolResults={skipToolResults ? [] : entry.toolResults}
+              onViewSubagent={onViewSubagent}
             />
           );
         }

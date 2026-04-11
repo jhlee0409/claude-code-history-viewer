@@ -62,6 +62,20 @@ export interface ClaudeSession {
 }
 
 // ============================================================================
+// SubAgent Session
+// ============================================================================
+
+export interface SubagentSession {
+  agent_id: string;
+  file_path: string;
+  message_count: number;
+  file_size: number;
+  first_message_time: string | null;
+  last_message_time: string | null;
+  summary: string | null;
+}
+
+// ============================================================================
 // Search Filters
 // ============================================================================
 

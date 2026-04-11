@@ -60,6 +60,20 @@ export const ClaudeMessageNode = React.memo(({
 }: MessageNodeProps) => {
   const { t } = useTranslation();
   const messageFilter = useAppStore((s) => s.messageFilter);
+  const subagentSessions = useAppStore((s) => s.subagentSessions);
+  const navigateToSubagent = useAppStore((s) => s.navigateToSubagent);
+
+  const handleViewSubagent = subagentSessions.length > 0
+    ? (agentId: string) => {
+        // Try to match by agent_id substring
+        const match = subagentSessions.find(
+          (sa) => sa.agent_id.includes(agentId) || agentId.includes(sa.agent_id)
+        );
+        if (match) {
+          navigateToSubagent(match);
+        }
+      }
+    : undefined;
 
   const handleSelectionClick = isCaptureMode && onRangeSelect
     ? (e: React.MouseEvent) => {
@@ -400,6 +414,7 @@ export const ClaudeMessageNode = React.memo(({
                     skipThinking={message.type === "assistant" && !messageFilter.contentTypes.thinking}
                     skipCommands={message.type === "assistant" && !messageFilter.contentTypes.commands}
                     skipToolCalls={message.type === "assistant" && !messageFilter.contentTypes.toolCalls}
+                    onViewSubagent={handleViewSubagent}
                   />
                 </div>
               )}
