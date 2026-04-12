@@ -35,6 +35,7 @@ export function FolderSelector({
   const [isCustomPathValid, setIsCustomPathValid] = useState(false);
   const { closeModal } = useModal();
   const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
+  const clearAnalyticsErrors = useAppStore((s) => s.clearAnalyticsErrors);
 
   const isChangeMode = mode === "change";
 
@@ -162,6 +163,7 @@ export function FolderSelector({
               size="sm"
               onClick={() => {
                 closeModal("folderSelector");
+                clearAnalyticsErrors();
                 setAnalyticsCurrentView("settings");
               }}
             >

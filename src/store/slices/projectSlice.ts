@@ -91,8 +91,10 @@ async function autoRegisterConfigDir(get: () => FullAppStore): Promise<void> {
     const detected = await api<string | null>("detect_claude_config_dir");
     if (!detected) return;
 
+    const normalize = (p: string) => p.replace(/[\\/]+$/, "");
+    const normalizedDetected = normalize(detected);
     const existing = get().userMetadata?.settings?.customClaudePaths ?? [];
-    const alreadyRegistered = existing.some((cp) => cp.path === detected);
+    const alreadyRegistered = existing.some((cp) => normalize(cp.path) === normalizedDetected);
     if (alreadyRegistered) return;
 
     await get().addCustomClaudePath(detected, "CLAUDE_CONFIG_DIR");

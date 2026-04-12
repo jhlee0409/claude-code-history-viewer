@@ -129,16 +129,15 @@ pub async fn detect_claude_config_dir() -> Result<Option<String>, String> {
         _ => return Ok(None),
     };
 
-    // Expand ~ to home directory
-    let expanded = if raw.starts_with('~') {
+    // Expand ~ to home directory (only exact "~" or "~/..." patterns)
+    let expanded = if raw == "~" {
         match dirs::home_dir() {
-            Some(home) => {
-                let rest = raw
-                    .strip_prefix("~/")
-                    .or_else(|| raw.strip_prefix('~'))
-                    .unwrap_or("");
-                home.join(rest).to_string_lossy().to_string()
-            }
+            Some(home) => home.to_string_lossy().to_string(),
+            None => raw,
+        }
+    } else if let Some(rest) = raw.strip_prefix("~/") {
+        match dirs::home_dir() {
+            Some(home) => home.join(rest).to_string_lossy().to_string(),
             None => raw,
         }
     } else {
@@ -259,11 +258,20 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 }
 
 #[cfg(test)]
+#[allow(clippy::await_holding_lock)] // env var tests are sync internally; no real suspension
 mod tests {
     use super::*;
     use std::fs::File;
     use std::io::Write;
+    use std::sync::{LazyLock, Mutex, MutexGuard};
     use tempfile::TempDir;
+
+    /// Mutex to serialize tests that modify the `CLAUDE_CONFIG_DIR` environment variable.
+    static ENV_MUTEX: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    fn lock_env() -> MutexGuard<'static, ()> {
+        ENV_MUTEX.lock().unwrap()
+    }
 
     fn create_test_jsonl_file(dir: &PathBuf, filename: &str, content: &str) {
         let file_path = dir.join(filename);
@@ -578,8 +586,10 @@ mod tests {
     }
 
     // Tests for detect_claude_config_dir
+    // All tests use ENV_MUTEX to prevent race conditions on the global env var.
     #[tokio::test]
     async fn test_detect_config_dir_unset() {
+        let _guard = lock_env();
         std::env::remove_var("CLAUDE_CONFIG_DIR");
         let result = detect_claude_config_dir().await.unwrap();
         assert!(result.is_none());
@@ -587,6 +597,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_config_dir_empty() {
+        let _guard = lock_env();
         std::env::set_var("CLAUDE_CONFIG_DIR", "");
         let result = detect_claude_config_dir().await.unwrap();
         assert!(result.is_none());
@@ -595,6 +606,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_config_dir_valid() {
+        let _guard = lock_env();
         let temp_dir = TempDir::new().unwrap();
         let projects_dir = temp_dir.path().join("projects");
         fs::create_dir_all(&projects_dir).unwrap();
@@ -610,6 +622,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_config_dir_invalid_no_projects() {
+        let _guard = lock_env();
         let temp_dir = TempDir::new().unwrap();
         // No projects/ subdirectory
 
@@ -624,6 +637,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_config_dir_relative_path() {
+        let _guard = lock_env();
         std::env::set_var("CLAUDE_CONFIG_DIR", "relative/path");
         let result = detect_claude_config_dir().await.unwrap();
         assert!(result.is_none());
