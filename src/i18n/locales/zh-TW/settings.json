@@ -7,6 +7,8 @@
   "folderPicker.helpDetails": "• 需要先執行Claude Desktop應用程式才能建立資料夾\n• Windows: C:\\Users\\[使用者名稱]\\.claude\n• macOS: /Users/[使用者名稱]/.claude 或 ~/.claude\n• Linux: /home/[使用者名稱]/.claude 或 ~/.claude",
   "folderPicker.homeNotFound": "在主目錄中找不到.claude資料夾。請選擇.claude資料夾或包含它的上層資料夾。",
   "folderPicker.invalidFolder": "在選擇的資料夾中找不到Claude資料。請選擇.claude資料夾。",
+  "folderPicker.customPathDetected": "此資料夾包含Claude資料，但不是預設的.claude目錄。您可以在設定中將其新增為自訂目錄。",
+  "folderPicker.openSettings": "開啟設定",
   "folderPicker.newFolder": "請選擇新的Claude資料夾或其上層資料夾。",
   "folderPicker.notFound": "找不到Claude資料夾",
   "folderPicker.select": "選擇.claude資料夾",

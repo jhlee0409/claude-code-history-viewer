@@ -33,8 +33,8 @@ use crate::commands::{
         search_all_providers,
     },
     project::{
-        get_claude_folder_path, get_git_log, scan_projects, validate_claude_folder,
-        validate_custom_claude_dir,
+        detect_claude_config_dir, get_claude_folder_path, get_git_log, scan_projects,
+        validate_claude_folder, validate_custom_claude_dir,
     },
     session::{
         delete_session, get_recent_edits, get_session_message_count, get_session_subagents,
@@ -118,6 +118,7 @@ fn run_tauri() {
             get_claude_folder_path,
             validate_claude_folder,
             validate_custom_claude_dir,
+            detect_claude_config_dir,
             scan_projects,
             get_git_log,
             load_project_sessions,

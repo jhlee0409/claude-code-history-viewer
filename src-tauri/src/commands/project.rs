@@ -118,6 +118,44 @@ pub async fn validate_custom_claude_dir(path: String) -> Result<bool, String> {
     }
 }
 
+/// Detect `CLAUDE_CONFIG_DIR` environment variable and return the path if valid.
+///
+/// Returns `Some(path)` if the env var is set and points to a valid Claude
+/// configuration directory (has a `projects/` subfolder). Returns `None` otherwise.
+#[tauri::command]
+pub async fn detect_claude_config_dir() -> Result<Option<String>, String> {
+    let raw = match std::env::var("CLAUDE_CONFIG_DIR") {
+        Ok(val) if !val.trim().is_empty() => val.trim().to_string(),
+        _ => return Ok(None),
+    };
+
+    // Expand ~ to home directory
+    let expanded = if raw.starts_with('~') {
+        match dirs::home_dir() {
+            Some(home) => {
+                let rest = raw
+                    .strip_prefix("~/")
+                    .or_else(|| raw.strip_prefix('~'))
+                    .unwrap_or("");
+                home.join(rest).to_string_lossy().to_string()
+            }
+            None => raw,
+        }
+    } else {
+        raw
+    };
+
+    let path = PathBuf::from(&expanded);
+    if !path.is_absolute() {
+        return Ok(None);
+    }
+
+    match crate::utils::validate_custom_claude_path(&path) {
+        Ok(_) => Ok(Some(expanded)),
+        Err(_) => Ok(None),
+    }
+}
+
 #[tauri::command]
 pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, String> {
     #[cfg(debug_assertions)]
@@ -537,5 +575,58 @@ mod tests {
             // Should not error if path is valid repo
             panic!("get_git_log failed: {}", result.unwrap_err());
         }
+    }
+
+    // Tests for detect_claude_config_dir
+    #[tokio::test]
+    async fn test_detect_config_dir_unset() {
+        std::env::remove_var("CLAUDE_CONFIG_DIR");
+        let result = detect_claude_config_dir().await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_detect_config_dir_empty() {
+        std::env::set_var("CLAUDE_CONFIG_DIR", "");
+        let result = detect_claude_config_dir().await.unwrap();
+        assert!(result.is_none());
+        std::env::remove_var("CLAUDE_CONFIG_DIR");
+    }
+
+    #[tokio::test]
+    async fn test_detect_config_dir_valid() {
+        let temp_dir = TempDir::new().unwrap();
+        let projects_dir = temp_dir.path().join("projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+
+        std::env::set_var(
+            "CLAUDE_CONFIG_DIR",
+            temp_dir.path().to_string_lossy().to_string(),
+        );
+        let result = detect_claude_config_dir().await.unwrap();
+        assert!(result.is_some());
+        std::env::remove_var("CLAUDE_CONFIG_DIR");
+    }
+
+    #[tokio::test]
+    async fn test_detect_config_dir_invalid_no_projects() {
+        let temp_dir = TempDir::new().unwrap();
+        // No projects/ subdirectory
+
+        std::env::set_var(
+            "CLAUDE_CONFIG_DIR",
+            temp_dir.path().to_string_lossy().to_string(),
+        );
+        let result = detect_claude_config_dir().await.unwrap();
+        assert!(result.is_none());
+        std::env::remove_var("CLAUDE_CONFIG_DIR");
+    }
+
+    #[tokio::test]
+    async fn test_detect_config_dir_relative_path() {
+        std::env::set_var("CLAUDE_CONFIG_DIR", "relative/path");
+        let result = detect_claude_config_dir().await.unwrap();
+        assert!(result.is_none());
+        std::env::remove_var("CLAUDE_CONFIG_DIR");
     }
 }
