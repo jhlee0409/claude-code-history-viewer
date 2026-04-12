@@ -7,6 +7,8 @@
   "folderPicker.helpDetails": "• Claude Desktopアプリを一度でも実行してフォルダを作成する必要があります\n• Windows: C:\\Users\\[ユーザー名]\\.claude\n• macOS: /Users/[ユーザー名]/.claude または ~/.claude\n• Linux: /home/[ユーザー名]/.claude または ~/.claude",
   "folderPicker.homeNotFound": "ホームディレクトリで.claudeフォルダが見つかりませんでした。.claudeフォルダまたはそれを含む親フォルダを選択してください。",
   "folderPicker.invalidFolder": "選択したフォルダにClaudeデータが見つかりません。.claudeフォルダを選択してください。",
+  "folderPicker.customPathDetected": "このフォルダにはClaudeデータがありますが、デフォルトの.claudeディレクトリではありません。設定でカスタムディレクトリとして追加できます。",
+  "folderPicker.openSettings": "設定を開く",
   "folderPicker.newFolder": "新しいClaudeフォルダまたは親フォルダを選択してください。",
   "folderPicker.notFound": "Claudeフォルダが見つかりません",
   "folderPicker.select": ".claudeフォルダを選択",

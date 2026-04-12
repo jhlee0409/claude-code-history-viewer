@@ -82,6 +82,30 @@ const isTauriAvailable = () => {
 };
 
 // ============================================================================
+// CLAUDE_CONFIG_DIR Auto-detection
+// ============================================================================
+
+/** Auto-register CLAUDE_CONFIG_DIR as a custom directory if not already present. */
+async function autoRegisterConfigDir(get: () => FullAppStore): Promise<void> {
+  try {
+    const detected = await api<string | null>("detect_claude_config_dir");
+    if (!detected) return;
+
+    const normalize = (p: string) => p.replace(/[\\/]+$/, "");
+    const normalizedDetected = normalize(detected);
+    const existing = get().userMetadata?.settings?.customClaudePaths ?? [];
+    const alreadyRegistered = existing.some((cp) => normalize(cp.path) === normalizedDetected);
+    if (alreadyRegistered) return;
+
+    await get().addCustomClaudePath(detected, "CLAUDE_CONFIG_DIR");
+  } catch {
+    if (import.meta.env.DEV) {
+      console.warn("[autoRegisterConfigDir] Failed to detect CLAUDE_CONFIG_DIR");
+    }
+  }
+}
+
+// ============================================================================
 // Slice Creator
 // ============================================================================
 
@@ -118,6 +142,7 @@ export const createProjectSlice: StateCreator<
             set({ claudePath: savedPath });
             await get().loadMetadata();
             await get().detectProviders();
+            await autoRegisterConfigDir(get);
             await get().scanProjects();
             return;
           }
@@ -131,6 +156,7 @@ export const createProjectSlice: StateCreator<
       set({ claudePath });
       await get().loadMetadata();
       await get().detectProviders();
+      await autoRegisterConfigDir(get);
       await get().scanProjects();
     } catch (error) {
       console.error("Failed to initialize app:", error);

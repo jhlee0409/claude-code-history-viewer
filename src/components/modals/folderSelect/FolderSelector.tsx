@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Folder, AlertCircle, ArrowLeft, CheckCircle2, HelpCircle } from "lucide-react";
+import { Folder, AlertCircle, ArrowLeft, CheckCircle2, HelpCircle, Settings } from "lucide-react";
 import { isTauri } from "@/utils/platform";
 import { api } from "@/services/api";
 import { useTranslation } from "react-i18next";
+import { useModal } from "@/contexts/modal";
+import { useAppStore } from "@/store/useAppStore";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +32,10 @@ export function FolderSelector({
   const [selectedPath, setSelectedPath] = useState<string>("");
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string>("");
+  const [isCustomPathValid, setIsCustomPathValid] = useState(false);
+  const { closeModal } = useModal();
+  const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
+  const clearAnalyticsErrors = useAppStore((s) => s.clearAnalyticsErrors);
 
   const isChangeMode = mode === "change";
 
@@ -66,6 +72,7 @@ export function FolderSelector({
   const validateAndSelectFolder = async (path: string) => {
     setIsValidating(true);
     setValidationError("");
+    setIsCustomPathValid(false);
 
     try {
       const isValid = await api<boolean>("validate_claude_folder", { path });
@@ -73,7 +80,18 @@ export function FolderSelector({
       if (isValid) {
         onFolderSelected(path);
       } else {
-        setValidationError(t("folderPicker.invalidFolder"));
+        // Check if this is a valid custom Claude directory (has projects/ subfolder)
+        try {
+          const isCustomValid = await api<boolean>("validate_custom_claude_dir", { path });
+          if (isCustomValid) {
+            setIsCustomPathValid(true);
+            setValidationError(t("folderPicker.customPathDetected"));
+          } else {
+            setValidationError(t("folderPicker.invalidFolder"));
+          }
+        } catch {
+          setValidationError(t("folderPicker.invalidFolder"));
+        }
       }
     } catch {
       setValidationError(t("folderPicker.validationError"));
@@ -128,11 +146,31 @@ export function FolderSelector({
         </Alert>
       )}
 
-      {/* Validation Error */}
-      {validationError && (
+      {/* Validation Error or Custom Path Guidance */}
+      {validationError && !isCustomPathValid && (
         <Alert variant="destructive" className="text-left">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{validationError}</AlertDescription>
+        </Alert>
+      )}
+      {isCustomPathValid && (
+        <Alert variant="default" className="text-left">
+          <Settings className="h-4 w-4" />
+          <AlertDescription className="space-y-2">
+            <p>{t("folderPicker.customPathDetected")}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                closeModal("folderSelector");
+                clearAnalyticsErrors();
+                setAnalyticsCurrentView("settings");
+              }}
+            >
+              <Settings className="h-3 w-3" />
+              {t("folderPicker.openSettings")}
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
 

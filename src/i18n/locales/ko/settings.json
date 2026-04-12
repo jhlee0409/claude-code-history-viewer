@@ -7,6 +7,8 @@
   "folderPicker.helpDetails": "• Claude Desktop 앱을 한 번이라도 실행해야 폴더가 생성됩니다\n• Windows: C:\\Users\\[사용자명]\\.claude\n• macOS: /Users/[사용자명]/.claude 또는 ~/.claude\n• Linux: /home/[사용자명]/.claude 또는 ~/.claude",
   "folderPicker.homeNotFound": "홈 디렉토리에서 .claude 폴더를 찾을 수 없습니다. .claude 폴더 또는 이를 포함하는 상위 폴더를 선택해주세요.",
   "folderPicker.invalidFolder": "선택한 폴더에서 Claude 데이터를 찾을 수 없습니다. .claude 폴더를 선택해주세요.",
+  "folderPicker.customPathDetected": "이 폴더에 Claude 데이터가 있지만 기본 .claude 디렉토리가 아닙니다. 설정에서 커스텀 디렉토리로 추가할 수 있습니다.",
+  "folderPicker.openSettings": "설정 열기",
   "folderPicker.newFolder": "새로운 Claude 폴더 또는 상위 폴더를 선택해주세요.",
   "folderPicker.notFound": "Claude 폴더를 찾을 수 없습니다",
   "folderPicker.select": ".claude 폴더 선택",
