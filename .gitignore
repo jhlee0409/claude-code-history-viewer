@@ -73,3 +73,6 @@ debug.log*
 # AFC plugin state
 .claude/afc/
 .claude/afc.config.md
+
+# Claude Code worktrees
+.claude/worktrees/
