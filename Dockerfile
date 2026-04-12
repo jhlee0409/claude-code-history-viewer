@@ -3,6 +3,8 @@
 
 # ── Stage 1: Build frontend ──────────────────────────────────────────
 FROM node:20-slim AS frontend
+ARG PROXY_URL
+ENV http_proxy=${PROXY_URL} https_proxy=${PROXY_URL}
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
@@ -13,8 +15,13 @@ RUN pnpm exec tsc --build . && pnpm exec vite build
 
 # ── Stage 2: Build Rust server binary (with embedded frontend) ──────
 FROM rust:1-bookworm AS backend
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+ARG PROXY_URL
+ENV http_proxy=${PROXY_URL} https_proxy=${PROXY_URL}
+# Force HTTPS for apt sources to avoid proxy 502 on HTTP
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+       libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY src-tauri/ src-tauri/
@@ -25,10 +32,16 @@ RUN cargo build --release --features webui-server
 
 # ── Stage 3: Minimal runtime image ──────────────────────────────────
 FROM debian:bookworm-slim
+ARG PROXY_URL
+# Use http_proxy only (no HTTPS rewrite needed — slim has no ca-certs yet)
+ENV http_proxy=${PROXY_URL}
+# Binary links against webkit2gtk/gtk3 even in --serve mode (Tauri compile-time dep)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
     libgtk-3-0 libwebkit2gtk-4.1 \
+    libjavascriptcoregtk-4.1-0 \
     && rm -rf /var/lib/apt/lists/*
+ENV http_proxy= https_proxy=
 
 # Run as non-root user for security
 RUN groupadd -r cchv && useradd -r -g cchv -d /home/cchv -s /sbin/nologin -m cchv
