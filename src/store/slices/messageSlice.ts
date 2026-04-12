@@ -124,6 +124,9 @@ export const createMessageSlice: StateCreator<
 > = (set, get) => {
   let tokenStatsLoadingEpoch = 0;
   let tokenStatsInFlight = 0;
+  // Flag set by navigateToSubagent/navigateBackToParent to prevent
+  // selectSession from clearing the parentSessionStack.
+  let isSubagentNav = false;
 
   const beginTokenStatsLoading = (): number => {
     const epoch = tokenStatsLoadingEpoch;
@@ -162,12 +165,17 @@ export const createMessageSlice: StateCreator<
     // Clear previous session's search index
     clearSearchIndex();
 
+    // Only clear parentSessionStack on non-subagent navigation.
+    // navigateToSubagent/navigateBackToParent manage the stack themselves.
+    const preserveStack = isSubagentNav;
+    isSubagentNav = false;
+
     set({
       messages: [],
       pagination: { ...INITIAL_PAGINATION },
       isLoadingMessages: true,
       subagentSessions: [],
-      parentSessionStack: [],
+      ...(preserveStack ? {} : { parentSessionStack: [] }),
     });
 
     // Reset message filters on session switch
@@ -677,8 +685,11 @@ export const createMessageSlice: StateCreator<
       if (get().selectedSession?.file_path === sessionPath) {
         set({ subagentSessions: subagents });
       }
-    } catch {
+    } catch (error) {
       // Graceful fallback: older sessions won't have subagents
+      if (import.meta.env.DEV) {
+        console.warn("[loadSubagents] Failed:", error);
+      }
       if (get().selectedSession?.file_path === sessionPath) {
         set({ subagentSessions: [] });
       }
@@ -706,9 +717,10 @@ export const createMessageSlice: StateCreator<
       last_modified: subagent.last_message_time ?? "",
       has_tool_use: false,
       has_errors: false,
-      summary: subagent.summary ?? `SubAgent: ${subagent.agent_id}`,
+      summary: subagent.summary ?? subagent.agent_id,
     };
 
+    isSubagentNav = true;
     await get().selectSession(syntheticSession);
   },
 
@@ -719,6 +731,7 @@ export const createMessageSlice: StateCreator<
     const parentSession = stack[stack.length - 1]!;
     set({ parentSessionStack: stack.slice(0, -1) });
 
+    isSubagentNav = true;
     await get().selectSession(parentSession);
   },
   };
