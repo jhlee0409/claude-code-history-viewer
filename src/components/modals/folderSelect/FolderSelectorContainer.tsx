@@ -6,7 +6,8 @@ import { useEffect } from "react";
 
 export const FolderSelectorContainer: React.FC = () => {
   const { isOpen, closeModal, folderSelectorMode, openModal } = useModal();
-  const { setClaudePath, scanProjects, error } = useAppStore();
+  const { setClaudePath, scanProjects, addCustomClaudePath, error } =
+    useAppStore();
 
   // 에러 발생 시 자동으로 폴더 선택 모달 열기
   useEffect(() => {
@@ -16,19 +17,20 @@ export const FolderSelectorContainer: React.FC = () => {
   }, [error, openModal]);
 
   const handleFolderSelected = async (path: string) => {
-    // .claude 폴더 경로 처리
-    let claudeFolderPath = path;
-    if (!path.endsWith(".claude")) {
-      claudeFolderPath = `${path}/.claude`;
-    }
-
-    // 경로 설정 및 프로젝트 스캔
-    setClaudePath(claudeFolderPath);
     try {
+      // FolderSelector normalizes standard paths to end with ".claude"
+      if (path.endsWith(".claude")) {
+        setClaudePath(path);
+      } else {
+        // Custom directory (e.g. ~/.claude-personal) → register as custom path
+        const folderName =
+          path.split(/[\\/]/).filter(Boolean).pop() ?? "custom";
+        await addCustomClaudePath(path, folderName);
+      }
+
       await scanProjects();
-    } catch (error) {
-      console.error("Failed to scan projects:", error);
-      // 에러 처리 로직 추가 (예: 사용자에게 알림)
+    } catch (err) {
+      console.error("Failed to scan projects:", err);
     }
   };
 

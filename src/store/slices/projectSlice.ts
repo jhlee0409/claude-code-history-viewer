@@ -190,7 +190,9 @@ export const createProjectSlice: StateCreator<
   scanProjects: async () => {
     const requestId = nextRequestId("scanProjects");
     const { claudePath, providers } = get();
-    if (!claudePath) return;
+    const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
+    const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
+    if (!claudePath && !hasCustomPaths) return;
 
     set({ isLoadingProjects: true, error: null });
     try {
@@ -200,12 +202,10 @@ export const createProjectSlice: StateCreator<
         .map((provider) => provider.id);
       const scanProviders = availableProviders.length > 0 ? availableProviders : [DEFAULT_PROVIDER_ID];
       const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
-      const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
-      const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
       const settings = get().userMetadata?.settings;
       const projects = (hasNonClaudeProviders || hasCustomPaths)
         ? await api<ClaudeProject[]>("scan_all_projects", {
-            claudePath,
+            ...(claudePath && { claudePath }),
             activeProviders: scanProviders,
             customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
             wslEnabled: settings?.wsl?.enabled ?? false,
