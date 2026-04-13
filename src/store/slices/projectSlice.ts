@@ -205,7 +205,7 @@ export const createProjectSlice: StateCreator<
       const settings = get().userMetadata?.settings;
       const projects = (hasNonClaudeProviders || hasCustomPaths)
         ? await api<ClaudeProject[]>("scan_all_projects", {
-            claudePath,
+            ...(claudePath && { claudePath }),
             activeProviders: scanProviders,
             customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
             wslEnabled: settings?.wsl?.enabled ?? false,
