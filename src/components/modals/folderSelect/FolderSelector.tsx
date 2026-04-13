@@ -71,7 +71,9 @@ export function FolderSelector({
       const isValid = await api<boolean>("validate_claude_folder", { path });
 
       if (isValid) {
-        onFolderSelected(path);
+        // Normalize: always pass the .claude path so the container can distinguish
+        const normalized = path.endsWith(".claude") ? path : `${path}/.claude`;
+        onFolderSelected(normalized);
       } else {
         // Check if this is a valid custom Claude directory (has projects/ subfolder)
         try {

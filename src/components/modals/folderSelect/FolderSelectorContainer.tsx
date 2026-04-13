@@ -4,15 +4,6 @@ import { useModal } from "@/contexts/modal";
 import { AppErrorType } from "@/types";
 import { useEffect } from "react";
 
-/**
- * Checks if the selected path is a standard .claude directory.
- * Standard: path ends with ".claude" or contains a ".claude" segment.
- */
-function isStandardClaudePath(path: string): boolean {
-  const segments = path.split(/[\\/]/);
-  return segments.includes(".claude");
-}
-
 export const FolderSelectorContainer: React.FC = () => {
   const { isOpen, closeModal, folderSelectorMode, openModal } = useModal();
   const { setClaudePath, scanProjects, addCustomClaudePath, error } =
@@ -26,21 +17,17 @@ export const FolderSelectorContainer: React.FC = () => {
   }, [error, openModal]);
 
   const handleFolderSelected = async (path: string) => {
-    if (isStandardClaudePath(path)) {
-      // Standard .claude directory → set as main claudePath
-      let claudeFolderPath = path;
-      if (!path.endsWith(".claude")) {
-        claudeFolderPath = `${path}/.claude`;
-      }
-      setClaudePath(claudeFolderPath);
-    } else {
-      // Custom directory (e.g. ~/.claude-personal) → register as custom path
-      const folderName =
-        path.split(/[\\/]/).filter(Boolean).pop() ?? "custom";
-      await addCustomClaudePath(path, folderName);
-    }
-
     try {
+      // FolderSelector normalizes standard paths to end with ".claude"
+      if (path.endsWith(".claude")) {
+        setClaudePath(path);
+      } else {
+        // Custom directory (e.g. ~/.claude-personal) → register as custom path
+        const folderName =
+          path.split(/[\\/]/).filter(Boolean).pop() ?? "custom";
+        await addCustomClaudePath(path, folderName);
+      }
+
       await scanProjects();
     } catch (err) {
       console.error("Failed to scan projects:", err);
