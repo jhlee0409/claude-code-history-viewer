@@ -37,6 +37,7 @@ pub async fn scan_all_projects(
             "cline".to_string(),
             "cursor".to_string(),
             "aider".to_string(),
+            "antigravity".to_string(),
         ]
     });
 
@@ -147,6 +148,16 @@ pub async fn scan_all_projects(
         }
     }
 
+    // Antigravity
+    if providers_to_scan.iter().any(|p| p == "antigravity") {
+        match providers::antigravity::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Antigravity scan failed: {e}");
+            }
+        }
+    }
+
     // WSL scanning (Claude only — other providers' load_sessions/load_messages
     // use native base paths internally, so WSL projects would be visible but
     // not loadable. Extending other providers requires base-path-aware loaders.)
@@ -225,6 +236,7 @@ pub async fn load_provider_sessions(
         "cline" => providers::cline::load_sessions(&project_path, exclude),
         "cursor" => providers::cursor::load_sessions(&project_path, exclude),
         "aider" => providers::aider::load_sessions(&project_path, exclude),
+        "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -252,6 +264,7 @@ pub async fn load_provider_messages(
         "cline" => providers::cline::load_messages(&session_path)?,
         "cursor" => providers::cursor::load_messages(&session_path)?,
         "aider" => providers::aider::load_messages(&session_path)?,
+        "antigravity" => providers::antigravity::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -285,6 +298,7 @@ pub async fn search_all_providers(
             "cline".to_string(),
             "cursor".to_string(),
             "aider".to_string(),
+            "antigravity".to_string(),
         ]
     });
 
@@ -403,6 +417,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Aider search failed: {e}");
+            }
+        }
+    }
+
+    // Antigravity
+    if providers_to_search.iter().any(|p| p == "antigravity") {
+        match providers::antigravity::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Antigravity search failed: {e}");
             }
         }
     }
