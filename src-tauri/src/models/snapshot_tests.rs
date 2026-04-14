@@ -254,6 +254,7 @@ mod stats_snapshots {
             total_output_tokens: 2500,
             total_cache_creation_tokens: 1000,
             total_cache_read_tokens: 500,
+            total_reasoning_tokens: 0,
             total_tokens: 9000,
             message_count: 50,
             first_message_time: "2025-01-01T08:00:00Z".to_string(),

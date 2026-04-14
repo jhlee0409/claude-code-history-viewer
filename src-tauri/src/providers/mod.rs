@@ -7,6 +7,7 @@ pub mod codex;
 pub mod cursor;
 pub mod gemini;
 pub mod opencode;
+pub mod antigravity;
 
 /// Provider identifier
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -19,6 +20,7 @@ pub enum ProviderId {
     Cursor,
     Gemini,
     OpenCode,
+    Antigravity,
 }
 
 impl ProviderId {
@@ -31,6 +33,7 @@ impl ProviderId {
             Self::Cursor => "cursor",
             Self::Gemini => "gemini",
             Self::OpenCode => "opencode",
+            Self::Antigravity => "antigravity",
         }
     }
 
@@ -43,6 +46,7 @@ impl ProviderId {
             "cursor" => Some(Self::Cursor),
             "gemini" => Some(Self::Gemini),
             "opencode" => Some(Self::OpenCode),
+            "antigravity" => Some(Self::Antigravity),
             _ => None,
         }
     }
@@ -56,6 +60,7 @@ impl ProviderId {
             Self::Cursor => "Cursor",
             Self::Gemini => "Gemini CLI",
             Self::OpenCode => "OpenCode",
+            Self::Antigravity => "Antigravity",
         }
     }
 }
@@ -92,6 +97,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = aider::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = antigravity::detect() {
         providers.push(info);
     }
 
