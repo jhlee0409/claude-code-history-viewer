@@ -1,3 +1,4 @@
+pub mod cli;
 pub mod commands;
 pub mod models;
 pub mod providers;
@@ -97,6 +98,12 @@ fn run_tauri() {
 
     use std::sync::{Arc, Mutex};
 
+    // Parse CLI args for a session preload hint (e.g. `--session <uuid>`).
+    // A missing or unrecognized value yields None; the GUI then runs as usual.
+    let startup_session_hint = cli::StartupSessionHint(cli::parse_session_hint(
+        &std::env::args().collect::<Vec<_>>(),
+    ));
+
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -110,11 +117,13 @@ fn run_tauri() {
 
     builder
         .manage(MetadataState::default())
+        .manage(startup_session_hint)
         .manage(Arc::new(Mutex::new(None))
             as Arc<
                 Mutex<Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>>>,
             >)
         .invoke_handler(tauri::generate_handler![
+            crate::cli::get_startup_session_hint,
             get_claude_folder_path,
             validate_claude_folder,
             validate_custom_claude_dir,

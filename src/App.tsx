@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "./store/useAppStore";
 import { useAnalytics } from "./hooks/useAnalytics";
@@ -17,6 +17,10 @@ import {
   type GroupingMode,
 } from "./types";
 import { getProviderLabel, normalizeProviderIds } from "./utils/providers";
+import {
+  fetchStartupSessionHint,
+  preloadSessionFromCli,
+} from "./lib/preloadSession";
 
 import "./App.css";
 
@@ -117,6 +121,23 @@ function App() {
       { providers: labels.join(", ") }
     );
   }, [activeProviders, t]);
+
+  // One-shot guard so `--session <uuid>` preload fires exactly once per
+  // process, even if project loading renders multiple times.
+  const cliPreloadAttempted = useRef(false);
+
+  useEffect(() => {
+    if (cliPreloadAttempted.current) return;
+    if (isLoadingProjects || projects.length === 0) return;
+    cliPreloadAttempted.current = true;
+    void preloadSessionFromCli({
+      getStartupSessionHint: fetchStartupSessionHint,
+      projects,
+      selectProject,
+      selectSession,
+      t: (key, fallback) => t(key, fallback ?? key),
+    });
+  }, [isLoadingProjects, projects, selectProject, selectSession, t]);
 
   // Local state
   const [isViewingGlobalStats, setIsViewingGlobalStats] = useState(false);
