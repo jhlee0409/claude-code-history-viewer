@@ -60,6 +60,7 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::fs::symlink;
     use tempfile::TempDir;
 
@@ -91,6 +92,7 @@ mod tests {
         assert_eq!(err, "Invalid session ID format");
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn reject_symlink() {
         let dir = TempDir::new().unwrap();
