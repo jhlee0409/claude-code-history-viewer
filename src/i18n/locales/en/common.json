@@ -122,6 +122,7 @@
   "common.provider.cursor": "Cursor",
   "common.provider.gemini": "Gemini CLI",
   "common.provider.detectError": "Failed to detect providers. Using Claude only.",
+  "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
   "common.view": "View",
   "common.watcher.autoRefresh": "Auto-refresh",

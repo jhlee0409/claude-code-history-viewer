@@ -122,6 +122,7 @@
   "common.provider.cursor": "Cursor",
   "common.provider.gemini": "Gemini CLI",
   "common.provider.detectError": "プロバイダーの検出に失敗しました。Claude のみ使用します。",
+  "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
   "common.view": "表示",
   "common.watcher.autoRefresh": "自動更新",
