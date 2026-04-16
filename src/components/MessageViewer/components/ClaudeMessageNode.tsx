@@ -62,11 +62,15 @@ export const ClaudeMessageNode = React.memo(({
   const messageFilter = useAppStore((s) => s.messageFilter);
   const subagentSessions = useAppStore((s) => s.subagentSessions);
   const navigateToSubagent = useAppStore((s) => s.navigateToSubagent);
+  const toolUseToSubagentMap = useAppStore((s) => s.toolUseToSubagentMap);
+  const parentSessionStack = useAppStore((s) => s.parentSessionStack);
 
   const handleViewSubagent = subagentSessions.length > 0
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    ? (_agentId: string) => {
-        const match = subagentSessions[0];
+    ? (toolUseId: string) => {
+        const agentId = toolUseToSubagentMap.get(toolUseId);
+        const match = agentId
+          ? subagentSessions.find((s) => s.agent_id === agentId)
+          : subagentSessions[0];
         if (match) {
           void navigateToSubagent(match);
         }
@@ -122,7 +126,9 @@ export const ClaudeMessageNode = React.memo(({
     </button>
   ) : null;
 
-  if (message.isSidechain) {
+  // subagent 세션 내부에서는 모든 메시지가 isSidechain=true이므로 필터 우회
+  const isInSubagent = parentSessionStack.length > 0;
+  if (message.isSidechain && !isInSubagent) {
     return null;
   }
 
@@ -368,7 +374,7 @@ export const ClaudeMessageNode = React.memo(({
         onClick={handleSelectionClick}
         className={cn(
           "relative w-full px-2 md:px-4 py-2 transition-all duration-200",
-          message.isSidechain && "bg-muted",
+          message.isSidechain && !isInSubagent && "bg-muted",
           // Search highlight
           isCurrentMatch && "bg-highlight-current ring-2 ring-warning",
           isMatch && !isCurrentMatch && "bg-highlight",

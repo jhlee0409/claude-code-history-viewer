@@ -34,6 +34,7 @@ import {
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { supportsConversationBreakdown } from "../../utils/providers";
 import { normalizeDateFilterOptions } from "../../utils/date";
+import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
 
 // ============================================================================
 // State Interface
@@ -57,6 +58,8 @@ export interface MessageSliceState {
   // SubAgent navigation
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
+  /** parentToolUseID → agent_id 매핑 (progress 메시지 기반) */
+  toolUseToSubagentMap: Map<string, string>;
 }
 
 export interface MessageSliceActions {
@@ -110,6 +113,7 @@ const initialMessageState: MessageSliceState = {
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
   subagentSessions: [],
   parentSessionStack: [],
+  toolUseToSubagentMap: new Map(),
 };
 
 // ============================================================================
@@ -175,6 +179,7 @@ export const createMessageSlice: StateCreator<
       pagination: { ...INITIAL_PAGINATION },
       isLoadingMessages: true,
       subagentSessions: [],
+      toolUseToSubagentMap: new Map(),
       ...(preserveStack ? {} : { parentSessionStack: [] }),
     });
 
@@ -194,10 +199,12 @@ export const createMessageSlice: StateCreator<
         sessionPath,
       });
 
-      // Apply sidechain filter
-      let filteredMessages = get().excludeSidechain
-        ? allMessages.filter((m) => !m.isSidechain)
-        : allMessages;
+      // Apply sidechain filter (subagent 세션은 모든 메시지가 isSidechain=true이므로 우회)
+      const isSubagentSession = get().parentSessionStack.length > 0;
+      let filteredMessages =
+        get().excludeSidechain && !isSubagentSession
+          ? allMessages.filter((m) => !m.isSidechain)
+          : allMessages;
 
       // Apply system message filter
       const systemMessageTypes = [
@@ -247,7 +254,13 @@ export const createMessageSlice: StateCreator<
       }
     } catch (error) {
       console.error("Failed to load session messages:", error);
-      get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
+      // 서브에이전트 로딩 실패 시 toast로 알림 (전체 페이지 에러 방지)
+      const message = error instanceof Error ? error.message : String(error);
+      if (get().parentSessionStack.length > 0) {
+        toast.error(`Failed to load subagent messages: ${message}`);
+      } else {
+        get().setError({ type: AppErrorType.UNKNOWN, message });
+      }
       set({ isLoadingMessages: false });
     }
   },
@@ -683,7 +696,19 @@ export const createMessageSlice: StateCreator<
       });
       // Guard: only update if still viewing the same session
       if (get().selectedSession?.file_path === sessionPath) {
-        set({ subagentSessions: subagents });
+        // progress 메시지만 parentToolUseID와 agentId를 함께 보유 → 유일한 매핑 소스
+        const agentIds = new Set(subagents.map((s) => s.agent_id));
+        const map = new Map<string, string>();
+        if (agentIds.size > 0) {
+          for (const msg of get().messages) {
+            if (msg.type !== "progress" || !msg.parentToolUseID) continue;
+            const agentId = getAgentIdFromProgress(msg);
+            if (agentId && agentIds.has(agentId)) {
+              map.set(msg.parentToolUseID, agentId);
+            }
+          }
+        }
+        set({ subagentSessions: subagents, toolUseToSubagentMap: map });
       }
     } catch (error) {
       // Graceful fallback: older sessions won't have subagents
@@ -691,7 +716,7 @@ export const createMessageSlice: StateCreator<
         console.warn("[loadSubagents] Failed:", error);
       }
       if (get().selectedSession?.file_path === sessionPath) {
-        set({ subagentSessions: [] });
+        set({ subagentSessions: [], toolUseToSubagentMap: new Map() });
       }
     }
   },

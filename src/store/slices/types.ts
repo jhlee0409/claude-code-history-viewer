@@ -119,6 +119,7 @@ export interface AppStoreState {
   projectTokenStatsPagination: ProjectTokenStatsPagination;
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
+  toolUseToSubagentMap: Map<string, string>;
 
   // Search state
   searchQuery: string;
