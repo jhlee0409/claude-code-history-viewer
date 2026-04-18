@@ -1,5 +1,6 @@
 // src/components/ProjectContextMenu.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { EyeOff, Eye, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -50,7 +51,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   }, [onClose]);
 
   // Adjust position if menu would go off-screen
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (menuRef.current) {
       const rect = menuRef.current.getBoundingClientRect();
       const windowWidth = window.innerWidth;
@@ -65,6 +66,9 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
       if (y + rect.height > windowHeight) {
         y = windowHeight - rect.height - 8;
       }
+
+      x = Math.max(8, x);
+      y = Math.max(8, y);
 
       setAdjustedPosition({ x, y });
     }
@@ -102,7 +106,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
     "transition-colors cursor-pointer"
   );
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       className={cn(
@@ -148,6 +152,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
           )}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

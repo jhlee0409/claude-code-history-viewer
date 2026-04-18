@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Pencil,
   RotateCcw,
@@ -96,7 +97,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
     };
   };
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       role="menu"
@@ -172,6 +173,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
           <span>{t("session.deleteSession", "Delete Session")}</span>
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
