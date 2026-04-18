@@ -10,6 +10,9 @@ pub mod server;
 #[cfg(test)]
 pub mod test_utils;
 
+use crate::commands::antigravity::{
+    get_antigravity_project_summary, get_antigravity_session, load_antigravity_state,
+};
 use crate::commands::{
     archive::{
         create_archive, delete_archive, export_session, get_archive_base_path,
@@ -200,7 +203,11 @@ fn run_tauri() {
             export_session,
             // WSL commands
             detect_wsl_distros,
-            is_wsl_available
+            is_wsl_available,
+            // Antigravity token-monitor commands
+            load_antigravity_state,
+            get_antigravity_session,
+            get_antigravity_project_summary
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

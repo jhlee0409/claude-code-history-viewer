@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "claude", "cline", "codex", "cursor", "gemini", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codex", "cursor", "gemini", "opencode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -8,6 +8,7 @@ const PROVIDER_TRANSLATIONS: Record<
   { key: string; fallback: string }
 > = {
   aider: { key: "common.provider.aider", fallback: "Aider" },
+  antigravity: { key: "common.provider.antigravity", fallback: "Antigravity" },
   claude: { key: "common.provider.claude", fallback: "Claude Code" },
   cline: { key: "common.provider.cline", fallback: "Cline" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
@@ -27,6 +28,7 @@ const PROVIDER_ANALYTICS_CAPABILITIES: Record<
   ProviderAnalyticsCapability
 > = {
   aider: { supportsConversationBreakdown: false },
+  antigravity: { supportsConversationBreakdown: true },
   claude: { supportsConversationBreakdown: true },
   cline: { supportsConversationBreakdown: false },
   codex: { supportsConversationBreakdown: false },
@@ -50,6 +52,7 @@ export interface ConversationBreakdownCoverage {
 export function getProviderId(provider?: ProviderId | string): ProviderId {
   switch (provider) {
     case "aider":
+    case "antigravity":
     case "cline":
     case "codex":
     case "cursor":
@@ -99,6 +102,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+  antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
 };
 
 export function getProviderBadgeStyle(provider?: ProviderId | string): string {
