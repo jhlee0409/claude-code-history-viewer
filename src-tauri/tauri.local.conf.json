@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "plugins": {
+    "updater": {
+      "active": false
+    }
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false
+  }
+}

@@ -1,5 +1,30 @@
 # Antigravity 统计接入设计
 
+## Design Evolution Notes ⚠️
+
+按"保持基线界面不变、参考 `opencode` 最小接入"的标准，当前设计存在以下问题：
+
+1. **设计范围过大** ⚠️ 影响第2-15节。
+   当前文档把 `antigravity` 拆成 provider 链路和独立汇总页两套前端链路，这已经明显超出"像 `opencode` 一样接入 provider"的范围。
+2. **与"不能修改基线界面"冲突** ⚠️ 影响第2-15节。
+   文档中的 `Antigravity Usage` 独立页面、Header 入口、移动端 Bottom Tab 入口都会改变既有界面结构，不符合基线约束。
+3. **与"最小修改"原则冲突** ⚠️ 影响第2-15节。
+   当前前端变更面包含 `Header`、`AppLayout`、`BottomTabBar`、独立 store slice、独立页面组件和导航 hook，改动面远大于 `opencode` 的 provider 式接入。
+4. **文档内目标不一致** ⚠️ 影响第2-15节。
+   一方面说目标不是单独只读页面，另一方面又把独立 `Antigravity Usage` 页面设计成主路径，并给出专门导航与测试方案，目标存在漂移。
+5. **provider 语义与项目语义混淆** ⚠️ 影响第2-15节。
+   `antigravity` 被设计为单虚拟项目，其 `actual_path` 指向缓存目录而不是真实工作目录；如果复用项目级设置、文件动作、重命名、recent edits 等现有项目语义，容易产生错误行为。
+6. **对不支持能力的边界收敛不够** ⚠️ 影响第2-15节。
+   文档正文中把 `recent edits`、`board`、独立统计入口都写进正常流程，但风险和边界章节又承认它们未必有业务意义，前后不够收敛。
+7. **搜索定义名不副实** ⚠️ 影响第3.6节。
+   文档写的是"全文搜索"，但实际设计仅支持 session ID / model 名等元数据匹配，不是常规意义上的全文搜索，应降级表述，避免误导验收。
+8. **验收标准夹带了扩展能力** ⚠️ 影响第12节。
+   当前验收包含独立汇总页可用，这会把非必要 UI 扩展变成强制交付项，不符合新的需求约束。
+9. **测试方案绑定了被裁剪的 UI 方案** ⚠️ 影响第14节。
+   文档中的前端测试和手工验收大量围绕 `AntigravityView` 与页面入口展开；在"基线 UI 不变"的约束下，这部分测试目标需要回退到既有 provider 链路。
+
+**验收标准更新**：排除非基准 UI（独立页面），将"全文搜索"更改为元数据搜索以匹配实现。
+
 ## 1. 目标
 
 ### 1.1 新增约束
@@ -27,10 +52,12 @@
 1. 不以新增独立 `Antigravity Usage` 页面作为本次需求前提。
 2. 不以新增 Header 入口、移动端独立 Tab、单独路由或新的页面容器作为接入条件。
 
+**范围声明**：这里提到的两套并行数据流中，只有 `rpc-cache` provider 数据流（来自 `~/.gemini/antigravity/.token-monitor/rpc-cache/v1`）是本次迭代的实施范围。`monitor-state` 独立汇总数据流（来自 `~/.gemini/antigravity/monitor-state.json` 和 `monitor-state.archive-*.json`）目前为基础设施专用，不涉及 UI 暴露，仅服务于独立的 `Antigravity Usage` 页面（该页面不在本次需求范围内）。
+
 这里有两套并行数据流：
 
-1. `rpc-cache` provider 数据流
-2. `monitor-state` 独立汇总数据流
+1. `rpc-cache` provider 数据流（本次迭代实施范围）
+2. `monitor-state` 独立汇总数据流（基础设施专用，UI 无关）
 
 两者都来自 `~/.gemini/antigravity`，但职责不同。
 
@@ -53,23 +80,6 @@
 
 1. `manifest.json` 提供 step 数、导出时间、服务端修改时间
 2. `usage.jsonl` 是每次 usage 记录的原始来源
-
-### 2.2 独立汇总页数据源
-
-用于 `Antigravity Usage` 页面。
-
-路径：
-
-```text
-~/.gemini/antigravity/
-  monitor-state.json
-  monitor-state.archive-YYYY-MM.json
-```
-
-其中：
-
-1. `monitor-state.json` 是活跃状态
-2. `monitor-state.archive-*.json` 是归档状态
 
 ## 3. 后端数据流
 
@@ -177,29 +187,7 @@ provider 实现：
 1. 真实统计数据来自 `assistant` 消息上的 `usage`
 2. synthetic `user` 消息仅用于展示，不代表真实 usage 记录
 
-### 3.5 独立 Antigravity 汇总命令
-
-文件：
-
-`src-tauri/src/commands/antigravity.rs`
-`src-tauri/src/models/antigravity.rs`
-
-暴露命令：
-
-1. `load_antigravity_state`
-2. `get_antigravity_session`
-3. `get_antigravity_project_summary`
-
-流程：
-
-1. 读取 `monitor-state.json`
-2. 扫描所有 `monitor-state.archive-*.json`
-3. 按 session id 合并 archive 和 active
-4. 计算 `AntigravityProjectSummary`
-
-这个链路不依赖 `rpc-cache` provider 消息解析，主要服务独立的 `Antigravity Usage` 页面。
-
-### 3.6 全文搜索
+### 3.6 元数据搜索
 
 入口：
 
@@ -348,7 +336,6 @@ provider 实现：
 
 1. 正确的做法：`antigravity` 与 `opencode`、`codex` 等其他 provider 在前端 messageSlice 中完全对称——无任何特判，直接走通用统计路径。
 2. 错误的做法：在 messageSlice 中写 `if (provider === "antigravity") { ... loadAntigravityState() ... return; }`，这绕开了后端已完整接线的统一统计路由。
-
 
 ## 6. 端到端时序
 
@@ -649,28 +636,48 @@ PATH="$HOME/.cargo/bin:$PATH" CARGO_TARGET_DIR=/tmp/cchv-antigravity-check cargo
 3. 为 `antigravity` 增加更完整的 Rust fixture 测试数据目录
 4. 为 `stats.rs` 增加针对 `usage.jsonl` 的固定快照测试
 
-## 16. 现有设计问题
+## 附录 A: Out of Scope for Current Iteration
 
-按“保持基线界面不变、参考 `opencode` 最小接入”的标准，当前设计存在以下问题：
+### A.1 独立汇总页数据源
 
-1. 设计范围过大。
-   当前文档把 `antigravity` 拆成 provider 链路和独立汇总页两套前端链路，这已经明显超出“像 `opencode` 一样接入 provider”的范围。
-2. 与“不能修改基线界面”冲突。
-   文档中的 `Antigravity Usage` 独立页面、Header 入口、移动端 Bottom Tab 入口都会改变既有界面结构，不符合基线约束。
-3. 与“最小修改”原则冲突。
-   当前前端变更面包含 `Header`、`AppLayout`、`BottomTabBar`、独立 store slice、独立页面组件和导航 hook，改动面远大于 `opencode` 的 provider 式接入。
-4. 文档内目标不一致。
-   一方面说目标不是单独只读页面，另一方面又把独立 `Antigravity Usage` 页面设计成主路径，并给出专门导航与测试方案，目标存在漂移。
-5. provider 语义与项目语义混淆。
-   `antigravity` 被设计为单虚拟项目，其 `actual_path` 指向缓存目录而不是真实工作目录；如果复用项目级设置、文件动作、重命名、recent edits 等现有项目语义，容易产生错误行为。
-6. 对不支持能力的边界收敛不够。
-   文档正文中把 `recent edits`、`board`、独立统计入口都写进正常流程，但风险和边界章节又承认它们未必有业务意义，前后不够收敛。
-7. 搜索定义名不副实。
-   文档写的是“全文搜索”，但实际设计仅支持 session ID / model 名等元数据匹配，不是常规意义上的全文搜索，应降级表述，避免误导验收。
-8. 验收标准夹带了扩展能力。
-   当前验收包含独立汇总页可用，这会把非必要 UI 扩展变成强制交付项，不符合新的需求约束。
-9. 测试方案绑定了被裁剪的 UI 方案。
-   文档中的前端测试和手工验收大量围绕 `AntigravityView` 与页面入口展开；在“基线 UI 不变”的约束下，这部分测试目标需要回退到既有 provider 链路。
+用于 `Antigravity Usage` 页面（本次迭代不实施）。
+
+路径：
+
+```text
+~/.gemini/antigravity/
+  monitor-state.json
+  monitor-state.archive-YYYY-MM.json
+```
+
+其中：
+
+1. `monitor-state.json` 是活跃状态
+2. `monitor-state.archive-*.json` 是归档状态
+
+### A.2 独立 Antigravity 汇总命令
+
+文件：
+
+`src-tauri/src/commands/antigravity.rs`
+`src-tauri/src/models/antigravity.rs`
+
+暴露命令：
+
+1. `load_antigravity_state`
+2. `get_antigravity_session`
+3. `get_antigravity_project_summary`
+
+流程：
+
+1. 读取 `monitor-state.json`
+2. 扫描所有 `monitor-state.archive-*.json`
+3. 按 session id 合并 archive 和 active
+4. 计算 `AntigravityProjectSummary`
+
+这个链路不依赖 `rpc-cache` provider 消息解析，主要服务独立的 `Antigravity Usage` 页面。
+
+**重要说明**：`load_antigravity_state`、`get_antigravity_session` 和 `get_antigravity_project_summary` 命令存在于代码库中，用于支持单独的 Antigravity Usage 页面，但这些命令**明确不在本次 provider 集成范围内**。这些命令不得被包含在 Token Stats/Analytics/Global Stats 代码路径中。测试套件和验收标准应排除或模拟这些命令，以确保 CI 测试不会验证其功能。
 
 ## 14. 测试执行剧本
 
@@ -1080,8 +1087,8 @@ CI 验证目标：
 8. **不引入专用工具层**：删除或不新建 `antigravityAnalytics.ts`、`antigravityApi.ts` 等仅服务于独立页面的前端文件。
 交付物：
 
-1. 基线 UI 不变
-2. `antigravity` 在既有界面中可见、可切换、可查看
+9. 基线 UI 不变
+10. `antigravity` 在既有界面中可见、可切换、可查看
 
 ### 17.5 阶段五：不支持能力降级
 
