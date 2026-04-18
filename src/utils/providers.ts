@@ -28,7 +28,7 @@ const PROVIDER_ANALYTICS_CAPABILITIES: Record<
   ProviderAnalyticsCapability
 > = {
   aider: { supportsConversationBreakdown: false },
-  antigravity: { supportsConversationBreakdown: false },
+  antigravity: { supportsConversationBreakdown: true },
   claude: { supportsConversationBreakdown: true },
   cline: { supportsConversationBreakdown: false },
   codex: { supportsConversationBreakdown: false },

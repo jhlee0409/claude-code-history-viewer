@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "tauri:build-local": "tauri build --config src-tauri/tauri.local.conf.json",
     "lint": "eslint src",
     "preview": "vite preview",
     "test": "vitest",

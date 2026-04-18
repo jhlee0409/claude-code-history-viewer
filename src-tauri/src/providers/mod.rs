@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 pub mod aider;
+pub mod antigravity;
 pub mod claude;
 pub mod cline;
 pub mod codex;
 pub mod cursor;
 pub mod gemini;
 pub mod opencode;
-pub mod antigravity;
 
 /// Provider identifier
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]

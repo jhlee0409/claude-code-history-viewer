@@ -1,9 +1,9 @@
 #[cfg(test)]
 use crate::models::MessageContent;
 use crate::models::{
-    ActivityHeatmap, ClaudeMessage, DailyStats, GlobalStatsSummary, ModelStats,
-    ProjectRanking, ProjectStatsSummary, ProviderUsageStats, RawLogEntry, SessionComparison,
-    SessionTokenStats, TokenDistribution, TokenUsage, ToolUsageStats,
+    ActivityHeatmap, ClaudeMessage, DailyStats, GlobalStatsSummary, ModelStats, ProjectRanking,
+    ProjectStatsSummary, ProviderUsageStats, RawLogEntry, SessionComparison, SessionTokenStats,
+    TokenDistribution, TokenUsage, ToolUsageStats,
 };
 use crate::providers;
 use crate::utils::find_line_ranges;
@@ -13,7 +13,7 @@ use rayon::prelude::*;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -102,8 +102,48 @@ struct AntigravityUsageRecord {
     output_tokens: u64,
     cache_creation_tokens: u64,
     cache_read_tokens: u64,
+    conversation_input_tokens: u64,
+    conversation_cache_creation_tokens: u64,
+    conversation_cache_read_tokens: u64,
     reasoning_tokens: u64,
     total_tokens: u64,
+}
+
+fn scale_token_count(value: u64, numerator: u64, denominator: u64) -> u64 {
+    if value == 0 || numerator == 0 || denominator == 0 {
+        return 0;
+    }
+
+    let scaled = (u128::from(value) * u128::from(numerator)) + (u128::from(denominator) / 2);
+    (scaled / u128::from(denominator)) as u64
+}
+
+fn antigravity_chat_token_breakdown(value: &serde_json::Value) -> Option<(u64, u64)> {
+    let token_breakdown =
+        &value["raw"]["chatModel"]["chatStartMetadata"]["contextWindowMetadata"]["tokenBreakdown"];
+    let total_tokens = token_breakdown["totalTokens"].as_u64().or_else(|| {
+        value["raw"]["chatModel"]["chatStartMetadata"]["contextWindowMetadata"]
+            ["estimatedTokensUsed"]
+            .as_u64()
+    })?;
+
+    if total_tokens == 0 {
+        return None;
+    }
+
+    let chat_tokens = token_breakdown["groups"]
+        .as_array()
+        .map(|groups| {
+            groups
+                .iter()
+                .filter(|group| group["type"].as_str() == Some("TOKEN_TYPE_CHAT_MESSAGES"))
+                .map(|group| group["numTokens"].as_u64().unwrap_or(0))
+                .sum::<u64>()
+        })
+        .unwrap_or(0)
+        .min(total_tokens);
+
+    Some((chat_tokens, total_tokens))
 }
 
 fn should_include_stats_entry(
@@ -231,8 +271,8 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
 }
 
 fn is_antigravity_path(path: &str) -> bool {
-    crate::commands::antigravity::get_antigravity_root()
-        .map(|root| path.starts_with(root.to_string_lossy().as_ref()))
+    crate::commands::antigravity::resolve_antigravity_root()
+        .map(|root| Path::new(path).starts_with(root.as_path()))
         .unwrap_or(false)
 }
 
@@ -424,6 +464,8 @@ fn track_tool_usage_from_global_entry(
 }
 
 /// Intermediate stats collected from a single session file (for parallel processing)
+type ModelUsageAggregate = (u32, u64, u64, u64, u64, u64, u64);
+
 #[derive(Default)]
 struct SessionFileStats {
     total_messages: u32,
@@ -432,7 +474,7 @@ struct SessionFileStats {
     tool_usage: HashMap<String, (u32, u32)>, // (usage_count, success_count)
     daily_stats: HashMap<String, DailyStats>,
     activity_data: HashMap<(u8, u8), (u32, u64)>, // (hour, day) -> (count, tokens)
-    model_usage: HashMap<String, (u32, u64, u64, u64, u64, u64, u64)>, // model -> (msg_count, total, input, output, cache_create, cache_read, reasoning)
+    model_usage: HashMap<String, ModelUsageAggregate>, // model -> (msg_count, total, input, output, cache_create, cache_read, reasoning)
     session_duration_minutes: u64,
     first_message: Option<DateTime<Utc>>,
     last_message: Option<DateTime<Utc>>,
@@ -750,10 +792,12 @@ fn collect_provider_global_file_stats(
 
     if provider == StatsProvider::Antigravity {
         let Ok(root) = crate::commands::antigravity::get_antigravity_root()
-            .ok_or_else(|| "Cannot determine antigravity root directory".to_string()) else {
+            .ok_or_else(|| "Cannot determine antigravity root directory".to_string())
+        else {
             return (Vec::new(), project_keys);
         };
-        let Ok(sessions) = providers::antigravity::load_sessions(&root.to_string_lossy(), false) else {
+        let Ok(sessions) = providers::antigravity::load_sessions(&root.to_string_lossy(), false)
+        else {
             return (Vec::new(), project_keys);
         };
         project_keys.insert(format!(
@@ -764,13 +808,12 @@ fn collect_provider_global_file_stats(
 
         let mut all_stats = Vec::new();
         for session in &sessions {
-            if matches!(mode, StatsMode::ConversationOnly) {
-                continue;
-            }
             let records = match load_antigravity_usage_records(&session.file_path) {
                 Ok(records) => records
                     .into_iter()
-                    .filter(|record| is_within_date_limits(Some(record.timestamp), s_limit, e_limit))
+                    .filter(|record| {
+                        is_within_date_limits(Some(record.timestamp), s_limit, e_limit)
+                    })
                     .collect::<Vec<_>>(),
                 Err(_) => continue,
             };
@@ -783,14 +826,42 @@ fn collect_provider_global_file_stats(
                 provider,
                 ..Default::default()
             };
+            if let Ok(messages) = providers::antigravity::load_messages(&session.file_path) {
+                for message in &messages {
+                    track_tool_usage(message, &mut stats.tool_usage);
+                }
+            }
             let mut timestamps = Vec::new();
             for record in records {
+                let input_tokens = match mode {
+                    StatsMode::BillingTotal => record.input_tokens,
+                    StatsMode::ConversationOnly => record.conversation_input_tokens,
+                };
+                let cache_creation_tokens = match mode {
+                    StatsMode::BillingTotal => record.cache_creation_tokens,
+                    StatsMode::ConversationOnly => record.conversation_cache_creation_tokens,
+                };
+                let cache_read_tokens = match mode {
+                    StatsMode::BillingTotal => record.cache_read_tokens,
+                    StatsMode::ConversationOnly => record.conversation_cache_read_tokens,
+                };
+                let total_tokens = match mode {
+                    StatsMode::BillingTotal => record.total_tokens,
+                    StatsMode::ConversationOnly => {
+                        input_tokens
+                            + record.output_tokens
+                            + cache_creation_tokens
+                            + cache_read_tokens
+                            + record.reasoning_tokens
+                    }
+                };
+
                 stats.total_messages += 1;
-                stats.total_tokens += record.total_tokens;
-                stats.token_distribution.input += record.input_tokens;
+                stats.total_tokens += total_tokens;
+                stats.token_distribution.input += input_tokens;
                 stats.token_distribution.output += record.output_tokens;
-                stats.token_distribution.cache_creation += record.cache_creation_tokens;
-                stats.token_distribution.cache_read += record.cache_read_tokens;
+                stats.token_distribution.cache_creation += cache_creation_tokens;
+                stats.token_distribution.cache_read += cache_read_tokens;
                 stats.token_distribution.reasoning += record.reasoning_tokens;
 
                 let model_entry = stats
@@ -798,23 +869,24 @@ fn collect_provider_global_file_stats(
                     .entry(record.model.clone())
                     .or_insert((0, 0, 0, 0, 0, 0, 0));
                 model_entry.0 += 1;
-                model_entry.1 += record.total_tokens;
-                model_entry.2 += record.input_tokens;
+                model_entry.1 += total_tokens;
+                model_entry.2 += input_tokens;
                 model_entry.3 += record.output_tokens;
-                model_entry.4 += record.cache_creation_tokens;
-                model_entry.5 += record.cache_read_tokens;
+                model_entry.4 += cache_creation_tokens;
+                model_entry.5 += cache_read_tokens;
                 model_entry.6 += record.reasoning_tokens;
 
                 let date = record.timestamp.format("%Y-%m-%d").to_string();
-                let daily_entry = stats
-                    .daily_stats
-                    .entry(date.clone())
-                    .or_insert_with(|| DailyStats {
-                        date,
-                        ..Default::default()
-                    });
-                daily_entry.total_tokens += record.total_tokens;
-                daily_entry.input_tokens += record.input_tokens;
+                let daily_entry =
+                    stats
+                        .daily_stats
+                        .entry(date.clone())
+                        .or_insert_with(|| DailyStats {
+                            date,
+                            ..Default::default()
+                        });
+                daily_entry.total_tokens += total_tokens;
+                daily_entry.input_tokens += input_tokens;
                 daily_entry.output_tokens += record.output_tokens;
                 daily_entry.message_count += 1;
 
@@ -822,13 +894,19 @@ fn collect_provider_global_file_stats(
                 let day = record.timestamp.weekday().num_days_from_sunday() as u8;
                 let activity_entry = stats.activity_data.entry((hour, day)).or_insert((0, 0));
                 activity_entry.0 += 1;
-                activity_entry.1 += record.total_tokens;
+                activity_entry.1 += total_tokens;
 
                 timestamps.push(record.timestamp);
-                if stats.first_message.map_or(true, |current| record.timestamp < current) {
+                if stats
+                    .first_message
+                    .map_or(true, |current| record.timestamp < current)
+                {
                     stats.first_message = Some(record.timestamp);
                 }
-                if stats.last_message.map_or(true, |current| record.timestamp > current) {
+                if stats
+                    .last_message
+                    .map_or(true, |current| record.timestamp > current)
+                {
                     stats.last_message = Some(record.timestamp);
                 }
             }
@@ -1198,7 +1276,9 @@ fn calculate_session_active_minutes(timestamps: &mut [DateTime<Utc>]) -> u32 {
     session_total_minutes + final_period.max(1) as u32
 }
 
-fn load_antigravity_usage_records(session_path: &str) -> Result<Vec<AntigravityUsageRecord>, String> {
+fn load_antigravity_usage_records(
+    session_path: &str,
+) -> Result<Vec<AntigravityUsageRecord>, String> {
     let usage_path = PathBuf::from(session_path).join("usage.jsonl");
     if !usage_path.exists() {
         return Ok(vec![]);
@@ -1216,7 +1296,8 @@ fn load_antigravity_usage_records(session_path: &str) -> Result<Vec<AntigravityU
             continue;
         }
 
-        let Some(created_at) = value["raw"]["chatModel"]["chatStartMetadata"]["createdAt"].as_str() else {
+        let Some(created_at) = value["raw"]["chatModel"]["chatStartMetadata"]["createdAt"].as_str()
+        else {
             continue;
         };
         let Some(timestamp) = parse_timestamp_utc(created_at) else {
@@ -1235,6 +1316,19 @@ fn load_antigravity_usage_records(session_path: &str) -> Result<Vec<AntigravityU
                 + cache_creation_tokens
                 + reasoning_tokens,
         );
+        let (
+            conversation_input_tokens,
+            conversation_cache_creation_tokens,
+            conversation_cache_read_tokens,
+        ) = antigravity_chat_token_breakdown(&value)
+            .map(|(chat_tokens, total_context_tokens)| {
+                (
+                    scale_token_count(input_tokens, chat_tokens, total_context_tokens),
+                    scale_token_count(cache_creation_tokens, chat_tokens, total_context_tokens),
+                    scale_token_count(cache_read_tokens, chat_tokens, total_context_tokens),
+                )
+            })
+            .unwrap_or((input_tokens, cache_creation_tokens, cache_read_tokens));
 
         records.push(AntigravityUsageRecord {
             timestamp,
@@ -1243,6 +1337,9 @@ fn load_antigravity_usage_records(session_path: &str) -> Result<Vec<AntigravityU
             output_tokens,
             cache_creation_tokens,
             cache_read_tokens,
+            conversation_input_tokens,
+            conversation_cache_creation_tokens,
+            conversation_cache_read_tokens,
             reasoning_tokens,
             total_tokens,
         });
@@ -1256,11 +1353,7 @@ fn build_antigravity_session_token_stats(
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
-) -> Result<Option<SessionTokenStats>, String> {
-    if matches!(mode, StatsMode::ConversationOnly) {
-        return Ok(None);
-    }
-
+) -> Result<Option<(SessionTokenStats, Vec<AntigravityUsageRecord>)>, String> {
     let mut records = load_antigravity_usage_records(&session.file_path)?;
     records.retain(|record| is_within_date_limits(Some(record.timestamp), s_limit, e_limit));
     if records.is_empty() {
@@ -1280,24 +1373,53 @@ fn build_antigravity_session_token_stats(
         .map(|ts| ts.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
         .unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
 
-    Ok(Some(SessionTokenStats {
+    let stats = SessionTokenStats {
         session_id: session.actual_session_id.clone(),
         project_name: session.project_name.clone(),
-        total_input_tokens: records.iter().map(|record| record.input_tokens).sum(),
+        total_input_tokens: records
+            .iter()
+            .map(|record| match mode {
+                StatsMode::BillingTotal => record.input_tokens,
+                StatsMode::ConversationOnly => record.conversation_input_tokens,
+            })
+            .sum(),
         total_output_tokens: records.iter().map(|record| record.output_tokens).sum(),
         total_cache_creation_tokens: records
             .iter()
-            .map(|record| record.cache_creation_tokens)
+            .map(|record| match mode {
+                StatsMode::BillingTotal => record.cache_creation_tokens,
+                StatsMode::ConversationOnly => record.conversation_cache_creation_tokens,
+            })
             .sum(),
-        total_cache_read_tokens: records.iter().map(|record| record.cache_read_tokens).sum(),
+        total_cache_read_tokens: records
+            .iter()
+            .map(|record| match mode {
+                StatsMode::BillingTotal => record.cache_read_tokens,
+                StatsMode::ConversationOnly => record.conversation_cache_read_tokens,
+            })
+            .sum(),
         total_reasoning_tokens: records.iter().map(|record| record.reasoning_tokens).sum(),
-        total_tokens: records.iter().map(|record| record.total_tokens).sum(),
+        total_tokens: records
+            .iter()
+            .map(|record| match mode {
+                StatsMode::BillingTotal => record.total_tokens,
+                StatsMode::ConversationOnly => {
+                    record.conversation_input_tokens
+                        + record.output_tokens
+                        + record.conversation_cache_creation_tokens
+                        + record.conversation_cache_read_tokens
+                        + record.reasoning_tokens
+                }
+            })
+            .sum(),
         message_count: records.len(),
         first_message_time,
         last_message_time,
         summary: session.summary.clone(),
         most_used_tools: Vec::new(),
-    }))
+    };
+
+    Ok(Some((stats, records)))
 }
 
 fn build_tool_usage_stats(tool_usage: HashMap<String, (u32, u32)>) -> Vec<ToolUsageStats> {
@@ -1513,7 +1635,7 @@ fn get_provider_project_token_stats(
         let mut all_stats = Vec::new();
 
         for session in &sessions {
-            if let Some(stats) = build_antigravity_session_token_stats(
+            if let Some((stats, _records)) = build_antigravity_session_token_stats(
                 session,
                 mode,
                 s_limit.as_ref(),
@@ -1600,28 +1722,20 @@ fn get_provider_project_stats_summary(
         summary.project_name = resolve_provider_project_name(provider, project_path);
 
         let mut session_durations = Vec::new();
+        let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
         let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
         let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
 
         for session in &sessions {
-            let Some(session_stats) = build_antigravity_session_token_stats(
+            let Some((session_stats, records)) = build_antigravity_session_token_stats(
                 session,
                 mode,
                 s_limit.as_ref(),
                 e_limit.as_ref(),
-            )? else {
+            )?
+            else {
                 continue;
             };
-
-            let records = load_antigravity_usage_records(&session.file_path)?
-                .into_iter()
-                .filter(|record| {
-                    is_within_date_limits(Some(record.timestamp), s_limit.as_ref(), e_limit.as_ref())
-                })
-                .collect::<Vec<_>>();
-            if records.is_empty() {
-                continue;
-            }
 
             summary.total_sessions += 1;
             summary.total_messages += session_stats.message_count;
@@ -1632,7 +1746,16 @@ fn get_provider_project_stats_summary(
             summary.token_distribution.cache_read += session_stats.total_cache_read_tokens;
             summary.token_distribution.reasoning += session_stats.total_reasoning_tokens;
 
-            let mut timestamps = records.iter().map(|record| record.timestamp).collect::<Vec<_>>();
+            if let Ok(messages) = providers::antigravity::load_messages(&session.file_path) {
+                for message in &messages {
+                    track_tool_usage(message, &mut tool_usage_map);
+                }
+            }
+
+            let mut timestamps = records
+                .iter()
+                .map(|record| record.timestamp)
+                .collect::<Vec<_>>();
             let duration = calculate_session_active_minutes(&mut timestamps);
             if duration > 0 {
                 session_durations.push(duration);
@@ -1649,12 +1772,13 @@ fn get_provider_project_stats_summary(
                 activity_entry.0 += 1;
                 activity_entry.1 += record.total_tokens;
 
-                let daily_entry = daily_stats_map
-                    .entry(date.clone())
-                    .or_insert_with(|| DailyStats {
-                        date,
-                        ..Default::default()
-                    });
+                let daily_entry =
+                    daily_stats_map
+                        .entry(date.clone())
+                        .or_insert_with(|| DailyStats {
+                            date,
+                            ..Default::default()
+                        });
                 daily_entry.total_tokens += record.total_tokens;
                 daily_entry.input_tokens += record.input_tokens;
                 daily_entry.output_tokens += record.output_tokens;
@@ -1682,6 +1806,7 @@ fn get_provider_project_stats_summary(
 
         summary.daily_stats = daily_stats_map.into_values().collect();
         summary.daily_stats.sort_by(|a, b| a.date.cmp(&b.date));
+        summary.most_used_tools = build_tool_usage_stats(tool_usage_map);
         summary.activity_heatmap = activity_map
             .into_iter()
             .map(|((hour, day), (count, tokens))| ActivityHeatmap {
@@ -1872,12 +1997,13 @@ fn get_provider_session_comparison(
         let mut all_sessions: Vec<SessionComparisonStats> = Vec::new();
 
         for session in &sessions {
-            let Some(stats) = build_antigravity_session_token_stats(
+            let Some((stats, _records)) = build_antigravity_session_token_stats(
                 session,
                 mode,
                 s_limit.as_ref(),
                 e_limit.as_ref(),
-            )? else {
+            )?
+            else {
                 continue;
             };
 
@@ -1902,9 +2028,14 @@ fn get_provider_session_comparison(
             .find(|session| session.session_id == session_id)
             .ok_or("Session not found in project")?;
 
-        let total_project_tokens: u64 = all_sessions.iter().map(|session| session.total_tokens).sum();
-        let total_project_messages: usize =
-            all_sessions.iter().map(|session| session.message_count).sum();
+        let total_project_tokens: u64 = all_sessions
+            .iter()
+            .map(|session| session.total_tokens)
+            .sum();
+        let total_project_messages: usize = all_sessions
+            .iter()
+            .map(|session| session.message_count)
+            .sum();
 
         let percentage_of_project_tokens = if total_project_tokens > 0 {
             (target_session.total_tokens as f32 / total_project_tokens as f32) * 100.0
@@ -2101,6 +2232,7 @@ pub async fn get_session_token_stats(
                 s_limit.as_ref(),
                 e_limit.as_ref(),
             )?
+            .map(|(stats, _records)| stats)
             .ok_or_else(|| "No valid messages found in session".to_string());
         }
 
@@ -2989,8 +3121,7 @@ pub async fn get_global_stats_summary(
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
-    let mut model_usage_map: HashMap<String, (u32, u64, u64, u64, u64, u64, u64)> =
-        HashMap::new();
+    let mut model_usage_map: HashMap<String, ModelUsageAggregate> = HashMap::new();
     let mut project_stats_map: HashMap<String, (u32, u32, u64)> = HashMap::new();
     let mut provider_stats_map: HashMap<StatsProvider, (u32, u32, u64)> = HashMap::new();
     let mut provider_projects_map: HashMap<StatsProvider, HashSet<String>> = HashMap::new();
@@ -3043,7 +3174,9 @@ pub async fn get_global_stats_summary(
         for (model, (msg_count, total, input, output, cache_create, cache_read, reasoning)) in
             stats.model_usage
         {
-            let entry = model_usage_map.entry(model).or_insert((0, 0, 0, 0, 0, 0, 0));
+            let entry = model_usage_map
+                .entry(model)
+                .or_insert((0, 0, 0, 0, 0, 0, 0));
             entry.0 += msg_count;
             entry.1 += total;
             entry.2 += input;
@@ -3231,7 +3364,7 @@ mod tests {
             prevented_continuation: None,
             compact_metadata: None,
             microcompact_metadata: None,
-            provider: provider.map(|p| p.to_string()),
+            provider: provider.map(std::string::ToString::to_string),
         }
     }
 
@@ -3881,6 +4014,97 @@ mod tests {
             true,
             StatsMode::ConversationOnly
         ));
+    }
+
+    #[test]
+    fn test_antigravity_conversation_breakdown_uses_chat_message_tokens() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let session_dir = temp_dir.path().join("session-123");
+        fs::create_dir_all(&session_dir).expect("failed to create session dir");
+
+        let usage_record = json!({
+            "recordType": "usage",
+            "sessionId": "session-123",
+            "sequence": 0,
+            "model": "claude-sonnet-4-6",
+            "inputTokens": 1000,
+            "outputTokens": 200,
+            "cacheReadTokens": 600,
+            "cacheWriteTokens": 100,
+            "reasoningTokens": 50,
+            "totalTokens": 1950,
+            "raw": {
+                "chatModel": {
+                    "chatStartMetadata": {
+                        "createdAt": "2026-04-14T16:28:44Z",
+                        "contextWindowMetadata": {
+                            "tokenBreakdown": {
+                                "groups": [
+                                    {
+                                        "name": "System Prompt",
+                                        "type": "TOKEN_TYPE_SYSTEM_PROMPT",
+                                        "numTokens": 300
+                                    },
+                                    {
+                                        "name": "Tools",
+                                        "type": "TOKEN_TYPE_TOOLS",
+                                        "numTokens": 300
+                                    },
+                                    {
+                                        "name": "Chat Messages",
+                                        "type": "TOKEN_TYPE_CHAT_MESSAGES",
+                                        "numTokens": 400
+                                    }
+                                ],
+                                "totalTokens": 1000
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        fs::write(session_dir.join("usage.jsonl"), format!("{usage_record}\n"))
+            .expect("failed to write usage file");
+
+        let session = crate::models::ClaudeSession {
+            session_id: "session-123".to_string(),
+            actual_session_id: "session-123".to_string(),
+            file_path: session_dir.to_string_lossy().to_string(),
+            project_name: "Antigravity".to_string(),
+            message_count: 1,
+            first_message_time: "2026-04-14T16:28:44Z".to_string(),
+            last_message_time: "2026-04-14T16:28:44Z".to_string(),
+            last_modified: "2026-04-14T16:28:44Z".to_string(),
+            has_tool_use: true,
+            has_errors: false,
+            summary: None,
+            is_renamed: false,
+            provider: Some("antigravity".to_string()),
+            storage_type: None,
+        };
+
+        let (billing_stats, _) =
+            build_antigravity_session_token_stats(&session, StatsMode::BillingTotal, None, None)
+                .expect("billing stats should parse")
+                .expect("billing stats should exist");
+        let (conversation_stats, _) = build_antigravity_session_token_stats(
+            &session,
+            StatsMode::ConversationOnly,
+            None,
+            None,
+        )
+        .expect("conversation stats should parse")
+        .expect("conversation stats should exist");
+
+        assert_eq!(billing_stats.total_tokens, 1950);
+        assert_eq!(conversation_stats.total_input_tokens, 400);
+        assert_eq!(conversation_stats.total_cache_read_tokens, 240);
+        assert_eq!(conversation_stats.total_cache_creation_tokens, 40);
+        assert_eq!(conversation_stats.total_output_tokens, 200);
+        assert_eq!(conversation_stats.total_reasoning_tokens, 50);
+        assert_eq!(conversation_stats.total_tokens, 930);
+        assert!(conversation_stats.total_tokens < billing_stats.total_tokens);
     }
 
     #[test]
