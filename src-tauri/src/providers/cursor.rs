@@ -657,6 +657,20 @@ mod tests {
     }
 
     #[test]
+    fn test_convert_user_bubble_with_numeric_timestamp() {
+        let bubble = json!({
+            "type": 1,
+            "bubbleId": "user-2",
+            "createdAt": 1700000000000_u64,
+            "text": "Hello from Cursor",
+            "images": []
+        });
+        let result = convert_cursor_bubble(&bubble, 1, "session-1").unwrap();
+        assert_eq!(result.message_type, "user");
+        assert_eq!(result.timestamp, ms_to_iso(1700000000000));
+    }
+
+    #[test]
     fn test_convert_assistant_tool_bubble() {
         let bubble = json!({
             "type": 2,
