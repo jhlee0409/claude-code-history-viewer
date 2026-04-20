@@ -177,33 +177,33 @@ pub fn parse_session_hint_from_url(url: &tauri::Url) -> Option<SessionHint> {
     }
 }
 
-/// Minimal percent-decoder that handles `%xx` hex escapes and `+` → space.
+/// Percent-decode a URL path segment (handles `%xx` hex escapes only).
+///
+/// Does NOT convert `+` → space: that is a
+/// `application/x-www-form-urlencoded` convention for query strings and
+/// form bodies, not URL paths. A literal `+` in a path segment should stay a
+/// `+` — otherwise a session title containing `+` (e.g. "C++ bug") gets
+/// corrupted on the round-trip through a custom-scheme URL.
+///
+/// Decodes into `Vec<u8>` and then `String::from_utf8` so multi-byte UTF-8
+/// sequences (e.g. Korean / Japanese / Chinese titles) survive intact.
+/// Falls back to the raw input if the decoded bytes aren't valid UTF-8.
 fn percent_decode(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
+    let mut buf = Vec::with_capacity(input.len());
     let bytes = input.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        let b = bytes[i];
-        if b == b'+' {
-            out.push(' ');
-            i += 1;
-        } else if b == b'%' && i + 2 < bytes.len() {
-            if let (Some(hi), Some(lo)) = (
-                (bytes[i + 1] as char).to_digit(16),
-                (bytes[i + 2] as char).to_digit(16),
-            ) {
-                out.push(((hi << 4) | lo) as u8 as char);
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(byte) = u8::from_str_radix(&input[i + 1..i + 3], 16) {
+                buf.push(byte);
                 i += 3;
                 continue;
             }
-            out.push(b as char);
-            i += 1;
-        } else {
-            out.push(b as char);
-            i += 1;
         }
+        buf.push(bytes[i]);
+        i += 1;
     }
-    out
+    String::from_utf8(buf).unwrap_or_else(|_| input.to_string())
 }
 
 /// Heuristic absolute-path detection that works on both Unix and Windows.
@@ -503,5 +503,37 @@ mod tests {
     fn rejects_unknown_scheme() {
         let hint = parse_session_hint_from_url(&url("http://example.com/session/foo"));
         assert!(hint.is_none());
+    }
+
+    #[test]
+    fn title_survives_utf8_multibyte_round_trip() {
+        // "한글 제목" percent-encoded. If percent_decode treats bytes as chars
+        // instead of decoding into a Vec<u8> + from_utf8, the result is mojibake.
+        let hint = parse_session_hint_from_url(&url(
+            "claude-code-history-viewer://session-title/%ED%95%9C%EA%B8%80%20%EC%A0%9C%EB%AA%A9",
+        ))
+        .expect("hint");
+        assert_eq!(hint.kind, SessionHintKind::Title);
+        assert_eq!(hint.value, "한글 제목");
+    }
+
+    #[test]
+    fn title_preserves_literal_plus_character() {
+        // A raw `+` in a URL path segment must stay `+`, not become a space.
+        // `+` → space is form-urlencoded semantics, not path semantics.
+        let hint = parse_session_hint_from_url(&url(
+            "claude-code-history-viewer://session-title/C%2B%2B%20bug",
+        ))
+        .expect("hint");
+        assert_eq!(hint.value, "C++ bug");
+    }
+
+    #[test]
+    fn title_plus_is_not_decoded_to_space() {
+        // Explicit bare `+` (not `%2B`) stays literal.
+        let hint =
+            parse_session_hint_from_url(&url("claude-code-history-viewer://session-title/one+two"))
+                .expect("hint");
+        assert_eq!(hint.value, "one+two");
     }
 }
