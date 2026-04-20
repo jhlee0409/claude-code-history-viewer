@@ -76,3 +76,4 @@ debug.log*
 
 # Claude Code worktrees
 .claude/worktrees/
+PLAN.md

@@ -336,14 +336,14 @@ Launch the app pre-focused on a specific session by passing a `--session` flag:
 # Full UUID
 claude-code-history-viewer --session 1265cd74-caa9-472e-b343-c4f44b5cf12c
 
-# UUID prefix (8+ hex chars) — first match wins
+# UUID prefix (8+ hex-or-dash chars, up to 36) — first match wins
 claude-code-history-viewer --session 1265cd74
 
 # Equals form also works
 claude-code-history-viewer --session=1265cd74
 ```
 
-The viewer scans every known project, navigates to the matching session, and falls back to normal startup if no session matches. Malformed values (non-hex, wrong length) are silently ignored.
+The viewer scans every known project, navigates to the matching session, and falls back to normal startup if no session matches. Values that are neither hex-or-dash of length 8..36 nor an absolute path are silently ignored.
 
 ## Accessibility
 

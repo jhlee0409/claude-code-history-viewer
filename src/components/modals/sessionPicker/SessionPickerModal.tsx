@@ -117,8 +117,10 @@ export const SessionPickerModal: React.FC = () => {
                     className="max-h-[60vh] overflow-y-auto divide-y divide-border rounded-md border"
                 >
                     {candidates!.map((c, i) => {
+                        // Keyed by session_id to match the metadata store's
+                        // keying used everywhere else in the UI.
                         const displayName =
-                            getSessionDisplayName(c.session.actual_session_id, c.session.summary)
+                            getSessionDisplayName(c.session.session_id, c.session.summary)
                             ?? c.session.summary
                             ?? c.session.actual_session_id;
                         const lastMod = c.session.last_modified

@@ -333,14 +333,14 @@ GET /health
 # 完整 UUID
 claude-code-history-viewer --session 1265cd74-caa9-472e-b343-c4f44b5cf12c
 
-# UUID 前綴（8 個以上 hex 字元）— 選中首個符合的工作階段
+# UUID 前綴（由 hex 或短橫線組成的 8-36 個字元）— 選中首個符合的工作階段
 claude-code-history-viewer --session 1265cd74
 
 # equals 形式同樣支援
 claude-code-history-viewer --session=1265cd74
 ```
 
-應用程式會掃描所有已知專案並導覽至符合的工作階段；若無任何相符項目，則以一般流程啟動。無效的值（非 hex、長度錯誤）會被靜默忽略。
+應用程式會掃描所有已知專案並導覽至符合的工作階段；若無任何相符項目，則以一般流程啟動。既非 hex-或-短橫線的 8-36 字元、也非絕對路徑的值會被靜默忽略。
 
 ## 無障礙
 

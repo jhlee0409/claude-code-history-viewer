@@ -166,7 +166,10 @@ export const GlobalSearchModal = ({
                     return;
                 }
 
-                // Hoisted: excludeSidechain doesn't change during the scan, so read once.
+                // Snapshot excludeSidechain once to keep requests consistent
+                // across the scan and avoid repeated getState() calls. The
+                // setting is user-configurable; taking a snapshot is intentional
+                // so a mid-scan toggle does not change half the requests.
                 const { excludeSidechain } = useAppStore.getState();
                 for (const project of projects) {
                     try {

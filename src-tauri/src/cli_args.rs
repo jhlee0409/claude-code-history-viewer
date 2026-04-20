@@ -9,6 +9,28 @@
 //! (empty value) returned `Some("")` instead of `None`. This module is the
 //! single canonical implementation.
 
+/// True if the user passed the flag with an explicitly empty value — either
+/// `--flag=` (empty equals) or a bare `--flag` with no value after it or
+/// followed immediately by another `--flag`. Useful for distinguishing "flag
+/// was intentionally misconfigured" from "flag was omitted" when both return
+/// `None` from [`extract_flag_value`].
+#[must_use]
+pub fn has_explicit_empty_flag(args: &[String], flag: &str) -> bool {
+    let prefix = format!("{flag}=");
+    args.iter().enumerate().any(|(idx, arg)| {
+        if arg == &prefix {
+            return true;
+        }
+        if arg == flag {
+            return match args.get(idx + 1) {
+                None => true,
+                Some(next) => next.starts_with("--"),
+            };
+        }
+        false
+    })
+}
+
 /// Extract the value of `--flag=value` or `--flag value` from argv.
 ///
 /// A flag without a following value, followed by another flag starting with
@@ -115,5 +137,49 @@ mod tests {
             extract_flag_value(&argv(&["--token=abc123"]), "--token"),
             Some("abc123".into())
         );
+    }
+
+    #[test]
+    fn has_explicit_empty_flag_detects_equals_form() {
+        assert!(has_explicit_empty_flag(
+            &argv(&["app", "--token="]),
+            "--token"
+        ));
+    }
+
+    #[test]
+    fn has_explicit_empty_flag_detects_bare_flag_at_end() {
+        assert!(has_explicit_empty_flag(
+            &argv(&["app", "--token"]),
+            "--token"
+        ));
+    }
+
+    #[test]
+    fn has_explicit_empty_flag_detects_flag_followed_by_other_flag() {
+        assert!(has_explicit_empty_flag(
+            &argv(&["app", "--token", "--no-auth"]),
+            "--token"
+        ));
+    }
+
+    #[test]
+    fn has_explicit_empty_flag_false_when_flag_absent() {
+        assert!(!has_explicit_empty_flag(
+            &argv(&["app", "--serve"]),
+            "--token"
+        ));
+    }
+
+    #[test]
+    fn has_explicit_empty_flag_false_when_flag_has_value() {
+        assert!(!has_explicit_empty_flag(
+            &argv(&["app", "--token", "abc"]),
+            "--token"
+        ));
+        assert!(!has_explicit_empty_flag(
+            &argv(&["app", "--token=abc"]),
+            "--token"
+        ));
     }
 }

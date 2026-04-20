@@ -20,6 +20,7 @@
 import { toast } from "sonner";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
+import type { SessionPickerCandidate } from "@/store/slices/sessionPickerSlice";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 
 export type SessionHintKind = "uuid" | "path" | "folder" | "title";
@@ -32,11 +33,8 @@ export interface SessionHint {
 /** Translator function compatible with `i18next`'s `t()`. */
 export type Translator = (key: string, fallback?: string) => string;
 
-/** Passed to `openSessionPicker` when a title hint matches multiple sessions. */
-export interface SessionPickerCandidate {
-  project: ClaudeProject;
-  session: ClaudeSession;
-}
+// Re-exported so App.tsx can keep its existing import surface stable.
+export type { SessionPickerCandidate };
 
 export interface PreloadDependencies {
   /** Retrieves the startup hint, if any. Injected for testability. */
@@ -89,13 +87,20 @@ function matchByUuid(
 
 /**
  * Normalize a path for cross-platform comparison: collapse `\\` → `/`, lowercase
- * on Windows (filesystem is case-insensitive), and strip a trailing slash.
+ * for Windows path forms (filesystem is case-insensitive), and strip a trailing
+ * slash.
+ *
+ * Windows absolute paths take two shapes: drive-letter (`C:\...` or `C:/...`
+ * which becomes `C:/...` after backslash normalization) and UNC
+ * (`\\server\share\...` which becomes `//server/share/...`). Both are
+ * case-insensitive on NTFS; we lowercase both so CLI value and stored
+ * `file_path` compare equal regardless of the user's casing.
  */
 function normalizePath(path: string): string {
   const unified = path.replace(/\\/g, "/").replace(/\/+$/, "");
-  // Detect Windows drive-letter prefix as a proxy for OS; we don't have
-  // process.platform reliably in the renderer, so the heuristic is safe.
-  if (/^[a-zA-Z]:\//.test(unified)) {
+  const isWindowsDriveLetter = /^[a-zA-Z]:\//.test(unified);
+  const isWindowsUnc = unified.startsWith("//");
+  if (isWindowsDriveLetter || isWindowsUnc) {
     return unified.toLowerCase();
   }
   return unified;
@@ -116,7 +121,10 @@ function matchByPath(sessions: ClaudeSession[], absPath: string): ClaudeSession 
  * project name. Lowercased for case-insensitive substring matching.
  */
 function titleHaystack(s: ClaudeSession): string {
-  const display = useAppStore.getState().getSessionDisplayName(s.actual_session_id, s.summary)
+  // Metadata store keys custom names by `session_id` (the app-wide identifier
+  // used by SessionItem, editor, etc). Querying by `actual_session_id` would
+  // miss user renames and behave inconsistently with the rest of the UI.
+  const display = useAppStore.getState().getSessionDisplayName(s.session_id, s.summary)
     ?? s.summary
     ?? "";
   return `${display} ${s.project_name ?? ""}`.toLowerCase();
@@ -337,6 +345,12 @@ async function commitSingleMatch(
     return { handled: true, matched: false };
   }
   await deps.selectProject(match.project);
+  // Re-check after the project-load await: the user may have clicked a
+  // session while selectProject was loading. Skipping this check lets the
+  // CLI hint clobber their manual choice.
+  if (useAppStore.getState().selectedSession) {
+    return { handled: true, matched: false };
+  }
   await deps.selectSession(match.session);
   return { handled: true, matched: true };
 }

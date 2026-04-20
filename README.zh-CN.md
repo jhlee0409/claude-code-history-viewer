@@ -333,14 +333,14 @@ GET /health
 # 完整 UUID
 claude-code-history-viewer --session 1265cd74-caa9-472e-b343-c4f44b5cf12c
 
-# UUID 前缀（8 个以上 hex 字符）— 选中首个匹配的会话
+# UUID 前缀（由 hex 或短横线组成的 8-36 个字符）— 选中首个匹配的会话
 claude-code-history-viewer --session 1265cd74
 
 # equals 形式同样支持
 claude-code-history-viewer --session=1265cd74
 ```
 
-应用会扫描所有已知项目并导航到匹配的会话；若没有匹配会话，则按正常流程启动。非法值（非 hex、长度错误）将被静默忽略。
+应用会扫描所有已知项目并导航到匹配的会话；若没有匹配会话，则按正常流程启动。既不是 hex-或-短横线的 8-36 字符也不是绝对路径的值将被静默忽略。
 
 ## 无障碍
 

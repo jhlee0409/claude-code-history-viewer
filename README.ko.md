@@ -333,14 +333,14 @@ GET /health
 # 전체 UUID
 claude-code-history-viewer --session 1265cd74-caa9-472e-b343-c4f44b5cf12c
 
-# UUID 접두어 (8자 이상 hex) — 처음 매칭되는 세션 선택
+# UUID 접두어 (hex 또는 dash로 구성된 8-36자) — 처음 매칭되는 세션 선택
 claude-code-history-viewer --session 1265cd74
 
 # equals 형식도 지원
 claude-code-history-viewer --session=1265cd74
 ```
 
-앱이 모든 프로젝트를 스캔하여 매칭되는 세션으로 이동하며, 일치하는 세션이 없으면 일반 실행으로 진행됩니다. 잘못된 값(hex 아님, 길이 오류)은 조용히 무시됩니다.
+앱이 모든 프로젝트를 스캔하여 매칭되는 세션으로 이동하며, 일치하는 세션이 없으면 일반 실행으로 진행됩니다. 값이 hex-또는-dash 조합의 8..36자 형식도 아니고 절대 경로도 아니면 조용히 무시됩니다.
 
 ## 접근성
 

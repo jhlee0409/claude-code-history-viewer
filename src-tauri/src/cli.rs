@@ -422,9 +422,10 @@ mod tests {
 
     #[test]
     fn malformed_session_does_not_fall_through_to_folder() {
-        // When --session has a malformed value we reject it outright rather than
-        // walking to the next flag. Users get explicit feedback that their
-        // --session value was bad.
+        // When --session has a malformed value we reject it outright rather
+        // than walking to the next flag (which would silently change the
+        // user's intent). The return is a silent None; the frontend then
+        // treats the launch as if no --session was passed.
         let args = argv(&[
             "app",
             "--session",

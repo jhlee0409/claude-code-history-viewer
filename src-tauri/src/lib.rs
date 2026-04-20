@@ -375,6 +375,11 @@ fn resolve_auth_token(args: &[String]) -> Option<(String, AuthTokenSource)> {
             return Some((trimmed.to_string(), AuthTokenSource::Cli));
         }
         eprintln!("⚠ --token value is empty; falling back to auto-generated token");
+    } else if crate::cli_args::has_explicit_empty_flag(args, "--token") {
+        // `extract_flag_value` returns None for `--token=` and for a bare
+        // `--token` at end-of-argv. Neither case should silently auto-generate
+        // a token without warning the operator their config is broken.
+        eprintln!("⚠ --token value is empty; falling back to auto-generated token");
     }
     if let Ok(token) = std::env::var("CCHV_TOKEN") {
         let trimmed = token.trim();
