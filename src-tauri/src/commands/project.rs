@@ -172,7 +172,12 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         .max_depth(1)
         .into_iter()
         .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().is_dir())
+        .filter(|e| {
+            // Accept real directories and symlinks that resolve to directories.
+            // Symlinks are only followed at depth 1 (project level), never deeper,
+            // so there is no risk of traversing outside the projects/ tree.
+            e.file_type().is_dir() || (e.file_type().is_symlink() && e.path().is_dir())
+        })
     {
         let raw_project_name = entry.file_name().to_string_lossy().to_string();
         let project_path = entry.path().to_string_lossy().to_string();
