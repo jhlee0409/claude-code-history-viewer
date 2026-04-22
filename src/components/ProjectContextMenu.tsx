@@ -6,10 +6,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { ClaudeProject } from "../types";
+import { computeMenuPosition, type Boundary } from "@/utils/contextMenu";
 
 interface ProjectContextMenuProps {
   project: ClaudeProject;
-  position: { x: number; y: number };
+  position: { x: number; y: number; boundary?: Boundary | null };
   onClose: () => void;
   onHide: (projectPath: string) => void;
   onUnhide: (projectPath: string) => void;
@@ -26,7 +27,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
 }) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
-  const [adjustedPosition, setAdjustedPosition] = useState(position);
+  const [adjustedPosition, setAdjustedPosition] = useState({ x: position.x, y: position.y });
 
   // Close on click outside
   useEffect(() => {
@@ -50,27 +51,42 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
     };
   }, [onClose]);
 
-  // Adjust position if menu would go off-screen
+  // Close on scroll or resize. Arm one animation frame after mount so a
+  // synchronous scroll burst during the click-to-open sequence can't close
+  // the menu immediately. Capture phase on scroll catches scroll on any
+  // descendant (scroll events don't bubble, but capture flows root → target).
+  // removeEventListener must match the capture flag or the listener leaks.
+  useEffect(() => {
+    let armed = false;
+    const raf = requestAnimationFrame(() => {
+      armed = true;
+    });
+    const handleScroll = () => {
+      if (armed) onClose();
+    };
+    const handleResize = () => {
+      if (armed) onClose();
+    };
+    document.addEventListener("scroll", handleScroll, { capture: true, passive: true });
+    window.addEventListener("resize", handleResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("scroll", handleScroll, { capture: true });
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [onClose]);
+
+  // Adjust position if the menu would overflow the boundary (or viewport if absent).
   useLayoutEffect(() => {
     if (menuRef.current) {
       const rect = menuRef.current.getBoundingClientRect();
-      const windowWidth = window.innerWidth;
-      const windowHeight = window.innerHeight;
-
-      let x = position.x;
-      let y = position.y;
-
-      if (x + rect.width > windowWidth) {
-        x = windowWidth - rect.width - 8;
-      }
-      if (y + rect.height > windowHeight) {
-        y = windowHeight - rect.height - 8;
-      }
-
-      x = Math.max(8, x);
-      y = Math.max(8, y);
-
-      setAdjustedPosition({ x, y });
+      setAdjustedPosition(
+        computeMenuPosition(
+          { x: position.x, y: position.y },
+          { width: rect.width, height: rect.height },
+          position.boundary,
+        ),
+      );
     }
   }, [position]);
 

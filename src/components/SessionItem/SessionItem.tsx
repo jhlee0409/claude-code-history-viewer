@@ -7,6 +7,9 @@ import { SessionNameEditor } from "./components/SessionNameEditor";
 import { SessionContextMenu } from "./components/SessionContextMenu";
 import { SessionMeta } from "./components/SessionMeta";
 import type { SessionItemProps } from "./types";
+import type { Boundary } from "@/utils/contextMenu";
+
+type ContextMenuPosition = { x: number; y: number; boundary?: Boundary | null };
 
 export const SessionItem: React.FC<SessionItemProps> = ({
   session,
@@ -16,7 +19,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   formatTimeAgo,
 }) => {
   const editing = useSessionEditing(session);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null);
 
   const handleClick = useCallback(() => {
     if (!editing.isEditing && !isSelected) {
@@ -25,10 +28,13 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   }, [editing.isEditing, isSelected, onSelect]);
 
   const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLElement>) => {
       e.preventDefault();
       editing.setIsContextMenuOpen(false);
-      setContextMenu({ x: e.clientX, y: e.clientY });
+      const boundary = e.currentTarget
+        .closest<HTMLElement>("[data-menu-boundary]")
+        ?.getBoundingClientRect() ?? null;
+      setContextMenu({ x: e.clientX, y: e.clientY, boundary });
     },
     [editing]
   );
