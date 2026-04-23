@@ -11,7 +11,15 @@
  * - navigateToSubagent / navigateBackToParent guard against concurrent double-click
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { create } from "zustand";
 import type {
   ClaudeMessage,
@@ -52,7 +60,27 @@ vi.mock("../utils/searchIndex", () => ({
 }));
 
 // Jsdom doesn't have requestIdleCallback — force the setTimeout fallback path.
-Reflect.deleteProperty(globalThis as Record<string, unknown>, "requestIdleCallback");
+// 다른 테스트 worker에 영향 주지 않도록 afterAll에서 복원.
+const originalRequestIdleCallback = (
+  globalThis as Record<string, unknown>
+).requestIdleCallback;
+
+beforeAll(() => {
+  Reflect.deleteProperty(
+    globalThis as Record<string, unknown>,
+    "requestIdleCallback",
+  );
+});
+
+afterAll(() => {
+  if (originalRequestIdleCallback !== undefined) {
+    Object.defineProperty(globalThis, "requestIdleCallback", {
+      configurable: true,
+      writable: true,
+      value: originalRequestIdleCallback,
+    });
+  }
+});
 
 // analyticsApi isn't exercised by these tests but is referenced by the slice.
 vi.mock("../services/analyticsApi", () => ({
@@ -140,9 +168,12 @@ const makeProgress = (
     timestamp: "2026-01-01T00:00:00.000Z",
     isSidechain: false,
     parentToolUseID,
-    data: agentId
-      ? { type: "agent_progress", agentId }
-      : { type: "other" as never },
+    // CLAUDE.md 가이드: null/undefined 동시 체크에 != null 사용.
+    // agentId가 null이면 "agent_progress 형태이지만 agentId 결측" 케이스를 커버.
+    data:
+      agentId != null
+        ? { type: "agent_progress", agentId }
+        : { type: "agent_progress" },
   }) as unknown as ClaudeProgressMessage;
 
 const makeUserMessage = (
