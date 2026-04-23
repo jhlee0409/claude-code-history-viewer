@@ -77,7 +77,7 @@ export interface MessageSliceActions {
   ) => Promise<SessionComparison>;
   clearTokenStats: () => void;
   // SubAgent navigation
-  loadSubagents: (sessionPath: string) => Promise<void>;
+  loadSubagents: (sessionPath: string, sourceMessages?: ClaudeMessage[]) => Promise<void>;
   navigateToSubagent: (subagent: SubagentSession) => Promise<void>;
   navigateBackToParent: () => Promise<void>;
 }
@@ -169,9 +169,16 @@ export const createMessageSlice: StateCreator<
     // Clear previous session's search index
     clearSearchIndex();
 
-    // Only clear parentSessionStack on non-subagent navigation.
-    // navigateToSubagent/navigateBackToParent manage the stack themselves.
-    const preserveStack = isSubagentNav;
+    // Subagent intent를 await 전에 캡처하여 async race 차단.
+    // - isSubagentNav: navigateToSubagent가 세팅한 1회성 플래그
+    // - isInPlaceReload: filter toggle/refreshCurrentSession에서 같은 세션을 재로드하는 경우
+    //   이때 parentSessionStack이 비어있지 않다면 유저는 서브에이전트를 보고 있던 상태.
+    // 이 값을 이후 로직 전체에서 참조해야 await 중 stack 변이로 인한 blank 화면·sidechain leak 방지.
+    const isInPlaceReload = get().selectedSession?.file_path === session.file_path;
+    const wasInSubagent = get().parentSessionStack.length > 0;
+    const shouldTreatAsSubagent =
+      isSubagentNav || (isInPlaceReload && wasInSubagent);
+    const preserveStack = shouldTreatAsSubagent;
     isSubagentNav = false;
 
     set({
@@ -199,10 +206,14 @@ export const createMessageSlice: StateCreator<
         sessionPath,
       });
 
-      // Apply sidechain filter (subagent 세션은 모든 메시지가 isSidechain=true이므로 우회)
-      const isSubagentSession = get().parentSessionStack.length > 0;
+      // Stale response guard: await 중 다른 세션으로 이동했으면 중단.
+      // (in-place reload는 selectedSession이 동일하므로 여기서 걸리지 않음)
+      if (get().selectedSession?.file_path !== session.file_path) return;
+
+      // Apply sidechain filter — shouldTreatAsSubagent(pre-await 캡처값)를 사용.
+      // subagent 세션은 모든 메시지가 isSidechain=true이므로 필터 우회.
       let filteredMessages =
-        get().excludeSidechain && !isSubagentSession
+        get().excludeSidechain && !shouldTreatAsSubagent
           ? allMessages.filter((m) => !m.isSidechain)
           : allMessages;
 
@@ -238,8 +249,9 @@ export const createMessageSlice: StateCreator<
         isLoadingMessages: false,
       });
 
-      // Load subagent sessions (non-blocking)
-      get().loadSubagents(sessionPath);
+      // Load subagent sessions (non-blocking). allMessages는 시스템 메시지 필터 적용 전이므로
+      // progress 메시지를 통한 parentToolUseID ↔ subagent 매핑이 성립.
+      void get().loadSubagents(sessionPath, allMessages);
 
       // Build FlexSearch index asynchronously after UI renders
       // The buildSearchIndex now internally uses chunked async processing
@@ -689,22 +701,28 @@ export const createMessageSlice: StateCreator<
   // SubAgent Navigation
   // ============================================================================
 
-  loadSubagents: async (sessionPath: string) => {
+  loadSubagents: async (
+    sessionPath: string,
+    sourceMessages?: ClaudeMessage[],
+  ) => {
     try {
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
         sessionPath,
       });
       // Guard: only update if still viewing the same session
       if (get().selectedSession?.file_path === sessionPath) {
-        // progress 메시지만 parentToolUseID와 agentId를 함께 보유 → 유일한 매핑 소스
-        const agentIds = new Set(subagents.map((s) => s.agent_id));
+        // progress 메시지만 parentToolUseID와 agentId를 함께 보유 → 유일한 매핑 소스.
+        // sourceMessages(pre-filter) 우선, 호출자가 넘기지 않은 경우 현재 state 사용.
+        // Map 값은 file_path(유일 식별자) — agent_id는 filename stem 기반이라 충돌 가능.
         const map = new Map<string, string>();
-        if (agentIds.size > 0) {
-          for (const msg of get().messages) {
+        if (subagents.length > 0) {
+          for (const msg of sourceMessages ?? get().messages) {
             if (msg.type !== "progress" || !msg.parentToolUseID) continue;
             const agentId = getAgentIdFromProgress(msg);
-            if (agentId && agentIds.has(agentId)) {
-              map.set(msg.parentToolUseID, agentId);
+            if (!agentId) continue;
+            const sub = subagents.find((s) => s.agent_id === agentId);
+            if (sub) {
+              map.set(msg.parentToolUseID, sub.file_path);
             }
           }
         }

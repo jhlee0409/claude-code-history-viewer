@@ -67,10 +67,15 @@ export const ClaudeMessageNode = React.memo(({
 
   const handleViewSubagent = subagentSessions.length > 0
     ? (toolUseId: string) => {
-        const agentId = toolUseToSubagentMap.get(toolUseId);
-        const match = agentId
-          ? subagentSessions.find((s) => s.agent_id === agentId)
-          : subagentSessions[0];
+        // Map은 parentToolUseID → file_path(유일 식별자)를 저장.
+        // 맵 미스 시 subagentSessions[0] 폴백은 다중 서브에이전트에서 잘못된 대화로 silently 이동하므로
+        // 단일 서브에이전트(ambiguity 없음)일 때만 폴백 허용.
+        const filePath = toolUseToSubagentMap.get(toolUseId);
+        const match = filePath
+          ? subagentSessions.find((s) => s.file_path === filePath)
+          : subagentSessions.length === 1
+            ? subagentSessions[0]
+            : undefined;
         if (match) {
           void navigateToSubagent(match);
         }

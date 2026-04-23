@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ExportFormat } from "@/types/export";
 import type { SubagentSession } from "@/types";
-import { useToggle } from "@/hooks/useToggle";
 
 /** max-height로 스크롤 처리 — 버튼 1행 높이(~28px) × 3행 + 여유 */
 const SUBAGENT_PANEL_MAX_HEIGHT = "6.5rem";
@@ -55,7 +54,10 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
   navigateToSubagent: (sa: SubagentSession) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const [isOpen, toggle] = useToggle("subagent-sessions-panel", true);
+  // 이 패널은 메시지 콘텐츠가 아닌 viewer chrome이므로 capture registry 대신 로컬 state 사용
+  // (useToggle은 ExpandKeyProvider context가 필요해 top-level 렌더에서 throw)
+  const [isOpen, setIsOpen] = useState(true);
+  const toggle = useCallback(() => setIsOpen((prev) => !prev), []);
   const ChevronIcon = isOpen ? ChevronDown : ChevronRight;
 
   return (
@@ -63,6 +65,7 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
       <button
         type="button"
         onClick={toggle}
+        aria-expanded={isOpen}
         className="flex items-center gap-2 w-full text-left cursor-pointer hover:text-foreground/80"
         aria-label={t("renderers.agentTool.subagentSessions", { defaultValue: "SubAgent Sessions" })}
       >
@@ -598,10 +601,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     }
   }, [onNextMatch, onPrevMatch, handleClearSearch]);
 
-  // 세션 전환 중인지 확인 (스크롤 요소 미준비 또는 세션 ID 불일치)
-  const isSessionTransitioning = selectedSession?.session_id &&
-    (!scrollElementReady || scrollReadyForSessionId !== selectedSession?.session_id);
-
   // 로딩 중일 때 로딩 표시 (isLoadingMessages 기반 — scrollReady 의존 제거로 빈 세션 무한 스피너 방지)
   if ((isLoading || isLoadingMessages) && messages.length === 0) {
     return (
@@ -616,8 +615,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     );
   }
 
-  // 세션이 없거나 실제로 메시지가 없는 경우에만 "No Messages" 표시
-  if (messages.length === 0 && !isSessionTransitioning) {
+  // 로딩 종료 후 메시지가 없으면 "No Messages" 표시 (위 L606 스피너 분기가 로딩을 먼저 처리).
+  // isSessionTransitioning 의존 제거: scrollReadyForSessionId는 messagesLength>0 일 때만 세팅되어
+  // 빈 세션에서 영구 true가 되는 회귀를 유발.
+  if (messages.length === 0) {
     return (
       <LoadingState
         isLoading={false}
