@@ -402,6 +402,43 @@ describe("messageSlice — navigate guards & error branches", () => {
     );
   });
 
+  it("selectSession suppresses stale failure when user navigated away mid-flight", async () => {
+    const store = createTestStore();
+    const sessionA = makeSession({
+      session_id: "A",
+      file_path: "/tmp/A.jsonl",
+    });
+    const sessionB = makeSession({
+      session_id: "B",
+      file_path: "/tmp/B.jsonl",
+    });
+    // Deferred rejection for A
+    let rejectA!: (err: Error) => void;
+    const rejectPromiseA = new Promise<ClaudeMessage[]>((_, reject) => {
+      rejectA = reject;
+    });
+    mockApi.mockImplementation((cmd: string, args: { sessionPath: string }) => {
+      if (cmd === "load_provider_messages") {
+        return args.sessionPath === "/tmp/A.jsonl"
+          ? rejectPromiseA
+          : Promise.resolve([]);
+      }
+      if (cmd === "get_session_subagents") return Promise.resolve([]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    const pA = store.getState().selectSession(sessionA);
+    // User navigates to B mid-flight (selectedSession now points to B)
+    store.setState({ selectedSession: sessionB });
+
+    rejectA(new Error("abandoned A"));
+    await pA;
+
+    // Stale guard in catch: neither toast nor setError fires for the abandoned load
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(store.getState().setError).not.toHaveBeenCalled();
+  });
+
   it("selectSession routes subagent load failure to toast, top-level failure to setError", async () => {
     // Top-level: setError is called
     const store = createTestStore();

@@ -58,7 +58,7 @@ export interface MessageSliceState {
   // SubAgent navigation
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
-  /** parentToolUseID → agent_id 매핑 (progress 메시지 기반) */
+  /** parentToolUseID → subagent file_path 매핑 (progress 메시지 기반, file_path는 유일 식별자) */
   toolUseToSubagentMap: Map<string, string>;
 }
 
@@ -272,10 +272,15 @@ export const createMessageSlice: StateCreator<
         }, 0);
       }
     } catch (error) {
+      // Stale error guard: await 중 다른 세션으로 이동했으면 abandoned request의
+      // 에러·로딩 상태를 현재 UI에 덮어쓰지 않음 (success path의 L212 guard 미러링)
+      if (get().selectedSession?.file_path !== session.file_path) return;
+
       console.error("Failed to load session messages:", error);
-      // 서브에이전트 로딩 실패 시 toast로 알림 (전체 페이지 에러 방지)
+      // 서브에이전트 로딩 실패 시 toast로 알림 (전체 페이지 에러 방지).
+      // shouldTreatAsSubagent(pre-await 캡처)를 사용해 await 중 stack 변이에 영향받지 않음.
       const message = error instanceof Error ? error.message : String(error);
-      if (get().parentSessionStack.length > 0) {
+      if (shouldTreatAsSubagent) {
         toast.error(`Failed to load subagent messages: ${message}`);
       } else {
         get().setError({ type: AppErrorType.UNKNOWN, message });
