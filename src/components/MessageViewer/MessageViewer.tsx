@@ -43,37 +43,39 @@ import {
 import type { ExportFormat } from "@/types/export";
 import type { SubagentSession } from "@/types";
 
-/** max-height로 스크롤 처리 — 버튼 1행 높이(~28px) × 3행 + 여유 */
-const SUBAGENT_PANEL_MAX_HEIGHT = "6.5rem";
+// max-height 계산: 버튼 1행 높이 × 3행 + 여유
+const SUBAGENT_ROW_HEIGHT_REM = 1.75;
+const SUBAGENT_PANEL_VISIBLE_ROWS = 3;
+const SUBAGENT_PANEL_MAX_HEIGHT_REM =
+  SUBAGENT_ROW_HEIGHT_REM * SUBAGENT_PANEL_VISIBLE_ROWS + 1;
 
 const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
   subagentSessions,
   navigateToSubagent,
+  isOpen,
+  onToggle,
 }: {
   subagentSessions: SubagentSession[];
   navigateToSubagent: (sa: SubagentSession) => Promise<void>;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
   const { t } = useTranslation();
-  // 이 패널은 메시지 콘텐츠가 아닌 viewer chrome이므로 capture registry 대신 로컬 state 사용
-  // (useToggle은 ExpandKeyProvider context가 필요해 top-level 렌더에서 throw)
-  const [isOpen, setIsOpen] = useState(true);
-  const toggle = useCallback(() => setIsOpen((prev) => !prev), []);
+  const label = t("renderers.agentTool.subagentSessions", { defaultValue: "SubAgent Sessions" });
   const ChevronIcon = isOpen ? ChevronDown : ChevronRight;
 
   return (
     <div className="border-b border-border/50 px-4 py-2 bg-muted/30">
       <button
         type="button"
-        onClick={toggle}
+        onClick={onToggle}
         aria-expanded={isOpen}
         className="flex items-center gap-2 w-full text-left cursor-pointer hover:text-foreground/80"
-        aria-label={t("renderers.agentTool.subagentSessions", { defaultValue: "SubAgent Sessions" })}
+        aria-label={label}
       >
         <ChevronIcon className="w-3 h-3 text-muted-foreground" />
         <Bot className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground">
-          {t("renderers.agentTool.subagentSessions", { defaultValue: "SubAgent Sessions" })}
-        </span>
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
         <span className="text-[10px] text-muted-foreground/70 bg-muted rounded-full px-1.5">
           {subagentSessions.length}
         </span>
@@ -81,7 +83,7 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
       {isOpen && (
         <div
           className="flex flex-wrap gap-1.5 overflow-y-auto mt-1.5"
-          style={{ maxHeight: SUBAGENT_PANEL_MAX_HEIGHT }}
+          style={{ maxHeight: `${SUBAGENT_PANEL_MAX_HEIGHT_REM}rem` }}
         >
           {subagentSessions.map((sa) => (
             <button
@@ -125,6 +127,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // Track when OverlayScrollbars is initialized
   const [scrollElementReady, setScrollElementReady] = useState(false);
 
+  // SubAgent 패널 접힘 상태 — MessageViewer에 lift해야 filter toggle 같은
+  // 분기 재렌더(패널 자식 unmount)에서 유저 선택이 보존됨.
+  const [isSubagentPanelOpen, setIsSubagentPanelOpen] = useState(true);
+  const toggleSubagentPanel = useCallback(
+    () => setIsSubagentPanelOpen((prev) => !prev),
+    [],
+  );
+
   // Capture mode state
   const {
     isCaptureMode,
@@ -147,7 +157,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     parentSessionStack,
     navigateToSubagent,
     navigateBackToParent,
-    // Message loading state (used for loading condition instead of scroll-based transitioning)
+    // 메시지 로딩 상태 — 로딩 스피너 표시 조건
     isLoadingMessages,
   } = useAppStore();
 
@@ -884,11 +894,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         </div>
       )}
 
-      {/* SubAgent sessions panel — collapsible when > 3 */}
+      {/* SubAgent sessions panel — collapsible (접힘 상태는 MessageViewer에 lift됨) */}
       {subagentSessions.length > 0 && parentSessionStack.length === 0 && (
         <SubagentSessionsPanel
           subagentSessions={subagentSessions}
           navigateToSubagent={navigateToSubagent}
+          isOpen={isSubagentPanelOpen}
+          onToggle={toggleSubagentPanel}
         />
       )}
 

@@ -77,7 +77,7 @@ export interface MessageSliceActions {
   ) => Promise<SessionComparison>;
   clearTokenStats: () => void;
   // SubAgent navigation
-  loadSubagents: (sessionPath: string, sourceMessages?: ClaudeMessage[]) => Promise<void>;
+  loadSubagents: (sessionPath: string, sourceMessages: ClaudeMessage[]) => Promise<void>;
   navigateToSubagent: (subagent: SubagentSession) => Promise<void>;
   navigateBackToParent: () => Promise<void>;
 }
@@ -99,6 +99,9 @@ export const INITIAL_PAGINATION = {
   isLoadingMore: false,
 } as const;
 
+// 빈 Map 재사용으로 useAppStore 구독자의 불필요한 re-render 방지
+const EMPTY_SUBAGENT_MAP: ReadonlyMap<string, string> = new Map();
+
 const initialMessageState: MessageSliceState = {
   messages: [],
   pagination: { ...INITIAL_PAGINATION },
@@ -113,7 +116,7 @@ const initialMessageState: MessageSliceState = {
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
   subagentSessions: [],
   parentSessionStack: [],
-  toolUseToSubagentMap: new Map(),
+  toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
 };
 
 // ============================================================================
@@ -131,6 +134,10 @@ export const createMessageSlice: StateCreator<
   // Flag set by navigateToSubagent/navigateBackToParent to prevent
   // selectSession from clearing the parentSessionStack.
   let isSubagentNav = false;
+
+  // Concurrent-navigation guard for navigateToSubagent/navigateBackToParent.
+  // Rapid double-click corrupts parentSessionStack (duplicate push before await resolves).
+  let subagentNavInFlight = false;
 
   const beginTokenStatsLoading = (): number => {
     const epoch = tokenStatsLoadingEpoch;
@@ -186,7 +193,7 @@ export const createMessageSlice: StateCreator<
       pagination: { ...INITIAL_PAGINATION },
       isLoadingMessages: true,
       subagentSessions: [],
-      toolUseToSubagentMap: new Map(),
+      toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
       ...(preserveStack ? {} : { parentSessionStack: [] }),
     });
 
@@ -703,7 +710,7 @@ export const createMessageSlice: StateCreator<
 
   loadSubagents: async (
     sessionPath: string,
-    sourceMessages?: ClaudeMessage[],
+    sourceMessages: ClaudeMessage[],
   ) => {
     try {
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
@@ -712,21 +719,29 @@ export const createMessageSlice: StateCreator<
       // Guard: only update if still viewing the same session
       if (get().selectedSession?.file_path === sessionPath) {
         // progress 메시지만 parentToolUseID와 agentId를 함께 보유 → 유일한 매핑 소스.
-        // sourceMessages(pre-filter) 우선, 호출자가 넘기지 않은 경우 현재 state 사용.
         // Map 값은 file_path(유일 식별자) — agent_id는 filename stem 기반이라 충돌 가능.
-        const map = new Map<string, string>();
+        // sourceMessages는 반드시 pre-filter(allMessages) — post-filter는 progress 제거됨.
+        let map: Map<string, string> | ReadonlyMap<string, string> =
+          EMPTY_SUBAGENT_MAP;
         if (subagents.length > 0) {
-          for (const msg of sourceMessages ?? get().messages) {
+          // O(1) lookup을 위해 agent_id → subagent 인덱스 선구축
+          const byAgentId = new Map(subagents.map((s) => [s.agent_id, s]));
+          const built = new Map<string, string>();
+          for (const msg of sourceMessages) {
             if (msg.type !== "progress" || !msg.parentToolUseID) continue;
             const agentId = getAgentIdFromProgress(msg);
             if (!agentId) continue;
-            const sub = subagents.find((s) => s.agent_id === agentId);
+            const sub = byAgentId.get(agentId);
             if (sub) {
-              map.set(msg.parentToolUseID, sub.file_path);
+              built.set(msg.parentToolUseID, sub.file_path);
             }
           }
+          if (built.size > 0) map = built;
         }
-        set({ subagentSessions: subagents, toolUseToSubagentMap: map });
+        set({
+          subagentSessions: subagents,
+          toolUseToSubagentMap: map as Map<string, string>,
+        });
       }
     } catch (error) {
       // Graceful fallback: older sessions won't have subagents
@@ -734,15 +749,21 @@ export const createMessageSlice: StateCreator<
         console.warn("[loadSubagents] Failed:", error);
       }
       if (get().selectedSession?.file_path === sessionPath) {
-        set({ subagentSessions: [], toolUseToSubagentMap: new Map() });
+        set({
+          subagentSessions: [],
+          toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
+        });
       }
     }
   },
 
   navigateToSubagent: async (subagent: SubagentSession) => {
+    if (subagentNavInFlight) return;
     const currentSession = get().selectedSession;
     if (!currentSession) return;
 
+    subagentNavInFlight = true;
+    try {
     // Push current session onto the navigation stack
     set((state) => ({
       parentSessionStack: [...state.parentSessionStack, currentSession],
@@ -765,17 +786,26 @@ export const createMessageSlice: StateCreator<
 
     isSubagentNav = true;
     await get().selectSession(syntheticSession);
+    } finally {
+      subagentNavInFlight = false;
+    }
   },
 
   navigateBackToParent: async () => {
+    if (subagentNavInFlight) return;
     const stack = get().parentSessionStack;
     if (stack.length === 0) return;
 
-    const parentSession = stack[stack.length - 1]!;
-    set({ parentSessionStack: stack.slice(0, -1) });
+    subagentNavInFlight = true;
+    try {
+      const parentSession = stack[stack.length - 1]!;
+      set({ parentSessionStack: stack.slice(0, -1) });
 
-    isSubagentNav = true;
-    await get().selectSession(parentSession);
+      isSubagentNav = true;
+      await get().selectSession(parentSession);
+    } finally {
+      subagentNavInFlight = false;
+    }
   },
   };
 };
