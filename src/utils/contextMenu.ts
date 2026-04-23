@@ -5,6 +5,19 @@ export type Boundary = {
   bottom: number;
 };
 
+/**
+ * Compute a context menu position that flips to the opposite side of the cursor
+ * when it would overflow the boundary's right or bottom edge, then clamps the
+ * result inside the boundary with the given padding.
+ *
+ * When `boundary` is null or undefined, falls back to the viewport
+ * (`window.innerWidth` / `window.innerHeight`).
+ *
+ * Overflow policy: when the menu is larger than the boundary minus 2× padding
+ * on either axis, the menu is pinned to the left/top edge and overflows the
+ * opposite edge. This is intentional — pinning is preferred over hiding the
+ * menu entirely.
+ */
 export function computeMenuPosition(
   cursor: { x: number; y: number },
   menu: { width: number; height: number },
