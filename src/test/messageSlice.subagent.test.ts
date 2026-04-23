@@ -36,8 +36,12 @@ vi.mock("@/services/api", () => ({
 }));
 
 const mockToastError = vi.fn();
+const mockToastWarning = vi.fn();
 vi.mock("sonner", () => ({
-  toast: { error: (...args: unknown[]) => mockToastError(...args) },
+  toast: {
+    error: (...args: unknown[]) => mockToastError(...args),
+    warning: (...args: unknown[]) => mockToastWarning(...args),
+  },
 }));
 
 const mockBuildSearchIndex = vi.fn();
@@ -170,6 +174,7 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
   beforeEach(() => {
     mockApi.mockReset();
     mockToastError.mockReset();
+    mockToastWarning.mockReset();
     mockBuildSearchIndex.mockReset();
     mockClearSearchIndex.mockReset();
   });
@@ -368,6 +373,10 @@ describe("messageSlice.loadSubagents — map building from pre-filter messages",
 
     expect(store.getState().toolUseToSubagentMap.size).toBe(0);
     expect(store.getState().subagentSessions).toEqual([]);
+    // CLAUDE.md 가이드: async 실패는 사용자에게 가시적 피드백
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      expect.stringContaining("fetch failed"),
+    );
   });
 });
 
@@ -375,6 +384,44 @@ describe("messageSlice — navigate guards & error branches", () => {
   beforeEach(() => {
     mockApi.mockReset();
     mockToastError.mockReset();
+    mockToastWarning.mockReset();
+  });
+
+  it("navigateBackToParent to top-level re-applies sidechain filter (isSubagentNav reset)", async () => {
+    const store = createTestStore();
+    const topSession = makeSession({ file_path: "/tmp/top.jsonl" });
+    const subSession = makeSession({
+      session_id: "/tmp/sub.jsonl",
+      actual_session_id: "agent-1",
+      file_path: "/tmp/sub.jsonl",
+    });
+    store.setState({
+      selectedSession: subSession,
+      parentSessionStack: [topSession], // one level deep
+      excludeSidechain: true,
+    });
+
+    // Top-level messages mix regular + sidechain — filter must strip sidechain
+    mockApi.mockImplementation((cmd: string, args: { sessionPath: string }) => {
+      if (cmd === "load_provider_messages" && args.sessionPath === "/tmp/top.jsonl") {
+        return Promise.resolve([
+          makeUserMessage("regular-1", false),
+          makeUserMessage("sidechain-1", true),
+          makeUserMessage("regular-2", false),
+        ]);
+      }
+      if (cmd === "get_session_subagents") return Promise.resolve([]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    await store.getState().navigateBackToParent();
+
+    // Stack empty after pop → top-level → sidechain filtered out
+    expect(store.getState().parentSessionStack).toEqual([]);
+    expect(store.getState().messages.map((m) => m.uuid)).toEqual([
+      "regular-1",
+      "regular-2",
+    ]);
   });
 
   it("navigateToSubagent ignores concurrent double-click (no duplicate stack push)", async () => {

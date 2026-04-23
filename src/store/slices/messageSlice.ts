@@ -749,11 +749,14 @@ export const createMessageSlice: StateCreator<
         });
       }
     } catch (error) {
-      // Graceful fallback: older sessions won't have subagents
       if (import.meta.env.DEV) {
         console.warn("[loadSubagents] Failed:", error);
       }
+      // 여전히 같은 세션을 보고 있을 때만 피드백 + 상태 초기화.
+      // CLAUDE.md 가이드: async 실패는 사용자에게 가시적 피드백 필요.
       if (get().selectedSession?.file_path === sessionPath) {
+        const message = error instanceof Error ? error.message : String(error);
+        toast.warning(`Failed to load subagent sessions: ${message}`);
         set({
           subagentSessions: [],
           toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
@@ -804,9 +807,13 @@ export const createMessageSlice: StateCreator<
     subagentNavInFlight = true;
     try {
       const parentSession = stack[stack.length - 1]!;
-      set({ parentSessionStack: stack.slice(0, -1) });
+      const remainingStack = stack.slice(0, -1);
+      set({ parentSessionStack: remainingStack });
 
-      isSubagentNav = true;
+      // remainingStack이 비어있으면 top-level로 복귀 → isSubagentNav=false여야
+      // selectSession에서 sidechain 필터가 정상 적용됨.
+      // 중첩 서브에이전트 체인에서 한 단계만 pop하는 경우에만 플래그 유지.
+      isSubagentNav = remainingStack.length > 0;
       await get().selectSession(parentSession);
     } finally {
       subagentNavInFlight = false;
