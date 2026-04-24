@@ -32,10 +32,13 @@ pub fn detect() -> Option<ProviderInfo> {
     })
 }
 
+/// Metadata extracted from a session's `manifest.json` file.
 struct ManifestInfo {
+    /// Number of steps recorded in the session.
     step_count: usize,
 }
 
+/// Reads the `manifest.json` file from a session directory and extracts step count.
 fn read_manifest(dir: &std::path::Path) -> Option<ManifestInfo> {
     let path = dir.join("manifest.json");
     if !path.exists() {
@@ -109,6 +112,7 @@ pub fn summarize_usage_file(path: &std::path::Path) -> UsageSummary {
     }
 }
 
+/// Converts a Unix timestamp in milliseconds to an RFC3339 string.
 fn ms_to_rfc3339(ms: u64) -> String {
     if ms == 0 {
         return "1970-01-01T00:00:00Z".to_string();
@@ -162,14 +166,17 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     }])
 }
 
+/// Clamps a `u64` value to `u32::MAX` and returns it as `u32`.
 fn to_u32_saturating(value: u64) -> u32 {
     value.min(u64::from(u32::MAX)) as u32
 }
 
+/// Returns the platform-specific Antigravity logs root directory.
 fn antigravity_logs_root() -> Option<PathBuf> {
     dirs::data_dir().map(|dir| dir.join("Antigravity").join("logs"))
 }
 
+/// Maps an Antigravity overlay display string to a canonical tool name.
 fn tool_name_from_overlay_display(display: &str) -> Option<&'static str> {
     match display {
         "Opening URL..." => Some("BrowserOpenUrl"),
@@ -182,6 +189,7 @@ fn tool_name_from_overlay_display(display: &str) -> Option<&'static str> {
     }
 }
 
+/// Extracts tool names from a protobuf session file using low-false-positive heuristics.
 fn extract_pb_tool_names(pb_path: &Path) -> Vec<String> {
     let Ok(bytes) = std::fs::read(pb_path) else {
         return vec![];
@@ -221,6 +229,8 @@ fn extract_pb_tool_names(pb_path: &Path) -> Vec<String> {
     tool_names
 }
 
+/// Extracts tool names from an Antigravity log file by parsing
+/// `window.updateActuationOverlay` calls for a given session ID.
 fn extract_log_tool_names(log_path: &Path, session_id: &str) -> Vec<String> {
     let Ok(content) = std::fs::read_to_string(log_path) else {
         return vec![];
@@ -260,6 +270,8 @@ fn extract_log_tool_names(log_path: &Path, session_id: &str) -> Vec<String> {
     tool_names
 }
 
+/// Loads tool names for a session by scanning both the protobuf conversation
+/// file and the Antigravity log directory.
 fn load_antigravity_tool_names(session_path: &str, session_id: &str) -> Vec<String> {
     let mut tool_names = Vec::new();
 
@@ -285,6 +297,8 @@ fn load_antigravity_tool_names(session_path: &str, session_id: &str) -> Vec<Stri
     tool_names
 }
 
+/// Injects `tool_use` entries into the last assistant message in the list
+/// to surface browser automation tool names discovered from logs/protobuf files.
 fn merge_tool_names_into_messages(
     mut messages: Vec<ClaudeMessage>,
     session_id: &str,
@@ -544,6 +558,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     ))
 }
 
+/// Formats a token count as a human-readable string (e.g. `1.2k`, `3.5M`).
 fn fmt_tokens(n: u64) -> String {
     if n >= 1_000_000 {
         format!("{:.1}M", n as f64 / 1_000_000.0)

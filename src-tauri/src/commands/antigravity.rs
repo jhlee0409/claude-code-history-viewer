@@ -38,6 +38,10 @@ pub fn get_antigravity_root() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".gemini").join("antigravity"))
 }
 
+/// Resolves the antigravity root directory, with fallback discovery logic.
+///
+/// First checks the default `~/.gemini/antigravity` path, then falls back to
+/// external state directories discovered via platform-specific config locations.
 pub fn resolve_antigravity_root() -> Option<PathBuf> {
     let default_root = get_antigravity_root();
     if default_root.as_ref().is_some_and(|root| root.exists()) {
@@ -50,6 +54,8 @@ pub fn resolve_antigravity_root() -> Option<PathBuf> {
         .or(default_root)
 }
 
+/// Resolves the antigravity root from an arbitrary path by walking up the directory
+/// tree and looking for the `.token-monitor/rpc-cache/v1` marker.
 pub fn antigravity_root_from_path(path: &str) -> Option<PathBuf> {
     let candidate = PathBuf::from(path);
     let default_root = get_antigravity_root();
@@ -84,10 +90,16 @@ pub fn antigravity_root_from_path(path: &str) -> Option<PathBuf> {
     default_root
 }
 
+/// Returns the RPC cache root path for a given antigravity root.
 pub fn get_antigravity_rpc_cache_root(root: &Path) -> PathBuf {
     root.join(".token-monitor").join("rpc-cache").join("v1")
 }
 
+/// Discovers external state directories across platform-specific config locations.
+///
+/// On macOS searches `~/Library/Application Support`; on Windows `dirs::data_dir()`;
+/// on Linux checks `~/.config` and platform config dirs. Looks for directories
+/// containing a `monitor-state.json` file in their global storage subdirectory.
 fn discover_external_state_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let bases = if cfg!(target_os = "macos") {
@@ -150,14 +162,19 @@ fn discover_external_state_dirs() -> Vec<PathBuf> {
     dirs
 }
 
+/// Metadata extracted from an RPC cache `manifest.json` file.
 #[derive(Default)]
 struct RpcManifestInfo {
+    /// Unix timestamp (ms) when the state was exported.
     exported_at_ms: u64,
+    /// Unix timestamp (ms) of the server's last modification.
     server_last_modified_ms: u64,
 }
 
+/// Accumulates token usage across multiple usage records in a session.
 #[derive(Default)]
 struct RpcSessionAggregate {
+    /// Number of usage records processed.
     record_count: u32,
     input_tokens: u64,
     output_tokens: u64,
@@ -167,9 +184,11 @@ struct RpcSessionAggregate {
     total_tokens: u64,
     first_seen_ms: Option<u64>,
     last_seen_ms: Option<u64>,
+    /// Maps model name -> total tokens used.
     model_totals: HashMap<String, u64>,
 }
 
+/// Represents a candidate session discovered in the antigravity brain directory.
 struct SessionCandidate {
     session_id: String,
     session_dir: PathBuf,
@@ -178,6 +197,7 @@ struct SessionCandidate {
     label_hint: String,
 }
 
+/// Parses an RFC3339 timestamp string to Unix milliseconds.
 fn parse_rfc3339_to_ms(raw: &str) -> Option<u64> {
     let timestamp_ms = chrono::DateTime::parse_from_rfc3339(raw)
         .ok()?
@@ -188,6 +208,7 @@ fn parse_rfc3339_to_ms(raw: &str) -> Option<u64> {
     u64::try_from(timestamp_ms).ok()
 }
 
+/// Returns the file's modification time in Unix milliseconds, or 0 on error.
 fn file_mtime_ms(path: &Path) -> u64 {
     std::fs::metadata(path)
         .ok()
@@ -197,6 +218,7 @@ fn file_mtime_ms(path: &Path) -> u64 {
         .unwrap_or(0)
 }
 
+/// Reads and parses the `manifest.json` file from an RPC cache directory.
 fn read_rpc_manifest(dir: &Path) -> RpcManifestInfo {
     let path = dir.join("manifest.json");
     let Ok(content) = std::fs::read_to_string(path) else {
@@ -212,6 +234,7 @@ fn read_rpc_manifest(dir: &Path) -> RpcManifestInfo {
     }
 }
 
+/// Resolves a model placeholder string to its canonical model name.
 fn resolve_model_alias(model: &str) -> String {
     MODEL_ALIAS_MAP
         .get(model)
@@ -220,6 +243,7 @@ fn resolve_model_alias(model: &str) -> String {
         .to_string()
 }
 
+/// Checks whether a session ID contains only safe characters (alphanumeric, underscore, hyphen).
 fn is_valid_antigravity_session_id(session_id: &str) -> bool {
     !session_id.is_empty()
         && session_id
@@ -227,6 +251,7 @@ fn is_valid_antigravity_session_id(session_id: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
 }
 
+/// Counts step records in a JSON value (records with `"recordType": "step"`).
 fn count_step_rows(value: &Value) -> u32 {
     match value {
         Value::Object(record) => {
@@ -236,6 +261,7 @@ fn count_step_rows(value: &Value) -> u32 {
     }
 }
 
+/// Counts messages (step rows) in a JSON object or array of records.
 fn count_messages(value: &Value) -> u32 {
     match value {
         Value::Object(record) => match record.get("records") {
@@ -246,6 +272,7 @@ fn count_messages(value: &Value) -> u32 {
     }
 }
 
+/// Estimates token count from raw text length using a 4-char-per-token heuristic.
 fn estimate_tokens(text: &str) -> u64 {
     let normalized = text.trim();
     if normalized.is_empty() {
@@ -255,6 +282,7 @@ fn estimate_tokens(text: &str) -> u64 {
     ((normalized.len() as f64) / 4.0).round().max(1.0) as u64
 }
 
+/// Recursively collects all string values from a JSON structure into `output`.
 fn collect_text_from_json(value: &Value, output: &mut String) {
     match value {
         Value::String(text) => {
@@ -277,6 +305,8 @@ fn collect_text_from_json(value: &Value, output: &mut String) {
     }
 }
 
+/// Parses a usage record and accumulates its token data into the aggregate.
+/// Returns `true` if the record was a usage record, `false` otherwise.
 fn parse_usage_record(record: &Value, aggregate: &mut RpcSessionAggregate) -> bool {
     if record["recordType"].as_str() != Some("usage") {
         return false;
@@ -319,6 +349,8 @@ fn parse_usage_record(record: &Value, aggregate: &mut RpcSessionAggregate) -> bo
     true
 }
 
+/// Recursively collects all file paths under `dir` into `files`, skipping
+/// system files (`.DS_Store`, `Thumbs.db`, backup files with `~` suffix) and symlinks.
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
     let entries =
         std::fs::read_dir(dir).map_err(|e| format!("Failed to read {}: {}", dir.display(), e))?;
@@ -349,6 +381,8 @@ fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
+/// Scans the `brain/` directory for session candidates, returning them sorted
+/// by last modification time (newest first).
 fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
     let brain_dir = root.join("brain");
     let conversations_dir = root.join("conversations");
@@ -400,6 +434,8 @@ fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
     Ok(sessions)
 }
 
+/// Resolves a human-readable label for a session by reading `task.md`,
+/// `implementation_plan.md`, or `walkthrough.md` and extracting the first `#` heading.
 fn resolve_label(session_dir: &Path, fallback: &str) -> String {
     for label_file in ["task.md", "implementation_plan.md", "walkthrough.md"] {
         let path = session_dir.join(label_file);
@@ -417,6 +453,8 @@ fn resolve_label(session_dir: &Path, fallback: &str) -> String {
     fallback.to_string()
 }
 
+/// Parses token usage from a list of files (jsonl, json, md, txt, log, yaml).
+/// Returns the aggregated token counts, message count, and concatenated text.
 fn parse_token_files(token_file_paths: &[PathBuf]) -> (RpcSessionAggregate, u32, String) {
     let mut aggregate = RpcSessionAggregate::default();
     let mut message_count = 0u32;
@@ -469,6 +507,7 @@ fn parse_token_files(token_file_paths: &[PathBuf]) -> (RpcSessionAggregate, u32,
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Builds a `PersistedSessionState` from token files and metadata for a single session.
 fn build_session_state(
     session_id: &str,
     label_dir: &Path,
@@ -544,6 +583,8 @@ fn build_session_state(
     }
 }
 
+/// Builds the full `AntigravityState` by scanning the antigravity root directory:
+/// first from `brain/` candidates, then from the RPC cache directory.
 fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityState, String> {
     let rpc_root = get_antigravity_rpc_cache_root(root);
     let mut sessions = HashMap::new();
@@ -663,6 +704,8 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
     })
 }
 
+/// Alias for `build_state_from_token_monitor_sources` — discovers sessions
+/// from both the `brain/` directory and the RPC cache.
 fn build_state_from_rpc_cache(root: &Path) -> Result<AntigravityState, String> {
     build_state_from_token_monitor_sources(root)
 }
@@ -852,9 +895,14 @@ pub async fn get_antigravity_session(
 
 #[tauri::command]
 pub async fn get_antigravity_project_summary(
-    _root_path: Option<String>,
+    root_path: Option<String>,
 ) -> Result<AntigravityProjectSummary, String> {
-    let root = resolve_antigravity_root().ok_or("Cannot determine antigravity root directory")?;
+    let root = root_path
+        .as_deref()
+        .and_then(antigravity_root_from_path)
+        .or_else(|| root_path.as_ref().map(PathBuf::from))
+        .or_else(resolve_antigravity_root)
+        .ok_or("Cannot determine antigravity root directory")?;
     let state = load_antigravity_state_impl(&root)?;
     Ok(compute_project_summary(&state))
 }
@@ -1069,5 +1117,29 @@ mod tests {
             session.latest.file_path,
             rpc_dir.to_string_lossy().to_string()
         );
+    }
+
+    #[tokio::test]
+    async fn test_get_antigravity_project_summary_uses_explicit_root_path() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let rpc_dir = root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("sess-explicit-root");
+        std::fs::create_dir_all(&rpc_dir).unwrap();
+        std::fs::create_dir_all(root.join("brain").join("sess-explicit-root")).unwrap();
+
+        let usage = r#"{"recordType":"usage","sessionId":"sess-explicit-root","sequence":0,"model":"gemini-3-pro-high","inputTokens":120,"outputTokens":80,"cacheReadTokens":40,"cacheWriteTokens":20,"reasoningTokens":10,"totalTokens":270,"raw":{"chatModel":{"chatStartMetadata":{"createdAt":"2026-04-12T00:00:00Z"}}}}"#;
+        std::fs::write(rpc_dir.join("usage.jsonl"), format!("{usage}\n")).unwrap();
+
+        let summary = get_antigravity_project_summary(Some(root.to_string_lossy().to_string()))
+            .await
+            .unwrap();
+
+        assert_eq!(summary.session_count, 1);
+        assert_eq!(summary.total_tokens, 270);
+        assert_eq!(summary.sessions[0].session_id, "sess-explicit-root");
     }
 }
