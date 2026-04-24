@@ -166,6 +166,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
     }
 
     let mut projects = Vec::new();
+    let mut seen_canonical = std::collections::HashSet::new();
 
     for entry in WalkDir::new(&projects_path)
         .min_depth(1)
@@ -179,6 +180,17 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             e.file_type().is_dir() || (e.file_type().is_symlink() && e.path().is_dir())
         })
     {
+        // Deduplicate when a symlink and a real directory under projects/ resolve
+        // to the same target. Fall back to the raw path if canonicalize fails so
+        // transient I/O errors don't drop the entry.
+        let canonical = entry
+            .path()
+            .canonicalize()
+            .unwrap_or_else(|_| entry.path().to_path_buf());
+        if !seen_canonical.insert(canonical) {
+            continue;
+        }
+
         let raw_project_name = entry.file_name().to_string_lossy().to_string();
         let project_path = entry.path().to_string_lossy().to_string();
         let project_name = extract_project_name(&raw_project_name);
@@ -518,6 +530,89 @@ mod tests {
         let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_scan_projects_follows_symlinked_project_dir() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+
+        // Real project directory lives outside projects/ (shared-session pattern).
+        let shared_dir = temp_dir.path().join("shared").join("shared-project");
+        fs::create_dir_all(&shared_dir).unwrap();
+        create_test_jsonl_file(&shared_dir, "session.jsonl", "{}");
+
+        // Symlink it in at project depth.
+        let link_path = projects_dir.join("shared-project");
+        symlink(&shared_dir, &link_path).unwrap();
+
+        let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+
+        let projects = result.unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name, "shared-project");
+        assert_eq!(projects[0].session_count, 1);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_scan_projects_skips_dangling_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+
+        // One real project so the scan has something to return.
+        let real_dir = projects_dir.join("real-project");
+        fs::create_dir_all(&real_dir).unwrap();
+        create_test_jsonl_file(&real_dir, "session.jsonl", "{}");
+
+        // Dangling symlink pointing at a non-existent target.
+        let dangling_target = temp_dir.path().join("does-not-exist");
+        let dangling_link = projects_dir.join("dangling-project");
+        symlink(&dangling_target, &dangling_link).unwrap();
+
+        let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+
+        let projects = result.unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name, "real-project");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_scan_projects_deduplicates_symlink_and_real_dir() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+
+        // Real project directory inside projects/.
+        let real_dir = projects_dir.join("my-project");
+        fs::create_dir_all(&real_dir).unwrap();
+        create_test_jsonl_file(&real_dir, "session.jsonl", "{}");
+
+        // Alias symlink in the same projects/ that resolves to the real dir.
+        let alias_link = projects_dir.join("my-project-alias");
+        symlink(&real_dir, &alias_link).unwrap();
+
+        let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+
+        let projects = result.unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].session_count, 1);
     }
 
     #[tokio::test]
