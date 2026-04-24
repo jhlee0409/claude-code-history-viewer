@@ -45,7 +45,7 @@
 3. session 列表
 4. 消息加载
 5. token stats / analytics / global stats
-6. 全文搜索
+6. 元数据搜索
 
 明确排除：
 
@@ -554,7 +554,7 @@ PATH="$HOME/.cargo/bin:$PATH" CARGO_TARGET_DIR=/tmp/cchv-antigravity-check cargo
 | 项目 token stats | `usage.jsonl` | `Token Stats` | token 汇总正确，message_count 为 usage 数 |
 | 项目 analytics | `usage.jsonl` | `Analytics` | project summary、activity、tool/model 分布可用 |
 | 全局统计 | 多 provider + `usage.jsonl` | `Global Stats` | provider distribution 包含 `antigravity` |
-| 全文搜索 | `rpc-cache/v1/*` | 搜索框 | session ID / model 名匹配结果 |
+| 元数据搜索 | `rpc-cache/v1/*` | 搜索框 | session ID / model 名匹配结果 |
 
 ## 10. 风险与后续项
 
@@ -578,7 +578,7 @@ PATH="$HOME/.cargo/bin:$PATH" CARGO_TARGET_DIR=/tmp/cchv-antigravity-check cargo
 7. session comparison
 8. global stats provider 聚合
 9. 不新增专用 `Antigravity Usage` 页面
-10. 全文搜索（session ID / model 名匹配）
+10. 元数据搜索（session ID / model 名称匹配）
 
 ### 11.2 当前不保证完全语义等价的能力
 
@@ -989,11 +989,11 @@ CI 验证目标：
 备注：
 ```
 
-## 17. 开发任务清单
+## 16. 开发任务清单
 
 本节按“保持基线 UI 不变、参考 `opencode` 最小接入”的原则拆分开发任务。除非明确说明，否则任务默认不允许新增页面、导航、布局或样式层。
 
-### 17.1 阶段一：设计收敛
+### 16.1 阶段一：设计收敛
 
 目标：
 
@@ -1016,7 +1016,7 @@ CI 验证目标：
 1. 更新后的设计文档
 2. 范围确认结论
 
-### 17.2 阶段二：后端 provider 接入
+### 16.2 阶段二：后端 provider 接入
 
 目标：
 
@@ -1041,7 +1041,7 @@ CI 验证目标：
 1. 可被统一 provider 流程调用的 `antigravity` provider
 2. 本地可加载项目、session、消息
 
-### 17.3 阶段三：统一统计链路接入
+### 16.3 阶段三：统一统计链路接入
 
 目标：
 
@@ -1066,7 +1066,7 @@ CI 验证目标：
 1. `antigravity` 的项目级和全局统计可用
 2. synthetic user 不进入统计
 
-### 17.4 阶段四：前端最小接入
+### 16.4 阶段四：前端最小接入
 
 目标：
 
@@ -1079,18 +1079,16 @@ CI 验证目标：
 3. 确认 `ProjectTree` provider filter 可显示 `antigravity`。
 4. 确认选中 `antigravity` 后走既有项目树、session 列表、消息页。
 5. 确认 `Token Stats`、`Analytics`、`Global Stats` 不需要新增视图即可工作。
-6. 补齐 i18n 文案：
-   - `common.provider.antigravity`
-   - 其他必要 provider 展示文本
-
+6. 补齐 i18n 文案，包括 `common.provider.antigravity` 与其他必要 provider 展示文本。
 7. **不新增前端 provider 分支**：确认 `messageSlice` 中的统计加载函数（`loadSessionTokenStats` / `loadProjectTokenStats` / `loadProjectStatsSummary` / `loadSessionComparison`）不为 `antigravity` 添加特判，直接复用现有通用路径（见 §5.3）。
 8. **不引入专用工具层**：删除或不新建 `antigravityAnalytics.ts`、`antigravityApi.ts` 等仅服务于独立页面的前端文件。
+
 交付物：
 
-9. 基线 UI 不变
-10. `antigravity` 在既有界面中可见、可切换、可查看
+- 基线 UI 不变
+- `antigravity` 在既有界面中可见、可切换、可查看
 
-### 17.5 阶段五：不支持能力降级
+### 16.5 阶段五：不支持能力降级
 
 目标：
 
@@ -1112,7 +1110,7 @@ CI 验证目标：
 1. 降级后的稳定行为
 2. 不产生误导性 UI 或错误副作用
 
-### 17.6 阶段六：测试与回归
+### 16.6 阶段六：测试与回归
 
 目标：
 
@@ -1148,7 +1146,7 @@ CI 验证目标：
 1. 自动化测试结果
 2. 手工验收记录
 
-### 17.7 文件级任务拆分
+### 16.7 文件级任务拆分
 
 | 模块 | 文件 | 任务 |
 | --- | --- | --- |

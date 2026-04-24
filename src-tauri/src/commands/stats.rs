@@ -1763,6 +1763,23 @@ fn get_provider_project_stats_summary(
 
             let mut session_dates = HashSet::new();
             for record in records {
+                let (mode_input_tokens, mode_output_tokens, mode_total_tokens) = match mode {
+                    StatsMode::ConversationOnly => {
+                        let input_tokens = record.conversation_input_tokens;
+                        let output_tokens = record.output_tokens;
+                        let total_tokens = input_tokens
+                            + output_tokens
+                            + record.conversation_cache_creation_tokens
+                            + record.conversation_cache_read_tokens
+                            + record.reasoning_tokens;
+                        (input_tokens, output_tokens, total_tokens)
+                    }
+                    StatsMode::BillingTotal => (
+                        record.input_tokens,
+                        record.output_tokens,
+                        record.total_tokens,
+                    ),
+                };
                 let hour = record.timestamp.hour() as u8;
                 let day = record.timestamp.weekday().num_days_from_sunday() as u8;
                 let date = record.timestamp.format("%Y-%m-%d").to_string();
@@ -1770,7 +1787,7 @@ fn get_provider_project_stats_summary(
 
                 let activity_entry = activity_map.entry((hour, day)).or_insert((0, 0));
                 activity_entry.0 += 1;
-                activity_entry.1 += record.total_tokens;
+                activity_entry.1 += mode_total_tokens;
 
                 let daily_entry =
                     daily_stats_map
@@ -1779,9 +1796,9 @@ fn get_provider_project_stats_summary(
                             date,
                             ..Default::default()
                         });
-                daily_entry.total_tokens += record.total_tokens;
-                daily_entry.input_tokens += record.input_tokens;
-                daily_entry.output_tokens += record.output_tokens;
+                daily_entry.total_tokens += mode_total_tokens;
+                daily_entry.input_tokens += mode_input_tokens;
+                daily_entry.output_tokens += mode_output_tokens;
                 daily_entry.message_count += 1;
             }
 
@@ -4435,6 +4452,94 @@ mod tests {
             .find(|daily| daily.date == "2025-01-01")
             .expect("missing jan1 daily stat");
         assert_eq!(jan1.session_count, 2);
+    }
+
+    #[test]
+    fn test_antigravity_provider_project_summary_uses_mode_adjusted_daily_tokens() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let root = temp_dir.path();
+        let session_dir = root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("session-123");
+        fs::create_dir_all(&session_dir).expect("failed to create antigravity session dir");
+        fs::create_dir_all(root.join("brain").join("session-123"))
+            .expect("failed to create antigravity brain dir");
+
+        let usage_record = json!({
+            "recordType": "usage",
+            "sessionId": "session-123",
+            "sequence": 0,
+            "model": "claude-sonnet-4-6",
+            "inputTokens": 1000,
+            "outputTokens": 200,
+            "cacheReadTokens": 600,
+            "cacheWriteTokens": 100,
+            "reasoningTokens": 50,
+            "totalTokens": 1950,
+            "raw": {
+                "chatModel": {
+                    "chatStartMetadata": {
+                        "createdAt": "2026-04-14T16:28:44Z",
+                        "contextWindowMetadata": {
+                            "tokenBreakdown": {
+                                "groups": [
+                                    {
+                                        "name": "System Prompt",
+                                        "type": "TOKEN_TYPE_SYSTEM_PROMPT",
+                                        "numTokens": 300
+                                    },
+                                    {
+                                        "name": "Tools",
+                                        "type": "TOKEN_TYPE_TOOLS",
+                                        "numTokens": 300
+                                    },
+                                    {
+                                        "name": "Chat Messages",
+                                        "type": "TOKEN_TYPE_CHAT_MESSAGES",
+                                        "numTokens": 400
+                                    }
+                                ],
+                                "totalTokens": 1000
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        fs::write(session_dir.join("usage.jsonl"), format!("{usage_record}\n"))
+            .expect("failed to write antigravity usage file");
+
+        let summary = get_provider_project_stats_summary(
+            StatsProvider::Antigravity,
+            &root.to_string_lossy(),
+            None,
+            None,
+            StatsMode::ConversationOnly,
+        )
+        .expect("failed to build antigravity project summary");
+
+        assert_eq!(summary.total_tokens, 930);
+        assert_eq!(summary.token_distribution.input, 400);
+        assert_eq!(summary.token_distribution.output, 200);
+
+        let day = summary
+            .daily_stats
+            .iter()
+            .find(|daily| daily.date == "2026-04-14")
+            .expect("missing daily summary");
+        assert_eq!(day.total_tokens, 930);
+        assert_eq!(day.input_tokens, 400);
+        assert_eq!(day.output_tokens, 200);
+
+        let heatmap = summary
+            .activity_heatmap
+            .iter()
+            .find(|entry| entry.hour == 16 && entry.day == 2)
+            .expect("missing activity heatmap entry");
+        assert_eq!(heatmap.tokens_used, 930);
     }
 
     #[tokio::test]
