@@ -485,14 +485,12 @@ fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
                         .map(String::from);
                 }
             }
-            "turn_context" => {
-                if model.is_none() {
-                    if let Some(payload) = val.get("payload") {
-                        model = payload
-                            .get("model")
-                            .and_then(|v| v.as_str())
-                            .map(String::from);
-                    }
+            "turn_context" if model.is_none() => {
+                if let Some(payload) = val.get("payload") {
+                    model = payload
+                        .get("model")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
                 }
             }
             "response_item" => {

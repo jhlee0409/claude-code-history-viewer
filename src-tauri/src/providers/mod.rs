@@ -5,6 +5,7 @@ pub mod claude;
 pub mod cline;
 pub mod codex;
 pub mod cursor;
+pub mod forgecode;
 pub mod gemini;
 pub mod opencode;
 
@@ -18,6 +19,7 @@ pub enum ProviderId {
     Codex,
     Cursor,
     Gemini,
+    ForgeCode,
     OpenCode,
 }
 
@@ -30,6 +32,7 @@ impl ProviderId {
             Self::Codex => "codex",
             Self::Cursor => "cursor",
             Self::Gemini => "gemini",
+            Self::ForgeCode => "forgecode",
             Self::OpenCode => "opencode",
         }
     }
@@ -42,6 +45,7 @@ impl ProviderId {
             "codex" => Some(Self::Codex),
             "cursor" => Some(Self::Cursor),
             "gemini" => Some(Self::Gemini),
+            "forgecode" => Some(Self::ForgeCode),
             "opencode" => Some(Self::OpenCode),
             _ => None,
         }
@@ -55,6 +59,7 @@ impl ProviderId {
             Self::Codex => "Codex CLI",
             Self::Cursor => "Cursor",
             Self::Gemini => "Gemini CLI",
+            Self::ForgeCode => "ForgeCode",
             Self::OpenCode => "OpenCode",
         }
     }
@@ -80,6 +85,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = gemini::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = forgecode::detect() {
         providers.push(info);
     }
     if let Some(info) = opencode::detect() {

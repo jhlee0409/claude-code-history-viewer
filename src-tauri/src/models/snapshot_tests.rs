@@ -102,6 +102,72 @@ mod claude_message_snapshots {
     }
 
     #[test]
+    fn snapshot_forgecode_message() {
+        let message = ClaudeMessage {
+            uuid: "forgecode://workspace/ws-123/conversation/conv-456/message/3".to_string(),
+            parent_uuid: None,
+            session_id: "conv-456".to_string(),
+            timestamp: "2026-01-10T08:00:10Z".to_string(),
+            message_type: "assistant".to_string(),
+            content: Some(json!([
+                {"type": "text", "text": "Done"},
+                {
+                    "type": "tool_use",
+                    "id": "tool-456",
+                    "name": "Write",
+                    "input": {"file_path": "/tmp/out.rs"}
+                }
+            ])),
+            project_name: None,
+            tool_use: Some(json!({
+                "type": "tool_use",
+                "id": "tool-456",
+                "name": "Write",
+                "input": {"file_path": "/tmp/out.rs"}
+            })),
+            tool_use_result: None,
+            is_sidechain: None,
+            usage: Some(TokenUsage {
+                input_tokens: Some(120),
+                output_tokens: Some(45),
+                cache_creation_input_tokens: None,
+                cache_read_input_tokens: Some(30),
+                service_tier: None,
+            }),
+            role: Some("assistant".to_string()),
+            model: Some("forge-model-v1".to_string()),
+            stop_reason: None,
+            cost_usd: Some(0.125),
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: Some(json!({
+                "forgecodeMetrics": {
+                    "sessionStartTime": "2026-01-10T08:00:00Z",
+                    "fileOperations": 2,
+                    "filesAccessed": ["/tmp/src/main.rs", "/tmp/out.rs"],
+                    "relatedConversationIds": ["conv-002", "conv-003"]
+                }
+            })),
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+            provider: Some("forgecode".to_string()),
+        };
+
+        assert_json_snapshot!("forgecode_message", message);
+    }
+
+    #[test]
     fn snapshot_message_with_tool_use() {
         let message = ClaudeMessage {
             uuid: "test-uuid-tool".to_string(),
@@ -212,6 +278,24 @@ mod project_snapshots {
 
         assert_json_snapshot!("claude_project", project);
     }
+
+    #[test]
+    fn snapshot_forgecode_project() {
+        let project = ClaudeProject {
+            name: "Workspace ws-123".to_string(),
+            path: "forgecode://workspace/ws-123".to_string(),
+            actual_path: "forgecode://workspace/ws-123".to_string(),
+            session_count: 2,
+            message_count: 5,
+            last_modified: "2026-01-10T08:00:10Z".to_string(),
+            git_info: None,
+            provider: Some("forgecode".to_string()),
+            storage_type: Some("sqlite".to_string()),
+            custom_directory_label: None,
+        };
+
+        assert_json_snapshot!("forgecode_project", project);
+    }
 }
 
 /// Snapshot tests for `ClaudeSession`
@@ -238,6 +322,28 @@ mod session_snapshots {
         };
 
         assert_json_snapshot!("claude_session", session);
+    }
+
+    #[test]
+    fn snapshot_forgecode_session() {
+        let session = ClaudeSession {
+            session_id: "forgecode://workspace/ws-123/conversation/conv-456".to_string(),
+            actual_session_id: "conv-456".to_string(),
+            file_path: "forgecode-db://workspace/ws-123/conversation/conv-456".to_string(),
+            project_name: "Workspace ws-123".to_string(),
+            message_count: 4,
+            first_message_time: "2026-01-10T08:00:00Z".to_string(),
+            last_message_time: "2026-01-10T08:00:10Z".to_string(),
+            last_modified: "2026-01-10T08:00:10Z".to_string(),
+            has_tool_use: true,
+            has_errors: false,
+            summary: Some("Text and tool session".to_string()),
+            is_renamed: false,
+            provider: Some("forgecode".to_string()),
+            storage_type: Some("sqlite".to_string()),
+        };
+
+        assert_json_snapshot!("forgecode_session", session);
     }
 }
 

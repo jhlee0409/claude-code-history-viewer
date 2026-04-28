@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "claude", "cline", "codex", "cursor", "gemini", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "claude", "cline", "codex", "cursor", "forgecode", "gemini", "opencode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -12,6 +12,7 @@ const PROVIDER_TRANSLATIONS: Record<
   cline: { key: "common.provider.cline", fallback: "Cline" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
+  forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
 };
@@ -31,6 +32,7 @@ const PROVIDER_ANALYTICS_CAPABILITIES: Record<
   cline: { supportsConversationBreakdown: false },
   codex: { supportsConversationBreakdown: false },
   cursor: { supportsConversationBreakdown: false },
+  forgecode: { supportsConversationBreakdown: false },
   gemini: { supportsConversationBreakdown: false },
   opencode: { supportsConversationBreakdown: false },
 };
@@ -54,6 +56,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "codex":
     case "cursor":
     case "gemini":
+    case "forgecode":
     case "opencode":
     case "claude":
       return provider;
@@ -96,6 +99,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+  forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
