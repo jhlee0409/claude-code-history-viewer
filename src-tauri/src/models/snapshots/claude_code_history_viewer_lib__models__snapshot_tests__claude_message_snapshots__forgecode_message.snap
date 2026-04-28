@@ -1,0 +1,60 @@
+---
+source: src/models/snapshot_tests.rs
+expression: message
+---
+{
+  "uuid": "forgecode://workspace/ws-123/conversation/conv-456/message/3",
+  "parentUuid": null,
+  "sessionId": "conv-456",
+  "timestamp": "2026-01-10T08:00:10Z",
+  "type": "assistant",
+  "content": [
+    {
+      "text": "Done",
+      "type": "text"
+    },
+    {
+      "id": "tool-456",
+      "input": {
+        "file_path": "/tmp/out.rs"
+      },
+      "name": "Write",
+      "type": "tool_use"
+    }
+  ],
+  "toolUse": {
+    "id": "tool-456",
+    "input": {
+      "file_path": "/tmp/out.rs"
+    },
+    "name": "Write",
+    "type": "tool_use"
+  },
+  "toolUseResult": null,
+  "isSidechain": null,
+  "usage": {
+    "input_tokens": 120,
+    "output_tokens": 45,
+    "cache_creation_input_tokens": null,
+    "cache_read_input_tokens": 30,
+    "service_tier": null
+  },
+  "role": "assistant",
+  "model": "forge-model-v1",
+  "costUSD": 0.125,
+  "data": {
+    "forgecodeMetrics": {
+      "fileOperations": 2,
+      "filesAccessed": [
+        "/tmp/src/main.rs",
+        "/tmp/out.rs"
+      ],
+      "relatedConversationIds": [
+        "conv-002",
+        "conv-003"
+      ],
+      "sessionStartTime": "2026-01-10T08:00:00Z"
+    }
+  },
+  "provider": "forgecode"
+}

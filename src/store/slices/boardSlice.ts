@@ -118,12 +118,7 @@ export const createBoardSlice: StateCreator<
             const selectedProject = get().selectedProject;
             let projectCommits: import("../../types").GitCommit[] = [];
 
-            if (selectedProject?.actual_path) {
-                if (!isAbsolutePath(selectedProject.actual_path)) {
-                    const msg = "Invalid project path";
-                    set({ isLoadingBoard: false, boardLoadError: msg });
-                    return;
-                }
+            if (selectedProject?.actual_path && isAbsolutePath(selectedProject.actual_path)) {
                 try {
                     projectCommits = await api<import("../../types").GitCommit[]>(
                         "get_git_log",
@@ -139,10 +134,6 @@ export const createBoardSlice: StateCreator<
 
             const loadPromises = sessions.map(async (session) => {
                 try {
-                    if (!isAbsolutePath(session.file_path)) {
-                        set({ boardLoadError: "Invalid session path" });
-                        return null;
-                    }
                     const provider = session.provider ?? "claude";
                     const messages = await api<ClaudeMessage[]>(
                         "load_provider_messages",

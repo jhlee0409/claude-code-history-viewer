@@ -11,6 +11,7 @@ use chrono::{DateTime, Datelike, Timelike, Utc};
 use memmap2::Mmap;
 use rayon::prelude::*;
 use serde::Deserialize;
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -1501,7 +1502,7 @@ fn build_tool_usage_stats(tool_usage: HashMap<String, (u32, u32)>) -> Vec<ToolUs
         })
         .collect::<Vec<_>>();
 
-    tools.sort_by_key(|b| std::cmp::Reverse(b.usage_count));
+    tools.sort_by_key(|tool| Reverse(tool.usage_count));
     tools
 }
 
@@ -1757,7 +1758,7 @@ fn get_provider_project_token_stats(
     }
 
     let total_count = all_stats.len();
-    all_stats.sort_by_key(|b| std::cmp::Reverse(b.total_tokens));
+    all_stats.sort_by_key(|stats| Reverse(stats.total_tokens));
     let items = all_stats
         .into_iter()
         .skip(offset)
@@ -2254,7 +2255,7 @@ fn get_provider_session_comparison(
     };
 
     let mut sessions_by_tokens = all_sessions.clone();
-    sessions_by_tokens.sort_by_key(|b| std::cmp::Reverse(b.total_tokens));
+    sessions_by_tokens.sort_by_key(|stats| Reverse(stats.total_tokens));
     let rank_by_tokens = sessions_by_tokens
         .iter()
         .position(|s| s.session_id == session_id)
@@ -2262,7 +2263,7 @@ fn get_provider_session_comparison(
         + 1;
 
     let mut sessions_by_duration = all_sessions.clone();
-    sessions_by_duration.sort_by_key(|b| std::cmp::Reverse(b.duration_seconds));
+    sessions_by_duration.sort_by_key(|stats| Reverse(stats.duration_seconds));
     let rank_by_duration = sessions_by_duration
         .iter()
         .position(|s| s.session_id == session_id)
@@ -2604,9 +2605,8 @@ pub async fn get_project_token_stats(
 
     let total_count = all_stats.len();
 
-    // Sort by total tokens (descending)
     let mut all_stats = all_stats;
-    all_stats.sort_by_key(|b| std::cmp::Reverse(b.total_tokens));
+    all_stats.sort_by_key(|stats| Reverse(stats.total_tokens));
 
     // Apply pagination
     let paginated_items: Vec<SessionTokenStats> =
@@ -2777,7 +2777,7 @@ pub async fn get_project_stats_summary(
         .collect();
     summary
         .most_used_tools
-        .sort_by_key(|b| std::cmp::Reverse(b.usage_count));
+        .sort_by_key(|tool| Reverse(tool.usage_count));
 
     summary.daily_stats = daily_stats_map.into_values().collect();
     summary.daily_stats.sort_by(|a, b| a.date.cmp(&b.date));
@@ -2984,9 +2984,8 @@ pub async fn get_session_comparison(
         0.0
     };
 
-    // Sort by tokens to find rank
     let mut sessions_by_tokens = all_sessions.clone();
-    sessions_by_tokens.sort_by_key(|b| std::cmp::Reverse(b.total_tokens));
+    sessions_by_tokens.sort_by_key(|stats| Reverse(stats.total_tokens));
 
     let rank_by_tokens = sessions_by_tokens
         .iter()
@@ -2994,9 +2993,8 @@ pub async fn get_session_comparison(
         .unwrap_or(0)
         + 1;
 
-    // Sort by duration to find rank
     let mut sessions_by_duration = all_sessions.clone();
-    sessions_by_duration.sort_by_key(|b| std::cmp::Reverse(b.duration_seconds));
+    sessions_by_duration.sort_by_key(|stats| Reverse(stats.duration_seconds));
 
     let rank_by_duration = sessions_by_duration
         .iter()
@@ -3320,7 +3318,7 @@ pub async fn get_global_stats_summary(
         .collect();
     summary
         .most_used_tools
-        .sort_by_key(|b| std::cmp::Reverse(b.usage_count));
+        .sort_by_key(|tool| Reverse(tool.usage_count));
 
     summary.provider_distribution = provider_stats_map
         .into_iter()
@@ -3339,7 +3337,7 @@ pub async fn get_global_stats_summary(
         .collect();
     summary
         .provider_distribution
-        .sort_by_key(|b| std::cmp::Reverse(b.tokens));
+        .sort_by_key(|provider| Reverse(provider.tokens));
 
     summary.model_distribution = model_usage_map
         .into_iter()
@@ -3369,7 +3367,7 @@ pub async fn get_global_stats_summary(
         .collect();
     summary
         .model_distribution
-        .sort_by_key(|b| std::cmp::Reverse(b.token_count));
+        .sort_by_key(|model| Reverse(model.token_count));
 
     summary.top_projects = project_stats_map
         .into_iter()
@@ -3384,7 +3382,7 @@ pub async fn get_global_stats_summary(
         .collect();
     summary
         .top_projects
-        .sort_by_key(|b| std::cmp::Reverse(b.tokens));
+        .sort_by_key(|project| Reverse(project.tokens));
     summary.top_projects.truncate(10);
 
     summary.daily_stats = daily_stats_map.into_values().collect();

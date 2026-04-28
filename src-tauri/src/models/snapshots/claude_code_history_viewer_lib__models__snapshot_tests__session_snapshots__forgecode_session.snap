@@ -1,0 +1,20 @@
+---
+source: src/models/snapshot_tests.rs
+expression: session
+---
+{
+  "session_id": "forgecode://workspace/ws-123/conversation/conv-456",
+  "actual_session_id": "conv-456",
+  "file_path": "forgecode-db://workspace/ws-123/conversation/conv-456",
+  "project_name": "Workspace ws-123",
+  "message_count": 4,
+  "first_message_time": "2026-01-10T08:00:00Z",
+  "last_message_time": "2026-01-10T08:00:10Z",
+  "last_modified": "2026-01-10T08:00:10Z",
+  "has_tool_use": true,
+  "has_errors": false,
+  "summary": "Text and tool session",
+  "is_renamed": false,
+  "provider": "forgecode",
+  "storage_type": "sqlite"
+}
