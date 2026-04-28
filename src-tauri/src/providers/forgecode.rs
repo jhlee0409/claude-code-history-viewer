@@ -830,15 +830,8 @@ fn extract_embedded_tool_use(content: &Value) -> Option<Value> {
 
 fn extract_usage(payload: &Value) -> Option<TokenUsage> {
     let usage = payload.get("usage").unwrap_or(payload);
-    let input_tokens = extract_u32(
-        usage,
-        &[
-            "input_tokens",
-            "inputTokens",
-            "prompt_tokens",
-            "promptTokens",
-        ],
-    );
+    let direct_input_tokens = extract_u32(usage, &["input_tokens", "inputTokens"]);
+    let prompt_tokens = extract_u32(usage, &["prompt_tokens", "promptTokens"]);
     let output_tokens = extract_u32(
         usage,
         &[
@@ -861,6 +854,9 @@ fn extract_usage(payload: &Value) -> Option<TokenUsage> {
             "cachedTokens",
         ],
     );
+    let input_tokens = direct_input_tokens.or_else(|| {
+        prompt_tokens.map(|prompt| prompt.saturating_sub(cache_read_input_tokens.unwrap_or(0)))
+    });
     let service_tier = extract_string(usage, &["service_tier", "serviceTier"]);
 
     if input_tokens.is_none()
@@ -1608,6 +1604,42 @@ mod tests {
     }
 
     #[test]
+    fn extract_usage_derives_consumed_input_from_prompt_and_cached_tokens() {
+        let usage = extract_usage(&json!({
+            "usage": {
+                "prompt_tokens": { "actual": 120 },
+                "completion_tokens": { "actual": 45 },
+                "cached_tokens": { "actual": 30 },
+                "cost": 0.125
+            }
+        }))
+        .expect("usage should be extracted");
+
+        assert_eq!(usage.input_tokens, Some(90));
+        assert_eq!(usage.output_tokens, Some(45));
+        assert_eq!(usage.cache_read_input_tokens, Some(30));
+        assert_eq!(usage.cache_creation_input_tokens, None);
+    }
+
+    #[test]
+    fn extract_usage_preserves_explicit_input_tokens() {
+        let usage = extract_usage(&json!({
+            "usage": {
+                "input_tokens": 120,
+                "output_tokens": 45,
+                "cache_read_input_tokens": 30,
+                "cache_creation_input_tokens": 10
+            }
+        }))
+        .expect("usage should be extracted");
+
+        assert_eq!(usage.input_tokens, Some(120));
+        assert_eq!(usage.output_tokens, Some(45));
+        assert_eq!(usage.cache_read_input_tokens, Some(30));
+        assert_eq!(usage.cache_creation_input_tokens, Some(10));
+    }
+
+    #[test]
     fn sqlite_scan_projects_groups_rows_by_workspace() {
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
@@ -1703,7 +1735,7 @@ mod tests {
         assert_eq!(messages[4].cost_usd, Some(0.125));
         assert_eq!(
             messages[2].usage.as_ref().and_then(|u| u.input_tokens),
-            Some(120)
+            Some(90)
         );
         assert_eq!(
             messages[2].usage.as_ref().and_then(|u| u.output_tokens),
@@ -1718,7 +1750,7 @@ mod tests {
         );
         assert_eq!(
             messages[4].usage.as_ref().and_then(|u| u.input_tokens),
-            Some(120)
+            Some(90)
         );
         assert_eq!(
             messages[4].usage.as_ref().and_then(|u| u.output_tokens),
