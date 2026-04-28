@@ -88,7 +88,11 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "ForgeCode base path")?;
-    Ok(scan_projects_from_db(base_path).unwrap_or_default())
+    if let Some(projects) = scan_projects_from_db(base_path) {
+        return Ok(projects);
+    }
+    log::debug!("ForgeCode: no projects found or DB unavailable at {base_path}");
+    Ok(Vec::new())
 }
 
 pub fn load_sessions(
@@ -99,7 +103,11 @@ pub fn load_sessions(
     let workspace_id = parse_workspace_project_path(project_path)
         .ok_or_else(|| format!("Invalid ForgeCode project path: {project_path}"))?;
 
-    Ok(load_sessions_from_db(&base_path, &workspace_id).unwrap_or_default())
+    if let Some(sessions) = load_sessions_from_db(&base_path, &workspace_id) {
+        return Ok(sessions);
+    }
+    log::debug!("ForgeCode: no sessions found for workspace {workspace_id}");
+    Ok(Vec::new())
 }
 
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
@@ -107,7 +115,13 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let (workspace_id, conversation_id) = parse_conversation_path(session_path)
         .ok_or_else(|| format!("Invalid ForgeCode session path: {session_path}"))?;
 
-    Ok(load_messages_from_db(&base_path, &workspace_id, &conversation_id).unwrap_or_default())
+    if let Some(messages) = load_messages_from_db(&base_path, &workspace_id, &conversation_id) {
+        return Ok(messages);
+    }
+    log::debug!(
+        "ForgeCode: no messages found for workspace {workspace_id} conversation {conversation_id}"
+    );
+    Ok(Vec::new())
 }
 
 fn open_db(base_path: &str) -> Option<Connection> {
