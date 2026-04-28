@@ -22,6 +22,7 @@ enum StatsProvider {
     #[default]
     Claude,
     Codex,
+    ForgeCode,
     OpenCode,
     Antigravity,
 }
@@ -53,6 +54,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
     match provider {
         StatsProvider::Claude => "claude",
         StatsProvider::Codex => "codex",
+        StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
         StatsProvider::Antigravity => "antigravity",
     }
@@ -196,6 +198,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
     [
         StatsProvider::Claude,
         StatsProvider::Codex,
+        StatsProvider::ForgeCode,
         StatsProvider::OpenCode,
         StatsProvider::Antigravity,
     ]
@@ -214,6 +217,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
         .filter_map(|provider| match provider.as_str() {
             "claude" => Some(StatsProvider::Claude),
             "codex" => Some(StatsProvider::Codex),
+            "forgecode" => Some(StatsProvider::ForgeCode),
             "opencode" => Some(StatsProvider::OpenCode),
             "antigravity" => Some(StatsProvider::Antigravity),
             _ => {
@@ -236,6 +240,8 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
 fn detect_project_provider(project_path: &str) -> StatsProvider {
     if project_path.starts_with("codex://") {
         StatsProvider::Codex
+    } else if project_path.starts_with("forgecode://") {
+        StatsProvider::ForgeCode
     } else if project_path.starts_with("opencode://") {
         StatsProvider::OpenCode
     } else if is_antigravity_path(project_path) {
@@ -252,6 +258,10 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
 
     if is_antigravity_path(session_path) {
         return StatsProvider::Antigravity;
+    }
+
+    if session_path.starts_with("forgecode://") || session_path.starts_with("forgecode-db://") {
+        return StatsProvider::ForgeCode;
     }
 
     let is_rollout = PathBuf::from(session_path)
@@ -933,6 +943,7 @@ fn collect_provider_global_file_stats(
 
     let projects = match provider {
         StatsProvider::Codex => providers::codex::scan_projects().unwrap_or_default(),
+        StatsProvider::ForgeCode => providers::forgecode::scan_projects().unwrap_or_default(),
         StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
         StatsProvider::Claude => Vec::new(),
@@ -940,6 +951,7 @@ fn collect_provider_global_file_stats(
 
     let provider_tag = match provider {
         StatsProvider::Codex => "codex",
+        StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::Claude => "claude",
@@ -954,6 +966,7 @@ fn collect_provider_global_file_stats(
 
         let sessions = match provider {
             StatsProvider::Codex => providers::codex::load_sessions(&project.path, false),
+            StatsProvider::ForgeCode => providers::forgecode::load_sessions(&project.path, false),
             StatsProvider::OpenCode => providers::opencode::load_sessions(&project.path, false),
             StatsProvider::Antigravity => {
                 providers::antigravity::load_sessions(&project.path, false)
@@ -973,6 +986,7 @@ fn collect_provider_global_file_stats(
         .filter_map(|(project_name, file_path)| {
             let messages = match provider {
                 StatsProvider::Codex => providers::codex::load_messages(file_path),
+                StatsProvider::ForgeCode => providers::forgecode::load_messages(file_path),
                 StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
@@ -1523,6 +1537,17 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 .unwrap_or(cwd)
                 .to_string()
         }
+        StatsProvider::ForgeCode => {
+            if let Ok(projects) = providers::forgecode::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("forgecode://workspace/")
+                .unwrap_or(project_path)
+                .to_string()
+        }
         StatsProvider::OpenCode => {
             if let Ok(projects) = providers::opencode::scan_projects() {
                 if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
@@ -1550,6 +1575,15 @@ fn resolve_provider_project_name_from_session(
     session_path: &str,
 ) -> String {
     match provider {
+        StatsProvider::ForgeCode => {
+            let workspace_id = session_path
+                .strip_prefix("forgecode-db://workspace/")
+                .or_else(|| session_path.strip_prefix("forgecode://workspace/"))
+                .and_then(|rest| rest.split("/conversation/").next())
+                .unwrap_or("unknown");
+            let project_path = format!("forgecode://workspace/{workspace_id}");
+            resolve_provider_project_name(provider, &project_path)
+        }
         StatsProvider::OpenCode => {
             let project_part = session_path
                 .strip_prefix("opencode://")
@@ -1581,6 +1615,7 @@ fn load_provider_sessions_for_stats(
 ) -> Result<Vec<crate::models::ClaudeSession>, String> {
     match provider {
         StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
+        StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
         StatsProvider::Claude => {
@@ -1595,6 +1630,7 @@ fn load_provider_messages_for_stats(
 ) -> Result<Vec<ClaudeMessage>, String> {
     match provider {
         StatsProvider::Codex => providers::codex::load_messages(&session.file_path),
+        StatsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path),
         StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
         StatsProvider::Claude => {
@@ -2330,6 +2366,7 @@ pub async fn get_session_token_stats(
 
         let messages = match provider {
             StatsProvider::Codex => providers::codex::load_messages(&session_path)?,
+            StatsProvider::ForgeCode => providers::forgecode::load_messages(&session_path)?,
             StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
@@ -3170,6 +3207,13 @@ pub async fn get_global_stats_summary(
         file_stats.extend(codex_stats);
     }
 
+    if providers_to_include.contains(&StatsProvider::ForgeCode) {
+        let (forgecode_stats, forgecode_projects) =
+            collect_provider_global_file_stats(StatsProvider::ForgeCode, mode, s_ref, e_ref);
+        project_names.extend(forgecode_projects);
+        file_stats.extend(forgecode_stats);
+    }
+
     if providers_to_include.contains(&StatsProvider::OpenCode) {
         let (opencode_stats, opencode_projects) =
             collect_provider_global_file_stats(StatsProvider::OpenCode, mode, s_ref, e_ref);
@@ -3411,6 +3455,7 @@ pub async fn get_global_stats_summary(
 mod tests {
     use super::*;
     use serde_json::json;
+    use serial_test::serial;
     use std::fs;
     use std::fs::File;
     use std::io::Write;
@@ -3953,6 +3998,10 @@ mod tests {
             StatsProvider::Codex
         );
         assert_eq!(
+            detect_project_provider("forgecode://workspace/workspace-alpha"),
+            StatsProvider::ForgeCode
+        );
+        assert_eq!(
             detect_project_provider("opencode://project_123"),
             StatsProvider::OpenCode
         );
@@ -3976,6 +4025,14 @@ mod tests {
 
     #[test]
     fn test_detect_session_provider_from_path_pattern() {
+        assert_eq!(
+            detect_session_provider("forgecode://workspace/ws-1/conversation/conv-1"),
+            StatsProvider::ForgeCode
+        );
+        assert_eq!(
+            detect_session_provider("forgecode-db://workspace/ws-1/conversation/conv-1"),
+            StatsProvider::ForgeCode
+        );
         assert_eq!(
             detect_session_provider("opencode://project/ses_abc"),
             StatsProvider::OpenCode
@@ -4012,6 +4069,7 @@ mod tests {
         let providers = parse_active_stats_providers(None);
         assert!(providers.contains(&StatsProvider::Claude));
         assert!(providers.contains(&StatsProvider::Codex));
+        assert!(providers.contains(&StatsProvider::ForgeCode));
         assert!(providers.contains(&StatsProvider::OpenCode));
         assert!(providers.contains(&StatsProvider::Antigravity));
     }
@@ -4034,6 +4092,13 @@ mod tests {
     fn test_parse_active_stats_providers_returns_empty_for_empty_list() {
         let providers = parse_active_stats_providers(Some(vec![]));
         assert!(providers.is_empty());
+    }
+
+    #[test]
+    fn test_parse_active_stats_providers_supports_forgecode() {
+        let providers = parse_active_stats_providers(Some(vec!["forgecode".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::ForgeCode));
     }
 
     #[test]
@@ -4647,6 +4712,154 @@ mod tests {
         assert_eq!(summary.total_projects, 1);
         assert_eq!(summary.total_sessions, 1);
         assert_eq!(summary.total_tokens, 22);
+    }
+
+    fn write_forgecode_test_db(base_dir: &std::path::Path) {
+        let db_path = base_dir.join(".forge.db");
+        let conn = rusqlite::Connection::open(db_path).expect("create forgecode stats test db");
+        conn.execute_batch(
+            "CREATE TABLE conversations (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                title TEXT,
+                context TEXT,
+                metrics TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            );",
+        )
+        .expect("create forge conversations table");
+
+        conn.execute(
+            "INSERT INTO conversations (id, workspace_id, title, context, metrics, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                "conv-001",
+                "workspace-alpha",
+                "Forge stats session",
+                serde_json::to_string(&json!({
+                    "conversation_id": "conv-001",
+                    "cwd": "/Users/christian/projects/banana-prompting-service",
+                    "messages": [
+                        {
+                            "Text": {
+                                "role": "user",
+                                "content": "Inspect src/main.rs",
+                                "timestamp": "2026-01-10T08:00:00Z"
+                            }
+                        },
+                        {
+                            "message": {
+                                "text": {
+                                    "role": "assistant",
+                                    "content": [
+                                        { "type": "text", "text": "Done" },
+                                        { "type": "tool_use", "id": "tool-456", "name": "Write", "input": { "file_path": "/tmp/out.rs" } }
+                                    ],
+                                    "model": "forge-model-v1",
+                                    "usage": {
+                                        "prompt_tokens": 120,
+                                        "completion_tokens": 45,
+                                        "cached_tokens": 30,
+                                        "cost": 0.125
+                                    },
+                                    "timestamp": "2026-01-10T08:00:10Z"
+                                }
+                            }
+                        }
+                    ]
+                }))
+                .unwrap(),
+                serde_json::to_string(&json!({
+                    "session_start_time": "2026-01-10T08:00:00Z",
+                    "file_operations": 1
+                }))
+                .unwrap(),
+                "2026-01-10T08:00:00Z",
+                "2026-01-10T08:00:10Z"
+            ],
+        )
+        .expect("insert forge conversation");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_forgecode_stats_commands_use_provider_paths() {
+        let forge_dir = TempDir::new().expect("failed to create forge temp dir");
+        write_forgecode_test_db(forge_dir.path());
+
+        let original_forge_config = std::env::var("FORGE_CONFIG").ok();
+        std::env::set_var("FORGE_CONFIG", forge_dir.path());
+
+        let project_path = "forgecode://workspace/workspace-alpha".to_string();
+        let session_path =
+            "forgecode-db://workspace/workspace-alpha/conversation/conv-001".to_string();
+
+        let session_stats = get_session_token_stats(
+            session_path.clone(),
+            None,
+            None,
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("failed to get forgecode session stats");
+        assert_eq!(session_stats.session_id, "conv-001");
+        assert_eq!(session_stats.project_name, "banana-prompting-service");
+        assert_eq!(session_stats.total_tokens, 195);
+        assert_eq!(session_stats.message_count, 2);
+
+        let project_stats = get_project_token_stats(
+            project_path.clone(),
+            Some(0),
+            Some(20),
+            None,
+            None,
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("failed to get forgecode project stats");
+        assert_eq!(project_stats.total_count, 1);
+        assert_eq!(
+            project_stats.items[0].project_name,
+            "banana-prompting-service"
+        );
+        assert_eq!(project_stats.items[0].total_tokens, 195);
+
+        let summary = get_project_stats_summary(
+            project_path.clone(),
+            None,
+            None,
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("failed to get forgecode project summary");
+        assert_eq!(summary.project_name, "banana-prompting-service");
+        assert_eq!(summary.total_sessions, 1);
+        assert_eq!(summary.total_tokens, 195);
+
+        let global_summary = get_global_stats_summary(
+            forge_dir.path().to_string_lossy().to_string(),
+            Some(vec!["forgecode".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+        )
+        .await
+        .expect("failed to get forgecode global summary");
+        assert_eq!(global_summary.total_projects, 1);
+        assert_eq!(global_summary.total_sessions, 1);
+        assert_eq!(global_summary.total_tokens, 195);
+        assert_eq!(global_summary.provider_distribution.len(), 1);
+        assert_eq!(
+            global_summary.provider_distribution[0].provider_id,
+            "forgecode"
+        );
+
+        if let Some(value) = original_forge_config {
+            std::env::set_var("FORGE_CONFIG", value);
+        } else {
+            std::env::remove_var("FORGE_CONFIG");
+        }
     }
 
     #[test]
