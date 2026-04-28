@@ -120,6 +120,7 @@
   "common.provider.cline": "Cline",
   "common.provider.codex": "Codex CLI",
   "common.provider.cursor": "Cursor",
+  "common.provider.forgecode": "ForgeCode",
   "common.provider.gemini": "Gemini CLI",
   "common.provider.detectError": "Failed to detect providers. Using Claude only.",
   "common.provider.antigravity": "Antigravity",
