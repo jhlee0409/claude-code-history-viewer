@@ -24,6 +24,9 @@ export interface SessionNameEditorProps {
   isContextMenuOpen: boolean;
   providerId: string;
   supportsNativeRename: boolean;
+  supportsResumeCommand: boolean;
+  supportsSessionDeletion: boolean;
+  supportsRevealInFinder: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
   ignoreBlurRef: React.RefObject<boolean>;
   onEditValueChange: (value: string) => void;

@@ -38,6 +38,8 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
   const [title, setTitle] = useState("");
   const inputId = useId();
   const isOpenCode = provider === "opencode";
+  const isForgeCode = provider === "forgecode";
+  const usesStandaloneTitlePreview = isOpenCode || isForgeCode;
 
   // Extract existing title if present
   useEffect(() => {
@@ -60,7 +62,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
 
   // Get base message (without prefix) for preview
   const baseMessage = currentName.replace(/^\[.+?\]\s*/, "");
-  const previewText = isOpenCode
+  const previewText = usesStandaloneTitlePreview
     ? (title || t("session.nativeRename.titlePlaceholder"))
     : `[${title || t("session.nativeRename.titlePlaceholder")}] ${baseMessage.slice(0, 30)}...`;
 
@@ -72,7 +74,9 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
             <Terminal className="w-5 h-5" />
             {isOpenCode
               ? t("session.nativeRename.titleOpenCode", "Rename in OpenCode")
-              : t("session.nativeRename.title")}
+              : isForgeCode
+                ? t("session.nativeRename.titleForgeCode", "Rename in ForgeCode")
+                : t("session.nativeRename.title")}
           </DialogTitle>
           <DialogDescription>
             {isOpenCode
@@ -80,7 +84,12 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
                   "session.nativeRename.descriptionOpenCode",
                   "This updates the OpenCode session title in storage."
                 )
-              : t("session.nativeRename.description")}
+              : isForgeCode
+                ? t(
+                    "session.nativeRename.descriptionForgeCode",
+                    "This updates the ForgeCode conversation title in the Forge database."
+                  )
+                : t("session.nativeRename.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -94,7 +103,12 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
                       "session.nativeRename.warningOpenCode",
                       "This operation modifies the OpenCode session metadata file. The change is reversible."
                     )
-                  : t("session.nativeRename.warning")}
+                  : isForgeCode
+                    ? t(
+                        "session.nativeRename.warningForgeCode",
+                        "This operation updates the ForgeCode conversation title stored in the Forge database."
+                      )
+                    : t("session.nativeRename.warning")}
               </AlertDescription>
             </Alert>
 
@@ -123,7 +137,7 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
                 autoFocus
               />
               <p className="text-xs text-muted-foreground">
-                {isOpenCode
+                {usesStandaloneTitlePreview
                   ? t("session.nativeRename.previewOpenCode", {
                       title: previewText,
                     })

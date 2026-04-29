@@ -79,14 +79,15 @@ export const createSearchSlice: StateCreator<
   // Global search
   searchMessages: async (query: string, filters: SearchFilters = {}) => {
     const { claudePath, activeProviders } = get();
-    if (!claudePath || !query.trim()) {
+    const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
+
+    if (!query.trim() || (!claudePath && !hasNonClaudeProviders)) {
       set({ searchResults: [], searchQuery: "" });
       return;
     }
 
     set({ searchQuery: query });
     try {
-      const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
       const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
       const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
       const settings = get().userMetadata?.settings;
