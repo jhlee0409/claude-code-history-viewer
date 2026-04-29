@@ -19,22 +19,71 @@ const PROVIDER_TRANSLATIONS: Record<
 
 type TranslateFn = (key: string, defaultValue: string) => string;
 
-interface ProviderAnalyticsCapability {
+export interface ProviderSessionCapability {
   supportsConversationBreakdown: boolean;
+  supportsNativeRename: boolean;
+  supportsResumeCommand: boolean;
+  supportsSessionDeletion: boolean;
+  supportsArchiveCreation: boolean;
 }
 
-const PROVIDER_ANALYTICS_CAPABILITIES: Record<
-  ProviderId,
-  ProviderAnalyticsCapability
-> = {
-  aider: { supportsConversationBreakdown: false },
-  claude: { supportsConversationBreakdown: true },
-  cline: { supportsConversationBreakdown: false },
-  codex: { supportsConversationBreakdown: false },
-  cursor: { supportsConversationBreakdown: false },
-  forgecode: { supportsConversationBreakdown: false },
-  gemini: { supportsConversationBreakdown: false },
-  opencode: { supportsConversationBreakdown: false },
+const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapability> = {
+  aider: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  claude: {
+    supportsConversationBreakdown: true,
+    supportsNativeRename: true,
+    supportsResumeCommand: true,
+    supportsSessionDeletion: true,
+    supportsArchiveCreation: true,
+  },
+  cline: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  codex: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  cursor: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  forgecode: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: true,
+    supportsResumeCommand: true,
+    supportsSessionDeletion: true,
+    supportsArchiveCreation: false,
+  },
+  gemini: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  opencode: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: true,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
 };
 
 export interface ProviderTokenStatsLike {
@@ -90,8 +139,55 @@ export function supportsConversationBreakdown(
   if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
     return false;
   }
-  return PROVIDER_ANALYTICS_CAPABILITIES[provider as ProviderId]
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId]
     .supportsConversationBreakdown;
+}
+
+export function supportsNativeRename(provider?: ProviderId | string): boolean {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return false;
+  }
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId].supportsNativeRename;
+}
+
+export function supportsResumeCommand(provider?: ProviderId | string): boolean {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return false;
+  }
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId].supportsResumeCommand;
+}
+
+export function getResumeCommand(
+  provider: ProviderId | string | undefined,
+  sessionId: string
+): string | null {
+  if (!sessionId) {
+    return null;
+  }
+
+  switch (getProviderId(provider)) {
+    case "claude":
+      return `claude --resume ${sessionId}`;
+    case "forgecode":
+      return `forge conversation resume ${sessionId}`;
+    default:
+      return null;
+  }
+}
+
+export function supportsSessionDeletion(provider?: ProviderId | string): boolean {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return false;
+  }
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId]
+    .supportsSessionDeletion;
+}
+
+export function supportsArchiveCreation(provider?: ProviderId | string): boolean {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return false;
+  }
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId].supportsArchiveCreation;
 }
 
 export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {

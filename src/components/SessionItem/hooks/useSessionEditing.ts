@@ -8,6 +8,12 @@ import {
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/services/api";
 import { isAbsolutePath } from "@/utils/pathUtils";
+import {
+  getResumeCommand,
+  supportsNativeRename as providerSupportsNativeRename,
+  supportsResumeCommand as providerSupportsResumeCommand,
+  supportsSessionDeletion as providerSupportsSessionDeletion,
+} from "@/utils/providers";
 import type { ClaudeSession } from "@/types";
 
 function legacyCopy(text: string): void {
@@ -47,7 +53,10 @@ export function useSessionEditing(session: ClaudeSession) {
   const ignoreBlurRef = useRef<boolean>(false);
 
   const providerId = session.provider ?? "claude";
-  const supportsNativeRename = providerId === "claude" || providerId === "opencode";
+  const supportsNativeRename = providerSupportsNativeRename(providerId);
+  const supportsResumeCommand = providerSupportsResumeCommand(providerId);
+  const supportsSessionDeletion = providerSupportsSessionDeletion(providerId);
+  const supportsRevealInFinder = isAbsolutePath(session.file_path);
   const isArchivedCodexSession =
     providerId === "codex" &&
     /(?:^|[\\/])archived_sessions(?:[\\/]|$)/.test(session.file_path);
@@ -178,13 +187,22 @@ export function useSessionEditing(session: ClaudeSession) {
   );
 
   const handleCopyResumeCommand = useCallback(
-    (e: React.MouseEvent) =>
-      handleCopyToClipboard(
+    (e: React.MouseEvent) => {
+      const resumeCommand = getResumeCommand(providerId, session.actual_session_id);
+      if (!resumeCommand) {
+        e.stopPropagation();
+        setIsContextMenuOpen(false);
+        toast.error(t("session.copyResumeCommandError", "Resume command unavailable"));
+        return;
+      }
+
+      return handleCopyToClipboard(
         e,
-        `claude --resume ${session.actual_session_id}`,
+        resumeCommand,
         t("session.copiedResumeCommand", "Resume command copied")
-      ),
-    [handleCopyToClipboard, session.actual_session_id, t]
+      );
+    },
+    [handleCopyToClipboard, providerId, session.actual_session_id, t]
   );
 
   const handleCopyFilePath = useCallback(
@@ -201,7 +219,7 @@ export function useSessionEditing(session: ClaudeSession) {
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       setIsContextMenuOpen(false);
-      if (!session.file_path || !isAbsolutePath(session.file_path)) {
+      if (!session.file_path || !supportsRevealInFinder) {
         toast.error(t("session.revealError", "Could not reveal file"));
         return;
       }
@@ -212,29 +230,33 @@ export function useSessionEditing(session: ClaudeSession) {
         toast.error(t("session.revealError", "Could not reveal file"));
       }
     },
-    [session.file_path, t]
+    [session.file_path, supportsRevealInFinder, t]
   );
 
   const handleDeleteSession = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       setIsContextMenuOpen(false);
-      if (!session.file_path || !isAbsolutePath(session.file_path)) {
+      if (!session.file_path || !supportsSessionDeletion) {
         toast.error(t("session.deleteError", "Failed to delete session"));
         return;
       }
       try {
         const { ask } = await import("@tauri-apps/plugin-dialog");
-        const confirmed = await ask(
-          t(
-            "session.deleteConfirm",
-            "This will move the session file and associated data (subagents, tool results) to your system Trash."
-          ),
-          {
-            title: t("session.deleteTitle", "Delete Session"),
-            kind: "warning",
-          }
-        );
+        const deleteConfirmMessage =
+          providerId === "forgecode"
+            ? t(
+                "session.deleteConfirmForgeCode",
+                "This will permanently delete the ForgeCode conversation from the Forge database."
+              )
+            : t(
+                "session.deleteConfirm",
+                "This will move the session file and associated data (subagents, tool results) to your system Trash."
+              );
+        const confirmed = await ask(deleteConfirmMessage, {
+          title: t("session.deleteTitle", "Delete Session"),
+          kind: "warning",
+        });
         if (!confirmed) return;
         await api("delete_session", { filePath: session.file_path });
         const { sessions, setSessions, selectedSession, setSelectedSession } =
@@ -248,7 +270,7 @@ export function useSessionEditing(session: ClaudeSession) {
         toast.error(t("session.deleteError", "Failed to delete session"));
       }
     },
-    [session.file_path, session.session_id, t]
+    [providerId, session.file_path, session.session_id, supportsSessionDeletion, t]
   );
 
   const handleNativeRenameClick = useCallback(
@@ -297,6 +319,9 @@ export function useSessionEditing(session: ClaudeSession) {
     isNamed,
     providerId,
     supportsNativeRename,
+    supportsResumeCommand,
+    supportsSessionDeletion,
+    supportsRevealInFinder,
     isArchivedCodexSession,
     inputRef,
     ignoreBlurRef,
