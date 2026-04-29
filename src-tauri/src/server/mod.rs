@@ -87,6 +87,7 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
         .route("/search_messages", post(h::search_messages))
         .route("/get_recent_edits", post(h::get_recent_edits))
         .route("/restore_file", post(h::restore_file))
+        .route("/delete_session", post(h::delete_session))
         // Rename commands
         .route("/rename_session_native", post(h::rename_session_native))
         .route(

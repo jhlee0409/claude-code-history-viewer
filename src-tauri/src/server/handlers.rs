@@ -269,6 +269,12 @@ pub struct SaveScreenshotParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DeleteSessionParams {
+    pub file_path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenameSessionParams {
     pub file_path: String,
     pub new_title: String,
@@ -524,6 +530,12 @@ handler_json!(
         commands::claude_settings::is_safe_path(&path)?;
         commands::claude_settings::save_screenshot(p.path, p.data).await
     }
+);
+
+handler_json!(
+    delete_session,
+    DeleteSessionParams,
+    |p: DeleteSessionParams| async move { commands::session::delete_session(p.file_path).await }
 );
 
 handler_json!(

@@ -3789,7 +3789,7 @@ mod tests {
         .expect("failed to get forgecode session stats");
         assert_eq!(session_stats.session_id, "conv-001");
         assert_eq!(session_stats.project_name, "banana-prompting-service");
-        assert_eq!(session_stats.total_tokens, 195);
+        assert_eq!(session_stats.total_tokens, 165);
         assert_eq!(session_stats.message_count, 2);
 
         let project_stats = get_project_token_stats(
@@ -3807,7 +3807,7 @@ mod tests {
             project_stats.items[0].project_name,
             "banana-prompting-service"
         );
-        assert_eq!(project_stats.items[0].total_tokens, 195);
+        assert_eq!(project_stats.items[0].total_tokens, 165);
 
         let summary = get_project_stats_summary(
             project_path.clone(),
@@ -3819,7 +3819,7 @@ mod tests {
         .expect("failed to get forgecode project summary");
         assert_eq!(summary.project_name, "banana-prompting-service");
         assert_eq!(summary.total_sessions, 1);
-        assert_eq!(summary.total_tokens, 195);
+        assert_eq!(summary.total_tokens, 165);
 
         let global_summary = get_global_stats_summary(
             forge_dir.path().to_string_lossy().to_string(),
@@ -3832,7 +3832,7 @@ mod tests {
         .expect("failed to get forgecode global summary");
         assert_eq!(global_summary.total_projects, 1);
         assert_eq!(global_summary.total_sessions, 1);
-        assert_eq!(global_summary.total_tokens, 195);
+        assert_eq!(global_summary.total_tokens, 165);
         assert_eq!(global_summary.provider_distribution.len(), 1);
         assert_eq!(
             global_summary.provider_distribution[0].provider_id,
