@@ -72,7 +72,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsArchiveCreation: false,
   },
   forgecode: {
-    supportsConversationBreakdown: false,
+    supportsConversationBreakdown: true,
     supportsNativeRename: true,
     supportsResumeCommand: true,
     supportsSessionDeletion: true,

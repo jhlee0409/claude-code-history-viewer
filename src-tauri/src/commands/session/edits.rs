@@ -14,12 +14,15 @@ use walkdir::WalkDir;
 enum EditsProvider {
     Claude,
     Codex,
+    ForgeCode,
     OpenCode,
 }
 
 fn detect_project_provider(project_path: &str) -> EditsProvider {
     if project_path.starts_with("codex://") {
         EditsProvider::Codex
+    } else if project_path.starts_with("forgecode://") {
+        EditsProvider::ForgeCode
     } else if project_path.starts_with("opencode://") {
         EditsProvider::OpenCode
     } else {
@@ -198,6 +201,19 @@ fn resolve_provider_project_cwd(provider: EditsProvider, project_path: &str) -> 
                 None
             } else {
                 Some(cwd)
+            }
+        }
+        EditsProvider::ForgeCode => {
+            // ForgeCode projects use virtual paths (forgecode://workspace/{id}).
+            // Resolve the actual filesystem CWD from project metadata when available.
+            let projects = providers::forgecode::scan_projects().ok()?;
+            let project = projects.into_iter().find(|p| p.path == project_path)?;
+            // actual_path for ForgeCode is always a virtual path, so we cannot use it
+            // as a filesystem CWD for filtering. Return None to include all edits.
+            if project.actual_path.is_empty() || project.actual_path.starts_with("forgecode://") {
+                None
+            } else {
+                Some(project.actual_path)
             }
         }
         EditsProvider::OpenCode => {
@@ -510,6 +526,7 @@ fn get_provider_recent_edits(
 
     let sessions = match provider {
         EditsProvider::Codex => providers::codex::load_sessions(project_path, false)?,
+        EditsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false)?,
         EditsProvider::OpenCode => providers::opencode::load_sessions(project_path, false)?,
         EditsProvider::Claude => {
             return Err("Claude provider should use legacy edits path".to_string())
@@ -520,6 +537,7 @@ fn get_provider_recent_edits(
     for session in sessions {
         let messages = match provider {
             EditsProvider::Codex => providers::codex::load_messages(&session.file_path)?,
+            EditsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path)?,
             EditsProvider::OpenCode => providers::opencode::load_messages(&session.file_path)?,
             EditsProvider::Claude => Vec::new(),
         };
