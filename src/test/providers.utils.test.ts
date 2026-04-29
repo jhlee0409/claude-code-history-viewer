@@ -43,6 +43,7 @@ describe("providers utils", () => {
 
   it("knows which providers support conversation breakdown", () => {
     expect(supportsConversationBreakdown("claude")).toBe(true);
+    expect(supportsConversationBreakdown("forgecode")).toBe(true);
     expect(supportsConversationBreakdown("codex")).toBe(false);
     expect(supportsConversationBreakdown("opencode")).toBe(false);
     expect(supportsConversationBreakdown("unknown")).toBe(false);
@@ -59,6 +60,7 @@ describe("providers utils", () => {
 
   it("detects whether current scope has any supported provider", () => {
     expect(hasAnyConversationBreakdownProvider(["claude"])).toBe(true);
+    expect(hasAnyConversationBreakdownProvider(["forgecode"])).toBe(true);
     expect(hasAnyConversationBreakdownProvider(["codex", "opencode"])).toBe(
       false
     );
