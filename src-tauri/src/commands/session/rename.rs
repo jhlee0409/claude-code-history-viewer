@@ -95,6 +95,10 @@ pub async fn rename_session_native(
     file_path: String,
     new_title: String,
 ) -> Result<NativeRenameResult, String> {
+    if file_path.starts_with("forgecode://") || file_path.starts_with("forgecode-db://") {
+        return crate::providers::forgecode::rename_session_title(&file_path, &new_title);
+    }
+
     // 1. Validate file exists
     if !std::path::Path::new(&file_path).exists() {
         return Err(RenameError::FileNotFound(file_path).to_string());

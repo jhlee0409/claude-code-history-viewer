@@ -1,6 +1,7 @@
 use super::ProviderInfo;
+use crate::commands::session::NativeRenameResult;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
-use crate::utils::build_provider_message;
+use crate::utils::{build_provider_message, search_json_value_case_insensitive};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Map, Value};
@@ -124,6 +125,206 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     Ok(Vec::new())
 }
 
+pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
+    let base_path = get_base_path().ok_or_else(|| "ForgeCode not found".to_string())?;
+    Ok(search_from_path(&base_path, query, limit))
+}
+
+fn search_from_path(base_path: &str, query: &str, limit: usize) -> Vec<ClaudeMessage> {
+    let query_lower = query.to_lowercase();
+    let Some(conn) = open_db(base_path) else {
+        return Vec::new();
+    };
+    let Some(columns) = resolve_conversation_columns(&conn) else {
+        return Vec::new();
+    };
+    let Some(rows) = load_search_rows(&conn, &columns) else {
+        return Vec::new();
+    };
+
+    let mut results = Vec::new();
+
+    for row in rows {
+        let created_at = normalize_timestamp_text(&row.created_at);
+        let updated_at = latest_timestamp(&row.created_at, &row.updated_at);
+        let messages = map_context_messages(
+            &row.workspace_id,
+            &row.conversation_id,
+            &parse_context_entries(&row.context_json),
+            &created_at,
+            &updated_at,
+            row.metrics_json.as_deref(),
+        );
+
+        for message in messages {
+            if results.len() >= limit {
+                return results;
+            }
+
+            if let Some(content) = &message.content {
+                if search_json_value_case_insensitive(content, &query_lower) {
+                    results.push(message);
+                }
+            }
+        }
+    }
+
+    results
+}
+
+fn load_search_rows(
+    conn: &Connection,
+    columns: &ConversationColumns,
+) -> Option<Vec<ConversationRow>> {
+    let query = format!(
+        "SELECT {conversation_id}, {workspace_id}, {title}, {context}, {metrics}, {created_at}, {updated_at}
+         FROM conversations
+         WHERE {workspace_id_raw} IS NOT NULL AND {context_raw} IS NOT NULL
+         ORDER BY {updated_at_raw} DESC, {created_at_raw} DESC",
+        conversation_id = cast_text_expr(&columns.id),
+        workspace_id = cast_text_expr(&columns.workspace_id),
+        title = optional_cast_text_expr(columns.title.as_deref()),
+        context = cast_text_expr(&columns.context),
+        metrics = optional_cast_text_expr(columns.metrics.as_deref()),
+        created_at = optional_cast_text_expr(columns.created_at.as_deref()),
+        updated_at = optional_cast_text_expr(columns.updated_at.as_deref()),
+        workspace_id_raw = quote_ident(&columns.workspace_id),
+        context_raw = quote_ident(&columns.context),
+        updated_at_raw = optional_order_expr(columns.updated_at.as_deref()),
+        created_at_raw = optional_order_expr(columns.created_at.as_deref()),
+    );
+
+    let mut stmt = conn.prepare(&query).ok()?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(ConversationRow {
+                conversation_id: row.get(0)?,
+                workspace_id: row.get(1)?,
+                title: empty_to_none(row.get::<_, String>(2)?),
+                context_json: row.get(3)?,
+                metrics_json: empty_to_none(row.get::<_, String>(4)?),
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        })
+        .ok()?;
+
+    Some(rows.filter_map(std::result::Result::ok).collect())
+}
+
+pub fn rename_session_title(
+    session_path: &str,
+    new_title: &str,
+) -> Result<NativeRenameResult, String> {
+    let base_path = get_base_path().ok_or_else(|| "ForgeCode not found".to_string())?;
+    rename_session_title_from_path(&base_path, session_path, new_title)
+}
+
+fn rename_session_title_from_path(
+    base_path: &str,
+    session_path: &str,
+    new_title: &str,
+) -> Result<NativeRenameResult, String> {
+    let (workspace_id, conversation_id) = parse_conversation_path(session_path)
+        .ok_or_else(|| format!("Invalid ForgeCode session path: {session_path}"))?;
+    let conn = open_db_read_write(base_path)?;
+    let columns = resolve_conversation_columns(&conn)
+        .ok_or_else(|| "ForgeCode conversations schema not found".to_string())?;
+    let title_column = columns
+        .title
+        .as_deref()
+        .ok_or_else(|| "ForgeCode database does not expose a writable title column".to_string())?;
+    let existing = load_conversation_row(&conn, &columns, &workspace_id, &conversation_id)
+        .ok_or_else(|| format!("ForgeCode conversation not found: {session_path}"))?;
+    let trimmed_title = new_title.trim();
+    let next_title = if trimmed_title.is_empty() {
+        None
+    } else {
+        Some(trimmed_title.to_string())
+    };
+    let previous_title = existing.title.unwrap_or_default();
+
+    let affected_rows = if let Some(updated_at_column) = columns.updated_at.as_deref() {
+        let query = format!(
+            "UPDATE conversations
+             SET {title_column} = ?1, {updated_at_column} = ?2
+             WHERE CAST({workspace_id_column} AS TEXT) = ?3
+               AND CAST({conversation_id_column} AS TEXT) = ?4",
+            title_column = quote_ident(title_column),
+            updated_at_column = quote_ident(updated_at_column),
+            workspace_id_column = quote_ident(&columns.workspace_id),
+            conversation_id_column = quote_ident(&columns.id),
+        );
+        conn.execute(
+            &query,
+            rusqlite::params![
+                next_title.clone(),
+                Utc::now().to_rfc3339(),
+                workspace_id,
+                conversation_id
+            ],
+        )
+        .map_err(|e| format!("Failed to rename ForgeCode conversation: {e}"))?
+    } else {
+        let query = format!(
+            "UPDATE conversations
+             SET {title_column} = ?1
+             WHERE CAST({workspace_id_column} AS TEXT) = ?2
+               AND CAST({conversation_id_column} AS TEXT) = ?3",
+            title_column = quote_ident(title_column),
+            workspace_id_column = quote_ident(&columns.workspace_id),
+            conversation_id_column = quote_ident(&columns.id),
+        );
+        conn.execute(
+            &query,
+            rusqlite::params![next_title.clone(), workspace_id, conversation_id],
+        )
+        .map_err(|e| format!("Failed to rename ForgeCode conversation: {e}"))?
+    };
+
+    if affected_rows == 0 {
+        return Err(format!("ForgeCode conversation not found: {session_path}"));
+    }
+
+    Ok(NativeRenameResult {
+        success: true,
+        previous_title,
+        new_title: next_title.unwrap_or_default(),
+        file_path: session_path.to_string(),
+    })
+}
+
+pub fn delete_conversation(session_path: &str) -> Result<(), String> {
+    let base_path = get_base_path().ok_or_else(|| "ForgeCode not found".to_string())?;
+    delete_conversation_from_path(&base_path, session_path)
+}
+
+fn delete_conversation_from_path(base_path: &str, session_path: &str) -> Result<(), String> {
+    let (workspace_id, conversation_id) = parse_conversation_path(session_path)
+        .ok_or_else(|| format!("Invalid ForgeCode session path: {session_path}"))?;
+    let conn = open_db_read_write(base_path)?;
+    let columns = resolve_conversation_columns(&conn)
+        .ok_or_else(|| "ForgeCode conversations schema not found".to_string())?;
+
+    let query = format!(
+        "DELETE FROM conversations
+         WHERE CAST({workspace_id_column} AS TEXT) = ?1
+           AND CAST({conversation_id_column} AS TEXT) = ?2",
+        workspace_id_column = quote_ident(&columns.workspace_id),
+        conversation_id_column = quote_ident(&columns.id),
+    );
+
+    let affected_rows = conn
+        .execute(&query, rusqlite::params![workspace_id, conversation_id])
+        .map_err(|e| format!("Failed to delete ForgeCode conversation: {e}"))?;
+
+    if affected_rows == 0 {
+        return Err(format!("ForgeCode conversation not found: {session_path}"));
+    }
+
+    Ok(())
+}
+
 fn open_db(base_path: &str) -> Option<Connection> {
     let db_path = Path::new(base_path).join(".forge.db");
     if !db_path.is_file() {
@@ -135,6 +336,22 @@ fn open_db(base_path: &str) -> Option<Connection> {
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
     .ok()
+}
+
+fn open_db_read_write(base_path: &str) -> Result<Connection, String> {
+    let db_path = Path::new(base_path).join(".forge.db");
+    if !db_path.is_file() {
+        return Err(format!(
+            "ForgeCode database not found: {}",
+            db_path.display()
+        ));
+    }
+
+    Connection::open_with_flags(
+        db_path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|e| format!("Failed to open ForgeCode database: {e}"))
 }
 
 fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
@@ -1849,6 +2066,86 @@ mod tests {
             extract_workspace_display_name_from_value(&context),
             Some("banana-prompting-service".to_string())
         );
+    }
+
+    #[test]
+    fn sqlite_search_matches_message_content() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(&tmp);
+        seed_test_data(&conn);
+        drop(conn);
+
+        let results = search_from_path(&tmp.path().to_string_lossy(), "parser", 10);
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].provider.as_deref(), Some("forgecode"));
+        assert_eq!(results[0].session_id, "conv-001");
+        assert_eq!(
+            results[0].uuid,
+            "forgecode://workspace/workspace-alpha/conversation/conv-001/message/1"
+        );
+        assert_eq!(
+            results[0].content,
+            Some(Value::String("Check the current parser output".to_string()))
+        );
+        assert!(results.iter().all(|message| {
+            message
+                .content
+                .as_ref()
+                .is_some_and(|content| search_json_value_case_insensitive(content, "parser"))
+        }));
+    }
+
+    #[test]
+    fn sqlite_rename_session_title_updates_conversation_title() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(&tmp);
+        seed_test_data(&conn);
+        drop(conn);
+
+        let result = rename_session_title_from_path(
+            &tmp.path().to_string_lossy(),
+            "forgecode://workspace/workspace-alpha/conversation/conv-001",
+            "Updated Forge Title",
+        )
+        .unwrap();
+
+        assert_eq!(result.previous_title, "Text and tool session");
+        assert_eq!(result.new_title, "Updated Forge Title");
+
+        let conn = open_db_read_write(&tmp.path().to_string_lossy()).unwrap();
+        let title: String = conn
+            .query_row(
+                "SELECT title FROM conversations WHERE id = 'conv-001'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(title, "Updated Forge Title");
+    }
+
+    #[test]
+    fn sqlite_delete_conversation_removes_row() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(&tmp);
+        seed_test_data(&conn);
+        drop(conn);
+
+        delete_conversation_from_path(
+            &tmp.path().to_string_lossy(),
+            "forgecode-db://workspace/workspace-alpha/conversation/conv-001",
+        )
+        .unwrap();
+
+        let conn = open_db_read_write(&tmp.path().to_string_lossy()).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM conversations WHERE id = 'conv-001'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
     }
 
     #[test]

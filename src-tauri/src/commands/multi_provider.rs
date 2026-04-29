@@ -307,6 +307,7 @@ pub async fn search_all_providers(
             "claude".to_string(),
             "codex".to_string(),
             "gemini".to_string(),
+            "forgecode".to_string(),
             "opencode".to_string(),
             "cline".to_string(),
             "cursor".to_string(),
@@ -390,6 +391,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Gemini search failed: {e}");
+            }
+        }
+    }
+
+    // ForgeCode
+    if providers_to_search.iter().any(|p| p == "forgecode") {
+        match providers::forgecode::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("ForgeCode search failed: {e}");
             }
         }
     }
