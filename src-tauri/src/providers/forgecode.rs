@@ -28,6 +28,7 @@ struct ProjectAccumulator {
     message_count: usize,
     last_modified: String,
     display_name_votes: BTreeMap<String, usize>,
+    cwd_votes: BTreeMap<String, usize>,
 }
 
 #[derive(Debug)]
@@ -366,6 +367,7 @@ fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
         let last_modified = latest_timestamp(&row.created_at, &row.updated_at);
         let extracted_display_name =
             extract_workspace_display_name_from_context_json(&row.context_json);
+        let extracted_cwds = extract_cwds_from_context_json(&row.context_json);
 
         let entry = workspaces.entry(row.workspace_id).or_default();
         entry.session_count += 1;
@@ -374,21 +376,28 @@ fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
         if let Some(display_name) = extracted_display_name {
             *entry.display_name_votes.entry(display_name).or_default() += 1;
         }
+        for (cwd, count) in extracted_cwds {
+            *entry.cwd_votes.entry(cwd).or_default() += count;
+        }
     }
 
     let mut projects: Vec<ClaudeProject> = workspaces
         .into_iter()
-        .map(|(workspace_id, acc)| ClaudeProject {
-            name: choose_workspace_display_name(&workspace_id, &acc.display_name_votes),
-            path: project_virtual_path(&workspace_id),
-            actual_path: project_virtual_path(&workspace_id),
-            session_count: acc.session_count,
-            message_count: acc.message_count,
-            last_modified: acc.last_modified,
-            git_info: None,
-            provider: Some(PROVIDER_ID.to_string()),
-            storage_type: Some(STORAGE_TYPE.to_string()),
-            custom_directory_label: None,
+        .map(|(workspace_id, acc)| {
+            let actual_path = choose_best_cwd(&acc.cwd_votes)
+                .unwrap_or_else(|| project_virtual_path(&workspace_id));
+            ClaudeProject {
+                name: choose_workspace_display_name(&workspace_id, &acc.display_name_votes),
+                path: project_virtual_path(&workspace_id),
+                actual_path,
+                session_count: acc.session_count,
+                message_count: acc.message_count,
+                last_modified: acc.last_modified,
+                git_info: None,
+                provider: Some(PROVIDER_ID.to_string()),
+                storage_type: Some(STORAGE_TYPE.to_string()),
+                custom_directory_label: None,
+            }
         })
         .collect();
 
@@ -1463,6 +1472,55 @@ fn display_name_from_cwd(cwd: &str, home_dir: Option<&Path>) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn extract_cwds_from_context_json(context_json: &str) -> BTreeMap<String, usize> {
+    let mut cwd_votes = BTreeMap::new();
+    if let Ok(parsed) = serde_json::from_str::<Value>(context_json) {
+        collect_cwd_votes(&parsed, &mut cwd_votes);
+    }
+    cwd_votes
+}
+
+fn collect_cwd_votes(value: &Value, cwd_votes: &mut BTreeMap<String, usize>) {
+    match value {
+        Value::Object(map) => {
+            if let Some(cwd) = map.get("cwd").and_then(Value::as_str) {
+                let trimmed = cwd.trim();
+                if !trimmed.is_empty() {
+                    *cwd_votes.entry(trimmed.to_string()).or_default() += 1;
+                }
+            }
+            for nested in map.values() {
+                collect_cwd_votes(nested, cwd_votes);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_cwd_votes(item, cwd_votes);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Picks the most-voted cwd, filtering out home directories.
+fn choose_best_cwd(cwd_votes: &BTreeMap<String, usize>) -> Option<String> {
+    let home_dir = dirs::home_dir();
+    cwd_votes
+        .iter()
+        .filter(|(path, _)| {
+            // Exclude bare home directories — they don't represent a real project
+            let p = Path::new(path.as_str());
+            !home_dir.as_deref().is_some_and(|home| p == home)
+        })
+        .max_by(|(left_path, left_votes), (right_path, right_votes)| {
+            left_votes
+                .cmp(right_votes)
+                .then_with(|| right_path.len().cmp(&left_path.len()))
+                .then_with(|| left_path.cmp(right_path))
+        })
+        .map(|(path, _)| path.clone())
+}
+
 fn project_display_name(workspace_id: &str) -> String {
     format!("Workspace {workspace_id}")
 }
@@ -1867,11 +1925,19 @@ mod tests {
         assert_eq!(projects.len(), 2);
         assert_eq!(projects[0].name, "banana-prompting-service");
         assert_eq!(projects[0].path, "forgecode://workspace/workspace-alpha");
+        assert_eq!(
+            projects[0].actual_path,
+            "/Users/christian/projects/banana-prompting-service"
+        );
         assert_eq!(projects[0].session_count, 2);
         assert_eq!(projects[0].message_count, 5);
         assert_eq!(projects[0].storage_type, Some("sqlite".to_string()));
         assert_eq!(projects[1].name, "forge-image-lab");
         assert_eq!(projects[1].path, "forgecode://workspace/workspace-beta");
+        assert_eq!(
+            projects[1].actual_path,
+            "/Users/christian/projects/forge-image-lab"
+        );
         assert_eq!(projects[1].session_count, 1);
         assert_eq!(projects[1].message_count, 1);
     }
