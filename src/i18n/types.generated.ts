@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-04-20T15:15:56.726Z
- * 총 키 개수: 1761
+ * 생성 시간: 2026-04-29T07:26:48.446Z
+ * 총 키 개수: 1762
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (157개)
+ * common namespace의 번역 키 (158개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -112,6 +112,7 @@ export type CommonKeys =
   | 'common.provider.codex'
   | 'common.provider.cursor'
   | 'common.provider.detectError'
+  | 'common.provider.forgecode'
   | 'common.provider.gemini'
   | 'common.provider.opencode'
   | 'common.refresh'
@@ -550,9 +551,11 @@ export type SessionKeys =
   | 'session.loading'
   | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
+  | 'session.nativeRename.descriptionForgeCode'
   | 'session.nativeRename.descriptionOpenCode'
   | 'session.nativeRename.label'
   | 'session.nativeRename.menuItem'
+  | 'session.nativeRename.menuItemForgeCode'
   | 'session.nativeRename.menuItemOpenCode'
   | 'session.nativeRename.placeholder'
   | 'session.nativeRename.preview'
@@ -560,9 +563,11 @@ export type SessionKeys =
   | 'session.nativeRename.resetMenuItem'
   | 'session.nativeRename.success'
   | 'session.nativeRename.title'
+  | 'session.nativeRename.titleForgeCode'
   | 'session.nativeRename.titleOpenCode'
   | 'session.nativeRename.titlePlaceholder'
   | 'session.nativeRename.warning'
+  | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
   | 'session.refresh'
   | 'session.rename'
@@ -580,11 +585,7 @@ export type SessionKeys =
   | 'session.showJsonlFile'
   | 'session.summaryNotFound'
   | 'session.syncError'
-  | 'session.title'
-  | 'sessionPicker.cancelled'
-  | 'sessionPicker.empty'
-  | 'sessionPicker.subtitle'
-  | 'sessionPicker.title';
+  | 'session.title';
 
 /**
  * settings namespace의 번역 키 (529개)
@@ -2234,6 +2235,7 @@ export type TranslationKey =
   | 'common.provider.codex'
   | 'common.provider.cursor'
   | 'common.provider.detectError'
+  | 'common.provider.forgecode'
   | 'common.provider.gemini'
   | 'common.provider.opencode'
   | 'common.refresh'
@@ -2838,9 +2840,11 @@ export type TranslationKey =
   | 'session.loading'
   | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
+  | 'session.nativeRename.descriptionForgeCode'
   | 'session.nativeRename.descriptionOpenCode'
   | 'session.nativeRename.label'
   | 'session.nativeRename.menuItem'
+  | 'session.nativeRename.menuItemForgeCode'
   | 'session.nativeRename.menuItemOpenCode'
   | 'session.nativeRename.placeholder'
   | 'session.nativeRename.preview'
@@ -2848,9 +2852,11 @@ export type TranslationKey =
   | 'session.nativeRename.resetMenuItem'
   | 'session.nativeRename.success'
   | 'session.nativeRename.title'
+  | 'session.nativeRename.titleForgeCode'
   | 'session.nativeRename.titleOpenCode'
   | 'session.nativeRename.titlePlaceholder'
   | 'session.nativeRename.warning'
+  | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
   | 'session.refresh'
   | 'session.rename'
@@ -2869,10 +2875,6 @@ export type TranslationKey =
   | 'session.summaryNotFound'
   | 'session.syncError'
   | 'session.title'
-  | 'sessionPicker.cancelled'
-  | 'sessionPicker.empty'
-  | 'sessionPicker.subtitle'
-  | 'sessionPicker.title'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
   | 'settings.customDirectories'
@@ -3686,7 +3688,6 @@ export type TranslationPrefix =
   | 'searchResultRenderer'
   | 'serverToolUseRenderer'
   | 'session'
-  | 'sessionPicker'
   | 'settings'
   | 'settingsManager'
   | 'simpleUpdateModal'
