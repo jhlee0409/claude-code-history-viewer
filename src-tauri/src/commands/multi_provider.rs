@@ -528,6 +528,7 @@ fn resolve_active_wsl_distros(
     result
 }
 
+/// Merge adjacent tool execution messages into display-friendly message groups.
 fn merge_tool_execution_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMessage> {
     let mut merged: Vec<ClaudeMessage> = Vec::with_capacity(messages.len());
 
@@ -586,6 +587,7 @@ fn merge_tool_execution_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMess
     merged
 }
 
+/// Return whether two messages belong to the same tool execution.
 fn has_matching_tool_use(msg: &ClaudeMessage, tool_use_id: &str) -> bool {
     if msg.message_type != "assistant" {
         return false;
@@ -600,6 +602,7 @@ fn has_matching_tool_use(msg: &ClaudeMessage, tool_use_id: &str) -> bool {
     })
 }
 
+/// Append a content block to a message content array.
 fn append_content_block(msg: &mut ClaudeMessage, block: Value) {
     match &mut msg.content {
         Some(Value::Array(arr)) => arr.push(block),
@@ -611,6 +614,7 @@ fn append_content_block(msg: &mut ClaudeMessage, block: Value) {
 mod tests {
     use super::*;
 
+    /// Create a normalized message value for merged tool output.
     fn make_message(message_type: &str, content: Value) -> ClaudeMessage {
         ClaudeMessage {
             uuid: format!("{message_type}-id"),
@@ -649,6 +653,7 @@ mod tests {
     }
 
     #[test]
+    /// Merge a tool result message into the previous tool-use message when possible.
     fn merge_tool_result_into_previous_tool_use_message() {
         let tool_use = make_message(
             "assistant",
@@ -683,6 +688,7 @@ mod tests {
     }
 
     #[test]
+    /// Split and merge multiple tool results from a single provider message.
     fn merge_multiple_tool_results_from_single_message() {
         let tool_use = make_message(
             "assistant",
@@ -728,6 +734,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify partial merging preserves unmerged and non-tool content.
     fn partial_merge_preserves_unmerged_and_non_tool_content() {
         let tool_use = make_message(
             "assistant",
