@@ -33,11 +33,13 @@ enum StatsMode {
 }
 
 impl StatsMode {
+    /// Return whether the current stats mode includes sidechain messages.
     fn include_sidechain(self) -> bool {
         matches!(self, Self::BillingTotal)
     }
 }
 
+/// Parse the requested stats mode, defaulting to billing totals.
 fn parse_stats_mode(stats_mode: Option<String>) -> StatsMode {
     match stats_mode.as_deref() {
         Some("conversation_only") => StatsMode::ConversationOnly,
@@ -49,6 +51,7 @@ fn parse_stats_mode(stats_mode: Option<String>) -> StatsMode {
     }
 }
 
+/// Return the stable identifier for a stats provider.
 fn stats_provider_id(provider: StatsProvider) -> &'static str {
     match provider {
         StatsProvider::Claude => "claude",
@@ -58,14 +61,17 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
     }
 }
 
+/// Return whether a message type is always counted in stats.
 fn is_core_message_type(message_type: &str) -> bool {
     matches!(message_type, "user" | "assistant" | "system")
 }
 
+/// Return whether a message type represents a conversation turn.
 fn is_conversation_message_type(message_type: &str) -> bool {
     matches!(message_type, "user" | "assistant")
 }
 
+/// Return whether a message type is non-conversational noise.
 fn is_non_message_noise_type(message_type: &str) -> bool {
     matches!(
         message_type,
@@ -73,6 +79,7 @@ fn is_non_message_noise_type(message_type: &str) -> bool {
     )
 }
 
+/// Return whether token usage contains any populated token counters.
 fn token_usage_has_token_fields(usage: &TokenUsage) -> bool {
     usage.input_tokens.is_some()
         || usage.output_tokens.is_some()
@@ -80,6 +87,7 @@ fn token_usage_has_token_fields(usage: &TokenUsage) -> bool {
         || usage.cache_read_input_tokens.is_some()
 }
 
+/// Summarize token usage into input, output, cache, and total counts.
 fn token_usage_totals(usage: &TokenUsage) -> (u64, u64, u64, u64, u64) {
     let input_tokens = u64::from(usage.input_tokens.unwrap_or(0));
     let output_tokens = u64::from(usage.output_tokens.unwrap_or(0));
@@ -95,6 +103,7 @@ fn token_usage_totals(usage: &TokenUsage) -> (u64, u64, u64, u64, u64) {
     )
 }
 
+/// Return whether a message should be counted for the active stats mode.
 fn should_include_stats_entry(
     message_type: &str,
     is_sidechain: Option<bool>,
@@ -124,6 +133,7 @@ fn should_include_stats_entry(
     has_usage
 }
 
+/// Return the complete set of providers supported by stats commands.
 fn all_stats_providers() -> HashSet<StatsProvider> {
     [
         StatsProvider::Claude,
@@ -135,6 +145,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
     .collect()
 }
 
+/// Parse the requested provider filter for stats commands.
 fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSet<StatsProvider> {
     let Some(raw_providers) = active_providers else {
         return all_stats_providers();
@@ -165,6 +176,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
     parsed
 }
 
+/// Detect the provider encoded in a project path.
 fn detect_project_provider(project_path: &str) -> StatsProvider {
     if project_path.starts_with("codex://") {
         StatsProvider::Codex
@@ -177,6 +189,7 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
     }
 }
 
+/// Detect the provider encoded in a session path.
 fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.starts_with("opencode://") {
         return StatsProvider::OpenCode;
@@ -206,6 +219,7 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
 /// Parse a line using simd-json (requires mutable slice)
 /// Returns None if parsing fails
 #[inline]
+/// Parse a raw log entry with simd-json.
 fn parse_raw_log_entry_simd(line: &mut [u8]) -> Option<RawLogEntry> {
     simd_json::serde::from_slice(line).ok()
 }
@@ -252,10 +266,12 @@ struct GlobalStatsToolUseResult {
 }
 
 #[inline]
+/// Parse a lightweight global-stats entry with simd-json.
 fn parse_global_stats_entry_simd(line: &mut [u8]) -> Option<GlobalStatsLogEntry> {
     simd_json::serde::from_slice(line).ok()
 }
 
+/// Apply token usage fields from a JSON value into a token-usage struct.
 fn apply_usage_fields_from_value(usage_obj: &serde_json::Value, usage: &mut TokenUsage) {
     if let Some(input) = usage_obj
         .get("input_tokens")
@@ -410,6 +426,7 @@ struct SessionFileStats {
 /// Process a single session file using lightweight deserialization for global stats.
 /// Only parses fields needed for stats (timestamp, usage, model, tool names).
 #[allow(unsafe_code)] // Required for mmap performance optimization
+/// Process a session file into the lightweight global stats representation.
 fn process_session_file_for_global_stats(
     session_path: &PathBuf,
     mode: StatsMode,
@@ -578,6 +595,7 @@ fn calculate_session_duration(
     }
 }
 
+/// Build global stats from already-loaded provider messages.
 fn build_global_session_file_stats_from_messages(
     provider: StatsProvider,
     project_name: String,
@@ -706,6 +724,7 @@ fn build_global_session_file_stats_from_messages(
     Some(stats)
 }
 
+/// Collect global stats rows for a non-Claude provider.
 fn collect_provider_global_file_stats(
     provider: StatsProvider,
     mode: StatsMode,
@@ -789,6 +808,7 @@ struct ProjectSessionFileStats {
 
 /// Process a single session file for project stats
 #[allow(unsafe_code)] // Required for mmap performance optimization
+/// Process a session file into project-level stats.
 fn process_session_file_for_project_stats(
     session_path: &PathBuf,
     mode: StatsMode,
@@ -909,6 +929,7 @@ fn process_session_file_for_project_stats(
     Some(stats)
 }
 
+/// Track tool usage counters for a normalized message.
 fn track_tool_usage(message: &ClaudeMessage, tool_usage: &mut HashMap<String, (u32, u32)>) {
     // Tool usage from assistant content
     if message.message_type == "assistant" {
@@ -955,6 +976,7 @@ fn track_tool_usage(message: &ClaudeMessage, tool_usage: &mut HashMap<String, (u
     }
 }
 
+/// Extract token usage from a normalized message.
 fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
     if let Some(usage) = &message.usage {
         return usage.clone();
@@ -1002,6 +1024,7 @@ fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
     usage
 }
 
+/// Parse an optional inclusive date limit for stats filtering.
 fn parse_date_limit(date_str: Option<String>, label: &str) -> Option<DateTime<Utc>> {
     let raw = date_str?;
     match DateTime::parse_from_rfc3339(&raw) {
@@ -1013,12 +1036,14 @@ fn parse_date_limit(date_str: Option<String>, label: &str) -> Option<DateTime<Ut
     }
 }
 
+/// Parse a timestamp string into UTC.
 fn parse_timestamp_utc(timestamp: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(timestamp)
         .map(|dt| dt.with_timezone(&Utc))
         .ok()
 }
 
+/// Return whether a timestamp falls within the active date limits.
 fn is_within_date_limits(
     timestamp: Option<DateTime<Utc>>,
     s_limit: Option<&DateTime<Utc>>,
@@ -1037,6 +1062,7 @@ fn is_within_date_limits(
     after_start && before_end
 }
 
+/// Estimate active session duration by collapsing long idle gaps.
 fn calculate_session_active_minutes(timestamps: &mut [DateTime<Utc>]) -> u32 {
     const SESSION_BREAK_THRESHOLD_MINUTES: i64 = 120;
 
@@ -1069,6 +1095,7 @@ fn calculate_session_active_minutes(timestamps: &mut [DateTime<Utc>]) -> u32 {
     session_total_minutes + final_period.max(1) as u32
 }
 
+/// Build sorted tool usage stats from aggregate counters.
 fn build_tool_usage_stats(tool_usage: HashMap<String, (u32, u32)>) -> Vec<ToolUsageStats> {
     let mut tools = tool_usage
         .into_iter()
@@ -1088,6 +1115,7 @@ fn build_tool_usage_stats(tool_usage: HashMap<String, (u32, u32)>) -> Vec<ToolUs
     tools
 }
 
+/// Resolve the display name for a provider project path.
 fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) -> String {
     match provider {
         StatsProvider::Claude => PathBuf::from(project_path)
@@ -1130,6 +1158,7 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
     }
 }
 
+/// Resolve the display name for a provider session path.
 fn resolve_provider_project_name_from_session(
     provider: StatsProvider,
     session_path: &str,
@@ -1168,6 +1197,7 @@ fn resolve_provider_project_name_from_session(
     }
 }
 
+/// Load sessions for a provider-specific stats request.
 fn load_provider_sessions_for_stats(
     provider: StatsProvider,
     project_path: &str,
@@ -1182,6 +1212,7 @@ fn load_provider_sessions_for_stats(
     }
 }
 
+/// Load messages for a provider-specific stats request.
 fn load_provider_messages_for_stats(
     provider: StatsProvider,
     session: &crate::models::ClaudeSession,
@@ -1196,6 +1227,7 @@ fn load_provider_messages_for_stats(
     }
 }
 
+/// Build session token stats from normalized provider messages.
 fn build_session_token_stats_from_messages(
     session_id: String,
     project_name: String,
@@ -1278,6 +1310,7 @@ fn build_session_token_stats_from_messages(
     })
 }
 
+/// Build paginated project token stats for a non-Claude provider.
 fn get_provider_project_token_stats(
     provider: StatsProvider,
     project_path: &str,
@@ -1330,6 +1363,7 @@ fn get_provider_project_token_stats(
     })
 }
 
+/// Build a project stats summary for a non-Claude provider.
 fn get_provider_project_stats_summary(
     provider: StatsProvider,
     project_path: &str,
@@ -1487,6 +1521,7 @@ fn get_provider_project_stats_summary(
     Ok(summary)
 }
 
+/// Build session comparison stats for a non-Claude provider.
 fn get_provider_session_comparison(
     provider: StatsProvider,
     session_id: &str,
@@ -1615,6 +1650,7 @@ fn get_provider_session_comparison(
 }
 
 #[tauri::command]
+/// Return token stats for a single session.
 pub async fn get_session_token_stats(
     session_path: String,
     start_date: Option<String>,
@@ -1702,6 +1738,7 @@ pub struct PaginatedTokenStats {
 
 /// Synchronous version of session token stats extraction for parallel processing
 #[allow(unsafe_code)] // Required for mmap performance optimization
+/// Extract session token stats from a Claude session file synchronously.
 fn extract_session_token_stats_sync(
     session_path: &PathBuf,
     mode: StatsMode,
@@ -1841,6 +1878,7 @@ fn extract_session_token_stats_sync(
 }
 
 #[tauri::command]
+/// Return paginated token stats for a project.
 pub async fn get_project_token_stats(
     project_path: String,
     offset: Option<usize>,
@@ -1936,6 +1974,7 @@ pub async fn get_project_token_stats(
 }
 
 #[tauri::command]
+/// Return an aggregate stats summary for a project.
 pub async fn get_project_stats_summary(
     project_path: String,
     start_date: Option<String>,
@@ -2136,6 +2175,7 @@ struct SessionComparisonStats {
 
 /// Process a single session file for comparison stats (lightweight)
 #[allow(unsafe_code)] // Required for mmap performance optimization
+/// Process a session file into lightweight comparison stats.
 fn process_session_file_for_comparison(
     session_path: &PathBuf,
     mode: StatsMode,
@@ -2223,6 +2263,7 @@ fn process_session_file_for_comparison(
 }
 
 #[tauri::command]
+/// Compare a session against the rest of its project.
 pub async fn get_session_comparison(
     session_id: String,
     project_path: String,
@@ -2334,6 +2375,7 @@ pub async fn get_session_comparison(
 impl TryFrom<RawLogEntry> for ClaudeMessage {
     type Error = String;
 
+    /// Convert a raw log entry into a normalized Claude message.
     fn try_from(log_entry: RawLogEntry) -> Result<Self, Self::Error> {
         if log_entry.message_type == "summary" {
             return Err("Summary entries should be handled separately".to_string());
@@ -2403,6 +2445,7 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
 }
 
 #[tauri::command]
+/// Return an aggregate stats summary across all selected providers.
 pub async fn get_global_stats_summary(
     claude_path: String,
     active_providers: Option<Vec<String>>,
@@ -2717,6 +2760,7 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
+    /// Verify try from raw log entry user message.
     fn test_try_from_raw_log_entry_user_message() {
         let raw = RawLogEntry {
             uuid: Some("test-uuid".to_string()),
@@ -2770,6 +2814,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify try from raw log entry assistant message.
     fn test_try_from_raw_log_entry_assistant_message() {
         let raw = RawLogEntry {
             uuid: Some("assistant-uuid".to_string()),
@@ -2834,6 +2879,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify try from raw log entry summary fails.
     fn test_try_from_raw_log_entry_summary_fails() {
         let raw = RawLogEntry {
             uuid: None,
@@ -2875,6 +2921,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify try from raw log entry missing session and timestamp fails.
     fn test_try_from_raw_log_entry_missing_session_and_timestamp_fails() {
         let raw = RawLogEntry {
             uuid: Some("uuid".to_string()),
@@ -2923,6 +2970,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify try from raw log entry with only timestamp.
     fn test_try_from_raw_log_entry_with_only_timestamp() {
         let raw = RawLogEntry {
             uuid: None,
@@ -2974,6 +3022,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify extract token usage from usage field.
     fn test_extract_token_usage_from_usage_field() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
@@ -3024,6 +3073,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify extract token usage from content.
     fn test_extract_token_usage_from_content() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
@@ -3073,6 +3123,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify extract token usage from tool use result.
     fn test_extract_token_usage_from_tool_use_result() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
@@ -3120,6 +3171,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify extract token usage from total tokens.
     fn test_extract_token_usage_from_total_tokens() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
@@ -3164,6 +3216,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify extract token usage empty.
     fn test_extract_token_usage_empty() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
@@ -3206,6 +3259,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify detect project provider from virtual prefix.
     fn test_detect_project_provider_from_virtual_prefix() {
         assert_eq!(
             detect_project_provider("codex:///Users/jack/workspace"),
@@ -3226,6 +3280,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify detect session provider from path pattern.
     fn test_detect_session_provider_from_path_pattern() {
         assert_eq!(
             detect_session_provider("forgecode://workspace/ws-1/conversation/conv-1"),
@@ -3254,6 +3309,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify parse active stats providers defaults to all.
     fn test_parse_active_stats_providers_defaults_to_all() {
         let providers = parse_active_stats_providers(None);
         assert!(providers.contains(&StatsProvider::Claude));
@@ -3263,6 +3319,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify parse active stats providers filters unknown values.
     fn test_parse_active_stats_providers_filters_unknown_values() {
         let providers =
             parse_active_stats_providers(Some(vec!["claude".to_string(), "unknown".to_string()]));
@@ -3271,18 +3328,21 @@ mod tests {
     }
 
     #[test]
+    /// Verify parse active stats providers returns empty for unknown only values.
     fn test_parse_active_stats_providers_returns_empty_for_unknown_only_values() {
         let providers = parse_active_stats_providers(Some(vec!["invalid".to_string()]));
         assert!(providers.is_empty());
     }
 
     #[test]
+    /// Verify parse active stats providers returns empty for empty list.
     fn test_parse_active_stats_providers_returns_empty_for_empty_list() {
         let providers = parse_active_stats_providers(Some(vec![]));
         assert!(providers.is_empty());
     }
 
     #[test]
+    /// Verify parse active stats providers supports forgecode.
     fn test_parse_active_stats_providers_supports_forgecode() {
         let providers = parse_active_stats_providers(Some(vec!["forgecode".to_string()]));
         assert_eq!(providers.len(), 1);
@@ -3290,6 +3350,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify parse stats mode defaults and unknown.
     fn test_parse_stats_mode_defaults_and_unknown() {
         assert_eq!(parse_stats_mode(None), StatsMode::BillingTotal);
         assert_eq!(
@@ -3307,6 +3368,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify should include stats entry sidechain mode switch.
     fn test_should_include_stats_entry_sidechain_mode_switch() {
         assert!(should_include_stats_entry(
             "assistant",
@@ -3359,6 +3421,7 @@ mod tests {
     }
 
     #[tokio::test]
+    /// Verify project summary session count matches token list in conversation mode.
     async fn test_project_summary_session_count_matches_token_list_in_conversation_mode() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let claude_path = temp_dir.path();
@@ -3409,6 +3472,7 @@ mod tests {
     }
 
     #[tokio::test]
+    /// Verify stats mode reconciles global project and session totals.
     async fn test_stats_mode_reconciles_global_project_and_session_totals() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let claude_path = temp_dir.path();
@@ -3533,6 +3597,7 @@ mod tests {
     }
 
     #[tokio::test]
+    /// Verify session token stats respects date filter.
     async fn test_session_token_stats_respects_date_filter() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let project_dir = temp_dir.path().join("projects").join("demo-project");
@@ -3587,6 +3652,7 @@ mod tests {
     }
 
     #[tokio::test]
+    /// Verify session comparison respects date filter.
     async fn test_session_comparison_respects_date_filter() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let project_dir = temp_dir.path().join("projects").join("demo-project");
@@ -3629,6 +3695,7 @@ mod tests {
     }
 
     #[tokio::test]
+    /// Verify project summary daily session count tracks multiple sessions on same day.
     async fn test_project_summary_daily_session_count_tracks_multiple_sessions_on_same_day() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let project_dir = temp_dir.path().join("projects").join("demo-project");
@@ -3664,6 +3731,7 @@ mod tests {
     }
 
     #[tokio::test]
+    /// Verify global summary total projects respects date filter.
     async fn test_global_summary_total_projects_respects_date_filter() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let claude_path = temp_dir.path();
@@ -3698,6 +3766,7 @@ mod tests {
         assert_eq!(summary.total_tokens, 22);
     }
 
+    /// Write a temporary `ForgeCode` database used by stats tests.
     fn write_forgecode_test_db(base_dir: &std::path::Path) {
         let db_path = base_dir.join(".forge.db");
         let conn = rusqlite::Connection::open(db_path).expect("create forgecode stats test db");
@@ -3768,6 +3837,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    /// Verify forgecode stats commands use provider paths.
     async fn test_forgecode_stats_commands_use_provider_paths() {
         let forge_dir = TempDir::new().expect("failed to create forge temp dir");
         write_forgecode_test_db(forge_dir.path());
@@ -3847,6 +3917,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify calculate session active minutes handles long gaps.
     fn test_calculate_session_active_minutes_handles_long_gaps() {
         let mut timestamps = vec![
             DateTime::parse_from_rfc3339("2026-02-20T10:00:00Z")

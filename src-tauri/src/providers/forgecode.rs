@@ -42,7 +42,7 @@ struct ConversationRow {
     updated_at: String,
 }
 
-/// Detect `ForgeCode` installation.
+/// Detect ``ForgeCode`` installation.
 pub fn detect() -> Option<ProviderInfo> {
     let base_path = get_base_path()?;
     let base = Path::new(&base_path);
@@ -58,7 +58,7 @@ pub fn detect() -> Option<ProviderInfo> {
     })
 }
 
-/// Resolve the `ForgeCode` base path.
+/// Resolve the ``ForgeCode`` base path.
 ///
 /// Lookup precedence for v1:
 /// 1. `$FORGE_CONFIG`
@@ -83,11 +83,13 @@ pub fn get_base_path() -> Option<String> {
     }
 }
 
+/// Scan `ForgeCode` projects from the detected base path.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let base_path = get_base_path().ok_or_else(|| "ForgeCode base path not found".to_string())?;
     scan_projects_from_path(&base_path)
 }
 
+/// Scan `ForgeCode` projects from an explicit base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "ForgeCode base path")?;
     if let Some(projects) = scan_projects_from_db(base_path) {
@@ -97,6 +99,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
     Ok(Vec::new())
 }
 
+/// Load `ForgeCode` sessions for a virtual workspace path.
 pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
@@ -112,6 +115,7 @@ pub fn load_sessions(
     Ok(Vec::new())
 }
 
+/// Load `ForgeCode` messages for a virtual conversation path.
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let base_path = get_base_path().ok_or_else(|| "ForgeCode not found".to_string())?;
     let (workspace_id, conversation_id) = parse_conversation_path(session_path)
@@ -126,11 +130,13 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     Ok(Vec::new())
 }
 
+/// Search `ForgeCode` messages using the detected database path.
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let base_path = get_base_path().ok_or_else(|| "ForgeCode not found".to_string())?;
     Ok(search_from_path(&base_path, query, limit))
 }
 
+/// Search `ForgeCode` messages from an explicit base path.
 fn search_from_path(base_path: &str, query: &str, limit: usize) -> Vec<ClaudeMessage> {
     let query_lower = query.to_lowercase();
     let Some(conn) = open_db(base_path) else {
@@ -173,6 +179,7 @@ fn search_from_path(base_path: &str, query: &str, limit: usize) -> Vec<ClaudeMes
     results
 }
 
+/// Load conversation rows used by `ForgeCode` full-text search.
 fn load_search_rows(
     conn: &Connection,
     columns: &ConversationColumns,
@@ -213,6 +220,7 @@ fn load_search_rows(
     Some(rows.filter_map(std::result::Result::ok).collect())
 }
 
+/// Rename a `ForgeCode` conversation title in the local database.
 pub fn rename_session_title(
     session_path: &str,
     new_title: &str,
@@ -221,6 +229,7 @@ pub fn rename_session_title(
     rename_session_title_from_path(&base_path, session_path, new_title)
 }
 
+/// Rename a `ForgeCode` conversation title from an explicit base path.
 fn rename_session_title_from_path(
     base_path: &str,
     session_path: &str,
@@ -295,11 +304,13 @@ fn rename_session_title_from_path(
     })
 }
 
+/// Delete a `ForgeCode` conversation from the detected database.
 pub fn delete_conversation(session_path: &str) -> Result<(), String> {
     let base_path = get_base_path().ok_or_else(|| "ForgeCode not found".to_string())?;
     delete_conversation_from_path(&base_path, session_path)
 }
 
+/// Delete a `ForgeCode` conversation from an explicit base path.
 fn delete_conversation_from_path(base_path: &str, session_path: &str) -> Result<(), String> {
     let (workspace_id, conversation_id) = parse_conversation_path(session_path)
         .ok_or_else(|| format!("Invalid ForgeCode session path: {session_path}"))?;
@@ -326,6 +337,7 @@ fn delete_conversation_from_path(base_path: &str, session_path: &str) -> Result<
     Ok(())
 }
 
+/// Open the `ForgeCode` `SQLite` database in read-only mode.
 fn open_db(base_path: &str) -> Option<Connection> {
     let db_path = Path::new(base_path).join(".forge.db");
     if !db_path.is_file() {
@@ -339,6 +351,7 @@ fn open_db(base_path: &str) -> Option<Connection> {
     .ok()
 }
 
+/// Open the `ForgeCode` `SQLite` database in read-write mode.
 fn open_db_read_write(base_path: &str) -> Result<Connection, String> {
     let db_path = Path::new(base_path).join(".forge.db");
     if !db_path.is_file() {
@@ -355,6 +368,7 @@ fn open_db_read_write(base_path: &str) -> Result<Connection, String> {
     .map_err(|e| format!("Failed to open ForgeCode database: {e}"))
 }
 
+/// Build project summaries from `ForgeCode` conversation rows.
 fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
     let conn = open_db(base_path)?;
     let columns = resolve_conversation_columns(&conn)?;
@@ -405,6 +419,7 @@ fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
     Some(projects)
 }
 
+/// Load `ForgeCode` session summaries for a workspace.
 fn load_sessions_from_db(base_path: &str, workspace_id: &str) -> Option<Vec<ClaudeSession>> {
     let conn = open_db(base_path)?;
     let columns = resolve_conversation_columns(&conn)?;
@@ -443,6 +458,7 @@ fn load_sessions_from_db(base_path: &str, workspace_id: &str) -> Option<Vec<Clau
     Some(sessions)
 }
 
+/// Load `ForgeCode` messages for a workspace conversation pair.
 fn load_messages_from_db(
     base_path: &str,
     workspace_id: &str,
@@ -465,6 +481,7 @@ fn load_messages_from_db(
     ))
 }
 
+/// Resolve the conversation table columns exposed by the `ForgeCode` schema.
 fn resolve_conversation_columns(conn: &Connection) -> Option<ConversationColumns> {
     let mut stmt = conn.prepare("PRAGMA table_info(conversations)").ok()?;
     let column_names: HashSet<String> = stmt
@@ -491,6 +508,7 @@ fn resolve_conversation_columns(conn: &Connection) -> Option<ConversationColumns
     })
 }
 
+/// Load per-workspace aggregation rows from the conversations table.
 fn load_project_rows(
     conn: &Connection,
     columns: &ConversationColumns,
@@ -525,6 +543,7 @@ fn load_project_rows(
     Some(rows.filter_map(std::result::Result::ok).collect())
 }
 
+/// Load conversation rows for a single `ForgeCode` workspace.
 fn load_workspace_rows(
     conn: &Connection,
     columns: &ConversationColumns,
@@ -566,6 +585,7 @@ fn load_workspace_rows(
     Some(rows.filter_map(std::result::Result::ok).collect())
 }
 
+/// Load a single `ForgeCode` conversation row by workspace and conversation id.
 fn load_conversation_row(
     conn: &Connection,
     columns: &ConversationColumns,
@@ -604,6 +624,7 @@ fn load_conversation_row(
     .ok()
 }
 
+/// Parse `ForgeCode` context JSON into a list of entry values.
 fn parse_context_entries(context_json: &str) -> Vec<Value> {
     let Ok(value) = serde_json::from_str::<Value>(context_json) else {
         return Vec::new();
@@ -619,10 +640,12 @@ fn parse_context_entries(context_json: &str) -> Vec<Value> {
     }
 }
 
+/// Return whether any context entry contains tool usage data.
 fn context_entries_have_tool_use(entries: &[Value]) -> bool {
     entries.iter().any(entry_contains_tool_use)
 }
 
+/// Return whether a context entry contains tool usage data.
 fn entry_contains_tool_use(entry: &Value) -> bool {
     let (kind, payload) = extract_context_variant(entry);
     if kind == "tool" {
@@ -632,6 +655,7 @@ fn entry_contains_tool_use(entry: &Value) -> bool {
     extract_embedded_tool_use(payload).is_some()
 }
 
+/// Map `ForgeCode` context entries into normalized messages.
 fn map_context_messages(
     workspace_id: &str,
     conversation_id: &str,
@@ -664,6 +688,7 @@ fn map_context_messages(
     messages
 }
 
+/// Map a single `ForgeCode` context entry into a normalized message.
 fn map_context_message(
     workspace_id: &str,
     conversation_id: &str,
@@ -707,6 +732,7 @@ fn map_context_message(
     }
 }
 
+/// Map a text-style `ForgeCode` context entry into a message.
 fn map_text_message(
     workspace_id: &str,
     conversation_id: &str,
@@ -741,6 +767,7 @@ fn map_text_message(
     message
 }
 
+/// Map an image-style `ForgeCode` context entry into a message.
 fn map_image_message(
     workspace_id: &str,
     conversation_id: &str,
@@ -776,6 +803,7 @@ fn map_image_message(
     message
 }
 
+/// Map a tool-style `ForgeCode` context entry into a message.
 fn map_tool_message(
     workspace_id: &str,
     conversation_id: &str,
@@ -863,6 +891,7 @@ fn map_tool_message(
     message
 }
 
+/// Extract the `ForgeCode` context entry variant name.
 fn extract_context_variant(entry: &Value) -> (&'static str, &Value) {
     if let Some(message) = entry.get("message") {
         if let Some(text) = message.get("text") {
@@ -896,6 +925,7 @@ fn extract_context_variant(entry: &Value) -> (&'static str, &Value) {
     ("text", entry)
 }
 
+/// Merge nested `ForgeCode` payload objects into a single value.
 fn merge_context_payload(entry: &Value, payload: &Value) -> Value {
     let mut merged = payload.clone();
     let Some(merged_object) = merged.as_object_mut() else {
@@ -926,10 +956,12 @@ fn merge_context_payload(entry: &Value, payload: &Value) -> Value {
     merged
 }
 
+/// Extract a message role from a `ForgeCode` payload.
 fn extract_role(value: &Value) -> Option<String> {
     extract_string(value, &["role", "speaker", "author"])
 }
 
+/// Normalize `ForgeCode` role names to the shared role set.
 fn normalize_role(role: Option<&str>, default_role: &str) -> String {
     let normalized = role.unwrap_or(default_role).trim().to_ascii_lowercase();
 
@@ -940,6 +972,7 @@ fn normalize_role(role: Option<&str>, default_role: &str) -> String {
     }
 }
 
+/// Translate a normalized role into the shared message type.
 fn message_type_for_role(role: &str) -> &'static str {
     match role {
         "assistant" => "assistant",
@@ -948,6 +981,7 @@ fn message_type_for_role(role: &str) -> &'static str {
     }
 }
 
+/// Extract the best content value from a `ForgeCode` payload.
 fn extract_content_value(payload: &Value) -> Option<Value> {
     if let Some(content) = extract_json(payload, &["content", "message", "body", "value"]) {
         if !value_is_effectively_empty(&content) {
@@ -959,6 +993,7 @@ fn extract_content_value(payload: &Value) -> Option<Value> {
         .or_else(|| extract_text(payload).map(Value::String))
 }
 
+/// Return whether a JSON value is empty for message rendering.
 fn value_is_effectively_empty(value: &Value) -> bool {
     match value {
         Value::Null => true,
@@ -969,6 +1004,7 @@ fn value_is_effectively_empty(value: &Value) -> bool {
     }
 }
 
+/// Build normalized message content for a text payload.
 fn build_text_message_content(payload: &Value) -> Option<Value> {
     let tool_calls = extract_tool_call_blocks(payload);
     if !tool_calls.is_empty() {
@@ -986,6 +1022,7 @@ fn build_text_message_content(payload: &Value) -> Option<Value> {
     extract_content_value(payload).or_else(|| Some(payload.clone()))
 }
 
+/// Extract tool-call content blocks from a `ForgeCode` payload.
 fn extract_tool_call_blocks(payload: &Value) -> Vec<Value> {
     payload
         .get("tool_calls")
@@ -1000,6 +1037,7 @@ fn extract_tool_call_blocks(payload: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+/// Normalize a `ForgeCode` tool-call block into shared message content.
 fn normalize_tool_call_block(tool_call: &Value) -> Option<Value> {
     let name = extract_string(tool_call, &["name"])?;
     let id = extract_string(tool_call, &["call_id", "callId", "id"])
@@ -1016,6 +1054,7 @@ fn normalize_tool_call_block(tool_call: &Value) -> Option<Value> {
     }))
 }
 
+/// Normalize `ForgeCode` tool input into a JSON object.
 fn normalize_tool_call_input(value: &Value) -> Value {
     match value {
         Value::String(text) => {
@@ -1025,6 +1064,7 @@ fn normalize_tool_call_input(value: &Value) -> Value {
     }
 }
 
+/// Extract embedded tool usage metadata from a `ForgeCode` payload.
 fn extract_embedded_tool_use(content: &Value) -> Option<Value> {
     match content {
         Value::Array(items) => items.iter().find_map(|item| {
@@ -1054,6 +1094,7 @@ fn extract_embedded_tool_use(content: &Value) -> Option<Value> {
     }
 }
 
+/// Extract token usage information from `ForgeCode` message payloads.
 fn extract_usage(payload: &Value) -> Option<TokenUsage> {
     let usage = payload.get("usage").unwrap_or(payload);
     let direct_input_tokens = extract_u32(usage, &["input_tokens", "inputTokens"]);
@@ -1103,6 +1144,7 @@ fn extract_usage(payload: &Value) -> Option<TokenUsage> {
     }
 }
 
+/// Extract a USD cost value from `ForgeCode` metrics.
 fn extract_cost_usd(payload: &Value) -> Option<f64> {
     extract_f64(payload, &["cost_usd", "costUSD", "cost"]).or_else(|| {
         payload
@@ -1111,6 +1153,7 @@ fn extract_cost_usd(payload: &Value) -> Option<f64> {
     })
 }
 
+/// Extract the best timestamp for a `ForgeCode` context entry.
 fn extract_timestamp(value: &Value) -> Option<String> {
     extract_json(value, &["timestamp", "created_at", "createdAt", "time"]).and_then(|raw| {
         normalize_timestamp_value(&raw)
@@ -1118,6 +1161,7 @@ fn extract_timestamp(value: &Value) -> Option<String> {
     })
 }
 
+/// Build a fallback timestamp for a message missing its own timestamp.
 fn fallback_message_timestamp(index: usize, created_at: &str, updated_at: &str) -> String {
     if index == 0 && !created_at.is_empty() {
         created_at.to_string()
@@ -1128,10 +1172,12 @@ fn fallback_message_timestamp(index: usize, created_at: &str, updated_at: &str) 
     }
 }
 
+/// Extract the model identifier from a `ForgeCode` payload.
 fn extract_model(value: &Value) -> Option<String> {
     extract_string(value, &["model", "model_id", "modelId"])
 }
 
+/// Extract `ForgeCode` metadata fields that are safe to expose on messages.
 fn extract_safe_message_metadata(payload: &Value) -> Option<Value> {
     let mut metadata = Map::new();
 
@@ -1165,6 +1211,7 @@ fn extract_safe_message_metadata(payload: &Value) -> Option<Value> {
     }
 }
 
+/// Extract metrics metadata that should be attached to normalized messages.
 fn extract_metrics_metadata(metrics_json: Option<&str>) -> Option<Value> {
     let metrics_json = metrics_json?;
     let Ok(metrics) = serde_json::from_str::<Value>(metrics_json) else {
@@ -1230,6 +1277,7 @@ fn extract_metrics_metadata(metrics_json: Option<&str>) -> Option<Value> {
     }
 }
 
+/// Attach provider-specific metadata to a normalized message.
 fn attach_message_metadata(message: &mut ClaudeMessage, key: &str, value: Value) {
     if let Some(Value::Object(object)) = &mut message.data {
         object.insert(key.to_string(), value);
@@ -1240,6 +1288,7 @@ fn attach_message_metadata(message: &mut ClaudeMessage, key: &str, value: Value)
     }
 }
 
+/// Extract related `ForgeCode` conversation ids from metadata.
 fn extract_related_conversation_ids(value: &Value) -> Vec<String> {
     let mut ids = BTreeSet::new();
 
@@ -1259,6 +1308,7 @@ fn extract_related_conversation_ids(value: &Value) -> Vec<String> {
     ids.into_iter().collect()
 }
 
+/// Collect related `ForgeCode` conversation ids from nested values.
 fn collect_related_conversation_ids(value: &Value, ids: &mut BTreeSet<String>) {
     match value {
         Value::String(id) if !id.trim().is_empty() => {
@@ -1283,6 +1333,7 @@ fn collect_related_conversation_ids(value: &Value, ids: &mut BTreeSet<String>) {
     }
 }
 
+/// Extract a string-like text value from JSON content.
 fn extract_text(value: &Value) -> Option<String> {
     match value {
         Value::String(text) => Some(text.clone()),
@@ -1308,6 +1359,7 @@ fn extract_text(value: &Value) -> Option<String> {
     }
 }
 
+/// Extract a string value from a JSON object key.
 fn extract_string(value: &Value, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
         value.get(key).and_then(|inner| match inner {
@@ -1318,16 +1370,19 @@ fn extract_string(value: &Value, keys: &[&str]) -> Option<String> {
     })
 }
 
+/// Clone a JSON value from a JSON object key.
 fn extract_json(value: &Value, keys: &[&str]) -> Option<Value> {
     keys.iter().find_map(|key| value.get(key).cloned())
 }
 
+/// Extract a u32 value from a JSON object key.
 fn extract_u32(value: &Value, keys: &[&str]) -> Option<u32> {
     keys.iter()
         .filter_map(|key| value.get(key))
         .find_map(value_to_u32)
 }
 
+/// Convert a JSON value into a u32 when possible.
 fn value_to_u32(value: &Value) -> Option<u32> {
     match value {
         Value::Number(number) => number.as_u64().and_then(|v| u32::try_from(v).ok()),
@@ -1341,12 +1396,14 @@ fn value_to_u32(value: &Value) -> Option<u32> {
     }
 }
 
+/// Extract an f64 value from a JSON object key.
 fn extract_f64(value: &Value, keys: &[&str]) -> Option<f64> {
     keys.iter()
         .filter_map(|key| value.get(key))
         .find_map(value_to_f64)
 }
 
+/// Convert a JSON value into an f64 when possible.
 fn value_to_f64(value: &Value) -> Option<f64> {
     match value {
         Value::Number(number) => number.as_f64(),
@@ -1360,6 +1417,7 @@ fn value_to_f64(value: &Value) -> Option<f64> {
     }
 }
 
+/// Extract a bool value from a JSON object key.
 fn extract_bool(value: &Value, keys: &[&str]) -> bool {
     keys.iter().any(|key| {
         value.get(key).is_some_and(|inner| match inner {
@@ -1370,6 +1428,7 @@ fn extract_bool(value: &Value, keys: &[&str]) -> bool {
     })
 }
 
+/// Resolve the preferred `ForgeCode` workspace display name from aggregated rows.
 fn resolve_workspace_display_name_from_rows(
     workspace_id: &str,
     rows: &[ConversationRow],
@@ -1387,6 +1446,7 @@ fn resolve_workspace_display_name_from_rows(
     choose_workspace_display_name(workspace_id, &display_name_votes)
 }
 
+/// Choose the best workspace display name from vote counts.
 fn choose_workspace_display_name(
     workspace_id: &str,
     display_name_votes: &BTreeMap<String, usize>,
@@ -1403,11 +1463,13 @@ fn choose_workspace_display_name(
         .unwrap_or_else(|| project_display_name(workspace_id))
 }
 
+/// Extract a workspace display name from `ForgeCode` context JSON.
 fn extract_workspace_display_name_from_context_json(context_json: &str) -> Option<String> {
     let parsed = serde_json::from_str::<Value>(context_json).ok()?;
     extract_workspace_display_name_from_value(&parsed)
 }
 
+/// Extract a workspace display name from a JSON value.
 fn extract_workspace_display_name_from_value(value: &Value) -> Option<String> {
     let home_dir = dirs::home_dir();
     let home_dir = home_dir.as_deref();
@@ -1425,6 +1487,7 @@ fn extract_workspace_display_name_from_value(value: &Value) -> Option<String> {
         .map(|(display_name, _)| display_name)
 }
 
+/// Collect workspace display-name votes from conversation rows.
 fn collect_workspace_display_name_votes(
     value: &Value,
     home_dir: Option<&Path>,
@@ -1453,6 +1516,7 @@ fn collect_workspace_display_name_votes(
     }
 }
 
+/// Derive a workspace display name from a cwd path.
 fn display_name_from_cwd(cwd: &str, home_dir: Option<&Path>) -> Option<String> {
     let trimmed = cwd.trim();
     if trimmed.is_empty() {
@@ -1472,6 +1536,7 @@ fn display_name_from_cwd(cwd: &str, home_dir: Option<&Path>) -> Option<String> {
         .map(ToString::to_string)
 }
 
+/// Extract cwd values from `ForgeCode` context JSON.
 fn extract_cwds_from_context_json(context_json: &str) -> BTreeMap<String, usize> {
     let mut cwd_votes = BTreeMap::new();
     if let Ok(parsed) = serde_json::from_str::<Value>(context_json) {
@@ -1480,6 +1545,7 @@ fn extract_cwds_from_context_json(context_json: &str) -> BTreeMap<String, usize>
     cwd_votes
 }
 
+/// Collect cwd vote counts from `ForgeCode` conversation rows.
 fn collect_cwd_votes(value: &Value, cwd_votes: &mut BTreeMap<String, usize>) {
     match value {
         Value::Object(map) => {
@@ -1521,26 +1587,32 @@ fn choose_best_cwd(cwd_votes: &BTreeMap<String, usize>) -> Option<String> {
         .map(|(path, _)| path.clone())
 }
 
+/// Build the `ForgeCode` project display name for a workspace.
 fn project_display_name(workspace_id: &str) -> String {
     format!("Workspace {workspace_id}")
 }
 
+/// Build the virtual project path for a `ForgeCode` workspace.
 fn project_virtual_path(workspace_id: &str) -> String {
     format!("forgecode://workspace/{workspace_id}")
 }
 
+/// Build the virtual session path for a `ForgeCode` conversation.
 fn session_virtual_path(workspace_id: &str, conversation_id: &str) -> String {
     format!("forgecode://workspace/{workspace_id}/conversation/{conversation_id}")
 }
 
+/// Build the virtual file path alias for a `ForgeCode` conversation.
 fn session_file_virtual_path(workspace_id: &str, conversation_id: &str) -> String {
     format!("forgecode-db://workspace/{workspace_id}/conversation/{conversation_id}")
 }
 
+/// Build a stable message UUID for a `ForgeCode` conversation entry.
 fn message_uuid(workspace_id: &str, conversation_id: &str, index: usize) -> String {
     format!("forgecode://workspace/{workspace_id}/conversation/{conversation_id}/message/{index}")
 }
 
+/// Parse a `ForgeCode` virtual project path into a workspace id.
 fn parse_workspace_project_path(project_path: &str) -> Option<String> {
     let workspace_id = project_path
         .strip_prefix("forgecode://workspace/")
@@ -1553,6 +1625,7 @@ fn parse_workspace_project_path(project_path: &str) -> Option<String> {
     }
 }
 
+/// Parse a `ForgeCode` virtual conversation path.
 fn parse_conversation_path(session_path: &str) -> Option<(String, String)> {
     let raw_path = session_path
         .strip_prefix("forgecode-db://workspace/")
@@ -1567,6 +1640,7 @@ fn parse_conversation_path(session_path: &str) -> Option<(String, String)> {
     Some((workspace_id.to_string(), conversation_id.to_string()))
 }
 
+/// Validate a single `ForgeCode` virtual path component.
 fn is_valid_virtual_component(value: &str) -> bool {
     !value.is_empty()
         && value != "."
@@ -1575,24 +1649,29 @@ fn is_valid_virtual_component(value: &str) -> bool {
         && !value.contains('\\')
 }
 
+/// Quote an `SQLite` identifier for generated `ForgeCode` queries.
 fn quote_ident(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
 }
 
+/// Build a text-cast SQL expression for a required column.
 fn cast_text_expr(identifier: &str) -> String {
     format!("COALESCE(CAST({} AS TEXT), '')", quote_ident(identifier))
 }
 
+/// Build a text-cast SQL expression for an optional column.
 fn optional_cast_text_expr(identifier: Option<&str>) -> String {
     identifier.map_or_else(|| "''".to_string(), cast_text_expr)
 }
 
+/// Build an ORDER BY expression for an optional timestamp column.
 fn optional_order_expr(identifier: Option<&str>) -> String {
     identifier
         .map(quote_ident)
         .unwrap_or_else(|| "rowid".to_string())
 }
 
+/// Convert blank strings into None.
 fn empty_to_none(value: String) -> Option<String> {
     if value.trim().is_empty() {
         None
@@ -1601,6 +1680,7 @@ fn empty_to_none(value: String) -> Option<String> {
     }
 }
 
+/// Return the newer of two timestamp strings.
 fn latest_timestamp(created_at: &str, updated_at: &str) -> String {
     let updated = normalize_timestamp_text(updated_at);
     if updated.is_empty() {
@@ -1610,6 +1690,7 @@ fn latest_timestamp(created_at: &str, updated_at: &str) -> String {
     }
 }
 
+/// Return the latest timestamp from a set of candidates.
 fn max_timestamp(current: &str, candidate: &str) -> String {
     if current.is_empty() {
         return candidate.to_string();
@@ -1625,6 +1706,7 @@ fn max_timestamp(current: &str, candidate: &str) -> String {
     }
 }
 
+/// Compare two timestamps after normalizing their formats.
 fn compare_timestamps(left: &str, right: &str) -> std::cmp::Ordering {
     match (timestamp_sort_key(left), timestamp_sort_key(right)) {
         (Some(left_ts), Some(right_ts)) => left_ts.cmp(&right_ts),
@@ -1634,6 +1716,7 @@ fn compare_timestamps(left: &str, right: &str) -> std::cmp::Ordering {
     }
 }
 
+/// Build a sortable key for timestamp comparisons.
 fn timestamp_sort_key(value: &str) -> Option<i64> {
     let normalized = normalize_timestamp_text(value);
     if normalized.is_empty() {
@@ -1645,12 +1728,14 @@ fn timestamp_sort_key(value: &str) -> Option<i64> {
         .map(|timestamp| timestamp.timestamp_millis())
 }
 
+/// Normalize a timestamp string into RFC3339 form when possible.
 fn normalize_timestamp_text(value: &str) -> String {
     normalize_timestamp_value(&Value::String(value.to_string()))
         .and_then(|normalized| normalized.as_str().map(ToString::to_string))
         .unwrap_or_default()
 }
 
+/// Normalize a timestamp JSON value into text.
 fn normalize_timestamp_value(value: &Value) -> Option<Value> {
     match value {
         Value::String(text) => {
@@ -1693,6 +1778,7 @@ fn normalize_timestamp_value(value: &Value) -> Option<Value> {
     }
 }
 
+/// Normalize a numeric timestamp into RFC3339 text.
 fn normalize_timestamp_number(value: i64) -> Option<String> {
     let millis = if value.abs() >= 10_000_000_000 {
         value
@@ -1710,6 +1796,7 @@ mod tests {
     use rusqlite::params;
     use tempfile::TempDir;
 
+    /// Create a temporary `ForgeCode` test database.
     fn create_test_db(tmp: &TempDir) -> Connection {
         let db_path = tmp.path().join(".forge.db");
         let conn = Connection::open(db_path).expect("create forgecode test db");
@@ -1728,6 +1815,7 @@ mod tests {
         conn
     }
 
+    /// Seed the temporary `ForgeCode` test database with fixture rows.
     fn seed_test_data(conn: &Connection) {
         conn.execute(
             "INSERT INTO conversations (id, workspace_id, title, context, metrics, created_at, updated_at)
@@ -1879,6 +1967,7 @@ mod tests {
     }
 
     #[test]
+    /// Extract usage derives consumed input from prompt and cached tokens.
     fn extract_usage_derives_consumed_input_from_prompt_and_cached_tokens() {
         let usage = extract_usage(&json!({
             "usage": {
@@ -1897,6 +1986,7 @@ mod tests {
     }
 
     #[test]
+    /// Extract usage preserves explicit input tokens.
     fn extract_usage_preserves_explicit_input_tokens() {
         let usage = extract_usage(&json!({
             "usage": {
@@ -1915,6 +2005,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify `SQLite` scan projects groups rows by workspace.
     fn sqlite_scan_projects_groups_rows_by_workspace() {
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
@@ -1943,6 +2034,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify `SQLite` load sessions filters null context and preserves virtual ids.
     fn sqlite_load_sessions_filters_null_context_and_preserves_virtual_ids() {
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
@@ -1976,6 +2068,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify `SQLite` load messages maps text tool usage cost and metrics.
     fn sqlite_load_messages_maps_text_tool_usage_cost_and_metrics() {
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
@@ -2069,6 +2162,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify `SQLite` load messages returns empty for malformed context without panicking.
     fn sqlite_load_messages_returns_empty_for_malformed_context_without_panicking() {
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
@@ -2083,6 +2177,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify detection prefers forge config and checks artifacts.
     fn detection_prefers_forge_config_and_checks_artifacts() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join(".forge_history"), "history").unwrap();
@@ -2104,6 +2199,7 @@ mod tests {
     }
 
     #[test]
+    /// Extract workspace display name prefers cwd basename and ignores home dir.
     fn extract_workspace_display_name_prefers_cwd_basename_and_ignores_home_dir() {
         let context = json!({
             "messages": [
@@ -2135,6 +2231,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify `SQLite` search matches message content.
     fn sqlite_search_matches_message_content() {
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
@@ -2163,6 +2260,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify `SQLite` rename session title updates conversation title.
     fn sqlite_rename_session_title_updates_conversation_title() {
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
@@ -2191,6 +2289,7 @@ mod tests {
     }
 
     #[test]
+    /// Verify `SQLite` delete conversation removes row.
     fn sqlite_delete_conversation_removes_row() {
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
@@ -2215,6 +2314,7 @@ mod tests {
     }
 
     #[test]
+    /// Parse conversation path accepts virtual session and file paths.
     fn parse_conversation_path_accepts_virtual_session_and_file_paths() {
         assert_eq!(
             parse_conversation_path("forgecode://workspace/ws-1/conversation/conv-1"),
