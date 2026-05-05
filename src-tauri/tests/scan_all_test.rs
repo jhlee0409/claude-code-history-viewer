@@ -1,5 +1,7 @@
-// 集成测试：直接调用 scan_all_projects 的内部逻辑
-// 运行: cargo test test_scan_all_projects -- --nocapture
+// Integration tests that exercise scan_all_projects end-to-end.
+// Run: cargo test test_scan_all_projects -- --nocapture --test-threads=1
+// Tests gated with #[ignore] require local Antigravity data:
+//   cargo test -- --ignored --test-threads=1
 
 #[cfg(test)]
 mod integration_tests {
@@ -130,6 +132,7 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires local Antigravity data; run with --ignored"]
     async fn test_antigravity_load_provider_messages_real_data() {
         println!("\n=== antigravity load_provider_messages ===");
 
@@ -188,6 +191,7 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires local Antigravity logs; run with --ignored"]
     async fn test_antigravity_load_provider_messages_returns_tool_use_for_logged_session() {
         println!("\n=== antigravity tool-use session probe ===");
 
@@ -295,6 +299,7 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires local Antigravity data; run with --ignored"]
     async fn test_antigravity_project_stats_summary_returns_tools_for_logged_project() {
         println!("\n=== antigravity project stats summary tool probe ===");
 
@@ -360,6 +365,7 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    #[ignore = "hardcoded date range targets local Antigravity data; run with --ignored"]
     async fn test_antigravity_global_stats_summary_returns_tools_for_ui_date_range() {
         println!("\n=== antigravity global stats summary ui date-range probe ===");
 
@@ -394,6 +400,7 @@ mod integration_tests {
     }
 
     #[tokio::test]
+    #[ignore = "hardcoded date range targets local Antigravity data; run with --ignored"]
     async fn test_antigravity_global_billing_breakdown_is_non_zero_for_real_data() {
         println!("\n=== antigravity global billing breakdown probe ===");
 
