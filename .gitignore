@@ -23,6 +23,7 @@ src-tauri/target/
 src-tauri/Cargo.lock
 src-tauri/gen/
 src-tauri/.env
+src-tauri/tauri.local.conf.json
 
 # Editor directories and files
 .vscode/*
