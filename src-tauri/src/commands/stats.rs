@@ -211,6 +211,8 @@ struct GlobalStatsLogEntry {
     timestamp: Option<String>,
     #[serde(rename = "isSidechain")]
     is_sidechain: Option<bool>,
+    /// Row identifier — fallback dedup key when `message.id` is absent (#283).
+    uuid: Option<String>,
     message: Option<GlobalStatsMessageContent>,
     #[serde(rename = "toolUse")]
     tool_use: Option<GlobalStatsToolUse>,
@@ -222,6 +224,9 @@ struct GlobalStatsLogEntry {
 struct GlobalStatsMessageContent {
     #[allow(dead_code)]
     role: String,
+    /// Assistant turn identifier — primary dedup key (#283).
+    /// Multiple JSONL rows belonging to one turn share this id.
+    id: Option<String>,
     content: Option<serde_json::Value>,
     model: Option<String>,
     usage: Option<TokenUsage>,
@@ -425,6 +430,10 @@ fn process_session_file_for_global_stats(
     };
 
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
+    // #283: per-file dedup of usage payloads — within one session file all rows
+    // share the same session_id, so we key by message.id (or uuid fallback).
+    let mut entries: Vec<GlobalStatsLogEntry> = Vec::new();
+    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::new();
 
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
@@ -432,11 +441,14 @@ fn process_session_file_for_global_stats(
     for (start, end) in line_ranges {
         let mut line_bytes = mmap[start..end].to_vec();
 
-        let Some(entry) = parse_global_stats_entry_simd(&mut line_bytes) else {
-            continue;
-        };
+        if let Some(entry) = parse_global_stats_entry_simd(&mut line_bytes) {
+            entries.push(entry);
+        }
+    }
+    seen_usage_keys.reserve(entries.len());
 
-        let usage = extract_token_usage_from_global_entry(&entry);
+    for entry in &entries {
+        let usage = extract_token_usage_from_global_entry(entry);
         let has_usage = token_usage_has_token_fields(&usage);
 
         if !should_include_stats_entry(&entry.message_type, entry.is_sidechain, has_usage, mode) {
@@ -457,8 +469,10 @@ fn process_session_file_for_global_stats(
         }
 
         stats.total_messages = stats.total_messages.saturating_add(1);
+        let message_id = entry.message.as_ref().and_then(|m| m.id.as_deref());
+        let uuid = entry.uuid.as_deref().unwrap_or("");
         let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
-            token_usage_totals(&usage);
+            dedup_token_totals(&mut seen_usage_keys, "", message_id, uuid, &usage);
 
         stats.total_tokens += tokens;
         stats.token_distribution.input += input_tokens;
@@ -481,7 +495,7 @@ fn process_session_file_for_global_stats(
         }
 
         let Some(timestamp) = parsed_timestamp else {
-            track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
+            track_tool_usage_from_global_entry(entry, &mut stats.tool_usage);
             continue;
         };
 
@@ -524,7 +538,7 @@ fn process_session_file_for_global_stats(
         daily_entry.message_count += 1;
 
         // Track tool usage
-        track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
+        track_tool_usage_from_global_entry(entry, &mut stats.tool_usage);
     }
 
     // Calculate session duration
@@ -586,6 +600,8 @@ fn build_global_session_file_stats_from_messages(
     };
 
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
+    // #283: counts rows but only adds usage once per (session_id, message.id).
+    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
 
     let has_date_filter = s_limit.is_some() || e_limit.is_some();
 
@@ -605,7 +621,7 @@ fn build_global_session_file_stats_from_messages(
 
         stats.total_messages = stats.total_messages.saturating_add(1);
         let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
-            token_usage_totals(&usage);
+            dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
 
         stats.total_tokens += tokens;
         stats.token_distribution.input += input_tokens;
@@ -792,69 +808,70 @@ fn process_session_file_for_project_stats(
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
 
+    // #283: collect messages first so the dedup HashSet can borrow from them
+    // (Vec<ClaudeMessage> outlives the loop body).
+    let mut messages: Vec<ClaudeMessage> = Vec::with_capacity(line_ranges.len());
     for (start, end) in line_ranges {
-        // simd-json requires mutable slice
         let mut line_bytes = mmap[start..end].to_vec();
-
         if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
             if let Ok(message) = ClaudeMessage::try_from(log_entry) {
-                let usage = extract_token_usage(&message);
-                let has_usage = token_usage_has_token_fields(&usage);
-                if !should_include_stats_entry(
-                    &message.message_type,
-                    message.is_sidechain,
-                    has_usage,
-                    mode,
-                ) {
-                    continue;
-                }
-
-                // Per-message date filtering
-                let parsed_ts = parse_timestamp_utc(&message.timestamp);
-                if !is_within_date_limits(parsed_ts, s_limit, e_limit) {
-                    continue;
-                }
-
-                stats.total_messages += 1;
-                let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
-                    token_usage_totals(&usage);
-
-                stats.token_distribution.input += input_tokens;
-                stats.token_distribution.output += output_tokens;
-                stats.token_distribution.cache_creation += cache_creation_tokens;
-                stats.token_distribution.cache_read += cache_read_tokens;
-
-                if let Some(timestamp) = parsed_ts {
-                    session_timestamps.push(timestamp);
-
-                    let hour = timestamp.hour() as u8;
-                    let day = timestamp.weekday().num_days_from_sunday() as u8;
-
-                    let activity_entry = stats.activity_data.entry((hour, day)).or_insert((0, 0));
-                    activity_entry.0 += 1;
-                    activity_entry.1 += tokens;
-
-                    let date = timestamp.format("%Y-%m-%d").to_string();
-                    stats.session_dates.insert(date.clone());
-
-                    let daily_entry =
-                        stats
-                            .daily_stats
-                            .entry(date.clone())
-                            .or_insert_with(|| DailyStats {
-                                date,
-                                ..Default::default()
-                            });
-                    daily_entry.total_tokens += tokens;
-                    daily_entry.input_tokens += input_tokens;
-                    daily_entry.output_tokens += output_tokens;
-                    daily_entry.message_count += 1;
-                }
-
-                // Track tool usage
-                track_tool_usage(&message, &mut stats.tool_usage);
+                messages.push(message);
             }
         }
+    }
+    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
+
+    for message in &messages {
+        let usage = extract_token_usage(message);
+        let has_usage = token_usage_has_token_fields(&usage);
+        if !should_include_stats_entry(&message.message_type, message.is_sidechain, has_usage, mode)
+        {
+            continue;
+        }
+
+        // Per-message date filtering
+        let parsed_ts = parse_timestamp_utc(&message.timestamp);
+        if !is_within_date_limits(parsed_ts, s_limit, e_limit) {
+            continue;
+        }
+
+        stats.total_messages += 1;
+        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
+            dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+
+        stats.token_distribution.input += input_tokens;
+        stats.token_distribution.output += output_tokens;
+        stats.token_distribution.cache_creation += cache_creation_tokens;
+        stats.token_distribution.cache_read += cache_read_tokens;
+
+        if let Some(timestamp) = parsed_ts {
+            session_timestamps.push(timestamp);
+
+            let hour = timestamp.hour() as u8;
+            let day = timestamp.weekday().num_days_from_sunday() as u8;
+
+            let activity_entry = stats.activity_data.entry((hour, day)).or_insert((0, 0));
+            activity_entry.0 += 1;
+            activity_entry.1 += tokens;
+
+            let date = timestamp.format("%Y-%m-%d").to_string();
+            stats.session_dates.insert(date.clone());
+
+            let daily_entry = stats
+                .daily_stats
+                .entry(date.clone())
+                .or_insert_with(|| DailyStats {
+                    date,
+                    ..Default::default()
+                });
+            daily_entry.total_tokens += tokens;
+            daily_entry.input_tokens += input_tokens;
+            daily_entry.output_tokens += output_tokens;
+            daily_entry.message_count += 1;
+        }
+
+        // Track tool usage
+        track_tool_usage(message, &mut stats.tool_usage);
     }
 
     if stats.total_messages == 0 {
@@ -985,6 +1002,70 @@ fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
     }
 
     usage
+}
+
+/// Borrowed dedup key identifying one logical assistant turn for usage accounting (#283).
+///
+/// Claude assistant turns split content (`thinking`, `tool_use`, `text`)
+/// across multiple JSONL rows that share the same `message.id` and embed
+/// an identical `usage` payload. Aggregation loops must add usage at most
+/// once per `(session_id, message.id)` to avoid double-counting.
+///
+/// Falls back to `uuid` when `message_id` is missing or empty so each
+/// unique row still contributes once. Returns borrowed slices to keep
+/// the per-message hot path allocation-free.
+#[inline]
+fn usage_dedup_key_parts<'a>(
+    session_id: &'a str,
+    message_id: Option<&'a str>,
+    uuid: &'a str,
+) -> (&'a str, &'a str) {
+    let id_part = message_id.filter(|s| !s.is_empty()).unwrap_or(uuid);
+    (session_id, id_part)
+}
+
+/// Convenience wrapper for `ClaudeMessage`-based aggregators (#283).
+#[inline]
+fn usage_dedup_key(message: &ClaudeMessage) -> (&str, &str) {
+    usage_dedup_key_parts(
+        &message.session_id,
+        message.message_id.as_deref(),
+        &message.uuid,
+    )
+}
+
+/// Dedup-aware token totals — returns zero tuple when this turn was already counted.
+/// Aggregators should call this once per row, then add the returned totals
+/// unconditionally so msg counts stay per-row while usage stays deduped.
+#[inline]
+fn dedup_token_totals<'a>(
+    seen: &mut HashSet<(&'a str, &'a str)>,
+    session_id: &'a str,
+    message_id: Option<&'a str>,
+    uuid: &'a str,
+    usage: &TokenUsage,
+) -> (u64, u64, u64, u64, u64) {
+    if seen.insert(usage_dedup_key_parts(session_id, message_id, uuid)) {
+        token_usage_totals(usage)
+    } else {
+        (0, 0, 0, 0, 0)
+    }
+}
+
+/// Convenience wrapper for `ClaudeMessage`-based aggregators.
+#[inline]
+fn dedup_token_totals_msg<'a>(
+    seen: &mut HashSet<(&'a str, &'a str)>,
+    message: &'a ClaudeMessage,
+    usage: &TokenUsage,
+) -> (u64, u64, u64, u64, u64) {
+    dedup_token_totals(
+        seen,
+        &message.session_id,
+        message.message_id.as_deref(),
+        &message.uuid,
+        usage,
+    )
 }
 
 fn parse_date_limit(date_str: Option<String>, label: &str) -> Option<DateTime<Utc>> {
@@ -1177,6 +1258,8 @@ fn build_session_token_stats_from_messages(
     let mut total_cache_creation_tokens = 0u64;
     let mut total_cache_read_tokens = 0u64;
     let mut tool_usage: HashMap<String, (u32, u32)> = HashMap::new();
+    // #283: only add usage once per (session_id, message.id).
+    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
 
     let mut first_time: Option<DateTime<Utc>> = None;
     let mut last_time: Option<DateTime<Utc>> = None;
@@ -1198,10 +1281,12 @@ fn build_session_token_stats_from_messages(
         }
 
         included_message_count += 1;
-        total_input_tokens += u64::from(usage.input_tokens.unwrap_or(0));
-        total_output_tokens += u64::from(usage.output_tokens.unwrap_or(0));
-        total_cache_creation_tokens += u64::from(usage.cache_creation_input_tokens.unwrap_or(0));
-        total_cache_read_tokens += u64::from(usage.cache_read_input_tokens.unwrap_or(0));
+        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, _) =
+            dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        total_input_tokens += input_tokens;
+        total_output_tokens += output_tokens;
+        total_cache_creation_tokens += cache_creation_tokens;
+        total_cache_read_tokens += cache_read_tokens;
 
         if let Some(ts) = parsed_timestamp {
             if first_time.map_or(true, |current| ts < current) {
@@ -1322,6 +1407,8 @@ fn get_provider_project_stats_summary(
         let mut included_messages = 0usize;
         let mut parsed_timestamps = Vec::new();
         let mut session_dates = HashSet::new();
+        // #283: per-session dedup
+        let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
 
         for message in &messages {
             let usage = extract_token_usage(message);
@@ -1343,12 +1430,13 @@ fn get_provider_project_stats_summary(
 
             included_messages += 1;
 
-            let input_tokens = u64::from(usage.input_tokens.unwrap_or(0));
-            let output_tokens = u64::from(usage.output_tokens.unwrap_or(0));
-            let cache_creation_tokens = u64::from(usage.cache_creation_input_tokens.unwrap_or(0));
-            let cache_read_tokens = u64::from(usage.cache_read_input_tokens.unwrap_or(0));
-            let total_tokens =
-                input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens;
+            let (
+                input_tokens,
+                output_tokens,
+                cache_creation_tokens,
+                cache_read_tokens,
+                total_tokens,
+            ) = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
 
             summary.token_distribution.input += input_tokens;
             summary.token_distribution.output += output_tokens;
@@ -1473,6 +1561,8 @@ fn get_provider_session_comparison(
         let mut included_message_count = 0usize;
         let mut first_time: Option<DateTime<Utc>> = None;
         let mut last_time: Option<DateTime<Utc>> = None;
+        // #283: per-session dedup so the comparison denominator matches the deduped numerator.
+        let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
 
         for message in &messages {
             let usage = extract_token_usage(message);
@@ -1493,10 +1583,9 @@ fn get_provider_session_comparison(
             }
 
             included_message_count += 1;
-            total_tokens += u64::from(usage.input_tokens.unwrap_or(0))
-                + u64::from(usage.output_tokens.unwrap_or(0))
-                + u64::from(usage.cache_creation_input_tokens.unwrap_or(0))
-                + u64::from(usage.cache_read_input_tokens.unwrap_or(0));
+            let (_, _, _, _, tokens) =
+                dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+            total_tokens += tokens;
 
             if let Some(ts) = parsed_ts {
                 if first_time.map_or(true, |current| ts < current) {
@@ -1698,70 +1787,71 @@ fn extract_session_token_stats_sync(
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
 
+    // #283: collect first so the dedup HashSet can borrow from messages.
+    let mut messages: Vec<ClaudeMessage> = Vec::with_capacity(line_ranges.len());
     for (start, end) in line_ranges {
-        // simd-json requires mutable slice
         let mut line_bytes = mmap[start..end].to_vec();
-
         if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
-            // Check for summary message type before converting
+            // Capture summary text before consuming log_entry into ClaudeMessage.
             if log_entry.message_type == "summary" {
                 if let Some(s) = &log_entry.summary {
                     summary = Some(s.clone());
                 }
             }
-
             if let Ok(message) = ClaudeMessage::try_from(log_entry) {
-                let parsed_timestamp = parse_timestamp_utc(&message.timestamp);
-                if !is_within_date_limits(parsed_timestamp, s_limit, e_limit) {
-                    continue;
-                }
-
-                let usage = extract_token_usage(&message);
-                let has_usage = token_usage_has_token_fields(&usage);
-                if !should_include_stats_entry(
-                    &message.message_type,
-                    message.is_sidechain,
-                    has_usage,
-                    mode,
-                ) {
-                    continue;
-                }
-
-                if session_id.is_none() {
-                    session_id = Some(message.session_id.clone());
-                }
-
-                message_count += 1;
-                included_message_count += 1;
-
-                total_input_tokens += u64::from(usage.input_tokens.unwrap_or(0));
-                total_output_tokens += u64::from(usage.output_tokens.unwrap_or(0));
-                total_cache_creation_tokens +=
-                    u64::from(usage.cache_creation_input_tokens.unwrap_or(0));
-                total_cache_read_tokens += u64::from(usage.cache_read_input_tokens.unwrap_or(0));
-
-                if let Some(ts) = parsed_timestamp {
-                    let should_set_first = first_time
-                        .as_ref()
-                        .and_then(|raw| parse_timestamp_utc(raw))
-                        .map_or(true, |current| ts < current);
-                    if should_set_first {
-                        first_time = Some(message.timestamp.clone());
-                    }
-
-                    let should_set_last = last_time
-                        .as_ref()
-                        .and_then(|raw| parse_timestamp_utc(raw))
-                        .map_or(true, |current| ts > current);
-                    if should_set_last {
-                        last_time = Some(message.timestamp.clone());
-                    }
-                }
-
-                // Track tool usage
-                track_tool_usage(&message, &mut tool_usage);
+                messages.push(message);
             }
         }
+    }
+    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
+
+    for message in &messages {
+        let parsed_timestamp = parse_timestamp_utc(&message.timestamp);
+        if !is_within_date_limits(parsed_timestamp, s_limit, e_limit) {
+            continue;
+        }
+
+        let usage = extract_token_usage(message);
+        let has_usage = token_usage_has_token_fields(&usage);
+        if !should_include_stats_entry(&message.message_type, message.is_sidechain, has_usage, mode)
+        {
+            continue;
+        }
+
+        if session_id.is_none() {
+            session_id = Some(message.session_id.clone());
+        }
+
+        message_count += 1;
+        included_message_count += 1;
+
+        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, _) =
+            dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        total_input_tokens += input_tokens;
+        total_output_tokens += output_tokens;
+        total_cache_creation_tokens += cache_creation_tokens;
+        total_cache_read_tokens += cache_read_tokens;
+
+        if let Some(ts) = parsed_timestamp {
+            let should_set_first = first_time
+                .as_ref()
+                .and_then(|raw| parse_timestamp_utc(raw))
+                .map_or(true, |current| ts < current);
+            if should_set_first {
+                first_time = Some(message.timestamp.clone());
+            }
+
+            let should_set_last = last_time
+                .as_ref()
+                .and_then(|raw| parse_timestamp_utc(raw))
+                .map_or(true, |current| ts > current);
+            if should_set_last {
+                last_time = Some(message.timestamp.clone());
+            }
+        }
+
+        // Track tool usage
+        track_tool_usage(message, &mut tool_usage);
     }
 
     let session_id = session_id?;
@@ -2119,54 +2209,53 @@ fn process_session_file_for_comparison(
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
 
+    // #283: collect first so the dedup HashSet can borrow from messages.
+    let mut messages: Vec<ClaudeMessage> = Vec::with_capacity(line_ranges.len());
     for (start, end) in line_ranges {
-        // simd-json requires mutable slice
         let mut line_bytes = mmap[start..end].to_vec();
-
         if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
             if let Ok(message) = ClaudeMessage::try_from(log_entry) {
-                let usage = extract_token_usage(&message);
-                let has_usage = token_usage_has_token_fields(&usage);
-                if !should_include_stats_entry(
-                    &message.message_type,
-                    message.is_sidechain,
-                    has_usage,
-                    mode,
-                ) {
-                    continue;
-                }
+                messages.push(message);
+            }
+        }
+    }
+    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
 
-                // Per-message date filtering
-                let parsed_ts = parse_timestamp_utc(&message.timestamp);
-                if !is_within_date_limits(parsed_ts, s_limit, e_limit) {
-                    continue;
-                }
+    for message in &messages {
+        let usage = extract_token_usage(message);
+        let has_usage = token_usage_has_token_fields(&usage);
+        if !should_include_stats_entry(&message.message_type, message.is_sidechain, has_usage, mode)
+        {
+            continue;
+        }
 
-                if session_id.is_none() {
-                    session_id = Some(message.session_id.clone());
-                }
+        // Per-message date filtering
+        let parsed_ts = parse_timestamp_utc(&message.timestamp);
+        if !is_within_date_limits(parsed_ts, s_limit, e_limit) {
+            continue;
+        }
 
-                message_count += 1;
+        if session_id.is_none() {
+            session_id = Some(message.session_id.clone());
+        }
 
-                total_tokens += u64::from(usage.input_tokens.unwrap_or(0))
-                    + u64::from(usage.output_tokens.unwrap_or(0))
-                    + u64::from(usage.cache_creation_input_tokens.unwrap_or(0))
-                    + u64::from(usage.cache_read_input_tokens.unwrap_or(0));
+        message_count += 1;
 
-                if let Some(timestamp) = parsed_ts {
-                    if first_time
-                        .as_ref()
-                        .map_or(true, |current| timestamp < *current)
-                    {
-                        first_time = Some(timestamp);
-                    }
-                    if last_time
-                        .as_ref()
-                        .map_or(true, |current| timestamp > *current)
-                    {
-                        last_time = Some(timestamp);
-                    }
-                }
+        let (_, _, _, _, tokens) = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        total_tokens += tokens;
+
+        if let Some(timestamp) = parsed_ts {
+            if first_time
+                .as_ref()
+                .map_or(true, |current| timestamp < *current)
+            {
+                first_time = Some(timestamp);
+            }
+            if last_time
+                .as_ref()
+                .map_or(true, |current| timestamp > *current)
+            {
+                last_time = Some(timestamp);
             }
         }
     }
@@ -3651,5 +3740,294 @@ mod tests {
 
         // 10:00~10:20(20분) + 14:00~14:30(30분) = 50분
         assert_eq!(calculate_session_active_minutes(&mut timestamps), 50);
+    }
+
+    // -----------------------------------------------------------------------
+    // #283: token usage dedup tests
+    //
+    // Claude assistant turns split content (thinking/tool_use/text) across
+    // multiple JSONL rows that share the same `message.id` and embed the same
+    // `usage` payload. Aggregators must count rows but only add usage once.
+    // -----------------------------------------------------------------------
+
+    fn make_assistant_message(
+        uuid: &str,
+        session_id: &str,
+        message_id: Option<&str>,
+        timestamp: &str,
+        usage: TokenUsage,
+    ) -> ClaudeMessage {
+        let raw = RawLogEntry {
+            uuid: Some(uuid.to_string()),
+            parent_uuid: None,
+            session_id: Some(session_id.to_string()),
+            timestamp: Some(timestamp.to_string()),
+            message_type: "assistant".to_string(),
+            summary: None,
+            leaf_uuid: None,
+            message: Some(MessageContent {
+                role: "assistant".to_string(),
+                content: json!([{"type": "text", "text": "ok"}]),
+                id: message_id.map(str::to_string),
+                model: Some("claude-opus-4-7".to_string()),
+                stop_reason: None,
+                usage: Some(usage),
+            }),
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: Some(false),
+            cwd: None,
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+            content: None,
+            is_meta: None,
+        };
+        ClaudeMessage::try_from(raw).expect("test message construction")
+    }
+
+    fn sample_usage() -> TokenUsage {
+        TokenUsage {
+            input_tokens: Some(6),
+            output_tokens: Some(222),
+            cache_creation_input_tokens: Some(28644),
+            cache_read_input_tokens: Some(14732),
+            service_tier: Some("standard".to_string()),
+        }
+    }
+
+    #[test]
+    fn test_dedup_global_stats_same_message_id_counts_usage_once() {
+        // Two rows representing one assistant turn split across thinking + text
+        // content blocks. They share message.id but have distinct uuids.
+        let messages = vec![
+            make_assistant_message(
+                "uuid-thinking",
+                "sess-1",
+                Some("msg_shared"),
+                "2026-04-27T10:00:00Z",
+                sample_usage(),
+            ),
+            make_assistant_message(
+                "uuid-text",
+                "sess-1",
+                Some("msg_shared"),
+                "2026-04-27T10:00:01Z",
+                sample_usage(),
+            ),
+        ];
+
+        let stats = build_global_session_file_stats_from_messages(
+            StatsProvider::Claude,
+            "test-project".to_string(),
+            &messages,
+            StatsMode::All,
+            None,
+            None,
+        )
+        .expect("stats");
+
+        // Rows still counted as 2 messages.
+        assert_eq!(stats.total_messages, 2);
+
+        // Usage counted once: 6 + 222 + 28644 + 14732 = 43604
+        assert_eq!(stats.token_distribution.input, 6);
+        assert_eq!(stats.token_distribution.output, 222);
+        assert_eq!(stats.token_distribution.cache_creation, 28644);
+        assert_eq!(stats.token_distribution.cache_read, 14732);
+        assert_eq!(stats.total_tokens, 6 + 222 + 28644 + 14732);
+
+        // model.msg_count counts rows; model token totals are deduped.
+        let model_entry = stats
+            .model_usage
+            .get("claude-opus-4-7")
+            .expect("model entry");
+        assert_eq!(model_entry.0, 2, "msg_count counts rows");
+        assert_eq!(model_entry.2, 6, "model input tokens deduped");
+        assert_eq!(model_entry.3, 222, "model output tokens deduped");
+    }
+
+    #[test]
+    fn test_dedup_global_stats_distinct_message_ids_summed() {
+        // Two rows representing two different assistant turns with same usage.
+        let messages = vec![
+            make_assistant_message(
+                "uuid-a",
+                "sess-1",
+                Some("msg_a"),
+                "2026-04-27T10:00:00Z",
+                sample_usage(),
+            ),
+            make_assistant_message(
+                "uuid-b",
+                "sess-1",
+                Some("msg_b"),
+                "2026-04-27T10:00:01Z",
+                sample_usage(),
+            ),
+        ];
+
+        let stats = build_global_session_file_stats_from_messages(
+            StatsProvider::Claude,
+            "test-project".to_string(),
+            &messages,
+            StatsMode::All,
+            None,
+            None,
+        )
+        .expect("stats");
+
+        assert_eq!(stats.total_messages, 2);
+        // Distinct ids → summed twice.
+        assert_eq!(stats.token_distribution.input, 12);
+        assert_eq!(stats.token_distribution.output, 444);
+        assert_eq!(stats.total_tokens, 2 * (6 + 222 + 28644 + 14732));
+    }
+
+    #[test]
+    fn test_dedup_global_stats_missing_message_id_counted_per_row() {
+        // Older logs / providers without message.id: fall back to uuid keys
+        // so each distinct row still contributes once.
+        let messages = vec![
+            make_assistant_message(
+                "uuid-a",
+                "sess-1",
+                None,
+                "2026-04-27T10:00:00Z",
+                sample_usage(),
+            ),
+            make_assistant_message(
+                "uuid-b",
+                "sess-1",
+                None,
+                "2026-04-27T10:00:01Z",
+                sample_usage(),
+            ),
+        ];
+
+        let stats = build_global_session_file_stats_from_messages(
+            StatsProvider::Claude,
+            "test-project".to_string(),
+            &messages,
+            StatsMode::All,
+            None,
+            None,
+        )
+        .expect("stats");
+
+        assert_eq!(stats.total_messages, 2);
+        assert_eq!(stats.total_tokens, 2 * (6 + 222 + 28644 + 14732));
+    }
+
+    #[test]
+    fn test_dedup_token_totals_returns_full_when_first_seen() {
+        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let usage = sample_usage();
+        let result = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
+        assert_eq!(result, (6, 222, 28644, 14732, 6 + 222 + 28644 + 14732));
+    }
+
+    #[test]
+    fn test_dedup_token_totals_returns_zero_when_duplicate() {
+        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let usage = sample_usage();
+        let _ = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
+        let result = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-2", &usage);
+        assert_eq!(result, (0, 0, 0, 0, 0), "duplicate by message_id");
+    }
+
+    #[test]
+    fn test_dedup_token_totals_distinct_ids_summed_separately() {
+        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let usage = sample_usage();
+        let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
+        let r2 = dedup_token_totals(&mut seen, "sess-1", Some("msg_b"), "uuid-2", &usage);
+        assert_eq!(r1, r2, "both should return full totals");
+        assert_ne!(r1, (0, 0, 0, 0, 0));
+    }
+
+    #[test]
+    fn test_dedup_token_totals_missing_message_id_falls_back_to_uuid() {
+        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let usage = sample_usage();
+        // Two distinct uuids with no message_id → both counted (distinct fallback keys).
+        let r1 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-1", &usage);
+        let r2 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-2", &usage);
+        assert_eq!(r1.0, 6);
+        assert_eq!(r2.0, 6);
+        // Same uuid repeated → second is deduped.
+        let r3 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-1", &usage);
+        assert_eq!(r3, (0, 0, 0, 0, 0));
+    }
+
+    #[test]
+    fn test_dedup_token_totals_empty_message_id_falls_back_to_uuid() {
+        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let usage = sample_usage();
+        let r1 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage);
+        let r2 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage);
+        assert_ne!(r1, (0, 0, 0, 0, 0));
+        assert_eq!(r2, (0, 0, 0, 0, 0));
+    }
+
+    #[test]
+    fn test_dedup_token_totals_cross_session_isolation() {
+        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let usage = sample_usage();
+        let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
+        let r2 = dedup_token_totals(&mut seen, "sess-2", Some("msg_a"), "uuid-2", &usage);
+        assert_ne!(r1, (0, 0, 0, 0, 0));
+        assert_ne!(r2, (0, 0, 0, 0, 0));
+    }
+
+    #[test]
+    fn test_dedup_session_token_stats_same_message_id_counts_once() {
+        let messages = vec![
+            make_assistant_message(
+                "uuid-thinking",
+                "sess-1",
+                Some("msg_shared"),
+                "2026-04-27T10:00:00Z",
+                sample_usage(),
+            ),
+            make_assistant_message(
+                "uuid-text",
+                "sess-1",
+                Some("msg_shared"),
+                "2026-04-27T10:00:01Z",
+                sample_usage(),
+            ),
+        ];
+
+        let stats = build_session_token_stats_from_messages(
+            "sess-1".to_string(),
+            "test-project".to_string(),
+            None,
+            &messages,
+            StatsMode::All,
+            None,
+            None,
+        )
+        .expect("stats");
+
+        assert_eq!(stats.total_input_tokens, 6, "input deduped");
+        assert_eq!(stats.total_output_tokens, 222, "output deduped");
+        assert_eq!(stats.total_cache_creation_tokens, 28644);
+        assert_eq!(stats.total_cache_read_tokens, 14732);
+        assert_eq!(stats.total_tokens, 6 + 222 + 28644 + 14732);
     }
 }
