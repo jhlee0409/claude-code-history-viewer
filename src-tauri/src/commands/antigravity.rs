@@ -139,6 +139,11 @@ fn discover_external_state_dirs() -> Vec<PathBuf> {
             if !global_storage.exists() {
                 continue;
             }
+            if let Ok(meta) = std::fs::symlink_metadata(&global_storage) {
+                if meta.file_type().is_symlink() {
+                    continue;
+                }
+            }
 
             let Ok(storage_entries) = std::fs::read_dir(&global_storage) else {
                 continue;

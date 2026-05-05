@@ -11,6 +11,27 @@ use std::path::{Path, PathBuf};
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Resolve an antigravity root for a user-supplied path.
+///
+/// Prefers walking up from `path` looking for the `.token-monitor/rpc-cache/v1`
+/// marker so that arbitrary attacker-controlled paths are rejected. Falls back
+/// to `resolve_antigravity_root()` only when the supplied path points at the
+/// detected root (e.g. external state directories that have no rpc-cache yet).
+fn marker_rooted_path(path: &str) -> Option<PathBuf> {
+    if let Some(root) = antigravity_root_from_path(path) {
+        if get_antigravity_rpc_cache_root(&root).exists() {
+            return Some(root);
+        }
+    }
+    let detected = resolve_antigravity_root()?;
+    let candidate = PathBuf::from(path);
+    if candidate == detected || candidate.starts_with(&detected) {
+        Some(detected)
+    } else {
+        None
+    }
+}
+
 pub fn detect() -> Option<ProviderInfo> {
     let root = resolve_antigravity_root()?;
     let state = load_antigravity_state_impl(&root).ok();
@@ -286,6 +307,12 @@ fn load_antigravity_tool_names(session_path: &str, session_id: &str) -> Vec<Stri
         };
 
         for entry in entries.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_symlink() || !file_type.is_dir() {
+                continue;
+            }
             let log_path = entry.path().join("ls-main.log");
             if !log_path.exists() {
                 continue;
@@ -339,19 +366,10 @@ fn merge_tool_names_into_messages(
 
 /// Map each rpc-cache session directory to a `ClaudeSession`.
 pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeSession>, String> {
-    let root = match resolve_antigravity_root() {
+    let root = match marker_rooted_path(path) {
         Some(root) => root,
         None => return Ok(vec![]),
     };
-    let requested_path = std::path::PathBuf::from(path);
-    let path_matches_root = requested_path == root || requested_path.starts_with(root.as_path());
-    let resolved_root_matches = antigravity_root_from_path(path).as_deref() == Some(root.as_path());
-    if !path_matches_root && !resolved_root_matches {
-        return Err(format!(
-            "Provided antigravity path does not resolve to detected root: {}",
-            root.display()
-        ));
-    }
     let state = load_antigravity_state_impl(&root)?;
     let mut sessions = Vec::new();
 
@@ -418,25 +436,20 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         .map(|f| f.to_string_lossy().to_string())
         .unwrap_or_default();
 
-    // Try session_path first, then fall back to rpc-cache location
+    let root = match marker_rooted_path(session_path) {
+        Some(root) => root,
+        None => return Ok(vec![]),
+    };
+
     let usage_path = dir.join("usage.jsonl");
     let usage_path = if usage_path.exists() {
         usage_path
     } else {
-        // session_path is typically ~/.gemini/antigravity/brain/{session_id}
-        // The actual data may live in ~/.gemini/antigravity/.token-monitor/rpc-cache/v1/{session_id}
-        if let Some(rpc_root) = antigravity_root_from_path(session_path) {
-            let rpc_cache = rpc_root
-                .join(".token-monitor")
-                .join("rpc-cache")
-                .join("v1")
-                .join(&session_id)
-                .join("usage.jsonl");
-            if rpc_cache.exists() {
-                rpc_cache
-            } else {
-                return Ok(vec![]);
-            }
+        let rpc_cache = get_antigravity_rpc_cache_root(&root)
+            .join(&session_id)
+            .join("usage.jsonl");
+        if rpc_cache.exists() {
+            rpc_cache
         } else {
             return Ok(vec![]);
         }
@@ -850,7 +863,10 @@ mod tests {
                 break;
             }
 
-            if !entry.path().is_dir() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_symlink() || !file_type.is_dir() {
                 continue;
             }
 
