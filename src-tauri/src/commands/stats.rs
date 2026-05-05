@@ -430,25 +430,20 @@ fn process_session_file_for_global_stats(
     };
 
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
-    // #283: per-file dedup of usage payloads — within one session file all rows
-    // share the same session_id, so we key by message.id (or uuid fallback).
-    let mut entries: Vec<GlobalStatsLogEntry> = Vec::new();
-    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::new();
+    // #283: stream entries one at a time with owned-key dedup so we never
+    // buffer parsed log entries (which can carry MB-sized `content` payloads).
+    let mut seen_usage_keys: HashSet<String> = HashSet::new();
 
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
 
     for (start, end) in line_ranges {
         let mut line_bytes = mmap[start..end].to_vec();
+        let Some(entry) = parse_global_stats_entry_simd(&mut line_bytes) else {
+            continue;
+        };
 
-        if let Some(entry) = parse_global_stats_entry_simd(&mut line_bytes) {
-            entries.push(entry);
-        }
-    }
-    seen_usage_keys.reserve(entries.len());
-
-    for entry in &entries {
-        let usage = extract_token_usage_from_global_entry(entry);
+        let usage = extract_token_usage_from_global_entry(&entry);
         let has_usage = token_usage_has_token_fields(&usage);
 
         if !should_include_stats_entry(&entry.message_type, entry.is_sidechain, has_usage, mode) {
@@ -495,7 +490,7 @@ fn process_session_file_for_global_stats(
         }
 
         let Some(timestamp) = parsed_timestamp else {
-            track_tool_usage_from_global_entry(entry, &mut stats.tool_usage);
+            track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
             continue;
         };
 
@@ -538,7 +533,7 @@ fn process_session_file_for_global_stats(
         daily_entry.message_count += 1;
 
         // Track tool usage
-        track_tool_usage_from_global_entry(entry, &mut stats.tool_usage);
+        track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
     }
 
     // Calculate session duration
@@ -601,7 +596,7 @@ fn build_global_session_file_stats_from_messages(
 
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
     // #283: counts rows but only adds usage once per (session_id, message.id).
-    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
+    let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
 
     let has_date_filter = s_limit.is_some() || e_limit.is_some();
 
@@ -808,21 +803,20 @@ fn process_session_file_for_project_stats(
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
 
-    // #283: collect messages first so the dedup HashSet can borrow from them
-    // (Vec<ClaudeMessage> outlives the loop body).
-    let mut messages: Vec<ClaudeMessage> = Vec::with_capacity(line_ranges.len());
+    // #283: stream entries with owned-key dedup so we never buffer parsed
+    // messages (which can carry MB-sized `content` payloads).
+    let mut seen_usage_keys: HashSet<String> = HashSet::new();
+
     for (start, end) in line_ranges {
         let mut line_bytes = mmap[start..end].to_vec();
-        if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
-            if let Ok(message) = ClaudeMessage::try_from(log_entry) {
-                messages.push(message);
-            }
-        }
-    }
-    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
+        let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) else {
+            continue;
+        };
+        let Ok(message) = ClaudeMessage::try_from(log_entry) else {
+            continue;
+        };
 
-    for message in &messages {
-        let usage = extract_token_usage(message);
+        let usage = extract_token_usage(&message);
         let has_usage = token_usage_has_token_fields(&usage);
         if !should_include_stats_entry(&message.message_type, message.is_sidechain, has_usage, mode)
         {
@@ -837,7 +831,7 @@ fn process_session_file_for_project_stats(
 
         stats.total_messages += 1;
         let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
-            dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+            dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
 
         stats.token_distribution.input += input_tokens;
         stats.token_distribution.output += output_tokens;
@@ -871,7 +865,7 @@ fn process_session_file_for_project_stats(
         }
 
         // Track tool usage
-        track_tool_usage(message, &mut stats.tool_usage);
+        track_tool_usage(&message, &mut stats.tool_usage);
     }
 
     if stats.total_messages == 0 {
@@ -1004,38 +998,37 @@ fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
     usage
 }
 
-/// Borrowed dedup key identifying one logical assistant turn for usage accounting (#283).
+/// Dedup-aware token totals for usage accounting (#283).
 ///
 /// Claude assistant turns split content (`thinking`, `tool_use`, `text`)
 /// across multiple JSONL rows that share the same `message.id` and embed
-/// an identical `usage` payload. Aggregation loops must add usage at most
-/// once per `(session_id, message.id)` to avoid double-counting.
+/// an identical `usage` payload. Aggregators call this once per row and
+/// add the returned totals unconditionally — duplicates contribute zero
+/// while row counts (`total_messages`, `model.msg_count`, etc.) stay
+/// per-row.
 ///
-/// Falls back to `uuid` when `message_id` is missing or empty so each
-/// unique row still contributes once. Returns borrowed slices to keep
-/// the per-message hot path allocation-free.
+/// Key precedence: `(session_id, message_id)` if `message_id` is non-empty,
+/// otherwise `(session_id, uuid)`. If both `message_id` and `uuid` are
+/// empty/missing the row has no identity to dedup by, so it always counts
+/// (returns full totals) — this avoids silently undercounting rows that
+/// genuinely cannot be keyed.
+///
+/// Owned `String` keys keep the helper streaming-friendly: callers don't
+/// need to buffer their parsed entries to satisfy borrow lifetimes.
 #[inline]
-fn usage_dedup_key_parts<'a>(
-    session_id: &'a str,
-    message_id: Option<&'a str>,
-    uuid: &'a str,
-) -> (&'a str, &'a str) {
-    let id_part = message_id.filter(|s| !s.is_empty()).unwrap_or(uuid);
-    (session_id, id_part)
-}
-
-/// Dedup-aware token totals — returns zero tuple when this turn was already counted.
-/// Aggregators should call this once per row, then add the returned totals
-/// unconditionally so msg counts stay per-row while usage stays deduped.
-#[inline]
-fn dedup_token_totals<'a>(
-    seen: &mut HashSet<(&'a str, &'a str)>,
-    session_id: &'a str,
-    message_id: Option<&'a str>,
-    uuid: &'a str,
+fn dedup_token_totals(
+    seen: &mut HashSet<String>,
+    session_id: &str,
+    message_id: Option<&str>,
+    uuid: &str,
     usage: &TokenUsage,
 ) -> (u64, u64, u64, u64, u64) {
-    if seen.insert(usage_dedup_key_parts(session_id, message_id, uuid)) {
+    let key = match message_id.filter(|s| !s.is_empty()) {
+        Some(mid) => format!("{session_id}|m:{mid}"),
+        None if !uuid.is_empty() => format!("{session_id}|u:{uuid}"),
+        None => return token_usage_totals(usage),
+    };
+    if seen.insert(key) {
         token_usage_totals(usage)
     } else {
         (0, 0, 0, 0, 0)
@@ -1044,9 +1037,9 @@ fn dedup_token_totals<'a>(
 
 /// Convenience wrapper for `ClaudeMessage`-based aggregators.
 #[inline]
-fn dedup_token_totals_msg<'a>(
-    seen: &mut HashSet<(&'a str, &'a str)>,
-    message: &'a ClaudeMessage,
+fn dedup_token_totals_msg(
+    seen: &mut HashSet<String>,
+    message: &ClaudeMessage,
     usage: &TokenUsage,
 ) -> (u64, u64, u64, u64, u64) {
     dedup_token_totals(
@@ -1249,7 +1242,7 @@ fn build_session_token_stats_from_messages(
     let mut total_cache_read_tokens = 0u64;
     let mut tool_usage: HashMap<String, (u32, u32)> = HashMap::new();
     // #283: only add usage once per (session_id, message.id).
-    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
+    let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
 
     let mut first_time: Option<DateTime<Utc>> = None;
     let mut last_time: Option<DateTime<Utc>> = None;
@@ -1398,7 +1391,7 @@ fn get_provider_project_stats_summary(
         let mut parsed_timestamps = Vec::new();
         let mut session_dates = HashSet::new();
         // #283: per-session dedup
-        let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
+        let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
 
         for message in &messages {
             let usage = extract_token_usage(message);
@@ -1554,7 +1547,7 @@ fn get_provider_session_comparison(
         // #283: dedup token usage so each session's `total_tokens` reflects unique
         // assistant turns. `included_message_count` stays per-row (rows displayed)
         // — tokens-per-message in the UI is "tokens per displayed row", not per turn.
-        let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
+        let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
 
         for message in &messages {
             let usage = extract_token_usage(message);
@@ -1779,31 +1772,30 @@ fn extract_session_token_stats_sync(
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
 
-    // #283: collect first so the dedup HashSet can borrow from messages.
-    let mut messages: Vec<ClaudeMessage> = Vec::with_capacity(line_ranges.len());
+    // #283: stream entries with owned-key dedup (no per-file Vec buffering).
+    let mut seen_usage_keys: HashSet<String> = HashSet::new();
+
     for (start, end) in line_ranges {
         let mut line_bytes = mmap[start..end].to_vec();
-        if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
-            // Capture summary text before consuming log_entry into ClaudeMessage.
-            if log_entry.message_type == "summary" {
-                if let Some(s) = &log_entry.summary {
-                    summary = Some(s.clone());
-                }
-            }
-            if let Ok(message) = ClaudeMessage::try_from(log_entry) {
-                messages.push(message);
+        let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) else {
+            continue;
+        };
+        // Capture summary text before consuming log_entry into ClaudeMessage.
+        if log_entry.message_type == "summary" {
+            if let Some(s) = &log_entry.summary {
+                summary = Some(s.clone());
             }
         }
-    }
-    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
+        let Ok(message) = ClaudeMessage::try_from(log_entry) else {
+            continue;
+        };
 
-    for message in &messages {
         let parsed_timestamp = parse_timestamp_utc(&message.timestamp);
         if !is_within_date_limits(parsed_timestamp, s_limit, e_limit) {
             continue;
         }
 
-        let usage = extract_token_usage(message);
+        let usage = extract_token_usage(&message);
         let has_usage = token_usage_has_token_fields(&usage);
         if !should_include_stats_entry(&message.message_type, message.is_sidechain, has_usage, mode)
         {
@@ -1818,7 +1810,7 @@ fn extract_session_token_stats_sync(
         included_message_count += 1;
 
         let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, _) =
-            dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+            dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
         total_input_tokens += input_tokens;
         total_output_tokens += output_tokens;
         total_cache_creation_tokens += cache_creation_tokens;
@@ -1843,7 +1835,7 @@ fn extract_session_token_stats_sync(
         }
 
         // Track tool usage
-        track_tool_usage(message, &mut tool_usage);
+        track_tool_usage(&message, &mut tool_usage);
     }
 
     let session_id = session_id?;
@@ -2201,20 +2193,19 @@ fn process_session_file_for_comparison(
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
 
-    // #283: collect first so the dedup HashSet can borrow from messages.
-    let mut messages: Vec<ClaudeMessage> = Vec::with_capacity(line_ranges.len());
+    // #283: stream entries with owned-key dedup (no per-file Vec buffering).
+    let mut seen_usage_keys: HashSet<String> = HashSet::new();
+
     for (start, end) in line_ranges {
         let mut line_bytes = mmap[start..end].to_vec();
-        if let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) {
-            if let Ok(message) = ClaudeMessage::try_from(log_entry) {
-                messages.push(message);
-            }
-        }
-    }
-    let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
+        let Some(log_entry) = parse_raw_log_entry_simd(&mut line_bytes) else {
+            continue;
+        };
+        let Ok(message) = ClaudeMessage::try_from(log_entry) else {
+            continue;
+        };
 
-    for message in &messages {
-        let usage = extract_token_usage(message);
+        let usage = extract_token_usage(&message);
         let has_usage = token_usage_has_token_fields(&usage);
         if !should_include_stats_entry(&message.message_type, message.is_sidechain, has_usage, mode)
         {
@@ -2233,7 +2224,7 @@ fn process_session_file_for_comparison(
 
         message_count += 1;
 
-        let (_, _, _, _, tokens) = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        let (_, _, _, _, tokens) = dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
         total_tokens += tokens;
 
         if let Some(timestamp) = parsed_ts {
@@ -3927,7 +3918,7 @@ mod tests {
 
     #[test]
     fn test_dedup_token_totals_returns_full_when_first_seen() {
-        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let mut seen: HashSet<String> = HashSet::new();
         let usage = sample_usage();
         let result = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
         assert_eq!(result, (6, 222, 28644, 14732, 6 + 222 + 28644 + 14732));
@@ -3935,7 +3926,7 @@ mod tests {
 
     #[test]
     fn test_dedup_token_totals_returns_zero_when_duplicate() {
-        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let mut seen: HashSet<String> = HashSet::new();
         let usage = sample_usage();
         let _ = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
         let result = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-2", &usage);
@@ -3944,7 +3935,7 @@ mod tests {
 
     #[test]
     fn test_dedup_token_totals_distinct_ids_summed_separately() {
-        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let mut seen: HashSet<String> = HashSet::new();
         let usage = sample_usage();
         let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
         let r2 = dedup_token_totals(&mut seen, "sess-1", Some("msg_b"), "uuid-2", &usage);
@@ -3954,7 +3945,7 @@ mod tests {
 
     #[test]
     fn test_dedup_token_totals_missing_message_id_falls_back_to_uuid() {
-        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let mut seen: HashSet<String> = HashSet::new();
         let usage = sample_usage();
         // Two distinct uuids with no message_id → both counted (distinct fallback keys).
         let r1 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-1", &usage);
@@ -3968,7 +3959,7 @@ mod tests {
 
     #[test]
     fn test_dedup_token_totals_empty_message_id_falls_back_to_uuid() {
-        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let mut seen: HashSet<String> = HashSet::new();
         let usage = sample_usage();
         let r1 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage);
         let r2 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage);
@@ -3978,12 +3969,26 @@ mod tests {
 
     #[test]
     fn test_dedup_token_totals_cross_session_isolation() {
-        let mut seen: HashSet<(&str, &str)> = HashSet::new();
+        let mut seen: HashSet<String> = HashSet::new();
         let usage = sample_usage();
         let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
         let r2 = dedup_token_totals(&mut seen, "sess-2", Some("msg_a"), "uuid-2", &usage);
         assert_ne!(r1, (0, 0, 0, 0, 0));
         assert_ne!(r2, (0, 0, 0, 0, 0));
+    }
+
+    #[test]
+    fn test_dedup_token_totals_no_identity_always_counts() {
+        // Defensive: a row with neither message_id nor uuid (malformed/legacy log)
+        // has no identity to dedup by. Each such row must contribute its usage
+        // rather than collapse to a shared empty key.
+        let mut seen: HashSet<String> = HashSet::new();
+        let usage = sample_usage();
+        let r1 = dedup_token_totals(&mut seen, "", None, "", &usage);
+        let r2 = dedup_token_totals(&mut seen, "", None, "", &usage);
+        assert_ne!(r1, (0, 0, 0, 0, 0), "first unkeyable row counts");
+        assert_ne!(r2, (0, 0, 0, 0, 0), "second unkeyable row also counts");
+        assert_eq!(r1, r2, "both contribute full totals");
     }
 
     #[test]
