@@ -285,11 +285,9 @@ fn estimate_tokens(text: &str) -> u64 {
 /// Recursively collects all string values from a JSON structure into `output`.
 fn collect_text_from_json(value: &Value, output: &mut String) {
     match value {
-        Value::String(text) => {
-            if !text.trim().is_empty() {
-                output.push('\n');
-                output.push_str(text);
-            }
+        Value::String(text) if !text.trim().is_empty() => {
+            output.push('\n');
+            output.push_str(text);
         }
         Value::Array(items) => {
             for item in items {
@@ -430,7 +428,7 @@ fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
         });
     }
 
-    sessions.sort_by(|a, b| b.last_modified_ms.cmp(&a.last_modified_ms));
+    sessions.sort_by_key(|s| std::cmp::Reverse(s.last_modified_ms));
     Ok(sessions)
 }
 
@@ -825,8 +823,7 @@ pub fn compute_project_summary(state: &AntigravityState) -> AntigravityProjectSu
         });
     }
 
-    // Sort sessions by total_tokens descending for consistent display
-    sessions_info.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+    sessions_info.sort_by_key(|s| std::cmp::Reverse(s.total_tokens));
 
     AntigravityProjectSummary {
         session_count: state.sessions.len(),

@@ -1714,7 +1714,7 @@ fn get_provider_project_token_stats(
         }
 
         let total_count = all_stats.len();
-        all_stats.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+        all_stats.sort_by_key(|s| std::cmp::Reverse(s.total_tokens));
         let items = all_stats
             .into_iter()
             .skip(offset)
@@ -2138,7 +2138,7 @@ fn get_provider_session_comparison(
         };
 
         let mut sessions_by_tokens = all_sessions.clone();
-        sessions_by_tokens.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+        sessions_by_tokens.sort_by_key(|s| std::cmp::Reverse(s.total_tokens));
         let rank_by_tokens = sessions_by_tokens
             .iter()
             .position(|session| session.session_id == session_id)
@@ -2146,7 +2146,7 @@ fn get_provider_session_comparison(
             + 1;
 
         let mut sessions_by_duration = all_sessions.clone();
-        sessions_by_duration.sort_by(|a, b| b.duration_seconds.cmp(&a.duration_seconds));
+        sessions_by_duration.sort_by_key(|s| std::cmp::Reverse(s.duration_seconds));
         let rank_by_duration = sessions_by_duration
             .iter()
             .position(|session| session.session_id == session_id)
