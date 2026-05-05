@@ -10,13 +10,15 @@ How the engineering skills should consume this repo's domain documentation when 
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The producer skill (`/grill-with-docs`) creates them lazily when terms or decisions actually get resolved.
 
-## Ignore nested `CLAUDE.md` files
+## Ignore nested `CLAUDE.md` files (if present)
 
-This repo uses **claude-mem** which auto-generates `CLAUDE.md` files inside subdirectories (e.g. `src/CLAUDE.md`, `src-tauri/src/commands/CLAUDE.md`, `src/components/contentRenderer/CLAUDE.md`). These contain `<claude-mem-context>` activity logs — **NOT domain context**. Skills must:
+`.gitignore` excludes `**/*/CLAUDE.md` — the only tracked `CLAUDE.md` is the one at the repo root. Some contributors run [claude-mem](https://github.com/jhlee0409/claude-mem) which **auto-generates untracked `CLAUDE.md` files inside subdirectories** containing `<claude-mem-context>` activity logs.
+
+Skills must:
 
 - Treat **only the root `CLAUDE.md`** as project-level guidance.
 - Treat **only `CONTEXT.md` / `CONTEXT-MAP.md` / `docs/adr/`** as domain documentation.
-- **Ignore** every nested `CLAUDE.md` regardless of depth — they're activity snapshots and may even reference unrelated projects (claude-mem cross-pollination).
+- If you encounter any nested `CLAUDE.md` (e.g. `src/CLAUDE.md`, `src-tauri/src/commands/CLAUDE.md`), **ignore it**. These are local activity snapshots — not authoritative — and may reference unrelated projects (claude-mem cross-pollination).
 
 ## File structure
 
