@@ -39,9 +39,12 @@ export function useProjectTreeState(groupingMode: GroupingMode) {
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, project: ClaudeProject) => {
       e.preventDefault();
+      const boundary = e.currentTarget
+        .closest<HTMLElement>("[data-menu-boundary]")
+        ?.getBoundingClientRect() ?? null;
       setContextMenu({
         project,
-        position: { x: e.clientX, y: e.clientY },
+        position: { x: e.clientX, y: e.clientY, boundary },
       });
     },
     []

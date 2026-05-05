@@ -186,5 +186,9 @@
   "session.export.html": "HTML (.html)",
   "session.export.success": "导出成功",
   "session.export.error": "导出失败",
-  "session.export.exporting": "正在导出..."
+  "session.export.exporting": "正在导出...",
+  "sessionPicker.title": "选择会话",
+  "sessionPicker.subtitle": "{{count}} 个会话匹配 \"{{value}}\"",
+  "sessionPicker.empty": "没有匹配的会话",
+  "sessionPicker.cancelled": "启动会话提示已取消"
 }

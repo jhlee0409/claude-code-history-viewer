@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Claude Code History Viewer",
         "width": 1200,
         "height": 800,

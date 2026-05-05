@@ -186,5 +186,9 @@
   "session.export.html": "HTML (.html)",
   "session.export.success": "Exported successfully",
   "session.export.error": "Export failed",
-  "session.export.exporting": "Exporting..."
+  "session.export.exporting": "Exporting...",
+  "sessionPicker.title": "Choose a session",
+  "sessionPicker.subtitle": "{{count}} sessions match \"{{value}}\"",
+  "sessionPicker.empty": "No sessions match",
+  "sessionPicker.cancelled": "Startup session hint cancelled"
 }

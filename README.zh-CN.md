@@ -325,6 +325,23 @@ GET /health
 4. 点击会话查看消息
 5. 使用标签页在消息、分析、Token 统计、最近编辑和会话面板之间切换
 
+### 命令行参数
+
+使用 `--session` 参数启动应用并预先聚焦到指定会话。
+
+```bash
+# 完整 UUID
+claude-code-history-viewer --session 1265cd74-caa9-472e-b343-c4f44b5cf12c
+
+# UUID 前缀（由 hex 或短横线组成的 8-36 个字符）— 选中首个匹配的会话
+claude-code-history-viewer --session 1265cd74
+
+# equals 形式同样支持
+claude-code-history-viewer --session=1265cd74
+```
+
+应用会扫描所有已知项目并导航到匹配的会话；若没有匹配会话，则按正常流程启动。既不是 hex-或-短横线的 8-36 字符也不是绝对路径的值将被静默忽略。
+
 ## 无障碍
 
 为键盘操作、低视力和屏幕阅读器用户提供无障碍功能。

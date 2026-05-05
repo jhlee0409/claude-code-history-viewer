@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "./store/useAppStore";
 import { useAnalytics } from "./hooks/useAnalytics";
@@ -17,6 +17,11 @@ import {
   type GroupingMode,
 } from "./types";
 import { getProviderLabel, normalizeProviderIds } from "./utils/providers";
+import {
+  fetchStartupSessionHint,
+  preloadSessionFromCli,
+  type SessionHint,
+} from "./lib/preloadSession";
 
 import "./App.css";
 
@@ -117,6 +122,99 @@ function App() {
       { providers: labels.join(", ") }
     );
   }, [activeProviders, t]);
+
+  // One-shot guard so the first-launch `--session` preload fires exactly once
+  // per process, even if project loading renders multiple times.
+  const cliPreloadAttempted = useRef(false);
+  const openSessionPicker = useAppStore((s) => s.openSessionPicker);
+
+  // Keep the latest projects list in a ref so the second-invocation event
+  // listener (which is set up once and lives for the process lifetime) can
+  // always see the current list without re-subscribing on every render.
+  const projectsRef = useRef(projects);
+  useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
+
+  // Phase 3: second-invocation routing. If a `cli-session-hint` event arrives
+  // before projects finish loading, stash the latest hint here so the first
+  // load path can pick it up. Only the *latest* hint is kept — if the user
+  // re-invokes the CLI twice in quick succession, the newer intent wins.
+  const pendingHintRef = useRef<SessionHint | null>(null);
+
+  const runPreloadWithHint = useCallback(
+    (hint: SessionHint) => {
+      void preloadSessionFromCli({
+        getStartupSessionHint: () => Promise.resolve(hint),
+        projects: projectsRef.current,
+        selectProject,
+        selectSession,
+        openSessionPicker,
+        t: (key, fallback) => t(key, fallback ?? key),
+      });
+    },
+    [selectProject, selectSession, openSessionPicker, t],
+  );
+
+  useEffect(() => {
+    if (cliPreloadAttempted.current) return;
+    if (isLoadingProjects || projects.length === 0) return;
+    cliPreloadAttempted.current = true;
+    // Drain a hint that arrived before projects loaded, if any. Otherwise use
+    // the Tauri-managed first-launch hint.
+    const queued = pendingHintRef.current;
+    if (queued) {
+      pendingHintRef.current = null;
+      runPreloadWithHint(queued);
+      return;
+    }
+    void preloadSessionFromCli({
+      getStartupSessionHint: fetchStartupSessionHint,
+      projects,
+      selectProject,
+      selectSession,
+      openSessionPicker,
+      t: (key, fallback) => t(key, fallback ?? key),
+    });
+  }, [isLoadingProjects, projects, selectProject, selectSession, openSessionPicker, t, runPreloadWithHint]);
+
+  // Second-invocation routing. `tauri-plugin-single-instance` (CLI re-exec)
+  // and macOS `RunEvent::Opened` (Spotlight/Dock/Finder) both emit
+  // `cli-session-hint`. We resolve each hint through `preloadSessionFromCli`
+  // so uuid / path / folder / title behave identically regardless of entry
+  // path. The listener uses a dynamic import so the WebUI / browser build
+  // (no Tauri APIs) doesn't fail at module load — matching the pattern used
+  // by `useFileWatcher`, `useUpdater`, etc.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    const subscribe = async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        if (cancelled) return;
+        unlisten = await listen<SessionHint>("cli-session-hint", (event) => {
+          const hint = event.payload;
+          // Projects not yet loaded: stash and let the first-load effect
+          // consume the latest hint. This handles the race where the user
+          // re-invokes the CLI before the initial project scan finishes.
+          if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
+            pendingHintRef.current = hint;
+            return;
+          }
+          runPreloadWithHint(hint);
+        });
+      } catch (error) {
+        // Non-Tauri environments (webui-server served in a browser) lack
+        // `@tauri-apps/api/event`. Second-invocation routing doesn't apply.
+        console.warn("cli-session-hint listener unavailable:", error);
+      }
+    };
+    void subscribe();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [runPreloadWithHint]);
 
   // Local state
   const [isViewingGlobalStats, setIsViewingGlobalStats] = useState(false);

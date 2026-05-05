@@ -34,6 +34,7 @@ import {
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { supportsConversationBreakdown } from "../../utils/providers";
 import { normalizeDateFilterOptions } from "../../utils/date";
+import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
 
 // ============================================================================
 // State Interface
@@ -57,6 +58,8 @@ export interface MessageSliceState {
   // SubAgent navigation
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
+  /** parentToolUseID → subagent file_path 매핑 (progress 메시지 기반, file_path는 유일 식별자) */
+  toolUseToSubagentMap: Map<string, string>;
 }
 
 export interface MessageSliceActions {
@@ -74,7 +77,7 @@ export interface MessageSliceActions {
   ) => Promise<SessionComparison>;
   clearTokenStats: () => void;
   // SubAgent navigation
-  loadSubagents: (sessionPath: string) => Promise<void>;
+  loadSubagents: (sessionPath: string, sourceMessages: ClaudeMessage[]) => Promise<void>;
   navigateToSubagent: (subagent: SubagentSession) => Promise<void>;
   navigateBackToParent: () => Promise<void>;
 }
@@ -96,6 +99,9 @@ export const INITIAL_PAGINATION = {
   isLoadingMore: false,
 } as const;
 
+// 빈 Map 재사용으로 useAppStore 구독자의 불필요한 re-render 방지
+const EMPTY_SUBAGENT_MAP: ReadonlyMap<string, string> = new Map();
+
 const initialMessageState: MessageSliceState = {
   messages: [],
   pagination: { ...INITIAL_PAGINATION },
@@ -110,6 +116,7 @@ const initialMessageState: MessageSliceState = {
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
   subagentSessions: [],
   parentSessionStack: [],
+  toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
 };
 
 // ============================================================================
@@ -127,6 +134,10 @@ export const createMessageSlice: StateCreator<
   // Flag set by navigateToSubagent/navigateBackToParent to prevent
   // selectSession from clearing the parentSessionStack.
   let isSubagentNav = false;
+
+  // Concurrent-navigation guard for navigateToSubagent/navigateBackToParent.
+  // Rapid double-click corrupts parentSessionStack (duplicate push before await resolves).
+  let subagentNavInFlight = false;
 
   const beginTokenStatsLoading = (): number => {
     const epoch = tokenStatsLoadingEpoch;
@@ -165,9 +176,16 @@ export const createMessageSlice: StateCreator<
     // Clear previous session's search index
     clearSearchIndex();
 
-    // Only clear parentSessionStack on non-subagent navigation.
-    // navigateToSubagent/navigateBackToParent manage the stack themselves.
-    const preserveStack = isSubagentNav;
+    // Subagent intent를 await 전에 캡처하여 async race 차단.
+    // - isSubagentNav: navigateToSubagent가 세팅한 1회성 플래그
+    // - isInPlaceReload: filter toggle/refreshCurrentSession에서 같은 세션을 재로드하는 경우
+    //   이때 parentSessionStack이 비어있지 않다면 유저는 서브에이전트를 보고 있던 상태.
+    // 이 값을 이후 로직 전체에서 참조해야 await 중 stack 변이로 인한 blank 화면·sidechain leak 방지.
+    const isInPlaceReload = get().selectedSession?.file_path === session.file_path;
+    const wasInSubagent = get().parentSessionStack.length > 0;
+    const shouldTreatAsSubagent =
+      isSubagentNav || (isInPlaceReload && wasInSubagent);
+    const preserveStack = shouldTreatAsSubagent;
     isSubagentNav = false;
 
     set({
@@ -175,6 +193,7 @@ export const createMessageSlice: StateCreator<
       pagination: { ...INITIAL_PAGINATION },
       isLoadingMessages: true,
       subagentSessions: [],
+      toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
       ...(preserveStack ? {} : { parentSessionStack: [] }),
     });
 
@@ -194,10 +213,16 @@ export const createMessageSlice: StateCreator<
         sessionPath,
       });
 
-      // Apply sidechain filter
-      let filteredMessages = get().excludeSidechain
-        ? allMessages.filter((m) => !m.isSidechain)
-        : allMessages;
+      // Stale response guard: await 중 다른 세션으로 이동했으면 중단.
+      // (in-place reload는 selectedSession이 동일하므로 여기서 걸리지 않음)
+      if (get().selectedSession?.file_path !== session.file_path) return;
+
+      // Apply sidechain filter — shouldTreatAsSubagent(pre-await 캡처값)를 사용.
+      // subagent 세션은 모든 메시지가 isSidechain=true이므로 필터 우회.
+      let filteredMessages =
+        get().excludeSidechain && !shouldTreatAsSubagent
+          ? allMessages.filter((m) => !m.isSidechain)
+          : allMessages;
 
       // Apply system message filter
       const systemMessageTypes = [
@@ -231,8 +256,9 @@ export const createMessageSlice: StateCreator<
         isLoadingMessages: false,
       });
 
-      // Load subagent sessions (non-blocking)
-      get().loadSubagents(sessionPath);
+      // Load subagent sessions (non-blocking). allMessages는 시스템 메시지 필터 적용 전이므로
+      // progress 메시지를 통한 parentToolUseID ↔ subagent 매핑이 성립.
+      void get().loadSubagents(sessionPath, allMessages);
 
       // Build FlexSearch index asynchronously after UI renders
       // The buildSearchIndex now internally uses chunked async processing
@@ -246,8 +272,19 @@ export const createMessageSlice: StateCreator<
         }, 0);
       }
     } catch (error) {
+      // Stale error guard: await 중 다른 세션으로 이동했으면 abandoned request의
+      // 에러·로딩 상태를 현재 UI에 덮어쓰지 않음 (success path의 L212 guard 미러링)
+      if (get().selectedSession?.file_path !== session.file_path) return;
+
       console.error("Failed to load session messages:", error);
-      get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
+      // 서브에이전트 로딩 실패 시 toast로 알림 (전체 페이지 에러 방지).
+      // shouldTreatAsSubagent(pre-await 캡처)를 사용해 await 중 stack 변이에 영향받지 않음.
+      const message = error instanceof Error ? error.message : String(error);
+      if (shouldTreatAsSubagent) {
+        toast.error(`Failed to load subagent messages: ${message}`);
+      } else {
+        get().setError({ type: AppErrorType.UNKNOWN, message });
+      }
       set({ isLoadingMessages: false });
     }
   },
@@ -676,30 +713,65 @@ export const createMessageSlice: StateCreator<
   // SubAgent Navigation
   // ============================================================================
 
-  loadSubagents: async (sessionPath: string) => {
+  loadSubagents: async (
+    sessionPath: string,
+    sourceMessages: ClaudeMessage[],
+  ) => {
     try {
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
         sessionPath,
       });
       // Guard: only update if still viewing the same session
       if (get().selectedSession?.file_path === sessionPath) {
-        set({ subagentSessions: subagents });
+        // progress 메시지만 parentToolUseID와 agentId를 함께 보유 → 유일한 매핑 소스.
+        // Map 값은 file_path(유일 식별자) — agent_id는 filename stem 기반이라 충돌 가능.
+        // sourceMessages는 반드시 pre-filter(allMessages) — post-filter는 progress 제거됨.
+        let map: Map<string, string> | ReadonlyMap<string, string> =
+          EMPTY_SUBAGENT_MAP;
+        if (subagents.length > 0) {
+          // O(1) lookup을 위해 agent_id → subagent 인덱스 선구축
+          const byAgentId = new Map(subagents.map((s) => [s.agent_id, s]));
+          const built = new Map<string, string>();
+          for (const msg of sourceMessages) {
+            if (msg.type !== "progress" || !msg.parentToolUseID) continue;
+            const agentId = getAgentIdFromProgress(msg);
+            if (!agentId) continue;
+            const sub = byAgentId.get(agentId);
+            if (sub) {
+              built.set(msg.parentToolUseID, sub.file_path);
+            }
+          }
+          if (built.size > 0) map = built;
+        }
+        set({
+          subagentSessions: subagents,
+          toolUseToSubagentMap: map as Map<string, string>,
+        });
       }
     } catch (error) {
-      // Graceful fallback: older sessions won't have subagents
       if (import.meta.env.DEV) {
         console.warn("[loadSubagents] Failed:", error);
       }
+      // 여전히 같은 세션을 보고 있을 때만 피드백 + 상태 초기화.
+      // CLAUDE.md 가이드: async 실패는 사용자에게 가시적 피드백 필요.
       if (get().selectedSession?.file_path === sessionPath) {
-        set({ subagentSessions: [] });
+        const message = error instanceof Error ? error.message : String(error);
+        toast.warning(`Failed to load subagent sessions: ${message}`);
+        set({
+          subagentSessions: [],
+          toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
+        });
       }
     }
   },
 
   navigateToSubagent: async (subagent: SubagentSession) => {
+    if (subagentNavInFlight) return;
     const currentSession = get().selectedSession;
     if (!currentSession) return;
 
+    subagentNavInFlight = true;
+    try {
     // Push current session onto the navigation stack
     set((state) => ({
       parentSessionStack: [...state.parentSessionStack, currentSession],
@@ -722,17 +794,30 @@ export const createMessageSlice: StateCreator<
 
     isSubagentNav = true;
     await get().selectSession(syntheticSession);
+    } finally {
+      subagentNavInFlight = false;
+    }
   },
 
   navigateBackToParent: async () => {
+    if (subagentNavInFlight) return;
     const stack = get().parentSessionStack;
     if (stack.length === 0) return;
 
-    const parentSession = stack[stack.length - 1]!;
-    set({ parentSessionStack: stack.slice(0, -1) });
+    subagentNavInFlight = true;
+    try {
+      const parentSession = stack[stack.length - 1]!;
+      const remainingStack = stack.slice(0, -1);
+      set({ parentSessionStack: remainingStack });
 
-    isSubagentNav = true;
-    await get().selectSession(parentSession);
+      // remainingStack이 비어있으면 top-level로 복귀 → isSubagentNav=false여야
+      // selectSession에서 sidechain 필터가 정상 적용됨.
+      // 중첩 서브에이전트 체인에서 한 단계만 pop하는 경우에만 플래그 유지.
+      isSubagentNav = remainingStack.length > 0;
+      await get().selectSession(parentSession);
+    } finally {
+      subagentNavInFlight = false;
+    }
   },
   };
 };

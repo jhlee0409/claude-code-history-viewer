@@ -186,5 +186,9 @@
   "session.export.html": "HTML (.html)",
   "session.export.success": "エクスポートが完了しました",
   "session.export.error": "エクスポートに失敗しました",
-  "session.export.exporting": "エクスポート中..."
+  "session.export.exporting": "エクスポート中...",
+  "sessionPicker.title": "セッションを選択",
+  "sessionPicker.subtitle": "「{{value}}」に一致するセッションが{{count}}件",
+  "sessionPicker.empty": "一致するセッションがありません",
+  "sessionPicker.cancelled": "起動時のセッションヒントをキャンセルしました"
 }

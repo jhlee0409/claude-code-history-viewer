@@ -166,10 +166,14 @@ export const GlobalSearchModal = ({
                     return;
                 }
 
+                // Snapshot excludeSidechain once to keep requests consistent
+                // across the scan and avoid repeated getState() calls. The
+                // setting is user-configurable; taking a snapshot is intentional
+                // so a mid-scan toggle does not change half the requests.
+                const { excludeSidechain } = useAppStore.getState();
                 for (const project of projects) {
                     try {
                         const projectProvider = project.provider ?? "claude";
-                        const { excludeSidechain } = useAppStore.getState();
                         const projectSessions = await api<ClaudeSession[]>(
                             projectProvider !== "claude" ? "load_provider_sessions" : "load_project_sessions",
                             projectProvider !== "claude"

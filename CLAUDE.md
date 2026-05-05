@@ -70,6 +70,25 @@ feature/* ← 개별 기능 (develop에서 분기, develop으로 PR)
 - `main`에 직접 머지하지 않음 — 릴리즈 시에만 `develop` → `main` 머지
 - README, 스크린샷 등 사용자 문서는 릴리즈 커밋에서만 `main`에 반영
 
+## Agent skills
+
+mattpocock 스킬(`/triage`, `/to-issues`, `/diagnose`, `/improve-codebase-architecture` 등)이 참조하는 메타 설정.
+
+### Issue tracker
+
+GitHub Issues at `jhlee0409/claude-code-history-viewer`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles. `needs-info` and `wontfix` reuse existing repo labels;
+`needs-triage`, `ready-for-agent`, `ready-for-human` are added in this setup.
+See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root, lazily created
+by `/grill-with-docs`. See `docs/agents/domain.md`.
+
 ## Version Management
 
 This is a **Tauri desktop application** distributed via GitHub Releases (not npm).
@@ -452,6 +471,12 @@ Assistant messages contain additional metadata within the `message` object:
 - Pagination is used to load messages in batches (100 messages per page)
 - Message tree structure is flattened for virtual scrolling while preserving parent-child relationships
 - No test suite currently exists
+
+### CLI flags
+
+- `--serve [--port N] [--host H] [--dist D] [--token T | --no-auth]` — WebUI headless mode (requires `webui-server` feature build). Parsed in `src-tauri/src/lib.rs::run_server`.
+- `--session <uuid|uuid-prefix>` — preload a specific session at GUI startup. UUID regex accepts 8-36 hex-or-dash chars. Parsed in `src-tauri/src/cli.rs::parse_session_hint`, delivered to the frontend via the `get_startup_session_hint` Tauri command, resolved in `src/lib/preloadSession.ts`. A race guard inside `preloadSessionFromCli` respects user navigation made mid-scan.
+- **Shared argv helper**: `src-tauri/src/cli_args.rs::extract_flag_value` is the canonical `--flag=value` / `--flag value` parser used by both the desktop and `webui-server` code paths.
 
 ## Important Patterns
 

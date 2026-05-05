@@ -5,7 +5,7 @@
  * Uses @tanstack/react-virtual for efficient rendering of large message lists.
  */
 
-import { useRef, useCallback, useMemo, useState, useEffect } from "react";
+import { useRef, useCallback, useMemo, useState, useEffect, memo } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -41,6 +41,72 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ExportFormat } from "@/types/export";
+import type { SubagentSession } from "@/types";
+
+// max-height 계산: 버튼 1행 높이 × 3행 + 여유
+const SUBAGENT_ROW_HEIGHT_REM = 1.75;
+const SUBAGENT_PANEL_VISIBLE_ROWS = 3;
+const SUBAGENT_PANEL_MAX_HEIGHT_REM =
+  SUBAGENT_ROW_HEIGHT_REM * SUBAGENT_PANEL_VISIBLE_ROWS + 1;
+
+const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
+  subagentSessions,
+  navigateToSubagent,
+  isOpen,
+  onToggle,
+}: {
+  subagentSessions: SubagentSession[];
+  navigateToSubagent: (sa: SubagentSession) => Promise<void>;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useTranslation();
+  const label = t("renderers.agentTool.subagentSessions", { defaultValue: "SubAgent Sessions" });
+  const ChevronIcon = isOpen ? ChevronDown : ChevronRight;
+
+  return (
+    <div className="border-b border-border/50 px-4 py-2 bg-muted/30">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="flex items-center gap-2 w-full text-left cursor-pointer hover:text-foreground/80"
+        aria-label={label}
+      >
+        <ChevronIcon className="w-3 h-3 text-muted-foreground" />
+        <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="text-[10px] text-muted-foreground/70 bg-muted rounded-full px-1.5">
+          {subagentSessions.length}
+        </span>
+      </button>
+      {isOpen && (
+        <div
+          className="flex flex-wrap gap-1.5 overflow-y-auto mt-1.5"
+          style={{ maxHeight: `${SUBAGENT_PANEL_MAX_HEIGHT_REM}rem` }}
+        >
+          {subagentSessions.map((sa) => (
+            <button
+              key={sa.file_path}
+              type="button"
+              onClick={() => void navigateToSubagent(sa)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-background border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+              title={sa.summary ?? sa.agent_id}
+            >
+              <Bot className="w-3 h-3 text-muted-foreground" />
+              <span className="max-w-[200px] truncate">
+                {sa.summary ?? sa.agent_id}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                {t("renderers.agentTool.messages", { count: sa.message_count, defaultValue: "{{count}} messages" })}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
 
 export const MessageViewer: React.FC<MessageViewerProps> = ({
   messages,
@@ -60,6 +126,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // Track when OverlayScrollbars is initialized
   const [scrollElementReady, setScrollElementReady] = useState(false);
+
+  // SubAgent 패널 접힘 상태 — MessageViewer에 lift해야 filter toggle 같은
+  // 분기 재렌더(패널 자식 unmount)에서 유저 선택이 보존됨.
+  const [isSubagentPanelOpen, setIsSubagentPanelOpen] = useState(true);
+  const toggleSubagentPanel = useCallback(
+    () => setIsSubagentPanelOpen((prev) => !prev),
+    [],
+  );
 
   // Capture mode state
   const {
@@ -83,6 +157,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     parentSessionStack,
     navigateToSubagent,
     navigateBackToParent,
+    // 메시지 로딩 상태 — 로딩 스피너 표시 조건
+    isLoadingMessages,
   } = useAppStore();
 
   // Apply role + content type filters
@@ -535,12 +611,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     }
   }, [onNextMatch, onPrevMatch, handleClearSearch]);
 
-  // 세션 전환 중인지 확인 (스크롤 요소 미준비 또는 세션 ID 불일치)
-  const isSessionTransitioning = selectedSession?.session_id &&
-    (!scrollElementReady || scrollReadyForSessionId !== selectedSession?.session_id);
-
-  // 로딩 중이거나 세션 전환 중일 때 로딩 표시
-  if ((isLoading || isSessionTransitioning) && messages.length === 0) {
+  // 로딩 중일 때 로딩 표시 (isLoadingMessages 기반 — scrollReady 의존 제거로 빈 세션 무한 스피너 방지)
+  if ((isLoading || isLoadingMessages) && messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center h-full">
         <LoadingState
@@ -553,8 +625,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     );
   }
 
-  // 세션이 없거나 실제로 메시지가 없는 경우에만 "No Messages" 표시
-  if (messages.length === 0 && !isSessionTransitioning) {
+  // 로딩 종료 후 메시지가 없으면 "No Messages" 표시 (위 L606 스피너 분기가 로딩을 먼저 처리).
+  // isSessionTransitioning 의존 제거: scrollReadyForSessionId는 messagesLength>0 일 때만 세팅되어
+  // 빈 세션에서 영구 true가 되는 회귀를 유발.
+  if (messages.length === 0) {
     return (
       <LoadingState
         isLoading={false}
@@ -820,45 +894,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         </div>
       )}
 
-      {/* SubAgent sessions panel */}
+      {/* SubAgent sessions panel — collapsible (접힘 상태는 MessageViewer에 lift됨) */}
       {subagentSessions.length > 0 && parentSessionStack.length === 0 && (
-        <div className={cn(
-          "border-b border-border/50 px-4 py-2",
-          "bg-muted/30",
-        )}>
-          <div className="flex items-center gap-2 mb-1.5">
-            <Bot className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground">
-              {t("renderers.agentTool.subagentSessions", { defaultValue: "SubAgent Sessions" })}
-            </span>
-            <span className="text-[10px] text-muted-foreground/70 bg-muted rounded-full px-1.5">
-              {subagentSessions.length}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {subagentSessions.map((sa) => (
-              <button
-                key={sa.file_path}
-                type="button"
-                onClick={() => void navigateToSubagent(sa)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md",
-                  "bg-background border border-border/50 hover:border-primary/40 hover:bg-primary/5",
-                  "transition-colors",
-                )}
-                title={sa.summary ?? sa.agent_id}
-              >
-                <Bot className="w-3 h-3 text-muted-foreground" />
-                <span className="max-w-[200px] truncate">
-                  {sa.summary ?? sa.agent_id}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {t("renderers.agentTool.messages", { count: sa.message_count, defaultValue: "{{count}} messages" })}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <SubagentSessionsPanel
+          subagentSessions={subagentSessions}
+          navigateToSubagent={navigateToSubagent}
+          isOpen={isSubagentPanelOpen}
+          onToggle={toggleSubagentPanel}
+        />
       )}
 
       <div className="relative flex-1 min-h-0">

@@ -2,10 +2,11 @@
 import type { ClaudeProject, ClaudeSession } from "../../types";
 import type { GroupingMode } from "../../types/metadata.types";
 import type { WorktreeGroup, DirectoryGroup } from "../../utils/worktreeUtils";
+import type { Boundary } from "../../utils/contextMenu";
 
 export interface ContextMenuState {
   project: ClaudeProject;
-  position: { x: number; y: number };
+  position: { x: number; y: number; boundary?: Boundary | null };
 }
 
 export interface ProjectTreeProps {

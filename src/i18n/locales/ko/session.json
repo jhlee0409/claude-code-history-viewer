@@ -186,5 +186,9 @@
   "session.export.html": "HTML (.html)",
   "session.export.success": "내보내기 완료",
   "session.export.error": "내보내기 실패",
-  "session.export.exporting": "내보내는 중..."
+  "session.export.exporting": "내보내는 중...",
+  "sessionPicker.title": "세션 선택",
+  "sessionPicker.subtitle": "\"{{value}}\"에 일치하는 세션 {{count}}개",
+  "sessionPicker.empty": "일치하는 세션 없음",
+  "sessionPicker.cancelled": "시작 세션 힌트가 취소됨"
 }

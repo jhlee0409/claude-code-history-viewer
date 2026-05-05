@@ -186,5 +186,9 @@
   "session.export.html": "HTML (.html)",
   "session.export.success": "匯出成功",
   "session.export.error": "匯出失敗",
-  "session.export.exporting": "正在匯出..."
+  "session.export.exporting": "正在匯出...",
+  "sessionPicker.title": "選擇工作階段",
+  "sessionPicker.subtitle": "{{count}} 個工作階段符合 \"{{value}}\"",
+  "sessionPicker.empty": "沒有符合的工作階段",
+  "sessionPicker.cancelled": "啟動時的工作階段提示已取消"
 }

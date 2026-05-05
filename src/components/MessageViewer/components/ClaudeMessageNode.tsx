@@ -4,7 +4,7 @@
  * Renders individual message nodes with support for various message types.
  */
 
-import React from "react";
+import React, { useCallback, useMemo } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../../store/useAppStore";
@@ -62,16 +62,30 @@ export const ClaudeMessageNode = React.memo(({
   const messageFilter = useAppStore((s) => s.messageFilter);
   const subagentSessions = useAppStore((s) => s.subagentSessions);
   const navigateToSubagent = useAppStore((s) => s.navigateToSubagent);
+  const toolUseToSubagentMap = useAppStore((s) => s.toolUseToSubagentMap);
+  const parentSessionStack = useAppStore((s) => s.parentSessionStack);
 
-  const handleViewSubagent = subagentSessions.length > 0
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    ? (_agentId: string) => {
-        const match = subagentSessions[0];
-        if (match) {
-          void navigateToSubagent(match);
-        }
+  // Stable reference via useCallback — 가상 리스트의 하위 memo 컴포넌트 re-render 최소화.
+  // Map은 parentToolUseID → file_path(유일 식별자)를 저장. 맵 미스 시 subagentSessions[0]
+  // 폴백은 다중 서브에이전트에서 잘못된 대화로 silently 이동하므로 단일일 때만 폴백 허용.
+  const viewSubagent = useCallback(
+    (toolUseId: string) => {
+      const filePath = toolUseToSubagentMap.get(toolUseId);
+      const match = filePath
+        ? subagentSessions.find((s) => s.file_path === filePath)
+        : subagentSessions.length === 1
+          ? subagentSessions[0]
+          : undefined;
+      if (match) {
+        void navigateToSubagent(match);
       }
-    : undefined;
+    },
+    [toolUseToSubagentMap, subagentSessions, navigateToSubagent],
+  );
+  const handleViewSubagent = useMemo(
+    () => (subagentSessions.length > 0 ? viewSubagent : undefined),
+    [subagentSessions.length, viewSubagent],
+  );
 
   const handleSelectionClick = isCaptureMode && onRangeSelect
     ? (e: React.MouseEvent) => {
@@ -122,7 +136,9 @@ export const ClaudeMessageNode = React.memo(({
     </button>
   ) : null;
 
-  if (message.isSidechain) {
+  // subagent 세션 내부에서는 모든 메시지가 isSidechain=true이므로 필터 우회
+  const isInSubagent = parentSessionStack.length > 0;
+  if (message.isSidechain && !isInSubagent) {
     return null;
   }
 
@@ -368,7 +384,7 @@ export const ClaudeMessageNode = React.memo(({
         onClick={handleSelectionClick}
         className={cn(
           "relative w-full px-2 md:px-4 py-2 transition-all duration-200",
-          message.isSidechain && "bg-muted",
+          message.isSidechain && !isInSubagent && "bg-muted",
           // Search highlight
           isCurrentMatch && "bg-highlight-current ring-2 ring-warning",
           isMatch && !isCurrentMatch && "bg-highlight",

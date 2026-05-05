@@ -63,7 +63,7 @@ type Props = {
   skipThinking?: boolean;
   skipCommands?: boolean;
   skipToolCalls?: boolean;
-  onViewSubagent?: (agentId: string) => void;
+  onViewSubagent?: (toolUseId: string) => void;
 };
 
 // Broad guard used by normalization; this intentionally does not require a "type" field.
