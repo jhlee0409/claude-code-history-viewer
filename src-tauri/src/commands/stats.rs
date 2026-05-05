@@ -1024,16 +1024,6 @@ fn usage_dedup_key_parts<'a>(
     (session_id, id_part)
 }
 
-/// Convenience wrapper for `ClaudeMessage`-based aggregators (#283).
-#[inline]
-fn usage_dedup_key(message: &ClaudeMessage) -> (&str, &str) {
-    usage_dedup_key_parts(
-        &message.session_id,
-        message.message_id.as_deref(),
-        &message.uuid,
-    )
-}
-
 /// Dedup-aware token totals — returns zero tuple when this turn was already counted.
 /// Aggregators should call this once per row, then add the returned totals
 /// unconditionally so msg counts stay per-row while usage stays deduped.
@@ -1561,7 +1551,9 @@ fn get_provider_session_comparison(
         let mut included_message_count = 0usize;
         let mut first_time: Option<DateTime<Utc>> = None;
         let mut last_time: Option<DateTime<Utc>> = None;
-        // #283: per-session dedup so the comparison denominator matches the deduped numerator.
+        // #283: dedup token usage so each session's `total_tokens` reflects unique
+        // assistant turns. `included_message_count` stays per-row (rows displayed)
+        // — tokens-per-message in the UI is "tokens per displayed row", not per turn.
         let mut seen_usage_keys: HashSet<(&str, &str)> = HashSet::with_capacity(messages.len());
 
         for message in &messages {
@@ -3835,7 +3827,7 @@ mod tests {
             StatsProvider::Claude,
             "test-project".to_string(),
             &messages,
-            StatsMode::All,
+            StatsMode::BillingTotal,
             None,
             None,
         )
@@ -3885,7 +3877,7 @@ mod tests {
             StatsProvider::Claude,
             "test-project".to_string(),
             &messages,
-            StatsMode::All,
+            StatsMode::BillingTotal,
             None,
             None,
         )
@@ -3923,7 +3915,7 @@ mod tests {
             StatsProvider::Claude,
             "test-project".to_string(),
             &messages,
-            StatsMode::All,
+            StatsMode::BillingTotal,
             None,
             None,
         )
@@ -4018,7 +4010,7 @@ mod tests {
             "test-project".to_string(),
             None,
             &messages,
-            StatsMode::All,
+            StatsMode::BillingTotal,
             None,
             None,
         )
