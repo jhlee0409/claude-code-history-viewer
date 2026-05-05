@@ -10,8 +10,10 @@ import {
   PanelLeft,
   RotateCcw,
   Search,
+  Server,
   X,
 } from "lucide-react";
+import { RemoteSourcesDialog } from "../RemoteSources/RemoteSourcesDialog";
 import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { toast } from "sonner";
@@ -31,6 +33,7 @@ import {
 } from "./treeKeyboard";
 import {
   DEFAULT_PROVIDER_ID,
+  getProviderDotStyle,
   getProviderId,
   getProviderLabel,
   normalizeProviderIds,
@@ -88,6 +91,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
   const [searchTerm, setSearchTerm] = useState("");
   const searchInputId = React.useId();
+  const [isRemoteSourcesOpen, setIsRemoteSourcesOpen] = useState(false);
+  const userMetadata = useAppStore((state) => state.userMetadata);
+  const remoteSourceCount =
+    userMetadata?.settings?.remoteSources?.length ?? 0;
 
   // Wrap session select to also close mobile drawer
   const handleSessionSelect = useCallback(
@@ -792,6 +799,16 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   )}
                   title={tab.label}
                 >
+                  {tab.id !== "all" && (
+                    <span
+                      className={cn(
+                        "w-2 h-2 rounded-full flex-shrink-0",
+                        getProviderDotStyle(tab.id),
+                        isDisabled && "opacity-40"
+                      )}
+                      aria-hidden="true"
+                    />
+                  )}
                   <span>{tab.label}</span>
                   <span
                     className={cn(
@@ -822,6 +839,30 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               <span>{t("project.resetProviderFilters", "Reset")}</span>
             </button>
           </div>
+        </div>
+
+        {/* Remote SSH sources */}
+        <div className="px-3 py-2 border-b border-accent/10">
+          <button
+            type="button"
+            onClick={() => setIsRemoteSourcesOpen(true)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md bg-muted/30 hover:bg-muted/60 border border-transparent hover:border-accent/30 transition-colors"
+            aria-label={t("remoteSources.openManager", "Manage remote machines")}
+          >
+            <Server className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+            <span className="flex-1 text-left text-muted-foreground">
+              {remoteSourceCount > 0
+                ? t("remoteSources.summary", "{{count}} remote machine(s)", {
+                    count: remoteSourceCount,
+                  })
+                : t("remoteSources.empty", "No remote machines configured")}
+            </span>
+            {remoteSourceCount > 0 && (
+              <span className="text-[10px] text-muted-foreground/70">
+                {t("remoteSources.manage", "Manage")}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Search */}
@@ -990,6 +1031,12 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           isHidden={isProjectHidden(contextMenu.project.actual_path)}
         />
       )}
+
+      {/* Remote SSH Sources manager */}
+      <RemoteSourcesDialog
+        open={isRemoteSourcesOpen}
+        onOpenChange={setIsRemoteSourcesOpen}
+      />
     </aside>
   );
 };

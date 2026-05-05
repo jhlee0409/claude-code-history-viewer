@@ -5,7 +5,12 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
 import { getWorktreeLabel } from "../../../utils/worktreeUtils";
-import { getProviderId, getProviderLabel } from "../../../utils/providers";
+import {
+  getProviderDotStyle,
+  getProviderId,
+  getProviderLabel,
+} from "../../../utils/providers";
+import { TruncatedScrollText } from "../../ui/TruncatedScrollText";
 
 export const ProjectItem: React.FC<ProjectItemProps> = ({
   project,
@@ -121,10 +126,12 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
         </div>
       )}
 
-      {/* Project Name */}
-      <span
+      {/* Project Name — middle-ellipsis by default, marquee on hover */}
+      <TruncatedScrollText
+        text={displayName}
+        title={project.actual_path}
         className={cn(
-          "whitespace-nowrap flex-1 transition-colors",
+          "flex-1 min-w-0 transition-colors",
           isGrouped ? "text-xs" : "text-sm",
           isExpanded
             ? isWorktree
@@ -137,26 +144,29 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
               : "text-sidebar-foreground/80",
           !isGrouped && "duration-300"
         )}
-        title={project.actual_path}
-      >
-        {displayName}
-      </span>
+      />
 
-      {/* Provider Badge */}
+      {/* Provider Badge — solid dot only (provider name is implied by the
+          tab strip's color legend). The custom_directory_label suffix
+          (e.g. "WSL: …" or "🌐 192.168.0.11") is kept as a short text
+          marker because it carries information the dot can't. */}
       {showProviderBadge && (
         <span
-          className={cn(
-            "px-1.5 py-0.5 text-2xs font-medium rounded-full flex-shrink-0 leading-none",
-            providerId === "claude" && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-            providerId === "cline" && "bg-teal-500/15 text-teal-600 dark:text-teal-400",
-            providerId === "codex" && "bg-green-500/15 text-green-600 dark:text-green-400",
-            providerId === "cursor" && "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
-            providerId === "gemini" && "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-            providerId === "opencode" && "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-            providerId === "aider" && "bg-rose-500/15 text-rose-600 dark:text-rose-400"
-          )}
+          className="flex items-center gap-1 flex-shrink-0 leading-none"
+          title={providerLabel}
         >
-          {providerLabel}
+          <span
+            className={cn(
+              "w-2 h-2 rounded-full flex-shrink-0",
+              getProviderDotStyle(providerId)
+            )}
+            aria-hidden="true"
+          />
+          {project.custom_directory_label && (
+            <span className="text-2xs font-medium text-muted-foreground/80 max-w-[10rem] truncate">
+              {project.custom_directory_label}
+            </span>
+          )}
         </span>
       )}
 

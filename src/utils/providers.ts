@@ -106,6 +106,26 @@ export function getProviderBadgeStyle(provider?: ProviderId | string): string {
   return PROVIDER_BADGE_STYLES[id] ?? "bg-gray-500/15 text-gray-500";
 }
 
+/**
+ * Solid colour swatch per provider — used as a compact identifier in places
+ * where text would be redundant (project row badge, tab strip dot).
+ * Same hue family as `PROVIDER_BADGE_STYLES` but at full saturation.
+ */
+export const PROVIDER_DOT_STYLES: Record<ProviderId, string> = {
+  claude: "bg-amber-500",
+  codex: "bg-green-500",
+  cline: "bg-teal-500",
+  cursor: "bg-cyan-500",
+  gemini: "bg-purple-500",
+  opencode: "bg-blue-500",
+  aider: "bg-rose-500",
+};
+
+export function getProviderDotStyle(provider?: ProviderId | string): string {
+  const id = getProviderId(provider);
+  return PROVIDER_DOT_STYLES[id] ?? "bg-gray-400";
+}
+
 export function hasAnyConversationBreakdownProvider(
   providers?: readonly (ProviderId | string)[]
 ): boolean {

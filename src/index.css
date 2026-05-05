@@ -2107,3 +2107,16 @@
     opacity: 1;
   }
 }
+
+/* TruncatedScrollText — used by ProjectItem name on hover. The animated
+   span renders the text twice end-to-end with a gap, so a single -50%
+   transform produces a seamless infinite scroll. */
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
