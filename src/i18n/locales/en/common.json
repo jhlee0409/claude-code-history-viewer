@@ -78,6 +78,7 @@
   "common.settings.font.120": "Extra Large",
   "common.settings.font.130": "Maximum",
   "common.settings.font.title": "Font Size",
+  "common.settings.filter.showSubagentMessages": "Show Sub-agent Messages",
   "common.settings.filter.showSystemMessages": "Show System Messages",
   "common.settings.filter.title": "Filter",
   "common.settings.language.description": "Select your preferred language",

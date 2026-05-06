@@ -78,6 +78,7 @@
   "common.settings.font.120": "更大",
   "common.settings.font.130": "最大",
   "common.settings.font.title": "字体大小",
+  "common.settings.filter.showSubagentMessages": "显示子代理消息",
   "common.settings.filter.showSystemMessages": "显示系统消息",
   "common.settings.filter.title": "筛选",
   "common.settings.language.description": "选择您偏好的语言",

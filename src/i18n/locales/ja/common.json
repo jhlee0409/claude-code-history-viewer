@@ -78,6 +78,7 @@
   "common.settings.font.120": "さらに大きく",
   "common.settings.font.130": "最大",
   "common.settings.font.title": "文字サイズ",
+  "common.settings.filter.showSubagentMessages": "サブエージェントメッセージを表示",
   "common.settings.filter.showSystemMessages": "システムメッセージを表示",
   "common.settings.filter.title": "フィルター",
   "common.settings.language.description": "お好みの言語を選択してください",
