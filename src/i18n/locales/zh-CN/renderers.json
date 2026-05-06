@@ -38,6 +38,8 @@
   "renderers.agentTool.messages": "{{count}} 条消息",
   "assistantMessageDetails.cacheCreation": "缓存创建",
   "assistantMessageDetails.cacheRead": "缓存读取",
+  "assistantMessageDetails.costEstimated": "根据令牌用量估算；源 JSONL 不包含 costUSD。",
+  "assistantMessageDetails.estimated": "估算",
   "assistantMessageDetails.input": "输入",
   "assistantMessageDetails.model": "模型",
   "assistantMessageDetails.output": "输出",

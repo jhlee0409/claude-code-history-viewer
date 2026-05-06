@@ -38,6 +38,8 @@
   "renderers.agentTool.messages": "{{count}} messages",
   "assistantMessageDetails.cacheCreation": "Cache Creation",
   "assistantMessageDetails.cacheRead": "Cache Read",
+  "assistantMessageDetails.costEstimated": "Estimated from token usage; the source JSONL did not include costUSD.",
+  "assistantMessageDetails.estimated": "estimated",
   "assistantMessageDetails.input": "Input",
   "assistantMessageDetails.model": "Model",
   "assistantMessageDetails.output": "Output",
