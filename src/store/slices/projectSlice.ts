@@ -151,13 +151,40 @@ export const createProjectSlice: StateCreator<
         console.log("No saved settings found");
       }
 
-      // Try default path
-      const claudePath = await api<string>("get_claude_folder_path");
-      set({ claudePath });
-      await get().loadMetadata();
-      await get().detectProviders();
-      await autoRegisterConfigDir(get);
-      await get().scanProjects();
+      // Try default Claude path. If `~/.claude` is missing but other providers
+      // (Codex, OpenCode, Cursor, …) are detected on disk, proceed without a
+      // Claude path so the user can browse the providers they actually have
+      // installed (#222).
+      try {
+        const claudePath = await api<string>("get_claude_folder_path");
+        set({ claudePath });
+        await get().loadMetadata();
+        await get().detectProviders();
+        await autoRegisterConfigDir(get);
+        await get().scanProjects();
+        return;
+      } catch (claudeFolderError) {
+        const claudeErrorMessage =
+          claudeFolderError instanceof Error
+            ? claudeFolderError.message
+            : String(claudeFolderError);
+        if (!claudeErrorMessage.includes("CLAUDE_FOLDER_NOT_FOUND:")) {
+          throw claudeFolderError;
+        }
+
+        await get().loadMetadata();
+        await get().detectProviders();
+        const detectedProviders = get().providers;
+        const hasOtherProvider = detectedProviders.some(
+          (provider) => provider.is_available && provider.id !== "claude"
+        );
+        if (!hasOtherProvider) {
+          throw claudeFolderError;
+        }
+
+        await autoRegisterConfigDir(get);
+        await get().scanProjects();
+      }
     } catch (error) {
       console.error("Failed to initialize app:", error);
       const errorMessage =
@@ -192,16 +219,18 @@ export const createProjectSlice: StateCreator<
     const { claudePath, providers } = get();
     const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
     const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
-    if (!claudePath && !hasCustomPaths) return;
+    const availableProviders = providers
+      .filter((provider) => provider.is_available)
+      .map((provider) => provider.id);
+    const scanProviders = availableProviders.length > 0 ? availableProviders : [DEFAULT_PROVIDER_ID];
+    const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
+    // Allow scanning when at least one source is available: a saved Claude path,
+    // a custom Claude path, or any non-Claude provider detected on disk (#222).
+    if (!claudePath && !hasCustomPaths && !hasNonClaudeProviders) return;
 
     set({ isLoadingProjects: true, error: null });
     try {
       const start = performance.now();
-      const availableProviders = providers
-        .filter((provider) => provider.is_available)
-        .map((provider) => provider.id);
-      const scanProviders = availableProviders.length > 0 ? availableProviders : [DEFAULT_PROVIDER_ID];
-      const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
       const settings = get().userMetadata?.settings;
       const projects = (hasNonClaudeProviders || hasCustomPaths)
         ? await api<ClaudeProject[]>("scan_all_projects", {
