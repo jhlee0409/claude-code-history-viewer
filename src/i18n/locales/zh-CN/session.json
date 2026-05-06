@@ -91,6 +91,7 @@
   "session.cliSync.title": "会话名称已与CLI同步",
   "session.copiedFilePath": "文件路径已复制",
   "session.copiedResumeCommand": "恢复命令已复制",
+  "session.copiedResumeCommandNoCwd": "恢复命令已复制（未知工作目录）",
   "session.copiedSessionId": "会话ID已复制",
   "session.copyFilePath": "复制文件路径",
   "session.showJsonlFile": "显示 JSONL 文件",

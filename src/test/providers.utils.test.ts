@@ -66,13 +66,44 @@ describe("providers utils", () => {
     expect(getResumeCommand("forgecode", "conversation-123")).toBe(
       "forge conversation resume conversation-123"
     );
-    expect(getResumeCommand("codex", "conversation-123")).toBeNull();
+  });
+
+  it("returns the codex resume subcommand for codex sessions", () => {
+    expect(getResumeCommand("codex", "abc-123")).toBe("codex resume abc-123");
   });
 
   it("getResumeCommand fails closed for unknown provider strings", () => {
     expect(getResumeCommand("not-a-real-provider", "abc")).toBeNull();
     expect(getResumeCommand(undefined, "abc")).toBeNull();
     expect(getResumeCommand("claude", "")).toBeNull();
+    // Aider has no resume CLI command — must stay null even after future additions.
+    expect(getResumeCommand("aider", "abc")).toBeNull();
+  });
+
+  it("prefixes the resume command with `cd` when cwd is provided", () => {
+    expect(getResumeCommand("claude", "abc", "/Users/foo/proj")).toBe(
+      "cd '/Users/foo/proj' && claude --resume abc"
+    );
+    expect(getResumeCommand("codex", "abc", "/Users/foo/proj")).toBe(
+      "cd '/Users/foo/proj' && codex resume abc"
+    );
+  });
+
+  it("omits the cd prefix when cwd is empty or missing", () => {
+    expect(getResumeCommand("claude", "abc", undefined)).toBe(
+      "claude --resume abc"
+    );
+    expect(getResumeCommand("claude", "abc", "")).toBe("claude --resume abc");
+  });
+
+  it("single-quotes paths with spaces and escapes embedded apostrophes", () => {
+    expect(getResumeCommand("claude", "abc", "/Users/me/My Stuff")).toBe(
+      "cd '/Users/me/My Stuff' && claude --resume abc"
+    );
+    // POSIX trick: close quote, escaped literal apostrophe, reopen quote.
+    expect(getResumeCommand("codex", "abc", "/tmp/it's-mine")).toBe(
+      "cd '/tmp/it'\\''s-mine' && codex resume abc"
+    );
   });
 
   it("detects whether current scope has any supported provider", () => {

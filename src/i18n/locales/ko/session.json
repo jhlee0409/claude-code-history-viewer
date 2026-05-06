@@ -91,6 +91,7 @@
   "session.cliSync.title": "세션 이름이 CLI와 동기화됨",
   "session.copiedFilePath": "파일 경로가 복사되었습니다",
   "session.copiedResumeCommand": "재개 명령어가 복사되었습니다",
+  "session.copiedResumeCommandNoCwd": "재개 명령어가 복사되었습니다 (작업 디렉터리 미상)",
   "session.copiedSessionId": "세션 ID가 복사되었습니다",
   "session.copyFilePath": "파일 경로 복사",
   "session.showJsonlFile": "JSONL 파일 보기",

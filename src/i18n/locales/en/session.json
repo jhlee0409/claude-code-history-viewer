@@ -91,6 +91,7 @@
   "session.cliSync.title": "Session name synced with CLI",
   "session.copiedFilePath": "File path copied",
   "session.copiedResumeCommand": "Resume command copied",
+  "session.copiedResumeCommandNoCwd": "Resume command copied (working directory unknown)",
   "session.copiedSessionId": "Session ID copied",
   "session.copyFilePath": "Copy File Path",
   "session.showJsonlFile": "Show JSONL File",

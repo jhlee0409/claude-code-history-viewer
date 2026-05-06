@@ -91,6 +91,7 @@
   "session.cliSync.title": "セッション名がCLIと同期済み",
   "session.copiedFilePath": "ファイルパスをコピーしました",
   "session.copiedResumeCommand": "再開コマンドをコピーしました",
+  "session.copiedResumeCommandNoCwd": "再開コマンドをコピーしました（作業ディレクトリ不明）",
   "session.copiedSessionId": "セッションIDをコピーしました",
   "session.copyFilePath": "ファイルパスをコピー",
   "session.showJsonlFile": "JSONLファイルを表示",

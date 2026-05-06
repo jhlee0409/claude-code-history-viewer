@@ -186,9 +186,18 @@ export function useSessionEditing(session: ClaudeSession) {
     [handleCopyToClipboard, session.actual_session_id, t]
   );
 
+  const projectCwd = useAppStore(
+    (state) =>
+      state.projects.find((p) => p.name === session.project_name)?.actual_path
+  );
+
   const handleCopyResumeCommand = useCallback(
     (e: React.MouseEvent) => {
-      const resumeCommand = getResumeCommand(providerId, session.actual_session_id);
+      const resumeCommand = getResumeCommand(
+        providerId,
+        session.actual_session_id,
+        projectCwd
+      );
       if (!resumeCommand) {
         e.stopPropagation();
         setIsContextMenuOpen(false);
@@ -199,10 +208,15 @@ export function useSessionEditing(session: ClaudeSession) {
       return handleCopyToClipboard(
         e,
         resumeCommand,
-        t("session.copiedResumeCommand", "Resume command copied")
+        projectCwd
+          ? t("session.copiedResumeCommand", "Resume command copied")
+          : t(
+              "session.copiedResumeCommandNoCwd",
+              "Resume command copied (working directory unknown)"
+            )
       );
     },
-    [handleCopyToClipboard, providerId, session.actual_session_id, t]
+    [handleCopyToClipboard, projectCwd, providerId, session.actual_session_id, t]
   );
 
   const handleCopyFilePath = useCallback(
