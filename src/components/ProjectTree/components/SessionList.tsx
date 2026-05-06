@@ -11,8 +11,13 @@ import { useAppStore } from "@/store/useAppStore";
 import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
 
-// SessionItem의 대략적인 높이 (py-2.5 + 내용)
-const SESSION_ITEM_HEIGHT = 72;
+// SessionItem fixed row height. Sized to fit a 2-line wrapped name:
+//   py-2.5 (20px) + name 2 × text-xs/leading-relaxed (39px)
+//   + gap-1.5 (6px) + meta text-2xs (15px) ≈ 80px → 88px with safety margin.
+// Bumping this matters because react-window's FixedSizeList stacks rows at
+// `index * height`; a row taller than the height visually overlaps the next
+// row (#284). line-clamp-2 caps the worst case at 2 lines.
+const SESSION_ITEM_HEIGHT = 88;
 // Virtual scroll을 적용할 최소 세션 수
 const VIRTUALIZATION_THRESHOLD = 20;
 // Virtual list의 최대 표시 높이
