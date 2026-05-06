@@ -174,7 +174,11 @@ export function getResumeCommand(
     return null;
   }
 
-  switch (getProviderId(provider)) {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return null;
+  }
+
+  switch (provider as ProviderId) {
     case "claude":
       return `claude --resume ${sessionId}`;
     case "forgecode":

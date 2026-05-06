@@ -69,6 +69,12 @@ describe("providers utils", () => {
     expect(getResumeCommand("codex", "conversation-123")).toBeNull();
   });
 
+  it("getResumeCommand fails closed for unknown provider strings", () => {
+    expect(getResumeCommand("not-a-real-provider", "abc")).toBeNull();
+    expect(getResumeCommand(undefined, "abc")).toBeNull();
+    expect(getResumeCommand("claude", "")).toBeNull();
+  });
+
   it("detects whether current scope has any supported provider", () => {
     expect(hasAnyConversationBreakdownProvider(["claude"])).toBe(true);
     expect(hasAnyConversationBreakdownProvider(["antigravity"])).toBe(true);
