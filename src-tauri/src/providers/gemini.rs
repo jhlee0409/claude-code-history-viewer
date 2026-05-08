@@ -110,6 +110,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
             provider: Some("gemini".to_string()),
             storage_type: Some("json".to_string()),
             custom_directory_label: None,
+            source: None,
         });
     }
 

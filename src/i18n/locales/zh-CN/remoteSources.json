@@ -29,5 +29,13 @@
   "remoteSources.confirmDelete": "删除此远程主机?已缓存的数据将保留。",
   "remoteSources.error.hostUserRequired": "主机和用户名必填。",
   "remoteSources.error.keyPathRequired": "密钥路径必填。",
-  "remoteSources.error.passwordRequired": "密码必填。"
+  "remoteSources.error.passwordRequired": "密码必填。",
+  "remoteSources.pathOverrides": "路径覆盖(每行一条,支持 *)",
+  "remoteSources.pathOverridesHint": "留空使用默认值。通配符 * 匹配单个路径段 —— 适合 cc-slack 这类多租户布局。",
+  "remoteSources.claudePaths": "Claude 路径",
+  "remoteSources.codexPaths": "Codex 路径",
+  "remoteSources.opencodePaths": "OpenCode 路径",
+  "remoteSources.missingTitle": "{{host}}:{{n}} 条配置路径未拉到任何数据",
+  "remoteSources.missing.notFound": "无匹配",
+  "remoteSources.missing.empty": "匹配成功但内容为空"
 }

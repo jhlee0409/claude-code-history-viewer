@@ -29,5 +29,13 @@
   "remoteSources.confirmDelete": "このリモートマシンを削除しますか? キャッシュされたデータは保持されます。",
   "remoteSources.error.hostUserRequired": "ホストとユーザー名は必須です。",
   "remoteSources.error.keyPathRequired": "鍵のパスは必須です。",
-  "remoteSources.error.passwordRequired": "パスワードは必須です。"
+  "remoteSources.error.passwordRequired": "パスワードは必須です。",
+  "remoteSources.pathOverrides": "パスのオーバーライド (1行に1つ、* 対応)",
+  "remoteSources.pathOverridesHint": "デフォルトを使用するには空欄のままにしてください。ワイルドカード (*) はパスの1セグメントにマッチします — cc-slack のようなマルチテナント構成で便利です。",
+  "remoteSources.claudePaths": "Claude のパス",
+  "remoteSources.codexPaths": "Codex のパス",
+  "remoteSources.opencodePaths": "OpenCode のパス",
+  "remoteSources.missingTitle": "{{host}}: 設定された {{n}} 個のパスから何も取得できませんでした",
+  "remoteSources.missing.notFound": "マッチなし",
+  "remoteSources.missing.empty": "マッチしましたが空です"
 }

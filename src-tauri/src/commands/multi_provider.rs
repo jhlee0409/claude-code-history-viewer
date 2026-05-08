@@ -1,4 +1,4 @@
-use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
+use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, ProjectSource};
 use crate::providers;
 use crate::utils::parse_rfc3339_utc;
 use serde::{Deserialize, Serialize};
@@ -11,6 +11,16 @@ use std::cmp::Ordering;
 pub struct CustomClaudePathParam {
     pub path: String,
     pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<ProjectSource>,
+}
+
+fn custom_path_matches_provider(custom: &CustomClaudePathParam, provider_dir: &str) -> bool {
+    std::path::Path::new(&custom.path)
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|s| s.to_str())
+        == Some(provider_dir)
 }
 
 /// Detect all available providers
@@ -76,6 +86,7 @@ pub async fn scan_all_projects(
                                 p.provider = Some("claude".to_string());
                             }
                             p.custom_directory_label.clone_from(&custom.label);
+                            p.source.clone_from(&custom.source);
                         }
                         all_projects.extend(projects);
                     }
@@ -93,6 +104,25 @@ pub async fn scan_all_projects(
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("Codex scan failed: {e}");
+            }
+        }
+        if let Some(ref custom_paths) = custom_claude_paths {
+            for custom in custom_paths
+                .iter()
+                .filter(|custom| custom_path_matches_provider(custom, ".codex"))
+            {
+                match providers::codex::scan_projects_from_path(&custom.path) {
+                    Ok(mut projects) => {
+                        for p in &mut projects {
+                            p.custom_directory_label.clone_from(&custom.label);
+                            p.source.clone_from(&custom.source);
+                        }
+                        all_projects.extend(projects);
+                    }
+                    Err(e) => {
+                        log::warn!("Custom Codex path scan failed ({}): {e}", custom.path);
+                    }
+                }
             }
         }
     }
@@ -113,6 +143,27 @@ pub async fn scan_all_projects(
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("OpenCode scan failed: {e}");
+            }
+        }
+        if let Some(ref custom_paths) = custom_claude_paths {
+            for custom in custom_paths
+                .iter()
+                .filter(|custom| custom_path_matches_provider(custom, "opencode"))
+            {
+                match providers::opencode::scan_projects_from_path(&custom.path) {
+                    Ok(projects) => {
+                        let mut projects =
+                            providers::opencode::scope_projects_to_base(projects, &custom.path);
+                        for p in &mut projects {
+                            p.custom_directory_label.clone_from(&custom.label);
+                            p.source.clone_from(&custom.source);
+                        }
+                        all_projects.extend(projects);
+                    }
+                    Err(e) => {
+                        log::warn!("Custom OpenCode path scan failed ({}): {e}", custom.path);
+                    }
+                }
             }
         }
     }
@@ -155,6 +206,12 @@ pub async fn scan_all_projects(
 
         for (distro, home_path) in resolve_active_wsl_distros(&excluded) {
             let wsl_label = format!("WSL: {}", distro.name);
+            let wsl_source = ProjectSource {
+                id: format!("wsl:{}", distro.name),
+                kind: "wsl".to_string(),
+                display_label: wsl_label.clone(),
+                debug_label: Some(format!("WSL distro {}", distro.name)),
+            };
             let claude_linux_path = home_path.join(".claude");
 
             let unc_path =
@@ -171,6 +228,7 @@ pub async fn scan_all_projects(
                             p.provider = Some("claude".to_string());
                         }
                         p.custom_directory_label = Some(wsl_label.clone());
+                        p.source = Some(wsl_source.clone());
                     }
                     all_projects.extend(projects);
                 }

@@ -5,6 +5,8 @@
  */
 
 import { matchGlobPattern } from "../../utils/globUtils";
+import type { RemoteSource } from "./remoteSource";
+import type { ProjectSource } from "./session";
 
 /** Current schema version for migration support */
 export const METADATA_SCHEMA_VERSION = 1;
@@ -54,6 +56,8 @@ export interface CustomClaudePath {
   path: string;
   /** User-defined display label (e.g., "Personal") */
   label?: string;
+  /** Machine/workload source that produced this injected path */
+  source?: ProjectSource;
 }
 
 /** A WSL distribution detected on the system */
@@ -86,6 +90,8 @@ export interface UserSettings {
   customClaudePaths?: CustomClaudePath[];
   /** WSL integration settings (Windows only) */
   wsl?: WslSettings;
+  /** Remote SSH machines to pull session history from */
+  remoteSources?: RemoteSource[];
 }
 
 // ============================================================================

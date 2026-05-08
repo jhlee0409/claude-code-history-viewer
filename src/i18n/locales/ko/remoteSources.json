@@ -29,5 +29,13 @@
   "remoteSources.confirmDelete": "이 원격 머신을 삭제하시겠습니까? 캐시된 데이터는 유지됩니다.",
   "remoteSources.error.hostUserRequired": "호스트와 사용자명은 필수입니다.",
   "remoteSources.error.keyPathRequired": "키 경로는 필수입니다.",
-  "remoteSources.error.passwordRequired": "비밀번호는 필수입니다."
+  "remoteSources.error.passwordRequired": "비밀번호는 필수입니다.",
+  "remoteSources.pathOverrides": "경로 재정의 (한 줄에 하나, * 지원)",
+  "remoteSources.pathOverridesHint": "기본값을 사용하려면 비워두세요. 와일드카드(*)는 경로의 한 세그먼트와 매칭됩니다 — cc-slack 같은 멀티테넌트 레이아웃에 유용합니다.",
+  "remoteSources.claudePaths": "Claude 경로",
+  "remoteSources.codexPaths": "Codex 경로",
+  "remoteSources.opencodePaths": "OpenCode 경로",
+  "remoteSources.missingTitle": "{{host}}: 구성된 경로 {{n}}개에서 아무것도 가져오지 못함",
+  "remoteSources.missing.notFound": "매칭 없음",
+  "remoteSources.missing.empty": "매칭되었지만 비어 있음"
 }

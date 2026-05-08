@@ -21,7 +21,13 @@ import {
   Plus,
   Loader2,
   AlertCircle,
+  ChevronDown,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -44,8 +51,12 @@ import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/services/api";
 import {
+  DEFAULT_REMOTE_PATHS,
   DEFAULT_SSH_PORT,
+  type InjectedPaths,
+  type MissingPath,
   type RemoteAuth,
+  type RemoteProviderPaths,
   type RemoteSource,
   type RemoteSyncStats,
   type RemoteSystemKind,
@@ -65,11 +76,8 @@ interface ConnectionTestResult {
 interface SyncOutcome {
   sourceId: string;
   stats: RemoteSyncStats;
-  injectedPaths: {
-    claude?: string;
-    codex?: string;
-    opencode?: string;
-  };
+  injectedPaths: InjectedPaths;
+  missingPaths: MissingPath[];
 }
 
 interface SyncOneResult {
@@ -100,7 +108,6 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
   const { t } = useTranslation();
   const userMetadata = useAppStore((s) => s.userMetadata);
   const updateUserSettings = useAppStore((s) => s.updateUserSettings);
-  const addCustomClaudePath = useAppStore((s) => s.addCustomClaudePath);
   const scanProjects = useAppStore((s) => s.scanProjects);
 
   const sources = userMetadata?.settings?.remoteSources ?? [];
@@ -212,23 +219,87 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
   const applyInjectedPaths = React.useCallback(
     async (source: RemoteSource, outcome: SyncOutcome) => {
       const labelBase = `🌐 ${source.host}${source.port === DEFAULT_SSH_PORT ? "" : `:${source.port}`}`;
-      const candidates: Array<[string | undefined, string]> = [
-        [outcome.injectedPaths.claude, labelBase],
-        [outcome.injectedPaths.codex, `${labelBase} (codex)`],
-        [outcome.injectedPaths.opencode, `${labelBase} (opencode)`],
-      ];
       const existing = userMetadata?.settings?.customClaudePaths ?? [];
-      for (const [path, label] of candidates) {
-        if (path && !existing.some((cp) => cp.path === path)) {
-          try {
-            await addCustomClaudePath(path, label);
-          } catch (err) {
-            console.error("inject path failed", path, err);
-          }
+      const normalizePath = (path: string) => path.replace(/[\\/]+$/, "");
+
+      // Build label = base [+ tag for non-claude provider] [+ discriminator if multi-root].
+      // The discriminator suffix only kicks in when this provider has >1 matched
+      // root (so single-tenant hosts still see the clean "🌐 host" label).
+      const buildEntries = (
+        roots: typeof outcome.injectedPaths.claude,
+        providerTag: string,
+      ): Array<[string, string, typeof roots[number]["source"]]> => {
+        const multi = roots.length > 1;
+        return roots.map((r) => {
+          let label = r.source?.displayLabel ?? labelBase;
+          if (!r.source && providerTag) label += ` (${providerTag}${multi ? `/${r.discriminator}` : ""})`;
+          else if (!r.source && multi) label += ` [${r.discriminator}]`;
+          return [r.localPath, label, r.source];
+        });
+      };
+
+      const entries: Array<[string, string, typeof outcome.injectedPaths.claude[number]["source"]]> = [
+        ...buildEntries(outcome.injectedPaths.claude, ""),
+        ...buildEntries(outcome.injectedPaths.codex, "codex"),
+        ...buildEntries(outcome.injectedPaths.opencode, "opencode"),
+      ];
+
+      const byPath = new Map(existing.map((cp) => [normalizePath(cp.path), cp]));
+      let changed = false;
+      for (const [path, label, source] of entries) {
+        const normalizedPath = normalizePath(path);
+        const previous = byPath.get(normalizedPath);
+        const next = previous
+          ? {
+              ...previous,
+              path: normalizedPath,
+              label,
+              source,
+            }
+          : {
+              path: normalizedPath,
+              label,
+              source,
+            };
+        if (
+          !previous ||
+          previous.path !== next.path ||
+          previous.label !== next.label ||
+          JSON.stringify(previous.source) !== JSON.stringify(next.source)
+        ) {
+          changed = true;
         }
+        byPath.set(normalizedPath, next);
+      }
+      if (changed) {
+        await updateUserSettings({
+          customClaudePaths: Array.from(byPath.values()),
+        });
       }
     },
-    [addCustomClaudePath, userMetadata?.settings?.customClaudePaths],
+    [updateUserSettings, userMetadata?.settings?.customClaudePaths],
+  );
+
+  const reportMissingPaths = React.useCallback(
+    (source: RemoteSource, missing: MissingPath[]) => {
+      if (missing.length === 0) return;
+      // Reason → human-readable note
+      const lines = missing.map((m) => {
+        const reason =
+          m.reason === "not_found"
+            ? t("remoteSources.missing.notFound", "no match")
+            : t("remoteSources.missing.empty", "matched but empty");
+        return `${m.provider}: ${m.configuredPath} — ${reason}`;
+      });
+      toast.warning(
+        t("remoteSources.missingTitle", "{{host}}: {{n}} configured path(s) returned nothing", {
+          host: source.host,
+          n: missing.length,
+        }),
+        { description: lines.join("\n") },
+      );
+    },
+    [t],
   );
 
   const recordSyncResult = async (
@@ -261,6 +332,7 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
           bytes: formatBytes(outcome.stats.bytesTransferred),
         }),
       );
+      reportMissingPaths(source, outcome.missingPaths);
       await scanProjects();
     } catch (err) {
       const msg = String(err);
@@ -285,6 +357,7 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
         if (r.success && r.outcome) {
           await applyInjectedPaths(source, r.outcome);
           await recordSyncResult(source, r.outcome, null);
+          reportMissingPaths(source, r.outcome.missingPaths);
           ok += 1;
         } else {
           await recordSyncResult(source, null, r.error ?? "unknown error");
@@ -312,6 +385,11 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
   const updateAuth = (auth: RemoteAuth) => {
     if (!draft) return;
     setDraft({ ...draft, auth });
+  };
+
+  const updatePaths = (paths: RemoteProviderPaths | undefined) => {
+    if (!draft) return;
+    setDraft({ ...draft, paths });
   };
 
   return (
@@ -454,6 +532,7 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
             isEditing={Boolean(editingId)}
             onChange={updateDraft}
             onAuthChange={updateAuth}
+            onPathsChange={updatePaths}
             onSave={saveDraft}
             onCancel={cancelEdit}
           />
@@ -489,17 +568,60 @@ interface DraftFormProps {
   isEditing: boolean;
   onChange: <K extends keyof RemoteSource>(key: K, value: RemoteSource[K]) => void;
   onAuthChange: (auth: RemoteAuth) => void;
+  onPathsChange: (paths: RemoteProviderPaths | undefined) => void;
   onSave: () => void;
   onCancel: () => void;
 }
 
-function DraftForm({ draft, isEditing, onChange, onAuthChange, onSave, onCancel }: DraftFormProps) {
+/** Convert textarea content to a non-empty trimmed list, or undefined if all blank. */
+function parsePathLines(text: string): string[] | undefined {
+  const lines = text
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return lines.length > 0 ? lines : undefined;
+}
+
+function DraftForm({
+  draft,
+  isEditing,
+  onChange,
+  onAuthChange,
+  onPathsChange,
+  onSave,
+  onCancel,
+}: DraftFormProps) {
   const { t } = useTranslation();
   const idHost = React.useId();
   const idPort = React.useId();
   const idUser = React.useId();
   const idAuthValue = React.useId();
   const idPassphrase = React.useId();
+  const idClaudePaths = React.useId();
+  const idCodexPaths = React.useId();
+  const idOpenCodePaths = React.useId();
+  const [pathsOpen, setPathsOpen] = React.useState(
+    () => Boolean(draft.paths?.claude || draft.paths?.codex || draft.paths?.opencode),
+  );
+
+  const defaults = DEFAULT_REMOTE_PATHS[draft.system];
+
+  const updateProviderPaths = (
+    provider: keyof RemoteProviderPaths,
+    raw: string,
+  ) => {
+    const parsed = parsePathLines(raw);
+    const nextPaths: RemoteProviderPaths = {
+      ...draft.paths,
+      [provider]: parsed,
+    };
+    // Collapse to undefined when every field is empty so the backend uses defaults.
+    if (!nextPaths.claude && !nextPaths.codex && !nextPaths.opencode) {
+      onPathsChange(undefined);
+    } else {
+      onPathsChange(nextPaths);
+    }
+  };
 
   return (
     <div className="rounded-md border border-border p-3 space-y-3">
@@ -644,6 +766,72 @@ function DraftForm({ draft, isEditing, onChange, onAuthChange, onSave, onCancel 
           {t("remoteSources.enabled", "Enabled (included in 'Sync all')")}
         </Label>
       </div>
+
+      <Collapsible open={pathsOpen} onOpenChange={setPathsOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded text-xs text-muted-foreground hover:text-foreground"
+          >
+            <span className="font-medium">
+              {t("remoteSources.pathOverrides", "Path overrides (one per line, * supported)")}
+            </span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${pathsOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2 pt-2">
+          <p className="text-[10px] text-muted-foreground">
+            {t(
+              "remoteSources.pathOverridesHint",
+              "Leave blank to use defaults. Wildcards (*) match one path segment — useful for cc-slack-style multi-tenant layouts.",
+            )}
+          </p>
+          <div className="space-y-1">
+            <Label htmlFor={idClaudePaths} className="text-xs">
+              {t("remoteSources.claudePaths", "Claude paths")}
+            </Label>
+            <Textarea
+              id={idClaudePaths}
+              value={(draft.paths?.claude ?? []).join("\n")}
+              onChange={(e) => updateProviderPaths("claude", e.target.value)}
+              placeholder={defaults.claude.join("\n")}
+              className="font-mono text-xs min-h-[3rem]"
+              rows={2}
+              spellCheck={false}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={idCodexPaths} className="text-xs">
+              {t("remoteSources.codexPaths", "Codex paths")}
+            </Label>
+            <Textarea
+              id={idCodexPaths}
+              value={(draft.paths?.codex ?? []).join("\n")}
+              onChange={(e) => updateProviderPaths("codex", e.target.value)}
+              placeholder={defaults.codex.join("\n")}
+              className="font-mono text-xs min-h-[2.5rem]"
+              rows={1}
+              spellCheck={false}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={idOpenCodePaths} className="text-xs">
+              {t("remoteSources.opencodePaths", "OpenCode paths")}
+            </Label>
+            <Textarea
+              id={idOpenCodePaths}
+              value={(draft.paths?.opencode ?? []).join("\n")}
+              onChange={(e) => updateProviderPaths("opencode", e.target.value)}
+              placeholder={defaults.opencode.join("\n")}
+              className="font-mono text-xs min-h-[3rem]"
+              rows={2}
+              spellCheck={false}
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <div className="flex justify-end gap-1">
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onCancel}>

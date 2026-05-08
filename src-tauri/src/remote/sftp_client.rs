@@ -11,6 +11,7 @@ use std::time::Duration;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use russh::client::{self, Handle};
+use russh::ChannelMsg;
 use russh_sftp::client::SftpSession as RusshSftp;
 use russh_sftp::protocol::FileAttributes;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -31,6 +32,13 @@ pub struct RemoteFileMeta {
     pub mtime_secs: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct ExecOutput {
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_status: u32,
+}
+
 struct AcceptAllHandler;
 
 #[async_trait]
@@ -48,7 +56,7 @@ impl client::Handler for AcceptAllHandler {
 pub struct SftpSession {
     pub sftp: RusshSftp,
     /// Held to keep the SSH transport alive for the lifetime of `sftp`.
-    _ssh: Handle<AcceptAllHandler>,
+    ssh: Handle<AcceptAllHandler>,
     pub host: String,
     pub username: String,
 }
@@ -117,7 +125,7 @@ impl SftpSession {
 
         Ok(Self {
             sftp,
-            _ssh: handle,
+            ssh: handle,
             host: source.host.clone(),
             username: source.username.clone(),
         })
@@ -131,9 +139,61 @@ impl SftpSession {
             .map_err(|e| anyhow!("canonicalize remote home: {e:?}"))
     }
 
+    /// Execute a non-interactive remote shell command over the existing SSH transport.
+    pub async fn exec_command(&self, command: &str) -> Result<ExecOutput> {
+        let mut channel = self
+            .ssh
+            .channel_open_session()
+            .await
+            .context("open SSH exec channel")?;
+        channel
+            .exec(true, command)
+            .await
+            .with_context(|| format!("exec remote command: {command}"))?;
+
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let mut exit_status = None;
+
+        while let Some(msg) = channel.wait().await {
+            match msg {
+                ChannelMsg::Data { data } => stdout.extend_from_slice(&data),
+                ChannelMsg::ExtendedData { data, .. } => stderr.extend_from_slice(&data),
+                ChannelMsg::ExitStatus {
+                    exit_status: status,
+                } => exit_status = Some(status),
+                _ => {}
+            }
+        }
+
+        Ok(ExecOutput {
+            stdout: String::from_utf8_lossy(&stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&stderr).into_owned(),
+            exit_status: exit_status.unwrap_or(255),
+        })
+    }
+
     /// Returns `Some(attrs)` when the path exists and is statable, `None` otherwise.
     pub async fn stat_optional(&self, path: &str) -> Option<FileAttributes> {
         self.sftp.metadata(path.to_string()).await.ok()
+    }
+
+    /// List one directory non-recursively, returning entry names (no `.` / `..`).
+    /// Used by the glob-expander to walk wildcard segments.
+    pub async fn read_dir_names(&self, path: &str) -> Result<Vec<String>> {
+        let entries = self
+            .sftp
+            .read_dir(path.to_string())
+            .await
+            .map_err(|e| anyhow!("read_dir {path}: {e:?}"))?;
+        let mut names = Vec::new();
+        for entry in entries {
+            let name = entry.file_name();
+            if name != "." && name != ".." {
+                names.push(name);
+            }
+        }
+        Ok(names)
     }
 
     /// Recursive directory walk via SFTP. Skips unreadable subdirectories.

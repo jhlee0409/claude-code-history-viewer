@@ -430,6 +430,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const typeaheadQueryRef = useRef("");
   const typeaheadTimeoutRef = useRef<number | null>(null);
   const [treeAnnouncement, setTreeAnnouncement] = useState("");
+  const [remoteRefreshStatus, setRemoteRefreshStatus] = useState<{
+    state: "syncing" | "success" | "error";
+    message: string;
+  } | null>(null);
 
   const announceTree = useCallback((message: string) => {
     if (!message) return;
@@ -600,6 +604,40 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     if (typeaheadTimeoutRef.current) {
       window.clearTimeout(typeaheadTimeoutRef.current);
     }
+  }, []);
+
+  useEffect(() => {
+    let clearTimer: number | null = null;
+    const handleRemoteRefreshStatus = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        state?: "syncing" | "success" | "error";
+        message?: string;
+      }>).detail;
+      if (!detail?.state || !detail.message) return;
+
+      if (clearTimer) {
+        window.clearTimeout(clearTimer);
+        clearTimer = null;
+      }
+      setRemoteRefreshStatus({
+        state: detail.state,
+        message: detail.message,
+      });
+      if (detail.state !== "syncing") {
+        clearTimer = window.setTimeout(() => {
+          setRemoteRefreshStatus(null);
+          clearTimer = null;
+        }, 3500);
+      }
+    };
+
+    window.addEventListener("remote-refresh-status", handleRemoteRefreshStatus);
+    return () => {
+      window.removeEventListener("remote-refresh-status", handleRemoteRefreshStatus);
+      if (clearTimer) {
+        window.clearTimeout(clearTimer);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -1006,6 +1044,36 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {treeAnnouncement}
         </div>
+
+        {remoteRefreshStatus && (
+          <div
+            className={cn(
+              "pointer-events-none absolute bottom-3 right-5 z-20 max-w-[calc(100%-2rem)]",
+              "rounded-md border bg-sidebar/95 px-2 py-1 text-[11px] shadow-sm backdrop-blur",
+              "flex items-center gap-1.5",
+              remoteRefreshStatus.state === "error"
+                ? "border-destructive/30 text-destructive"
+                : remoteRefreshStatus.state === "success"
+                  ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                  : "border-accent/30 text-accent"
+            )}
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                remoteRefreshStatus.state === "error"
+                  ? "bg-destructive"
+                  : remoteRefreshStatus.state === "success"
+                    ? "bg-emerald-500"
+                    : "bg-accent animate-pulse"
+              )}
+              aria-hidden="true"
+            />
+            <span className="truncate">{remoteRefreshStatus.message}</span>
+          </div>
+        )}
       </div>
 
       {/* Resize Handle - Outside scroll area */}

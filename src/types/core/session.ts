@@ -59,6 +59,15 @@ export interface ClaudeProject {
   storage_type?: "json" | "sqlite";
   /** Label for custom Claude directory source (e.g., "Personal") */
   custom_directory_label?: string;
+  /** Machine/workload source that produced this project. */
+  source?: ProjectSource;
+}
+
+export interface ProjectSource {
+  id: string;
+  kind: "local" | "wsl" | "ssh" | "podman-container" | string;
+  displayLabel: string;
+  debugLabel?: string;
 }
 
 export interface ClaudeSession {

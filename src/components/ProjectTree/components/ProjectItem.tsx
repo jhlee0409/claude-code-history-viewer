@@ -12,6 +12,18 @@ import {
 } from "../../../utils/providers";
 import { TruncatedScrollText } from "../../ui/TruncatedScrollText";
 
+function getSourceRows(label: string): string[] {
+  const podmanMatch = label.match(/^Podman:\s*(.+?)\s*@\s*(.+)$/);
+  if (podmanMatch) {
+    return [`Podman: ${podmanMatch[1]}`, podmanMatch[2]];
+  }
+  const wslMatch = label.match(/^WSL:\s*(.+)$/);
+  if (wslMatch) {
+    return [`WSL: ${wslMatch[1]}`];
+  }
+  return [label.replace(/^🌐\s*/, "")];
+}
+
 export const ProjectItem: React.FC<ProjectItemProps> = ({
   project,
   isExpanded,
@@ -41,8 +53,11 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
     (key, fallback) => t(key, fallback),
     providerId
   );
-  const providerLabel = project.custom_directory_label
-    ? `${baseProviderLabel} (${project.custom_directory_label})`
+  const sourceLabel = project.source?.displayLabel ?? project.custom_directory_label;
+  const sourceTitle = project.source?.debugLabel ?? sourceLabel;
+  const sourceRows = sourceLabel ? getSourceRows(sourceLabel) : [];
+  const providerLabel = sourceLabel
+    ? `${baseProviderLabel} (${sourceTitle})`
     : baseProviderLabel;
 
   return (
@@ -126,49 +141,56 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
         </div>
       )}
 
-      {/* Project Name — middle-ellipsis by default, marquee on hover */}
-      <TruncatedScrollText
-        text={displayName}
-        title={project.actual_path}
-        className={cn(
-          "flex-1 min-w-0 transition-colors",
-          isGrouped ? "text-xs" : "text-sm",
-          isExpanded
-            ? isWorktree
-              ? "text-emerald-600 dark:text-emerald-400 font-medium"
-              : isGrouped
-                ? "text-accent font-medium"
-                : "text-accent font-semibold"
-            : isGrouped
-              ? "text-muted-foreground"
-              : "text-sidebar-foreground/80",
-          !isGrouped && "duration-300"
-        )}
-      />
-
-      {/* Provider Badge — solid dot only (provider name is implied by the
-          tab strip's color legend). The custom_directory_label suffix
-          (e.g. "WSL: …" or "🌐 192.168.0.11") is kept as a short text
-          marker because it carries information the dot can't. */}
       {showProviderBadge && (
         <span
-          className="flex items-center gap-1 flex-shrink-0 leading-none"
-          title={providerLabel}
-        >
-          <span
-            className={cn(
-              "w-2 h-2 rounded-full flex-shrink-0",
-              getProviderDotStyle(providerId)
-            )}
-            aria-hidden="true"
-          />
-          {project.custom_directory_label && (
-            <span className="text-2xs font-medium text-muted-foreground/80 max-w-[10rem] truncate">
-              {project.custom_directory_label}
-            </span>
+          className={cn(
+            "h-2 w-2 rounded-full flex-shrink-0 self-center",
+            getProviderDotStyle(providerId)
           )}
-        </span>
+          aria-hidden="true"
+          title={providerLabel}
+        />
       )}
+
+      <div className="flex-1 min-w-0 py-0.5">
+        <div className="flex min-w-0 items-center">
+          {/* Project Name — middle-ellipsis by default, marquee on hover */}
+          <TruncatedScrollText
+            text={displayName}
+            title={project.actual_path}
+            className={cn(
+              "min-w-0 flex-1 transition-colors",
+              isGrouped ? "text-xs" : "text-sm",
+              isExpanded
+                ? isWorktree
+                  ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                  : isGrouped
+                    ? "text-accent font-medium"
+                    : "text-accent font-semibold"
+                : isGrouped
+                  ? "text-muted-foreground"
+                  : "text-sidebar-foreground/80",
+              !isGrouped && "duration-300"
+            )}
+          />
+        </div>
+
+        {showProviderBadge && sourceRows.length > 0 && (
+          <div
+            className="mt-0.5 space-y-0.5 text-2xs leading-tight text-muted-foreground/75"
+            title={providerLabel}
+          >
+            <div className="truncate font-medium">
+              {sourceRows[0]}
+            </div>
+            {sourceRows[1] && (
+              <div className="truncate font-mono text-[10px] text-muted-foreground/60">
+                {sourceRows[1]}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Session Count */}
       {(!isGrouped && project.session_count > 0) || isGrouped ? (

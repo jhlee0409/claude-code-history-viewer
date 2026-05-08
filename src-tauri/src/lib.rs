@@ -3,6 +3,7 @@ pub mod cli_args;
 pub mod commands;
 pub mod models;
 pub mod providers;
+pub mod remote;
 pub mod utils;
 pub mod wsl;
 
@@ -58,21 +59,259 @@ use crate::commands::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let args: Vec<String> = std::env::args().collect();
+
+    // Headless: `--sync-host <id|host>` runs a one-shot remote sync and exits.
+    // Intercepted before any plugin or single-instance check so the CLI works
+    // independently of any running GUI instance and never opens a window.
+    if let Some(target) = cli_args::extract_flag_value(&args, "--sync-host") {
+        std::process::exit(run_sync_host_cli(&target));
+    }
+
     // Check for --serve flag (WebUI server mode)
     #[cfg(feature = "webui-server")]
-    {
-        let args: Vec<String> = std::env::args().collect();
-        if args.iter().any(|a| a == "--serve") {
-            run_server(&args);
-            return;
-        }
+    if args.iter().any(|a| a == "--serve") {
+        run_server(&args);
+        return;
     }
 
     run_tauri();
 }
 
+/// Headless `--sync-host` entry point.
+///
+/// Exit codes:
+/// * `0` — sync succeeded
+/// * `1` — user error (target not found, no sources configured)
+/// * `2` — system error (cannot read settings, connection failed, etc.)
+fn run_sync_host_cli(target: &str) -> i32 {
+    use std::io::Write;
+
+    let code = match do_sync_host_cli(target) {
+        Ok(code) => code,
+        Err(msg) => {
+            eprintln!("error: {msg}");
+            2
+        }
+    };
+    let _ = std::io::stdout().flush();
+    let _ = std::io::stderr().flush();
+    code
+}
+
+fn do_sync_host_cli(target: &str) -> Result<i32, String> {
+    let home = dirs::home_dir().ok_or_else(|| "cannot resolve home directory".to_string())?;
+    let user_data = home.join(".claude-history-viewer").join("user-data.json");
+    let content = std::fs::read_to_string(&user_data)
+        .map_err(|e| format!("cannot read {}: {e}", user_data.display()))?;
+
+    // Use Value so we can round-trip the file and preserve unknown fields.
+    let mut json: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("parse user-data.json: {e}"))?;
+
+    let remote_sources_value = json
+        .get("settings")
+        .and_then(|s| s.get("remoteSources"))
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    let sources: Vec<crate::remote::RemoteSource> = serde_json::from_value(remote_sources_value)
+        .map_err(|e| format!("parse remoteSources: {e}"))?;
+
+    if sources.is_empty() {
+        eprintln!("no remote sources configured");
+        return Ok(1);
+    }
+
+    // Match precedence: exact id → exact host → id-prefix.
+    let matched = sources
+        .iter()
+        .find(|s| s.id == target)
+        .or_else(|| sources.iter().find(|s| s.host == target))
+        .or_else(|| sources.iter().find(|s| s.id.starts_with(target)));
+
+    let Some(source) = matched.cloned() else {
+        eprintln!("no source matches '{target}'");
+        eprintln!("available:");
+        for s in &sources {
+            eprintln!("  {}  {}@{}:{}", s.id, s.username, s.host, s.port);
+        }
+        return Ok(1);
+    };
+
+    println!(
+        "syncing {}@{}:{} ...",
+        source.username, source.host, source.port
+    );
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| format!("build tokio runtime: {e}"))?;
+    let outcome = rt
+        .block_on(crate::remote::sync_one(&source))
+        .map_err(|e| format!("sync failed: {e}"))?;
+
+    println!(
+        "ok: {} updated, {} skipped, {} bytes, {}ms",
+        outcome.stats.files_updated,
+        outcome.stats.files_skipped,
+        outcome.stats.bytes_transferred,
+        outcome.stats.duration_ms
+    );
+    if !outcome.missing_paths.is_empty() {
+        eprintln!(
+            "note: {} configured path(s) returned nothing:",
+            outcome.missing_paths.len()
+        );
+        for m in &outcome.missing_paths {
+            eprintln!("  {} {}: {:?}", m.provider, m.configured_path, m.reason);
+        }
+    }
+
+    // Mirror the GUI behaviour: register synced cache paths as customClaudePaths
+    // so a future GUI launch can scan the pulled data.
+    if let Err(e) = inject_paths_into_user_data(&mut json, &source, &outcome) {
+        eprintln!("warning: could not update customClaudePaths in memory: {e}");
+        return Ok(0);
+    }
+    if let Err(e) = atomic_write_user_data(&user_data, &json) {
+        eprintln!("warning: could not write user-data.json: {e}");
+        eprintln!(
+            "  (sync data is on disk; add the cache paths above as custom directories in the GUI to view)"
+        );
+        return Ok(0);
+    }
+
+    Ok(0)
+}
+
+fn inject_paths_into_user_data(
+    json: &mut serde_json::Value,
+    source: &crate::remote::RemoteSource,
+    outcome: &crate::remote::SyncOutcome,
+) -> Result<(), String> {
+    const SSH_DEFAULT_PORT: u16 = 22;
+
+    let settings = json
+        .as_object_mut()
+        .ok_or_else(|| "user-data.json root is not an object".to_string())?
+        .entry("settings")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .ok_or_else(|| "settings is not an object".to_string())?;
+
+    let paths_array = settings
+        .entry("customClaudePaths")
+        .or_insert_with(|| serde_json::json!([]))
+        .as_array_mut()
+        .ok_or_else(|| "customClaudePaths is not an array".to_string())?;
+
+    let label_base = if source.port == SSH_DEFAULT_PORT {
+        format!("🌐 {}", source.host)
+    } else {
+        format!("🌐 {}:{}", source.host, source.port)
+    };
+
+    // Build (path, label) pairs across all providers and discriminators. The
+    // label encodes the discriminator only when there's more than one root for
+    // that provider — single-tenant hosts get the clean original label.
+    let mut entries: Vec<(String, String, Option<serde_json::Value>)> = Vec::new();
+    push_provider_entries(
+        &mut entries,
+        &outcome.injected_paths.claude,
+        &label_base,
+        "",
+    );
+    push_provider_entries(
+        &mut entries,
+        &outcome.injected_paths.codex,
+        &label_base,
+        "codex",
+    );
+    push_provider_entries(
+        &mut entries,
+        &outcome.injected_paths.opencode,
+        &label_base,
+        "opencode",
+    );
+
+    for (path, label, source_meta) in entries {
+        if let Some(existing) = paths_array.iter_mut().find(|v| {
+            v.get("path")
+                .and_then(serde_json::Value::as_str)
+                .map(normalize_registered_path)
+                == Some(normalize_registered_path(&path))
+        }) {
+            existing["path"] = serde_json::json!(normalize_registered_path(&path));
+            existing["label"] = serde_json::json!(label);
+            if let Some(source_meta) = source_meta {
+                existing["source"] = source_meta;
+            } else if let Some(obj) = existing.as_object_mut() {
+                obj.remove("source");
+            }
+        } else {
+            let mut entry =
+                serde_json::json!({ "path": normalize_registered_path(&path), "label": label });
+            if let Some(source_meta) = source_meta {
+                entry["source"] = source_meta;
+            }
+            paths_array.push(entry);
+        }
+    }
+    Ok(())
+}
+
+fn normalize_registered_path(path: &str) -> String {
+    path.trim_end_matches(['\\', '/']).to_string()
+}
+
+fn push_provider_entries(
+    out: &mut Vec<(String, String, Option<serde_json::Value>)>,
+    roots: &[crate::remote::sync::InjectedRoot],
+    label_base: &str,
+    provider_tag: &str,
+) {
+    let multi = roots.len() > 1;
+    for root in roots {
+        let source_label = root
+            .source
+            .as_ref()
+            .map(|source| source.display_label.as_str());
+        let label = if let Some(source_label) = source_label {
+            source_label.to_string()
+        } else {
+            match (provider_tag.is_empty(), multi) {
+                (true, false) => label_base.to_string(),
+                (true, true) => format!("{label_base} [{}]", root.discriminator),
+                (false, false) => format!("{label_base} ({provider_tag})"),
+                (false, true) => format!("{label_base} ({provider_tag}/{})", root.discriminator),
+            }
+        };
+        let source_meta = root
+            .source
+            .as_ref()
+            .and_then(|source| serde_json::to_value(source).ok());
+        out.push((root.local_path.clone(), label, source_meta));
+    }
+}
+
+fn atomic_write_user_data(path: &std::path::Path, json: &serde_json::Value) -> Result<(), String> {
+    let serialized = serde_json::to_string_pretty(json).map_err(|e| format!("serialize: {e}"))?;
+    let tmp_path = path.with_extension("json.tmp");
+    std::fs::write(&tmp_path, &serialized)
+        .map_err(|e| format!("write {}: {e}", tmp_path.display()))?;
+    // Windows: rename fails if destination exists.
+    if path.exists() {
+        let _ = std::fs::remove_file(path);
+    }
+    std::fs::rename(&tmp_path, path).map_err(|e| format!("rename: {e}"))?;
+    Ok(())
+}
+
 /// Run the normal Tauri desktop application.
 fn run_tauri() {
+    const REMOTE_REFRESH_MENU_ID: &str = "remote-refresh";
+
     // Workaround for WebKitGTK GPU process crash in AppImage environments.
     //
     // AppImage bundles Ubuntu-compiled EGL/Mesa libs, but the system's
@@ -98,6 +337,7 @@ fn run_tauri() {
     }
 
     use std::sync::{Arc, Mutex};
+    use tauri::menu::{Menu, MenuItem, Submenu};
     use tauri::{Emitter, Manager};
 
     // Parse CLI args for a session preload hint (e.g. `--session <uuid>`).
@@ -138,7 +378,26 @@ fn run_tauri() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_os::init());
+        .plugin(tauri_plugin_os::init())
+        .setup(|app| {
+            let refresh_item = MenuItem::with_id(
+                app,
+                REMOTE_REFRESH_MENU_ID,
+                "Refresh Remote Sessions",
+                true,
+                Some("Ctrl+R"),
+            )?;
+            let actions_menu = Submenu::with_items(app, "Actions", true, &[&refresh_item])?;
+            let menu = Menu::with_items(app, &[&actions_menu])?;
+            app.set_menu(menu)?;
+
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            if event.id() == REMOTE_REFRESH_MENU_ID {
+                let _ = app.emit("remote-refresh-requested", ());
+            }
+        });
 
     builder
         .manage(MetadataState::default())
@@ -234,7 +493,11 @@ fn run_tauri() {
             export_session,
             // WSL commands
             detect_wsl_distros,
-            is_wsl_available
+            is_wsl_available,
+            // Remote SSH source sync commands
+            crate::commands::remote_sync::test_remote_connection,
+            crate::commands::remote_sync::sync_remote_source,
+            crate::commands::remote_sync::sync_all_remote_sources
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

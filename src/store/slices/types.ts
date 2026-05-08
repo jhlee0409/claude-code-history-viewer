@@ -20,6 +20,7 @@ import type {
   SessionMetadata,
   ProjectMetadata,
   UserSettings,
+  ProjectSource,
   ProviderId,
   ProviderInfo,
   StatsMode,
@@ -296,7 +297,7 @@ export interface AppStoreActions {
   isProjectHidden: (projectPath: string) => boolean;
   hideProject: (projectPath: string) => Promise<void>;
   unhideProject: (projectPath: string) => Promise<void>;
-  addCustomClaudePath: (path: string, label?: string) => Promise<void>;
+  addCustomClaudePath: (path: string, label?: string, source?: ProjectSource) => Promise<void>;
   addHiddenPattern: (pattern: string) => Promise<void>;
   removeHiddenPattern: (pattern: string) => Promise<void>;
   clearMetadataError: () => void;

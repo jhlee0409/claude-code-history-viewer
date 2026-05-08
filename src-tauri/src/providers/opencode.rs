@@ -61,6 +61,109 @@ pub fn get_base_path() -> Option<String> {
     }
 }
 
+const SCOPED_OPENCODE_PREFIX: &str = "opencode+path://";
+
+fn hex_encode(value: &str) -> String {
+    use std::fmt::Write;
+
+    let mut encoded = String::with_capacity(value.len() * 2);
+    for byte in value.as_bytes() {
+        write!(&mut encoded, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    encoded
+}
+
+fn hex_decode(value: &str) -> Option<String> {
+    if value.len() % 2 != 0 {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(value.len() / 2);
+    for idx in (0..value.len()).step_by(2) {
+        let byte = u8::from_str_radix(&value[idx..idx + 2], 16).ok()?;
+        bytes.push(byte);
+    }
+    String::from_utf8(bytes).ok()
+}
+
+fn scoped_prefix(base_path: &str) -> String {
+    format!("{SCOPED_OPENCODE_PREFIX}{}/", hex_encode(base_path))
+}
+
+fn parse_project_path(project_path: &str) -> Result<(String, String, Option<String>), String> {
+    if let Some(rest) = project_path.strip_prefix(SCOPED_OPENCODE_PREFIX) {
+        let (encoded_base, project_id) = rest
+            .split_once('/')
+            .ok_or_else(|| format!("Invalid OpenCode project path: {project_path}"))?;
+        let base_path = hex_decode(encoded_base)
+            .ok_or_else(|| format!("Invalid OpenCode base path in: {project_path}"))?;
+        if !is_safe_storage_id(project_id) {
+            return Err(format!("Invalid OpenCode project path: {project_path}"));
+        }
+        return Ok((
+            base_path,
+            project_id.to_string(),
+            Some(format!("{SCOPED_OPENCODE_PREFIX}{encoded_base}/")),
+        ));
+    }
+
+    let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    let project_id = project_path
+        .strip_prefix("opencode://")
+        .unwrap_or(project_path)
+        .to_string();
+    if !is_safe_storage_id(&project_id) {
+        return Err(format!("Invalid OpenCode project path: {project_path}"));
+    }
+    Ok((base_path, project_id, None))
+}
+
+fn parse_session_path(session_path: &str) -> Result<(String, String, String), String> {
+    if let Some(rest) = session_path.strip_prefix(SCOPED_OPENCODE_PREFIX) {
+        let mut parts = rest.splitn(3, '/');
+        let encoded_base = parts
+            .next()
+            .ok_or_else(|| format!("Invalid OpenCode session path: {session_path}"))?;
+        let project_id = parts
+            .next()
+            .ok_or_else(|| format!("Invalid OpenCode session path: {session_path}"))?;
+        let session_id = parts
+            .next()
+            .ok_or_else(|| format!("Invalid OpenCode session path: {session_path}"))?;
+        let base_path = hex_decode(encoded_base)
+            .ok_or_else(|| format!("Invalid OpenCode base path in: {session_path}"))?;
+        if !is_safe_storage_id(project_id) || !is_safe_storage_id(session_id) {
+            return Err(format!("Invalid OpenCode session path: {session_path}"));
+        }
+        return Ok((base_path, project_id.to_string(), session_id.to_string()));
+    }
+
+    let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    let path_part = session_path
+        .strip_prefix("opencode://")
+        .unwrap_or(session_path);
+    let parts: Vec<&str> = path_part.splitn(2, '/').collect();
+    if parts.len() < 2 {
+        return Err(format!("Invalid OpenCode session path: {session_path}"));
+    }
+    if !is_safe_storage_id(parts[0]) || !is_safe_storage_id(parts[1]) {
+        return Err(format!("Invalid OpenCode session path: {session_path}"));
+    }
+    Ok((base_path, parts[0].to_string(), parts[1].to_string()))
+}
+
+pub fn scope_projects_to_base(
+    mut projects: Vec<ClaudeProject>,
+    base_path: &str,
+) -> Vec<ClaudeProject> {
+    let prefix = scoped_prefix(base_path);
+    for project in &mut projects {
+        if let Some(id) = project.path.strip_prefix("opencode://") {
+            project.path = format!("{prefix}{id}");
+        }
+    }
+    projects
+}
+
 /// Scan `OpenCode` projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "OpenCode base path")?;
@@ -192,6 +295,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
                 provider: Some("opencode".to_string()),
                 storage_type: Some("json".to_string()),
                 custom_directory_label: None,
+                source: None,
             });
         }
     }
@@ -211,29 +315,26 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    let (base_path, project_id, scoped_prefix) = parse_project_path(project_path)?;
     let storage_path = Path::new(&base_path).join("storage");
-
-    let project_id = project_path
-        .strip_prefix("opencode://")
-        .unwrap_or(project_path);
-    if !is_safe_storage_id(project_id) {
-        return Err(format!("Invalid OpenCode project path: {project_path}"));
-    }
 
     let mut sessions = Vec::new();
     let mut seen_ids: HashSet<String> = HashSet::new();
 
     // 1. Read from SQLite
-    if let Some(db_sessions) = load_sessions_from_db(&base_path, project_id) {
-        for s in db_sessions {
+    if let Some(db_sessions) = load_sessions_from_db(&base_path, &project_id) {
+        for mut s in db_sessions {
+            if let Some(prefix) = &scoped_prefix {
+                s.session_id = format!("{prefix}{}", s.actual_session_id);
+                s.file_path = format!("{prefix}{}/{}", project_id, s.actual_session_id);
+            }
             seen_ids.insert(s.actual_session_id.clone());
             sessions.push(s);
         }
     }
 
     // 2. Read from JSON files
-    let sessions_dir = storage_path.join("session").join(project_id);
+    let sessions_dir = storage_path.join("session").join(&project_id);
     if is_non_symlink_dir(&sessions_dir) {
         for entry in fs::read_dir(&sessions_dir)
             .map_err(|e| e.to_string())?
@@ -305,10 +406,15 @@ pub fn load_sessions(
             };
 
             sessions.push(ClaudeSession {
-                session_id: format!("opencode://{session_id}"),
+                session_id: scoped_prefix.as_ref().map_or_else(
+                    || format!("opencode://{session_id}"),
+                    |prefix| format!("{prefix}{session_id}"),
+                ),
                 actual_session_id: session_id,
                 file_path: format!(
-                    "opencode://{project_id}/{}",
+                    "{}{}/{}",
+                    scoped_prefix.as_deref().unwrap_or("opencode://"),
+                    project_id,
                     path.file_stem().unwrap_or_default().to_string_lossy()
                 ),
                 project_name: String::new(),
@@ -332,35 +438,18 @@ pub fn load_sessions(
 
 /// Load messages for an `OpenCode` session
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
-    let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    let (base_path, _project_id, session_id) = parse_session_path(session_path)?;
     let storage_path = Path::new(&base_path).join("storage");
 
-    // Extract session info from virtual path "opencode://{project_id}/{session_id}"
-    let path_part = session_path
-        .strip_prefix("opencode://")
-        .unwrap_or(session_path);
-    let parts: Vec<&str> = path_part.splitn(2, '/').collect();
-    if parts.len() < 2 {
-        return Err(format!("Invalid OpenCode session path: {session_path}"));
-    }
-    let project_id = parts[0];
-    if !is_safe_storage_id(project_id) {
-        return Err(format!("Invalid project_id in path: {session_path}"));
-    }
-    let session_id = parts[1];
-    if !is_safe_storage_id(session_id) {
-        return Err(format!("Invalid session_id in path: {session_path}"));
-    }
-
     // Try SQLite first
-    if let Some(db_messages) = load_messages_from_db(&base_path, session_id) {
+    if let Some(db_messages) = load_messages_from_db(&base_path, &session_id) {
         if !db_messages.is_empty() {
             return Ok(db_messages);
         }
     }
 
     // Fall back to JSON files
-    let messages_dir = storage_path.join("message").join(session_id);
+    let messages_dir = storage_path.join("message").join(&session_id);
     if !messages_dir.exists() {
         return Ok(vec![]);
     }
@@ -461,7 +550,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         messages.push(ClaudeMessage {
             uuid: msg_id,
             parent_uuid,
-            session_id: session_id.to_string(),
+            session_id: session_id.clone(),
             timestamp: created_at,
             message_type: message_type.to_string(),
             content: content_value,
@@ -709,6 +798,7 @@ fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
                 provider: Some("opencode".to_string()),
                 storage_type: Some("sqlite".to_string()),
                 custom_directory_label: None,
+                source: None,
             })
         })
         .ok()?;

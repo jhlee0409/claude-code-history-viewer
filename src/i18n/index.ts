@@ -18,6 +18,7 @@ import enUpdate from './locales/en/update.json';
 import enFeedback from './locales/en/feedback.json';
 import enRecentEdits from './locales/en/recentEdits.json';
 import enArchive from './locales/en/archive.json';
+import enRemoteSources from './locales/en/remoteSources.json';
 
 // Korean
 import koCommon from './locales/ko/common.json';
@@ -32,6 +33,7 @@ import koUpdate from './locales/ko/update.json';
 import koFeedback from './locales/ko/feedback.json';
 import koRecentEdits from './locales/ko/recentEdits.json';
 import koArchive from './locales/ko/archive.json';
+import koRemoteSources from './locales/ko/remoteSources.json';
 
 // Japanese
 import jaCommon from './locales/ja/common.json';
@@ -46,6 +48,7 @@ import jaUpdate from './locales/ja/update.json';
 import jaFeedback from './locales/ja/feedback.json';
 import jaRecentEdits from './locales/ja/recentEdits.json';
 import jaArchive from './locales/ja/archive.json';
+import jaRemoteSources from './locales/ja/remoteSources.json';
 
 // Simplified Chinese
 import zhCNCommon from './locales/zh-CN/common.json';
@@ -60,6 +63,7 @@ import zhCNUpdate from './locales/zh-CN/update.json';
 import zhCNFeedback from './locales/zh-CN/feedback.json';
 import zhCNRecentEdits from './locales/zh-CN/recentEdits.json';
 import zhCNArchive from './locales/zh-CN/archive.json';
+import zhCNRemoteSources from './locales/zh-CN/remoteSources.json';
 
 // Traditional Chinese
 import zhTWCommon from './locales/zh-TW/common.json';
@@ -74,6 +78,7 @@ import zhTWUpdate from './locales/zh-TW/update.json';
 import zhTWFeedback from './locales/zh-TW/feedback.json';
 import zhTWRecentEdits from './locales/zh-TW/recentEdits.json';
 import zhTWArchive from './locales/zh-TW/archive.json';
+import zhTWRemoteSources from './locales/zh-TW/remoteSources.json';
 
 export const supportedLanguages = {
   en: 'English',
@@ -113,6 +118,7 @@ export const namespaces = [
   'feedback',
   'recentEdits',
   'archive',
+  'remoteSources',
 ] as const;
 
 export type Namespace = (typeof namespaces)[number];
@@ -144,7 +150,8 @@ const resources = {
       enUpdate,
       enFeedback,
       enRecentEdits,
-      enArchive
+      enArchive,
+      enRemoteSources
     ),
   },
   ko: {
@@ -160,7 +167,8 @@ const resources = {
       koUpdate,
       koFeedback,
       koRecentEdits,
-      koArchive
+      koArchive,
+      koRemoteSources
     ),
   },
   ja: {
@@ -176,7 +184,8 @@ const resources = {
       jaUpdate,
       jaFeedback,
       jaRecentEdits,
-      jaArchive
+      jaArchive,
+      jaRemoteSources
     ),
   },
   'zh-CN': {
@@ -192,7 +201,8 @@ const resources = {
       zhCNUpdate,
       zhCNFeedback,
       zhCNRecentEdits,
-      zhCNArchive
+      zhCNArchive,
+      zhCNRemoteSources
     ),
   },
   'zh-TW': {
@@ -208,7 +218,8 @@ const resources = {
       zhTWUpdate,
       zhTWFeedback,
       zhTWRecentEdits,
-      zhTWArchive
+      zhTWArchive,
+      zhTWRemoteSources
     ),
   },
 };

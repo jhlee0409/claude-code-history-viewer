@@ -203,6 +203,9 @@ pub struct CustomClaudePath {
     /// User-defined display label (e.g., "Personal")
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    /// Machine/workload source that produced this injected path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<crate::models::ProjectSource>,
 }
 
 /// WSL (Windows Subsystem for Linux) integration settings
@@ -244,6 +247,10 @@ pub struct UserSettings {
     /// WSL integration settings (Windows only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wsl: Option<WslSettings>,
+
+    /// Remote SSH machines to pull session history from
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remote_sources: Vec<crate::remote::source::RemoteSource>,
 }
 
 #[cfg(test)]

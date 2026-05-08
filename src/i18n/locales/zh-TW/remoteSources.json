@@ -29,5 +29,13 @@
   "remoteSources.confirmDelete": "刪除此遠端主機?已快取的資料將保留。",
   "remoteSources.error.hostUserRequired": "主機與使用者名稱為必填。",
   "remoteSources.error.keyPathRequired": "金鑰路徑為必填。",
-  "remoteSources.error.passwordRequired": "密碼為必填。"
+  "remoteSources.error.passwordRequired": "密碼為必填。",
+  "remoteSources.pathOverrides": "路徑覆寫(每行一條,支援 *)",
+  "remoteSources.pathOverridesHint": "留空使用預設值。萬用字元 * 比對單一路徑段 —— 適合 cc-slack 這類多租戶配置。",
+  "remoteSources.claudePaths": "Claude 路徑",
+  "remoteSources.codexPaths": "Codex 路徑",
+  "remoteSources.opencodePaths": "OpenCode 路徑",
+  "remoteSources.missingTitle": "{{host}}:{{n}} 條設定路徑未取得任何資料",
+  "remoteSources.missing.notFound": "無相符",
+  "remoteSources.missing.empty": "相符但內容為空"
 }

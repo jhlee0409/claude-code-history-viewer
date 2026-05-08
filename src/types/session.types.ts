@@ -44,6 +44,12 @@ export interface ClaudeProject {
   last_modified: string;
   /** Git worktree 정보 */
   git_info?: GitInfo;
+  source?: {
+    id: string;
+    kind: string;
+    displayLabel: string;
+    debugLabel?: string;
+  };
 }
 
 export interface ClaudeSession {

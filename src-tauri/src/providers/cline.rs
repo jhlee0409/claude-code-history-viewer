@@ -82,6 +82,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                 provider: Some("cline".to_string()),
                 storage_type: Some("json".to_string()),
                 custom_directory_label: Some(label.clone()),
+                source: None,
             });
         }
     }

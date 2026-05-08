@@ -29,5 +29,13 @@
   "remoteSources.confirmDelete": "Delete this remote machine? Cached data will be kept.",
   "remoteSources.error.hostUserRequired": "Host and username are required.",
   "remoteSources.error.keyPathRequired": "Key path is required.",
-  "remoteSources.error.passwordRequired": "Password is required."
+  "remoteSources.error.passwordRequired": "Password is required.",
+  "remoteSources.pathOverrides": "Path overrides (one per line, * supported)",
+  "remoteSources.pathOverridesHint": "Leave blank to use defaults. Wildcards (*) match one path segment — useful for cc-slack-style multi-tenant layouts.",
+  "remoteSources.claudePaths": "Claude paths",
+  "remoteSources.codexPaths": "Codex paths",
+  "remoteSources.opencodePaths": "OpenCode paths",
+  "remoteSources.missingTitle": "{{host}}: {{n}} configured path(s) returned nothing",
+  "remoteSources.missing.notFound": "no match",
+  "remoteSources.missing.empty": "matched but empty"
 }

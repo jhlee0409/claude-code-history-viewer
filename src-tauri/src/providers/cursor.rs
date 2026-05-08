@@ -106,6 +106,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
             provider: Some("cursor".to_string()),
             storage_type: Some("sqlite".to_string()),
             custom_directory_label: None,
+            source: None,
         });
     }
 

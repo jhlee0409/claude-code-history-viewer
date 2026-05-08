@@ -208,6 +208,7 @@ mod project_snapshots {
             provider: None,
             storage_type: None,
             custom_directory_label: None,
+            source: None,
         };
 
         assert_json_snapshot!("claude_project", project);

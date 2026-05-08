@@ -189,6 +189,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
                 provider: Some("codex".to_string()),
                 storage_type: None,
                 custom_directory_label: None,
+                source: None,
             }
         })
         .collect();

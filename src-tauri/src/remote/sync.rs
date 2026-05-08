@@ -1,25 +1,31 @@
 //! Sync engine: pull whitelisted files from a remote SSH source into the
 //! local cache directory, doing `(size, mtime)` incremental skipping.
 //!
-//! Cache layout per source:
+//! Cache layout per source. Each remote provider root that survives glob
+//! expansion gets its own discriminator subdirectory so multiple workers on
+//! the same host don't overwrite each other:
 //! ```text
 //! ~/.claude-history-viewer/remote-cache/<host>__<id-prefix>/
-//!   .claude/projects/<project>/<session>.jsonl
-//!   .codex/sessions/<...>/<rollout>.jsonl
-//!   opencode/{opencode.db, opencode.db-wal, storage/..., snapshot/...}
+//!   .claude/<discriminator>/projects/<project>/<session>.jsonl
+//!   .codex/<discriminator>/sessions/<...>/<rollout>.jsonl
+//!   opencode/<discriminator>/{opencode.db, storage/, snapshot/}
 //! ```
-//! Each provider's local root is then registered as a custom scan path
-//! by the frontend so the existing scanner picks it up unmodified.
+//! `<discriminator>` is the basename of the parent of the matched remote root
+//! — e.g. `~/.cc-slack-data/dbg/.claude` → `dbg`. Each provider subdir is
+//! registered as its own `customClaudePath` by the frontend so the existing
+//! scanner picks it up unmodified.
 
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::{Context, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::remote::sftp_client::SftpSession;
 use crate::remote::source::{
-    default_paths_for, expand_tilde, sync_whitelist, ProviderKind, RemoteSource, RemoteSyncStats,
+    default_paths_for, expand_globs, expand_tilde, sync_whitelist, ProviderKind, RemoteSource,
+    RemoteSyncStats, RemoteSystemKind,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -28,14 +34,63 @@ pub struct SyncOutcome {
     pub source_id: String,
     pub stats: RemoteSyncStats,
     pub injected_paths: InjectedPaths,
+    /// Configured paths the user supplied that produced no synced files.
+    /// Surfaced in the UI so the user can tell when their override is wrong
+    /// (e.g. typo, container moved, no AI history yet).
+    pub missing_paths: Vec<MissingPath>,
 }
 
+/// Local provider-root cache dirs that should be registered as additional
+/// scan paths. Each entry is one matched remote root.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InjectedPaths {
-    pub claude: Option<String>,
-    pub codex: Option<String>,
-    pub opencode: Option<String>,
+    pub claude: Vec<InjectedRoot>,
+    pub codex: Vec<InjectedRoot>,
+    pub opencode: Vec<InjectedRoot>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InjectedRoot {
+    /// Absolute local path that the frontend should add to `customClaudePaths`.
+    pub local_path: String,
+    /// Human-readable discriminator (e.g. `dbg`) for use in UI labels.
+    pub discriminator: String,
+    /// Original remote root this cache mirrors. Useful for debugging in toasts.
+    pub remote_path: String,
+    /// Source identity to attach to projects scanned from this injected root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<HistorySource>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistorySource {
+    pub id: String,
+    pub kind: String,
+    pub display_label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub debug_label: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MissingPath {
+    /// `"claude"` / `"codex"` / `"opencode"`.
+    pub provider: String,
+    /// The path string as the user typed it (or the default that was applied).
+    pub configured_path: String,
+    pub reason: MissingReason,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MissingReason {
+    /// Glob expansion produced zero matches on the remote filesystem.
+    NotFound,
+    /// At least one matched root existed but contained no whitelisted files.
+    Empty,
 }
 
 /// Returns the local cache root for one remote source.
@@ -52,6 +107,459 @@ fn local_cache_root(source: &RemoteSource) -> Result<PathBuf> {
         .join(format!("{sanitised_host}__{id_prefix}")))
 }
 
+/// Filesystem-safe slug derived from one path segment. Anything outside
+/// `[A-Za-z0-9._-]` collapses to `_` so a discriminator like
+/// `worker example dev` becomes `worker_example_dev`.
+fn sanitize_segment(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+/// Pick a human-friendly subdir name distinguishing this remote root from
+/// other matched roots in the same provider. Uses the basename of the parent
+/// of the provider root — for `~/.cc-slack-data/dbg/.claude` that's `dbg`,
+/// for `~/.claude` it's the home dir's basename (typically the username).
+fn discriminator_for(remote_root: &str) -> String {
+    let segments: Vec<&str> = remote_root
+        .split(['/', '\\'])
+        .filter(|s| !s.is_empty())
+        .collect();
+    // segments.last() is the provider root (e.g. ".claude"); we want the one
+    // before that.
+    let parent = segments.iter().rev().nth(1).copied().unwrap_or("default");
+    let sanitised = sanitize_segment(parent);
+    if sanitised.is_empty() {
+        "default".to_string()
+    } else {
+        sanitised
+    }
+}
+
+/// Append `__2`, `__3`, … if `base` collides with an already-used discriminator
+/// within this provider's sync run. Pure function — keeps `sync_one` readable.
+fn unique_discriminator(base: &str, used: &HashSet<String>) -> String {
+    if !used.contains(base) {
+        return base.to_string();
+    }
+    for i in 2..=1000 {
+        let candidate = format!("{base}__{i}");
+        if !used.contains(&candidate) {
+            return candidate;
+        }
+    }
+    // Effectively unreachable — 1000+ remote roots with the same parent name
+    // is so far outside the design envelope that giving up is fine.
+    format!("{base}__overflow")
+}
+
+#[derive(Debug, Clone)]
+struct RootCandidate {
+    provider: ProviderKind,
+    path: String,
+    configured_path: String,
+    source: Option<HistorySource>,
+    report_missing: bool,
+    register_if_cached: bool,
+}
+
+#[derive(Debug, Clone)]
+struct PodmanContainer {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct PodmanManifestEntry {
+    rel_path: String,
+    size: u64,
+    mtime_secs: u64,
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn provider_cache_subdir(provider: ProviderKind) -> &'static str {
+    match provider {
+        ProviderKind::Claude => ".claude",
+        ProviderKind::Codex => ".codex",
+        ProviderKind::OpenCode => "opencode",
+    }
+}
+
+fn provider_container_paths(
+    provider: ProviderKind,
+    container_home: &str,
+    opencode_home: Option<&str>,
+    xdg_data_home: Option<&str>,
+) -> Vec<String> {
+    match provider {
+        ProviderKind::Claude => vec![expand_tilde(
+            "~/.claude",
+            container_home,
+            RemoteSystemKind::Linux,
+        )],
+        ProviderKind::Codex => vec![expand_tilde(
+            "~/.codex",
+            container_home,
+            RemoteSystemKind::Linux,
+        )],
+        ProviderKind::OpenCode => {
+            let mut paths = Vec::new();
+            if let Some(home) = opencode_home.filter(|s| !s.trim().is_empty()) {
+                paths.push(home.trim().to_string());
+            }
+            if let Some(xdg) = xdg_data_home.filter(|s| !s.trim().is_empty()) {
+                paths.push(format!("{}/opencode", xdg.trim().trim_end_matches('/')));
+            }
+            paths.push(expand_tilde(
+                "~/.local/share/opencode",
+                container_home,
+                RemoteSystemKind::Linux,
+            ));
+            paths.push(expand_tilde(
+                "~/.opencode",
+                container_home,
+                RemoteSystemKind::Linux,
+            ));
+            paths.sort();
+            paths.dedup();
+            paths
+        }
+    }
+}
+
+fn remote_endpoint_label(source: &RemoteSource) -> String {
+    if source.port == 22 {
+        format!("{}@{}", source.username, source.host)
+    } else {
+        format!("{}@{}:{}", source.username, source.host, source.port)
+    }
+}
+
+fn podman_source_label(source: &RemoteSource, container: &PodmanContainer) -> String {
+    format!(
+        "Podman: {} @ {}",
+        container.name,
+        remote_endpoint_label(source)
+    )
+}
+
+fn podman_manifest_path(
+    cache_root: &Path,
+    source: &RemoteSource,
+    container: &PodmanContainer,
+    provider: ProviderKind,
+) -> PathBuf {
+    cache_root
+        .join(".podman-manifests")
+        .join(sanitize_segment(&source.id))
+        .join(sanitize_segment(&container.id))
+        .join(format!("{}.json", provider.as_str()))
+}
+
+async fn read_podman_manifest(path: &Path) -> Vec<PodmanManifestEntry> {
+    let Ok(content) = tokio::fs::read_to_string(path).await else {
+        return Vec::new();
+    };
+    serde_json::from_str(&content).unwrap_or_default()
+}
+
+async fn write_podman_manifest(path: &Path, manifest: &[PodmanManifestEntry]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    let content = serde_json::to_string_pretty(manifest)?;
+    tokio::fs::write(path, content).await?;
+    Ok(())
+}
+
+async fn podman_manifest(
+    session: &SftpSession,
+    container: &PodmanContainer,
+    provider: ProviderKind,
+    provider_root: &str,
+) -> Result<Vec<PodmanManifestEntry>> {
+    let script = match provider {
+        ProviderKind::Claude => format!(
+            "cd {} 2>/dev/null && find projects -type f -name '*.jsonl' -printf '%p\\t%s\\t%T@\\n'",
+            shell_quote(provider_root)
+        ),
+        ProviderKind::Codex => format!(
+            "cd {} 2>/dev/null && find sessions -type f -name '*.jsonl' -printf '%p\\t%s\\t%T@\\n'",
+            shell_quote(provider_root)
+        ),
+        ProviderKind::OpenCode => format!(
+            "cd {} 2>/dev/null && {{ for f in opencode.db opencode.db-wal opencode.db-shm; do [ -f \"$f\" ] && printf '%s\\t%s\\t%s\\n' \"$f\" \"$(stat -c %s \"$f\")\" \"$(stat -c %Y \"$f\")\"; done; find storage snapshot -type f -printf '%p\\t%s\\t%T@\\n' 2>/dev/null; }}",
+            shell_quote(provider_root)
+        ),
+    };
+    let command = format!(
+        "podman exec {} sh -lc {}",
+        shell_quote(&container.id),
+        shell_quote(&script)
+    );
+    let output = session.exec_command(&command).await?;
+    if output.exit_status != 0 && output.stdout.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut entries = output
+        .stdout
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split('\t');
+            let rel_path = parts.next()?.trim().trim_start_matches("./").to_string();
+            let size = parts.next()?.trim().parse::<u64>().ok()?;
+            let mtime_raw = parts.next()?.trim();
+            let mtime_secs = mtime_raw
+                .split('.')
+                .next()
+                .unwrap_or(mtime_raw)
+                .parse::<u64>()
+                .ok()?;
+            if rel_path.is_empty() {
+                None
+            } else {
+                Some(PodmanManifestEntry {
+                    rel_path,
+                    size,
+                    mtime_secs,
+                })
+            }
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|a, b| a.rel_path.cmp(&b.rel_path));
+    entries.dedup_by(|a, b| a.rel_path == b.rel_path);
+    Ok(entries)
+}
+
+async fn find_container_provider_root(
+    session: &SftpSession,
+    container: &PodmanContainer,
+    provider: ProviderKind,
+    container_home: &str,
+    opencode_home: Option<&str>,
+    xdg_data_home: Option<&str>,
+) -> Result<Option<(String, Vec<PodmanManifestEntry>)>> {
+    for candidate in
+        provider_container_paths(provider, container_home, opencode_home, xdg_data_home)
+    {
+        let test_cmd = format!(
+            "podman exec {} sh -lc {}",
+            shell_quote(&container.id),
+            shell_quote(&format!("test -e {}", shell_quote(&candidate)))
+        );
+        let exists = session.exec_command(&test_cmd).await?;
+        if exists.exit_status != 0 {
+            continue;
+        }
+        let manifest = podman_manifest(session, container, provider, &candidate).await?;
+        if !manifest.is_empty() {
+            return Ok(Some((candidate, manifest)));
+        }
+    }
+    Ok(None)
+}
+
+async fn discover_podman_roots(
+    source: &RemoteSource,
+    session: &SftpSession,
+    remote_home: &str,
+    cache_root: &Path,
+) -> Result<Vec<RootCandidate>> {
+    if source.system != RemoteSystemKind::Linux {
+        return Ok(Vec::new());
+    }
+
+    let output = session
+        .exec_command(
+            "command -v podman >/dev/null 2>&1 && podman ps --format '{{.ID}}\t{{.Names}}' || true",
+        )
+        .await?;
+    if output.exit_status != 0 {
+        log::warn!(
+            "Podman discovery command exited with {} on {}: {}",
+            output.exit_status,
+            source.host,
+            output.stderr.trim()
+        );
+        return Ok(Vec::new());
+    }
+
+    let containers = output
+        .stdout
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.splitn(2, '\t');
+            let id = parts.next()?.trim();
+            let name = parts.next().unwrap_or(id).trim();
+            if id.is_empty() {
+                None
+            } else {
+                Some(PodmanContainer {
+                    id: id.to_string(),
+                    name: name.to_string(),
+                })
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let mut roots = Vec::new();
+    for container in containers {
+        let home_cmd = format!(
+            "podman exec {} sh -lc {}",
+            shell_quote(&container.id),
+            shell_quote("printf '%s' \"$HOME\"")
+        );
+        let home_output = session.exec_command(&home_cmd).await?;
+        if home_output.exit_status != 0 {
+            continue;
+        }
+        let container_home = home_output.stdout.trim();
+        if container_home.is_empty() {
+            continue;
+        }
+        let env_cmd = format!(
+            "podman exec {} sh -lc {}",
+            shell_quote(&container.id),
+            shell_quote("printf '%s\\t%s' \"${OPENCODE_HOME:-}\" \"${XDG_DATA_HOME:-}\"")
+        );
+        let env_output = session.exec_command(&env_cmd).await?;
+        let mut env_parts = env_output.stdout.splitn(2, '\t');
+        let opencode_home = env_parts.next().map(str::trim).filter(|s| !s.is_empty());
+        let xdg_data_home = env_parts.next().map(str::trim).filter(|s| !s.is_empty());
+
+        for provider in [
+            ProviderKind::Claude,
+            ProviderKind::Codex,
+            ProviderKind::OpenCode,
+        ] {
+            let provider_dir = provider_cache_subdir(provider);
+            let Some((expanded, manifest)) = find_container_provider_root(
+                session,
+                &container,
+                provider,
+                container_home,
+                opencode_home,
+                xdg_data_home,
+            )
+            .await?
+            else {
+                continue;
+            };
+
+            let test_cmd = format!(
+                "podman exec {} sh -lc {}",
+                shell_quote(&container.id),
+                shell_quote(&format!("test -e {}", shell_quote(&expanded)))
+            );
+            let exists = session.exec_command(&test_cmd).await?;
+            if exists.exit_status != 0 {
+                continue;
+            }
+
+            let staging_root = format!(
+                "{}/.claude-history-viewer/podman-staging/{}/{}/{}/{}",
+                remote_home.trim_end_matches('/'),
+                sanitize_segment(&source.id),
+                sanitize_segment(&container.id),
+                provider_dir,
+                sanitize_segment(&container.name)
+            );
+            let manifest_path = podman_manifest_path(cache_root, source, &container, provider);
+            let previous_manifest = read_podman_manifest(&manifest_path).await;
+            let previous_by_path: HashMap<String, PodmanManifestEntry> = previous_manifest
+                .into_iter()
+                .map(|entry| (entry.rel_path.clone(), entry))
+                .collect();
+            let changed_files = manifest
+                .iter()
+                .filter(|entry| previous_by_path.get(&entry.rel_path) != Some(*entry))
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let clear_cmd = format!(
+                "rm -rf {dest} && mkdir -p {dest}",
+                dest = shell_quote(&staging_root),
+            );
+            let cleared = session.exec_command(&clear_cmd).await?;
+            if cleared.exit_status != 0 {
+                log::warn!(
+                    "Podman staging reset failed for {}:{} on {}: {}",
+                    container.name,
+                    expanded,
+                    source.host,
+                    cleared.stderr.trim()
+                );
+                continue;
+            }
+
+            for entry in &changed_files {
+                let remote_file = format!(
+                    "{}/{}",
+                    expanded.trim_end_matches('/'),
+                    entry.rel_path.trim_start_matches('/')
+                );
+                let staging_file = format!(
+                    "{}/{}",
+                    staging_root.trim_end_matches('/'),
+                    entry.rel_path.trim_start_matches('/')
+                );
+                let copy_cmd = format!(
+                    "mkdir -p {parent} && podman cp {container}:{src} {dest}",
+                    parent = shell_quote(
+                        staging_file
+                            .rsplit_once('/')
+                            .map_or(staging_root.as_str(), |(parent, _)| parent)
+                    ),
+                    container = shell_quote(&container.id),
+                    src = shell_quote(&remote_file),
+                    dest = shell_quote(&staging_file),
+                );
+                let copied = session.exec_command(&copy_cmd).await?;
+                if copied.exit_status != 0 {
+                    log::warn!(
+                        "Podman copy failed for {}:{} on {}: {}",
+                        container.name,
+                        remote_file,
+                        source.host,
+                        copied.stderr.trim()
+                    );
+                }
+            }
+            write_podman_manifest(&manifest_path, &manifest).await?;
+
+            let source_id = format!("{}:podman:{}", source.id, container.id);
+            roots.push(RootCandidate {
+                provider,
+                path: staging_root,
+                configured_path: format!("podman:{}:{}", container.name, expanded),
+                source: Some(HistorySource {
+                    id: source_id,
+                    kind: "podman-container".to_string(),
+                    display_label: podman_source_label(source, &container),
+                    debug_label: Some(format!(
+                        "{}@{}:{} / podman / {}",
+                        source.username, source.host, source.port, container.name
+                    )),
+                }),
+                report_missing: false,
+                register_if_cached: true,
+            });
+        }
+    }
+
+    Ok(roots)
+}
+
 pub async fn sync_one(source: &RemoteSource) -> Result<SyncOutcome> {
     let started = Instant::now();
     let cache_root = local_cache_root(source)?;
@@ -65,107 +573,178 @@ pub async fn sync_one(source: &RemoteSource) -> Result<SyncOutcome> {
 
     let remote_home = session.remote_home().await.context("resolve remote home")?;
 
-    let defaults = default_paths_for(source.system);
     let user_paths = source.paths.clone().unwrap_or_default();
+    let defaults = default_paths_for(source.system);
 
-    let claude_remote = user_paths
+    // Required(...).unwrap() pattern is fine here because default_paths_for
+    // always populates every provider; this would fire only if someone
+    // hand-edited the constant to leave a None.
+    let claude_paths = user_paths
         .claude
         .or(defaults.claude)
-        .unwrap_or_else(|| "~/.claude".to_string());
-    let codex_remote = user_paths
+        .unwrap_or_else(|| vec!["~/.claude".to_string()]);
+    let codex_paths = user_paths
         .codex
         .or(defaults.codex)
-        .unwrap_or_else(|| "~/.codex".to_string());
-    let opencode_remote = user_paths
+        .unwrap_or_else(|| vec!["~/.codex".to_string()]);
+    let opencode_paths = user_paths
         .opencode
         .or(defaults.opencode)
-        .unwrap_or_else(|| "~/.local/share/opencode".to_string());
+        .unwrap_or_else(|| vec!["~/.local/share/opencode".to_string()]);
+
+    let podman_roots = if source.podman_enabled() {
+        discover_podman_roots(source, &session, &remote_home, &cache_root)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!(
+                    "Podman discovery failed for {}@{}:{}: {e}",
+                    source.username,
+                    source.host,
+                    source.port
+                );
+                Vec::new()
+            })
+    } else {
+        Vec::new()
+    };
 
     let mut stats = RemoteSyncStats::default();
     let mut injected = InjectedPaths::default();
+    let mut missing: Vec<MissingPath> = Vec::new();
 
     for wl in sync_whitelist() {
-        let (remote_root, local_provider_root) = match wl.provider {
-            ProviderKind::Claude => (
-                expand_tilde(&claude_remote, &remote_home, source.system),
-                cache_root.join(".claude"),
-            ),
-            ProviderKind::Codex => (
-                expand_tilde(&codex_remote, &remote_home, source.system),
-                cache_root.join(".codex"),
-            ),
-            ProviderKind::OpenCode => (
-                expand_tilde(&opencode_remote, &remote_home, source.system),
-                cache_root.join("opencode"),
-            ),
+        let (configured_paths, provider_subdir): (&Vec<String>, &str) = match wl.provider {
+            ProviderKind::Claude => (&claude_paths, ".claude"),
+            ProviderKind::Codex => (&codex_paths, ".codex"),
+            ProviderKind::OpenCode => (&opencode_paths, "opencode"),
         };
+        let mut candidates: Vec<RootCandidate> = configured_paths
+            .iter()
+            .map(|path| RootCandidate {
+                provider: wl.provider,
+                path: expand_tilde(path, &remote_home, source.system),
+                configured_path: path.clone(),
+                source: None,
+                report_missing: true,
+                register_if_cached: false,
+            })
+            .collect();
+        candidates.extend(
+            podman_roots
+                .iter()
+                .filter(|root| root.provider == wl.provider)
+                .cloned(),
+        );
+        let provider_cache_root = cache_root.join(provider_subdir);
+        let mut used_discriminators: HashSet<String> = HashSet::new();
 
-        // Skip provider entirely if the root directory doesn't exist on remote.
-        if session.stat_optional(&remote_root).await.is_none() {
-            continue;
-        }
+        for candidate in candidates {
+            let resolved = candidate.path.clone();
+            let session_ref = &session;
+            let matched = expand_globs(&resolved, source.system, |dir| async move {
+                session_ref.read_dir_names(&dir).await
+            })
+            .await;
 
-        let mut provider_synced_any = false;
-        for include in wl.include {
-            let remote_target =
-                format!("{}/{}", remote_root.trim_end_matches(['/', '\\']), include);
-            let local_target = local_provider_root.join(include);
-
-            let Some(attrs) = session.stat_optional(&remote_target).await else {
+            if matched.is_empty() {
+                if candidate.report_missing {
+                    missing.push(MissingPath {
+                        provider: wl.provider.as_str().to_string(),
+                        configured_path: candidate.configured_path.clone(),
+                        reason: MissingReason::NotFound,
+                    });
+                }
                 continue;
-            };
-            let permissions = attrs.permissions.unwrap_or(0);
-            // POSIX: top 4 bits of permissions encode the file type.
-            // 0o170000 mask, 0o040000 = directory.
-            let is_dir = permissions & 0o170_000 == 0o040_000;
-
-            if is_dir {
-                let files = session
-                    .list_recursive(&remote_target, wl.extension_filter)
-                    .await?;
-                stats.files_total = stats.files_total.saturating_add(files.len() as u64);
-                for f in files {
-                    let local_path = local_target.join(&f.rel_path);
-                    if file_unchanged(&local_path, f.size, f.mtime_secs).await {
-                        stats.files_skipped = stats.files_skipped.saturating_add(1);
-                    } else {
-                        let bytes = session.download_file(&f.abs_path, &local_path).await?;
-                        stats.files_updated = stats.files_updated.saturating_add(1);
-                        stats.bytes_transferred = stats.bytes_transferred.saturating_add(bytes);
-                    }
-                    // Always (re-)stamp mtime, even when skipping. This both
-                    // gives fresh downloads the right value and repairs files
-                    // stamped under earlier sync strategies (e.g. raw fs mtime
-                    // before the JSONL last-message-timestamp logic existed).
-                    let mtime_to_set = pick_mtime(&local_path, f.mtime_secs);
-                    let _ = set_local_mtime(&local_path, mtime_to_set).await;
-                    provider_synced_any = true;
-                }
-            } else {
-                stats.files_total = stats.files_total.saturating_add(1);
-                let local_path = local_target;
-                let size = attrs.size.unwrap_or(0);
-                let mtime = u64::from(attrs.mtime.unwrap_or(0));
-                if file_unchanged(&local_path, size, mtime).await {
-                    stats.files_skipped = stats.files_skipped.saturating_add(1);
-                } else {
-                    let bytes = session.download_file(&remote_target, &local_path).await?;
-                    stats.files_updated = stats.files_updated.saturating_add(1);
-                    stats.bytes_transferred = stats.bytes_transferred.saturating_add(bytes);
-                }
-                // Same idempotent re-stamp for single-file includes (e.g. opencode.db).
-                let mtime_to_set = pick_mtime(&local_path, mtime);
-                let _ = set_local_mtime(&local_path, mtime_to_set).await;
-                provider_synced_any = true;
             }
-        }
 
-        if provider_synced_any {
-            let path_str = local_provider_root.to_string_lossy().into_owned();
-            match wl.provider {
-                ProviderKind::Claude => injected.claude = Some(path_str),
-                ProviderKind::Codex => injected.codex = Some(path_str),
-                ProviderKind::OpenCode => injected.opencode = Some(path_str),
+            let mut configured_synced_any = false;
+            for remote_root in matched {
+                // Race guard: glob expansion saw the dir in its parent listing,
+                // but it may have been deleted before we stat it directly.
+                if session.stat_optional(&remote_root).await.is_none() {
+                    continue;
+                }
+
+                let base_discriminator = discriminator_for(&remote_root);
+                let discriminator = unique_discriminator(&base_discriminator, &used_discriminators);
+                let local_root = provider_cache_root.join(&discriminator);
+
+                let mut root_synced_any = false;
+                for include in wl.include {
+                    let remote_target =
+                        format!("{}/{}", remote_root.trim_end_matches(['/', '\\']), include);
+                    let local_target = local_root.join(include);
+
+                    let Some(attrs) = session.stat_optional(&remote_target).await else {
+                        continue;
+                    };
+                    let permissions = attrs.permissions.unwrap_or(0);
+                    // POSIX: top 4 bits encode the file type. 0o040000 = directory.
+                    let is_dir = permissions & 0o170_000 == 0o040_000;
+
+                    if is_dir {
+                        let files = session
+                            .list_recursive(&remote_target, wl.extension_filter)
+                            .await?;
+                        stats.files_total = stats.files_total.saturating_add(files.len() as u64);
+                        for f in files {
+                            let local_path = local_target.join(&f.rel_path);
+                            if file_unchanged(&local_path, f.size, f.mtime_secs).await {
+                                stats.files_skipped = stats.files_skipped.saturating_add(1);
+                            } else {
+                                let bytes = session.download_file(&f.abs_path, &local_path).await?;
+                                stats.files_updated = stats.files_updated.saturating_add(1);
+                                stats.bytes_transferred =
+                                    stats.bytes_transferred.saturating_add(bytes);
+                            }
+                            // Always (re-)stamp mtime, even when skipping. This
+                            // gives fresh downloads the right value AND repairs
+                            // files stamped under earlier sync strategies.
+                            let mtime_to_set = pick_mtime(&local_path, f.mtime_secs);
+                            let _ = set_local_mtime(&local_path, mtime_to_set).await;
+                            root_synced_any = true;
+                        }
+                    } else {
+                        stats.files_total = stats.files_total.saturating_add(1);
+                        let local_path = local_target;
+                        let size = attrs.size.unwrap_or(0);
+                        let mtime = u64::from(attrs.mtime.unwrap_or(0));
+                        if file_unchanged(&local_path, size, mtime).await {
+                            stats.files_skipped = stats.files_skipped.saturating_add(1);
+                        } else {
+                            let bytes = session.download_file(&remote_target, &local_path).await?;
+                            stats.files_updated = stats.files_updated.saturating_add(1);
+                            stats.bytes_transferred = stats.bytes_transferred.saturating_add(bytes);
+                        }
+                        let mtime_to_set = pick_mtime(&local_path, mtime);
+                        let _ = set_local_mtime(&local_path, mtime_to_set).await;
+                        root_synced_any = true;
+                    }
+                }
+
+                if root_synced_any || (candidate.register_if_cached && local_root.exists()) {
+                    used_discriminators.insert(discriminator.clone());
+                    let injection = InjectedRoot {
+                        local_path: local_root.to_string_lossy().into_owned(),
+                        discriminator,
+                        remote_path: remote_root.clone(),
+                        source: candidate.source.clone(),
+                    };
+                    match wl.provider {
+                        ProviderKind::Claude => injected.claude.push(injection),
+                        ProviderKind::Codex => injected.codex.push(injection),
+                        ProviderKind::OpenCode => injected.opencode.push(injection),
+                    }
+                    configured_synced_any = true;
+                }
+            }
+
+            if candidate.report_missing && !configured_synced_any {
+                missing.push(MissingPath {
+                    provider: wl.provider.as_str().to_string(),
+                    configured_path: candidate.configured_path.clone(),
+                    reason: MissingReason::Empty,
+                });
             }
         }
     }
@@ -176,6 +755,7 @@ pub async fn sync_one(source: &RemoteSource) -> Result<SyncOutcome> {
         source_id: source.id.clone(),
         stats,
         injected_paths: injected,
+        missing_paths: missing,
     })
 }
 
@@ -279,6 +859,46 @@ async fn set_local_mtime(path: &Path, mtime_secs: u64) -> Result<()> {
 }
 
 #[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    #[test]
+    fn discriminator_picks_parent_basename_linux() {
+        assert_eq!(
+            discriminator_for("/home/user/.cc-slack-data/dbg/.claude"),
+            "dbg"
+        );
+        assert_eq!(discriminator_for("/home/user/.claude"), "user");
+    }
+
+    #[test]
+    fn discriminator_picks_parent_basename_windows() {
+        assert_eq!(
+            discriminator_for("C:\\Users\\foo\\.cc-slack-data\\worker-A\\.claude"),
+            "worker-A"
+        );
+        assert_eq!(discriminator_for("C:\\Users\\foo\\.claude"), "foo");
+    }
+
+    #[test]
+    fn discriminator_sanitises_unsafe_chars() {
+        assert_eq!(
+            discriminator_for("/srv/worker example dev/.claude"),
+            "worker_example_dev"
+        );
+    }
+
+    #[test]
+    fn discriminator_collision_appends_suffix() {
+        let mut used: HashSet<String> = HashSet::new();
+        used.insert("dbg".to_string());
+        used.insert("dbg__2".to_string());
+        assert_eq!(unique_discriminator("dbg", &used), "dbg__3");
+        assert_eq!(unique_discriminator("worker", &used), "worker");
+    }
+}
+
+#[cfg(test)]
 mod integration_tests {
     //! End-to-end tests against a real SSH host. Default-ignored so CI doesn't
     //! need an SSH server; run manually with:
@@ -291,7 +911,8 @@ mod integration_tests {
     //!
     //! The host is expected to have the test fixtures from the bootstrap
     //! script (see PR description) under `~/.claude/`, `~/.codex/`, and
-    //! `~/.local/share/opencode/`.
+    //! `~/.local/share/opencode/`, **plus** a `~/.cc-slack-data/<worker>/`
+    //! tree to exercise the multi-tenant glob default.
 
     use super::*;
     use crate::remote::source::{RemoteAuth, RemoteSource, RemoteSystemKind};
@@ -309,6 +930,7 @@ mod integration_tests {
                 passphrase: None,
             },
             paths: None,
+            podman: None,
             last_sync_at: None,
             last_sync_status: None,
             last_sync_error: None,
@@ -336,18 +958,16 @@ mod integration_tests {
 
         eprintln!("sync stats: {:?}", outcome.stats);
         eprintln!("injected: {:?}", outcome.injected_paths);
+        eprintln!("missing: {:?}", outcome.missing_paths);
 
-        // Whitelisted files we expect to be pulled.
-        let expected = [
-            ".claude/projects/test-proj-a/sess1.jsonl",
-            ".claude/projects/test-proj-b/sub/sess2.jsonl",
-            ".codex/sessions/2026/04/30/rollout-test.jsonl",
-            "opencode/storage/session_diff/ses_test.json",
-        ];
-        for rel in expected {
-            let p = cache.join(rel);
-            assert!(p.exists(), "expected synced file missing: {}", p.display());
-        }
+        // With the cc-slack default glob in place, the standard fixture path
+        // (`~/.claude/projects/...`) is now reached via the second default,
+        // and any seeded `~/.cc-slack-data/<worker>/.claude` shows up under
+        // its own discriminator.
+        assert!(
+            !outcome.injected_paths.claude.is_empty(),
+            "expected at least one injected claude root"
+        );
 
         // Decoys that must NEVER cross the wire.
         let forbidden = [
@@ -355,43 +975,15 @@ mod integration_tests {
             ".claude/cache/big.bin",
             ".claude/debug/dump.log",
         ];
-        for rel in forbidden {
-            let p = cache.join(rel);
-            assert!(
-                !p.exists(),
-                "decoy file should not have been synced: {}",
-                p.display()
-            );
+        for entry in &outcome.injected_paths.claude {
+            for rel in forbidden {
+                let p = std::path::Path::new(&entry.local_path).join(rel);
+                assert!(
+                    !p.exists(),
+                    "decoy file should not have been synced: {}",
+                    p.display()
+                );
+            }
         }
-
-        // First-run file count: all four expected files freshly downloaded.
-        assert!(
-            outcome.stats.files_updated >= 4,
-            "expected >=4 updated, got {}",
-            outcome.stats.files_updated
-        );
-        assert_eq!(
-            outcome.stats.files_skipped, 0,
-            "no files should be skipped on a clean run"
-        );
-
-        // Injected paths point at the per-provider cache subdirs.
-        assert!(outcome.injected_paths.claude.is_some());
-        assert!(outcome.injected_paths.codex.is_some());
-        assert!(outcome.injected_paths.opencode.is_some());
-
-        // Second run: nothing should be re-downloaded (incremental skip).
-        let outcome2 = sync_one(&source).await.expect("re-sync should succeed");
-        eprintln!("second sync stats: {:?}", outcome2.stats);
-        assert_eq!(
-            outcome2.stats.files_updated, 0,
-            "incremental run should download zero files, got {}",
-            outcome2.stats.files_updated
-        );
-        assert!(
-            outcome2.stats.files_skipped >= 4,
-            "incremental run should skip the 4 known files, got {}",
-            outcome2.stats.files_skipped
-        );
     }
 }

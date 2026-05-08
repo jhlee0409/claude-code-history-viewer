@@ -26,14 +26,35 @@ export interface RemoteAuthPassword {
 
 export type RemoteAuth = RemoteAuthKey | RemoteAuthPassword;
 
-/** Per-provider remote-path overrides. Empty fields fall back to system defaults. */
+/**
+ * Per-provider remote-path overrides. Each provider accepts **multiple paths**
+ * — required for the cc-slack multi-tenant container layout where every worker
+ * writes into its own `~/.cc-slack-data/<worker>/.claude` dir.
+ *
+ * Each path supports a single `*` per segment (no `**`, no `?`); the wildcard
+ * is expanded against the remote filesystem at sync time.
+ *
+ * Empty/omitted fields fall back to {@link DEFAULT_REMOTE_PATHS}.
+ */
 export interface RemoteProviderPaths {
-  /** Override for ~/.claude on the remote host */
-  claude?: string;
-  /** Override for ~/.codex on the remote host */
-  codex?: string;
-  /** Override for ~/.local/share/opencode on the remote host */
-  opencode?: string;
+  /** Overrides for ~/.claude on the remote host (glob-supported) */
+  claude?: string[];
+  /** Overrides for ~/.codex on the remote host */
+  codex?: string[];
+  /** Overrides for ~/.local/share/opencode on the remote host */
+  opencode?: string[];
+}
+
+export interface RemotePodmanSettings {
+  /** Discover and sync AI history from Podman containers on this machine. */
+  enabled: boolean;
+}
+
+export interface HistorySource {
+  id: string;
+  kind: "local" | "wsl" | "ssh" | "podman-container" | string;
+  displayLabel: string;
+  debugLabel?: string;
 }
 
 /** Sync run status for UI feedback */
@@ -57,6 +78,8 @@ export interface RemoteSource {
   auth: RemoteAuth;
   /** Optional path overrides; defaults derived from `system` if omitted */
   paths?: RemoteProviderPaths;
+  /** Optional Podman container discovery settings */
+  podman?: RemotePodmanSettings;
   /** Last successful or attempted sync, ISO 8601 */
   lastSyncAt?: string;
   /** Most recent sync state */
@@ -80,6 +103,48 @@ export interface RemoteSyncStats {
   durationMs: number;
 }
 
+/**
+ * One local cache root that a sync run produced — i.e. one matched remote
+ * provider root, mirrored under the per-source cache. The frontend registers
+ * each as a `customClaudePath` so the existing scanner picks it up unchanged.
+ */
+export interface InjectedRoot {
+  /** Absolute local path to register as a `customClaudePath` */
+  localPath: string;
+  /** Human-readable suffix (e.g. `dbg`) used when labelling multi-root sources */
+  discriminator: string;
+  /** Original remote root this cache mirrors — surfaced in toasts for debugging */
+  remotePath: string;
+  /** Source identity to attach to projects scanned from this root */
+  source?: HistorySource;
+}
+
+/** Per-provider lists of injected cache roots from one sync run */
+export interface InjectedPaths {
+  claude: InjectedRoot[];
+  codex: InjectedRoot[];
+  opencode: InjectedRoot[];
+}
+
+/** Why a configured path produced no synced files */
+export type MissingPathReason = "not_found" | "empty";
+
+/** A configured path the sync run couldn't pull anything from */
+export interface MissingPath {
+  /** Provider key — `"claude"` / `"codex"` / `"opencode"` */
+  provider: "claude" | "codex" | "opencode";
+  /** The path string as the user typed it (or a default) */
+  configuredPath: string;
+  reason: MissingPathReason;
+}
+
+export interface SyncOutcome {
+  sourceId: string;
+  stats: RemoteSyncStats;
+  injectedPaths: InjectedPaths;
+  missingPaths: MissingPath[];
+}
+
 /** Per-file progress event emitted to the frontend during a sync run */
 export interface RemoteSyncProgress {
   sourceId: string;
@@ -100,24 +165,28 @@ export interface RemoteSyncProgress {
 export const DEFAULT_SSH_PORT = 22;
 
 /**
- * Default remote paths per OS family. The remote app must follow these conventions:
- * - Linux: `~/<dir>` resolved against the user's home
- * - Windows: `%USERPROFILE%\<dir>` (with backslashes; SFTP normalises)
+ * Default remote paths per OS family.
  *
- * OpenCode is identical across OSes (`~/.local/share/opencode`) because the
- * upstream tool uses XDG-style layout on every platform — verified on
- * Windows in this project's repo (see `src-tauri/src/providers/opencode.rs`).
+ * The first entry of each provider list covers the **cc-slack multi-tenant
+ * container layout** used by `scripts/deploy-multi.sh`: each worker
+ * bind-mounts `~/.cc-slack-data/<worker>/.claude` etc. into its container so
+ * AI logins and conversation history don't bleed across workers. The second
+ * entry is the standard single-user location.
+ *
+ * Both Linux and Windows ship the same defaults — every supported AI tool
+ * follows XDG-style layout on Windows too (verified against
+ * `~/.local/share/opencode/` on Windows hosts).
  */
 export const DEFAULT_REMOTE_PATHS: Record<RemoteSystemKind, Required<RemoteProviderPaths>> = {
   linux: {
-    claude: "~/.claude",
-    codex: "~/.codex",
-    opencode: "~/.local/share/opencode",
+    claude: ["~/.cc-slack-data/*/.claude", "~/.claude"],
+    codex: ["~/.codex"],
+    opencode: ["~/.cc-slack-data/*/.opencode", "~/.local/share/opencode"],
   },
   windows: {
-    claude: "~/.claude",
-    codex: "~/.codex",
-    opencode: "~/.local/share/opencode",
+    claude: ["~/.cc-slack-data/*/.claude", "~/.claude"],
+    codex: ["~/.codex"],
+    opencode: ["~/.cc-slack-data/*/.opencode", "~/.local/share/opencode"],
   },
 };
 

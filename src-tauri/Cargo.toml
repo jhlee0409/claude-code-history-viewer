@@ -16,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-webui-server = ["dep:axum", "dep:tower-http", "dep:tower", "dep:tokio", "dep:tokio-stream", "dep:rust-embed", "dep:mime_guess"]
+webui-server = ["dep:axum", "dep:tower-http", "dep:tower", "dep:tokio-stream", "dep:rust-embed", "dep:mime_guess"]
 
 [build-dependencies]
 tauri-build = { version = "2.5.3", features = [] }
@@ -57,11 +57,21 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 notify = { version = "7.0", default-features = false, features = ["macos_fsevent"] }
 notify-debouncer-mini = "0.5"
 
+# Async runtime — required for remote SSH sync engine.
+# Tauri 2 already pulls tokio transitively, but we declare it explicitly so
+# `#[tauri::command] async fn` and `tokio::join!` are available everywhere.
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "signal", "sync", "fs", "io-util", "time"] }
+
+# Remote SSH/SFTP sync (pure-Rust, no libssh2/OpenSSL dependency)
+russh = "0.46"
+russh-keys = "0.46"
+russh-sftp = "2.0"
+async-trait = "0.1"
+
 # WebUI server mode (optional)
 axum = { version = "0.8", optional = true, features = ["json", "query", "tokio"] }
 tower-http = { version = "0.6", optional = true, features = ["cors", "fs", "trace"] }
 tower = { version = "0.5", optional = true, features = ["util"] }
-tokio = { version = "1.0", optional = true, features = ["rt-multi-thread", "macros", "signal", "sync"] }
 tokio-stream = { version = "0.1", optional = true, features = ["sync"] }
 rust-embed = { version = "8", optional = true }
 mime_guess = { version = "2", optional = true }

@@ -45,6 +45,19 @@ pub struct ClaudeProject {
     /// Label for custom Claude directory source (e.g., "Personal")
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_directory_label: Option<String>,
+    /// Machine/workload source that produced this project.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<ProjectSource>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSource {
+    pub id: String,
+    pub kind: String,
+    pub display_label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub debug_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

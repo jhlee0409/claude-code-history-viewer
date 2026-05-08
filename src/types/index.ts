@@ -103,6 +103,7 @@ export type {
   ProviderId,
   ProviderInfo,
   ClaudeProject,
+  ProjectSource,
   ClaudeSession,
   SearchFilters,
 } from "./core/session";
@@ -126,6 +127,29 @@ export {
   getSessionDisplayName,
   isProjectHidden,
 } from "./core/project";
+
+// Remote SSH Source Types
+export type {
+  InjectedPaths,
+  InjectedRoot,
+  MissingPath,
+  MissingPathReason,
+  RemoteAuth,
+  RemoteAuthKey,
+  RemoteAuthPassword,
+  RemoteProviderPaths,
+  RemoteSource,
+  RemoteSyncProgress,
+  RemoteSyncStats,
+  RemoteSyncStatus,
+  RemoteSystemKind,
+  SyncOutcome,
+} from "./core/remoteSource";
+export {
+  DEFAULT_REMOTE_PATHS,
+  DEFAULT_SSH_PORT,
+  remoteCacheFolderName,
+} from "./core/remoteSource";
 
 // Settings Types
 export type {
