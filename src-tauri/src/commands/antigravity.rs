@@ -474,13 +474,17 @@ fn parse_token_files(token_file_paths: &[PathBuf]) -> (RpcSessionAggregate, u32,
             .and_then(|ext| ext.to_str())
             .unwrap_or_default()
             .to_ascii_lowercase();
-        // Defense-in-depth: reject symlinked token files. The parent
-        // rpc-cache directory is symlink-guarded upstream, but the files
-        // themselves could still be symlinks pointing outside the root.
-        if let Ok(meta) = std::fs::symlink_metadata(file_path) {
-            if meta.file_type().is_symlink() {
-                continue;
-            }
+        // Defense-in-depth: only read regular files. The parent rpc-cache
+        // directory is symlink-guarded upstream, but the entries within
+        // it could still be symlinks (pointing outside the root) or
+        // non-regular files (FIFOs, devices, …) that could block or
+        // misbehave under `read_to_string`. Match the same guard used
+        // by `load_active_state` / `load_archive_states`.
+        let Ok(meta) = std::fs::symlink_metadata(file_path) else {
+            continue;
+        };
+        if !meta.file_type().is_file() {
+            continue;
         }
         let Ok(content) = std::fs::read_to_string(file_path) else {
             continue;
