@@ -771,7 +771,9 @@ pub fn merge_states(
         }
     }
 
-    // Active overrides archives
+    // Active overrides archives; preserve its last_poll_at so the
+    // frontend can show when the monitor last refreshed.
+    let last_poll_at = active.as_ref().and_then(|a| a.last_poll_at);
     if let Some(active_state) = active {
         for (id, session) in active_state.sessions {
             merged.insert(id, session);
@@ -779,7 +781,7 @@ pub fn merge_states(
     }
 
     AntigravityState {
-        last_poll_at: None,
+        last_poll_at,
         sessions: merged,
     }
 }
@@ -996,6 +998,34 @@ mod tests {
     fn test_merge_states_empty() {
         let merged = merge_states(vec![], None);
         assert!(merged.sessions.is_empty());
+        assert!(merged.last_poll_at.is_none());
+    }
+
+    #[test]
+    fn test_merge_states_preserves_active_last_poll_at() {
+        let archive = AntigravityState {
+            last_poll_at: None,
+            sessions: HashMap::new(),
+        };
+        let active = AntigravityState {
+            last_poll_at: Some(1_700_000_002_000),
+            sessions: HashMap::new(),
+        };
+
+        let merged = merge_states(vec![archive], Some(active));
+        assert_eq!(merged.last_poll_at, Some(1_700_000_002_000));
+    }
+
+    #[test]
+    fn test_merge_states_no_active_drops_archive_last_poll_at() {
+        // Archive states intentionally don't carry their own poll time,
+        // so a merge without an active state results in `None`.
+        let archive = AntigravityState {
+            last_poll_at: Some(1_700_000_000_000),
+            sessions: HashMap::new(),
+        };
+        let merged = merge_states(vec![archive], None);
+        assert!(merged.last_poll_at.is_none());
     }
 
     #[test]

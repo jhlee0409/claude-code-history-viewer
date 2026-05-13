@@ -142,16 +142,18 @@ fn antigravity_chat_token_breakdown(value: &serde_json::Value) -> Option<(u64, u
         return None;
     }
 
-    let chat_tokens = token_breakdown["groups"]
-        .as_array()
-        .map(|groups| {
-            groups
-                .iter()
-                .filter(|group| group["type"].as_str() == Some("TOKEN_TYPE_CHAT_MESSAGES"))
-                .map(|group| group["numTokens"].as_u64().unwrap_or(0))
-                .sum::<u64>()
-        })
-        .unwrap_or(0)
+    // When the `groups` array is missing entirely (e.g. estimatedTokensUsed
+    // was provided without a breakdown), return None so the caller falls
+    // back to the full input/cache totals rather than scaling everything
+    // to zero. An explicit empty `groups` array, or one without any
+    // TOKEN_TYPE_CHAT_MESSAGES entries, is still a legitimate "0 chat
+    // tokens" result and keeps the existing behavior.
+    let groups = token_breakdown["groups"].as_array()?;
+    let chat_tokens = groups
+        .iter()
+        .filter(|group| group["type"].as_str() == Some("TOKEN_TYPE_CHAT_MESSAGES"))
+        .map(|group| group["numTokens"].as_u64().unwrap_or(0))
+        .sum::<u64>()
         .min(total_tokens);
 
     Some((chat_tokens, total_tokens))
@@ -832,7 +834,10 @@ fn collect_provider_global_file_stats(
     let mut project_keys = HashSet::new();
 
     if provider == StatsProvider::Antigravity {
-        let Ok(root) = crate::commands::antigravity::get_antigravity_root()
+        // Use the resolver that honors the external-state override so an
+        // external Antigravity root contributes to the global summary
+        // (the bare get_antigravity_root only returns the default path).
+        let Ok(root) = crate::commands::antigravity::resolve_antigravity_root()
             .ok_or_else(|| "Cannot determine antigravity root directory".to_string())
         else {
             return (Vec::new(), project_keys);
