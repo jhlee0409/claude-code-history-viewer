@@ -1641,12 +1641,15 @@ fn parse_conversation_path(session_path: &str) -> Option<(String, String)> {
 }
 
 /// Validate a single `ForgeCode` virtual path component.
+///
+/// IDs sit at the boundary of rename/delete/load routing, so we apply
+/// the standard `^[A-Za-z0-9_-]+$` allowlist used elsewhere for path
+/// components rather than the looser "no slashes / dots" check.
 fn is_valid_virtual_component(value: &str) -> bool {
     !value.is_empty()
-        && value != "."
-        && value != ".."
-        && !value.contains('/')
-        && !value.contains('\\')
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 /// Quote an `SQLite` identifier for generated `ForgeCode` queries.
@@ -1795,6 +1798,34 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rusqlite::params;
     use tempfile::TempDir;
+
+    /// RAII guard that restores a process-wide env var when dropped.
+    ///
+    /// Use this instead of manual save / set / restore blocks so that the
+    /// original value is put back even if an assertion in the test panics.
+    /// Tests in this module rely on `--test-threads=1` (see project README)
+    /// because env vars are global to the process.
+    struct EnvGuard {
+        key: &'static str,
+        original: Option<String>,
+    }
+
+    impl EnvGuard {
+        fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+            let original = std::env::var(key).ok();
+            std::env::set_var(key, value);
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(v) => std::env::set_var(self.key, v),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
 
     /// Create a temporary `ForgeCode` test database.
     fn create_test_db(tmp: &TempDir) -> Connection {
@@ -2181,16 +2212,9 @@ mod tests {
     fn detection_prefers_forge_config_and_checks_artifacts() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join(".forge_history"), "history").unwrap();
-        let original = std::env::var("FORGE_CONFIG").ok();
-        std::env::set_var("FORGE_CONFIG", tmp.path());
+        let _guard = EnvGuard::set("FORGE_CONFIG", tmp.path());
 
         let detected = detect().unwrap();
-
-        if let Some(original) = original {
-            std::env::set_var("FORGE_CONFIG", original);
-        } else {
-            std::env::remove_var("FORGE_CONFIG");
-        }
 
         assert_eq!(detected.id, "forgecode");
         assert_eq!(detected.display_name, "ForgeCode");
@@ -2323,6 +2347,34 @@ mod tests {
         assert_eq!(
             parse_conversation_path("forgecode-db://workspace/ws-1/conversation/conv-1"),
             Some(("ws-1".to_string(), "conv-1".to_string()))
+        );
+    }
+
+    #[test]
+    /// Reject ids that fall outside the `[A-Za-z0-9_-]+` allowlist.
+    fn parse_conversation_path_rejects_non_allowlist_components() {
+        // path separators and traversal — original constraints
+        assert_eq!(parse_conversation_path("forgecode://workspace/.."), None);
+        assert_eq!(parse_conversation_path("forgecode://workspace/."), None);
+        assert_eq!(
+            parse_conversation_path("forgecode://workspace/ws/conversation/../escape"),
+            None
+        );
+        // characters outside the tightened allowlist
+        assert_eq!(
+            parse_conversation_path("forgecode://workspace/ws 1/conversation/conv-1"),
+            None,
+            "spaces are rejected"
+        );
+        assert_eq!(
+            parse_conversation_path("forgecode://workspace/ws.1/conversation/conv-1"),
+            None,
+            "dots are rejected"
+        );
+        assert_eq!(
+            parse_conversation_path("forgecode://workspace/ws-1/conversation/conv:1"),
+            None,
+            "colons are rejected"
         );
     }
 }

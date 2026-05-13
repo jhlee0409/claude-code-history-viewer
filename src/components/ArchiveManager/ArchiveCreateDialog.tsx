@@ -232,7 +232,11 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                   </p>
                 ) : (
                   filteredProjects.map((project) => {
-                    const canArchive = supportsArchiveCreation(project.provider);
+                    // Normalize provider the same way the create path does so
+                    // legacy data without an explicit provider is treated as
+                    // Claude on both the capability check and the label.
+                    const provider = project.provider ?? 'claude';
+                    const canArchive = supportsArchiveCreation(provider);
                     return (
                     <button
                       key={project.path}
@@ -249,7 +253,7 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{project.name}</p>
                         <p className="text-2xs text-muted-foreground truncate">
-                          {canArchive ? project.actual_path : `${project.provider} — ${t('archive.create.unsupportedProvider')}`}
+                          {canArchive ? project.actual_path : `${provider} — ${t('archive.create.unsupportedProvider')}`}
                         </p>
                       </div>
                       {canArchive && (
