@@ -3343,6 +3343,7 @@ pub async fn get_global_stats_summary(
         summary.token_distribution.output += stats.token_distribution.output;
         summary.token_distribution.cache_creation += stats.token_distribution.cache_creation;
         summary.token_distribution.cache_read += stats.token_distribution.cache_read;
+        summary.token_distribution.reasoning += stats.token_distribution.reasoning;
 
         // Aggregate tool usage
         for (name, (usage, success)) in stats.tool_usage {
@@ -4943,6 +4944,78 @@ mod tests {
         assert_eq!(summary.total_projects, 1);
         assert_eq!(summary.total_sessions, 1);
         assert_eq!(summary.total_tokens, 22);
+    }
+
+    #[tokio::test]
+    #[serial]
+    /// Verify global summary accumulates `token_distribution.reasoning` from
+    /// providers that emit reasoning tokens (Antigravity). Pre-fix, the
+    /// aggregation loop dropped reasoning even though every other distribution
+    /// field was carried through — leaving the UI's reasoning breakdown at 0
+    /// no matter how many reasoning tokens the underlying sessions reported.
+    async fn test_global_summary_aggregates_reasoning_tokens() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let home = temp_dir.path();
+
+        // Override HOME so resolve_antigravity_root() points at our fixture.
+        // env::set_var is process-global → this test must be `#[serial]` so
+        // it cannot race with other HOME-touching tests.
+        let original_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", home);
+
+        let antigravity_root = home.join(".gemini").join("antigravity");
+        let rpc_session = antigravity_root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("session-reasoning");
+        fs::create_dir_all(&rpc_session).expect("failed to create rpc-cache session dir");
+
+        let usage_record = json!({
+            "recordType": "usage",
+            "sessionId": "session-reasoning",
+            "sequence": 0,
+            "model": "claude-sonnet-4-6",
+            "inputTokens": 100,
+            "outputTokens": 50,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 1234,
+            "totalTokens": 1384,
+            "raw": {
+                "chatModel": {
+                    "chatStartMetadata": { "createdAt": "2026-05-14T10:00:00Z" }
+                }
+            }
+        });
+        fs::write(rpc_session.join("usage.jsonl"), format!("{usage_record}\n"))
+            .expect("failed to write antigravity usage file");
+
+        // claude_path is required but the Claude projects subtree is empty —
+        // we are only exercising the Antigravity branch of the global summary.
+        let summary = get_global_stats_summary(
+            home.to_string_lossy().to_string(),
+            Some(vec!["antigravity".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+        )
+        .await
+        .expect("failed to get global summary");
+
+        assert_eq!(
+            summary.token_distribution.reasoning, 1234,
+            "reasoning tokens must reach the global summary, not get dropped during aggregation"
+        );
+        // Sanity: the rest of the distribution still aggregates correctly.
+        assert_eq!(summary.token_distribution.input, 100);
+        assert_eq!(summary.token_distribution.output, 50);
+
+        if let Some(value) = original_home {
+            std::env::set_var("HOME", value);
+        } else {
+            std::env::remove_var("HOME");
+        }
     }
 
     /// Write a temporary `ForgeCode` database used by stats tests.
