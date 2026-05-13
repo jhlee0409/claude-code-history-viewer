@@ -411,8 +411,13 @@ fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
         collect_files(&session_dir, &mut file_paths)?;
 
         let pb_path = conversations_dir.join(format!("{session_id}.pb"));
-        if pb_path.exists() {
-            file_paths.push(pb_path);
+        // Defense-in-depth: reject symlinks even though the parent
+        // directory was already symlink-guarded — a symlinked .pb
+        // artifact could point outside the trusted antigravity root.
+        if let Ok(meta) = std::fs::symlink_metadata(&pb_path) {
+            if !meta.file_type().is_symlink() && meta.file_type().is_file() {
+                file_paths.push(pb_path);
+            }
         }
 
         let mut last_modified_ms = 0;
@@ -469,6 +474,14 @@ fn parse_token_files(token_file_paths: &[PathBuf]) -> (RpcSessionAggregate, u32,
             .and_then(|ext| ext.to_str())
             .unwrap_or_default()
             .to_ascii_lowercase();
+        // Defense-in-depth: reject symlinked token files. The parent
+        // rpc-cache directory is symlink-guarded upstream, but the files
+        // themselves could still be symlinks pointing outside the root.
+        if let Ok(meta) = std::fs::symlink_metadata(file_path) {
+            if meta.file_type().is_symlink() {
+                continue;
+            }
+        }
         let Ok(content) = std::fs::read_to_string(file_path) else {
             continue;
         };
@@ -724,7 +737,11 @@ pub fn load_state_file(path: &Path) -> Result<AntigravityState, String> {
 /// 读取活跃状态 `monitor-state.json`
 pub fn load_active_state(root: &Path) -> Option<AntigravityState> {
     let active_path = root.join("monitor-state.json");
-    if !active_path.exists() {
+    // Defense-in-depth: refuse to follow a symlinked monitor-state.json
+    // even though the parent directory is trusted. `symlink_metadata`
+    // also implicitly checks for existence.
+    let meta = std::fs::symlink_metadata(&active_path).ok()?;
+    if meta.file_type().is_symlink() || !meta.file_type().is_file() {
         return None;
     }
     load_state_file(&active_path).ok()
@@ -746,7 +763,17 @@ pub fn load_archive_states(root: &Path) -> Vec<AntigravityState> {
                 .extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
         {
-            if let Ok(state) = load_state_file(&entry.path()) {
+            let archive_path = entry.path();
+            // Same defense-in-depth as load_active_state: refuse
+            // symlinked archive files regardless of platform
+            // (DirEntry::file_type follows symlinks on some targets).
+            let Ok(meta) = std::fs::symlink_metadata(&archive_path) else {
+                continue;
+            };
+            if meta.file_type().is_symlink() || !meta.file_type().is_file() {
+                continue;
+            }
+            if let Ok(state) = load_state_file(&archive_path) {
                 named.push((name_str, state));
             }
         }
@@ -1091,6 +1118,48 @@ mod tests {
     fn test_load_antigravity_state_impl_missing_dir() {
         let state = load_antigravity_state_impl(Path::new("/nonexistent/path/xyz")).unwrap();
         assert!(state.sessions.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_load_active_state_rejects_symlink() {
+        let dir = TempDir::new().unwrap();
+        // Real, valid state file lives outside the root we'll scan from.
+        let target = dir.path().join("real-state.json");
+        let state = AntigravityState::default();
+        std::fs::write(&target, serde_json::to_string(&state).unwrap()).unwrap();
+
+        // Inside the scanned root, monitor-state.json is a symlink to it.
+        let root = dir.path().join("scan-root");
+        std::fs::create_dir(&root).unwrap();
+        std::os::unix::fs::symlink(&target, root.join("monitor-state.json")).unwrap();
+
+        // Defense-in-depth: refuse to follow the symlink even though
+        // the link target is valid JSON.
+        assert!(load_active_state(&root).is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_load_archive_states_rejects_symlinked_archive() {
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("real-archive.json");
+        let state = AntigravityState::default();
+        std::fs::write(&target, serde_json::to_string(&state).unwrap()).unwrap();
+
+        let root = dir.path().join("scan-root");
+        std::fs::create_dir(&root).unwrap();
+        std::os::unix::fs::symlink(&target, root.join("monitor-state.archive-2025-06.json"))
+            .unwrap();
+        // A real archive file alongside the symlink should still be picked up.
+        std::fs::write(
+            root.join("monitor-state.archive-2025-07.json"),
+            serde_json::to_string(&state).unwrap(),
+        )
+        .unwrap();
+
+        let archives = load_archive_states(&root);
+        assert_eq!(archives.len(), 1);
     }
 
     #[test]
