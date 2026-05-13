@@ -1037,8 +1037,11 @@ mod tests {
         let outside = TempDir::new().unwrap();
         let outside_session = outside.path().join("attacker-payload");
         std::fs::create_dir_all(&outside_session).unwrap();
-        std::fs::write(outside_session.join("usage.jsonl"), "{\"recordType\":\"usage\"}\n")
-            .unwrap();
+        std::fs::write(
+            outside_session.join("usage.jsonl"),
+            "{\"recordType\":\"usage\"}\n",
+        )
+        .unwrap();
 
         // Make the brain entry a symlink to the outside payload.
         std::os::unix::fs::symlink(&outside_session, &brain_link).unwrap();
