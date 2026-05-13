@@ -656,10 +656,21 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
         // entirely, relying on the rpc-cache scan below to pick it up
         // later — but that scan only walks the rpc-cache directory, so
         // brain/-only sessions never reached the synthesized state.
+        //
+        // The storage_dir becomes the session's user-facing file_path
+        // (used by "Reveal in Finder" etc.). Point it at the actual
+        // data location: rpc_dir when token files come from rpc-cache,
+        // session_dir for filesystem-only sessions whose rpc_dir does
+        // not exist on disk.
+        let storage_dir = if has_rpc_artifact {
+            rpc_dir.clone()
+        } else {
+            candidate.session_dir.clone()
+        };
         let persisted = build_session_state(
             &candidate.session_id,
             &candidate.session_dir,
-            &rpc_dir,
+            &storage_dir,
             &candidate.label_hint,
             &token_file_paths,
             effective_last_modified,
@@ -1226,6 +1237,13 @@ mod tests {
         assert!(state.sessions.contains_key("sess-fs"));
         let session = state.sessions.get("sess-fs").unwrap();
         assert_eq!(session.latest.source, "filesystem");
+        // file_path must point at the on-disk brain/ directory, not
+        // the (non-existent) rpc-cache sibling. UI "Reveal in Finder"
+        // and similar actions depend on this being a real path.
+        assert_eq!(
+            session.latest.file_path,
+            session_dir.to_string_lossy().to_string()
+        );
     }
 
     #[test]
@@ -1236,8 +1254,10 @@ mod tests {
         let brain_dir = root.join("brain");
         std::fs::create_dir_all(&brain_dir).unwrap();
         // Names outside the [A-Za-z0-9_-]+ allowlist must be ignored
-        // even when they hold token-bearing files.
-        for bad in ["..weird", "has space", "has.dot", "has:colon"] {
+        // even when they hold token-bearing files. Stick to characters
+        // that are legal on every supported filesystem (Windows
+        // disallows `:`, `/`, etc.) so the test runs cross-platform.
+        for bad in ["..weird", "has space", "has.dot", "has+plus"] {
             let s = brain_dir.join(bad);
             std::fs::create_dir_all(&s).unwrap();
             std::fs::write(s.join("task.md"), "# bad\n").unwrap();
