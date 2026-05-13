@@ -354,7 +354,7 @@ fn convert_assistant_message(
                 let args = tool
                     .get("args")
                     .cloned()
-                    .unwrap_or(Value::Object(Default::default()));
+                    .unwrap_or(Value::Object(serde_json::Map::default()));
                 blocks.push(serde_json::json!({
                     "type": "tool_use",
                     "id": id,
