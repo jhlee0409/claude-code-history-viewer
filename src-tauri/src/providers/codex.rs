@@ -2348,7 +2348,7 @@ mod tests {
     const ENV_CONTEXT_BLOCK: &str = "<environment_context>\n  <cwd>/tmp/proj</cwd>\n  <shell>powershell</shell>\n  <current_date>2026-05-13</current_date>\n  <timezone>Asia/Shanghai</timezone>\n</environment_context>";
 
     #[test]
-    /// First user message is an auto-injected <environment_context> block;
+    /// First user message is an auto-injected `<environment_context>` block;
     /// second user message is a real prompt — the summary should be the
     /// real prompt, not the env-context block.
     fn extract_session_info_skips_environment_context_wrapper() {
