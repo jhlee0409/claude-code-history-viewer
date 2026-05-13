@@ -56,6 +56,13 @@ pub fn resolve_antigravity_root() -> Option<PathBuf> {
 
 /// Resolves the antigravity root from an arbitrary path by walking up the directory
 /// tree and looking for the `.token-monitor/rpc-cache/v1` marker.
+///
+/// Returns `None` when no marker is found. Callers used to receive a
+/// `default_root` fallback here, which meant any path that didn't match
+/// the marker was silently accepted as if it lived under the default
+/// antigravity install — that made downstream `path_in_resolved` checks
+/// trivially pass for arbitrary paths. Refuse to guess: missing marker
+/// now means "this is not a recognizable antigravity root".
 pub fn antigravity_root_from_path(path: &str) -> Option<PathBuf> {
     let candidate = PathBuf::from(path);
     let default_root = get_antigravity_root();
@@ -87,7 +94,7 @@ pub fn antigravity_root_from_path(path: &str) -> Option<PathBuf> {
         }
     }
 
-    default_root
+    None
 }
 
 /// Returns the RPC cache root path for a given antigravity root.
@@ -955,10 +962,14 @@ pub async fn get_antigravity_session(
 pub async fn get_antigravity_project_summary(
     root_path: Option<String>,
 ) -> Result<AntigravityProjectSummary, String> {
+    // Resolution order: marker-anchored root from the supplied path,
+    // then the platform-discovered default. The previous middle step
+    // (accept `PathBuf::from(root_path)` directly) weakened the marker
+    // contract — it would admit any supplied path even when the marker
+    // walk failed.
     let root = root_path
         .as_deref()
         .and_then(antigravity_root_from_path)
-        .or_else(|| root_path.as_ref().map(PathBuf::from))
         .or_else(resolve_antigravity_root)
         .ok_or("Cannot determine antigravity root directory")?;
     let state = load_antigravity_state_impl(&root)?;
@@ -1217,6 +1228,39 @@ mod tests {
 
         let archives = load_archive_states(&root);
         assert_eq!(archives.len(), 1);
+    }
+
+    #[test]
+    fn test_antigravity_root_from_path_returns_none_when_marker_absent() {
+        // A temp directory that has none of the antigravity layout
+        // (no `.token-monitor/rpc-cache/v1`) and is outside the default
+        // root must NOT resolve to anything — the function used to fall
+        // back to `default_root` here, silently making the supplied
+        // path look legitimate.
+        let dir = TempDir::new().unwrap();
+        let unrelated_dir = dir.path().join("not-antigravity");
+        std::fs::create_dir(&unrelated_dir).unwrap();
+
+        let resolved = antigravity_root_from_path(&unrelated_dir.to_string_lossy());
+        assert!(
+            resolved.is_none(),
+            "expected None for marker-absent path, got {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn test_antigravity_root_from_path_finds_marker_in_parent() {
+        // Sanity check that the happy path (the supplied path lives
+        // under a directory that has the `.token-monitor/rpc-cache/v1`
+        // marker) still resolves to that root.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();
+        let nested = root.join("brain").join("sess-x");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let resolved = antigravity_root_from_path(&nested.to_string_lossy()).unwrap();
+        assert_eq!(resolved, root);
     }
 
     #[test]
