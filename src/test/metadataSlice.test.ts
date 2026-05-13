@@ -474,9 +474,7 @@ describe("metadataSlice", () => {
         settings: { wsl: { enabled: false, excludedDistros: [] } },
       });
 
-      await expect(
-        useStore.getState().setWslEnabled(false)
-      ).resolves.not.toThrow();
+      await useStore.getState().setWslEnabled(false);
 
       expect(mockInvoke).toHaveBeenLastCalledWith("update_user_settings", {
         settings: { wsl: { enabled: false, excludedDistros: [] } },
@@ -494,9 +492,7 @@ describe("metadataSlice", () => {
         settings: { wsl: { enabled: true, excludedDistros: ["Ubuntu"] } },
       });
 
-      await expect(
-        useStore.getState().toggleWslDistro("Ubuntu")
-      ).resolves.not.toThrow();
+      await useStore.getState().toggleWslDistro("Ubuntu");
 
       expect(mockInvoke).toHaveBeenLastCalledWith("update_user_settings", {
         settings: { wsl: { enabled: true, excludedDistros: ["Ubuntu"] } },
