@@ -406,6 +406,13 @@ fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
         }
 
         let session_id = entry.file_name().to_string_lossy().to_string();
+        // Defense-in-depth: refuse any brain-dir name that wouldn't be
+        // safe to embed in a file path (e.g. `..`, `foo/bar`, control
+        // chars). The entry filename is read straight from disk so the
+        // allowlist guards against an attacker-placed directory.
+        if !is_valid_antigravity_session_id(&session_id) {
+            continue;
+        }
         let session_dir = entry.path();
         let mut file_paths = Vec::new();
         collect_files(&session_dir, &mut file_paths)?;
@@ -644,22 +651,21 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
             )
         };
 
-        let persisted = if has_rpc_artifact {
-            build_session_state(
-                &candidate.session_id,
-                &candidate.session_dir,
-                &rpc_dir,
-                &candidate.label_hint,
-                &token_file_paths,
-                effective_last_modified,
-                source,
-                SessionLifecycleStatus::Active,
-            )
-        } else {
-            // brain/ session without rpc-cache data — skip; rpc cache scan will find it
-            // if it later has real data files
-            continue;
-        };
+        // Synthesize a session from whichever source is available.
+        // Previously the no-rpc-artifact branch skipped the candidate
+        // entirely, relying on the rpc-cache scan below to pick it up
+        // later — but that scan only walks the rpc-cache directory, so
+        // brain/-only sessions never reached the synthesized state.
+        let persisted = build_session_state(
+            &candidate.session_id,
+            &candidate.session_dir,
+            &rpc_dir,
+            &candidate.label_hint,
+            &token_file_paths,
+            effective_last_modified,
+            source,
+            SessionLifecycleStatus::Active,
+        );
         seen_ids.insert(candidate.session_id.clone());
         sessions.insert(candidate.session_id, persisted);
     }
@@ -676,6 +682,12 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
                 continue;
             }
             let session_id = entry.file_name().to_string_lossy().to_string();
+            // Same allowlist applied to brain/ candidates: a directory
+            // dropped into rpc-cache must look like a session id before
+            // we trust it as a path component or HashMap key.
+            if !is_valid_antigravity_session_id(&session_id) {
+                continue;
+            }
             if seen_ids.contains(&session_id) {
                 continue;
             }
@@ -1194,6 +1206,50 @@ mod tests {
 
         let archives = load_archive_states(&root);
         assert_eq!(archives.len(), 1);
+    }
+
+    #[test]
+    fn test_build_state_includes_filesystem_only_brain_session() {
+        // Regression: a brain/ candidate that has token-bearing files
+        // but no rpc-cache directory was previously dropped on the
+        // floor. It should be synthesized from the filesystem source.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+
+        std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();
+        let session_dir = root.join("brain").join("sess-fs");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        // Drop a minimal text-bearing file so the candidate is admitted.
+        std::fs::write(session_dir.join("task.md"), "# Test session\n").unwrap();
+
+        let state = build_state_from_token_monitor_sources(root).unwrap();
+        assert!(state.sessions.contains_key("sess-fs"));
+        let session = state.sessions.get("sess-fs").unwrap();
+        assert_eq!(session.latest.source, "filesystem");
+    }
+
+    #[test]
+    fn test_scan_brain_candidates_rejects_invalid_session_id() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+
+        let brain_dir = root.join("brain");
+        std::fs::create_dir_all(&brain_dir).unwrap();
+        // Names outside the [A-Za-z0-9_-]+ allowlist must be ignored
+        // even when they hold token-bearing files.
+        for bad in ["..weird", "has space", "has.dot", "has:colon"] {
+            let s = brain_dir.join(bad);
+            std::fs::create_dir_all(&s).unwrap();
+            std::fs::write(s.join("task.md"), "# bad\n").unwrap();
+        }
+        // Sanity: a well-formed name in the same directory is still picked up.
+        let good = brain_dir.join("good-session-1");
+        std::fs::create_dir_all(&good).unwrap();
+        std::fs::write(good.join("task.md"), "# good\n").unwrap();
+
+        let candidates = scan_brain_candidates(root).unwrap();
+        let ids: Vec<&str> = candidates.iter().map(|c| c.session_id.as_str()).collect();
+        assert_eq!(ids, vec!["good-session-1"]);
     }
 
     #[test]
