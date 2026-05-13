@@ -266,8 +266,16 @@ export function useSessionEditing(session: ClaudeSession) {
           setSelectedSession(null);
         }
         toast.success(t("session.deleteSuccess", "Session deleted"));
-      } catch {
-        toast.error(t("session.deleteError", "Failed to delete session"));
+      } catch (error) {
+        const description =
+          error instanceof Error ? error.message : String(error);
+        console.error("[session delete] failed", {
+          sessionId: session.session_id,
+          error,
+        });
+        toast.error(t("session.deleteError", "Failed to delete session"), {
+          description,
+        });
       }
     },
     [providerId, session.file_path, session.session_id, supportsSessionDeletion, t]
