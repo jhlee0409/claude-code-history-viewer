@@ -4688,7 +4688,7 @@ mod tests {
     }
 
     #[test]
-    /// Verify track_antigravity_tool_usage honors the start_date / end_date window.
+    /// Verify `track_antigravity_tool_usage` honors the `start_date` / `end_date` window.
     fn test_track_antigravity_tool_usage_respects_date_filter() {
         let mk = |timestamp: &str, tool: &str| {
             let mut msg = make_test_message(Some("antigravity"), "assistant", None);
