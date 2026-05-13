@@ -1214,6 +1214,27 @@ fn track_tool_usage(message: &ClaudeMessage, tool_usage: &mut HashMap<String, (u
     }
 }
 
+/// Track tool usage across a slice of Antigravity messages while honoring
+/// the active date filter. Per-project token totals filter by record
+/// timestamp; this mirrors that behavior at the message level so the tool
+/// breakdown does not drift from the token totals.
+fn track_antigravity_tool_usage(
+    messages: &[ClaudeMessage],
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+    tool_usage_map: &mut HashMap<String, (u32, u32)>,
+) {
+    let has_date_filter = s_limit.is_some() || e_limit.is_some();
+    for message in messages {
+        if has_date_filter
+            && !is_within_date_limits(parse_timestamp_utc(&message.timestamp), s_limit, e_limit)
+        {
+            continue;
+        }
+        track_tool_usage(message, tool_usage_map);
+    }
+}
+
 /// Extract token usage from a normalized message.
 fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
     if let Some(usage) = &message.usage {
@@ -1891,9 +1912,12 @@ fn get_provider_project_stats_summary(
             summary.token_distribution.reasoning += session_stats.total_reasoning_tokens;
 
             if let Ok(messages) = providers::antigravity::load_messages(&session.file_path) {
-                for message in &messages {
-                    track_tool_usage(message, &mut tool_usage_map);
-                }
+                track_antigravity_tool_usage(
+                    &messages,
+                    s_limit.as_ref(),
+                    e_limit.as_ref(),
+                    &mut tool_usage_map,
+                );
             }
 
             let mut timestamps = records
@@ -4661,6 +4685,56 @@ mod tests {
             .find(|daily| daily.date == "2025-01-01")
             .expect("missing jan1 daily stat");
         assert_eq!(jan1.session_count, 2);
+    }
+
+    #[test]
+    /// Verify track_antigravity_tool_usage honors the start_date / end_date window.
+    fn test_track_antigravity_tool_usage_respects_date_filter() {
+        let mk = |timestamp: &str, tool: &str| {
+            let mut msg = make_test_message(Some("antigravity"), "assistant", None);
+            msg.content = Some(json!([
+                { "type": "text", "text": "preamble" },
+                { "type": "tool_use", "id": "t-1", "name": tool, "input": {} }
+            ]));
+            msg.timestamp = timestamp.to_string();
+            msg
+        };
+
+        let messages = vec![
+            mk("2026-01-01T10:00:00Z", "BrowserClick"),
+            mk("2026-01-05T10:00:00Z", "BrowserGetDom"),
+        ];
+
+        // No filter → both tools tracked.
+        let mut all = HashMap::new();
+        track_antigravity_tool_usage(&messages, None, None, &mut all);
+        assert_eq!(all.len(), 2);
+
+        // Window covering only the second message → only its tool is tracked.
+        let s = parse_date_limit(Some("2026-01-03T00:00:00Z".to_string()), "start_date");
+        let e = parse_date_limit(Some("2026-01-31T00:00:00Z".to_string()), "end_date");
+        let mut filtered = HashMap::new();
+        track_antigravity_tool_usage(&messages, s.as_ref(), e.as_ref(), &mut filtered);
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered.contains_key("BrowserGetDom"));
+        assert!(!filtered.contains_key("BrowserClick"));
+
+        // Window excluding both messages → empty.
+        let s = parse_date_limit(Some("2026-02-01T00:00:00Z".to_string()), "start_date");
+        let mut none = HashMap::new();
+        track_antigravity_tool_usage(&messages, s.as_ref(), None, &mut none);
+        assert!(none.is_empty());
+
+        // Unparseable timestamp with an active filter is rejected (defensive).
+        let mut bad_msg = make_test_message(Some("antigravity"), "assistant", None);
+        bad_msg.content = Some(json!([
+            { "type": "tool_use", "id": "t-2", "name": "BrowserClick", "input": {} }
+        ]));
+        bad_msg.timestamp = "not-a-timestamp".to_string();
+        let s = parse_date_limit(Some("2020-01-01T00:00:00Z".to_string()), "start_date");
+        let mut rejected = HashMap::new();
+        track_antigravity_tool_usage(&[bad_msg], s.as_ref(), None, &mut rejected);
+        assert!(rejected.is_empty());
     }
 
     #[test]
