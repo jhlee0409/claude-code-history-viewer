@@ -302,13 +302,21 @@ export const createMetadataSlice: StateCreator<
 
   setWslEnabled: async (enabled: boolean) => {
     const current = get().userMetadata?.settings ?? {};
-    const wsl: WslSettings = current.wsl ?? { enabled: false, excludedDistros: [] };
+    const rawWsl = current.wsl;
+    const wsl: WslSettings = {
+      enabled: rawWsl?.enabled ?? false,
+      excludedDistros: rawWsl?.excludedDistros ?? [],
+    };
     await get().updateUserSettings({ wsl: { ...wsl, enabled } });
   },
 
   toggleWslDistro: async (distroName: string) => {
     const current = get().userMetadata?.settings ?? {};
-    const wsl: WslSettings = current.wsl ?? { enabled: false, excludedDistros: [] };
+    const rawWsl = current.wsl;
+    const wsl: WslSettings = {
+      enabled: rawWsl?.enabled ?? false,
+      excludedDistros: rawWsl?.excludedDistros ?? [],
+    };
     const excluded = wsl.excludedDistros.includes(distroName)
       ? wsl.excludedDistros.filter((d: string) => d !== distroName)
       : [...wsl.excludedDistros, distroName];

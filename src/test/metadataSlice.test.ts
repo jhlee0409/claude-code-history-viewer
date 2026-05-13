@@ -441,6 +441,91 @@ describe("metadataSlice", () => {
   });
 
   // ==========================================================================
+  // WSL Handler Tests
+  // ==========================================================================
+
+  describe("setWslEnabled / toggleWslDistro with partial settings", () => {
+    // Regression for #305: when persisted wsl settings exist but omit
+    // excludedDistros (e.g. legacy data), handlers must not throw.
+
+    const seedPartialWsl = async (
+      useStore: ReturnType<typeof createTestStore>,
+      // intentionally missing excludedDistros to simulate the legacy shape
+      wsl: { enabled?: boolean; excludedDistros?: string[] }
+    ) => {
+      const metadata: UserMetadata = {
+        version: 1,
+        sessions: {},
+        projects: {},
+        settings: { wsl: wsl as unknown as UserMetadata["settings"]["wsl"] },
+      };
+      mockInvoke.mockResolvedValueOnce(metadata);
+      await useStore.getState().loadMetadata();
+    };
+
+    it("setWslEnabled handles wsl object missing excludedDistros", async () => {
+      const useStore = createTestStore();
+      await seedPartialWsl(useStore, { enabled: true });
+
+      mockInvoke.mockResolvedValueOnce({
+        version: 1,
+        sessions: {},
+        projects: {},
+        settings: { wsl: { enabled: false, excludedDistros: [] } },
+      });
+
+      await expect(
+        useStore.getState().setWslEnabled(false)
+      ).resolves.not.toThrow();
+
+      expect(mockInvoke).toHaveBeenLastCalledWith("update_user_settings", {
+        settings: { wsl: { enabled: false, excludedDistros: [] } },
+      });
+    });
+
+    it("toggleWslDistro handles wsl object missing excludedDistros", async () => {
+      const useStore = createTestStore();
+      await seedPartialWsl(useStore, { enabled: true });
+
+      mockInvoke.mockResolvedValueOnce({
+        version: 1,
+        sessions: {},
+        projects: {},
+        settings: { wsl: { enabled: true, excludedDistros: ["Ubuntu"] } },
+      });
+
+      await expect(
+        useStore.getState().toggleWslDistro("Ubuntu")
+      ).resolves.not.toThrow();
+
+      expect(mockInvoke).toHaveBeenLastCalledWith("update_user_settings", {
+        settings: { wsl: { enabled: true, excludedDistros: ["Ubuntu"] } },
+      });
+    });
+
+    it("toggleWslDistro round-trips for fully formed wsl object", async () => {
+      const useStore = createTestStore();
+      await seedPartialWsl(useStore, {
+        enabled: true,
+        excludedDistros: ["Ubuntu"],
+      });
+
+      mockInvoke.mockResolvedValueOnce({
+        version: 1,
+        sessions: {},
+        projects: {},
+        settings: { wsl: { enabled: true, excludedDistros: [] } },
+      });
+
+      await useStore.getState().toggleWslDistro("Ubuntu");
+
+      expect(mockInvoke).toHaveBeenLastCalledWith("update_user_settings", {
+        settings: { wsl: { enabled: true, excludedDistros: [] } },
+      });
+    });
+  });
+
+  // ==========================================================================
   // getSessionDisplayName Tests
   // ==========================================================================
 

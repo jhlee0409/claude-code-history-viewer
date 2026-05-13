@@ -38,9 +38,10 @@ function WslSectionInner({ isExpanded, onToggle }: WslSectionProps) {
   const { t } = useTranslation();
   const { userMetadata, setWslEnabled, toggleWslDistro } = useAppStore();
 
-  const wslSettings = userMetadata?.settings?.wsl ?? {
-    enabled: false,
-    excludedDistros: [],
+  const rawWsl = userMetadata?.settings?.wsl;
+  const wslSettings = {
+    enabled: rawWsl?.enabled ?? false,
+    excludedDistros: rawWsl?.excludedDistros ?? [],
   };
 
   const [distros, setDistros] = useState<WslDistro[]>([]);
