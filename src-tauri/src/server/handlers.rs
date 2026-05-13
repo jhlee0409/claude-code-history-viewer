@@ -460,7 +460,10 @@ handler_json!(
 handler_json!(
     get_session_subagents,
     SessionPathParam,
-    |p: SessionPathParam| async move { commands::session::get_session_subagents(p.session_path).await }
+    |p: SessionPathParam| async move {
+        commands::session::is_safe_session_path(&PathBuf::from(&p.session_path))?;
+        commands::session::get_session_subagents(p.session_path).await
+    }
 );
 
 handler_json!(
