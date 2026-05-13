@@ -433,13 +433,26 @@ pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeS
 /// and fall back to the rpc-cache location for filesystem-only / brain-only
 /// sessions. Returns `None` when the session path does not resolve to a
 /// recognised Antigravity root, or when neither candidate exists.
+///
+/// Canonicalises `session_path` before reading so a symlinked session
+/// directory cannot bypass [`marker_rooted_path`]'s textual root check by
+/// pointing outside the antigravity root.
 pub(crate) fn resolve_usage_jsonl_path(session_path: &str) -> Option<PathBuf> {
     let dir = PathBuf::from(session_path);
-    let usage_path = dir.join("usage.jsonl");
-    if usage_path.exists() {
-        return Some(usage_path);
+
+    // Prefer an in-session `usage.jsonl`. Canonicalising first dereferences
+    // any directory-level symlinks; a candidate that resolves outside a
+    // marker-rooted antigravity root is rejected.
+    if let Ok(canonical_dir) = std::fs::canonicalize(&dir) {
+        let usage_path = canonical_dir.join("usage.jsonl");
+        if usage_path.exists() {
+            return marker_rooted_path(&canonical_dir.to_string_lossy())
+                .map(|_| usage_path);
+        }
     }
 
+    // Fallback: rpc-cache. The file lives by construction under the
+    // marker-rooted antigravity root, so the textual session_id is safe.
     let root = marker_rooted_path(session_path)?;
     let session_id = dir.file_name()?.to_string_lossy().to_string();
     let rpc_cache = get_antigravity_rpc_cache_root(&root)
@@ -972,8 +985,56 @@ mod tests {
         std::fs::create_dir_all(&session_dir).unwrap();
         std::fs::write(session_dir.join("usage.jsonl"), "{}\n").unwrap();
 
+        // resolve_usage_jsonl_path now canonicalises the input, so the
+        // returned path may differ textually from session_dir on platforms
+        // where the temp dir lives under a symlinked prefix (e.g. macOS
+        // `/var` → `/private/var`). Canonicalise both sides for the
+        // comparison.
         let resolved = resolve_usage_jsonl_path(&session_dir.to_string_lossy()).unwrap();
-        assert_eq!(resolved, session_dir.join("usage.jsonl"));
+        let expected = std::fs::canonicalize(&session_dir)
+            .unwrap()
+            .join("usage.jsonl");
+        assert_eq!(resolved, expected);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    /// A symlinked session directory pointing outside any marker-rooted
+    /// antigravity root must NOT resolve to a readable `usage.jsonl`. Pre-fix
+    /// behaviour: `dir.join("usage.jsonl")` would follow the symlink and read
+    /// the attacker-controlled target.
+    fn test_resolve_usage_jsonl_path_rejects_symlink_escaping_root() {
+        // "Inside" tree — a legitimate antigravity root.
+        let inside = TempDir::new().unwrap();
+        std::fs::create_dir_all(
+            inside
+                .path()
+                .join(".token-monitor")
+                .join("rpc-cache")
+                .join("v1"),
+        )
+        .unwrap();
+        let brain_link = inside.path().join("brain").join("session-evil");
+        std::fs::create_dir_all(inside.path().join("brain")).unwrap();
+
+        // "Outside" tree — no antigravity marker; contains a usage.jsonl that
+        // an attacker would like us to read.
+        let outside = TempDir::new().unwrap();
+        let outside_session = outside.path().join("attacker-payload");
+        std::fs::create_dir_all(&outside_session).unwrap();
+        std::fs::write(outside_session.join("usage.jsonl"), "{\"recordType\":\"usage\"}\n")
+            .unwrap();
+
+        // Make the brain entry a symlink to the outside payload.
+        std::os::unix::fs::symlink(&outside_session, &brain_link).unwrap();
+
+        // Resolution must reject the path because the canonical form escapes
+        // every marker-rooted antigravity root we can detect.
+        let resolved = resolve_usage_jsonl_path(&brain_link.to_string_lossy());
+        assert!(
+            resolved.is_none(),
+            "symlinked session directory escaping the antigravity root must not resolve to a readable usage.jsonl"
+        );
     }
 
     #[test]
