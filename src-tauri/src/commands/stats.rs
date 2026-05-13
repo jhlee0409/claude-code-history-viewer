@@ -1389,10 +1389,9 @@ fn calculate_session_active_minutes(timestamps: &mut [DateTime<Utc>]) -> u32 {
 fn load_antigravity_usage_records(
     session_path: &str,
 ) -> Result<Vec<AntigravityUsageRecord>, String> {
-    let usage_path = PathBuf::from(session_path).join("usage.jsonl");
-    if !usage_path.exists() {
+    let Some(usage_path) = providers::antigravity::resolve_usage_jsonl_path(session_path) else {
         return Ok(vec![]);
-    }
+    };
 
     let content = fs::read_to_string(&usage_path)
         .map_err(|e| format!("Failed to read {}: {}", usage_path.display(), e))?;
@@ -4749,6 +4748,79 @@ mod tests {
             .find(|entry| entry.hour == 16 && entry.day == 2)
             .expect("missing activity heatmap entry");
         assert_eq!(heatmap.tokens_used, 930);
+    }
+
+    #[test]
+    /// `load_antigravity_usage_records` mirrors the rpc-cache fallback used by
+    /// `providers::antigravity::load_messages` so a brain/-only session whose
+    /// `usage.jsonl` lives in the rpc-cache contributes records (and therefore
+    /// tokens) to per-session / project / global stats.
+    fn test_load_antigravity_usage_records_falls_back_to_rpc_cache() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let root = temp_dir.path();
+        let rpc_v1 = root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("session-brain-only");
+        fs::create_dir_all(&rpc_v1).expect("failed to create rpc-cache session dir");
+
+        // Brain/-only session — no in-place usage.jsonl.
+        let brain_dir = root.join("brain").join("session-brain-only");
+        fs::create_dir_all(&brain_dir).expect("failed to create brain dir");
+
+        // The rpc-cache carries the actual usage record.
+        let usage_record = json!({
+            "recordType": "usage",
+            "sessionId": "session-brain-only",
+            "sequence": 0,
+            "model": "claude-sonnet-4-6",
+            "inputTokens": 1000,
+            "outputTokens": 200,
+            "cacheReadTokens": 600,
+            "cacheWriteTokens": 100,
+            "reasoningTokens": 50,
+            "totalTokens": 1950,
+            "raw": {
+                "chatModel": {
+                    "chatStartMetadata": {
+                        "createdAt": "2026-04-14T16:28:44Z"
+                    }
+                }
+            }
+        });
+        fs::write(rpc_v1.join("usage.jsonl"), format!("{usage_record}\n"))
+            .expect("failed to write rpc-cache usage file");
+
+        let records = load_antigravity_usage_records(&brain_dir.to_string_lossy())
+            .expect("expected fallback to surface rpc-cache records");
+
+        assert_eq!(
+            records.len(),
+            1,
+            "fallback should surface the rpc-cache record"
+        );
+        let record = &records[0];
+        assert_eq!(record.input_tokens, 1000);
+        assert_eq!(record.output_tokens, 200);
+        assert_eq!(record.total_tokens, 1950);
+    }
+
+    #[test]
+    /// When neither in-session nor rpc-cache `usage.jsonl` exists, the helper
+    /// returns `Ok(vec![])` (legacy behaviour preserved).
+    fn test_load_antigravity_usage_records_returns_empty_when_missing() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let root = temp_dir.path();
+        fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1"))
+            .expect("failed to create rpc-cache root");
+
+        let brain_dir = root.join("brain").join("session-none");
+        fs::create_dir_all(&brain_dir).expect("failed to create brain dir");
+
+        let records = load_antigravity_usage_records(&brain_dir.to_string_lossy())
+            .expect("expected empty result");
+        assert!(records.is_empty());
     }
 
     #[tokio::test]

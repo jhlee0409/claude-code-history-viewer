@@ -428,31 +428,39 @@ pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeS
     Ok(sessions)
 }
 
-/// Map each usage record in a session's usage.jsonl to a pair of `ClaudeMessages`.
+/// Resolve the `usage.jsonl` path for an Antigravity session, mirroring
+/// the lookup used by [`load_messages`]: prefer `<session_path>/usage.jsonl`
+/// and fall back to the rpc-cache location for filesystem-only / brain-only
+/// sessions. Returns `None` when the session path does not resolve to a
+/// recognised Antigravity root, or when neither candidate exists.
+pub(crate) fn resolve_usage_jsonl_path(session_path: &str) -> Option<PathBuf> {
+    let dir = PathBuf::from(session_path);
+    let usage_path = dir.join("usage.jsonl");
+    if usage_path.exists() {
+        return Some(usage_path);
+    }
+
+    let root = marker_rooted_path(session_path)?;
+    let session_id = dir.file_name()?.to_string_lossy().to_string();
+    let rpc_cache = get_antigravity_rpc_cache_root(&root)
+        .join(&session_id)
+        .join("usage.jsonl");
+    if rpc_cache.exists() {
+        Some(rpc_cache)
+    } else {
+        None
+    }
+}
+
+/// Map each usage record in a session's `usage.jsonl` to a pair of `ClaudeMessages`.
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
-    let dir = std::path::PathBuf::from(session_path);
-    let session_id = dir
+    let session_id = PathBuf::from(session_path)
         .file_name()
         .map(|f| f.to_string_lossy().to_string())
         .unwrap_or_default();
 
-    let root = match marker_rooted_path(session_path) {
-        Some(root) => root,
-        None => return Ok(vec![]),
-    };
-
-    let usage_path = dir.join("usage.jsonl");
-    let usage_path = if usage_path.exists() {
-        usage_path
-    } else {
-        let rpc_cache = get_antigravity_rpc_cache_root(&root)
-            .join(&session_id)
-            .join("usage.jsonl");
-        if rpc_cache.exists() {
-            rpc_cache
-        } else {
-            return Ok(vec![]);
-        }
+    let Some(usage_path) = resolve_usage_jsonl_path(session_path) else {
+        return Ok(vec![]);
     };
 
     let content = std::fs::read_to_string(&usage_path)
@@ -951,5 +959,59 @@ mod tests {
         results.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         results.truncate(max_results);
         results
+    }
+
+    #[test]
+    /// Direct `<session_path>/usage.jsonl` is returned when it exists.
+    fn test_resolve_usage_jsonl_path_prefers_in_session_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();
+
+        let session_dir = root.join("brain").join("session-direct");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        std::fs::write(session_dir.join("usage.jsonl"), "{}\n").unwrap();
+
+        let resolved = resolve_usage_jsonl_path(&session_dir.to_string_lossy()).unwrap();
+        assert_eq!(resolved, session_dir.join("usage.jsonl"));
+    }
+
+    #[test]
+    /// When `<session_path>/usage.jsonl` is absent, fall back to the rpc-cache
+    /// location — matching what `load_messages` already does for brain/-only
+    /// sessions.
+    fn test_resolve_usage_jsonl_path_falls_back_to_rpc_cache() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let rpc_v1 = root.join(".token-monitor").join("rpc-cache").join("v1");
+        std::fs::create_dir_all(&rpc_v1).unwrap();
+
+        // Brain/-only session with no in-place usage.jsonl.
+        let session_id = "session-fallback";
+        let brain_dir = root.join("brain").join(session_id);
+        std::fs::create_dir_all(&brain_dir).unwrap();
+
+        // The same session has token data in the rpc-cache.
+        let cached_session = rpc_v1.join(session_id);
+        std::fs::create_dir_all(&cached_session).unwrap();
+        let cached_usage = cached_session.join("usage.jsonl");
+        std::fs::write(&cached_usage, "{}\n").unwrap();
+
+        let resolved = resolve_usage_jsonl_path(&brain_dir.to_string_lossy()).unwrap();
+        assert_eq!(resolved, cached_usage);
+    }
+
+    #[test]
+    /// Returns `None` when neither the in-session nor the rpc-cache file
+    /// exists — callers should treat this as "no records".
+    fn test_resolve_usage_jsonl_path_returns_none_when_missing_everywhere() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();
+
+        let brain_dir = root.join("brain").join("session-empty");
+        std::fs::create_dir_all(&brain_dir).unwrap();
+
+        assert!(resolve_usage_jsonl_path(&brain_dir.to_string_lossy()).is_none());
     }
 }
