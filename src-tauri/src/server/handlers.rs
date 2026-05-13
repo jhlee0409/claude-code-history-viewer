@@ -458,6 +458,12 @@ handler_json!(
 );
 
 handler_json!(
+    get_session_subagents,
+    SessionPathParam,
+    |p: SessionPathParam| async move { commands::session::get_session_subagents(p.session_path).await }
+);
+
+handler_json!(
     search_messages,
     SearchParams,
     |p: SearchParams| async move {
