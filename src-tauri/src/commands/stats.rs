@@ -4263,6 +4263,18 @@ mod tests {
     #[test]
     fn test_antigravity_conversation_breakdown_uses_chat_message_tokens() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
+        // resolve_usage_jsonl_path validates the canonical session_path is
+        // under a marker-rooted antigravity root before reading. Create the
+        // marker so this loose-fixture test goes through the same security
+        // path as production callers.
+        fs::create_dir_all(
+            temp_dir
+                .path()
+                .join(".token-monitor")
+                .join("rpc-cache")
+                .join("v1"),
+        )
+        .expect("failed to create antigravity marker");
         let session_dir = temp_dir.path().join("session-123");
         fs::create_dir_all(&session_dir).expect("failed to create session dir");
 
