@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-05-07
+
+### Added
+- **Antigravity Provider**: Sessions loaded through the standard provider pipeline with full project/session views, token stats, analytics, and global search — no separate UI mode (#291)
+- **ForgeCode Provider**: SQLite-backed reader for `~/.forge/.forge.db` with multi-provider plumbing for scan, sessions, messages, search, stats, and archive (#295)
+- **External Session Launching**: New `--session <uuid-or-prefix>` CLI flag (#261), with single-instance enforcement plus macOS Apple Events for re-invocation (#274), Stage B prefix resolvers and a session picker modal for ambiguous input (#270, #272)
+- **Show Sub-agent Messages Toggle**: Header settings dropdown now exposes the existing `excludeSidechain` filter so users can collapse sub-agent clutter without DevTools (#299, addresses #282)
+- **Symlink Following at Depth 1**: `scan_projects` follows directory symlinks one level deep with deduplication and tests (#277, #281)
+
+### Changed
+- Render context menus in a portal so they anchor precisely to the cursor (#268)
+- Clamp context menus to panel bounds and close on outside scroll (#278)
+- Apply custom Claude directory selection instantly without restart (#255)
+- Bump session list fixed row height to fit 2-line wrapped names (#298)
+- Multi-pass scroll to correct TOC click landing position (#303)
+- Unified argv parser shared between desktop and `cchv-server` (#271)
+
+### Fixed
+- Resolve infinite loading and rendering issues for sub-agent sessions (#258, #264)
+- Fall back to estimated cost when `costUSD` is absent in message metadata (#301)
+- Boot correctly for setups without `~/.claude` (other-provider-only configurations) (#300)
+- Bound graceful shutdown so `cchv-server` exits on Ctrl+C (#297)
+- Preserve bubble timestamps in search results (#273)
+- Dedupe token usage across split assistant turn rows (#283, #289)
+
+### Internal
+- Align `@tauri-apps/api`, `plugin-dialog`, `plugin-updater` JS packages with their Rust crates (`tauri-action` enforces version match)
+- Replace `sort_by` + `Reverse` comparator with idiomatic `sort_by_key` (#275)
+
+### New Contributors
+- @BenCello (#277)
+- @djdarcy (#261)
+- @greenbritainclub-ux (#268)
+- @isimple4 (#273)
+
+## [1.11.0] - 2026-04-12
+
+### Added
+- **Auto-refresh Sessions**: Session list auto-refreshes when underlying files change; auto-scroll to bottom on new messages (#242)
+- **Project Panel Search & Horizontal Scrollbar**: Search box plus horizontal scrollbar for long project names (#248)
+- **Session Right-click Context Menu**: Copy session ID, resume command, file path; delete session; show JSONL file; native rename with search integration (#251)
+- **Sub-agent Conversation History**: View sub-agent (sidechain) conversation history (#252)
+- **Custom Claude Config Directories**: Support directories outside `~/.claude` for users with non-default configurations (#254)
+
+### Fixed
+- WSL scan toggle not working (#247)
+- Docker proxy support and missing runtime libraries for `webui-server` mode (#243)
+
+### New Contributors
+- @freekingxx (#243)
+
 ## [1.10.0] - 2026-04-10
 
 ### Added

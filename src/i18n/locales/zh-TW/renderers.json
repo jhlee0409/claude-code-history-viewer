@@ -38,6 +38,8 @@
   "renderers.agentTool.messages": "{{count}} 則訊息",
   "assistantMessageDetails.cacheCreation": "快取建立",
   "assistantMessageDetails.cacheRead": "快取讀取",
+  "assistantMessageDetails.costEstimated": "依據權杖用量估算；來源 JSONL 不包含 costUSD。",
+  "assistantMessageDetails.estimated": "估算",
   "assistantMessageDetails.input": "輸入",
   "assistantMessageDetails.model": "模型",
   "assistantMessageDetails.output": "輸出",

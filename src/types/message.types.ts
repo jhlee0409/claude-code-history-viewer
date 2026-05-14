@@ -176,6 +176,12 @@ export interface ClaudeUserMessage extends BaseClaudeMessage {
 export interface ClaudeAssistantMessage extends BaseClaudeMessage {
   type: "assistant";
   role: "assistant";
+  /**
+   * API message id (e.g. `msg_01...`). One assistant turn may produce
+   * multiple JSONL rows that share this id; consumers aggregating tokens
+   * must dedup by (sessionId, messageId) to avoid double-counting (#283).
+   */
+  messageId?: string;
   model?: string;
   stop_reason?: "tool_use" | "end_turn" | "max_tokens" | "customer_cancelled" | "consumer_cancelled" | string;
   usage?: {

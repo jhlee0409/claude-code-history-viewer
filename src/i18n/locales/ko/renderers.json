@@ -38,6 +38,8 @@
   "renderers.agentTool.messages": "{{count}}개 메시지",
   "assistantMessageDetails.cacheCreation": "캐시 생성",
   "assistantMessageDetails.cacheRead": "캐시 읽기",
+  "assistantMessageDetails.costEstimated": "토큰 사용량으로 추정한 값입니다. 원본 JSONL에 costUSD 값이 없습니다.",
+  "assistantMessageDetails.estimated": "추정",
   "assistantMessageDetails.input": "입력",
   "assistantMessageDetails.model": "모델",
   "assistantMessageDetails.output": "출력",

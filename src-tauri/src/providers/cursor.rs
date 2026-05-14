@@ -424,6 +424,7 @@ fn convert_cursor_bubble(
     bubble_type: u64,
     session_id: &str,
 ) -> Option<ClaudeMessage> {
+    let timestamp = extract_bubble_timestamp(bubble);
     let text = bubble.get("text").and_then(Value::as_str).unwrap_or("");
     let bubble_id = bubble
         .get("bubbleId")
@@ -431,8 +432,8 @@ fn convert_cursor_bubble(
         .unwrap_or("unknown");
 
     match bubble_type {
-        1 => convert_user_bubble(bubble, text, bubble_id, session_id),
-        2 => convert_assistant_bubble(bubble, text, bubble_id, session_id),
+        1 => convert_user_bubble(bubble, text, bubble_id, session_id, &timestamp),
+        2 => convert_assistant_bubble(bubble, text, bubble_id, session_id, &timestamp),
         _ => None,
     }
 }
@@ -442,6 +443,7 @@ fn convert_user_bubble(
     text: &str,
     bubble_id: &str,
     session_id: &str,
+    timestamp: &str,
 ) -> Option<ClaudeMessage> {
     let mut content_blocks: Vec<Value> = Vec::new();
 
@@ -484,7 +486,7 @@ fn convert_user_bubble(
         "cursor",
         bubble_id.to_string(),
         session_id,
-        String::new(),
+        timestamp.to_string(),
         "user",
         Some("user"),
         Some(Value::Array(content_blocks)),
@@ -497,6 +499,7 @@ fn convert_assistant_bubble(
     text: &str,
     bubble_id: &str,
     session_id: &str,
+    timestamp: &str,
 ) -> Option<ClaudeMessage> {
     let mut content_blocks: Vec<Value> = Vec::new();
 
@@ -563,12 +566,42 @@ fn convert_assistant_bubble(
         "cursor",
         bubble_id.to_string(),
         session_id,
-        String::new(),
+        timestamp.to_string(),
         "assistant",
         Some("assistant"),
         Some(Value::Array(content_blocks)),
         None,
     ))
+}
+
+fn extract_bubble_timestamp(bubble: &Value) -> String {
+    bubble
+        .get("createdAt")
+        .and_then(Value::as_str)
+        .filter(|timestamp| !timestamp.is_empty())
+        .map(std::string::ToString::to_string)
+        .or_else(|| {
+            bubble
+                .get("timestamp")
+                .and_then(Value::as_str)
+                .filter(|timestamp| !timestamp.is_empty())
+                .map(std::string::ToString::to_string)
+        })
+        .or_else(|| {
+            bubble
+                .get("createdAt")
+                .and_then(Value::as_f64)
+                .map(|timestamp| ms_to_iso(timestamp as u64))
+                .filter(|timestamp| !timestamp.is_empty())
+        })
+        .or_else(|| {
+            bubble
+                .get("timestamp")
+                .and_then(Value::as_f64)
+                .map(|timestamp| ms_to_iso(timestamp as u64))
+                .filter(|timestamp| !timestamp.is_empty())
+        })
+        .unwrap_or_default()
 }
 
 fn map_cursor_tool_name(name: &str) -> &str {
@@ -598,12 +631,14 @@ mod tests {
         let bubble = json!({
             "type": 1,
             "bubbleId": "user-1",
+            "createdAt": "2026-01-24T09:45:46.113Z",
             "text": "Hello from Cursor",
             "images": []
         });
         let result = convert_cursor_bubble(&bubble, 1, "session-1").unwrap();
         assert_eq!(result.message_type, "user");
         assert_eq!(result.provider, Some("cursor".to_string()));
+        assert_eq!(result.timestamp, "2026-01-24T09:45:46.113Z");
     }
 
     #[test]
@@ -611,13 +646,29 @@ mod tests {
         let bubble = json!({
             "type": 2,
             "bubbleId": "asst-1",
+            "createdAt": "2026-01-24T09:46:01.000Z",
             "text": "Here is the answer"
         });
         let result = convert_cursor_bubble(&bubble, 2, "session-1").unwrap();
         assert_eq!(result.message_type, "assistant");
+        assert_eq!(result.timestamp, "2026-01-24T09:46:01.000Z");
         let content = result.content.unwrap();
         let arr = content.as_array().unwrap();
         assert_eq!(arr[0]["type"], "text");
+    }
+
+    #[test]
+    fn test_convert_user_bubble_with_numeric_timestamp() {
+        let bubble = json!({
+            "type": 1,
+            "bubbleId": "user-2",
+            "createdAt": 1700000000000_u64,
+            "text": "Hello from Cursor",
+            "images": []
+        });
+        let result = convert_cursor_bubble(&bubble, 1, "session-1").unwrap();
+        assert_eq!(result.message_type, "user");
+        assert_eq!(result.timestamp, ms_to_iso(1700000000000));
     }
 
     #[test]

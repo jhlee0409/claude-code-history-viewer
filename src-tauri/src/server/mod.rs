@@ -87,6 +87,7 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
         .route("/search_messages", post(h::search_messages))
         .route("/get_recent_edits", post(h::get_recent_edits))
         .route("/restore_file", post(h::restore_file))
+        .route("/delete_session", post(h::delete_session))
         // Rename commands
         .route("/rename_session_native", post(h::rename_session_native))
         .route(
@@ -393,12 +394,32 @@ pub async fn start(state: Arc<AppState>, host: &str, port: u16, dist_dir: Option
         .expect("Axum server error");
 }
 
-/// Wait for SIGINT (Ctrl+C) or SIGTERM for graceful shutdown.
+/// Wait for SIGINT (Ctrl+C) for graceful shutdown.
+///
+/// `axum::serve(...).with_graceful_shutdown(...)` waits for every in-flight
+/// request to complete before exiting. The SSE stream at `/api/events` is a
+/// long-lived response that never completes on its own, so a single Ctrl+C
+/// would otherwise hang the process indefinitely (#286).
+///
+/// To bound the wait, we spawn a fallback task after the first signal: it
+/// races a 2-second grace window against a second Ctrl+C and exits the
+/// process when either fires. The graceful path still wins for short-lived
+/// requests that drain inside the grace window.
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()
         .await
         .expect("Failed to install CTRL+C signal handler");
     eprintln!("\n🛑 Shutting down WebUI server...");
+
+    tokio::spawn(async {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                eprintln!("⚡ Force exit (second Ctrl+C).");
+            }
+            () = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+        }
+        std::process::exit(0);
+    });
 }
 
 #[cfg(test)]

@@ -1,3 +1,4 @@
+pub mod antigravity;
 pub mod archive;
 pub mod claude_settings;
 pub mod feedback;

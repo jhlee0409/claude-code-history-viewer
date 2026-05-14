@@ -77,14 +77,20 @@ export const useNativeRename = (): UseNativeRenameReturn => {
         }
       }
 
-      if (provider !== "claude") {
+      if (provider !== "claude" && provider !== "forgecode") {
         const errorMessage = `Native rename is not supported for provider: ${provider}`;
         setError(errorMessage);
         throw new Error(errorMessage);
       }
 
-      // Validate absolute path before calling Claude backend command
-      if (!filePath || !isAbsolutePath(filePath)) {
+      if (!filePath) {
+        const errorMessage = "Invalid file path: path is required";
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      // Claude sessions are filesystem-backed and require absolute paths.
+      if (provider === "claude" && !isAbsolutePath(filePath)) {
         const errorMessage = "Invalid file path: must be an absolute path";
         setError(errorMessage);
         throw new Error(errorMessage);

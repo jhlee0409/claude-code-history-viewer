@@ -176,9 +176,13 @@ export function useAppKeyboard() {
     let unlistenRemoteRefresh: (() => void) | undefined;
     void listen("remote-refresh-requested", () => {
       void syncRemotesAndRefresh();
-    }).then((unlisten) => {
-      unlistenRemoteRefresh = unlisten;
-    });
+    })
+      .then((unlisten) => {
+        unlistenRemoteRefresh = unlisten;
+      })
+      .catch((error) => {
+        console.debug("remote-refresh listener unavailable:", error);
+      });
 
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     document.addEventListener("keydown", handleKeyDown, { capture: true });

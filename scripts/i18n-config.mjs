@@ -18,6 +18,9 @@ export const NAMESPACES = [
   'update',
   'feedback',
   'recentEdits',
+  'archive',
+  'antigravity',
+  'remoteSources',
 ];
 
 export const LANGUAGES = ['en', 'ko', 'ja', 'zh-CN', 'zh-TW'];

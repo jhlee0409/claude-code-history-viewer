@@ -1,0 +1,14 @@
+---
+source: src/models/snapshot_tests.rs
+expression: project
+---
+{
+  "name": "Workspace ws-123",
+  "path": "forgecode://workspace/ws-123",
+  "actual_path": "forgecode://workspace/ws-123",
+  "session_count": 2,
+  "message_count": 5,
+  "last_modified": "2026-01-10T08:00:10Z",
+  "provider": "forgecode",
+  "storage_type": "sqlite"
+}

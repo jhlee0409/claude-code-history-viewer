@@ -38,6 +38,8 @@
   "renderers.agentTool.messages": "{{count}}件のメッセージ",
   "assistantMessageDetails.cacheCreation": "キャッシュ作成",
   "assistantMessageDetails.cacheRead": "キャッシュ読み取り",
+  "assistantMessageDetails.costEstimated": "トークン使用量から推定した値です。元のJSONLにcostUSDが含まれていません。",
+  "assistantMessageDetails.estimated": "推定",
   "assistantMessageDetails.input": "入力",
   "assistantMessageDetails.model": "モデル",
   "assistantMessageDetails.output": "出力",

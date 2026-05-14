@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/store/useAppStore';
 import { useProjectSessions } from '@/hooks/useProjectSessions';
 import { toast } from 'sonner';
+import { supportsArchiveCreation } from '@/utils/providers';
 import type { ClaudeProject } from '@/types';
 
 interface ArchiveCreateDialogProps {
@@ -231,27 +232,27 @@ export const ArchiveCreateDialog: React.FC<ArchiveCreateDialogProps> = ({
                   </p>
                 ) : (
                   filteredProjects.map((project) => {
-                    const isClaude = !project.provider || project.provider === 'claude';
+                    const canArchive = supportsArchiveCreation(project.provider);
                     return (
                     <button
                       key={project.path}
                       type="button"
                       className={`w-full flex items-center gap-2.5 p-2.5 rounded-lg transition-colors text-left ${
-                        isClaude
+                        canArchive
                           ? 'hover:bg-muted/50 cursor-pointer'
                           : 'opacity-50 cursor-not-allowed'
                       }`}
-                      onClick={() => isClaude && handleSelectProject(project)}
-                      disabled={!isClaude}
+                      onClick={() => canArchive && handleSelectProject(project)}
+                      disabled={!canArchive}
                     >
                       <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{project.name}</p>
                         <p className="text-2xs text-muted-foreground truncate">
-                          {isClaude ? project.actual_path : `${project.provider} — ${t('archive.create.unsupportedProvider')}`}
+                          {canArchive ? project.actual_path : `${project.provider} — ${t('archive.create.unsupportedProvider')}`}
                         </p>
                       </div>
-                      {isClaude && (
+                      {canArchive && (
                         <>
                           <Badge variant="secondary" className="text-2xs shrink-0">
                             {t('archive.create.sessionCount', { count: project.session_count })}

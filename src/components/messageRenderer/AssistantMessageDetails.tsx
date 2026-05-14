@@ -3,6 +3,10 @@ import { HelpCircle, DollarSign, Clock } from 'lucide-react';
 import type { ClaudeMessage } from '../../types';
 import { useTranslation } from 'react-i18next';
 import { layout } from '@/components/renderers';
+import {
+  calculateModelPrice,
+  hasExplicitModelPricing,
+} from '@/components/AnalyticsDashboard/utils/calculations';
 
 interface AssistantMessageDetailsProps {
   message: ClaudeMessage;
@@ -33,15 +37,36 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
     return null;
   }
 
+  // Modern Claude Code stopped writing `costUSD` to its JSONL files. When it's
+  // missing but we have a model + usage payload, fall back to the same pricing
+  // table the analytics dashboard uses so the cost slot doesn't disappear (#194).
+  // Mark the value as estimated so users know it's not authoritative.
+  const explicitCost = costUSD !== undefined && costUSD > 0 ? costUSD : null;
+  const estimatedCost =
+    explicitCost == null && usage && hasExplicitModelPricing(model)
+      ? calculateModelPrice(
+          model,
+          usage.input_tokens ?? 0,
+          usage.output_tokens ?? 0,
+          usage.cache_creation_input_tokens ?? 0,
+          usage.cache_read_input_tokens ?? 0,
+        )
+      : 0;
+  const displayCost = explicitCost ?? (estimatedCost > 0 ? estimatedCost : null);
+  const isEstimated = displayCost != null && explicitCost == null;
+
   return (
     <div className={`flex items-center justify-start mt-1.5 ${layout.iconSpacing} ${layout.smallText} text-muted-foreground flex-wrap gap-y-1`}>
       <span>{t('assistantMessageDetails.model')}: {model}</span>
 
-      {/* Cost display */}
-      {costUSD !== undefined && costUSD > 0 && (
-        <span className={`flex items-center text-success ${layout.iconSpacing}`}>
+      {/* Cost display (authoritative when costUSD present, otherwise estimated from pricing table) */}
+      {displayCost != null && (
+        <span
+          className={`flex items-center text-success ${layout.iconSpacing}`}
+          title={isEstimated ? t('assistantMessageDetails.costEstimated', { defaultValue: 'Estimated from token usage; the source JSONL did not include costUSD.' }) : undefined}
+        >
           <DollarSign className={layout.iconSizeSmall} />
-          <span>{formatCost(costUSD)}</span>
+          <span>{isEstimated ? `~${formatCost(displayCost)}` : formatCost(displayCost)}</span>
         </span>
       )}
 
@@ -75,7 +100,12 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
             {usage.cache_creation_input_tokens ? <p>{t('assistantMessageDetails.cacheCreation')}: {usage.cache_creation_input_tokens.toLocaleString()}</p> : null}
             {usage.cache_read_input_tokens ? <p>{t('assistantMessageDetails.cacheRead')}: {usage.cache_read_input_tokens.toLocaleString()}</p> : null}
             {usage.service_tier ? <p>{t('assistantMessageDetails.tier')}: {usage.service_tier}</p> : null}
-            {costUSD !== undefined && <p className="mt-1 pt-1 border-t border-border">{t('assistantMessageDetails.cost', { defaultValue: 'Cost' })}: {formatCost(costUSD)}</p>}
+            {displayCost != null && (
+              <p className="mt-1 pt-1 border-t border-border">
+                {t('assistantMessageDetails.cost', { defaultValue: 'Cost' })}: {isEstimated ? `~${formatCost(displayCost)}` : formatCost(displayCost)}
+                {isEstimated ? <span className="ml-1 opacity-70">({t('assistantMessageDetails.estimated', { defaultValue: 'estimated' })})</span> : null}
+              </p>
+            )}
             {durationMs !== undefined && <p>{t('assistantMessageDetails.duration', { defaultValue: 'Duration' })}: {formatDuration(durationMs)}</p>}
             <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-popover" aria-hidden="true"></div>
           </div>

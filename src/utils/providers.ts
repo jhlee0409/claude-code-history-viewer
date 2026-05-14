@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "claude", "cline", "codex", "cursor", "gemini", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codex", "cursor", "forgecode", "gemini", "opencode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -8,31 +8,90 @@ const PROVIDER_TRANSLATIONS: Record<
   { key: string; fallback: string }
 > = {
   aider: { key: "common.provider.aider", fallback: "Aider" },
+  antigravity: { key: "common.provider.antigravity", fallback: "Antigravity" },
   claude: { key: "common.provider.claude", fallback: "Claude Code" },
   cline: { key: "common.provider.cline", fallback: "Cline" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
+  forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
 };
 
 type TranslateFn = (key: string, defaultValue: string) => string;
 
-interface ProviderAnalyticsCapability {
+export interface ProviderSessionCapability {
   supportsConversationBreakdown: boolean;
+  supportsNativeRename: boolean;
+  supportsResumeCommand: boolean;
+  supportsSessionDeletion: boolean;
+  supportsArchiveCreation: boolean;
 }
 
-const PROVIDER_ANALYTICS_CAPABILITIES: Record<
-  ProviderId,
-  ProviderAnalyticsCapability
-> = {
-  aider: { supportsConversationBreakdown: false },
-  claude: { supportsConversationBreakdown: true },
-  cline: { supportsConversationBreakdown: false },
-  codex: { supportsConversationBreakdown: false },
-  cursor: { supportsConversationBreakdown: false },
-  gemini: { supportsConversationBreakdown: false },
-  opencode: { supportsConversationBreakdown: false },
+const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapability> = {
+  aider: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  antigravity: {
+    supportsConversationBreakdown: true,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  claude: {
+    supportsConversationBreakdown: true,
+    supportsNativeRename: true,
+    supportsResumeCommand: true,
+    supportsSessionDeletion: true,
+    supportsArchiveCreation: true,
+  },
+  cline: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  codex: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  cursor: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  forgecode: {
+    supportsConversationBreakdown: true,
+    supportsNativeRename: true,
+    supportsResumeCommand: true,
+    supportsSessionDeletion: true,
+    supportsArchiveCreation: false,
+  },
+  gemini: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  opencode: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: true,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
 };
 
 export interface ProviderTokenStatsLike {
@@ -50,10 +109,12 @@ export interface ConversationBreakdownCoverage {
 export function getProviderId(provider?: ProviderId | string): ProviderId {
   switch (provider) {
     case "aider":
+    case "antigravity":
     case "cline":
     case "codex":
     case "cursor":
     case "gemini":
+    case "forgecode":
     case "opencode":
     case "claude":
       return provider;
@@ -87,8 +148,59 @@ export function supportsConversationBreakdown(
   if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
     return false;
   }
-  return PROVIDER_ANALYTICS_CAPABILITIES[provider as ProviderId]
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId]
     .supportsConversationBreakdown;
+}
+
+export function supportsNativeRename(provider?: ProviderId | string): boolean {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return false;
+  }
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId].supportsNativeRename;
+}
+
+export function supportsResumeCommand(provider?: ProviderId | string): boolean {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return false;
+  }
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId].supportsResumeCommand;
+}
+
+export function getResumeCommand(
+  provider: ProviderId | string | undefined,
+  sessionId: string
+): string | null {
+  if (!sessionId) {
+    return null;
+  }
+
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return null;
+  }
+
+  switch (provider as ProviderId) {
+    case "claude":
+      return `claude --resume ${sessionId}`;
+    case "forgecode":
+      return `forge conversation resume ${sessionId}`;
+    default:
+      return null;
+  }
+}
+
+export function supportsSessionDeletion(provider?: ProviderId | string): boolean {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return false;
+  }
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId]
+    .supportsSessionDeletion;
+}
+
+export function supportsArchiveCreation(provider?: ProviderId | string): boolean {
+  if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
+    return false;
+  }
+  return PROVIDER_SESSION_CAPABILITIES[provider as ProviderId].supportsArchiveCreation;
 }
 
 export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
@@ -96,9 +208,11 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+  forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+  antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
 };
 
 export function getProviderBadgeStyle(provider?: ProviderId | string): string {
@@ -116,9 +230,11 @@ export const PROVIDER_DOT_STYLES: Record<ProviderId, string> = {
   codex: "bg-green-500",
   cline: "bg-teal-500",
   cursor: "bg-cyan-500",
+  forgecode: "bg-orange-500",
   gemini: "bg-purple-500",
   opencode: "bg-blue-500",
   aider: "bg-rose-500",
+  antigravity: "bg-indigo-500",
 };
 
 export function getProviderDotStyle(provider?: ProviderId | string): string {

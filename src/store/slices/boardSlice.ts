@@ -118,12 +118,7 @@ export const createBoardSlice: StateCreator<
             const selectedProject = get().selectedProject;
             let projectCommits: import("../../types").GitCommit[] = [];
 
-            if (selectedProject?.actual_path) {
-                if (!isAbsolutePath(selectedProject.actual_path)) {
-                    const msg = "Invalid project path";
-                    set({ isLoadingBoard: false, boardLoadError: msg });
-                    return;
-                }
+            if (selectedProject?.actual_path && isAbsolutePath(selectedProject.actual_path)) {
                 try {
                     projectCommits = await api<import("../../types").GitCommit[]>(
                         "get_git_log",
@@ -139,10 +134,6 @@ export const createBoardSlice: StateCreator<
 
             const loadPromises = sessions.map(async (session) => {
                 try {
-                    if (!isAbsolutePath(session.file_path)) {
-                        set({ boardLoadError: "Invalid session path" });
-                        return null;
-                    }
                     const provider = session.provider ?? "claude";
                     const messages = await api<ClaudeMessage[]>(
                         "load_provider_messages",
@@ -178,13 +169,21 @@ export const createBoardSlice: StateCreator<
                     };
 
                     const fileEdits: SessionFileEdit[] = [];
+                    // #283: dedup token usage when one assistant turn produces multiple rows
+                    // sharing the same messageId. Counts rows but only adds usage once.
+                    const seenUsageKeys = new Set<string>();
 
                     messages.forEach((msg) => {
                         if (msg.type === 'assistant' && msg.usage) {
                             const usage = msg.usage;
-                            stats.inputTokens += usage.input_tokens || 0;
-                            stats.outputTokens += usage.output_tokens || 0;
-                            stats.totalTokens += (usage.input_tokens || 0) + (usage.output_tokens || 0);
+                            const idPart = msg.messageId && msg.messageId.length > 0 ? msg.messageId : msg.uuid;
+                            const usageKey = `${msg.sessionId}|${idPart}`;
+                            if (!seenUsageKeys.has(usageKey)) {
+                                seenUsageKeys.add(usageKey);
+                                stats.inputTokens += usage.input_tokens || 0;
+                                stats.outputTokens += usage.output_tokens || 0;
+                                stats.totalTokens += (usage.input_tokens || 0) + (usage.output_tokens || 0);
+                            }
                         }
 
                         if (msg.type === 'assistant' && msg.durationMs) stats.durationMs += msg.durationMs;

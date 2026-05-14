@@ -13,6 +13,9 @@ pub mod server;
 #[cfg(test)]
 pub mod test_utils;
 
+use crate::commands::antigravity::{
+    get_antigravity_project_summary, get_antigravity_session, load_antigravity_state,
+};
 use crate::commands::{
     archive::{
         create_archive, delete_archive, export_session, get_archive_base_path,
@@ -497,7 +500,11 @@ fn run_tauri() {
             // Remote SSH source sync commands
             crate::commands::remote_sync::test_remote_connection,
             crate::commands::remote_sync::sync_remote_source,
-            crate::commands::remote_sync::sync_all_remote_sources
+            crate::commands::remote_sync::sync_all_remote_sources,
+            // Antigravity token-monitor commands
+            load_antigravity_state,
+            get_antigravity_session,
+            get_antigravity_project_summary
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

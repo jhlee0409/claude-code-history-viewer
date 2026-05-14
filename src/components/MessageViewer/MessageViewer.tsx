@@ -574,18 +574,37 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       );
 
       if (index !== -1) {
-        // Scroll with a slight delay to ensure rendering is stable, using 'start' alignment
-        // We use a timeout to let the virtualizer settle if it just loaded
-        setTimeout(() => {
+        // Multi-pass scroll to correct for height-estimate inaccuracy (#269).
+        // `estimateMessageHeight` returns a fixed bucket per message type, but
+        // real heights vary by 5-10x with code blocks, tool results, etc.
+        // A single scrollToIndex on a far-off target lands at the estimate-based
+        // offset and misses once the rows in between render and measure their
+        // real heights. Re-issuing scrollToIndex after each render pass lets
+        // TanStack Virtual recompute against the now-measured totals and
+        // converge on the target.
+        const initialPass = setTimeout(() => {
+          virtualizer.scrollToIndex(index, { align: "start" });
+        }, 50);
+
+        const correctionPass = setTimeout(() => {
+          virtualizer.scrollToIndex(index, { align: "start" });
+        }, 200);
+
+        const finalPass = setTimeout(() => {
           virtualizer.scrollToIndex(index, { align: "start", behavior: "smooth" });
-        }, 100);
+        }, 450);
 
         // Auto-clear the target after a few seconds so the highlight fades
-        const timer = setTimeout(() => {
+        const clearTimer = setTimeout(() => {
           clearTargetMessage();
         }, 3000);
 
-        return () => clearTimeout(timer);
+        return () => {
+          clearTimeout(initialPass);
+          clearTimeout(correctionPass);
+          clearTimeout(finalPass);
+          clearTimeout(clearTimer);
+        };
       }
     }
   }, [targetMessageUuid, scrollElementReady, flattenedMessages, virtualizer, clearTargetMessage]);

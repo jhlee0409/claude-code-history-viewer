@@ -269,6 +269,12 @@ pub struct SaveScreenshotParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DeleteSessionParams {
+    pub file_path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenameSessionParams {
     pub file_path: String,
     pub new_title: String,
@@ -527,9 +533,25 @@ handler_json!(
 );
 
 handler_json!(
+    delete_session,
+    DeleteSessionParams,
+    |p: DeleteSessionParams| async move {
+        // ForgeCode uses opaque URI scheme handled inside the command;
+        // file-path callers are constrained to the provider session roots.
+        if !p.file_path.starts_with("forgecode://") && !p.file_path.starts_with("forgecode-db://") {
+            commands::session::is_safe_session_path(&PathBuf::from(&p.file_path))?;
+        }
+        commands::session::delete_session(p.file_path).await
+    }
+);
+
+handler_json!(
     rename_session_native,
     RenameSessionParams,
     |p: RenameSessionParams| async move {
+        if !p.file_path.starts_with("forgecode://") && !p.file_path.starts_with("forgecode-db://") {
+            commands::session::is_safe_session_path(&PathBuf::from(&p.file_path))?;
+        }
         commands::session::rename_session_native(p.file_path, p.new_title).await
     }
 );
@@ -537,13 +559,19 @@ handler_json!(
 handler_json!(
     reset_session_native_name,
     PathParam,
-    |p: PathParam| async move { commands::session::reset_session_native_name(p.path).await }
+    |p: PathParam| async move {
+        if !p.path.starts_with("forgecode://") && !p.path.starts_with("forgecode-db://") {
+            commands::session::is_safe_session_path(&PathBuf::from(&p.path))?;
+        }
+        commands::session::reset_session_native_name(p.path).await
+    }
 );
 
 handler_json!(
     rename_opencode_session_title,
     RenameOpenCodeParams,
     |p: RenameOpenCodeParams| async move {
+        commands::session::is_safe_session_path(&PathBuf::from(&p.session_path))?;
         commands::session::rename_opencode_session_title(p.session_path, p.new_title).await
     }
 );

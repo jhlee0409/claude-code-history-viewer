@@ -110,6 +110,32 @@ describe("useSessionEditing clipboard actions", () => {
     expect(toast.success).toHaveBeenCalledWith("Session ID copied");
   });
 
+  it("copies ForgeCode resume command for forge sessions", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    const { result } = renderHook(() =>
+      useSessionEditing({
+        ...session,
+        provider: "forgecode",
+        file_path: "forgecode://workspace/ws-1/conversation/conv-1",
+        actual_session_id: "conv-1",
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleCopyResumeCommand({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(writeText).toHaveBeenCalledWith("forge conversation resume conv-1");
+    expect(toast.success).toHaveBeenCalledWith("Resume command copied");
+  });
+
   it("reports copy failure when fallback cannot write clipboard payload", async () => {
     const writeText = vi.fn().mockRejectedValue(new Error("permission denied"));
     const addEventListener = vi.spyOn(document, "addEventListener");

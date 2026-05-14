@@ -18,6 +18,7 @@ import enUpdate from './locales/en/update.json';
 import enFeedback from './locales/en/feedback.json';
 import enRecentEdits from './locales/en/recentEdits.json';
 import enArchive from './locales/en/archive.json';
+import enAntigravity from './locales/en/antigravity.json';
 import enRemoteSources from './locales/en/remoteSources.json';
 
 // Korean
@@ -33,6 +34,7 @@ import koUpdate from './locales/ko/update.json';
 import koFeedback from './locales/ko/feedback.json';
 import koRecentEdits from './locales/ko/recentEdits.json';
 import koArchive from './locales/ko/archive.json';
+import koAntigravity from './locales/ko/antigravity.json';
 import koRemoteSources from './locales/ko/remoteSources.json';
 
 // Japanese
@@ -48,6 +50,7 @@ import jaUpdate from './locales/ja/update.json';
 import jaFeedback from './locales/ja/feedback.json';
 import jaRecentEdits from './locales/ja/recentEdits.json';
 import jaArchive from './locales/ja/archive.json';
+import jaAntigravity from './locales/ja/antigravity.json';
 import jaRemoteSources from './locales/ja/remoteSources.json';
 
 // Simplified Chinese
@@ -63,6 +66,7 @@ import zhCNUpdate from './locales/zh-CN/update.json';
 import zhCNFeedback from './locales/zh-CN/feedback.json';
 import zhCNRecentEdits from './locales/zh-CN/recentEdits.json';
 import zhCNArchive from './locales/zh-CN/archive.json';
+import zhCNAntigravity from './locales/zh-CN/antigravity.json';
 import zhCNRemoteSources from './locales/zh-CN/remoteSources.json';
 
 // Traditional Chinese
@@ -78,6 +82,7 @@ import zhTWUpdate from './locales/zh-TW/update.json';
 import zhTWFeedback from './locales/zh-TW/feedback.json';
 import zhTWRecentEdits from './locales/zh-TW/recentEdits.json';
 import zhTWArchive from './locales/zh-TW/archive.json';
+import zhTWAntigravity from './locales/zh-TW/antigravity.json';
 import zhTWRemoteSources from './locales/zh-TW/remoteSources.json';
 
 export const supportedLanguages = {
@@ -118,6 +123,7 @@ export const namespaces = [
   'feedback',
   'recentEdits',
   'archive',
+  'antigravity',
   'remoteSources',
 ] as const;
 
@@ -151,6 +157,7 @@ const resources = {
       enFeedback,
       enRecentEdits,
       enArchive,
+      enAntigravity,
       enRemoteSources
     ),
   },
@@ -168,6 +175,7 @@ const resources = {
       koFeedback,
       koRecentEdits,
       koArchive,
+      koAntigravity,
       koRemoteSources
     ),
   },
@@ -185,6 +193,7 @@ const resources = {
       jaFeedback,
       jaRecentEdits,
       jaArchive,
+      jaAntigravity,
       jaRemoteSources
     ),
   },
@@ -202,6 +211,7 @@ const resources = {
       zhCNFeedback,
       zhCNRecentEdits,
       zhCNArchive,
+      zhCNAntigravity,
       zhCNRemoteSources
     ),
   },
@@ -219,6 +229,7 @@ const resources = {
       zhTWFeedback,
       zhTWRecentEdits,
       zhTWArchive,
+      zhTWAntigravity,
       zhTWRemoteSources
     ),
   },

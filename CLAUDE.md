@@ -70,6 +70,25 @@ feature/* ← 개별 기능 (develop에서 분기, develop으로 PR)
 - `main`에 직접 머지하지 않음 — 릴리즈 시에만 `develop` → `main` 머지
 - README, 스크린샷 등 사용자 문서는 릴리즈 커밋에서만 `main`에 반영
 
+## Agent skills
+
+mattpocock 스킬(`/triage`, `/to-issues`, `/diagnose`, `/improve-codebase-architecture` 등)이 참조하는 메타 설정.
+
+### Issue tracker
+
+GitHub Issues at `jhlee0409/claude-code-history-viewer`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles. `needs-info` and `wontfix` reuse existing repo labels;
+`needs-triage`, `ready-for-agent`, `ready-for-human` are added in this setup.
+See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root, lazily created
+by `/grill-with-docs`. See `docs/agents/domain.md`.
+
 ## Version Management
 
 This is a **Tauri desktop application** distributed via GitHub Releases (not npm).

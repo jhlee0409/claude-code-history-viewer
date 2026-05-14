@@ -18,6 +18,9 @@ interface SessionContextMenuProps {
   position: { x: number; y: number; boundary?: Boundary | null };
   hasCustomName: boolean;
   supportsNativeRename: boolean;
+  supportsResumeCommand: boolean;
+  supportsSessionDeletion: boolean;
+  supportsRevealInFinder: boolean;
   providerId: string;
   onClose: () => void;
   onRenameClick: (e: React.MouseEvent) => void;
@@ -34,6 +37,9 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   position,
   hasCustomName,
   supportsNativeRename,
+  supportsResumeCommand,
+  supportsSessionDeletion,
+  supportsRevealInFinder,
   providerId,
   onClose,
   onRenameClick,
@@ -153,7 +159,9 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
               <span>
                 {providerId === "opencode"
                   ? t("session.nativeRename.menuItemOpenCode", "Rename in OpenCode")
-                  : t("session.nativeRename.menuItem", "Rename in Claude Code")}
+                  : providerId === "forgecode"
+                    ? t("session.nativeRename.menuItemForgeCode", "Rename in ForgeCode")
+                    : t("session.nativeRename.menuItem", "Rename in Claude Code")}
               </span>
             </button>
           </>
@@ -166,7 +174,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
           <span>{t("session.copySessionId", "Copy Session ID")}</span>
         </button>
 
-        {providerId === "claude" && (
+        {supportsResumeCommand && (
           <button type="button" role="menuitem" onClick={handleAction(onCopyResumeCommand)} className={menuItemClass}>
             <Play className="w-3.5 h-3.5" />
             <span>{t("session.copyResumeCommand", "Copy Resume Command")}</span>
@@ -178,22 +186,28 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
           <span>{t("session.copyFilePath", "Copy File Path")}</span>
         </button>
 
-        <button type="button" role="menuitem" onClick={handleAction(onRevealInFinder)} className={menuItemClass}>
-          <FolderOpen className="w-3.5 h-3.5" />
-          <span>{t("session.showJsonlFile", "Show JSONL File")}</span>
-        </button>
+        {supportsRevealInFinder && (
+          <button type="button" role="menuitem" onClick={handleAction(onRevealInFinder)} className={menuItemClass}>
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>{t("session.showJsonlFile", "Show JSONL File")}</span>
+          </button>
+        )}
 
-        <div className="my-1 border-t border-border/50" />
+        {supportsSessionDeletion && (
+          <>
+            <div className="my-1 border-t border-border/50" />
 
-        <button
-          type="button"
-          role="menuitem"
-          onClick={handleAction(onDeleteSession)}
-          className={cn(menuItemClass, "text-destructive hover:text-destructive")}
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          <span>{t("session.deleteSession", "Delete Session")}</span>
-        </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleAction(onDeleteSession)}
+              className={cn(menuItemClass, "text-destructive hover:text-destructive")}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{t("session.deleteSession", "Delete Session")}</span>
+            </button>
+          </>
+        )}
       </div>
     </div>,
     document.body

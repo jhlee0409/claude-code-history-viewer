@@ -2,7 +2,7 @@ set dotenv-load
 set windows-powershell := true
 
 # Put pnpm and mise tools to PATH
-export PATH := justfile_directory() + '/node_modules/.bin' + PATH_VAR_SEP + justfile_directory() + '/.mise/shims' + PATH_VAR_SEP + env_var('PATH')
+export PATH := env_var('HOME') + '/.cargo/bin' + PATH_VAR_SEP + justfile_directory() + '/node_modules/.bin' + PATH_VAR_SEP + justfile_directory() + '/.mise/shims' + PATH_VAR_SEP + env_var('PATH')
 
 # Uncomment these if you do not already use mise, if you do not have it configured in your shell or $PATH.
 # This will run an isolated, local mise environment, exclusive to this project.
