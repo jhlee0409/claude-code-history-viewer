@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-05-25T07:35:34.480Z
- * 총 키 개수: 1773
+ * 생성 시간: 2026-05-25T07:37:00.105Z
+ * 총 키 개수: 1781
  * Namespace 수: 11
  */
 
@@ -393,7 +393,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (197개)
+ * session namespace의 번역 키 (205개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -513,6 +513,11 @@ export type SessionKeys =
   | 'session.filter.showingCount'
   | 'session.filter.sortNewestFirst'
   | 'session.filter.sortOldestFirst'
+  | 'session.filter.source.all'
+  | 'session.filter.source.cli'
+  | 'session.filter.source.desktop'
+  | 'session.filter.source.label'
+  | 'session.filter.source.vscode'
   | 'session.id'
   | 'session.interaction.assistantMessage'
   | 'session.interaction.cacheHit'
@@ -547,6 +552,9 @@ export type SessionKeys =
   | 'session.item.archivedDescription'
   | 'session.item.containsErrors'
   | 'session.item.containsToolUse'
+  | 'session.item.entrypoint.cli'
+  | 'session.item.entrypoint.desktop'
+  | 'session.item.entrypoint.vscode'
   | 'session.item.lastModified'
   | 'session.item.messageCount'
   | 'session.item.session'
@@ -2815,6 +2823,11 @@ export type TranslationKey =
   | 'session.filter.showingCount'
   | 'session.filter.sortNewestFirst'
   | 'session.filter.sortOldestFirst'
+  | 'session.filter.source.all'
+  | 'session.filter.source.cli'
+  | 'session.filter.source.desktop'
+  | 'session.filter.source.label'
+  | 'session.filter.source.vscode'
   | 'session.id'
   | 'session.interaction.assistantMessage'
   | 'session.interaction.cacheHit'
@@ -2849,6 +2862,9 @@ export type TranslationKey =
   | 'session.item.archivedDescription'
   | 'session.item.containsErrors'
   | 'session.item.containsToolUse'
+  | 'session.item.entrypoint.cli'
+  | 'session.item.entrypoint.desktop'
+  | 'session.item.entrypoint.vscode'
   | 'session.item.lastModified'
   | 'session.item.messageCount'
   | 'session.item.session'

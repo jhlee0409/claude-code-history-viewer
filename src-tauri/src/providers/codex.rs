@@ -255,6 +255,7 @@ pub fn load_sessions(
                     is_renamed: false,
                     provider: Some("codex".to_string()),
                     storage_type: None,
+                    entrypoint: None,
                 });
             }
         }

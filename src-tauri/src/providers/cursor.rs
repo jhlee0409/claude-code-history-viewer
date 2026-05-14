@@ -178,6 +178,7 @@ pub fn load_sessions(
                 is_renamed: false,
                 provider: Some("cursor".to_string()),
                 storage_type: Some("sqlite".to_string()),
+                entrypoint: None,
             })
         })
         .collect();

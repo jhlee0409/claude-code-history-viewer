@@ -137,6 +137,7 @@ export interface AppStoreState {
   highContrast: boolean;
   updateSettings: UpdateSettings;
   sessionSortOrder: import("../../types/metadata.types").SessionSortOrder;
+  sessionEntrypointFilter: import("../../types/metadata.types").SessionEntrypointFilter;
 
   // Global stats state
   globalSummary: GlobalStatsSummary | null;
@@ -272,6 +273,9 @@ export interface AppStoreActions {
   skipVersion: (version: string) => Promise<void>;
   postponeUpdate: () => Promise<void>;
   setSessionSortOrder: (order: import("../../types/metadata.types").SessionSortOrder) => Promise<void>;
+  setSessionEntrypointFilter: (
+    filter: import("../../types/metadata.types").SessionEntrypointFilter
+  ) => Promise<void>;
 
   // Global stats actions
   loadGlobalStats: () => Promise<void>;

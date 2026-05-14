@@ -69,6 +69,10 @@ pub struct ClaudeSession {
     /// Storage type (json, sqlite)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_type: Option<String>,
+    /// Originating client for Claude Code sessions: "cli" / "claude-vscode" / "claude-desktop".
+    /// `None` for non-Claude providers or sessions predating the entrypoint field.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entrypoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,6 +105,7 @@ mod tests {
             is_renamed: false,
             provider: None,
             storage_type: None,
+            entrypoint: None,
         };
 
         let serialized = serde_json::to_string(&session).unwrap();

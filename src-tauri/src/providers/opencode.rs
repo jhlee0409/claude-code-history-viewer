@@ -322,6 +322,7 @@ pub fn load_sessions(
                 is_renamed: false,
                 provider: Some("opencode".to_string()),
                 storage_type: Some("json".to_string()),
+                entrypoint: None,
             });
         }
     }
@@ -758,6 +759,7 @@ fn load_sessions_from_db(base_path: &str, project_id: &str) -> Option<Vec<Claude
                 is_renamed: false,
                 provider: Some("opencode".to_string()),
                 storage_type: Some("sqlite".to_string()),
+                entrypoint: None,
             })
         })
         .ok()?;

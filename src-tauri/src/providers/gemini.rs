@@ -196,6 +196,7 @@ pub fn load_sessions(
             is_renamed: false,
             provider: Some("gemini".to_string()),
             storage_type: Some("json".to_string()),
+            entrypoint: None,
         });
     }
 

@@ -59,6 +59,8 @@ export interface ClaudeSession {
   has_errors: boolean;
   summary?: string;
   relevance?: number;
+  /** Originating Claude Code client (raw JSONL `entrypoint` value). */
+  entrypoint?: string;
 }
 
 // ============================================================================

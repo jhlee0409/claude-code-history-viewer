@@ -154,6 +154,7 @@ pub fn load_sessions(
                 is_renamed: false,
                 provider: Some("cline".to_string()),
                 storage_type: Some("json".to_string()),
+                entrypoint: None,
             })
         })
         .collect();
