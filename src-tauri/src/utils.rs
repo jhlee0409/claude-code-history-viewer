@@ -628,7 +628,12 @@ mod tests {
             deep = deep.join(s);
         }
         std::fs::create_dir_all(&deep).expect("create deep tmp dir");
-        let encoded = deep.to_string_lossy().replace('/', "-");
+        // Normalize both Unix and Windows separators so the encoded slug
+        // matches Claude's leading-dash convention regardless of host OS.
+        let mut encoded = deep.to_string_lossy().replace(['/', '\\'], "-");
+        if !encoded.starts_with('-') {
+            encoded.insert(0, '-');
+        }
         (encoded, root)
     }
 
