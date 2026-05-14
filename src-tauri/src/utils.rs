@@ -605,6 +605,15 @@ mod tests {
         assert_eq!(result, "c");
     }
 
+    #[test]
+    fn test_extract_project_name_fallback_when_path_missing() {
+        // Guarantees we hit the splitn(4) fallback when filesystem decoding
+        // fails (deleted project, or path that never existed). Uses a sentinel
+        // prefix unlikely to ever exist on any developer machine.
+        let result = extract_project_name("-__cchv_definitely_missing_12345__-foo-bar-leafname");
+        assert_eq!(result, "bar-leafname");
+    }
+
     /// Helper for deep-path tests: creates a nested directory tree under the
     /// canonical temp dir, encodes it Claude-style, and returns the encoded
     /// slug plus the root for cleanup. Canonicalization is required because
