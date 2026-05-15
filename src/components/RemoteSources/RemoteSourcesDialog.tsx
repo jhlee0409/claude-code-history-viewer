@@ -113,9 +113,11 @@ async function persistDraftSecrets(source: RemoteSource): Promise<RemoteSource> 
   if (source.auth.type === "key") {
     if (!source.auth.passphrase) return source;
     const passphraseRef = await api<string>("store_remote_credential", {
-      sourceId: source.id,
-      kind: "passphrase",
-      secret: source.auth.passphrase,
+      param: {
+        sourceId: source.id,
+        kind: "passphrase",
+        secret: source.auth.passphrase,
+      },
     });
     return {
       ...source,
@@ -128,9 +130,11 @@ async function persistDraftSecrets(source: RemoteSource): Promise<RemoteSource> 
   }
   if (!source.auth.password) return source;
   const passwordRef = await api<string>("store_remote_credential", {
-    sourceId: source.id,
-    kind: "password",
-    secret: source.auth.password,
+    param: {
+      sourceId: source.id,
+      kind: "password",
+      secret: source.auth.password,
+    },
   });
   return {
     ...source,
@@ -235,7 +239,7 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
       ].filter(Boolean);
       await Promise.all(
         credentialRefs.map((credentialRef) =>
-          api("delete_remote_credential", { credentialRef }).catch(() => undefined)
+          api("delete_remote_credential", { param: { credentialRef } }).catch(() => undefined)
         )
       );
       await persistSources(sources.filter((s) => s.id !== id));
