@@ -255,6 +255,7 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
       const result = await api<ConnectionTestResult>("test_remote_connection", { source });
       setTestResults((prev) => ({ ...prev, [source.id]: result }));
       if (result.ok) {
+        await recordSyncResult(source, null, null);
         toast.success(
           t("remoteSources.testOk", "Connected. Remote home: {{home}}", { home: result.remoteHome ?? "?" }),
         );
