@@ -145,6 +145,31 @@ async function persistDraftSecrets(source: RemoteSource): Promise<RemoteSource> 
   };
 }
 
+function mergeCredentialRefsIntoDraft(
+  draft: RemoteSource,
+  saved: RemoteSource,
+): RemoteSource {
+  if (draft.auth.type === "key" && saved.auth.type === "key") {
+    return {
+      ...draft,
+      auth: {
+        ...draft.auth,
+        passphraseRef: saved.auth.passphraseRef,
+      },
+    };
+  }
+  if (draft.auth.type === "password" && saved.auth.type === "password") {
+    return {
+      ...draft,
+      auth: {
+        ...draft.auth,
+        passwordRef: saved.auth.passwordRef,
+      },
+    };
+  }
+  return draft;
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -260,7 +285,7 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
       if (result.ok) {
         if (editingId === source.id && draft) {
           const savedDraft = await persistDraftSecrets(draft);
-          setDraft(savedDraft);
+          setDraft(mergeCredentialRefsIntoDraft(draft, savedDraft));
         }
         await recordSyncResult(source, null, null);
         toast.success(
