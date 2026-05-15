@@ -42,5 +42,9 @@
   "remoteSources.opencodePaths": "OpenCode paths",
   "remoteSources.missingTitle": "{{host}}: {{n}} configured path(s) returned nothing",
   "remoteSources.missing.notFound": "no match",
-  "remoteSources.missing.empty": "matched but empty"
+  "remoteSources.missing.empty": "matched but empty",
+  "remoteSources.storedPasswordPlaceholder": "Stored in OS keychain; enter a new password to replace it",
+  "remoteSources.storedPasswordHint": "A password is already saved in the OS keychain. Leave this blank to keep using it.",
+  "remoteSources.storedPassphrasePlaceholder": "Stored in OS keychain; enter a new passphrase to replace it",
+  "remoteSources.storedPassphraseHint": "A passphrase is already saved in the OS keychain. Leave this blank to keep using it."
 }

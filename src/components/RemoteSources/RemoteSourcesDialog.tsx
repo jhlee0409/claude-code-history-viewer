@@ -670,6 +670,10 @@ function DraftForm({
   );
 
   const defaults = DEFAULT_REMOTE_PATHS[draft.system];
+  const hasStoredPassword =
+    draft.auth.type === "password" && Boolean(draft.auth.passwordRef);
+  const hasStoredPassphrase =
+    draft.auth.type === "key" && Boolean(draft.auth.passphraseRef);
 
   const updateProviderPaths = (
     provider: keyof RemoteProviderPaths,
@@ -798,11 +802,22 @@ function DraftForm({
                     ...draft.auth,
                     type: "key",
                     keyPath: draft.auth.type === "key" ? draft.auth.keyPath : "",
+                    passphraseRef: draft.auth.type === "key" ? draft.auth.passphraseRef : undefined,
                     passphrase: e.target.value || undefined,
                   })
                 }
+                placeholder={
+                  hasStoredPassphrase
+                    ? t("remoteSources.storedPassphrasePlaceholder", "Stored in OS keychain; enter a new passphrase to replace it")
+                    : undefined
+                }
                 className="h-8 text-xs"
               />
+              {hasStoredPassphrase && !draft.auth.passphrase && (
+                <p className="text-[10px] text-muted-foreground">
+                  {t("remoteSources.storedPassphraseHint", "A passphrase is already saved in the OS keychain. Leave this blank to keep using it.")}
+                </p>
+              )}
             </div>
           </div>
         ) : (
@@ -814,9 +829,25 @@ function DraftForm({
               id={idAuthValue}
               type="password"
               value={draft.auth.password ?? ""}
-              onChange={(e) => onAuthChange({ type: "password", password: e.target.value })}
+              onChange={(e) =>
+                onAuthChange({
+                  type: "password",
+                  passwordRef: draft.auth.type === "password" ? draft.auth.passwordRef : undefined,
+                  password: e.target.value || undefined,
+                })
+              }
+              placeholder={
+                hasStoredPassword
+                  ? t("remoteSources.storedPasswordPlaceholder", "Stored in OS keychain; enter a new password to replace it")
+                  : undefined
+              }
               className="h-8 text-xs"
             />
+            {hasStoredPassword && !draft.auth.password && (
+              <p className="text-[10px] text-muted-foreground">
+                {t("remoteSources.storedPasswordHint", "A password is already saved in the OS keychain. Leave this blank to keep using it.")}
+              </p>
+            )}
           </div>
         )}
       </div>

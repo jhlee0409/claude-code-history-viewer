@@ -42,5 +42,9 @@
   "remoteSources.systemWindows": "Windows",
   "remoteSources.authKey": "SSH key",
   "remoteSources.authPassword": "Password",
-  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519"
+  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519",
+  "remoteSources.storedPasswordPlaceholder": "OS keychain에 저장됨. 새 암호를 입력하면 교체됩니다",
+  "remoteSources.storedPasswordHint": "암호가 OS keychain에 저장되어 있습니다. 비워 두면 저장된 암호를 계속 사용합니다.",
+  "remoteSources.storedPassphrasePlaceholder": "OS keychain에 저장됨. 새 passphrase를 입력하면 교체됩니다",
+  "remoteSources.storedPassphraseHint": "passphrase가 OS keychain에 저장되어 있습니다. 비워 두면 저장된 passphrase를 계속 사용합니다."
 }

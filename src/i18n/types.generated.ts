@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-05-15T13:16:40.619Z
- * 총 키 개수: 1954
+ * 생성 시간: 2026-05-15T13:41:36.576Z
+ * 총 키 개수: 1958
  * Namespace 수: 14
  */
 
@@ -2031,7 +2031,7 @@ export type AntigravityKeys =
   | 'antigravity.totalTokens';
 
 /**
- * remoteSources namespace의 번역 키 (44개)
+ * remoteSources namespace의 번역 키 (48개)
  * 파일: locales/{lang}/remoteSources.json
  */
 export type RemoteSourcesKeys =
@@ -2065,6 +2065,10 @@ export type RemoteSourcesKeys =
   | 'remoteSources.pathOverrides'
   | 'remoteSources.pathOverridesHint'
   | 'remoteSources.port'
+  | 'remoteSources.storedPassphraseHint'
+  | 'remoteSources.storedPassphrasePlaceholder'
+  | 'remoteSources.storedPasswordHint'
+  | 'remoteSources.storedPasswordPlaceholder'
   | 'remoteSources.summary'
   | 'remoteSources.sync'
   | 'remoteSources.syncAll'
@@ -3053,6 +3057,10 @@ export type TranslationKey =
   | 'remoteSources.pathOverrides'
   | 'remoteSources.pathOverridesHint'
   | 'remoteSources.port'
+  | 'remoteSources.storedPassphraseHint'
+  | 'remoteSources.storedPassphrasePlaceholder'
+  | 'remoteSources.storedPasswordHint'
+  | 'remoteSources.storedPasswordPlaceholder'
   | 'remoteSources.summary'
   | 'remoteSources.sync'
   | 'remoteSources.syncAll'

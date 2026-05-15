@@ -42,5 +42,9 @@
   "remoteSources.systemWindows": "Windows",
   "remoteSources.authKey": "SSH key",
   "remoteSources.authPassword": "Password",
-  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519"
+  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519",
+  "remoteSources.storedPasswordPlaceholder": "已儲存到系統憑證管理器；輸入新密碼會覆蓋它",
+  "remoteSources.storedPasswordHint": "系統憑證管理器裡已經儲存了密碼。留空會繼續使用已儲存的密碼。",
+  "remoteSources.storedPassphrasePlaceholder": "已儲存到系統憑證管理器；輸入新密鑰短語會覆蓋它",
+  "remoteSources.storedPassphraseHint": "系統憑證管理器裡已經儲存了密鑰短語。留空會繼續使用已儲存的密鑰短語。"
 }

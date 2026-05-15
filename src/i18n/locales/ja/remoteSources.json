@@ -42,5 +42,9 @@
   "remoteSources.systemWindows": "Windows",
   "remoteSources.authKey": "SSH key",
   "remoteSources.authPassword": "Password",
-  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519"
+  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519",
+  "remoteSources.storedPasswordPlaceholder": "OS keychain に保存済みです。新しいパスワードを入力すると置き換えます",
+  "remoteSources.storedPasswordHint": "パスワードは OS keychain に保存済みです。空のままにすると保存済みの値を使います。",
+  "remoteSources.storedPassphrasePlaceholder": "OS keychain に保存済みです。新しいパスフレーズを入力すると置き換えます",
+  "remoteSources.storedPassphraseHint": "パスフレーズは OS keychain に保存済みです。空のままにすると保存済みの値を使います。"
 }
