@@ -717,6 +717,16 @@ export const createMessageSlice: StateCreator<
     sessionPath: string,
     sourceMessages: ClaudeMessage[],
   ) => {
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(sessionPath)) {
+      if (get().selectedSession?.file_path === sessionPath) {
+        set({
+          subagentSessions: [],
+          toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
+        });
+      }
+      return;
+    }
+
     try {
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
         sessionPath,

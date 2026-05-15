@@ -13,6 +13,7 @@ import type {
   UserSettings,
   CustomClaudePath,
   WslSettings,
+  ProjectSource,
 } from "../../types";
 import { DEFAULT_USER_METADATA } from "../../types";
 import { matchGlobPattern } from "../../utils/globUtils";
@@ -70,7 +71,7 @@ export interface MetadataSliceActions {
   /** Remove a hidden pattern */
   removeHiddenPattern: (pattern: string) => Promise<void>;
   /** Add a custom Claude directory path */
-  addCustomClaudePath: (path: string, label?: string) => Promise<void>;
+  addCustomClaudePath: (path: string, label?: string, source?: ProjectSource) => Promise<void>;
   /** Remove a custom Claude directory path */
   removeCustomClaudePath: (path: string) => Promise<void>;
   /** Update label for a custom Claude directory path */

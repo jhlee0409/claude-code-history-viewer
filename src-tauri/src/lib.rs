@@ -28,6 +28,7 @@ use crate::commands::{
         write_text_file,
     },
     feedback::{get_system_info, open_github_issues, send_feedback},
+    history_backup::{export_history_backup, restore_history_backup},
     mcp_presets::{delete_mcp_preset, get_mcp_preset, load_mcp_presets, save_mcp_preset},
     metadata::{
         get_metadata_folder_path, get_session_display_name, is_project_hidden, load_user_metadata,
@@ -434,6 +435,8 @@ fn run_tauri() {
             send_feedback,
             get_system_info,
             open_github_issues,
+            export_history_backup,
+            restore_history_backup,
             // Metadata commands
             get_metadata_folder_path,
             load_user_metadata,

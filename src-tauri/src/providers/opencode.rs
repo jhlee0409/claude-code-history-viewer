@@ -6,7 +6,9 @@ use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fs;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use tempfile::TempDir;
 
 /// Convert epoch milliseconds to RFC 3339 string
 fn epoch_ms_to_rfc3339(ms: u64) -> String {
@@ -777,17 +779,76 @@ fn count_json_sessions_excluding(
         .unwrap_or(0)
 }
 
+struct OpenCodeDb {
+    conn: Connection,
+    _snapshot_dir: Option<TempDir>,
+}
+
+impl Deref for OpenCodeDb {
+    type Target = Connection;
+
+    fn deref(&self) -> &Self::Target {
+        &self.conn
+    }
+}
+
+fn probe_db(conn: &Connection) -> rusqlite::Result<()> {
+    conn.query_row("SELECT name FROM sqlite_master LIMIT 1", [], |_| Ok(()))
+        .or_else(|err| {
+            if matches!(err, rusqlite::Error::QueryReturnedNoRows) {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        })
+}
+
+fn open_readonly_db(path: &Path) -> rusqlite::Result<Connection> {
+    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let conn = Connection::open_with_flags(path, flags)?;
+    conn.busy_timeout(std::time::Duration::from_millis(250))?;
+    probe_db(&conn)?;
+    Ok(conn)
+}
+
+fn open_db_snapshot(db_path: &Path) -> Option<OpenCodeDb> {
+    let snapshot_dir = TempDir::new().ok()?;
+    let snapshot_db = snapshot_dir.path().join("opencode.db");
+    fs::copy(db_path, &snapshot_db).ok()?;
+
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = db_path.with_file_name(format!("opencode.db{suffix}"));
+        if sidecar.is_file() {
+            let target = snapshot_dir.path().join(format!("opencode.db{suffix}"));
+            let _ = fs::copy(sidecar, target);
+        }
+    }
+
+    let conn = open_readonly_db(&snapshot_db).ok()?;
+    Some(OpenCodeDb {
+        conn,
+        _snapshot_dir: Some(snapshot_dir),
+    })
+}
+
 /// Open the `OpenCode` `SQLite` database in read-only mode.
-fn open_db(base_path: &str) -> Option<Connection> {
+///
+/// Live OpenCode instances can keep the DB locked, especially through WSL/Podman
+/// UNC paths. When the direct read-only connection cannot be probed, read from a
+/// short-lived copied snapshot instead.
+fn open_db(base_path: &str) -> Option<OpenCodeDb> {
     let db_path = Path::new(base_path).join("opencode.db");
     let meta = fs::symlink_metadata(&db_path).ok()?;
     if !meta.file_type().is_file() {
         return None;
     }
-    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let conn = Connection::open_with_flags(&db_path, flags).ok()?;
-    conn.busy_timeout(std::time::Duration::from_secs(1)).ok()?;
-    Some(conn)
+    if let Ok(conn) = open_readonly_db(&db_path) {
+        return Some(OpenCodeDb {
+            conn,
+            _snapshot_dir: None,
+        });
+    }
+    open_db_snapshot(&db_path)
 }
 
 fn session_exists_in_db(base_path: &str, project_id: &str, session_id: &str) -> bool {

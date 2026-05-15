@@ -15,12 +15,78 @@ pub struct CustomClaudePathParam {
     pub source: Option<ProjectSource>,
 }
 
-fn custom_path_matches_provider(custom: &CustomClaudePathParam, provider_dir: &str) -> bool {
-    std::path::Path::new(&custom.path)
+fn custom_path_matches_provider(custom: &CustomClaudePathParam, provider_dirs: &[&str]) -> bool {
+    let path = std::path::Path::new(&custom.path);
+    let file_name = path.file_name().and_then(|s| s.to_str());
+    let parent_name = path
         .parent()
         .and_then(|p| p.file_name())
-        .and_then(|s| s.to_str())
-        == Some(provider_dir)
+        .and_then(|s| s.to_str());
+
+    let mut string_segments = custom
+        .path
+        .trim_end_matches(['/', '\\'])
+        .split(['/', '\\'])
+        .filter(|segment| !segment.is_empty())
+        .rev();
+    let string_file_name = string_segments.next();
+    let string_parent_name = string_segments.next();
+
+    provider_dirs.iter().any(|provider_dir| {
+        file_name == Some(*provider_dir)
+            || parent_name == Some(*provider_dir)
+            || string_file_name == Some(*provider_dir)
+            || string_parent_name == Some(*provider_dir)
+    })
+}
+
+fn project_dedupe_key(project: &ClaudeProject) -> Option<(String, String)> {
+    let provider = project.provider.clone()?;
+    if provider == "opencode" && project.path.starts_with("opencode+path://") {
+        return Some((provider, project.path.to_lowercase()));
+    }
+
+    let actual = project.actual_path.trim();
+    if actual.is_empty() {
+        return None;
+    }
+    Some((provider, actual.replace('\\', "/").to_lowercase()))
+}
+
+fn dedupe_injected_projects(projects: Vec<ClaudeProject>) -> Vec<ClaudeProject> {
+    let mut preferred: std::collections::HashMap<(String, String), usize> =
+        std::collections::HashMap::new();
+    let mut deduped: Vec<ClaudeProject> = Vec::new();
+
+    for project in projects {
+        let Some(key) = project_dedupe_key(&project) else {
+            deduped.push(project);
+            continue;
+        };
+
+        if let Some(existing_idx) = preferred.get(&key).copied() {
+            let existing_is_injected = deduped[existing_idx].source.is_some()
+                || deduped[existing_idx].custom_directory_label.is_some();
+            let candidate_is_local =
+                project.source.is_none() && project.custom_directory_label.is_none();
+
+            if existing_is_injected && candidate_is_local {
+                deduped[existing_idx] = project;
+            } else {
+                let existing = &mut deduped[existing_idx];
+                existing.session_count = existing.session_count.max(project.session_count);
+                existing.message_count = existing.message_count.max(project.message_count);
+                if project.last_modified > existing.last_modified {
+                    existing.last_modified = project.last_modified;
+                }
+            }
+        } else {
+            preferred.insert(key, deduped.len());
+            deduped.push(project);
+        }
+    }
+
+    deduped
 }
 
 /// Detect all available providers
@@ -111,7 +177,7 @@ pub async fn scan_all_projects(
         if let Some(ref custom_paths) = custom_claude_paths {
             for custom in custom_paths
                 .iter()
-                .filter(|custom| custom_path_matches_provider(custom, ".codex"))
+                .filter(|custom| custom_path_matches_provider(custom, &[".codex"]))
             {
                 match providers::codex::scan_projects_from_path(&custom.path) {
                     Ok(mut projects) => {
@@ -160,7 +226,7 @@ pub async fn scan_all_projects(
         if let Some(ref custom_paths) = custom_claude_paths {
             for custom in custom_paths
                 .iter()
-                .filter(|custom| custom_path_matches_provider(custom, "opencode"))
+                .filter(|custom| custom_path_matches_provider(custom, &["opencode", ".opencode"]))
             {
                 match providers::opencode::scan_projects_from_path(&custom.path) {
                     Ok(projects) => {
@@ -263,6 +329,7 @@ pub async fn scan_all_projects(
 
     // Hide empty containers that have no session files regardless of provider.
     all_projects.retain(|project| project.session_count > 0);
+    all_projects = dedupe_injected_projects(all_projects);
 
     all_projects.sort_by(|a, b| {
         match (
@@ -708,6 +775,109 @@ mod tests {
             microcompact_metadata: None,
             provider: Some("claude".to_string()),
         }
+    }
+
+    fn make_project(path: &str, source: Option<ProjectSource>) -> ClaudeProject {
+        ClaudeProject {
+            name: "project".to_string(),
+            path: path.to_string(),
+            actual_path: "C:/work/project".to_string(),
+            session_count: 1,
+            message_count: 1,
+            last_modified: "2026-05-15T00:00:00Z".to_string(),
+            git_info: None,
+            provider: Some("claude".to_string()),
+            storage_type: Some("json".to_string()),
+            custom_directory_label: source.as_ref().map(|_| "Remote".to_string()),
+            source,
+        }
+    }
+
+    #[test]
+    fn dedupe_injected_projects_prefers_local_project() {
+        let remote = make_project(
+            "/cache/.claude/worker/projects/-C-work-project",
+            Some(ProjectSource {
+                id: "remote-1".to_string(),
+                kind: "podman-container".to_string(),
+                display_label: "Podman".to_string(),
+                debug_label: None,
+            }),
+        );
+        let local = make_project("C:/Users/Proud/.claude/projects/-C-work-project", None);
+
+        let deduped = dedupe_injected_projects(vec![remote, local]);
+
+        assert_eq!(deduped.len(), 1);
+        assert!(deduped[0].source.is_none());
+        assert_eq!(
+            deduped[0].path,
+            "C:/Users/Proud/.claude/projects/-C-work-project"
+        );
+    }
+
+    #[test]
+    fn dedupe_keeps_scoped_opencode_global_projects() {
+        let default = ClaudeProject {
+            name: "unknown".to_string(),
+            path: "opencode://global".to_string(),
+            actual_path: "/".to_string(),
+            session_count: 3,
+            message_count: 0,
+            last_modified: "2026-05-15T00:00:00Z".to_string(),
+            git_info: None,
+            provider: Some("opencode".to_string()),
+            storage_type: Some("sqlite".to_string()),
+            custom_directory_label: None,
+            source: None,
+        };
+        let scoped = ClaudeProject {
+            path: "opencode+path://abc/global".to_string(),
+            custom_directory_label: Some("Podman".to_string()),
+            source: Some(ProjectSource {
+                id: "podman".to_string(),
+                kind: "podman-container".to_string(),
+                display_label: "Podman".to_string(),
+                debug_label: None,
+            }),
+            ..default.clone()
+        };
+
+        let deduped = dedupe_injected_projects(vec![default, scoped]);
+
+        assert_eq!(deduped.len(), 2);
+        assert!(deduped
+            .iter()
+            .any(|p| p.path.starts_with("opencode+path://")));
+    }
+
+    #[test]
+    fn custom_path_provider_match_accepts_opencode_hidden_dir() {
+        let custom = CustomClaudePathParam {
+            path: "/root/.cc-slack-data/worker/.opencode".to_string(),
+            label: None,
+            source: None,
+        };
+
+        assert!(custom_path_matches_provider(
+            &custom,
+            &["opencode", ".opencode"]
+        ));
+        assert!(!custom_path_matches_provider(&custom, &[".codex"]));
+    }
+
+    #[test]
+    fn custom_path_provider_match_accepts_unc_opencode_hidden_dir() {
+        let custom = CustomClaudePathParam {
+            path: r"\\wsl.localhost\Ubuntu-24.04\root\.cc-slack-data\worker\.opencode".to_string(),
+            label: None,
+            source: None,
+        };
+
+        assert!(custom_path_matches_provider(
+            &custom,
+            &["opencode", ".opencode"]
+        ));
     }
 
     #[test]

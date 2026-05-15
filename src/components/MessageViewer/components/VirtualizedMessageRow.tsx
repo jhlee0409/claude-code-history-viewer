@@ -33,6 +33,109 @@ interface VirtualizedMessageRowProps {
   onRangeSelect?: (uuid: string, modifiers: { shift: boolean; cmdOrCtrl: boolean }) => void;
 }
 
+type StaticMessageRowProps = Omit<VirtualizedMessageRowProps, "virtualRow"> & {
+  index: number;
+};
+
+function MessageRowContent({
+  item,
+  isMatch,
+  isCurrentMatch,
+  searchQuery,
+  filterType,
+  currentMatchIndex,
+  isCaptureMode,
+  onHideMessage,
+  onRestoreOne,
+  onRestoreAll,
+  isSelected,
+  onRangeSelect,
+}: Omit<VirtualizedMessageRowProps, "virtualRow">) {
+  if (item.type === "date-divider") {
+    return <DateDivider timestamp={item.timestamp} />;
+  }
+
+  if (item.type === "hidden-placeholder") {
+    return (
+      <HiddenBlocksIndicator
+        count={item.hiddenCount}
+        hiddenUuids={item.hiddenUuids}
+        onRestoreOne={onRestoreOne}
+        onRestoreAll={onRestoreAll}
+      />
+    );
+  }
+
+  const {
+    message,
+    depth,
+    isGroupMember,
+    isProgressGroupMember,
+    isTaskOperationGroupMember,
+    agentTaskGroup,
+    agentProgressGroup,
+    taskOperationGroup,
+    taskRegistry,
+  } = item;
+
+  if (isGroupMember || isProgressGroupMember || isTaskOperationGroupMember) {
+    return null;
+  }
+
+  return (
+    <ClaudeMessageNode
+      message={message}
+      depth={depth}
+      isMatch={isMatch}
+      isCurrentMatch={isCurrentMatch}
+      searchQuery={searchQuery}
+      filterType={filterType}
+      currentMatchIndex={currentMatchIndex}
+      agentTaskGroup={agentTaskGroup}
+      isAgentTaskGroupMember={false}
+      agentProgressGroup={agentProgressGroup}
+      isAgentProgressGroupMember={false}
+      taskOperationGroup={taskOperationGroup}
+      taskRegistry={taskRegistry}
+      isTaskOperationGroupMember={false}
+      isCaptureMode={isCaptureMode}
+      onHideMessage={onHideMessage}
+      isSelected={isSelected}
+      onRangeSelect={onRangeSelect}
+    />
+  );
+}
+
+export function StaticMessageRow({
+  index,
+  item,
+  isCaptureMode,
+  ...props
+}: StaticMessageRowProps) {
+  if (
+    item.type === "message" &&
+    (item.isGroupMember || item.isProgressGroupMember || item.isTaskOperationGroupMember)
+  ) {
+    return (
+      <div
+        data-index={index}
+        data-message-uuid={item.message.uuid}
+        aria-hidden="true"
+        className="h-0 overflow-hidden"
+      />
+    );
+  }
+
+  return (
+    <div
+      data-index={index}
+      className={cn(isCaptureMode && "group/capture")}
+    >
+      <MessageRowContent item={item} isCaptureMode={isCaptureMode} {...props} />
+    </div>
+  );
+}
+
 /**
  * Row component with forwardRef for virtualizer measurement.
  */
@@ -71,7 +174,20 @@ export const VirtualizedMessageRow = forwardRef<
           transform: `translateY(${virtualRow.start}px)`,
         }}
       >
-        <DateDivider timestamp={item.timestamp} />
+        <MessageRowContent
+          item={item}
+          isMatch={isMatch}
+          isCurrentMatch={isCurrentMatch}
+          searchQuery={searchQuery}
+          filterType={filterType}
+          currentMatchIndex={currentMatchIndex}
+          isCaptureMode={isCaptureMode}
+          onHideMessage={onHideMessage}
+          onRestoreOne={onRestoreOne}
+          onRestoreAll={onRestoreAll}
+          isSelected={isSelected}
+          onRangeSelect={onRangeSelect}
+        />
       </div>
     );
   }
@@ -90,11 +206,19 @@ export const VirtualizedMessageRow = forwardRef<
           transform: `translateY(${virtualRow.start}px)`,
         }}
       >
-        <HiddenBlocksIndicator
-          count={item.hiddenCount}
-          hiddenUuids={item.hiddenUuids}
+        <MessageRowContent
+          item={item}
+          isMatch={isMatch}
+          isCurrentMatch={isCurrentMatch}
+          searchQuery={searchQuery}
+          filterType={filterType}
+          currentMatchIndex={currentMatchIndex}
+          isCaptureMode={isCaptureMode}
+          onHideMessage={onHideMessage}
           onRestoreOne={onRestoreOne}
           onRestoreAll={onRestoreAll}
+          isSelected={isSelected}
+          onRangeSelect={onRangeSelect}
         />
       </div>
     );
@@ -103,14 +227,9 @@ export const VirtualizedMessageRow = forwardRef<
   // Regular message item
   const {
     message,
-    depth,
     isGroupMember,
     isProgressGroupMember,
     isTaskOperationGroupMember,
-    agentTaskGroup,
-    agentProgressGroup,
-    taskOperationGroup,
-    taskRegistry,
   } = item;
 
   // Group members render as hidden placeholders for DOM presence (search needs them)
@@ -148,23 +267,17 @@ export const VirtualizedMessageRow = forwardRef<
         transform: `translateY(${virtualRow.start}px)`,
       }}
     >
-      <ClaudeMessageNode
-        message={message}
-        depth={depth}
+      <MessageRowContent
+        item={item}
         isMatch={isMatch}
         isCurrentMatch={isCurrentMatch}
         searchQuery={searchQuery}
         filterType={filterType}
         currentMatchIndex={currentMatchIndex}
-        agentTaskGroup={agentTaskGroup}
-        isAgentTaskGroupMember={false}
-        agentProgressGroup={agentProgressGroup}
-        isAgentProgressGroupMember={false}
-        taskOperationGroup={taskOperationGroup}
-        taskRegistry={taskRegistry}
-        isTaskOperationGroupMember={false}
         isCaptureMode={isCaptureMode}
         onHideMessage={onHideMessage}
+        onRestoreOne={onRestoreOne}
+        onRestoreAll={onRestoreAll}
         isSelected={isSelected}
         onRangeSelect={onRangeSelect}
       />

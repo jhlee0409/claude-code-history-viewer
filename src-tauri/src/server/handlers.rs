@@ -545,6 +545,18 @@ handler_json!(
 );
 
 handler_json!(
+    export_history_backup,
+    PathParam,
+    |p: PathParam| async move { commands::history_backup::export_history_backup(p.path).await }
+);
+
+handler_json!(
+    restore_history_backup,
+    PathParam,
+    |p: PathParam| async move { commands::history_backup::restore_history_backup(p.path).await }
+);
+
+handler_json!(
     delete_session,
     DeleteSessionParams,
     |p: DeleteSessionParams| async move {

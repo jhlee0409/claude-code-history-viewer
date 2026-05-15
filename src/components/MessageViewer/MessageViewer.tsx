@@ -14,7 +14,7 @@ import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
 
 // Local imports
 import type { MessageViewerProps } from "./types";
-import { VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
+import { StaticMessageRow, VirtualizedMessageRow } from "./components/VirtualizedMessageRow";
 import { FloatingDateOverlay } from "./components/FloatingDateOverlay";
 import { CaptureModeToolbar } from "./components/CaptureModeToolbar";
 import { FilterToolbar } from "./components/FilterToolbar";
@@ -126,6 +126,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // Track when OverlayScrollbars is initialized
   const [scrollElementReady, setScrollElementReady] = useState(false);
+  const [showRenderDiagnostics, setShowRenderDiagnostics] = useState(() =>
+    import.meta.env.DEV &&
+    window.localStorage.getItem("cchv:showMessageDebug") === "1"
+  );
 
   // SubAgent 패널 접힘 상태 — MessageViewer에 lift해야 filter toggle 같은
   // 분기 재렌더(패널 자식 unmount)에서 유저 선택이 보존됨.
@@ -134,6 +138,25 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     () => setIsSubagentPanelOpen((prev) => !prev),
     [],
   );
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || !event.altKey || event.key.toLowerCase() !== "d") {
+        return;
+      }
+      event.preventDefault();
+      setShowRenderDiagnostics((previous) => {
+        const next = !previous;
+        window.localStorage.setItem("cchv:showMessageDebug", next ? "1" : "0");
+        return next;
+      });
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Capture mode state
   const {
@@ -940,8 +963,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           }}
         >
         {/* 디버깅 정보 */}
-        {import.meta.env.DEV && (
-          <div className="bg-warning/10 p-2 text-xs text-warning-foreground border-b border-warning/20 space-y-1">
+        {showRenderDiagnostics && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/40 bg-muted/35 px-3 py-1.5 font-mono text-[11px] leading-4 text-muted-foreground/70 [&>div]:inline-flex [&>div]:items-center [&>div]:gap-1">
             <div>
               {t("messageViewer.debugInfo.messages", {
                 current: displayMessages.length,
@@ -1033,6 +1056,40 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   key={virtualRow.key}
                   ref={virtualizer.measureElement}
                   virtualRow={virtualRow}
+                  item={item}
+                  isMatch={isMatch}
+                  isCurrentMatch={isCurrentMatch}
+                  searchQuery={sessionSearch.query}
+                  filterType={sessionSearch.filterType}
+                  currentMatchIndex={messageMatchIndex}
+                  isCaptureMode={isCaptureMode}
+                  onHideMessage={hideMessage}
+                  onRestoreOne={showMessage}
+                  onRestoreAll={restoreMessages}
+                  isSelected={itemIsSelected}
+                  onRangeSelect={isCaptureMode ? handleRangeSelect : undefined}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {flattenedMessages.length > 0 && !scrollElementReady && (
+          <div className="w-full">
+            {flattenedMessages.map((item, index) => {
+              const isMessage = item.type === "message";
+              const isMatch = isMessage && matchedUuids.has(item.message.uuid);
+              const isTarget = isMessage && shouldHighlightTarget && targetMessageUuid === item.message.uuid;
+              const isCurrentMatch = (isMessage && currentMatchUuid === item.message.uuid) || isTarget;
+              const messageMatchIndex = (isMessage && currentMatchUuid === item.message.uuid)
+                ? currentMatch?.matchIndex
+                : undefined;
+              const itemIsSelected = isMessage && selectedSet.has(item.message.uuid);
+
+              return (
+                <StaticMessageRow
+                  key={isMessage ? item.message.uuid : `${item.type}-${index}`}
+                  index={index}
                   item={item}
                   isMatch={isMatch}
                   isCurrentMatch={isCurrentMatch}

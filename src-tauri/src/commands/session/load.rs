@@ -1383,6 +1383,10 @@ pub struct SubagentSession {
 pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
     use crate::utils::find_subagent_files;
 
+    if session_path.contains("://") {
+        return Ok(Vec::new());
+    }
+
     let path = PathBuf::from(&session_path);
     if !path.is_absolute() {
         return Err("session_path must be an absolute path".to_string());

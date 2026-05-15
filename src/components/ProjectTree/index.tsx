@@ -8,6 +8,7 @@ import {
   GitBranch,
   PanelLeftClose,
   PanelLeft,
+  RefreshCw,
   RotateCcw,
   Search,
   Server,
@@ -74,7 +75,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const activeProviders = useAppStore((state) => state.activeProviders);
   const detectedProviders = useAppStore((state) => state.providers);
   const isDetectingProviders = useAppStore((state) => state.isDetectingProviders);
+  const isLoadingProjects = useAppStore((state) => state.isLoadingProjects);
   const setActiveProviders = useAppStore((state) => state.setActiveProviders);
+  const loadMetadata = useAppStore((state) => state.loadMetadata);
+  const detectProviders = useAppStore((state) => state.detectProviders);
+  const scanProjects = useAppStore((state) => state.scanProjects);
   const loadGlobalStats = useAppStore((state) => state.loadGlobalStats);
   const clearProjectSelection = useAppStore(
     (state) => state.clearProjectSelection
@@ -95,6 +100,18 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const userMetadata = useAppStore((state) => state.userMetadata);
   const remoteSourceCount =
     userMetadata?.settings?.remoteSources?.length ?? 0;
+
+  const handleRefreshProjects = useCallback(async () => {
+    try {
+      await loadMetadata();
+      await detectProviders();
+      await scanProjects();
+      toast.success(t("project.refreshOk", "Project list refreshed"));
+    } catch (error) {
+      console.error("Failed to refresh projects:", error);
+      toast.error(t("project.refreshFailed", "Failed to refresh projects"));
+    }
+  }, [detectProviders, loadMetadata, scanProjects, t]);
 
   // Wrap session select to also close mobile drawer
   const handleSessionSelect = useCallback(
@@ -243,14 +260,42 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
   const normalizedSearchTerm = useMemo(() => searchTerm.trim().toLowerCase(), [searchTerm]);
 
+  const searchableText = useCallback(
+    (value: unknown) => (typeof value === "string" ? value.toLowerCase() : ""),
+    []
+  );
+
   const matchesSearch = useCallback(
     (project: (typeof projects)[number]) => {
       if (!normalizedSearchTerm) return true;
-      const name = (project.name ?? "").toLowerCase();
-      const path = (project.actual_path ?? project.path ?? "").toLowerCase();
-      return name.includes(normalizedSearchTerm) || path.includes(normalizedSearchTerm);
+      const projectFields = [
+        project.name,
+        project.path,
+        project.actual_path,
+        project.provider,
+        project.custom_directory_label,
+        project.source?.displayLabel,
+        project.source?.debugLabel,
+      ];
+      if (projectFields.some((field) => searchableText(field).includes(normalizedSearchTerm))) {
+        return true;
+      }
+
+      return sessions.some((session) => {
+        if (session.project_name !== project.name && !session.file_path.startsWith(project.path)) {
+          return false;
+        }
+
+        return [
+          session.summary,
+          session.session_id,
+          session.actual_session_id,
+          session.file_path,
+          session.provider,
+        ].some((field) => searchableText(field).includes(normalizedSearchTerm));
+      });
     },
-    [normalizedSearchTerm]
+    [normalizedSearchTerm, searchableText, sessions]
   );
 
   const filteredProjects = useMemo(
@@ -878,6 +923,28 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               <RotateCcw className="w-3 h-3" />
               <span>{t("project.resetProviderFilters", "Reset")}</span>
             </button>
+            <button
+              onClick={() => {
+                void handleRefreshProjects();
+              }}
+              disabled={isLoadingProjects || isDetectingProviders}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-2xs font-medium transition-colors",
+                isLoadingProjects || isDetectingProviders
+                  ? "bg-muted/20 text-muted-foreground/50 border-transparent cursor-wait"
+                  : "bg-muted/30 text-muted-foreground border-transparent hover:bg-accent/8 hover:text-accent"
+              )}
+              title={t("project.refreshProjects", "Refresh projects")}
+              aria-label={t("project.refreshProjects", "Refresh projects")}
+            >
+              <RefreshCw
+                className={cn(
+                  "w-3 h-3",
+                  (isLoadingProjects || isDetectingProviders) && "animate-spin"
+                )}
+              />
+              <span>{t("common.refresh", "Refresh")}</span>
+            </button>
           </div>
         </div>
 
@@ -910,14 +977,14 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" aria-hidden="true" focusable="false" />
             <label htmlFor={searchInputId} className="sr-only">
-              {t("project.searchPlaceholder", "Search projects...")}
+              {t("project.searchPlaceholder", "Search projects, paths, sources...")}
             </label>
             <input
               id={searchInputId}
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={t("project.searchPlaceholder", "Search projects...")}
+              placeholder={t("project.searchPlaceholder", "Search projects, paths, sources...")}
               className="w-full pl-8 pr-8 py-1.5 text-xs bg-muted/30 border border-transparent rounded-md placeholder:text-muted-foreground/40 focus:outline-none focus:border-accent/30 focus:bg-muted/50 transition-colors"
             />
             {searchTerm && (

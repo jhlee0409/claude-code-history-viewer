@@ -29,6 +29,7 @@ import { SettingsEditorPane } from "./editor/SettingsEditorPane";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
+import { HistoryBackupRestore } from "./components/HistoryBackupRestore";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -325,6 +326,8 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
                 onToggle={(open) => setIsWslExpanded(open)}
               />
             </Card>
+
+            <HistoryBackupRestore />
 
             {/* Claude Code Settings */}
             <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">

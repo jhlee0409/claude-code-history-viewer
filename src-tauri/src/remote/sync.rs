@@ -194,6 +194,18 @@ fn provider_cache_subdir(provider: ProviderKind) -> &'static str {
     }
 }
 
+fn is_nested_provider_root(remote_root: &str, provider: ProviderKind) -> bool {
+    let provider_dir = provider_cache_subdir(provider);
+    let mut segments = remote_root
+        .split(['/', '\\'])
+        .filter(|segment| !segment.is_empty())
+        .rev();
+    matches!(
+        (segments.next(), segments.next()),
+        (Some(child), Some(parent)) if child == provider_dir && parent == provider_dir
+    )
+}
+
 fn provider_container_paths(
     provider: ProviderKind,
     container_home: &str,
@@ -659,6 +671,10 @@ pub async fn sync_one(source: &RemoteSource) -> Result<SyncOutcome> {
 
             let mut configured_synced_any = false;
             for remote_root in matched {
+                if is_nested_provider_root(&remote_root, wl.provider) {
+                    continue;
+                }
+
                 // Race guard: glob expansion saw the dir in its parent listing,
                 // but it may have been deleted before we stat it directly.
                 if session.stat_optional(&remote_root).await.is_none() {
@@ -895,6 +911,30 @@ mod unit_tests {
         used.insert("dbg__2".to_string());
         assert_eq!(unique_discriminator("dbg", &used), "dbg__3");
         assert_eq!(unique_discriminator("worker", &used), "worker");
+    }
+
+    #[test]
+    fn nested_provider_root_is_rejected() {
+        assert!(is_nested_provider_root(
+            "/home/user/.claude/.claude",
+            ProviderKind::Claude
+        ));
+        assert!(is_nested_provider_root(
+            "C:\\Users\\foo\\.codex\\.codex",
+            ProviderKind::Codex
+        ));
+        assert!(is_nested_provider_root(
+            "/home/user/opencode/opencode",
+            ProviderKind::OpenCode
+        ));
+        assert!(!is_nested_provider_root(
+            "/home/user/.cc-slack-data/dbg/.claude",
+            ProviderKind::Claude
+        ));
+        assert!(!is_nested_provider_root(
+            "/home/user/.claude",
+            ProviderKind::Claude
+        ));
     }
 }
 
