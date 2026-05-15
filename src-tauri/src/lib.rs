@@ -110,7 +110,7 @@ fn do_sync_host_cli(target: &str) -> Result<i32, String> {
         .map_err(|e| format!("cannot read {}: {e}", user_data.display()))?;
 
     // Use Value so we can round-trip the file and preserve unknown fields.
-    let mut json: serde_json::Value =
+    let json: serde_json::Value =
         serde_json::from_str(&content).map_err(|e| format!("parse user-data.json: {e}"))?;
 
     let remote_sources_value = json
@@ -173,12 +173,17 @@ fn do_sync_host_cli(target: &str) -> Result<i32, String> {
     }
 
     // Mirror the GUI behaviour: register synced cache paths as customClaudePaths
-    // so a future GUI launch can scan the pulled data.
-    if let Err(e) = inject_paths_into_user_data(&mut json, &source, &outcome) {
+    // so a future GUI launch can scan the pulled data. Reload just before
+    // writing so a GUI or another headless sync does not lose unrelated edits.
+    let latest_content = std::fs::read_to_string(&user_data)
+        .map_err(|e| format!("cannot reread {}: {e}", user_data.display()))?;
+    let mut latest_json: serde_json::Value =
+        serde_json::from_str(&latest_content).map_err(|e| format!("parse user-data.json: {e}"))?;
+    if let Err(e) = inject_paths_into_user_data(&mut latest_json, &source, &outcome) {
         eprintln!("warning: could not update customClaudePaths in memory: {e}");
         return Ok(0);
     }
-    if let Err(e) = atomic_write_user_data(&user_data, &json) {
+    if let Err(e) = atomic_write_user_data(&user_data, &latest_json) {
         eprintln!("warning: could not write user-data.json: {e}");
         eprintln!(
             "  (sync data is on disk; add the cache paths above as custom directories in the GUI to view)"

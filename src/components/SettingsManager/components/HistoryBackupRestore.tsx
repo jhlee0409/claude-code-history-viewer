@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Archive, Download, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/services/api";
@@ -39,6 +40,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function HistoryBackupRestore() {
+  const { t } = useTranslation();
   const [isExporting, setIsExporting] = React.useState(false);
   const [isRestoring, setIsRestoring] = React.useState(false);
   const addCustomClaudePath = useAppStore((state) => state.addCustomClaudePath);
@@ -51,7 +53,7 @@ export function HistoryBackupRestore() {
       const selected = await open({
         directory: true,
         multiple: false,
-        title: "Choose where to create the AI history backup",
+        title: t("settings.historyBackupRestore.exportDialogTitle", "Choose where to create the AI history backup"),
       });
       if (!selected || typeof selected !== "string") return;
 
@@ -59,11 +61,14 @@ export function HistoryBackupRestore() {
         path: selected,
       });
       toast.success(
-        `Backup created: ${result.filesCopied} files, ${formatBytes(result.bytesCopied)}`
+        t("settings.historyBackupRestore.exportSuccess", "Backup created: {{files}} files, {{bytes}}", {
+          files: result.filesCopied,
+          bytes: formatBytes(result.bytesCopied),
+        })
       );
     } catch (error) {
       console.error("History backup failed:", error);
-      toast.error("Failed to create history backup");
+      toast.error(t("settings.historyBackupRestore.exportFailed", "Failed to create history backup"));
     } finally {
       setIsExporting(false);
     }
@@ -76,7 +81,7 @@ export function HistoryBackupRestore() {
       const selected = await open({
         directory: true,
         multiple: false,
-        title: "Choose a CCHV AI history backup folder",
+        title: t("settings.historyBackupRestore.restoreDialogTitle", "Choose a CCHV AI history backup folder"),
       });
       if (!selected || typeof selected !== "string") return;
 
@@ -88,11 +93,14 @@ export function HistoryBackupRestore() {
       }
       await scanProjects();
       toast.success(
-        `Restored ${result.roots.length} source(s): ${result.filesCopied} files`
+        t("settings.historyBackupRestore.restoreSuccess", "Restored {{roots}} source(s): {{files}} files", {
+          roots: result.roots.length,
+          files: result.filesCopied,
+        })
       );
     } catch (error) {
       console.error("History restore failed:", error);
-      toast.error("Failed to restore history backup");
+      toast.error(t("settings.historyBackupRestore.restoreFailed", "Failed to restore history backup"));
     } finally {
       setIsRestoring(false);
     }
@@ -103,14 +111,17 @@ export function HistoryBackupRestore() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Archive className="h-4 w-4" />
-          AI History Backup
+          {t("settings.historyBackupRestore.title", "AI History Backup")}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">
-              Export and restore Claude Code, Codex CLI, OpenCode, and synced Podman/remote history.
+              {t(
+                "settings.historyBackupRestore.description",
+                "Export and restore Claude Code, Codex CLI, OpenCode, and synced Podman/remote history."
+              )}
             </p>
           </div>
           <div className="flex gap-2">
@@ -120,7 +131,7 @@ export function HistoryBackupRestore() {
               ) : (
                 <Download className="h-4 w-4" />
               )}
-              Export
+              {t("settings.historyBackupRestore.export", "Export")}
             </Button>
             <Button
               variant="outline"
@@ -132,7 +143,7 @@ export function HistoryBackupRestore() {
               ) : (
                 <Upload className="h-4 w-4" />
               )}
-              Restore
+              {t("settings.historyBackupRestore.restore", "Restore")}
             </Button>
           </div>
         </div>

@@ -19,7 +19,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::remote::source::{RemoteAuth, RemoteSource};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+const EXEC_TIMEOUT: Duration = Duration::from_secs(120);
 const INACTIVITY_TIMEOUT: Duration = Duration::from_secs(300);
+const DOWNLOAD_CHUNK_SIZE: usize = 64 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct RemoteFileMeta {
@@ -86,10 +88,16 @@ impl SftpSession {
         .with_context(|| format!("SSH connect to {}:{}", source.host, source.port))?;
 
         let auth_ok = match &source.auth {
-            RemoteAuth::Password { password } => handle
-                .authenticate_password(&source.username, password)
-                .await
-                .context("password authentication")?,
+            RemoteAuth::Password { password } => {
+                let password = password
+                    .as_deref()
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| anyhow!("password is required for password authentication"))?;
+                handle
+                    .authenticate_password(&source.username, password)
+                    .await
+                    .context("password authentication")?
+            }
             RemoteAuth::Key {
                 key_path,
                 passphrase,
@@ -141,36 +149,40 @@ impl SftpSession {
 
     /// Execute a non-interactive remote shell command over the existing SSH transport.
     pub async fn exec_command(&self, command: &str) -> Result<ExecOutput> {
-        let mut channel = self
-            .ssh
-            .channel_open_session()
-            .await
-            .context("open SSH exec channel")?;
-        channel
-            .exec(true, command)
-            .await
-            .with_context(|| format!("exec remote command: {command}"))?;
+        tokio::time::timeout(EXEC_TIMEOUT, async {
+            let mut channel = self
+                .ssh
+                .channel_open_session()
+                .await
+                .context("open SSH exec channel")?;
+            channel
+                .exec(true, command)
+                .await
+                .context("exec remote command")?;
 
-        let mut stdout = Vec::new();
-        let mut stderr = Vec::new();
-        let mut exit_status = None;
+            let mut stdout = Vec::new();
+            let mut stderr = Vec::new();
+            let mut exit_status = None;
 
-        while let Some(msg) = channel.wait().await {
-            match msg {
-                ChannelMsg::Data { data } => stdout.extend_from_slice(&data),
-                ChannelMsg::ExtendedData { data, .. } => stderr.extend_from_slice(&data),
-                ChannelMsg::ExitStatus {
-                    exit_status: status,
-                } => exit_status = Some(status),
-                _ => {}
+            while let Some(msg) = channel.wait().await {
+                match msg {
+                    ChannelMsg::Data { data } => stdout.extend_from_slice(&data),
+                    ChannelMsg::ExtendedData { data, .. } => stderr.extend_from_slice(&data),
+                    ChannelMsg::ExitStatus {
+                        exit_status: status,
+                    } => exit_status = Some(status),
+                    _ => {}
+                }
             }
-        }
 
-        Ok(ExecOutput {
-            stdout: String::from_utf8_lossy(&stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&stderr).into_owned(),
-            exit_status: exit_status.unwrap_or(255),
+            Ok(ExecOutput {
+                stdout: String::from_utf8_lossy(&stdout).into_owned(),
+                stderr: String::from_utf8_lossy(&stderr).into_owned(),
+                exit_status: exit_status.unwrap_or(255),
+            })
         })
+        .await
+        .map_err(|_| anyhow!("remote command timed out after {}s", EXEC_TIMEOUT.as_secs()))?
     }
 
     /// Returns `Some(attrs)` when the path exists and is statable, `None` otherwise.
@@ -265,13 +277,6 @@ impl SftpSession {
             .await
             .with_context(|| format!("open remote {remote_path}"))?;
 
-        // Buffer in memory — typical AI session files are <100 MB.
-        let mut buf = Vec::new();
-        remote_file
-            .read_to_end(&mut buf)
-            .await
-            .with_context(|| format!("read remote {remote_path}"))?;
-
         let tmp_path = {
             let mut p = local_path.to_path_buf();
             let mut name = p.file_name().unwrap_or_default().to_os_string();
@@ -283,10 +288,22 @@ impl SftpSession {
         let mut local = tokio::fs::File::create(&tmp_path)
             .await
             .with_context(|| format!("create tmp file {}", tmp_path.display()))?;
-        local
-            .write_all(&buf)
-            .await
-            .with_context(|| format!("write tmp {}", tmp_path.display()))?;
+        let mut total = 0_u64;
+        let mut buf = vec![0_u8; DOWNLOAD_CHUNK_SIZE];
+        loop {
+            let read = remote_file
+                .read(&mut buf)
+                .await
+                .with_context(|| format!("read remote {remote_path}"))?;
+            if read == 0 {
+                break;
+            }
+            local
+                .write_all(&buf[..read])
+                .await
+                .with_context(|| format!("write tmp {}", tmp_path.display()))?;
+            total = total.saturating_add(read as u64);
+        }
         local.flush().await?;
         drop(local);
 
@@ -300,6 +317,6 @@ impl SftpSession {
                 format!("rename {} -> {}", tmp_path.display(), local_path.display())
             })?;
 
-        Ok(buf.len() as u64)
+        Ok(total)
     }
 }

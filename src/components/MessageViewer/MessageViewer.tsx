@@ -126,10 +126,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // Track when OverlayScrollbars is initialized
   const [scrollElementReady, setScrollElementReady] = useState(false);
-  const [showRenderDiagnostics, setShowRenderDiagnostics] = useState(() =>
-    import.meta.env.DEV &&
-    window.localStorage.getItem("cchv:showMessageDebug") === "1"
-  );
+  const [showRenderDiagnostics, setShowRenderDiagnostics] = useState(() => {
+    if (!import.meta.env.DEV) return false;
+    try {
+      return window.localStorage.getItem("cchv:showMessageDebug") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   // SubAgent 패널 접힘 상태 — MessageViewer에 lift해야 filter toggle 같은
   // 분기 재렌더(패널 자식 unmount)에서 유저 선택이 보존됨.
@@ -149,7 +153,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       event.preventDefault();
       setShowRenderDiagnostics((previous) => {
         const next = !previous;
-        window.localStorage.setItem("cchv:showMessageDebug", next ? "1" : "0");
+        try {
+          window.localStorage.setItem("cchv:showMessageDebug", next ? "1" : "0");
+        } catch {
+          // Ignore storage-restricted contexts; the in-memory toggle still works.
+        }
         return next;
       });
     };
@@ -979,7 +987,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               |{" "}
               {t("messageViewer.debugInfo.file", {
                 fileName: selectedSession?.file_path
-                  ?.split("/")
+                  ?.split(/[\\/]/)
                   .pop()
                   ?.slice(0, 20),
               })}

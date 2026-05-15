@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useTranslation } from "react-i18next";
 import { useModal } from "@/contexts/modal";
 import { usePlatform } from "@/contexts/platform";
 import { useAppStore } from "@/store/useAppStore";
@@ -30,6 +31,7 @@ function emitRemoteRefreshStatus(state: RemoteRefreshState, message: string) {
  * - Cmd+Shift+M: toggle message navigator (desktop only)
  */
 export function useAppKeyboard() {
+  const { t } = useTranslation();
   const { openModal } = useModal();
   const { isMobile } = usePlatform();
   const toggleNavigator = useAppStore((s) => s.toggleNavigator);
@@ -98,7 +100,7 @@ export function useAppKeyboard() {
     const syncRemotesAndRefresh = async () => {
       if (isRefreshing) return;
       isRefreshing = true;
-      emitRemoteRefreshStatus("syncing", "Syncing remote sessions...");
+      emitRemoteRefreshStatus("syncing", t("remoteSources.refresh.syncing", "Syncing remote sessions..."));
       try {
         const state = useAppStore.getState();
         const sources = (state.userMetadata?.settings?.remoteSources ?? []).filter(
@@ -106,7 +108,6 @@ export function useAppKeyboard() {
         );
         if (sources.length > 0) {
           const results = await api<SyncOneResult[]>("sync_all_remote_sources", { sources });
-          const latestSources = state.userMetadata?.settings?.remoteSources ?? [];
           let ok = 0;
           let failed = 0;
           for (const result of results) {
@@ -119,6 +120,8 @@ export function useAppKeyboard() {
               failed += 1;
             }
           }
+          const latestSources =
+            useAppStore.getState().userMetadata?.settings?.remoteSources ?? [];
           const stampedSources = latestSources.map((source) => {
             const result = results.find((r) => r.sourceId === source.id);
             if (!result) return source;
@@ -126,24 +129,45 @@ export function useAppKeyboard() {
               ...source,
               lastSyncAt: new Date().toISOString(),
               lastSyncStatus: result.success ? "ok" as const : "error" as const,
-              lastSyncError: result.success ? undefined : result.error ?? "unknown error",
+              lastSyncError:
+                result.success
+                  ? undefined
+                  : result.error ?? t("common.unknownError", "unknown error"),
               lastSyncStats: result.outcome?.stats,
             };
           });
           await updateUserSettings({ remoteSources: stampedSources });
           if (ok > 0) {
-            const message = `Remote sync complete: ${ok} synced${failed ? `, ${failed} failed` : ""}`;
+            const message = t(
+              "remoteSources.refresh.complete",
+              "Remote sync complete: {{ok}} synced{{failedText}}",
+              {
+                ok,
+                failedText: failed
+                  ? t("remoteSources.refresh.failedSuffix", ", {{failed}} failed", { failed })
+                  : "",
+              }
+            );
             emitRemoteRefreshStatus("success", message);
           } else if (failed > 0) {
-            const message = `Remote sync failed for ${failed} machine(s)`;
+            const message = t(
+              "remoteSources.refresh.failed",
+              "Remote sync failed for {{failed}} machine(s)",
+              { failed }
+            );
             emitRemoteRefreshStatus("error", message);
           }
         } else {
-          emitRemoteRefreshStatus("success", "No enabled remote machines");
+          emitRemoteRefreshStatus(
+            "success",
+            t("remoteSources.refresh.noEnabled", "No enabled remote machines")
+          );
         }
         await scanProjects();
       } catch (error) {
-        const message = `Refresh failed: ${String(error)}`;
+        const message = t("remoteSources.refresh.refreshFailed", "Refresh failed: {{error}}", {
+          error: String(error),
+        });
         emitRemoteRefreshStatus("error", message);
       } finally {
         isRefreshing = false;
@@ -191,5 +215,5 @@ export function useAppKeyboard() {
       window.removeEventListener("keydown", handleKeyDown, { capture: true });
       document.removeEventListener("keydown", handleKeyDown, { capture: true });
     };
-  }, [openModal, toggleNavigator, isMobile, scanProjects, updateUserSettings]);
+  }, [openModal, toggleNavigator, isMobile, scanProjects, t, updateUserSettings]);
 }

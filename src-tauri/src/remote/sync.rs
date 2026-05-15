@@ -15,7 +15,7 @@
 //! registered as its own `customClaudePath` by the frontend so the existing
 //! scanner picks it up unmodified.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -100,7 +100,12 @@ fn local_cache_root(source: &RemoteSource) -> Result<PathBuf> {
         |c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '.' && c != '_',
         "_",
     );
-    let id_prefix: String = source.id.chars().take(8).collect();
+    let id_prefix = sanitize_segment(&source.id);
+    let id_prefix = if id_prefix.is_empty() {
+        "unknown".to_string()
+    } else {
+        id_prefix.chars().take(32).collect()
+    };
     Ok(home
         .join(".claude-history-viewer")
         .join("remote-cache")
@@ -277,19 +282,17 @@ fn podman_manifest_path(
         .join(format!("{}.json", provider.as_str()))
 }
 
-async fn read_podman_manifest(path: &Path) -> Vec<PodmanManifestEntry> {
-    let Ok(content) = tokio::fs::read_to_string(path).await else {
-        return Vec::new();
-    };
-    serde_json::from_str(&content).unwrap_or_default()
-}
-
 async fn write_podman_manifest(path: &Path, manifest: &[PodmanManifestEntry]) -> Result<()> {
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
     let content = serde_json::to_string_pretty(manifest)?;
-    tokio::fs::write(path, content).await?;
+    let tmp = path.with_extension("json.tmp");
+    tokio::fs::write(&tmp, content).await?;
+    if tokio::fs::try_exists(path).await.unwrap_or(false) {
+        let _ = tokio::fs::remove_file(path).await;
+    }
+    tokio::fs::rename(&tmp, path).await?;
     Ok(())
 }
 
@@ -487,16 +490,7 @@ async fn discover_podman_roots(
                 sanitize_segment(&container.name)
             );
             let manifest_path = podman_manifest_path(cache_root, source, &container, provider);
-            let previous_manifest = read_podman_manifest(&manifest_path).await;
-            let previous_by_path: HashMap<String, PodmanManifestEntry> = previous_manifest
-                .into_iter()
-                .map(|entry| (entry.rel_path.clone(), entry))
-                .collect();
-            let changed_files = manifest
-                .iter()
-                .filter(|entry| previous_by_path.get(&entry.rel_path) != Some(*entry))
-                .cloned()
-                .collect::<Vec<_>>();
+            let changed_files = manifest.clone();
 
             let clear_cmd = format!(
                 "rm -rf {dest} && mkdir -p {dest}",

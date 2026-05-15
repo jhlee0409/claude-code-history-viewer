@@ -12,14 +12,14 @@ import {
 } from "../../../utils/providers";
 import { TruncatedScrollText } from "../../ui/TruncatedScrollText";
 
-function getSourceRows(label: string): string[] {
+function getSourceRows(label: string, t: (key: string, fallback: string) => string): string[] {
   const podmanMatch = label.match(/^Podman:\s*(.+?)\s*@\s*(.+)$/);
   if (podmanMatch) {
-    return [`Podman: ${podmanMatch[1]}`, podmanMatch[2]];
+    return [`${t("project.source.podman", "Podman")}: ${podmanMatch[1]}`, podmanMatch[2]];
   }
   const wslMatch = label.match(/^WSL:\s*(.+)$/);
   if (wslMatch) {
-    return [`WSL: ${wslMatch[1]}`];
+    return [`${t("project.source.wsl", "WSL")}: ${wslMatch[1]}`];
   }
   return [label.replace(/^🌐\s*/, "")];
 }
@@ -55,7 +55,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   );
   const sourceLabel = project.source?.displayLabel ?? project.custom_directory_label;
   const sourceTitle = project.source?.debugLabel ?? sourceLabel;
-  const sourceRows = sourceLabel ? getSourceRows(sourceLabel) : [];
+  const sourceRows = sourceLabel ? getSourceRows(sourceLabel, t) : [];
   const providerLabel = sourceLabel
     ? `${baseProviderLabel} (${sourceTitle})`
     : baseProviderLabel;

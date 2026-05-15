@@ -265,6 +265,28 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     []
   );
 
+  const sessionSearchMatches = useMemo(() => {
+    const projectNames = new Set<string>();
+    const filePaths: string[] = [];
+    if (!normalizedSearchTerm) {
+      return { projectNames, filePaths };
+    }
+    for (const session of sessions) {
+      const matches = [
+        session.summary,
+        session.session_id,
+        session.actual_session_id,
+        session.file_path,
+        session.provider,
+      ].some((field) => searchableText(field).includes(normalizedSearchTerm));
+      if (matches) {
+        projectNames.add(session.project_name);
+        filePaths.push(session.file_path);
+      }
+    }
+    return { projectNames, filePaths };
+  }, [normalizedSearchTerm, searchableText, sessions]);
+
   const matchesSearch = useCallback(
     (project: (typeof projects)[number]) => {
       if (!normalizedSearchTerm) return true;
@@ -281,21 +303,12 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         return true;
       }
 
-      return sessions.some((session) => {
-        if (session.project_name !== project.name && !session.file_path.startsWith(project.path)) {
-          return false;
-        }
-
-        return [
-          session.summary,
-          session.session_id,
-          session.actual_session_id,
-          session.file_path,
-          session.provider,
-        ].some((field) => searchableText(field).includes(normalizedSearchTerm));
-      });
+      return (
+        sessionSearchMatches.projectNames.has(project.name) ||
+        sessionSearchMatches.filePaths.some((filePath) => filePath.startsWith(project.path))
+      );
     },
-    [normalizedSearchTerm, searchableText, sessions]
+    [normalizedSearchTerm, searchableText, sessionSearchMatches]
   );
 
   const filteredProjects = useMemo(

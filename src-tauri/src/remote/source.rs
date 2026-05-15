@@ -19,7 +19,8 @@ pub enum RemoteAuth {
         passphrase: Option<String>,
     },
     Password {
-        password: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        password: Option<String>,
     },
 }
 

@@ -133,7 +133,13 @@ fn copy_opencode_history(src: &Path, dest: &Path, stats: &mut CopyStats) -> Resu
 
 fn write_manifest(path: &Path, manifest: &HistoryBackupManifest) -> Result<(), String> {
     let content = serde_json::to_string_pretty(manifest).map_err(|e| e.to_string())?;
-    fs::write(path.join("manifest.json"), content).map_err(|e| e.to_string())
+    let target = path.join("manifest.json");
+    let tmp = path.join("manifest.json.tmp");
+    fs::write(&tmp, content).map_err(|e| e.to_string())?;
+    if target.exists() {
+        fs::remove_file(&target).map_err(|e| e.to_string())?;
+    }
+    fs::rename(&tmp, &target).map_err(|e| e.to_string())
 }
 
 fn read_manifest(path: &Path) -> Result<HistoryBackupManifest, String> {

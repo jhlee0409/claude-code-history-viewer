@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Remote SSH Source Types
  *
  * Configuration for fetching AI session history from remote machines via SSH/SFTP.
- * Credentials are stored in plaintext within `settings.json` — this app is offline-only.
+ * Passwords and key passphrases are transient only and are not persisted in settings.
  */
 
 /** OS family of the remote host. Used only for default path templates. */
@@ -13,22 +13,22 @@ export interface RemoteAuthKey {
   type: "key";
   /** Absolute path on the LOCAL machine to a private key file (OpenSSH format) */
   keyPath: string;
-  /** Optional passphrase for an encrypted key. Stored plaintext. */
+  /** Optional passphrase for an encrypted key. Transient only; not persisted. */
   passphrase?: string;
 }
 
 /** Password-based auth */
 export interface RemoteAuthPassword {
   type: "password";
-  /** Plaintext password (offline app — no keyring). */
-  password: string;
+  /** Transient password. This is stripped before settings are persisted. */
+  password?: string;
 }
 
 export type RemoteAuth = RemoteAuthKey | RemoteAuthPassword;
 
 /**
  * Per-provider remote-path overrides. Each provider accepts **multiple paths**
- * — required for the cc-slack multi-tenant container layout where every worker
+ * 鈥?required for the cc-slack multi-tenant container layout where every worker
  * writes into its own `~/.cc-slack-data/<worker>/.claude` dir.
  *
  * Each path supports a single `*` per segment (no `**`, no `?`); the wildcard
@@ -62,7 +62,7 @@ export type RemoteSyncStatus = "idle" | "syncing" | "ok" | "error";
 
 /** One remote machine the user wants to pull session data from */
 export interface RemoteSource {
-  /** UUID v4 — stable identifier referenced by CLI and project paths */
+  /** UUID v4 鈥?stable identifier referenced by CLI and project paths */
   id: string;
   /** Toggle without deleting the entry. Disabled sources are skipped by "Sync All". */
   enabled: boolean;
@@ -74,7 +74,7 @@ export interface RemoteSource {
   username: string;
   /** OS family of the remote host */
   system: RemoteSystemKind;
-  /** Authentication credentials (plaintext) */
+  /** Authentication config. Secrets are transient and stripped before persistence. */
   auth: RemoteAuth;
   /** Optional path overrides; defaults derived from `system` if omitted */
   paths?: RemoteProviderPaths;
@@ -104,7 +104,7 @@ export interface RemoteSyncStats {
 }
 
 /**
- * One local cache root that a sync run produced — i.e. one matched remote
+ * One local cache root that a sync run produced 鈥?i.e. one matched remote
  * provider root, mirrored under the per-source cache. The frontend registers
  * each as a `customClaudePath` so the existing scanner picks it up unchanged.
  */
@@ -113,7 +113,7 @@ export interface InjectedRoot {
   localPath: string;
   /** Human-readable suffix (e.g. `dbg`) used when labelling multi-root sources */
   discriminator: string;
-  /** Original remote root this cache mirrors — surfaced in toasts for debugging */
+  /** Original remote root this cache mirrors 鈥?surfaced in toasts for debugging */
   remotePath: string;
   /** Source identity to attach to projects scanned from this root */
   source?: HistorySource;
@@ -131,7 +131,7 @@ export type MissingPathReason = "not_found" | "empty";
 
 /** A configured path the sync run couldn't pull anything from */
 export interface MissingPath {
-  /** Provider key — `"claude"` / `"codex"` / `"opencode"` */
+  /** Provider key 鈥?`"claude"` / `"codex"` / `"opencode"` */
   provider: "claude" | "codex" | "opencode";
   /** The path string as the user typed it (or a default) */
   configuredPath: string;
@@ -173,7 +173,7 @@ export const DEFAULT_SSH_PORT = 22;
  * AI logins and conversation history don't bleed across workers. The second
  * entry is the standard single-user location.
  *
- * Both Linux and Windows ship the same defaults — every supported AI tool
+ * Both Linux and Windows ship the same defaults 鈥?every supported AI tool
  * follows XDG-style layout on Windows too (verified against
  * `~/.local/share/opencode/` on Windows hosts).
  */
@@ -193,5 +193,6 @@ export const DEFAULT_REMOTE_PATHS: Record<RemoteSystemKind, Required<RemoteProvi
 /** Helper: produce a stable, filesystem-safe folder name for a source's local cache. */
 export const remoteCacheFolderName = (source: Pick<RemoteSource, "id" | "host">): string => {
   const sanitisedHost = source.host.replace(/[^A-Za-z0-9._-]/g, "_");
-  return `${sanitisedHost}__${source.id.slice(0, 8)}`;
+  const sanitisedId = source.id.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 32);
+  return `${sanitisedHost}__${sanitisedId || "unknown"}`;
 };

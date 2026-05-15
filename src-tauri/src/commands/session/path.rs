@@ -5,6 +5,10 @@ use tauri::command;
 /// Resolve provider-specific session locators to a human-copyable file path.
 #[command]
 pub async fn resolve_session_file_path(file_path: String) -> Result<String, String> {
+    if file_path.trim().is_empty() {
+        return Err("file_path is required".to_string());
+    }
+
     if file_path.starts_with("opencode://") || file_path.starts_with("opencode+path://") {
         return crate::providers::opencode::resolve_session_file_path(&file_path);
     }

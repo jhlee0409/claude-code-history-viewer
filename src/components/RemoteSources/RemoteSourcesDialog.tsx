@@ -97,6 +97,14 @@ const emptyDraft = (): RemoteSource => ({
   auth: { type: "key", keyPath: "" },
 });
 
+function stripRemoteSourceSecrets(source: RemoteSource): RemoteSource {
+  if (source.auth.type === "key") {
+    const auth = { type: "key" as const, keyPath: source.auth.keyPath };
+    return { ...source, auth };
+  }
+  return { ...source, auth: { type: "password" } };
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -120,7 +128,8 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
 
   const persistSources = React.useCallback(
     async (next: RemoteSource[]) => {
-      await updateUserSettings({ remoteSources: next });
+      const safeSources = next.map(stripRemoteSourceSecrets);
+      await updateUserSettings({ remoteSources: safeSources });
       // Round-trip check: `updateUserSettings` swallows backend errors into
       // `console.error`, so verify the store actually reflects what we asked for.
       // A mismatch usually means the Rust `UserSettings` struct is missing a
@@ -128,11 +137,11 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
       const latest =
         useAppStore.getState().userMetadata?.settings?.remoteSources ?? [];
       const idMismatch =
-        next.length !== latest.length ||
-        next.some((s, i) => s.id !== latest[i]?.id);
+        safeSources.length !== latest.length ||
+        safeSources.some((s, i) => s.id !== latest[i]?.id);
       if (idMismatch) {
         throw new Error(
-          `Save did not persist: expected ${next.length} source(s), backend stored ${latest.length}.`,
+          `Save did not persist: expected ${safeSources.length} source(s), backend stored ${latest.length}.`,
         );
       }
     },
@@ -164,11 +173,6 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
       setGlobalError(t("remoteSources.error.keyPathRequired", "Key path is required."));
       return;
     }
-    if (draft.auth.type === "password" && !draft.auth.password) {
-      setGlobalError(t("remoteSources.error.passwordRequired", "Password is required."));
-      return;
-    }
-
     const next = editingId
       ? sources.map((s) => (s.id === editingId ? draft : s))
       : [...sources, draft];
@@ -219,7 +223,8 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
   const applyInjectedPaths = React.useCallback(
     async (source: RemoteSource, outcome: SyncOutcome) => {
       const labelBase = `🌐 ${source.host}${source.port === DEFAULT_SSH_PORT ? "" : `:${source.port}`}`;
-      const existing = userMetadata?.settings?.customClaudePaths ?? [];
+      const existing =
+        useAppStore.getState().userMetadata?.settings?.customClaudePaths ?? [];
       const normalizePath = (path: string) => path.replace(/[\\/]+$/, "");
 
       // Build label = base [+ tag for non-claude provider] [+ discriminator if multi-root].
@@ -277,7 +282,7 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
         });
       }
     },
-    [updateUserSettings, userMetadata?.settings?.customClaudePaths],
+    [updateUserSettings],
   );
 
   const reportMissingPaths = React.useCallback(
@@ -314,7 +319,8 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
       lastSyncError: error ?? undefined,
       lastSyncStats: outcome?.stats,
     };
-    await persistSources(sources.map((s) => (s.id === source.id ? stamped : s)));
+    const latestSources = useAppStore.getState().userMetadata?.settings?.remoteSources ?? sources;
+    await persistSources(latestSources.map((s) => (s.id === source.id ? stamped : s)));
   };
 
   const syncOne = async (source: RemoteSource) => {
@@ -400,7 +406,7 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
           <DialogDescription>
             {t(
               "remoteSources.description",
-              "Pull AI session history from SSH-accessible Linux/Windows machines. Credentials are stored in plaintext in user settings.",
+              "Pull AI session history from SSH-accessible Linux/Windows machines. Passwords and key passphrases are used only for the current sync/test and are not saved.",
             )}
           </DialogDescription>
         </DialogHeader>
@@ -679,8 +685,8 @@ function DraftForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="linux">Linux / macOS</SelectItem>
-              <SelectItem value="windows">Windows</SelectItem>
+              <SelectItem value="linux">{t("remoteSources.systemLinux", "Linux / macOS")}</SelectItem>
+              <SelectItem value="windows">{t("remoteSources.systemWindows", "Windows")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -700,8 +706,8 @@ function DraftForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="key">SSH key</SelectItem>
-              <SelectItem value="password">Password</SelectItem>
+              <SelectItem value="key">{t("remoteSources.authKey", "SSH key")}</SelectItem>
+              <SelectItem value="password">{t("remoteSources.authPassword", "Password")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -716,7 +722,7 @@ function DraftForm({
                 id={idAuthValue}
                 value={draft.auth.keyPath}
                 onChange={(e) => onAuthChange({ ...draft.auth, type: "key", keyPath: e.target.value })}
-                placeholder="C:\Users\you\.ssh\id_ed25519"
+                placeholder={t("remoteSources.keyPathPlaceholder", "C:\\Users\\you\\.ssh\\id_ed25519")}
                 className="h-8 text-xs font-mono"
               />
             </div>
@@ -748,7 +754,7 @@ function DraftForm({
             <Input
               id={idAuthValue}
               type="password"
-              value={draft.auth.password}
+              value={draft.auth.password ?? ""}
               onChange={(e) => onAuthChange({ type: "password", password: e.target.value })}
               className="h-8 text-xs"
             />

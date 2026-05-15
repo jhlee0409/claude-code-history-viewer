@@ -497,7 +497,12 @@ handler_json!(
 handler_json!(
     resolve_session_file_path,
     FilePathParam,
-    |p: FilePathParam| async move { commands::session::resolve_session_file_path(p.file_path).await }
+    |p: FilePathParam| async move {
+        if !p.file_path.contains("://") {
+            commands::session::is_safe_session_path(&PathBuf::from(&p.file_path))?;
+        }
+        commands::session::resolve_session_file_path(p.file_path).await
+    }
 );
 
 handler_json!(get_preset, IdParam, |p: IdParam| async move {
@@ -556,13 +561,21 @@ handler_json!(
 handler_json!(
     export_history_backup,
     PathParam,
-    |p: PathParam| async move { commands::history_backup::export_history_backup(p.path).await }
+    |p: PathParam| async move {
+        let path = PathBuf::from(&p.path);
+        commands::claude_settings::is_safe_path(&path)?;
+        commands::history_backup::export_history_backup(p.path).await
+    }
 );
 
 handler_json!(
     restore_history_backup,
     PathParam,
-    |p: PathParam| async move { commands::history_backup::restore_history_backup(p.path).await }
+    |p: PathParam| async move {
+        let path = PathBuf::from(&p.path);
+        commands::claude_settings::is_safe_path(&path)?;
+        commands::history_backup::restore_history_backup(p.path).await
+    }
 );
 
 handler_json!(

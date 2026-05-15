@@ -58,6 +58,11 @@ export function TruncatedScrollText({ text, className, title }: Props) {
       }
       const head = Math.floor(lo / 2);
       const tail = lo - head;
+      if (lo <= 1) {
+        setTruncated(text.slice(0, 1));
+        setNeedsScroll(true);
+        return;
+      }
       setTruncated(
         text.slice(0, head) + "…" + text.slice(text.length - tail),
       );
@@ -93,10 +98,10 @@ export function TruncatedScrollText({ text, className, title }: Props) {
         <>
           <span className="block group-hover/marquee:hidden">{truncated}</span>
           <span
-            className="hidden group-hover/marquee:inline-flex items-center whitespace-nowrap will-change-transform"
+            className="marquee-scroll hidden group-hover/marquee:inline-flex items-center whitespace-nowrap will-change-transform"
             style={{
-              animation: `marquee-scroll ${marqueeDurationSec}s linear infinite`,
-            }}
+              "--marquee-duration": `${marqueeDurationSec}s`,
+            } as React.CSSProperties}
           >
             <span>{text}</span>
             <span aria-hidden="true" className="inline-block w-12 shrink-0" />

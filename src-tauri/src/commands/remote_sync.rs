@@ -5,11 +5,32 @@
 //! test flow without persisting them first.
 
 use serde::Serialize;
+use std::collections::HashMap;
+use std::time::Duration;
 use tokio::task::JoinSet;
 
 use crate::remote::sftp_client::SftpSession;
 use crate::remote::source::RemoteSource;
 use crate::remote::sync::{sync_one, SyncOutcome};
+
+const SYNC_TIMEOUT: Duration = Duration::from_secs(600);
+
+fn public_error(error: anyhow::Error) -> String {
+    let message = format!("{error:#}");
+    message
+        .lines()
+        .map(|line| {
+            if line.to_ascii_lowercase().contains("password")
+                || line.to_ascii_lowercase().contains("passphrase")
+            {
+                "authentication failed".to_string()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,21 +52,24 @@ pub async fn test_remote_connection(source: RemoteSource) -> Result<ConnectionTe
             Err(e) => Ok(ConnectionTestResult {
                 ok: false,
                 remote_home: None,
-                message: Some(format!("home resolve failed: {e:#}")),
+                message: Some(format!("home resolve failed: {}", public_error(e))),
             }),
         },
         Err(e) => Ok(ConnectionTestResult {
             ok: false,
             remote_home: None,
             // `{:#}` includes the full anyhow context chain, not just the top message.
-            message: Some(format!("{e:#}")),
+            message: Some(public_error(e)),
         }),
     }
 }
 
 #[tauri::command]
 pub async fn sync_remote_source(source: RemoteSource) -> Result<SyncOutcome, String> {
-    sync_one(&source).await.map_err(|e| format!("{e:#}"))
+    tokio::time::timeout(SYNC_TIMEOUT, sync_one(&source))
+        .await
+        .map_err(|_| format!("sync timed out after {}s", SYNC_TIMEOUT.as_secs()))?
+        .map_err(public_error)
 }
 
 #[derive(Debug, Serialize)]
@@ -65,32 +89,46 @@ pub async fn sync_all_remote_sources(
     sources: Vec<RemoteSource>,
 ) -> Result<Vec<SyncOneResult>, String> {
     let mut set = JoinSet::new();
+    let mut task_sources = HashMap::new();
     for source in sources.into_iter().filter(|s| s.enabled) {
-        set.spawn(async move {
+        let source_id = source.id.clone();
+        let handle = set.spawn(async move {
             let id = source.id.clone();
-            match sync_one(&source).await {
-                Ok(outcome) => SyncOneResult {
-                    source_id: id,
+            let result = tokio::time::timeout(SYNC_TIMEOUT, sync_one(&source)).await;
+            let item = match result {
+                Ok(Ok(outcome)) => SyncOneResult {
+                    source_id: id.clone(),
                     success: true,
                     outcome: Some(outcome),
                     error: None,
                 },
-                Err(e) => SyncOneResult {
-                    source_id: id,
+                Ok(Err(e)) => SyncOneResult {
+                    source_id: id.clone(),
                     success: false,
                     outcome: None,
-                    error: Some(format!("{e:#}")),
+                    error: Some(public_error(e)),
                 },
-            }
+                Err(_) => SyncOneResult {
+                    source_id: id.clone(),
+                    success: false,
+                    outcome: None,
+                    error: Some(format!("sync timed out after {}s", SYNC_TIMEOUT.as_secs())),
+                },
+            };
+            (id, item)
         });
+        task_sources.insert(handle.id(), source_id);
     }
 
     let mut results = Vec::new();
     while let Some(joined) = set.join_next().await {
         match joined {
-            Ok(r) => results.push(r),
+            Ok((_id, r)) => results.push(r),
             Err(e) => results.push(SyncOneResult {
-                source_id: String::new(),
+                source_id: task_sources
+                    .get(&e.id())
+                    .cloned()
+                    .unwrap_or_else(|| e.id().to_string()),
                 success: false,
                 outcome: None,
                 error: Some(format!("task panic: {e}")),
