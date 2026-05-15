@@ -184,6 +184,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
         provider: Some("antigravity".to_string()),
         storage_type: None,
         custom_directory_label: None,
+        source: None,
     }])
 }
 

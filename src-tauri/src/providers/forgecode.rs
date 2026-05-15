@@ -411,6 +411,7 @@ fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
                 provider: Some(PROVIDER_ID.to_string()),
                 storage_type: Some(STORAGE_TYPE.to_string()),
                 custom_directory_label: None,
+                source: None,
             }
         })
         .collect();
