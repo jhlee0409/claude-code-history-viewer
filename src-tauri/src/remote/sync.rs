@@ -961,6 +961,7 @@ mod integration_tests {
             system: RemoteSystemKind::Linux,
             auth: RemoteAuth::Key {
                 key_path,
+                passphrase_ref: None,
                 passphrase: None,
             },
             paths: None,

@@ -99,10 +99,46 @@ const emptyDraft = (): RemoteSource => ({
 
 function stripRemoteSourceSecrets(source: RemoteSource): RemoteSource {
   if (source.auth.type === "key") {
-    const auth = { type: "key" as const, keyPath: source.auth.keyPath };
+    const auth = {
+      type: "key" as const,
+      keyPath: source.auth.keyPath,
+      passphraseRef: source.auth.passphraseRef,
+    };
     return { ...source, auth };
   }
-  return { ...source, auth: { type: "password" } };
+  return { ...source, auth: { type: "password", passwordRef: source.auth.passwordRef } };
+}
+
+async function persistDraftSecrets(source: RemoteSource): Promise<RemoteSource> {
+  if (source.auth.type === "key") {
+    if (!source.auth.passphrase) return source;
+    const passphraseRef = await api<string>("store_remote_credential", {
+      sourceId: source.id,
+      kind: "passphrase",
+      secret: source.auth.passphrase,
+    });
+    return {
+      ...source,
+      auth: {
+        type: "key",
+        keyPath: source.auth.keyPath,
+        passphraseRef,
+      },
+    };
+  }
+  if (!source.auth.password) return source;
+  const passwordRef = await api<string>("store_remote_credential", {
+    sourceId: source.id,
+    kind: "password",
+    secret: source.auth.password,
+  });
+  return {
+    ...source,
+    auth: {
+      type: "password",
+      passwordRef,
+    },
+  };
 }
 
 function formatBytes(bytes: number): string {
@@ -173,11 +209,11 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
       setGlobalError(t("remoteSources.error.keyPathRequired", "Key path is required."));
       return;
     }
-    const next = editingId
-      ? sources.map((s) => (s.id === editingId ? draft : s))
-      : [...sources, draft];
-
     try {
+      const savedDraft = await persistDraftSecrets(draft);
+      const next = editingId
+        ? sources.map((s) => (s.id === editingId ? savedDraft : s))
+        : [...sources, savedDraft];
       await persistSources(next);
       setDraft(null);
       setEditingId(null);
@@ -192,6 +228,16 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
       return;
     }
     try {
+      const source = sources.find((s) => s.id === id);
+      const credentialRefs = [
+        source?.auth.type === "key" ? source.auth.passphraseRef : undefined,
+        source?.auth.type === "password" ? source.auth.passwordRef : undefined,
+      ].filter(Boolean);
+      await Promise.all(
+        credentialRefs.map((credentialRef) =>
+          api("delete_remote_credential", { credentialRef }).catch(() => undefined)
+        )
+      );
       await persistSources(sources.filter((s) => s.id !== id));
     } catch (err) {
       setGlobalError(String(err));
@@ -406,7 +452,7 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
           <DialogDescription>
             {t(
               "remoteSources.description",
-              "Pull AI session history from SSH-accessible Linux/Windows machines. Passwords and key passphrases are used only for the current sync/test and are not saved.",
+            "Pull AI session history from SSH-accessible Linux/Windows machines. Passwords and key passphrases are stored in the OS credential manager, not in user settings.",
             )}
           </DialogDescription>
         </DialogHeader>

@@ -1,6 +1,6 @@
 {
   "remoteSources.title": "遠端主機",
-  "remoteSources.description": "從可透過 SSH 存取的 Linux/Windows 主機拉取 AI 會話記錄。憑證以明文形式儲存在使用者設定中。",
+  "remoteSources.description": "Pull AI session history from SSH-accessible Linux/Windows machines. Passwords and key passphrases are stored in the OS credential manager, not in user settings.",
   "remoteSources.empty": "尚未設定遠端主機",
   "remoteSources.summary": "{{count}} 台遠端主機",
   "remoteSources.manage": "管理",
@@ -37,5 +37,10 @@
   "remoteSources.opencodePaths": "OpenCode 路徑",
   "remoteSources.missingTitle": "{{host}}:{{n}} 條設定路徑未取得任何資料",
   "remoteSources.missing.notFound": "無相符",
-  "remoteSources.missing.empty": "相符但內容為空"
+  "remoteSources.missing.empty": "相符但內容為空",
+  "remoteSources.systemLinux": "Linux / macOS",
+  "remoteSources.systemWindows": "Windows",
+  "remoteSources.authKey": "SSH key",
+  "remoteSources.authPassword": "Password",
+  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519"
 }

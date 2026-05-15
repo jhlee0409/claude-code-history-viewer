@@ -507,6 +507,8 @@ fn run_tauri() {
             detect_wsl_distros,
             is_wsl_available,
             // Remote SSH source sync commands
+            crate::commands::remote_credentials::store_remote_credential,
+            crate::commands::remote_credentials::delete_remote_credential,
             crate::commands::remote_sync::test_remote_connection,
             crate::commands::remote_sync::sync_remote_source,
             crate::commands::remote_sync::sync_all_remote_sources,

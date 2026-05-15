@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-05-14T13:36:51.472Z
- * 총 키 개수: 1949
+ * 생성 시간: 2026-05-15T13:16:40.619Z
+ * 총 키 개수: 1954
  * Namespace 수: 14
  */
 
@@ -2031,11 +2031,13 @@ export type AntigravityKeys =
   | 'antigravity.totalTokens';
 
 /**
- * remoteSources namespace의 번역 키 (39개)
+ * remoteSources namespace의 번역 키 (44개)
  * 파일: locales/{lang}/remoteSources.json
  */
 export type RemoteSourcesKeys =
   | 'remoteSources.addHost'
+  | 'remoteSources.authKey'
+  | 'remoteSources.authPassword'
   | 'remoteSources.authType'
   | 'remoteSources.claudePaths'
   | 'remoteSources.codexPaths'
@@ -2050,6 +2052,7 @@ export type RemoteSourcesKeys =
   | 'remoteSources.error.passwordRequired'
   | 'remoteSources.host'
   | 'remoteSources.keyPath'
+  | 'remoteSources.keyPathPlaceholder'
   | 'remoteSources.lastSync'
   | 'remoteSources.manage'
   | 'remoteSources.missing.empty'
@@ -2069,6 +2072,8 @@ export type RemoteSourcesKeys =
   | 'remoteSources.syncAllOk'
   | 'remoteSources.syncOk'
   | 'remoteSources.system'
+  | 'remoteSources.systemLinux'
+  | 'remoteSources.systemWindows'
   | 'remoteSources.testConnection'
   | 'remoteSources.testFailed'
   | 'remoteSources.testOk'
@@ -3019,6 +3024,8 @@ export type TranslationKey =
   | 'redactedThinkingRenderer.description'
   | 'redactedThinkingRenderer.title'
   | 'remoteSources.addHost'
+  | 'remoteSources.authKey'
+  | 'remoteSources.authPassword'
   | 'remoteSources.authType'
   | 'remoteSources.claudePaths'
   | 'remoteSources.codexPaths'
@@ -3033,6 +3040,7 @@ export type TranslationKey =
   | 'remoteSources.error.passwordRequired'
   | 'remoteSources.host'
   | 'remoteSources.keyPath'
+  | 'remoteSources.keyPathPlaceholder'
   | 'remoteSources.lastSync'
   | 'remoteSources.manage'
   | 'remoteSources.missing.empty'
@@ -3052,6 +3060,8 @@ export type TranslationKey =
   | 'remoteSources.syncAllOk'
   | 'remoteSources.syncOk'
   | 'remoteSources.system'
+  | 'remoteSources.systemLinux'
+  | 'remoteSources.systemWindows'
   | 'remoteSources.testConnection'
   | 'remoteSources.testFailed'
   | 'remoteSources.testOk'

@@ -1,6 +1,6 @@
 {
   "remoteSources.title": "远程主机",
-  "remoteSources.description": "从可通过 SSH 访问的 Linux/Windows 主机拉取 AI 会话记录。凭证以明文形式存储在用户设置中。",
+  "remoteSources.description": "Pull AI session history from SSH-accessible Linux/Windows machines. Passwords and key passphrases are stored in the OS credential manager, not in user settings.",
   "remoteSources.empty": "尚未配置远程主机",
   "remoteSources.summary": "{{count}} 台远程主机",
   "remoteSources.manage": "管理",
@@ -37,5 +37,10 @@
   "remoteSources.opencodePaths": "OpenCode 路径",
   "remoteSources.missingTitle": "{{host}}:{{n}} 条配置路径未拉到任何数据",
   "remoteSources.missing.notFound": "无匹配",
-  "remoteSources.missing.empty": "匹配成功但内容为空"
+  "remoteSources.missing.empty": "匹配成功但内容为空",
+  "remoteSources.systemLinux": "Linux / macOS",
+  "remoteSources.systemWindows": "Windows",
+  "remoteSources.authKey": "SSH key",
+  "remoteSources.authPassword": "Password",
+  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519"
 }

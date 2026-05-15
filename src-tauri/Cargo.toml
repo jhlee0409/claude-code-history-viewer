@@ -68,6 +68,7 @@ russh = "0.46"
 russh-keys = "0.46"
 russh-sftp = "2.0"
 async-trait = "0.1"
+keyring = { version = "3.6", features = ["windows-native"] }
 
 # WebUI server mode (optional)
 axum = { version = "0.8", optional = true, features = ["json", "query", "tokio"] }

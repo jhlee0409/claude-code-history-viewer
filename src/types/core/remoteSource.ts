@@ -13,6 +13,8 @@ export interface RemoteAuthKey {
   type: "key";
   /** Absolute path on the LOCAL machine to a private key file (OpenSSH format) */
   keyPath: string;
+  /** OS keychain lookup id for the encrypted key passphrase. */
+  passphraseRef?: string;
   /** Optional passphrase for an encrypted key. Transient only; not persisted. */
   passphrase?: string;
 }
@@ -20,6 +22,8 @@ export interface RemoteAuthKey {
 /** Password-based auth */
 export interface RemoteAuthPassword {
   type: "password";
+  /** OS keychain lookup id for the password. */
+  passwordRef?: string;
   /** Transient password. This is stripped before settings are persisted. */
   password?: string;
 }

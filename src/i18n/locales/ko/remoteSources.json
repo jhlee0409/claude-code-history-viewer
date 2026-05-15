@@ -1,6 +1,6 @@
 {
   "remoteSources.title": "원격 머신",
-  "remoteSources.description": "SSH로 접근 가능한 Linux/Windows 머신에서 AI 세션 기록을 가져옵니다. 자격 증명은 사용자 설정에 평문으로 저장됩니다.",
+  "remoteSources.description": "Pull AI session history from SSH-accessible Linux/Windows machines. Passwords and key passphrases are stored in the OS credential manager, not in user settings.",
   "remoteSources.empty": "구성된 원격 머신이 없습니다",
   "remoteSources.summary": "원격 머신 {{count}}개",
   "remoteSources.manage": "관리",
@@ -37,5 +37,10 @@
   "remoteSources.opencodePaths": "OpenCode 경로",
   "remoteSources.missingTitle": "{{host}}: 구성된 경로 {{n}}개에서 아무것도 가져오지 못함",
   "remoteSources.missing.notFound": "매칭 없음",
-  "remoteSources.missing.empty": "매칭되었지만 비어 있음"
+  "remoteSources.missing.empty": "매칭되었지만 비어 있음",
+  "remoteSources.systemLinux": "Linux / macOS",
+  "remoteSources.systemWindows": "Windows",
+  "remoteSources.authKey": "SSH key",
+  "remoteSources.authPassword": "Password",
+  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519"
 }

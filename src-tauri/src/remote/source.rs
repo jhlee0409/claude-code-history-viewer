@@ -15,10 +15,22 @@ pub enum RemoteAuth {
     Key {
         #[serde(rename = "keyPath")]
         key_path: String,
+        #[serde(
+            rename = "passphraseRef",
+            default,
+            skip_serializing_if = "Option::is_none"
+        )]
+        passphrase_ref: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         passphrase: Option<String>,
     },
     Password {
+        #[serde(
+            rename = "passwordRef",
+            default,
+            skip_serializing_if = "Option::is_none"
+        )]
+        password_ref: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         password: Option<String>,
     },
@@ -377,6 +389,7 @@ mod tests {
     fn auth_serialisation_roundtrip() {
         let key = RemoteAuth::Key {
             key_path: "/home/foo/.ssh/id_ed25519".to_string(),
+            passphrase_ref: None,
             passphrase: Some("hunter2".to_string()),
         };
         let json = serde_json::to_string(&key).unwrap();

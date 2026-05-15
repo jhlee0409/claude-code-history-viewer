@@ -88,7 +88,7 @@ impl SftpSession {
         .with_context(|| format!("SSH connect to {}:{}", source.host, source.port))?;
 
         let auth_ok = match &source.auth {
-            RemoteAuth::Password { password } => {
+            RemoteAuth::Password { password, .. } => {
                 let password = password
                     .as_deref()
                     .filter(|value| !value.is_empty())
@@ -101,6 +101,7 @@ impl SftpSession {
             RemoteAuth::Key {
                 key_path,
                 passphrase,
+                ..
             } => {
                 let key = russh_keys::load_secret_key(key_path, passphrase.as_deref())
                     .with_context(|| format!("load private key {key_path}"))?;

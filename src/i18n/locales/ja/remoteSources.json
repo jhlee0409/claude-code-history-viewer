@@ -1,6 +1,6 @@
 {
   "remoteSources.title": "リモートマシン",
-  "remoteSources.description": "SSHでアクセス可能なLinux/Windowsマシンから AI セッション履歴を取得します。認証情報はユーザー設定に平文で保存されます。",
+  "remoteSources.description": "Pull AI session history from SSH-accessible Linux/Windows machines. Passwords and key passphrases are stored in the OS credential manager, not in user settings.",
   "remoteSources.empty": "リモートマシンが構成されていません",
   "remoteSources.summary": "リモートマシン {{count}} 台",
   "remoteSources.manage": "管理",
@@ -37,5 +37,10 @@
   "remoteSources.opencodePaths": "OpenCode のパス",
   "remoteSources.missingTitle": "{{host}}: 設定された {{n}} 個のパスから何も取得できませんでした",
   "remoteSources.missing.notFound": "マッチなし",
-  "remoteSources.missing.empty": "マッチしましたが空です"
+  "remoteSources.missing.empty": "マッチしましたが空です",
+  "remoteSources.systemLinux": "Linux / macOS",
+  "remoteSources.systemWindows": "Windows",
+  "remoteSources.authKey": "SSH key",
+  "remoteSources.authPassword": "Password",
+  "remoteSources.keyPathPlaceholder": "C:\\Users\\you\\.ssh\\id_ed25519"
 }

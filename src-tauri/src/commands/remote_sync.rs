@@ -32,6 +32,10 @@ fn public_error(error: anyhow::Error) -> String {
         .join("\n")
 }
 
+fn public_string_error(error: String) -> String {
+    public_error(anyhow::anyhow!(error))
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionTestResult {
@@ -42,6 +46,8 @@ pub struct ConnectionTestResult {
 
 #[tauri::command]
 pub async fn test_remote_connection(source: RemoteSource) -> Result<ConnectionTestResult, String> {
+    let source = crate::commands::remote_credentials::resolve_source_credentials(&source)
+        .map_err(public_string_error)?;
     match SftpSession::connect(&source).await {
         Ok(sess) => match sess.remote_home().await {
             Ok(home) => Ok(ConnectionTestResult {
@@ -66,6 +72,8 @@ pub async fn test_remote_connection(source: RemoteSource) -> Result<ConnectionTe
 
 #[tauri::command]
 pub async fn sync_remote_source(source: RemoteSource) -> Result<SyncOutcome, String> {
+    let source = crate::commands::remote_credentials::resolve_source_credentials(&source)
+        .map_err(public_string_error)?;
     tokio::time::timeout(SYNC_TIMEOUT, sync_one(&source))
         .await
         .map_err(|_| format!("sync timed out after {}s", SYNC_TIMEOUT.as_secs()))?
@@ -94,7 +102,11 @@ pub async fn sync_all_remote_sources(
         let source_id = source.id.clone();
         let handle = set.spawn(async move {
             let id = source.id.clone();
-            let result = tokio::time::timeout(SYNC_TIMEOUT, sync_one(&source)).await;
+            let result =
+                match crate::commands::remote_credentials::resolve_source_credentials(&source) {
+                    Ok(source) => tokio::time::timeout(SYNC_TIMEOUT, sync_one(&source)).await,
+                    Err(error) => Ok(Err(anyhow::anyhow!(error))),
+                };
             let item = match result {
                 Ok(Ok(outcome)) => SyncOneResult {
                     source_id: id.clone(),
