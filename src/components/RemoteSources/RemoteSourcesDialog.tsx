@@ -258,6 +258,10 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
       });
       setTestResults((prev) => ({ ...prev, [source.id]: result }));
       if (result.ok) {
+        if (editingId === source.id && draft) {
+          const savedDraft = await persistDraftSecrets(draft);
+          setDraft(savedDraft);
+        }
         await recordSyncResult(source, null, null);
         toast.success(
           t("remoteSources.testOk", "Connected. Remote home: {{home}}", { home: result.remoteHome ?? "?" }),
