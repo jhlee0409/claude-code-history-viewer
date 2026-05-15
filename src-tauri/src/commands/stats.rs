@@ -142,16 +142,18 @@ fn antigravity_chat_token_breakdown(value: &serde_json::Value) -> Option<(u64, u
         return None;
     }
 
-    let chat_tokens = token_breakdown["groups"]
-        .as_array()
-        .map(|groups| {
-            groups
-                .iter()
-                .filter(|group| group["type"].as_str() == Some("TOKEN_TYPE_CHAT_MESSAGES"))
-                .map(|group| group["numTokens"].as_u64().unwrap_or(0))
-                .sum::<u64>()
-        })
-        .unwrap_or(0)
+    // When the `groups` array is missing entirely (e.g. estimatedTokensUsed
+    // was provided without a breakdown), return None so the caller falls
+    // back to the full input/cache totals rather than scaling everything
+    // to zero. An explicit empty `groups` array, or one without any
+    // TOKEN_TYPE_CHAT_MESSAGES entries, is still a legitimate "0 chat
+    // tokens" result and keeps the existing behavior.
+    let groups = token_breakdown["groups"].as_array()?;
+    let chat_tokens = groups
+        .iter()
+        .filter(|group| group["type"].as_str() == Some("TOKEN_TYPE_CHAT_MESSAGES"))
+        .map(|group| group["numTokens"].as_u64().unwrap_or(0))
+        .sum::<u64>()
         .min(total_tokens);
 
     Some((chat_tokens, total_tokens))
@@ -832,7 +834,10 @@ fn collect_provider_global_file_stats(
     let mut project_keys = HashSet::new();
 
     if provider == StatsProvider::Antigravity {
-        let Ok(root) = crate::commands::antigravity::get_antigravity_root()
+        // Use the resolver that honors the external-state override so an
+        // external Antigravity root contributes to the global summary
+        // (the bare get_antigravity_root only returns the default path).
+        let Ok(root) = crate::commands::antigravity::resolve_antigravity_root()
             .ok_or_else(|| "Cannot determine antigravity root directory".to_string())
         else {
             return (Vec::new(), project_keys);
@@ -1209,6 +1214,27 @@ fn track_tool_usage(message: &ClaudeMessage, tool_usage: &mut HashMap<String, (u
     }
 }
 
+/// Track tool usage across a slice of Antigravity messages while honoring
+/// the active date filter. Per-project token totals filter by record
+/// timestamp; this mirrors that behavior at the message level so the tool
+/// breakdown does not drift from the token totals.
+fn track_antigravity_tool_usage(
+    messages: &[ClaudeMessage],
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+    tool_usage_map: &mut HashMap<String, (u32, u32)>,
+) {
+    let has_date_filter = s_limit.is_some() || e_limit.is_some();
+    for message in messages {
+        if has_date_filter
+            && !is_within_date_limits(parse_timestamp_utc(&message.timestamp), s_limit, e_limit)
+        {
+            continue;
+        }
+        track_tool_usage(message, tool_usage_map);
+    }
+}
+
 /// Extract token usage from a normalized message.
 fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
     if let Some(usage) = &message.usage {
@@ -1384,10 +1410,9 @@ fn calculate_session_active_minutes(timestamps: &mut [DateTime<Utc>]) -> u32 {
 fn load_antigravity_usage_records(
     session_path: &str,
 ) -> Result<Vec<AntigravityUsageRecord>, String> {
-    let usage_path = PathBuf::from(session_path).join("usage.jsonl");
-    if !usage_path.exists() {
+    let Some(usage_path) = providers::antigravity::resolve_usage_jsonl_path(session_path) else {
         return Ok(vec![]);
-    }
+    };
 
     let content = fs::read_to_string(&usage_path)
         .map_err(|e| format!("Failed to read {}: {}", usage_path.display(), e))?;
@@ -1886,9 +1911,12 @@ fn get_provider_project_stats_summary(
             summary.token_distribution.reasoning += session_stats.total_reasoning_tokens;
 
             if let Ok(messages) = providers::antigravity::load_messages(&session.file_path) {
-                for message in &messages {
-                    track_tool_usage(message, &mut tool_usage_map);
-                }
+                track_antigravity_tool_usage(
+                    &messages,
+                    s_limit.as_ref(),
+                    e_limit.as_ref(),
+                    &mut tool_usage_map,
+                );
             }
 
             let mut timestamps = records
@@ -3315,6 +3343,7 @@ pub async fn get_global_stats_summary(
         summary.token_distribution.output += stats.token_distribution.output;
         summary.token_distribution.cache_creation += stats.token_distribution.cache_creation;
         summary.token_distribution.cache_read += stats.token_distribution.cache_read;
+        summary.token_distribution.reasoning += stats.token_distribution.reasoning;
 
         // Aggregate tool usage
         for (name, (usage, success)) in stats.tool_usage {
@@ -4235,6 +4264,18 @@ mod tests {
     #[test]
     fn test_antigravity_conversation_breakdown_uses_chat_message_tokens() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
+        // resolve_usage_jsonl_path validates the canonical session_path is
+        // under a marker-rooted antigravity root before reading. Create the
+        // marker so this loose-fixture test goes through the same security
+        // path as production callers.
+        fs::create_dir_all(
+            temp_dir
+                .path()
+                .join(".token-monitor")
+                .join("rpc-cache")
+                .join("v1"),
+        )
+        .expect("failed to create antigravity marker");
         let session_dir = temp_dir.path().join("session-123");
         fs::create_dir_all(&session_dir).expect("failed to create session dir");
 
@@ -4659,6 +4700,56 @@ mod tests {
     }
 
     #[test]
+    /// Verify `track_antigravity_tool_usage` honors the `start_date` / `end_date` window.
+    fn test_track_antigravity_tool_usage_respects_date_filter() {
+        let mk = |timestamp: &str, tool: &str| {
+            let mut msg = make_test_message(Some("antigravity"), "assistant", None);
+            msg.content = Some(json!([
+                { "type": "text", "text": "preamble" },
+                { "type": "tool_use", "id": "t-1", "name": tool, "input": {} }
+            ]));
+            msg.timestamp = timestamp.to_string();
+            msg
+        };
+
+        let messages = vec![
+            mk("2026-01-01T10:00:00Z", "BrowserClick"),
+            mk("2026-01-05T10:00:00Z", "BrowserGetDom"),
+        ];
+
+        // No filter → both tools tracked.
+        let mut all = HashMap::new();
+        track_antigravity_tool_usage(&messages, None, None, &mut all);
+        assert_eq!(all.len(), 2);
+
+        // Window covering only the second message → only its tool is tracked.
+        let s = parse_date_limit(Some("2026-01-03T00:00:00Z".to_string()), "start_date");
+        let e = parse_date_limit(Some("2026-01-31T00:00:00Z".to_string()), "end_date");
+        let mut filtered = HashMap::new();
+        track_antigravity_tool_usage(&messages, s.as_ref(), e.as_ref(), &mut filtered);
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered.contains_key("BrowserGetDom"));
+        assert!(!filtered.contains_key("BrowserClick"));
+
+        // Window excluding both messages → empty.
+        let s = parse_date_limit(Some("2026-02-01T00:00:00Z".to_string()), "start_date");
+        let mut none = HashMap::new();
+        track_antigravity_tool_usage(&messages, s.as_ref(), None, &mut none);
+        assert!(none.is_empty());
+
+        // Unparseable timestamp with an active filter is rejected (defensive).
+        let mut bad_msg = make_test_message(Some("antigravity"), "assistant", None);
+        bad_msg.content = Some(json!([
+            { "type": "tool_use", "id": "t-2", "name": "BrowserClick", "input": {} }
+        ]));
+        bad_msg.timestamp = "not-a-timestamp".to_string();
+        let s = parse_date_limit(Some("2020-01-01T00:00:00Z".to_string()), "start_date");
+        let mut rejected = HashMap::new();
+        track_antigravity_tool_usage(&[bad_msg], s.as_ref(), None, &mut rejected);
+        assert!(rejected.is_empty());
+    }
+
+    #[test]
     fn test_antigravity_provider_project_summary_uses_mode_adjusted_daily_tokens() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let root = temp_dir.path();
@@ -4746,6 +4837,79 @@ mod tests {
         assert_eq!(heatmap.tokens_used, 930);
     }
 
+    #[test]
+    /// `load_antigravity_usage_records` mirrors the rpc-cache fallback used by
+    /// `providers::antigravity::load_messages` so a brain/-only session whose
+    /// `usage.jsonl` lives in the rpc-cache contributes records (and therefore
+    /// tokens) to per-session / project / global stats.
+    fn test_load_antigravity_usage_records_falls_back_to_rpc_cache() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let root = temp_dir.path();
+        let rpc_v1 = root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("session-brain-only");
+        fs::create_dir_all(&rpc_v1).expect("failed to create rpc-cache session dir");
+
+        // Brain/-only session — no in-place usage.jsonl.
+        let brain_dir = root.join("brain").join("session-brain-only");
+        fs::create_dir_all(&brain_dir).expect("failed to create brain dir");
+
+        // The rpc-cache carries the actual usage record.
+        let usage_record = json!({
+            "recordType": "usage",
+            "sessionId": "session-brain-only",
+            "sequence": 0,
+            "model": "claude-sonnet-4-6",
+            "inputTokens": 1000,
+            "outputTokens": 200,
+            "cacheReadTokens": 600,
+            "cacheWriteTokens": 100,
+            "reasoningTokens": 50,
+            "totalTokens": 1950,
+            "raw": {
+                "chatModel": {
+                    "chatStartMetadata": {
+                        "createdAt": "2026-04-14T16:28:44Z"
+                    }
+                }
+            }
+        });
+        fs::write(rpc_v1.join("usage.jsonl"), format!("{usage_record}\n"))
+            .expect("failed to write rpc-cache usage file");
+
+        let records = load_antigravity_usage_records(&brain_dir.to_string_lossy())
+            .expect("expected fallback to surface rpc-cache records");
+
+        assert_eq!(
+            records.len(),
+            1,
+            "fallback should surface the rpc-cache record"
+        );
+        let record = &records[0];
+        assert_eq!(record.input_tokens, 1000);
+        assert_eq!(record.output_tokens, 200);
+        assert_eq!(record.total_tokens, 1950);
+    }
+
+    #[test]
+    /// When neither in-session nor rpc-cache `usage.jsonl` exists, the helper
+    /// returns `Ok(vec![])` (legacy behaviour preserved).
+    fn test_load_antigravity_usage_records_returns_empty_when_missing() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let root = temp_dir.path();
+        fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1"))
+            .expect("failed to create rpc-cache root");
+
+        let brain_dir = root.join("brain").join("session-none");
+        fs::create_dir_all(&brain_dir).expect("failed to create brain dir");
+
+        let records = load_antigravity_usage_records(&brain_dir.to_string_lossy())
+            .expect("expected empty result");
+        assert!(records.is_empty());
+    }
+
     #[tokio::test]
     /// Verify global summary total projects respects date filter.
     async fn test_global_summary_total_projects_respects_date_filter() {
@@ -4780,6 +4944,78 @@ mod tests {
         assert_eq!(summary.total_projects, 1);
         assert_eq!(summary.total_sessions, 1);
         assert_eq!(summary.total_tokens, 22);
+    }
+
+    #[tokio::test]
+    #[serial]
+    /// Verify global summary accumulates `token_distribution.reasoning` from
+    /// providers that emit reasoning tokens (Antigravity). Pre-fix, the
+    /// aggregation loop dropped reasoning even though every other distribution
+    /// field was carried through — leaving the UI's reasoning breakdown at 0
+    /// no matter how many reasoning tokens the underlying sessions reported.
+    async fn test_global_summary_aggregates_reasoning_tokens() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let home = temp_dir.path();
+
+        // Override HOME so resolve_antigravity_root() points at our fixture.
+        // env::set_var is process-global → this test must be `#[serial]` so
+        // it cannot race with other HOME-touching tests.
+        let original_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", home);
+
+        let antigravity_root = home.join(".gemini").join("antigravity");
+        let rpc_session = antigravity_root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("session-reasoning");
+        fs::create_dir_all(&rpc_session).expect("failed to create rpc-cache session dir");
+
+        let usage_record = json!({
+            "recordType": "usage",
+            "sessionId": "session-reasoning",
+            "sequence": 0,
+            "model": "claude-sonnet-4-6",
+            "inputTokens": 100,
+            "outputTokens": 50,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 1234,
+            "totalTokens": 1384,
+            "raw": {
+                "chatModel": {
+                    "chatStartMetadata": { "createdAt": "2026-05-14T10:00:00Z" }
+                }
+            }
+        });
+        fs::write(rpc_session.join("usage.jsonl"), format!("{usage_record}\n"))
+            .expect("failed to write antigravity usage file");
+
+        // claude_path is required but the Claude projects subtree is empty —
+        // we are only exercising the Antigravity branch of the global summary.
+        let summary = get_global_stats_summary(
+            home.to_string_lossy().to_string(),
+            Some(vec!["antigravity".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+        )
+        .await
+        .expect("failed to get global summary");
+
+        assert_eq!(
+            summary.token_distribution.reasoning, 1234,
+            "reasoning tokens must reach the global summary, not get dropped during aggregation"
+        );
+        // Sanity: the rest of the distribution still aggregates correctly.
+        assert_eq!(summary.token_distribution.input, 100);
+        assert_eq!(summary.token_distribution.output, 50);
+
+        if let Some(value) = original_home {
+            std::env::set_var("HOME", value);
+        } else {
+            std::env::remove_var("HOME");
+        }
     }
 
     /// Write a temporary `ForgeCode` database used by stats tests.

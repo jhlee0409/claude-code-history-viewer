@@ -429,31 +429,67 @@ pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeS
     Ok(sessions)
 }
 
-/// Map each usage record in a session's usage.jsonl to a pair of `ClaudeMessages`.
+/// Admit a `usage.jsonl` candidate only if it is a regular, non-symlink
+/// file. `Path::exists()` follows symlinks; we use `symlink_metadata` so a
+/// symlinked file in either candidate location cannot redirect the read
+/// outside the antigravity root.
+fn admit_usage_jsonl(path: &Path) -> Option<PathBuf> {
+    let meta = std::fs::symlink_metadata(path).ok()?;
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return None;
+    }
+    Some(path.to_path_buf())
+}
+
+/// Resolve the `usage.jsonl` path for an Antigravity session, mirroring
+/// the lookup used by [`load_messages`]: prefer `<session_path>/usage.jsonl`
+/// and fall back to the rpc-cache location for filesystem-only / brain-only
+/// sessions. Returns `None` when the session path does not resolve to a
+/// recognised Antigravity root, or when neither candidate is a regular file.
+///
+/// Defends against two classes of symlink-based escape:
+/// - **Directory-level**: canonicalises `session_path` and revalidates the
+///   canonical form against [`marker_rooted_path`] *before* probing the
+///   filesystem, so a symlinked session directory pointing outside the root
+///   is rejected without leaking probe results.
+/// - **File-level**: both candidates are admitted via
+///   [`admit_usage_jsonl`], which rejects symlinks and non-regular files.
+pub(crate) fn resolve_usage_jsonl_path(session_path: &str) -> Option<PathBuf> {
+    let dir = PathBuf::from(session_path);
+
+    // Prefer an in-session `usage.jsonl`. Validate the canonical form
+    // against a marker-rooted antigravity root before any IO on the
+    // candidate file.
+    if let Ok(canonical_dir) = std::fs::canonicalize(&dir) {
+        if marker_rooted_path(&canonical_dir.to_string_lossy()).is_some() {
+            if let Some(path) = admit_usage_jsonl(&canonical_dir.join("usage.jsonl")) {
+                return Some(path);
+            }
+        }
+    }
+
+    // Fallback: rpc-cache. The file lives by construction under the
+    // marker-rooted antigravity root, so a textual `session_id` is safe.
+    // We still gate on `admit_usage_jsonl` so a symlinked `usage.jsonl`
+    // dropped into the rpc-cache cannot redirect the read outside the root.
+    let root = marker_rooted_path(session_path)?;
+    let session_id = dir.file_name()?.to_string_lossy().to_string();
+    admit_usage_jsonl(
+        &get_antigravity_rpc_cache_root(&root)
+            .join(&session_id)
+            .join("usage.jsonl"),
+    )
+}
+
+/// Map each usage record in a session's `usage.jsonl` to a pair of `ClaudeMessages`.
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
-    let dir = std::path::PathBuf::from(session_path);
-    let session_id = dir
+    let session_id = PathBuf::from(session_path)
         .file_name()
         .map(|f| f.to_string_lossy().to_string())
         .unwrap_or_default();
 
-    let root = match marker_rooted_path(session_path) {
-        Some(root) => root,
-        None => return Ok(vec![]),
-    };
-
-    let usage_path = dir.join("usage.jsonl");
-    let usage_path = if usage_path.exists() {
-        usage_path
-    } else {
-        let rpc_cache = get_antigravity_rpc_cache_root(&root)
-            .join(&session_id)
-            .join("usage.jsonl");
-        if rpc_cache.exists() {
-            rpc_cache
-        } else {
-            return Ok(vec![]);
-        }
+    let Some(usage_path) = resolve_usage_jsonl_path(session_path) else {
+        return Ok(vec![]);
     };
 
     let content = std::fs::read_to_string(&usage_path)
@@ -952,5 +988,167 @@ mod tests {
         results.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         results.truncate(max_results);
         results
+    }
+
+    #[test]
+    /// Direct `<session_path>/usage.jsonl` is returned when it exists.
+    fn test_resolve_usage_jsonl_path_prefers_in_session_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();
+
+        let session_dir = root.join("brain").join("session-direct");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        std::fs::write(session_dir.join("usage.jsonl"), "{}\n").unwrap();
+
+        // resolve_usage_jsonl_path now canonicalises the input, so the
+        // returned path may differ textually from session_dir on platforms
+        // where the temp dir lives under a symlinked prefix (e.g. macOS
+        // `/var` → `/private/var`). Canonicalise both sides for the
+        // comparison.
+        let resolved = resolve_usage_jsonl_path(&session_dir.to_string_lossy()).unwrap();
+        let expected = std::fs::canonicalize(&session_dir)
+            .unwrap()
+            .join("usage.jsonl");
+        assert_eq!(resolved, expected);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    /// A symlinked session directory pointing outside any marker-rooted
+    /// antigravity root must NOT resolve to a readable `usage.jsonl`. Pre-fix
+    /// behaviour: `dir.join("usage.jsonl")` would follow the symlink and read
+    /// the attacker-controlled target.
+    fn test_resolve_usage_jsonl_path_rejects_symlink_escaping_root() {
+        // "Inside" tree — a legitimate antigravity root.
+        let inside = TempDir::new().unwrap();
+        std::fs::create_dir_all(
+            inside
+                .path()
+                .join(".token-monitor")
+                .join("rpc-cache")
+                .join("v1"),
+        )
+        .unwrap();
+        let brain_link = inside.path().join("brain").join("session-evil");
+        std::fs::create_dir_all(inside.path().join("brain")).unwrap();
+
+        // "Outside" tree — no antigravity marker; contains a usage.jsonl that
+        // an attacker would like us to read.
+        let outside = TempDir::new().unwrap();
+        let outside_session = outside.path().join("attacker-payload");
+        std::fs::create_dir_all(&outside_session).unwrap();
+        std::fs::write(
+            outside_session.join("usage.jsonl"),
+            "{\"recordType\":\"usage\"}\n",
+        )
+        .unwrap();
+
+        // Make the brain entry a symlink to the outside payload.
+        std::os::unix::fs::symlink(&outside_session, &brain_link).unwrap();
+
+        // Resolution must reject the path because the canonical form escapes
+        // every marker-rooted antigravity root we can detect.
+        let resolved = resolve_usage_jsonl_path(&brain_link.to_string_lossy());
+        assert!(
+            resolved.is_none(),
+            "symlinked session directory escaping the antigravity root must not resolve to a readable usage.jsonl"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    /// A symlinked `usage.jsonl` (file-level, not directory-level) inside a
+    /// legitimate session directory must be rejected. `Path::exists()` would
+    /// follow the symlink — `admit_usage_jsonl` does not.
+    fn test_resolve_usage_jsonl_path_rejects_symlinked_usage_jsonl() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();
+
+        let session_dir = root.join("brain").join("session-with-sym");
+        std::fs::create_dir_all(&session_dir).unwrap();
+
+        // Place the attacker-controlled target outside the session.
+        let outside = TempDir::new().unwrap();
+        let payload = outside.path().join("payload.jsonl");
+        std::fs::write(&payload, "{\"recordType\":\"usage\"}\n").unwrap();
+
+        // Make the session's usage.jsonl a symlink to the outside payload.
+        std::os::unix::fs::symlink(&payload, session_dir.join("usage.jsonl")).unwrap();
+
+        assert!(
+            resolve_usage_jsonl_path(&session_dir.to_string_lossy()).is_none(),
+            "symlinked usage.jsonl must not resolve regardless of whether the session dir itself is legitimate"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    /// The same symlink-file defense must apply to the rpc-cache fallback so
+    /// a symlinked `usage.jsonl` dropped into `<root>/.token-monitor/...`
+    /// cannot redirect the read.
+    fn test_resolve_usage_jsonl_path_rejects_symlinked_usage_jsonl_in_rpc_cache() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let rpc_session = root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("session-rpc-sym");
+        std::fs::create_dir_all(&rpc_session).unwrap();
+
+        // Brain/-only session (no in-place usage.jsonl) so the fallback is exercised.
+        let brain_dir = root.join("brain").join("session-rpc-sym");
+        std::fs::create_dir_all(&brain_dir).unwrap();
+
+        let outside = TempDir::new().unwrap();
+        let payload = outside.path().join("payload.jsonl");
+        std::fs::write(&payload, "{\"recordType\":\"usage\"}\n").unwrap();
+        std::os::unix::fs::symlink(&payload, rpc_session.join("usage.jsonl")).unwrap();
+
+        assert!(
+            resolve_usage_jsonl_path(&brain_dir.to_string_lossy()).is_none(),
+            "symlinked usage.jsonl in the rpc-cache must be refused"
+        );
+    }
+
+    #[test]
+    /// When `<session_path>/usage.jsonl` is absent, fall back to the rpc-cache
+    /// location — matching what `load_messages` already does for brain/-only
+    /// sessions.
+    fn test_resolve_usage_jsonl_path_falls_back_to_rpc_cache() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let rpc_v1 = root.join(".token-monitor").join("rpc-cache").join("v1");
+        std::fs::create_dir_all(&rpc_v1).unwrap();
+
+        // Brain/-only session with no in-place usage.jsonl.
+        let session_id = "session-fallback";
+        let brain_dir = root.join("brain").join(session_id);
+        std::fs::create_dir_all(&brain_dir).unwrap();
+
+        // The same session has token data in the rpc-cache.
+        let cached_session = rpc_v1.join(session_id);
+        std::fs::create_dir_all(&cached_session).unwrap();
+        let cached_usage = cached_session.join("usage.jsonl");
+        std::fs::write(&cached_usage, "{}\n").unwrap();
+
+        let resolved = resolve_usage_jsonl_path(&brain_dir.to_string_lossy()).unwrap();
+        assert_eq!(resolved, cached_usage);
+    }
+
+    #[test]
+    /// Returns `None` when neither the in-session nor the rpc-cache file
+    /// exists — callers should treat this as "no records".
+    fn test_resolve_usage_jsonl_path_returns_none_when_missing_everywhere() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();
+
+        let brain_dir = root.join("brain").join("session-empty");
+        std::fs::create_dir_all(&brain_dir).unwrap();
+
+        assert!(resolve_usage_jsonl_path(&brain_dir.to_string_lossy()).is_none());
     }
 }

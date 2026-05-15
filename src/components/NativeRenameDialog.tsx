@@ -41,13 +41,19 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
   const isForgeCode = provider === "forgecode";
   const usesStandaloneTitlePreview = isOpenCode || isForgeCode;
 
-  // Extract existing title if present
+  // Extract existing title if present. For providers that use a
+  // standalone title (OpenCode, ForgeCode) the saved name *is* the title,
+  // so mirror the parsing path the save side uses — otherwise the input
+  // arrives empty and a blind save would silently reset the title.
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    if (usesStandaloneTitlePreview) {
+      setTitle(currentName);
+    } else {
       const match = currentName.match(/^\[(.+?)\]/);
       setTitle(match?.[1] ?? "");
     }
-  }, [open, currentName]);
+  }, [open, currentName, usesStandaloneTitlePreview]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

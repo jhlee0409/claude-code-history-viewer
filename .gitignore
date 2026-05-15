@@ -77,4 +77,9 @@ debug.log*
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# Local user-defined slash commands and runtime locks
+.claude/commands/
+.claude/scheduled_tasks.lock
+
 PLAN.md

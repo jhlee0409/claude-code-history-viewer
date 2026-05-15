@@ -84,6 +84,7 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
             "/get_session_message_count",
             post(h::get_session_message_count),
         )
+        .route("/get_session_subagents", post(h::get_session_subagents))
         .route("/search_messages", post(h::search_messages))
         .route("/get_recent_edits", post(h::get_recent_edits))
         .route("/restore_file", post(h::restore_file))
