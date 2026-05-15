@@ -89,7 +89,9 @@ pub fn resolve_source_credentials(source: &RemoteSource) -> Result<RemoteSource,
             passphrase_ref: passphrase_ref.clone(),
             passphrase: match (passphrase.as_ref(), passphrase_ref.as_ref()) {
                 (Some(value), _) if !value.is_empty() => Some(value.clone()),
-                (_, Some(reference)) => Some(get_secret(reference)?),
+                (_, Some(reference)) if !reference.trim().is_empty() => {
+                    Some(get_secret(reference)?)
+                }
                 _ => None,
             },
         },
@@ -100,7 +102,9 @@ pub fn resolve_source_credentials(source: &RemoteSource) -> Result<RemoteSource,
             password_ref: password_ref.clone(),
             password: match (password.as_ref(), password_ref.as_ref()) {
                 (Some(value), _) if !value.is_empty() => Some(value.clone()),
-                (_, Some(reference)) => Some(get_secret(reference)?),
+                (_, Some(reference)) if !reference.trim().is_empty() => {
+                    Some(get_secret(reference)?)
+                }
                 _ => None,
             },
         },
