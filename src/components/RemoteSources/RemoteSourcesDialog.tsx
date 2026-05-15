@@ -249,10 +249,13 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
   };
 
   const testConnection = async (source: RemoteSource) => {
+    const sourceToTest = editingId === source.id && draft ? draft : source;
     setBusyId(source.id);
     setTestResults((prev) => ({ ...prev, [source.id]: { ok: false, message: "..." } }));
     try {
-      const result = await api<ConnectionTestResult>("test_remote_connection", { source });
+      const result = await api<ConnectionTestResult>("test_remote_connection", {
+        source: sourceToTest,
+      });
       setTestResults((prev) => ({ ...prev, [source.id]: result }));
       if (result.ok) {
         await recordSyncResult(source, null, null);
@@ -375,21 +378,22 @@ export function RemoteSourcesDialog({ open, onOpenChange }: RemoteSourcesDialogP
   };
 
   const syncOne = async (source: RemoteSource) => {
+    const sourceToSync = editingId === source.id && draft ? draft : source;
     setBusyId(source.id);
     setGlobalError(null);
     try {
-      const outcome = await api<SyncOutcome>("sync_remote_source", { source });
-      await applyInjectedPaths(source, outcome);
+      const outcome = await api<SyncOutcome>("sync_remote_source", { source: sourceToSync });
+      await applyInjectedPaths(sourceToSync, outcome);
       await recordSyncResult(source, outcome, null);
       toast.success(
         t("remoteSources.syncOk", "{{host}}: {{updated}} updated, {{skipped}} skipped, {{bytes}} transferred", {
-          host: source.host,
+          host: sourceToSync.host,
           updated: outcome.stats.filesUpdated,
           skipped: outcome.stats.filesSkipped,
           bytes: formatBytes(outcome.stats.bytesTransferred),
         }),
       );
-      reportMissingPaths(source, outcome.missingPaths);
+      reportMissingPaths(sourceToSync, outcome.missingPaths);
       await scanProjects();
     } catch (err) {
       const msg = String(err);
