@@ -151,6 +151,38 @@ fn parse_session_path(session_path: &str) -> Result<(String, String, String), St
     Ok((base_path, parts[0].to_string(), parts[1].to_string()))
 }
 
+/// Resolve an `OpenCode` virtual session path to the concrete storage artifact
+/// that owns the conversation data.
+pub fn resolve_session_file_path(session_path: &str) -> Result<String, String> {
+    let (base_path, project_id, session_id) = parse_session_path(session_path)?;
+    let base = Path::new(&base_path);
+
+    let db_path = base.join("opencode.db");
+    if db_path.is_file() && session_exists_in_db(&base_path, &project_id, &session_id) {
+        return Ok(db_path.to_string_lossy().to_string());
+    }
+
+    let storage_path = base.join("storage");
+    let session_json = storage_path
+        .join("session")
+        .join(&project_id)
+        .join(format!("{session_id}.json"));
+    if session_json.is_file() {
+        return Ok(session_json.to_string_lossy().to_string());
+    }
+
+    let message_dir = storage_path.join("message").join(&session_id);
+    if is_non_symlink_dir(&message_dir) {
+        return Ok(message_dir.to_string_lossy().to_string());
+    }
+
+    if db_path.is_file() {
+        return Ok(db_path.to_string_lossy().to_string());
+    }
+
+    Ok(session_json.to_string_lossy().to_string())
+}
+
 pub fn scope_projects_to_base(
     mut projects: Vec<ClaudeProject>,
     base_path: &str,
@@ -756,6 +788,15 @@ fn open_db(base_path: &str) -> Option<Connection> {
     let conn = Connection::open_with_flags(&db_path, flags).ok()?;
     conn.busy_timeout(std::time::Duration::from_secs(1)).ok()?;
     Some(conn)
+}
+
+fn session_exists_in_db(base_path: &str, project_id: &str, session_id: &str) -> bool {
+    let Some(conn) = open_db(base_path) else {
+        return false;
+    };
+    conn.prepare("SELECT 1 FROM session WHERE project_id = ?1 AND id = ?2 LIMIT 1")
+        .and_then(|mut stmt| stmt.exists(rusqlite::params![project_id, session_id]))
+        .unwrap_or(false)
 }
 
 fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
@@ -1669,6 +1710,42 @@ mod tests {
         assert_eq!(sessions[0].summary, Some("Test session".to_string()));
         assert_eq!(sessions[0].message_count, 2);
         assert_eq!(sessions[0].storage_type, Some("sqlite".to_string()));
+    }
+
+    #[test]
+    fn resolves_sqlite_virtual_session_path_to_db_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        seed_test_data(&conn);
+        drop(conn);
+
+        let resolved = resolve_session_file_path(&format!(
+            "opencode+path://{}/proj1/ses_001",
+            hex_encode(&tmp.path().to_string_lossy())
+        ))
+        .unwrap();
+
+        assert_eq!(
+            resolved,
+            tmp.path().join("opencode.db").to_string_lossy().to_string()
+        );
+    }
+
+    #[test]
+    fn resolves_json_virtual_session_path_to_session_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let session_dir = tmp.path().join("storage").join("session").join("proj1");
+        fs::create_dir_all(&session_dir).unwrap();
+        let session_file = session_dir.join("ses_json.json");
+        fs::write(&session_file, "{}").unwrap();
+
+        let resolved = resolve_session_file_path(&format!(
+            "opencode+path://{}/proj1/ses_json",
+            hex_encode(&tmp.path().to_string_lossy())
+        ))
+        .unwrap();
+
+        assert_eq!(resolved, session_file.to_string_lossy().to_string());
     }
 
     #[test]

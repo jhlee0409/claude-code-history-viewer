@@ -155,9 +155,7 @@ export function useSessionEditing(session: ClaudeSession) {
   );
 
   const handleCopyToClipboard = useCallback(
-    async (e: React.MouseEvent, text: string, successMsg: string) => {
-      e.stopPropagation();
-      setIsContextMenuOpen(false);
+    async (text: string, successMsg: string) => {
       try {
         if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
           try {
@@ -176,14 +174,23 @@ export function useSessionEditing(session: ClaudeSession) {
     [t]
   );
 
+  const handleCopyEventToClipboard = useCallback(
+    async (e: React.MouseEvent, text: string, successMsg: string) => {
+      e.stopPropagation();
+      setIsContextMenuOpen(false);
+      await handleCopyToClipboard(text, successMsg);
+    },
+    [handleCopyToClipboard]
+  );
+
   const handleCopySessionId = useCallback(
     (e: React.MouseEvent) =>
-      handleCopyToClipboard(
+      handleCopyEventToClipboard(
         e,
         session.actual_session_id,
         t("session.copiedSessionId", "Session ID copied")
       ),
-    [handleCopyToClipboard, session.actual_session_id, t]
+    [handleCopyEventToClipboard, session.actual_session_id, t]
   );
 
   const handleCopyResumeCommand = useCallback(
@@ -196,23 +203,37 @@ export function useSessionEditing(session: ClaudeSession) {
         return;
       }
 
-      return handleCopyToClipboard(
+      return handleCopyEventToClipboard(
         e,
         resumeCommand,
         t("session.copiedResumeCommand", "Resume command copied")
       );
     },
-    [handleCopyToClipboard, providerId, session.actual_session_id, t]
+    [handleCopyEventToClipboard, providerId, session.actual_session_id, t]
   );
 
   const handleCopyFilePath = useCallback(
-    (e: React.MouseEvent) =>
-      handleCopyToClipboard(
-        e,
-        session.file_path,
-        t("session.copiedFilePath", "File path copied")
-      ),
-    [handleCopyToClipboard, session.file_path, t]
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsContextMenuOpen(false);
+
+      let filePath = session.file_path;
+      if (
+        providerId === "opencode" &&
+        (filePath.startsWith("opencode://") || filePath.startsWith("opencode+path://"))
+      ) {
+        try {
+          filePath = await api<string>("resolve_session_file_path", { filePath });
+        } catch (error) {
+          console.error("Failed to resolve OpenCode session file path:", error);
+          toast.error(t("session.filePathResolveError", "Could not resolve file path"));
+          return;
+        }
+      }
+
+      await handleCopyToClipboard(filePath, t("session.copiedFilePath", "File path copied"));
+    },
+    [handleCopyToClipboard, providerId, session.file_path, t]
   );
 
   const handleRevealInFinder = useCallback(

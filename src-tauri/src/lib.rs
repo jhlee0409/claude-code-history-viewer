@@ -46,7 +46,7 @@ use crate::commands::{
         delete_session, get_recent_edits, get_session_message_count, get_session_subagents,
         load_project_sessions, load_session_messages, load_session_messages_paginated,
         rename_opencode_session_title, rename_session_native, reset_session_native_name,
-        restore_file, search_messages,
+        resolve_session_file_path, restore_file, search_messages,
     },
     settings::{delete_preset, get_preset, load_presets, save_preset},
     stats::{
@@ -425,6 +425,7 @@ fn run_tauri() {
             get_session_subagents,
             get_recent_edits,
             restore_file,
+            resolve_session_file_path,
             get_session_token_stats,
             get_project_token_stats,
             get_project_stats_summary,

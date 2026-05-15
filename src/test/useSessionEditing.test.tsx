@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useSessionEditing } from "@/components/SessionItem/hooks/useSessionEditing";
+import { api } from "@/services/api";
 import type { ClaudeSession } from "@/types";
 
 vi.mock("react-i18next", async (importOriginal) => {
@@ -20,6 +21,10 @@ vi.mock("sonner", () => ({
     success: vi.fn(),
     error: vi.fn(),
   },
+}));
+
+vi.mock("@/services/api", () => ({
+  api: vi.fn(),
 }));
 
 vi.mock("@/hooks/useSessionMetadata", () => ({
@@ -51,6 +56,7 @@ const session: ClaudeSession & { provider: string; is_renamed: boolean } = {
 describe("useSessionEditing clipboard actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api).mockReset();
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
@@ -134,6 +140,37 @@ describe("useSessionEditing clipboard actions", () => {
 
     expect(writeText).toHaveBeenCalledWith("forge conversation resume conv-1");
     expect(toast.success).toHaveBeenCalledWith("Resume command copied");
+  });
+
+  it("resolves OpenCode virtual paths before copying file path", async () => {
+    const resolvedPath = "C:\\Users\\Proud\\.local\\share\\opencode\\opencode.db";
+    vi.mocked(api).mockResolvedValue(resolvedPath);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    const virtualPath = "opencode://global/ses_1d65e7471ffeJMD8U1Rjgtn7WG";
+    const { result } = renderHook(() =>
+      useSessionEditing({
+        ...session,
+        provider: "opencode",
+        file_path: virtualPath,
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleCopyFilePath({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(api).toHaveBeenCalledWith("resolve_session_file_path", {
+      filePath: virtualPath,
+    });
+    expect(writeText).toHaveBeenCalledWith(resolvedPath);
+    expect(toast.success).toHaveBeenCalledWith("File path copied");
   });
 
   it("reports copy failure when fallback cannot write clipboard payload", async () => {

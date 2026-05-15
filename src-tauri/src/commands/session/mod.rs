@@ -10,6 +10,7 @@
 mod delete;
 mod edits;
 mod load;
+mod path;
 mod rename;
 mod search;
 
@@ -17,6 +18,7 @@ mod search;
 pub use delete::*;
 pub use edits::*;
 pub use load::*;
+pub use path::*;
 pub use rename::*;
 pub use search::*;
 

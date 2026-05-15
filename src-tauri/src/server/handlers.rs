@@ -149,6 +149,12 @@ pub struct RestoreFileParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FilePathParam {
+    pub file_path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IdParam {
     pub id: String,
 }
@@ -477,6 +483,12 @@ handler_json!(
     restore_file,
     RestoreFileParams,
     |p: RestoreFileParams| async move { commands::session::restore_file(p.file_path, p.content).await }
+);
+
+handler_json!(
+    resolve_session_file_path,
+    FilePathParam,
+    |p: FilePathParam| async move { commands::session::resolve_session_file_path(p.file_path).await }
 );
 
 handler_json!(get_preset, IdParam, |p: IdParam| async move {

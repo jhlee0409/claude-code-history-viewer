@@ -293,6 +293,7 @@ mod project_snapshots {
             provider: Some("forgecode".to_string()),
             storage_type: Some("sqlite".to_string()),
             custom_directory_label: None,
+            source: None,
         };
 
         assert_json_snapshot!("forgecode_project", project);
