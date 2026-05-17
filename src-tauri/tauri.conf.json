@@ -12,8 +12,9 @@
   "app": {
     "windows": [
       {
+        "titleBarStyle": "Overlay",
         "label": "main",
-        "title": "Claude Code History Viewer",
+        "title": "",
         "width": 1200,
         "height": 800,
         "minWidth": 900,
