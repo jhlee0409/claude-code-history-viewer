@@ -2,9 +2,32 @@ use crate::models::{
     AntigravityProjectSummary, AntigravitySessionInfo, AntigravityState, PersistedSessionState,
     SessionLifecycle, SessionLifecycleStatus, SessionTotals,
 };
+use once_cell::sync::Lazy;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+
+const ESTIMATED_PROMPT_RATIO: f64 = 0.62;
+
+static MODEL_ALIAS_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+    HashMap::from([
+        ("MODEL_PLACEHOLDER_M37", "gemini-3.1-pro-high"),
+        ("MODEL_PLACEHOLDER_M36", "gemini-3.1-pro-low"),
+        ("MODEL_PLACEHOLDER_M18", "gemini-3-flash"),
+        ("MODEL_PLACEHOLDER_M8", "gemini-3-pro-high"),
+        ("MODEL_PLACEHOLDER_M7", "gemini-3-pro-low"),
+        ("MODEL_PLACEHOLDER_M9", "gemini-3-pro-image"),
+        ("MODEL_PLACEHOLDER_M26", "claude-opus-4-6-thinking"),
+        ("MODEL_PLACEHOLDER_M35", "claude-sonnet-4-6-thinking"),
+        ("MODEL_PLACEHOLDER_M12", "claude-opus-4-5-thinking"),
+        ("MODEL_OPENAI_GPT_OSS_120B_MEDIUM", "gpt-oss-120b-medium"),
+        ("MODEL_CLAUDE_4_5_SONNET", "claude-sonnet-4-5"),
+        (
+            "MODEL_CLAUDE_4_5_SONNET_THINKING",
+            "claude-sonnet-4-5-thinking",
+        ),
+    ])
+});
 
 // ============================================================================
 // Internal helpers — fully testable (no Tauri state dependency)
@@ -15,6 +38,10 @@ pub fn get_antigravity_root() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".gemini").join("antigravity"))
 }
 
+/// Resolves the antigravity root directory, with fallback discovery logic.
+///
+/// First checks the default `~/.gemini/antigravity` path, then falls back to
+/// external state directories discovered via platform-specific config locations.
 pub fn resolve_antigravity_root() -> Option<PathBuf> {
     let default_root = get_antigravity_root();
     if default_root.as_ref().is_some_and(|root| root.exists()) {
@@ -27,6 +54,8 @@ pub fn resolve_antigravity_root() -> Option<PathBuf> {
         .or(default_root)
 }
 
+/// Resolves the antigravity root from an arbitrary path by walking up the directory
+/// tree and looking for the `.token-monitor/rpc-cache/v1` marker.
 pub fn antigravity_root_from_path(path: &str) -> Option<PathBuf> {
     let candidate = PathBuf::from(path);
     let default_root = get_antigravity_root();
@@ -58,37 +87,79 @@ pub fn antigravity_root_from_path(path: &str) -> Option<PathBuf> {
         }
     }
 
-    default_root
+    None
 }
 
+/// Returns the RPC cache root path for a given antigravity root.
 pub fn get_antigravity_rpc_cache_root(root: &Path) -> PathBuf {
     root.join(".token-monitor").join("rpc-cache").join("v1")
 }
 
+/// Discovers external state directories across platform-specific config locations.
+///
+/// On macOS searches `~/Library/Application Support`; on Windows `dirs::data_dir()`;
+/// on Linux checks `~/.config` and platform config dirs. Looks for directories
+/// containing a `monitor-state.json` file in their global storage subdirectory.
 fn discover_external_state_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    let Some(home) = dirs::home_dir() else {
-        return dirs;
-    };
-
-    let base = home.join("Library").join("Application Support");
-    let Ok(app_entries) = std::fs::read_dir(base) else {
-        return dirs;
-    };
-
-    for app_entry in app_entries.flatten() {
-        let global_storage = app_entry.path().join("User").join("globalStorage");
-        if !global_storage.exists() {
-            continue;
+    let bases = if cfg!(target_os = "macos") {
+        dirs::home_dir()
+            .map(|home| vec![home.join("Library").join("Application Support")])
+            .unwrap_or_default()
+    } else if cfg!(target_os = "windows") {
+        dirs::data_dir().map(|dir| vec![dir]).unwrap_or_default()
+    } else {
+        let mut candidates = Vec::new();
+        if let Some(config_dir) = dirs::config_dir() {
+            candidates.push(config_dir);
         }
+        if let Some(home) = dirs::home_dir() {
+            let fallback = home.join(".config");
+            if !candidates.iter().any(|candidate| candidate == &fallback) {
+                candidates.push(fallback);
+            }
+        }
+        candidates
+    };
 
-        let Ok(storage_entries) = std::fs::read_dir(&global_storage) else {
+    for base in bases {
+        let Ok(app_entries) = std::fs::read_dir(base) else {
             continue;
         };
-        for storage_entry in storage_entries.flatten() {
-            let candidate = storage_entry.path();
-            if candidate.join("monitor-state.json").exists() {
-                dirs.push(candidate);
+
+        for app_entry in app_entries.flatten() {
+            let Ok(file_type) = app_entry.file_type() else {
+                continue;
+            };
+            if file_type.is_symlink() || !file_type.is_dir() {
+                continue;
+            }
+
+            let global_storage = app_entry.path().join("User").join("globalStorage");
+            let Ok(global_storage_meta) = std::fs::symlink_metadata(&global_storage) else {
+                continue;
+            };
+            if global_storage_meta.file_type().is_symlink()
+                || !global_storage_meta.file_type().is_dir()
+            {
+                continue;
+            }
+
+            let Ok(storage_entries) = std::fs::read_dir(&global_storage) else {
+                continue;
+            };
+            for storage_entry in storage_entries.flatten() {
+                let Ok(file_type) = storage_entry.file_type() else {
+                    continue;
+                };
+                if file_type.is_symlink() || !file_type.is_dir() {
+                    continue;
+                }
+
+                let candidate = storage_entry.path();
+                if candidate.join("monitor-state.json").exists() {
+                    dirs.push(candidate);
+                }
             }
         }
     }
@@ -96,15 +167,19 @@ fn discover_external_state_dirs() -> Vec<PathBuf> {
     dirs
 }
 
+/// Metadata extracted from an RPC cache `manifest.json` file.
 #[derive(Default)]
 struct RpcManifestInfo {
+    /// Unix timestamp (ms) when the state was exported.
     exported_at_ms: u64,
+    /// Unix timestamp (ms) of the server's last modification.
     server_last_modified_ms: u64,
-    artifact_hash: Option<String>,
 }
 
+/// Accumulates token usage across multiple usage records in a session.
 #[derive(Default)]
 struct RpcSessionAggregate {
+    /// Number of usage records processed.
     record_count: u32,
     input_tokens: u64,
     output_tokens: u64,
@@ -114,9 +189,11 @@ struct RpcSessionAggregate {
     total_tokens: u64,
     first_seen_ms: Option<u64>,
     last_seen_ms: Option<u64>,
+    /// Maps model name -> total tokens used.
     model_totals: HashMap<String, u64>,
 }
 
+/// Represents a candidate session discovered in the antigravity brain directory.
 struct SessionCandidate {
     session_id: String,
     session_dir: PathBuf,
@@ -125,12 +202,18 @@ struct SessionCandidate {
     label_hint: String,
 }
 
+/// Parses an RFC3339 timestamp string to Unix milliseconds.
 fn parse_rfc3339_to_ms(raw: &str) -> Option<u64> {
-    chrono::DateTime::parse_from_rfc3339(raw)
-        .ok()
-        .map(|dt| dt.timestamp_millis() as u64)
+    let timestamp_ms = chrono::DateTime::parse_from_rfc3339(raw)
+        .ok()?
+        .timestamp_millis();
+    if timestamp_ms < 0 {
+        return None;
+    }
+    u64::try_from(timestamp_ms).ok()
 }
 
+/// Returns the file's modification time in Unix milliseconds, or 0 on error.
 fn file_mtime_ms(path: &Path) -> u64 {
     std::fs::metadata(path)
         .ok()
@@ -140,6 +223,7 @@ fn file_mtime_ms(path: &Path) -> u64 {
         .unwrap_or(0)
 }
 
+/// Reads and parses the `manifest.json` file from an RPC cache directory.
 fn read_rpc_manifest(dir: &Path) -> RpcManifestInfo {
     let path = dir.join("manifest.json");
     let Ok(content) = std::fs::read_to_string(path) else {
@@ -152,49 +236,48 @@ fn read_rpc_manifest(dir: &Path) -> RpcManifestInfo {
     RpcManifestInfo {
         exported_at_ms: value["exportedAt"].as_u64().unwrap_or(0),
         server_last_modified_ms: value["serverLastModifiedMs"].as_u64().unwrap_or(0),
-        artifact_hash: value["artifactHash"]
-            .as_str()
-            .map(std::string::ToString::to_string),
     }
 }
 
+/// Resolves a model placeholder string to its canonical model name.
 fn resolve_model_alias(model: &str) -> String {
-    match model {
-        "MODEL_PLACEHOLDER_M37" => "gemini-3.1-pro-high",
-        "MODEL_PLACEHOLDER_M36" => "gemini-3.1-pro-low",
-        "MODEL_PLACEHOLDER_M18" => "gemini-3-flash",
-        "MODEL_PLACEHOLDER_M8" => "gemini-3-pro-high",
-        "MODEL_PLACEHOLDER_M7" => "gemini-3-pro-low",
-        "MODEL_PLACEHOLDER_M9" => "gemini-3-pro-image",
-        "MODEL_PLACEHOLDER_M26" => "claude-opus-4-6-thinking",
-        "MODEL_PLACEHOLDER_M35" => "claude-sonnet-4-6-thinking",
-        "MODEL_PLACEHOLDER_M12" => "claude-opus-4-5-thinking",
-        "MODEL_OPENAI_GPT_OSS_120B_MEDIUM" => "gpt-oss-120b-medium",
-        "MODEL_CLAUDE_4_5_SONNET" => "claude-sonnet-4-5",
-        "MODEL_CLAUDE_4_5_SONNET_THINKING" => "claude-sonnet-4-5-thinking",
-        _ => model,
-    }
-    .to_string()
+    MODEL_ALIAS_MAP
+        .get(model)
+        .copied()
+        .unwrap_or(model)
+        .to_string()
 }
 
+/// Checks whether a session ID contains only safe characters (alphanumeric, underscore, hyphen).
+fn is_valid_antigravity_session_id(session_id: &str) -> bool {
+    !session_id.is_empty()
+        && session_id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
+/// Counts step records in a JSON value (records with `"recordType": "step"`).
 fn count_step_rows(value: &Value) -> u32 {
     match value {
-        Value::Object(record) => (record.get("recordType").and_then(Value::as_str) == Some("step"))
-            as u32,
+        Value::Object(record) => {
+            u32::from(record.get("recordType").and_then(Value::as_str) == Some("step"))
+        }
         _ => 0,
     }
 }
 
+/// Counts messages (step rows) in a JSON object or array of records.
 fn count_messages(value: &Value) -> u32 {
-    match value {
-        Value::Object(record) => match record.get("records") {
-            Some(Value::Array(arr)) => arr.iter().map(count_step_rows).sum(),
-            _ => count_step_rows(value),
-        },
-        _ => 0,
+    let Value::Object(record) = value else {
+        return 0;
+    };
+    match record.get("records") {
+        Some(Value::Array(arr)) => arr.iter().map(count_step_rows).sum(),
+        _ => count_step_rows(value),
     }
 }
 
+/// Estimates token count from raw text length using a 4-char-per-token heuristic.
 fn estimate_tokens(text: &str) -> u64 {
     let normalized = text.trim();
     if normalized.is_empty() {
@@ -204,6 +287,7 @@ fn estimate_tokens(text: &str) -> u64 {
     ((normalized.len() as f64) / 4.0).round().max(1.0) as u64
 }
 
+/// Recursively collects all string values from a JSON structure into `output`.
 fn collect_text_from_json(value: &Value, output: &mut String) {
     match value {
         Value::String(text) => {
@@ -226,6 +310,8 @@ fn collect_text_from_json(value: &Value, output: &mut String) {
     }
 }
 
+/// Parses a usage record and accumulates its token data into the aggregate.
+/// Returns `true` if the record was a usage record, `false` otherwise.
 fn parse_usage_record(record: &Value, aggregate: &mut RpcSessionAggregate) -> bool {
     if record["recordType"].as_str() != Some("usage") {
         return false;
@@ -237,7 +323,8 @@ fn parse_usage_record(record: &Value, aggregate: &mut RpcSessionAggregate) -> bo
     let cache_write = record["cacheWriteTokens"].as_u64().unwrap_or(0);
     let reasoning = record["reasoningTokens"].as_u64().unwrap_or(0);
     let reported_total = record["totalTokens"].as_u64().unwrap_or(0);
-    let normalized_total = reported_total.max(input + output + cache_read + cache_write + reasoning);
+    let normalized_total =
+        reported_total.max(input + output + cache_read + cache_write + reasoning);
 
     aggregate.record_count += 1;
     aggregate.input_tokens += input;
@@ -250,7 +337,8 @@ fn parse_usage_record(record: &Value, aggregate: &mut RpcSessionAggregate) -> bo
     let model = resolve_model_alias(record["model"].as_str().unwrap_or("unknown"));
     *aggregate.model_totals.entry(model).or_insert(0) += normalized_total;
 
-    if let Some(created_at) = record["raw"]["chatModel"]["chatStartMetadata"]["createdAt"].as_str() {
+    if let Some(created_at) = record["raw"]["chatModel"]["chatStartMetadata"]["createdAt"].as_str()
+    {
         if let Some(ms) = parse_rfc3339_to_ms(created_at) {
             aggregate.first_seen_ms = Some(match aggregate.first_seen_ms {
                 Some(current) => current.min(ms),
@@ -266,19 +354,29 @@ fn parse_usage_record(record: &Value, aggregate: &mut RpcSessionAggregate) -> bo
     true
 }
 
+/// Recursively collects all file paths under `dir` into `files`, skipping
+/// system files (`.DS_Store`, `Thumbs.db`, backup files with `~` suffix) and symlinks.
 fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
-    let entries = std::fs::read_dir(dir)
-        .map_err(|e| format!("Failed to read {}: {}", dir.display(), e))?;
+    let entries =
+        std::fs::read_dir(dir).map_err(|e| format!("Failed to read {}: {}", dir.display(), e))?;
 
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read {} entry: {}", dir.display(), e))?;
         let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("Failed to inspect {}: {}", path.display(), e))?;
+        if file_type.is_symlink() {
+            continue;
+        }
+
         let file_name = entry.file_name();
         let file_name = file_name.to_string_lossy().to_lowercase();
         if file_name == ".ds_store" || file_name == "thumbs.db" || file_name.ends_with('~') {
             continue;
         }
 
-        if path.is_dir() {
+        if file_type.is_dir() {
             collect_files(&path, files)?;
         } else {
             files.push(path);
@@ -288,6 +386,8 @@ fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
+/// Scans the `brain/` directory for session candidates, returning them sorted
+/// by last modification time (newest first).
 fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
     let brain_dir = root.join("brain");
     let conversations_dir = root.join("conversations");
@@ -300,7 +400,10 @@ fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
     let mut sessions = Vec::new();
 
     for entry in entries.flatten() {
-        if !entry.path().is_dir() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_symlink() || !file_type.is_dir() {
             continue;
         }
 
@@ -332,10 +435,12 @@ fn scan_brain_candidates(root: &Path) -> Result<Vec<SessionCandidate>, String> {
         });
     }
 
-    sessions.sort_by(|a, b| b.last_modified_ms.cmp(&a.last_modified_ms));
+    sessions.sort_by_key(|b| std::cmp::Reverse(b.last_modified_ms));
     Ok(sessions)
 }
 
+/// Resolves a human-readable label for a session by reading `task.md`,
+/// `implementation_plan.md`, or `walkthrough.md` and extracting the first `#` heading.
 fn resolve_label(session_dir: &Path, fallback: &str) -> String {
     for label_file in ["task.md", "implementation_plan.md", "walkthrough.md"] {
         let path = session_dir.join(label_file);
@@ -353,9 +458,9 @@ fn resolve_label(session_dir: &Path, fallback: &str) -> String {
     fallback.to_string()
 }
 
-fn parse_token_files(
-    token_file_paths: &[PathBuf],
-) -> Result<(RpcSessionAggregate, u32, String), String> {
+/// Parses token usage from a list of files (jsonl, json, md, txt, log, yaml).
+/// Returns the aggregated token counts, message count, and concatenated text.
+fn parse_token_files(token_file_paths: &[PathBuf]) -> (RpcSessionAggregate, u32, String) {
     let mut aggregate = RpcSessionAggregate::default();
     let mut message_count = 0u32;
     let mut estimated_text = String::new();
@@ -403,31 +508,35 @@ fn parse_token_files(
         }
     }
 
-    Ok((aggregate, message_count, estimated_text))
+    (aggregate, message_count, estimated_text)
 }
 
+#[allow(clippy::too_many_arguments)]
+/// Builds a `PersistedSessionState` from token files and metadata for a single session.
 fn build_session_state(
     session_id: &str,
-    session_dir: &Path,
+    label_dir: &Path,
+    storage_dir: &Path,
     label_hint: &str,
     token_file_paths: &[PathBuf],
     last_modified_ms: u64,
     source: &str,
     lifecycle_status: SessionLifecycleStatus,
-) -> Result<PersistedSessionState, String> {
-    let (aggregate, message_count, estimated_text) = parse_token_files(token_file_paths)?;
-    let label = resolve_label(session_dir, label_hint);
+) -> PersistedSessionState {
+    let (aggregate, message_count, estimated_text) = parse_token_files(token_file_paths);
+    let label = resolve_label(label_dir, label_hint);
     let is_reported = aggregate.record_count > 0;
     let total_tokens = if is_reported {
         aggregate.total_tokens
     } else {
         estimate_tokens(&estimated_text)
     };
+    let estimated_input_tokens = ((total_tokens as f64) * ESTIMATED_PROMPT_RATIO).round() as u64;
 
     let latest = SessionTotals {
         session_id: session_id.to_string(),
         label,
-        file_path: session_dir.to_string_lossy().to_string(),
+        file_path: storage_dir.to_string_lossy().to_string(),
         last_modified_ms,
         mode: if is_reported {
             "reported".to_string()
@@ -444,12 +553,12 @@ fn build_session_state(
         input_tokens: if is_reported {
             aggregate.input_tokens
         } else {
-            ((total_tokens as f64) * 0.62).round() as u64
+            estimated_input_tokens
         },
         output_tokens: if is_reported {
             aggregate.output_tokens
         } else {
-            total_tokens.saturating_sub(((total_tokens as f64) * 0.62).round() as u64)
+            total_tokens.saturating_sub(estimated_input_tokens)
         },
         cache_read_tokens: aggregate.cache_read_tokens,
         cache_write_tokens: aggregate.cache_write_tokens,
@@ -462,11 +571,12 @@ fn build_session_state(
         },
     };
 
-    let signature = format!("{}:{}:{}", source, session_id, last_modified_ms);
+    let signature = format!("{source}:{session_id}:{last_modified_ms}");
     let last_seen_at = aggregate.last_seen_ms.unwrap_or(last_modified_ms);
-    let archived_at = matches!(lifecycle_status, SessionLifecycleStatus::Archived).then_some(last_modified_ms);
+    let archived_at =
+        matches!(lifecycle_status, SessionLifecycleStatus::Archived).then_some(last_modified_ms);
 
-    Ok(PersistedSessionState {
+    PersistedSessionState {
         signature,
         latest,
         snapshots: vec![],
@@ -475,9 +585,11 @@ fn build_session_state(
             last_seen_at,
             archived_at,
         },
-    })
+    }
 }
 
+/// Builds the full `AntigravityState` by scanning the antigravity root directory:
+/// first from `brain/` candidates, then from the RPC cache directory.
 fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityState, String> {
     let rpc_root = get_antigravity_rpc_cache_root(root);
     let mut sessions = HashMap::new();
@@ -488,7 +600,7 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
         let manifest = read_rpc_manifest(&rpc_dir);
         let usage_path = rpc_dir.join("usage.jsonl");
         let steps_path = rpc_dir.join("steps.jsonl");
-        let has_rpc_artifact = manifest.artifact_hash.is_some() && (usage_path.exists() || steps_path.exists());
+        let has_rpc_artifact = usage_path.exists() || steps_path.exists();
 
         let (token_file_paths, source, effective_last_modified) = if has_rpc_artifact {
             let mut token_paths = Vec::new();
@@ -510,18 +622,29 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
             .unwrap_or(candidate.last_modified_ms);
             (token_paths, "rpc-artifact", last_modified)
         } else {
-            (candidate.file_paths.clone(), "filesystem", candidate.last_modified_ms)
+            (
+                candidate.file_paths.clone(),
+                "filesystem",
+                candidate.last_modified_ms,
+            )
         };
 
-        let persisted = build_session_state(
-            &candidate.session_id,
-            &candidate.session_dir,
-            &candidate.label_hint,
-            &token_file_paths,
-            effective_last_modified,
-            source,
-            SessionLifecycleStatus::Active,
-        )?;
+        let persisted = if has_rpc_artifact {
+            build_session_state(
+                &candidate.session_id,
+                &candidate.session_dir,
+                &rpc_dir,
+                &candidate.label_hint,
+                &token_file_paths,
+                effective_last_modified,
+                source,
+                SessionLifecycleStatus::Active,
+            )
+        } else {
+            // brain/ session without rpc-cache data — skip; rpc cache scan will find it
+            // if it later has real data files
+            continue;
+        };
         seen_ids.insert(candidate.session_id.clone());
         sessions.insert(candidate.session_id, persisted);
     }
@@ -531,7 +654,10 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
             .map_err(|e| format!("Failed to read {}: {}", rpc_root.display(), e))?;
         for entry in entries.flatten() {
             let session_dir = entry.path();
-            if !session_dir.is_dir() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_symlink() || !file_type.is_dir() {
                 continue;
             }
             let session_id = entry.file_name().to_string_lossy().to_string();
@@ -566,12 +692,13 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
             let persisted = build_session_state(
                 &session_id,
                 &session_dir,
+                &session_dir,
                 &session_id,
                 &token_paths,
                 last_modified,
                 "rpc-artifact",
                 SessionLifecycleStatus::Archived,
-            )?;
+            );
             sessions.insert(session_id, persisted);
         }
     }
@@ -582,6 +709,8 @@ fn build_state_from_token_monitor_sources(root: &Path) -> Result<AntigravityStat
     })
 }
 
+/// Alias for `build_state_from_token_monitor_sources` — discovers sessions
+/// from both the `brain/` directory and the RPC cache.
 fn build_state_from_rpc_cache(root: &Path) -> Result<AntigravityState, String> {
     build_state_from_token_monitor_sources(root)
 }
@@ -610,37 +739,15 @@ pub fn load_archive_states(root: &Path) -> Vec<AntigravityState> {
         Err(_) => return vec![],
     };
 
-    let mut states = Vec::new();
+    let mut named = Vec::new();
     for entry in entries.flatten() {
         let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-        if name_str.starts_with("monitor-state.archive-") && name_str.ends_with(".json") {
-            if let Ok(state) = load_state_file(&entry.path()) {
-                states.push(state);
-            }
-        }
-    }
-    // Sort archives deterministically by filename (chronological)
-    let mut named: Vec<(String, AntigravityState)> = states
-        .into_iter()
-        .enumerate()
-        .map(|(_, s)| {
-            // Re-read filename from directory for sorting key
-            (String::new(), s)
-        })
-        .collect();
-
-    // Simpler approach: re-scan with names
-    let entries2 = match std::fs::read_dir(root) {
-        Ok(e) => e,
-        Err(_) => return named.into_iter().map(|(_, s)| s).collect(),
-    };
-
-    named.clear();
-    for entry in entries2.flatten() {
-        let name = entry.file_name();
         let name_str = name.to_string_lossy().to_string();
-        if name_str.starts_with("monitor-state.archive-") && name_str.ends_with(".json") {
+        if name_str.starts_with("monitor-state.archive-")
+            && Path::new(&name_str)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+        {
             if let Ok(state) = load_state_file(&entry.path()) {
                 named.push((name_str, state));
             }
@@ -650,14 +757,21 @@ pub fn load_archive_states(root: &Path) -> Vec<AntigravityState> {
     named.into_iter().map(|(_, s)| s).collect()
 }
 
-/// 合并多个状态：后者（active）覆盖前者（archive）中的相同 session_id
+/// 合并多个状态：后者（active）覆盖前者（archive）中的相同 `session_id`
 ///
 /// 与 antigravity-token-monitor 的 `mergeSessionMaps` 逻辑一致
-pub fn merge_states(archive_states: Vec<AntigravityState>, active: Option<AntigravityState>) -> AntigravityState {
+pub fn merge_states(
+    archive_states: Vec<AntigravityState>,
+    active: Option<AntigravityState>,
+) -> AntigravityState {
     let mut merged: HashMap<String, PersistedSessionState> = HashMap::new();
+    let mut last_poll_at: Option<u64> = None;
 
     // Apply archives first (oldest → newest)
     for archive in archive_states {
+        if let Some(ts) = archive.last_poll_at {
+            last_poll_at = Some(last_poll_at.map_or(ts, |current| current.max(ts)));
+        }
         for (id, session) in archive.sessions {
             merged.insert(id, session);
         }
@@ -665,13 +779,16 @@ pub fn merge_states(archive_states: Vec<AntigravityState>, active: Option<Antigr
 
     // Active overrides archives
     if let Some(active_state) = active {
+        if active_state.last_poll_at.is_some() {
+            last_poll_at = active_state.last_poll_at;
+        }
         for (id, session) in active_state.sessions {
             merged.insert(id, session);
         }
     }
 
     AntigravityState {
-        last_poll_at: None,
+        last_poll_at,
         sessions: merged,
     }
 }
@@ -711,7 +828,7 @@ pub fn compute_project_summary(state: &AntigravityState) -> AntigravityProjectSu
         };
 
         sessions_info.push(AntigravitySessionInfo {
-            session_id: session_id.to_string(),
+            session_id: session_id.clone(),
             label: totals.label.clone(),
             lifecycle: lifecycle_str,
             last_seen_at: session_state.lifecycle.last_seen_at,
@@ -721,7 +838,7 @@ pub fn compute_project_summary(state: &AntigravityState) -> AntigravityProjectSu
     }
 
     // Sort sessions by total_tokens descending for consistent display
-    sessions_info.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+    sessions_info.sort_by_key(|b| std::cmp::Reverse(b.total_tokens));
 
     AntigravityProjectSummary {
         session_count: state.sessions.len(),
@@ -780,6 +897,9 @@ pub async fn load_antigravity_state() -> Result<AntigravityState, String> {
 pub async fn get_antigravity_session(
     session_id: String,
 ) -> Result<Option<PersistedSessionState>, String> {
+    if !is_valid_antigravity_session_id(&session_id) {
+        return Err("Invalid antigravity session_id".to_string());
+    }
     let root = resolve_antigravity_root().ok_or("Cannot determine antigravity root directory")?;
     let state = load_antigravity_state_impl(&root)?;
     Ok(state.sessions.get(&session_id).cloned())
@@ -792,9 +912,8 @@ pub async fn get_antigravity_project_summary(
     let root = root_path
         .as_deref()
         .and_then(antigravity_root_from_path)
-        .or_else(get_antigravity_root)
-        .ok_or("No antigravity path provided and cannot determine default")?;
-
+        .or_else(resolve_antigravity_root)
+        .ok_or("Cannot determine antigravity root directory")?;
     let state = load_antigravity_state_impl(&root)?;
     Ok(compute_project_summary(&state))
 }
@@ -809,9 +928,39 @@ mod tests {
     use crate::models::{
         PersistedSessionState, SessionLifecycle, SessionLifecycleStatus, SessionTotals,
     };
+    use serial_test::serial;
+    use std::collections::HashMap;
+    use std::ffi::OsString;
     use tempfile::TempDir;
 
-    fn make_session(id: &str, total_tokens: u64, status: SessionLifecycleStatus) -> PersistedSessionState {
+    struct EnvVarGuard {
+        key: &'static str,
+        original: Option<OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set_path(key: &'static str, value: &Path) -> Self {
+            let original = std::env::var_os(key);
+            std::env::set_var(key, value);
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(value) = self.original.as_ref() {
+                std::env::set_var(self.key, value);
+            } else {
+                std::env::remove_var(self.key);
+            }
+        }
+    }
+
+    fn make_session(
+        id: &str,
+        total_tokens: u64,
+        status: SessionLifecycleStatus,
+    ) -> PersistedSessionState {
         PersistedSessionState {
             signature: format!("sig-{id}"),
             latest: SessionTotals {
@@ -859,6 +1008,22 @@ mod tests {
         let session = merged.sessions.get("sess-001").unwrap();
         // Active value (5000) should win over archive value (1000)
         assert_eq!(session.latest.total_tokens, 5000);
+    }
+
+    #[test]
+    fn test_merge_states_preserves_active_last_poll_at() {
+        let archive = AntigravityState {
+            last_poll_at: Some(1_700_000_000_000),
+            sessions: HashMap::new(),
+        };
+        let active = AntigravityState {
+            last_poll_at: Some(1_700_000_001_000),
+            sessions: HashMap::new(),
+        };
+
+        let merged = merge_states(vec![archive], Some(active));
+
+        assert_eq!(merged.last_poll_at, Some(1_700_000_001_000));
     }
 
     #[test]
@@ -910,10 +1075,22 @@ mod tests {
     #[test]
     fn test_compute_project_summary_sorted_by_tokens() {
         let mut sessions = HashMap::new();
-        sessions.insert("a".to_string(), make_session("a", 100, SessionLifecycleStatus::Active));
-        sessions.insert("b".to_string(), make_session("b", 9000, SessionLifecycleStatus::Active));
-        sessions.insert("c".to_string(), make_session("c", 500, SessionLifecycleStatus::Active));
-        let state = AntigravityState { last_poll_at: None, sessions };
+        sessions.insert(
+            "a".to_string(),
+            make_session("a", 100, SessionLifecycleStatus::Active),
+        );
+        sessions.insert(
+            "b".to_string(),
+            make_session("b", 9000, SessionLifecycleStatus::Active),
+        );
+        sessions.insert(
+            "c".to_string(),
+            make_session("c", 500, SessionLifecycleStatus::Active),
+        );
+        let state = AntigravityState {
+            last_poll_at: None,
+            sessions,
+        };
 
         let summary = compute_project_summary(&state);
         // Should be sorted descending by tokens
@@ -968,6 +1145,15 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn test_antigravity_root_from_path_returns_none_for_unrelated_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let _home_guard = EnvVarGuard::set_path("HOME", temp_dir.path());
+
+        assert_eq!(antigravity_root_from_path("/tmp/not-antigravity"), None);
+    }
+
+    #[test]
     fn test_load_antigravity_state_impl_falls_back_to_rpc_cache() {
         let dir = TempDir::new().unwrap();
         let root = dir.path();
@@ -989,5 +1175,33 @@ mod tests {
         assert_eq!(session.latest.input_tokens, 100);
         assert_eq!(session.latest.cache_write_tokens, 10);
         assert_eq!(session.latest.reasoning_tokens, 5);
+        assert_eq!(
+            session.latest.file_path,
+            rpc_dir.to_string_lossy().to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_antigravity_project_summary_uses_explicit_root_path() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let rpc_dir = root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("sess-explicit-root");
+        std::fs::create_dir_all(&rpc_dir).unwrap();
+        std::fs::create_dir_all(root.join("brain").join("sess-explicit-root")).unwrap();
+
+        let usage = r#"{"recordType":"usage","sessionId":"sess-explicit-root","sequence":0,"model":"gemini-3-pro-high","inputTokens":120,"outputTokens":80,"cacheReadTokens":40,"cacheWriteTokens":20,"reasoningTokens":10,"totalTokens":270,"raw":{"chatModel":{"chatStartMetadata":{"createdAt":"2026-04-12T00:00:00Z"}}}}"#;
+        std::fs::write(rpc_dir.join("usage.jsonl"), format!("{usage}\n")).unwrap();
+
+        let summary = get_antigravity_project_summary(Some(root.to_string_lossy().to_string()))
+            .await
+            .unwrap();
+
+        assert_eq!(summary.session_count, 1);
+        assert_eq!(summary.total_tokens, 270);
+        assert_eq!(summary.sessions[0].session_id, "sess-explicit-root");
     }
 }

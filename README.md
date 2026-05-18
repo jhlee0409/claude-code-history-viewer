@@ -69,7 +69,7 @@ AI coding assistants generate thousands of conversation messages, but none of th
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | Full conversation history, tool use, thinking, costs |
 | **Gemini CLI** | `~/.gemini/history/` | Conversation history with tool calls |
-| **Antigravity** | `~/.gemini/antigravity/.token-monitor/rpc-cache/v1/` | Token monitor sessions, usage snapshots, analytics-ready stats |
+| **Antigravity** | `~/.gemini/antigravity/` | Conversation state under `brain/` plus token monitor data under `.token-monitor/rpc-cache/v1/` |
 | **Codex CLI** | `~/.codex/sessions/` | Session rollouts with agent responses |
 | **Cline** | `~/.cline/tasks/` | Task-based conversation history |
 | **Cursor** | `~/.cursor/` | Composer and chat conversations |
@@ -77,6 +77,8 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **OpenCode** | `~/.local/share/opencode/` | Conversation sessions and tool results |
 
 No vendor lock-in. No cloud dependency. Your local conversation files, beautifully rendered.
+
+Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigravity` and then reads session state from `brain/` plus usage/cache artifacts from `.token-monitor/rpc-cache/v1/`; this matches the current runtime layout and root resolver in `src-tauri/src/commands/antigravity.rs`.
 
 ## Table of Contents
 

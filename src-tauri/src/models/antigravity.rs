@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// 与 antigravity-token-monitor 的 PersistedSessionState 结构一致
+/// 与 antigravity-token-monitor 的 `PersistedSessionState` 结构一致
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PersistedSessionState {
     pub signature: String,
@@ -48,7 +48,7 @@ pub struct SessionLifecycle {
     pub archived_at: Option<u64>,
 }
 
-/// 单个 session 的 token 汇总（与 monitor 中 SessionTotals 一致）
+/// 单个 session 的 token 汇总（与 monitor 中 `SessionTotals` 一致）
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SessionTotals {
     #[serde(rename = "sessionId")]
