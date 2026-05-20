@@ -135,7 +135,8 @@ export function SimpleUpdateModal({
       } catch (err) {
         console.warn('[SimpleUpdateModal] force_quit_and_relaunch failed', err);
         toast.error(t('common.error.updateRelaunchFailed'));
-        onClose();
+        // Keep the dialog open — the emerald banner is the only place the
+        // user is told how to recover manually (⌘Q / Alt+F4 then reopen).
       }
       return;
     }
