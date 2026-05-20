@@ -126,9 +126,17 @@ export function SimpleUpdateModal({
     onClose();
   };
 
-  const handlePrimaryAction = () => {
+  const handlePrimaryAction = async () => {
     if (updater.state.requiresManualRestart) {
-      onClose();
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('force_quit_and_relaunch');
+        // App will exit shortly; leave dialog open so user sees no flicker.
+      } catch (err) {
+        console.warn('[SimpleUpdateModal] force_quit_and_relaunch failed', err);
+        toast.error(t('common.error.updateRelaunchFailed'));
+        onClose();
+      }
       return;
     }
 
@@ -268,7 +276,7 @@ export function SimpleUpdateModal({
 
         <DialogFooter className="flex-col gap-2">
           <Button
-            onClick={handlePrimaryAction}
+            onClick={() => void handlePrimaryAction()}
             disabled={
               updater.state.isDownloading ||
               updater.state.isInstalling ||
@@ -278,7 +286,10 @@ export function SimpleUpdateModal({
             className="w-full"
           >
             {updater.state.requiresManualRestart ? (
-              t('simpleUpdateModal.close')
+              <>
+                <RotateCw className="w-3.5 h-3.5" />
+                {t('simpleUpdateModal.restartNow')}
+              </>
             ) : updater.state.isRestarting ? (
               <>
                 <RotateCw className="w-3.5 h-3.5 animate-spin" />

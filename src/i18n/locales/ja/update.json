@@ -18,6 +18,7 @@
   "simpleUpdateModal.restarting": "アップデートをインストール中、アプリを再起動します...",
   "simpleUpdateModal.restartingDescription": "アプリが自動的に終了して再起動します。自動再起動されない場合は、手動でアプリを再度開いてください。",
   "simpleUpdateModal.restartingShort": "再起動中...",
+  "simpleUpdateModal.restartNow": "今すぐ再起動",
   "simpleUpdateModal.showDetails": "詳細を表示",
   "simpleUpdateModal.skipVersion": "このバージョンをスキップ",
   "simpleUpdateModal.reportIssue": "問題を報告",

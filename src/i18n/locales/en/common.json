@@ -30,6 +30,7 @@
   "common.error.updateCheckFailed": "Failed to check for updates",
   "common.error.updateDownloadCompleteRestart": "Update downloaded successfully!",
   "common.error.updateDownloadCompleteRestartHint": "Please quit the app and reopen it to apply the update.",
+  "common.error.updateRelaunchFailed": "Couldn't restart automatically. Please quit the app (⌘Q / Alt+F4) and reopen it.",
   "common.errorOccurred": "An error occurred",
   "common.expand": "Expand",
   "common.help": "Help",

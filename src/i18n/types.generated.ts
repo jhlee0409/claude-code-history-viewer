@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-05-07T02:16:11.536Z
- * 총 키 개수: 1771
+ * 생성 시간: 2026-05-25T07:35:34.480Z
+ * 총 키 개수: 1773
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (160개)
+ * common namespace의 번역 키 (161개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -76,6 +76,7 @@ export type CommonKeys =
   | 'common.error.updateCheckFailed'
   | 'common.error.updateDownloadCompleteRestart'
   | 'common.error.updateDownloadCompleteRestartHint'
+  | 'common.error.updateRelaunchFailed'
   | 'common.errorOccurred'
   | 'common.expand'
   | 'common.help'
@@ -1735,7 +1736,7 @@ export type RenderersKeys =
   | 'webSearchResultRenderer.title';
 
 /**
- * update namespace의 번역 키 (72개)
+ * update namespace의 번역 키 (73개)
  * 파일: locales/{lang}/update.json
  */
 export type UpdateKeys =
@@ -1758,6 +1759,7 @@ export type UpdateKeys =
   | 'simpleUpdateModal.reportIssue'
   | 'simpleUpdateModal.reportIssuePrompt'
   | 'simpleUpdateModal.reportIssueSubject'
+  | 'simpleUpdateModal.restartNow'
   | 'simpleUpdateModal.restarting'
   | 'simpleUpdateModal.restartingDescription'
   | 'simpleUpdateModal.restartingShort'
@@ -2210,6 +2212,7 @@ export type TranslationKey =
   | 'common.error.updateCheckFailed'
   | 'common.error.updateDownloadCompleteRestart'
   | 'common.error.updateDownloadCompleteRestartHint'
+  | 'common.error.updateRelaunchFailed'
   | 'common.errorOccurred'
   | 'common.expand'
   | 'common.help'
@@ -3423,6 +3426,7 @@ export type TranslationKey =
   | 'simpleUpdateModal.reportIssue'
   | 'simpleUpdateModal.reportIssuePrompt'
   | 'simpleUpdateModal.reportIssueSubject'
+  | 'simpleUpdateModal.restartNow'
   | 'simpleUpdateModal.restarting'
   | 'simpleUpdateModal.restartingDescription'
   | 'simpleUpdateModal.restartingShort'
