@@ -52,6 +52,7 @@ const session: ClaudeSession & { provider: string; is_renamed: boolean } = {
 describe("useSessionEditing clipboard actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAppStore.setState({ projects: [] });
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {

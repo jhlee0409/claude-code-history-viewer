@@ -181,6 +181,14 @@ export function getResumeCommand(
     return null;
   }
 
+  // Fail-closed: sessionId is interpolated unquoted into a shell command that
+  // the user pastes into their terminal. Only allow the charset CLIs actually
+  // emit (UUIDs, hex hashes) so a crafted/corrupted JSONL can't extend the
+  // command past the resume invocation.
+  if (!/^[A-Za-z0-9_-]+$/.test(sessionId)) {
+    return null;
+  }
+
   if (provider == null || !PROVIDER_IDS.includes(provider as ProviderId)) {
     return null;
   }

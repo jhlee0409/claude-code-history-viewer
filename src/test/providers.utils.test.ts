@@ -87,6 +87,22 @@ describe("providers utils", () => {
     expect(getResumeCommand("codex", "abc", "/Users/foo/proj")).toBe(
       "cd '/Users/foo/proj' && codex resume abc"
     );
+    expect(getResumeCommand("forgecode", "abc", "/Users/foo/proj")).toBe(
+      "cd '/Users/foo/proj' && forge conversation resume abc"
+    );
+  });
+
+  it("getResumeCommand rejects session ids with shell-meaningful chars", () => {
+    // Defense-in-depth: even though CLIs only emit UUID-like IDs, a crafted
+    // JSONL must not be able to extend the clipboard command.
+    expect(getResumeCommand("claude", "abc; rm -rf /")).toBeNull();
+    expect(getResumeCommand("codex", "abc && evil")).toBeNull();
+    expect(getResumeCommand("claude", "abc def")).toBeNull();
+    expect(getResumeCommand("claude", "$(whoami)")).toBeNull();
+    // Allowed charset: alnum, underscore, hyphen.
+    expect(getResumeCommand("claude", "abc-123_XYZ")).toBe(
+      "claude --resume abc-123_XYZ"
+    );
   });
 
   it("omits the cd prefix when cwd is empty or missing", () => {
