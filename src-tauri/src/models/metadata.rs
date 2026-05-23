@@ -213,7 +213,7 @@ pub struct WslSettings {
     #[serde(default)]
     pub enabled: bool,
     /// List of WSL distro names to exclude from scanning
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub excluded_distros: Vec<String>,
 }
 
