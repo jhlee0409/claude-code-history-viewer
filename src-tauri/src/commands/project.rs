@@ -253,7 +253,10 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         let git_info = detect_git_worktree_info(&actual_path);
 
         projects.push(ClaudeProject {
-            name: project_name,
+            name: std::path::Path::new(&actual_path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or(project_name),
             path: project_path,
             actual_path,
             session_count,
@@ -431,8 +434,10 @@ mod tests {
         let projects_dir = claude_dir.join("projects");
 
         // Create project with prefix format (like "-Users-jack-client-myapp")
-        // splitn(4, '-') on "-Users-jack-client-myapp" yields:
-        // ["", "Users", "jack", "client-myapp"] -> returns "client-myapp"
+        // decode_project_path falls back to heuristic: splitn(4, '-') yields
+        // ["", "Users", "jack", "client-myapp"] -> decoded path "/Users/jack/client-myapp"
+        // The display name is now taken from the basename of the decoded actual_path,
+        // which gives "client-myapp".
         let project_dir = projects_dir.join("-Users-jack-client-myapp");
         fs::create_dir_all(&project_dir).unwrap();
         create_test_jsonl_file(&project_dir, "session.jsonl", "{}");
@@ -442,8 +447,7 @@ mod tests {
 
         let projects = result.unwrap();
         assert_eq!(projects.len(), 1);
-        // extract_project_name extracts the 4th part from splitn(4, '-')
-        // "-Users-jack-client-myapp" -> ["", "Users", "jack", "client-myapp"]
+        // Display name comes from basename of decoded actual_path (or extract_project_name fallback)
         assert_eq!(projects[0].name, "client-myapp");
     }
 

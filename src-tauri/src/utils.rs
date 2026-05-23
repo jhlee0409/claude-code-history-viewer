@@ -51,6 +51,14 @@ pub fn find_line_starts(data: &[u8]) -> Vec<usize> {
     starts
 }
 
+/// Extract a human-readable project name from the raw encoded directory name.
+///
+/// NOTE: This function uses `splitn(4, '-')` which only strips the first 3 path
+/// segments. For paths deeper than 3 segments (e.g., Google Drive paths like
+/// `/Users/x/Library/CloudStorage/GoogleDrive-.../code/projects/signal`), the
+/// result is still an unreadable encoded slug. In `scan_projects()`, the display
+/// name now comes from the basename of the decoded `actual_path` instead; this
+/// function is kept as a fallback when `actual_path` has no `file_name` component.
 pub fn extract_project_name(raw_project_name: &str) -> String {
     if raw_project_name.starts_with('-') {
         let parts: Vec<&str> = raw_project_name.splitn(4, '-').collect();
@@ -559,6 +567,11 @@ mod tests {
     }
 
     // ===== Project Name Tests =====
+    //
+    // Note: extract_project_name is now only used as a fallback in scan_projects().
+    // The primary display name comes from the basename of the decoded actual_path.
+    // These tests document the existing splitn(4) behavior and its limitations
+    // with deep paths (see test_extract_project_name_deep_path_limitation).
 
     #[test]
     fn test_extract_project_name_with_prefix() {
@@ -598,6 +611,21 @@ mod tests {
     fn test_extract_project_name_exact_four_parts() {
         let result = extract_project_name("-a-b-c");
         assert_eq!(result, "c");
+    }
+
+    #[test]
+    fn test_extract_project_name_deep_path_limitation() {
+        // Documents the limitation: splitn(4, '-') only strips the first 3 segments.
+        // For deep paths (e.g., Google Drive), the result is still an unreadable slug.
+        // This is why scan_projects() now uses the basename of the decoded actual_path
+        // instead of this function.
+        let deep = "-Users-pablo-Library-CloudStorage-GoogleDrive-code-projects-signal";
+        let result = extract_project_name(deep);
+        // Returns everything after the 3rd dash — still mangled
+        assert_eq!(
+            result,
+            "Library-CloudStorage-GoogleDrive-code-projects-signal"
+        );
     }
 
     #[test]
