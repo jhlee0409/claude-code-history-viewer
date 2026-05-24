@@ -155,6 +155,51 @@ pub async fn detect_claude_config_dir() -> Result<Option<String>, String> {
     }
 }
 
+/// Read the `cwd` field from the first records of a session JSONL file.
+/// The first line often has a null/absent cwd, so scan a bounded number of
+/// lines and return the first non-empty cwd found.
+fn read_session_cwd(path: &std::path::Path) -> Option<String> {
+    use std::io::{BufRead, BufReader};
+    let file = std::fs::File::open(path).ok()?;
+    for line in BufReader::new(file).lines().take(50).map_while(Result::ok) {
+        if line.is_empty() {
+            continue;
+        }
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) {
+            if let Some(cwd) = v.get("cwd").and_then(|c| c.as_str()) {
+                if !cwd.is_empty() {
+                    return Some(cwd.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Derive a human-readable display name from a real (already-decoded) cwd path.
+/// Git worktrees ("<project>/.claude/worktrees/<branch>") render as
+/// "<project> (worktree: <branch>)" using the true branch name.
+fn display_name_from_cwd(cwd: &str) -> Option<String> {
+    const WT: &str = "/.claude/worktrees/";
+    if let Some(pos) = cwd.find(WT) {
+        let parent = std::path::Path::new(&cwd[..pos])
+            .file_name()
+            .and_then(|n| n.to_str())?;
+        let branch = cwd[pos + WT.len()..]
+            .split('/')
+            .next()
+            .filter(|s| !s.is_empty());
+        return Some(match branch {
+            Some(b) => format!("{parent} (worktree: {b})"),
+            None => parent.to_string(),
+        });
+    }
+    std::path::Path::new(cwd)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(str::to_string)
+}
+
 #[tauri::command]
 pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, String> {
     #[cfg(debug_assertions)]
@@ -205,6 +250,9 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         let mut session_count = 0;
         let mut message_count = 0;
         let mut last_modified = None;
+        // Ground-truth cwd of this project, read from a top-level session file.
+        // Preferred over decoding the (ambiguous) encoded dir name for display.
+        let mut session_cwd: Option<String> = None;
 
         for jsonl_entry in WalkDir::new(entry.path())
             .into_iter()
@@ -212,6 +260,12 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         {
             session_count += 1;
+
+            // Capture cwd from a top-level (depth 1) session file — the project's
+            // own session, not a nested subagent transcript.
+            if session_cwd.is_none() && jsonl_entry.depth() == 1 {
+                session_cwd = read_session_cwd(jsonl_entry.path());
+            }
 
             if let Ok(metadata) = jsonl_entry.metadata() {
                 if let Ok(modified) = metadata.modified() {
@@ -254,6 +308,14 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 
         projects.push(ClaudeProject {
             name: {
+                // Prefer the project's real cwd (ground truth) — resolves deep/cloud
+                // paths, project names that contain "projects", and worktrees
+                // correctly, with the true branch name. Fall back to decoding the
+                // encoded directory name only when no session cwd is available.
+                if let Some(name) = session_cwd.as_deref().and_then(display_name_from_cwd) {
+                    name
+                } else {
+                // ── Fallback: derive from the encoded directory name ──
                 // Claude encodes project paths by replacing '/' with '-', producing
                 // directory names like "-Users-alice-code-projects-myapp". For paths
                 // deeper than 3 segments, decode_project_path() (splitn(4,'-')) returns
@@ -330,6 +392,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
                             .filter(|s| !s.is_empty())
                             .unwrap_or(project_name)
                     }
+                }
                 }
             },
             path: project_path,
@@ -545,6 +608,54 @@ mod tests {
         let projects = result.unwrap();
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].name, "myapp (worktree: feature)");
+    }
+
+    #[tokio::test]
+    async fn test_scan_projects_name_from_cwd() {
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+
+        // Project whose name contains "projects": the encoded "-projects-" anchor
+        // would truncate to "tool". The real cwd resolves it correctly.
+        let project_dir = projects_dir.join("-Users-me-code-projects-my-projects-tool");
+        fs::create_dir_all(&project_dir).unwrap();
+        create_test_jsonl_file(
+            &project_dir,
+            "session.jsonl",
+            "{\"cwd\":\"/Users/me/code/projects/my-projects-tool\"}",
+        );
+
+        let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+
+        let projects = result.unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name, "my-projects-tool");
+    }
+
+    #[tokio::test]
+    async fn test_scan_projects_worktree_name_from_cwd() {
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+
+        // Real cwd carries the true branch name, incl. underscores (no lossy
+        // encoding): "feature_x" stays "feature_x".
+        let project_dir = projects_dir.join("-Users-me-code-projects-myapp--claude-worktrees-feature-x");
+        fs::create_dir_all(&project_dir).unwrap();
+        create_test_jsonl_file(
+            &project_dir,
+            "session.jsonl",
+            "{\"cwd\":\"/Users/me/code/projects/myapp/.claude/worktrees/feature_x\"}",
+        );
+
+        let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+
+        let projects = result.unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name, "myapp (worktree: feature_x)");
     }
 
     #[tokio::test]
