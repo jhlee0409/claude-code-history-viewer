@@ -260,9 +260,15 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
                 // an incorrectly decoded actual_path, so file_name() on it still yields
                 // a long unreadable slug.
                 //
+                // Git worktrees add a wrinkle: their encoded dir embeds
+                // "--claude-worktrees-<branch>" after the project, e.g.
+                // "-Users-me-code-projects-myapp--claude-worktrees-fix".
+                //
                 // Strategy (in order):
-                // 1. Case-insensitive search for "-projects-" anchor in the raw encoded
-                //    name — extracts everything after it ("signal", "vmw-rag", "HW-Refresh").
+                // 0. Git worktree ("…--claude-worktrees-<branch>") →
+                //    "<parent> (worktree: <branch>)".
+                // 1. Case-insensitive "-projects-" anchor in the raw encoded name —
+                //    extracts everything after it ("signal", "vmw-rag", "HW-Refresh").
                 // 2. actual_path file_name() — works for shallow (<= 3 segment) paths.
                 //    Skipped when the result looks like an encoded slug (contains known
                 //    cloud-storage markers).
@@ -274,30 +280,56 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
                     .and_then(|n| n.to_str())
                     .unwrap_or("");
                 const ANCHOR: &str = "-projects-";
-                let raw_lower = raw_dir.to_ascii_lowercase();
-                if let Some(pos) = raw_lower.rfind(ANCHOR) {
-                    let name = &raw_dir[pos + ANCHOR.len()..];
-                    if !name.is_empty() {
-                        name.to_string()
+                const WORKTREE: &str = "--claude-worktrees-";
+                if let Some(wpos) = raw_dir.find(WORKTREE) {
+                    // Git worktree. Derive "<parent> (worktree: <branch>)".
+                    // The branch label is taken from the encoded dir name, so '_'
+                    // renders as '-' (lossy, but adequate for a display label).
+                    let parent_seg = &raw_dir[..wpos];
+                    let branch = &raw_dir[wpos + WORKTREE.len()..];
+                    let parent_lower = parent_seg.to_ascii_lowercase();
+                    let parent = if let Some(pos) = parent_lower.rfind(ANCHOR) {
+                        let p = &parent_seg[pos + ANCHOR.len()..];
+                        if p.is_empty() { parent_seg.to_string() } else { p.to_string() }
                     } else {
-                        project_name
+                        parent_seg
+                            .rsplit('-')
+                            .next()
+                            .filter(|s| !s.is_empty())
+                            .map(str::to_string)
+                            .unwrap_or_else(|| parent_seg.to_string())
+                    };
+                    if branch.is_empty() {
+                        parent
+                    } else {
+                        format!("{parent} (worktree: {branch})")
                     }
-                } else if let Some(n) = std::path::Path::new(&actual_path).file_name() {
-                    let fname = n.to_string_lossy();
-                    // Skip if it still looks like an encoded deep path
-                    if fname.contains("-Library-") || fname.contains("CloudStorage") {
+                } else {
+                    let raw_lower = raw_dir.to_ascii_lowercase();
+                    if let Some(pos) = raw_lower.rfind(ANCHOR) {
+                        let name = &raw_dir[pos + ANCHOR.len()..];
+                        if !name.is_empty() {
+                            name.to_string()
+                        } else {
+                            project_name
+                        }
+                    } else if let Some(n) = std::path::Path::new(&actual_path).file_name() {
+                        let fname = n.to_string_lossy();
+                        // Skip if it still looks like an encoded deep path
+                        if fname.contains("-Library-") || fname.contains("CloudStorage") {
+                            raw_dir.rfind('-')
+                                .map(|p| raw_dir[p + 1..].to_string())
+                                .filter(|s| !s.is_empty())
+                                .unwrap_or(project_name)
+                        } else {
+                            fname.into_owned()
+                        }
+                    } else {
                         raw_dir.rfind('-')
                             .map(|p| raw_dir[p + 1..].to_string())
                             .filter(|s| !s.is_empty())
                             .unwrap_or(project_name)
-                    } else {
-                        fname.into_owned()
                     }
-                } else {
-                    raw_dir.rfind('-')
-                        .map(|p| raw_dir[p + 1..].to_string())
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or(project_name)
                 }
             },
             path: project_path,
@@ -492,6 +524,27 @@ mod tests {
         assert_eq!(projects.len(), 1);
         // Display name comes from basename of decoded actual_path (or extract_project_name fallback)
         assert_eq!(projects[0].name, "client-myapp");
+    }
+
+    #[tokio::test]
+    async fn test_scan_projects_worktree_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+
+        // Git worktree encoded dir: "<parent>--claude-worktrees-<branch>".
+        // Expect "<project> (worktree: <branch>)" rather than the raw tail.
+        let project_dir =
+            projects_dir.join("-Users-jack-code-projects-myapp--claude-worktrees-feature");
+        fs::create_dir_all(&project_dir).unwrap();
+        create_test_jsonl_file(&project_dir, "session.jsonl", "{}");
+
+        let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+
+        let projects = result.unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name, "myapp (worktree: feature)");
     }
 
     #[tokio::test]
