@@ -250,9 +250,10 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         let mut session_count = 0;
         let mut message_count = 0;
         let mut last_modified = None;
-        // Ground-truth cwd of this project, read from a top-level session file.
-        // Preferred over decoding the (ambiguous) encoded dir name for display.
-        let mut session_cwd: Option<String> = None;
+        // Ground-truth cwd of this project, read from a session file. Preferred
+        // over decoding the (ambiguous) encoded dir name for display.
+        let mut session_cwd: Option<String> = None; // from a top-level session
+        let mut nested_cwd: Option<String> = None; // from a nested transcript
 
         for jsonl_entry in WalkDir::new(entry.path())
             .into_iter()
@@ -261,10 +262,16 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         {
             session_count += 1;
 
-            // Capture cwd from a top-level (depth 1) session file — the project's
-            // own session, not a nested subagent transcript.
-            if session_cwd.is_none() && jsonl_entry.depth() == 1 {
-                session_cwd = read_session_cwd(jsonl_entry.path());
+            // Capture the project's real cwd from a session file. Prefer a
+            // top-level (depth 1) session — the project's own — but fall back to a
+            // nested transcript: git-worktree dirs contain only nested subagent
+            // sessions whose cwd carries the true worktree path (and branch name).
+            if session_cwd.is_none() {
+                if jsonl_entry.depth() == 1 {
+                    session_cwd = read_session_cwd(jsonl_entry.path());
+                } else if nested_cwd.is_none() {
+                    nested_cwd = read_session_cwd(jsonl_entry.path());
+                }
             }
 
             if let Ok(metadata) = jsonl_entry.metadata() {
@@ -312,7 +319,11 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
                 // paths, project names that contain "projects", and worktrees
                 // correctly, with the true branch name. Fall back to decoding the
                 // encoded directory name only when no session cwd is available.
-                if let Some(name) = session_cwd.as_deref().and_then(display_name_from_cwd) {
+                if let Some(name) = session_cwd
+                    .as_deref()
+                    .or(nested_cwd.as_deref())
+                    .and_then(display_name_from_cwd)
+                {
                     name
                 } else {
                 // ── Fallback: derive from the encoded directory name ──
@@ -655,6 +666,34 @@ mod tests {
 
         let projects = result.unwrap();
         assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name, "myapp (worktree: feature_x)");
+    }
+
+    #[tokio::test]
+    async fn test_scan_projects_worktree_cwd_from_nested_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+
+        // Git-worktree dirs hold only nested subagent sessions (no top-level).
+        // The real branch name must come from the nested transcript's cwd.
+        let project_dir =
+            projects_dir.join("-Users-me-code-projects-myapp--claude-worktrees-feature-x");
+        let nested = project_dir.join("sid").join("subagents");
+        fs::create_dir_all(&nested).unwrap();
+        create_test_jsonl_file(
+            &nested,
+            "agent.jsonl",
+            "{\"cwd\":\"/Users/me/code/projects/myapp/.claude/worktrees/feature_x\"}",
+        );
+
+        let result = scan_projects(claude_dir.to_string_lossy().to_string()).await;
+        assert!(result.is_ok());
+
+        let projects = result.unwrap();
+        assert_eq!(projects.len(), 1);
+        // Real branch from nested cwd: "feature_x" (underscore), not the lossy
+        // encoded "feature-x".
         assert_eq!(projects[0].name, "myapp (worktree: feature_x)");
     }
 
