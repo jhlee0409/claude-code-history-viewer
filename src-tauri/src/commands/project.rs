@@ -253,10 +253,53 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         let git_info = detect_git_worktree_info(&actual_path);
 
         projects.push(ClaudeProject {
-            name: std::path::Path::new(&actual_path)
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or(project_name),
+            name: {
+                // Claude encodes project paths by replacing '/' with '-', producing
+                // directory names like "-Users-alice-code-projects-myapp". For paths
+                // deeper than 3 segments, decode_project_path() (splitn(4,'-')) returns
+                // an incorrectly decoded actual_path, so file_name() on it still yields
+                // a long unreadable slug.
+                //
+                // Strategy (in order):
+                // 1. Case-insensitive search for "-projects-" anchor in the raw encoded
+                //    name — extracts everything after it ("signal", "vmw-rag", "HW-Refresh").
+                // 2. actual_path file_name() — works for shallow (<= 3 segment) paths.
+                //    Skipped when the result looks like an encoded slug (contains known
+                //    cloud-storage markers).
+                // 3. Last '-'-delimited segment of the raw encoded name — last-resort
+                //    single-word fallback ("code", "projects", "Projects").
+                // 4. project_name from extract_project_name() — original behavior.
+                let raw_dir = std::path::Path::new(&project_path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+                const ANCHOR: &str = "-projects-";
+                let raw_lower = raw_dir.to_ascii_lowercase();
+                if let Some(pos) = raw_lower.rfind(ANCHOR) {
+                    let name = &raw_dir[pos + ANCHOR.len()..];
+                    if !name.is_empty() {
+                        name.to_string()
+                    } else {
+                        project_name
+                    }
+                } else if let Some(n) = std::path::Path::new(&actual_path).file_name() {
+                    let fname = n.to_string_lossy();
+                    // Skip if it still looks like an encoded deep path
+                    if fname.contains("-Library-") || fname.contains("CloudStorage") {
+                        raw_dir.rfind('-')
+                            .map(|p| raw_dir[p + 1..].to_string())
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or(project_name)
+                    } else {
+                        fname.into_owned()
+                    }
+                } else {
+                    raw_dir.rfind('-')
+                        .map(|p| raw_dir[p + 1..].to_string())
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or(project_name)
+                }
+            },
             path: project_path,
             actual_path,
             session_count,
