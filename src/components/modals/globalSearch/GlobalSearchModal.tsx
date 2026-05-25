@@ -48,7 +48,7 @@ export const GlobalSearchModal = ({
     const resultsContainerRef = useRef<HTMLDivElement>(null);
     const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage } =
+    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage, userMetadata } =
         useAppStore();
     const [selectedProjectPath, setSelectedProjectPath] = useState<string>("all");
 
@@ -113,10 +113,12 @@ export const GlobalSearchModal = ({
                     filters.messageType = messageTypeFilter;
                 }
                 const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
+                const wslEnabled = userMetadata?.settings?.wsl?.enabled ?? false;
+                const wslExcludedDistros = userMetadata?.settings?.wsl?.excludedDistros ?? [];
                 const searchResults = await api<GlobalSearchResult[]>(
-                    hasNonClaudeProviders ? "search_all_providers" : "search_messages",
-                    hasNonClaudeProviders
-                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: MAX_RESULTS }
+                    (hasNonClaudeProviders || wslEnabled) ? "search_all_providers" : "search_messages",
+                    (hasNonClaudeProviders || wslEnabled)
+                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: MAX_RESULTS, wslEnabled, wslExcludedDistros }
                         : { claudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
                 );
                 setResults(searchResults);
@@ -129,7 +131,7 @@ export const GlobalSearchModal = ({
                 setIsSearching(false);
             }
         },
-        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter],
+        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, userMetadata],
     );
 
     // Handle input change with debounce
