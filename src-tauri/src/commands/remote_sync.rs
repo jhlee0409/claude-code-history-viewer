@@ -15,13 +15,65 @@ use crate::remote::sync::{sync_one, SyncOutcome};
 
 const SYNC_TIMEOUT: Duration = Duration::from_secs(600);
 
-fn public_error(error: anyhow::Error) -> String {
+fn redact_uri_userinfo(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut rest = input;
+
+    while let Some(scheme_pos) = rest.find("://") {
+        let (before, after_scheme_marker) = rest.split_at(scheme_pos + 3);
+        output.push_str(before);
+        let after_scheme = after_scheme_marker;
+        let host_end = after_scheme
+            .find(|c: char| c == '/' || c == '\\' || c.is_whitespace())
+            .unwrap_or(after_scheme.len());
+        let (authority, tail) = after_scheme.split_at(host_end);
+        if let Some(at_pos) = authority.rfind('@') {
+            output.push_str("[redacted]@");
+            output.push_str(&authority[at_pos + 1..]);
+        } else {
+            output.push_str(authority);
+        }
+        rest = tail;
+    }
+
+    output.push_str(rest);
+    output
+}
+
+fn public_error_for_source(error: anyhow::Error, source: Option<&RemoteSource>) -> String {
     let message = format!("{error:#}");
-    message
+    let mut redacted = message;
+
+    if let Some(source) = source {
+        match &source.auth {
+            crate::remote::source::RemoteAuth::Password { password, .. } => {
+                if let Some(password) = password.as_ref().filter(|value| !value.is_empty()) {
+                    redacted = redacted.replace(password, "[redacted password]");
+                }
+            }
+            crate::remote::source::RemoteAuth::Key {
+                key_path,
+                passphrase,
+                ..
+            } => {
+                if !key_path.is_empty() {
+                    redacted = redacted.replace(key_path, "[redacted private key path]");
+                }
+                if let Some(passphrase) = passphrase.as_ref().filter(|value| !value.is_empty()) {
+                    redacted = redacted.replace(passphrase, "[redacted passphrase]");
+                }
+            }
+        }
+    }
+
+    redact_uri_userinfo(&redacted)
         .lines()
         .map(|line| {
-            if line.to_ascii_lowercase().contains("password")
-                || line.to_ascii_lowercase().contains("passphrase")
+            let lower = line.to_ascii_lowercase();
+            if lower.contains("password")
+                || lower.contains("passphrase")
+                || lower.contains("private key")
+                || lower.contains("credential_ref")
             {
                 "authentication failed".to_string()
             } else {
@@ -30,6 +82,10 @@ fn public_error(error: anyhow::Error) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn public_error(error: anyhow::Error) -> String {
+    public_error_for_source(error, None)
 }
 
 fn public_string_error(error: String) -> String {
@@ -58,14 +114,17 @@ pub async fn test_remote_connection(source: RemoteSource) -> Result<ConnectionTe
             Err(e) => Ok(ConnectionTestResult {
                 ok: false,
                 remote_home: None,
-                message: Some(format!("home resolve failed: {}", public_error(e))),
+                message: Some(format!(
+                    "home resolve failed: {}",
+                    public_error_for_source(e, Some(&source))
+                )),
             }),
         },
         Err(e) => Ok(ConnectionTestResult {
             ok: false,
             remote_home: None,
             // `{:#}` includes the full anyhow context chain, not just the top message.
-            message: Some(public_error(e)),
+            message: Some(public_error_for_source(e, Some(&source))),
         }),
     }
 }
@@ -77,7 +136,7 @@ pub async fn sync_remote_source(source: RemoteSource) -> Result<SyncOutcome, Str
     tokio::time::timeout(SYNC_TIMEOUT, sync_one(&source))
         .await
         .map_err(|_| format!("sync timed out after {}s", SYNC_TIMEOUT.as_secs()))?
-        .map_err(public_error)
+        .map_err(|error| public_error_for_source(error, Some(&source)))
 }
 
 #[derive(Debug, Serialize)]
@@ -118,7 +177,7 @@ pub async fn sync_all_remote_sources(
                     source_id: id.clone(),
                     success: false,
                     outcome: None,
-                    error: Some(public_error(e)),
+                    error: Some(public_error_for_source(e, Some(&source))),
                 },
                 Err(_) => SyncOneResult {
                     source_id: id.clone(),

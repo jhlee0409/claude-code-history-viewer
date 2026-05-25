@@ -16,7 +16,7 @@
 //! scanner picks it up unmodified.
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::{Context, Result};
@@ -199,6 +199,55 @@ fn provider_cache_subdir(provider: ProviderKind) -> &'static str {
     }
 }
 
+fn validate_remote_relative_path(rel_path: &str) -> Result<()> {
+    if rel_path.is_empty()
+        || rel_path.starts_with('/')
+        || rel_path.starts_with('\\')
+        || rel_path.contains('\0')
+        || rel_path.contains(':')
+    {
+        anyhow::bail!("unsafe remote relative path");
+    }
+
+    for segment in rel_path.split(['/', '\\']) {
+        if segment.is_empty() || segment == "." || segment == ".." {
+            anyhow::bail!("unsafe remote relative path");
+        }
+    }
+
+    let path = Path::new(rel_path);
+    if path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::Prefix(_) | Component::RootDir | Component::ParentDir | Component::CurDir
+            )
+        })
+    {
+        anyhow::bail!("unsafe remote relative path");
+    }
+
+    Ok(())
+}
+
+async fn ensure_local_write_path_safe(path: &Path) -> Result<()> {
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        current.push(component.as_os_str());
+        if let Ok(meta) = tokio::fs::symlink_metadata(&current).await {
+            if meta.file_type().is_symlink() {
+                anyhow::bail!("refusing to write through symlink: {}", current.display());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn safe_join_remote_relative(base: &Path, rel_path: &str) -> Result<PathBuf> {
+    validate_remote_relative_path(rel_path)?;
+    Ok(base.join(rel_path))
+}
+
 fn is_nested_provider_root(remote_root: &str, provider: ProviderKind) -> bool {
     let provider_dir = provider_cache_subdir(provider);
     let mut segments = remote_root
@@ -340,7 +389,7 @@ async fn podman_manifest(
                 .unwrap_or(mtime_raw)
                 .parse::<u64>()
                 .ok()?;
-            if rel_path.is_empty() {
+            if rel_path.is_empty() || validate_remote_relative_path(&rel_path).is_err() {
                 None
             } else {
                 Some(PodmanManifestEntry {
@@ -509,6 +558,15 @@ async fn discover_podman_roots(
             }
 
             for entry in &changed_files {
+                if validate_remote_relative_path(&entry.rel_path).is_err() {
+                    log::warn!(
+                        "Skipping unsafe Podman manifest path for {} on {}: {}",
+                        container.name,
+                        source.host,
+                        entry.rel_path
+                    );
+                    continue;
+                }
                 let remote_file = format!(
                     "{}/{}",
                     expanded.trim_end_matches('/'),
@@ -698,7 +756,8 @@ pub async fn sync_one(source: &RemoteSource) -> Result<SyncOutcome> {
                             .await?;
                         stats.files_total = stats.files_total.saturating_add(files.len() as u64);
                         for f in files {
-                            let local_path = local_target.join(&f.rel_path);
+                            let local_path = safe_join_remote_relative(&local_target, &f.rel_path)?;
+                            ensure_local_write_path_safe(&local_path).await?;
                             if file_unchanged(&local_path, f.size, f.mtime_secs).await {
                                 stats.files_skipped = stats.files_skipped.saturating_add(1);
                             } else {
@@ -717,6 +776,7 @@ pub async fn sync_one(source: &RemoteSource) -> Result<SyncOutcome> {
                     } else {
                         stats.files_total = stats.files_total.saturating_add(1);
                         let local_path = local_target;
+                        ensure_local_write_path_safe(&local_path).await?;
                         let size = attrs.size.unwrap_or(0);
                         let mtime = u64::from(attrs.mtime.unwrap_or(0));
                         if file_unchanged(&local_path, size, mtime).await {
@@ -929,6 +989,17 @@ mod unit_tests {
             "/home/user/.claude",
             ProviderKind::Claude
         ));
+    }
+
+    #[test]
+    fn remote_relative_path_rejects_traversal_and_absolute_paths() {
+        assert!(validate_remote_relative_path("projects/foo/session.jsonl").is_ok());
+        assert!(validate_remote_relative_path("../escape.jsonl").is_err());
+        assert!(validate_remote_relative_path("projects/../escape.jsonl").is_err());
+        assert!(validate_remote_relative_path("/tmp/escape.jsonl").is_err());
+        assert!(validate_remote_relative_path("\\tmp\\escape.jsonl").is_err());
+        assert!(validate_remote_relative_path("C:\\Users\\escape.jsonl").is_err());
+        assert!(validate_remote_relative_path("projects//escape.jsonl").is_err());
     }
 }
 

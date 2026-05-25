@@ -48,6 +48,7 @@ const SUBAGENT_ROW_HEIGHT_REM = 1.75;
 const SUBAGENT_PANEL_VISIBLE_ROWS = 3;
 const SUBAGENT_PANEL_MAX_HEIGHT_REM =
   SUBAGENT_ROW_HEIGHT_REM * SUBAGENT_PANEL_VISIBLE_ROWS + 1;
+const STATIC_RENDER_FALLBACK_LIMIT = 100;
 
 const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
   subagentSessions,
@@ -1082,7 +1083,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           </div>
         )}
 
-        {flattenedMessages.length > 0 && !scrollElementReady && (
+        {flattenedMessages.length > 0 &&
+          !scrollElementReady &&
+          flattenedMessages.length <= STATIC_RENDER_FALLBACK_LIMIT && (
           <div className="w-full">
             {flattenedMessages.map((item, index) => {
               const isMessage = item.type === "message";
