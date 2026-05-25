@@ -45,6 +45,10 @@ dev:
     tauri dev
 
 # Run vite dev server (will not work without tauri, do not run directly)
+[windows]
+vite-dev:
+    vite.CMD
+[unix]
 vite-dev:
     vite
 
