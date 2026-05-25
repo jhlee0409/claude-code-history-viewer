@@ -321,6 +321,7 @@ mod session_snapshots {
             is_renamed: false,
             provider: None,
             storage_type: None,
+            entrypoint: None,
         };
 
         assert_json_snapshot!("claude_session", session);
@@ -343,6 +344,7 @@ mod session_snapshots {
             is_renamed: false,
             provider: Some("forgecode".to_string()),
             storage_type: Some("sqlite".to_string()),
+            entrypoint: None,
         };
 
         assert_json_snapshot!("forgecode_session", session);

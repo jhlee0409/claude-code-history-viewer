@@ -118,9 +118,12 @@ describe('Tauri Configuration Tests', () => {
         mainWindow = config.app.windows[0];
       });
 
-      it('should have consistent window title with product name', () => {
-        expect(mainWindow.title).toBe('Claude Code History Viewer');
-        expect(mainWindow.title).toBe(config.productName);
+      it('should have empty window title so macOS overlay header shows productName', () => {
+        // title is intentionally empty so the macOS Mission Control / overlay
+        // title bar falls back to productName / CFBundleName instead of the
+        // window's own title. See PR #337.
+        expect(mainWindow.title).toBe('');
+        expect(config.productName).toBe('Claude Code History Viewer');
       });
 
       it('should have reasonable default window dimensions', () => {
@@ -349,8 +352,11 @@ describe('Tauri Configuration Tests', () => {
   });
 
   describe('Configuration Consistency and Integration', () => {
-    it('should have consistent product naming across all fields', () => {
-      expect(config.productName).toBe(config.app.windows[0].title);
+    it('should have a non-placeholder productName (window title is intentionally empty)', () => {
+      // window[0].title is empty by design (PR #337); productName remains the
+      // canonical app name surfaced via CFBundleName.
+      expect(config.app.windows[0].title).toBe('');
+      expect(config.productName).toBe('Claude Code History Viewer');
       expect(config.productName).not.toContain('undefined');
       expect(config.productName).not.toContain('null');
     });

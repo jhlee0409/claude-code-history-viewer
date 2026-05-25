@@ -18,6 +18,7 @@
   "simpleUpdateModal.restarting": "Installing update, restarting app...",
   "simpleUpdateModal.restartingDescription": "The app will close and reopen automatically. If it doesn't, please restart manually.",
   "simpleUpdateModal.restartingShort": "Restarting...",
+  "simpleUpdateModal.restartNow": "Restart Now",
   "simpleUpdateModal.showDetails": "Show Details",
   "simpleUpdateModal.skipVersion": "Skip this version",
   "simpleUpdateModal.reportIssue": "Report issue",

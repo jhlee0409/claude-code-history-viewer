@@ -252,15 +252,37 @@ export function useUpdater(): UseUpdaterReturn {
       // Tauri v2: install() and relaunch() can fail due to upstream bugs
       // (known on macOS: tauri-apps/tauri#13923, #11392, #8472).
       // However, the downloaded payload IS applied on next manual app launch.
-      // So if the download completed, guide the user to quit and reopen.
       const downloadCompleted = downloadStepCompleted || finishedEventSeen ||
         (contentLength > 0 && downloaded >= contentLength);
 
       if (downloadCompleted) {
         console.warn(
-          '[Updater] Download completed but install/relaunch failed (known Tauri v2 macOS issue). Guiding user to restart manually.',
+          '[Updater] Download completed but install/relaunch failed (known Tauri v2 macOS issue). Trying force-relaunch fallback.',
           error
         );
+
+        // Second-chance: spawn OS-native helper that exits this process and
+        // re-opens the new bundle. Bypasses Tauri's broken relaunch().
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          await invoke('force_quit_and_relaunch');
+          // Helper spawned + app.exit scheduled. Keep "isRestarting" UI shown
+          // until the process actually exits.
+          setState((prev) => ({
+            ...prev,
+            isDownloading: false,
+            isInstalling: false,
+            isRestarting: true,
+            requiresManualRestart: false,
+            error: null,
+          }));
+          return;
+        } catch (fallbackError) {
+          console.warn(
+            '[Updater] force_quit_and_relaunch fallback failed; falling back to manual restart UX.',
+            fallbackError
+          );
+        }
       } else {
         console.warn('[Updater] Download failed before completion.', {
           rawErrorMessage,

@@ -45,6 +45,8 @@ pub struct RawLogEntry {
     #[serde(rename = "isSidechain")]
     pub is_sidechain: Option<bool>,
     pub cwd: Option<String>,
+    /// Client the record originated from: "cli" / "claude-vscode" / "claude-desktop"
+    pub entrypoint: Option<String>,
 
     // Cost and performance metrics (2025 additions)
     #[serde(rename = "costUSD")]

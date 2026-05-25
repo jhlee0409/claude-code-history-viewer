@@ -30,6 +30,7 @@
   "common.error.updateCheckFailed": "检查更新失败",
   "common.error.updateDownloadCompleteRestart": "更新下载完成！",
   "common.error.updateDownloadCompleteRestartHint": "请退出应用并重新打开以应用更新。",
+  "common.error.updateRelaunchFailed": "无法自动重启。请退出应用（⌘Q / Alt+F4）后重新打开。",
   "common.errorOccurred": "发生错误",
   "common.expand": "展开",
   "common.help": "帮助",

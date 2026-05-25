@@ -6,10 +6,16 @@ import { Search, X, SortDesc, SortAsc } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import {
+  matchesEntrypointFilter,
+  ENTRYPOINT_FILTER_OPTIONS,
+  ENTRYPOINT_FILTER_LABEL_KEYS,
+} from "@/utils/entrypoint";
 import { SessionItem } from "../../SessionItem";
 import { useAppStore } from "@/store/useAppStore";
 import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
+import type { SessionSortOrder, SessionEntrypointFilter } from "@/types/metadata.types";
 
 // SessionItem fixed row height. Sized to fit a 2-line wrapped name:
 //   py-2.5 (20px) + name 2 × text-xs/leading-relaxed (39px)
@@ -56,6 +62,108 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
   );
 };
 
+interface SessionListControlsProps {
+  searchQuery: string;
+  onSearchQueryChange: (value: string) => void;
+  sessionSortOrder: SessionSortOrder;
+  onToggleSortOrder: () => void;
+  sessionEntrypointFilter: SessionEntrypointFilter;
+  onEntrypointFilterChange: (filter: SessionEntrypointFilter) => void;
+}
+
+/**
+ * Search + sort + source(entrypoint) filter controls for a session list.
+ * Extracted into one component so the default and virtualized render paths
+ * share a single implementation instead of duplicating the markup.
+ */
+const SessionListControls: React.FC<SessionListControlsProps> = ({
+  searchQuery,
+  onSearchQueryChange,
+  sessionSortOrder,
+  onToggleSortOrder,
+  sessionEntrypointFilter,
+  onEntrypointFilterChange,
+}) => {
+  const { t } = useTranslation();
+
+  return (
+    <div className="flex flex-col gap-1.5 px-2 py-1.5 border-b border-border/30">
+      {/* Search + Sort */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+          <Input
+            placeholder={t("session.filter.searchPlaceholder")}
+            value={searchQuery}
+            onChange={(e) => onSearchQueryChange(e.target.value)}
+            className="h-7 pl-7 pr-7 text-xs"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchQueryChange("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2"
+              aria-label={t("session.filter.clearSearch")}
+            >
+              <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={onToggleSortOrder}
+          className="p-1.5 rounded hover:bg-muted/50 transition-colors"
+          aria-label={
+            sessionSortOrder === "newest"
+              ? t("session.filter.sortOldestFirst")
+              : t("session.filter.sortNewestFirst")
+          }
+          title={
+            sessionSortOrder === "newest"
+              ? t("session.filter.sortOldestFirst")
+              : t("session.filter.sortNewestFirst")
+          }
+        >
+          {sessionSortOrder === "newest" ? (
+            <SortDesc className="w-3.5 h-3.5 text-muted-foreground" />
+          ) : (
+            <SortAsc className="w-3.5 h-3.5 text-accent" />
+          )}
+        </button>
+      </div>
+
+      {/* Source (entrypoint) segmented filter */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-2xs text-muted-foreground shrink-0">
+          {t("session.filter.source.label")}
+        </span>
+        <div
+          className="flex items-center gap-0.5 flex-wrap"
+          role="group"
+          aria-label={t("session.filter.source.label")}
+        >
+          {ENTRYPOINT_FILTER_OPTIONS.map((option) => {
+            const isActive = sessionEntrypointFilter === option;
+            return (
+              <button
+                key={option}
+                onClick={() => onEntrypointFilterChange(option)}
+                aria-pressed={isActive}
+                className={cn(
+                  "px-1.5 py-0.5 rounded text-2xs font-medium transition-colors",
+                  isActive
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-muted/50"
+                )}
+              >
+                {t(ENTRYPOINT_FILTER_LABEL_KEYS[option])}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const SessionList: React.FC<SessionListProps> = ({
   sessions,
   selectedSession,
@@ -67,7 +175,13 @@ export const SessionList: React.FC<SessionListProps> = ({
 }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const { sessionSortOrder, setSessionSortOrder, getSessionDisplayName } = useAppStore();
+  const {
+    sessionSortOrder,
+    setSessionSortOrder,
+    sessionEntrypointFilter,
+    setSessionEntrypointFilter,
+    getSessionDisplayName,
+  } = useAppStore();
 
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
@@ -90,7 +204,14 @@ export const SessionList: React.FC<SessionListProps> = ({
       return sessionSortOrder === 'newest' ? dateB - dateA : dateA - dateB;
     });
 
-    // Filter
+    // Filter by source (entrypoint)
+    if (sessionEntrypointFilter !== 'all') {
+      result = result.filter((session) =>
+        matchesEntrypointFilter(session.entrypoint, sessionEntrypointFilter)
+      );
+    }
+
+    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(session => {
@@ -104,10 +225,24 @@ export const SessionList: React.FC<SessionListProps> = ({
     }
 
     return result;
-  }, [sessions, sessionSortOrder, searchQuery, getSessionDisplayName]);
+  }, [sessions, sessionSortOrder, sessionEntrypointFilter, searchQuery, getSessionDisplayName]);
 
   // Show controls only if we have enough sessions
   const showControls = sessions.length >= 3;
+
+  const handleToggleSortOrder = () =>
+    setSessionSortOrder(sessionSortOrder === 'newest' ? 'oldest' : 'newest');
+
+  const controls = showControls ? (
+    <SessionListControls
+      searchQuery={searchQuery}
+      onSearchQueryChange={setSearchQuery}
+      sessionSortOrder={sessionSortOrder}
+      onToggleSortOrder={handleToggleSortOrder}
+      sessionEntrypointFilter={sessionEntrypointFilter}
+      onEntrypointFilterChange={setSessionEntrypointFilter}
+    />
+  ) : null;
 
   // Virtual list에 전달할 데이터 memoize
   const itemData = useMemo(
@@ -158,45 +293,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   if (!useVirtualScroll) {
     return (
       <div className={cn(containerClass, borderClass, (isWorktree || isMain) && "py-1.5")}>
-        {/* Search and Sort Controls */}
-        {showControls && (
-          <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border/30">
-            <div className="relative flex-1">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-              <Input
-                placeholder={t('session.filter.searchPlaceholder')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-7 pl-7 pr-7 text-xs"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2"
-                  aria-label={t('session.filter.clearSearch')}
-                >
-                  <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => setSessionSortOrder(sessionSortOrder === 'newest' ? 'oldest' : 'newest')}
-              className="p-1.5 rounded hover:bg-muted/50 transition-colors"
-              aria-label={sessionSortOrder === 'newest'
-                ? t('session.filter.sortOldestFirst')
-                : t('session.filter.sortNewestFirst')}
-              title={sessionSortOrder === 'newest'
-                ? t('session.filter.sortOldestFirst')
-                : t('session.filter.sortNewestFirst')}
-            >
-              {sessionSortOrder === 'newest' ? (
-                <SortDesc className="w-3.5 h-3.5 text-muted-foreground" />
-              ) : (
-                <SortAsc className="w-3.5 h-3.5 text-accent" />
-              )}
-            </button>
-          </div>
-        )}
+        {controls}
 
         {/* Session List */}
         <div className="space-y-1 py-2">
@@ -224,45 +321,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   // 세션 수가 많으면 virtual scroll 적용
   return (
     <div className={cn(containerClass, borderClass, (isWorktree || isMain) && "py-1.5")}>
-      {/* Search and Sort Controls */}
-      {showControls && (
-        <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border/30">
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-            <Input
-              placeholder={t('session.filter.searchPlaceholder')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-7 pl-7 pr-7 text-xs"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2"
-                aria-label={t('session.filter.clearSearch')}
-              >
-                <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => setSessionSortOrder(sessionSortOrder === 'newest' ? 'oldest' : 'newest')}
-            className="p-1.5 rounded hover:bg-muted/50 transition-colors"
-            aria-label={sessionSortOrder === 'newest'
-              ? t('session.filter.sortOldestFirst')
-              : t('session.filter.sortNewestFirst')}
-            title={sessionSortOrder === 'newest'
-              ? t('session.filter.sortOldestFirst')
-              : t('session.filter.sortNewestFirst')}
-          >
-            {sessionSortOrder === 'newest' ? (
-              <SortDesc className="w-3.5 h-3.5 text-muted-foreground" />
-            ) : (
-              <SortAsc className="w-3.5 h-3.5 text-accent" />
-            )}
-          </button>
-        </div>
-      )}
+      {controls}
 
       {/* Virtual Scroll List */}
       <div className="py-2">

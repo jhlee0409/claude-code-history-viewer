@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useSessionEditing } from "@/components/SessionItem/hooks/useSessionEditing";
 import { api } from "@/services/api";
-import type { ClaudeSession } from "@/types";
+import { useAppStore } from "@/store/useAppStore";
+import type { ClaudeProject, ClaudeSession } from "@/types";
 
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
@@ -57,6 +58,7 @@ describe("useSessionEditing clipboard actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api).mockReset();
+    useAppStore.setState({ projects: [] });
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
@@ -138,8 +140,52 @@ describe("useSessionEditing clipboard actions", () => {
       } as unknown as React.MouseEvent);
     });
 
+    // No matching project in the store, so the cd prefix is omitted and the
+    // toast falls back to the no-cwd variant.
     expect(writeText).toHaveBeenCalledWith("forge conversation resume conv-1");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Resume command copied (working directory unknown)"
+    );
+  });
+
+  it("prefixes the codex resume command with cd when project cwd is known", async () => {
+    const project: ClaudeProject = {
+      name: session.project_name,
+      path: "~/.codex/sessions/-Users-jack-my-proj",
+      actual_path: "/Users/jack/my-proj",
+      session_count: 1,
+      message_count: 1,
+      last_modified: session.last_modified,
+      provider: "codex",
+    };
+    useAppStore.setState({ projects: [project] });
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    const { result } = renderHook(() =>
+      useSessionEditing({
+        ...session,
+        provider: "codex",
+        actual_session_id: "abc-123",
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleCopyResumeCommand({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(writeText).toHaveBeenCalledWith(
+      "cd '/Users/jack/my-proj' && codex resume abc-123"
+    );
     expect(toast.success).toHaveBeenCalledWith("Resume command copied");
+
+    useAppStore.setState({ projects: [] });
   });
 
   it("resolves OpenCode virtual paths before copying file path", async () => {

@@ -52,16 +52,21 @@ pub fn find_line_starts(data: &[u8]) -> Vec<usize> {
 }
 
 pub fn extract_project_name(raw_project_name: &str) -> String {
-    if raw_project_name.starts_with('-') {
+    if let Some(stripped) = raw_project_name.strip_prefix('-') {
+        // Prefer filesystem-checked decoding — handles arbitrarily deep paths
+        // and project names containing hyphens (e.g. ~/Projects/{Host}/{Org}/{Repo}).
+        if let Some(decoded) = decode_with_filesystem_check(stripped) {
+            if let Some(leaf) = Path::new(&decoded).file_name() {
+                return leaf.to_string_lossy().to_string();
+            }
+        }
+        // Fallback: original heuristic for paths no longer on disk.
         let parts: Vec<&str> = raw_project_name.splitn(4, '-').collect();
         if parts.len() == 4 {
-            parts[3].to_string()
-        } else {
-            raw_project_name.to_string()
+            return parts[3].to_string();
         }
-    } else {
-        raw_project_name.to_string()
     }
+    raw_project_name.to_string()
 }
 
 /// Estimate message count from file size (more accurate calculation)
@@ -598,6 +603,71 @@ mod tests {
     fn test_extract_project_name_exact_four_parts() {
         let result = extract_project_name("-a-b-c");
         assert_eq!(result, "c");
+    }
+
+    #[test]
+    fn test_extract_project_name_fallback_when_path_missing() {
+        // Guarantees we hit the splitn(4) fallback when filesystem decoding
+        // fails (deleted project, or path that never existed). Uses a sentinel
+        // prefix unlikely to ever exist on any developer machine.
+        let result = extract_project_name("-__cchv_definitely_missing_12345__-foo-bar-leafname");
+        assert_eq!(result, "bar-leafname");
+    }
+
+    /// Helper for deep-path tests: creates a nested directory tree under the
+    /// canonical temp dir, encodes it Claude-style, and returns the encoded
+    /// slug plus the root for cleanup. Canonicalization is required because
+    /// the decoder rejects symlinked path components (macOS `/var` →
+    /// `/private/var`).
+    fn make_encoded_path(root_name: &str, segments: &[&str]) -> (String, std::path::PathBuf) {
+        let root = std::fs::canonicalize(std::env::temp_dir())
+            .expect("canonicalize temp dir")
+            .join(root_name);
+        let mut deep = root.clone();
+        for s in segments {
+            deep = deep.join(s);
+        }
+        std::fs::create_dir_all(&deep).expect("create deep tmp dir");
+        // Normalize both Unix and Windows separators so the encoded slug
+        // matches Claude's leading-dash convention regardless of host OS.
+        let mut encoded = deep.to_string_lossy().replace(['/', '\\'], "-");
+        if !encoded.starts_with('-') {
+            encoded.insert(0, '-');
+        }
+        (encoded, root)
+    }
+
+    #[test]
+    fn test_extract_project_name_deep_path() {
+        // Paths deeper than 3 segments (e.g. ~/Projects/{Host}/{Org}/{Repo})
+        // must return just the leaf, not the encoded suffix.
+        let (encoded, root) = make_encoded_path(
+            "cchv_extract_deep_test",
+            &["Projects", "GitHub", "org", "repo"],
+        );
+        let result = extract_project_name(&encoded);
+        std::fs::remove_dir_all(&root).ok();
+        assert_eq!(result, "repo");
+    }
+
+    #[test]
+    fn test_extract_project_name_with_hyphens_in_segments() {
+        // Real-world example: a deep path where directory names themselves
+        // contain hyphens. The encoded slug is ambiguous (every hyphen could
+        // be a separator OR part of a name), so this can only resolve
+        // correctly via filesystem existence checks.
+        let (encoded, root) = make_encoded_path(
+            "cchv_extract_hyphens_test",
+            &[
+                "Projects",
+                "internal.github.acme.com",
+                "dumb-department-name",
+                "dummy-app-microservice-apple",
+            ],
+        );
+        let result = extract_project_name(&encoded);
+        std::fs::remove_dir_all(&root).ok();
+        assert_eq!(result, "dummy-app-microservice-apple");
     }
 
     #[test]

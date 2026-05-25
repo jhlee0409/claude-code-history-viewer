@@ -68,15 +68,21 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 // Mock useAppStore with a reactive state
 import { create } from "zustand";
 
+type MockEntrypointFilter = 'all' | 'cli' | 'vscode' | 'desktop';
+
 interface MockStore {
   sessionSortOrder: 'newest' | 'oldest';
   setSessionSortOrder: (order: 'newest' | 'oldest') => void;
+  sessionEntrypointFilter: MockEntrypointFilter;
+  setSessionEntrypointFilter: (filter: MockEntrypointFilter) => void;
   getSessionDisplayName: (sessionId: string, fallbackSummary?: string) => string | undefined;
 }
 
 const useTestStore = create<MockStore>((set) => ({
   sessionSortOrder: 'newest',
   setSessionSortOrder: (order) => set({ sessionSortOrder: order }),
+  sessionEntrypointFilter: 'all',
+  setSessionEntrypointFilter: (filter) => set({ sessionEntrypointFilter: filter }),
   getSessionDisplayName: (_sessionId: string, fallbackSummary?: string) => fallbackSummary,
 }));
 
@@ -134,7 +140,7 @@ describe("SessionList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset mock store state
-    useTestStore.setState({ sessionSortOrder: 'newest' });
+    useTestStore.setState({ sessionSortOrder: 'newest', sessionEntrypointFilter: 'all' });
   });
 
   describe("Loading state", () => {

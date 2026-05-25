@@ -18,6 +18,7 @@
   "simpleUpdateModal.restarting": "正在安裝更新，重啟應用...",
   "simpleUpdateModal.restartingDescription": "應用將自動關閉並重新啟動。如果未自動重啟，請手動重新開啟應用。",
   "simpleUpdateModal.restartingShort": "重啟中...",
+  "simpleUpdateModal.restartNow": "立即重新啟動",
   "simpleUpdateModal.showDetails": "顯示詳情",
   "simpleUpdateModal.skipVersion": "跳過此版本",
   "simpleUpdateModal.reportIssue": "回報問題",

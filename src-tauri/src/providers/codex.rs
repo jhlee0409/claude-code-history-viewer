@@ -256,6 +256,7 @@ pub fn load_sessions(
                     is_renamed: false,
                     provider: Some("codex".to_string()),
                     storage_type: None,
+                    entrypoint: None,
                 });
             }
         }
@@ -284,6 +285,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let mut current_model: Option<String> = None;
     let mut prev_input_tokens: u32 = 0;
     let mut prev_output_tokens: u32 = 0;
+    let mut prev_cached_tokens: u32 = 0;
     let mut msg_counter = 0u64;
 
     for &(start, end) in &ranges {
@@ -349,30 +351,37 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
                     if event_type == "token_count" {
                         let usage_totals = extract_token_totals(payload)
                             .or_else(|| extract_last_token_usage(payload));
-                        let Some((input, output)) = usage_totals else {
+                        let Some((input, output, cached)) = usage_totals else {
                             continue;
                         };
 
-                        let (delta_input, delta_output) =
+                        let (delta_input, delta_output, delta_cached) =
                             if prev_input_tokens == 0 && prev_output_tokens == 0 {
-                                (input, output)
+                                (input, output, cached)
                             } else {
                                 (
                                     input.saturating_sub(prev_input_tokens),
                                     output.saturating_sub(prev_output_tokens),
+                                    cached.saturating_sub(prev_cached_tokens),
                                 )
                             };
                         prev_input_tokens = input;
                         prev_output_tokens = output;
+                        prev_cached_tokens = cached;
+
+                        // Separate non-cached input from cached input for correct billing.
+                        // OpenAI's input_tokens includes cached_input_tokens as a subset,
+                        // but they are billed at different rates (cached gets 90% discount).
+                        let non_cached_input = delta_input.saturating_sub(delta_cached);
 
                         // Apply to last assistant message without usage
                         if let Some(last_msg) = messages.last_mut() {
                             if last_msg.message_type == "assistant" && last_msg.usage.is_none() {
                                 last_msg.usage = Some(TokenUsage {
-                                    input_tokens: Some(delta_input),
+                                    input_tokens: Some(non_cached_input),
                                     output_tokens: Some(delta_output),
                                     cache_creation_input_tokens: None,
-                                    cache_read_input_tokens: None,
+                                    cache_read_input_tokens: Some(delta_cached),
                                     service_tier: None,
                                 });
                             }
@@ -1011,20 +1020,28 @@ fn convert_codex_compacted(
     msg
 }
 
-fn extract_token_totals(payload: &Value) -> Option<(u32, u32)> {
+fn extract_token_totals(payload: &Value) -> Option<(u32, u32, u32)> {
     // Recent Codex logs store usage in payload.info.total_token_usage.
     let total = payload.get("info")?.get("total_token_usage")?;
     let input = total.get("input_tokens")?.as_u64()? as u32;
     let output = total.get("output_tokens")?.as_u64()? as u32;
-    Some((input, output))
+    let cached = total
+        .get("cached_input_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or(0) as u32;
+    Some((input, output, cached))
 }
 
-fn extract_last_token_usage(payload: &Value) -> Option<(u32, u32)> {
+fn extract_last_token_usage(payload: &Value) -> Option<(u32, u32, u32)> {
     // Fallback for older/newer variants that only include last token usage.
     let last = payload.get("info")?.get("last_token_usage")?;
     let input = last.get("input_tokens")?.as_u64()? as u32;
     let output = last.get("output_tokens")?.as_u64()? as u32;
-    Some((input, output))
+    let cached = last
+        .get("cached_input_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or(0) as u32;
+    Some((input, output, cached))
 }
 
 fn map_codex_tool_name(name: &str) -> &str {
@@ -1370,7 +1387,7 @@ mod tests {
                 }
             }
         });
-        assert_eq!(extract_token_totals(&payload), Some((120, 30)));
+        assert_eq!(extract_token_totals(&payload), Some((120, 30, 0)));
     }
 
     #[test]

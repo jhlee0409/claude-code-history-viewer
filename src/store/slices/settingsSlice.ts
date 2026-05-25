@@ -8,7 +8,10 @@ import { storageAdapter } from "@/services/storage";
 import { toast } from "sonner";
 import type { UpdateSettings } from "../../types/updateSettings";
 import { DEFAULT_UPDATE_SETTINGS } from "../../types/updateSettings";
-import type { SessionSortOrder } from "../../types/metadata.types";
+import type {
+  SessionSortOrder,
+  SessionEntrypointFilter,
+} from "../../types/metadata.types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 
@@ -23,6 +26,7 @@ export interface SettingsSliceState {
   highContrast: boolean;
   updateSettings: UpdateSettings;
   sessionSortOrder: SessionSortOrder;
+  sessionEntrypointFilter: SessionEntrypointFilter;
 }
 
 export interface SettingsSliceActions {
@@ -38,6 +42,7 @@ export interface SettingsSliceActions {
   skipVersion: (version: string) => Promise<void>;
   postponeUpdate: () => Promise<void>;
   setSessionSortOrder: (order: SessionSortOrder) => Promise<void>;
+  setSessionEntrypointFilter: (filter: SessionEntrypointFilter) => Promise<void>;
 }
 
 export type SettingsSlice = SettingsSliceState & SettingsSliceActions;
@@ -64,6 +69,7 @@ const initialSettingsState: SettingsSliceState = {
   highContrast: false,
   updateSettings: DEFAULT_UPDATE_SETTINGS,
   sessionSortOrder: "newest",
+  sessionEntrypointFilter: "all",
 };
 
 // ============================================================================
@@ -151,6 +157,14 @@ export const createSettingsSlice: StateCreator<
         set({ sessionSortOrder: savedSortOrder });
       }
 
+      // Load session source (entrypoint) filter
+      const savedEntrypointFilter = await store.get<SessionEntrypointFilter>(
+        "sessionEntrypointFilter"
+      );
+      if (savedEntrypointFilter) {
+        set({ sessionEntrypointFilter: savedEntrypointFilter });
+      }
+
       const savedFontScale = await store.get<number>("fontScale");
       const savedHighContrast = await store.get<boolean>("highContrast");
       set({
@@ -210,6 +224,22 @@ export const createSettingsSlice: StateCreator<
     } catch (error) {
       console.error("Failed to save session sort order:", error);
       toast.error("Failed to save session sort order");
+    }
+  },
+
+  setSessionEntrypointFilter: async (filter: SessionEntrypointFilter) => {
+    set({ sessionEntrypointFilter: filter });
+
+    try {
+      const store = await storageAdapter.load("settings.json", {
+        autoSave: false,
+        defaults: {},
+      });
+      await store.set("sessionEntrypointFilter", filter);
+      await store.save();
+    } catch (error) {
+      console.error("Failed to save session source filter:", error);
+      toast.error("Failed to save session source filter");
     }
   },
 });

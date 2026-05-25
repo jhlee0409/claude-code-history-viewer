@@ -16,10 +16,11 @@ afterAll(() => {
 });
 
 // Use vi.hoisted to create mocks that can be referenced in vi.mock
-const { mockCheck, mockRelaunch, mockGetVersion } = vi.hoisted(() => ({
+const { mockCheck, mockRelaunch, mockGetVersion, mockInvoke } = vi.hoisted(() => ({
   mockCheck: vi.fn(),
   mockRelaunch: vi.fn(),
   mockGetVersion: vi.fn(),
+  mockInvoke: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/plugin-updater', () => ({
@@ -34,12 +35,20 @@ vi.mock('@tauri-apps/api/app', () => ({
   getVersion: mockGetVersion,
 }));
 
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: mockInvoke,
+}));
+
 import { useUpdater } from './useUpdater';
 
 describe('useUpdater', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetVersion.mockResolvedValue('1.0.0');
+    // Default: simulate force_quit_and_relaunch fallback also failing so
+    // existing tests continue to assert the manual-restart UX. Tests that
+    // verify the successful fallback path override this with mockResolvedValue.
+    mockInvoke.mockRejectedValue(new Error('force_quit_and_relaunch unavailable'));
   });
 
   afterEach(() => {
@@ -482,10 +491,113 @@ describe('useUpdater', () => {
       expect(mockDownload).toHaveBeenCalledTimes(1);
       expect(mockInstall).toHaveBeenCalledTimes(1);
       expect(mockRelaunch).toHaveBeenCalledTimes(1);
+      // Fallback was attempted but also failed (default beforeEach), so we end
+      // in the manual-restart UX as before.
+      expect(mockInvoke).toHaveBeenCalledWith('force_quit_and_relaunch');
       expect(result.current.state.isInstalling).toBe(false);
       expect(result.current.state.isRestarting).toBe(false);
       expect(result.current.state.requiresManualRestart).toBe(true);
       expect(result.current.state.error).toBe(UPDATE_DOWNLOAD_COMPLETE_RESTART_CODE);
+    });
+
+    it('should auto-fallback to force_quit_and_relaunch when Tauri relaunch fails', async () => {
+      const mockDownload = vi.fn().mockImplementation((callback) => {
+        callback({ event: 'Started', data: { contentLength: 1000 } });
+        callback({ event: 'Progress', data: { chunkLength: 1000 } });
+        callback({ event: 'Finished' });
+        return Promise.resolve();
+      });
+      const mockInstall = vi.fn().mockResolvedValue(undefined);
+
+      const mockUpdate = {
+        version: '2.0.0',
+        download: mockDownload,
+        install: mockInstall,
+      };
+      mockCheck.mockResolvedValue(mockUpdate);
+      mockRelaunch.mockRejectedValue(new Error('Relaunch failed'));
+      mockInvoke.mockResolvedValue(undefined); // fallback succeeds
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdates();
+      });
+
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith('force_quit_and_relaunch');
+      // User stays in the "restarting" state — the OS-level helper will close
+      // this process and reopen the new bundle.
+      expect(result.current.state.isRestarting).toBe(true);
+      expect(result.current.state.requiresManualRestart).toBe(false);
+      expect(result.current.state.error).toBeNull();
+    });
+
+    it('should fall through to manual-restart UX when both relaunch paths fail', async () => {
+      const mockDownload = vi.fn().mockImplementation((callback) => {
+        callback({ event: 'Started', data: { contentLength: 1000 } });
+        callback({ event: 'Progress', data: { chunkLength: 1000 } });
+        callback({ event: 'Finished' });
+        return Promise.resolve();
+      });
+      const mockInstall = vi.fn().mockResolvedValue(undefined);
+
+      const mockUpdate = {
+        version: '2.0.0',
+        download: mockDownload,
+        install: mockInstall,
+      };
+      mockCheck.mockResolvedValue(mockUpdate);
+      mockRelaunch.mockRejectedValue(new Error('Relaunch failed'));
+      mockInvoke.mockRejectedValue(new Error('helper spawn failed'));
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdates();
+      });
+
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith('force_quit_and_relaunch');
+      expect(result.current.state.isRestarting).toBe(false);
+      expect(result.current.state.requiresManualRestart).toBe(true);
+      expect(result.current.state.error).toBe(UPDATE_DOWNLOAD_COMPLETE_RESTART_CODE);
+    });
+
+    it('should not invoke force_quit_and_relaunch on partial download failure', async () => {
+      const mockDownloadAndInstall = vi.fn().mockImplementation((callback) => {
+        callback({ event: 'Started', data: { contentLength: 1000 } });
+        callback({ event: 'Progress', data: { chunkLength: 700 } });
+        return Promise.reject(new Error('Download failed'));
+      });
+
+      const mockUpdate = {
+        version: '2.0.0',
+        downloadAndInstall: mockDownloadAndInstall,
+      };
+      mockCheck.mockResolvedValue(mockUpdate);
+      mockInvoke.mockResolvedValue(undefined); // would succeed if called
+
+      const { result } = renderHook(() => useUpdater());
+
+      await act(async () => {
+        await result.current.checkForUpdates();
+      });
+
+      await act(async () => {
+        await result.current.downloadAndInstall();
+      });
+
+      // Download did not complete, so the fallback must not run.
+      expect(mockInvoke).not.toHaveBeenCalled();
+      expect(result.current.state.requiresManualRestart).toBe(false);
+      expect(result.current.state.error).toBe('Download failed');
     });
   });
 

@@ -30,6 +30,7 @@
   "common.error.updateCheckFailed": "업데이트 확인 중 오류가 발생했습니다.",
   "common.error.updateDownloadCompleteRestart": "업데이트 다운로드가 완료되었습니다!",
   "common.error.updateDownloadCompleteRestartHint": "앱을 종료한 후 다시 열면 업데이트가 적용됩니다.",
+  "common.error.updateRelaunchFailed": "자동으로 재시작하지 못했습니다. 앱을 종료(⌘Q / Alt+F4)한 후 다시 열어 주세요.",
   "common.errorOccurred": "오류가 발생했습니다",
   "common.expand": "펼치기",
   "common.help": "도움말",

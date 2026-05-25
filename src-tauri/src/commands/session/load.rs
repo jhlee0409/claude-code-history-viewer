@@ -53,7 +53,9 @@ struct SessionMetadataCache {
     entries: HashMap<String, CachedSessionMetadata>,
 }
 
-const CACHE_VERSION: u32 = 8;
+// Bumped 8 -> 9: ClaudeSession gained the `entrypoint` field, so stale caches
+// must be invalidated to force a reparse that populates it.
+const CACHE_VERSION: u32 = 9;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -138,6 +140,8 @@ struct IncrementalParseState {
     first_assistant_text: Option<String>,
     /// Rename name from /rename command (already known)
     rename_name: Option<String>,
+    /// Originating client entrypoint (already known)
+    entrypoint: Option<String>,
 }
 
 /// Minimal struct for fast line classification (avoids full parsing)
@@ -171,6 +175,7 @@ struct SessionMetadataEntry {
     tool_use: Option<serde_json::Value>,
     #[serde(rename = "toolUseResult")]
     tool_use_result: Option<serde_json::Value>,
+    entrypoint: Option<String>,
     message: Option<SessionMetadataMessage>,
 }
 
@@ -191,6 +196,7 @@ struct QuickLineClassifier {
     is_sidechain: Option<bool>,
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
+    entrypoint: Option<String>,
 }
 
 /// Fast session metadata extraction result
@@ -263,6 +269,7 @@ fn extract_session_metadata_internal(
         mut last_user_content,
         mut first_assistant_text,
         mut rename_name,
+        mut entrypoint,
     ) = if let Some(ref state) = incremental_state {
         (
             state.start_offset,
@@ -278,10 +285,12 @@ fn extract_session_metadata_internal(
             state.last_user_content.clone(),
             state.first_assistant_text.clone(),
             state.rename_name.clone(),
+            state.entrypoint.clone(),
         )
     } else {
         (
             0u64, 0usize, 0usize, None, None, None, None, false, false, None, None, None, None,
+            None,
         )
     };
 
@@ -365,6 +374,13 @@ fn extract_session_metadata_internal(
                 if actual_session_id.is_none() {
                     if let Some(ref sid) = entry.session_id {
                         actual_session_id = Some(sid.clone());
+                    }
+                }
+
+                // Track originating client entrypoint (first hit wins)
+                if entrypoint.is_none() {
+                    if let Some(ref ep) = entry.entrypoint {
+                        entrypoint = Some(ep.clone());
                     }
                 }
 
@@ -494,6 +510,13 @@ fn extract_session_metadata_internal(
                 last_timestamp = Some(ts);
             }
 
+            // Track originating client entrypoint (first hit wins)
+            if entrypoint.is_none() {
+                if let Some(ep) = classifier.entrypoint {
+                    entrypoint = Some(ep);
+                }
+            }
+
             // Quick tool_use check via string search (faster than full parse)
             if !has_tool_use
                 && (line.contains("\"toolUse\"")
@@ -548,6 +571,7 @@ fn extract_session_metadata_internal(
             is_renamed: rename_name.is_some(),
             provider: None,
             storage_type: None,
+            entrypoint,
         },
         sidechain_count,
         final_byte_offset: file_size,
@@ -869,6 +893,7 @@ pub async fn load_project_sessions(
                             last_user_content: cached.last_user_content.clone(),
                             first_assistant_text: cached.first_assistant_text.clone(),
                             rename_name: cached.rename_name.clone(),
+                            entrypoint: session.entrypoint.clone(),
                         },
                     ));
                     continue;
