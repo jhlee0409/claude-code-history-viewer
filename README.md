@@ -116,7 +116,17 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 |---------|-------|
 | **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
 
-### New in v1.12.0
+### New in v1.13.0
+
+| Feature | Description |
+|---------|-------------|
+| **macOS Custom Title Bar** | Draggable overlay header replaces the legacy macOS title bar for consistent screen-space use; Linux/Windows unaffected |
+| **Session Source Filter** | Filter sessions by where they were created — CLI, VS Code, or Desktop — using Claude Code's `entrypoint` field |
+| **Codex Resume Support** | Right-click "Copy Resume Command" now works for Codex sessions and prefixes `cd '<cwd>' && ` so paste-and-run lands in the original directory |
+| **Pricing Accuracy** | Fixed `claude-opus-4-7` 3× overcharge; added `gpt-5.4` / `gpt-5.5` pricing with Codex cached-token handling |
+| **macOS Updater Reliability** | Native OS-level relaunch fallback for the Tauri v2 macOS relaunch bug — no more "please quit and reopen" |
+
+### v1.12.0
 
 | Feature | Description |
 |---------|-------------|
@@ -126,36 +136,17 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 | **Context Menu Polish** | Right-click menus rendered in portal for cursor-precise anchoring; clamp to panel bounds; close on scroll |
 | **Custom Directory** | Custom Claude directory selection now applies instantly without restart |
 
-### v1.10.0
+### v1.11.0
 
 | Feature | Description |
 |---------|-------------|
-| **Monthly Calendar Heatmap** | Activity heatmap split into monthly calendar blocks for clearer day-by-day visualization |
-| **Session Management** | Delete sessions (move to trash) and reveal JSONL files in system file explorer |
-| **Copy Path** | Copy project path from the project context menu |
-| **Global Stats Date Filter** | Filter analytics dashboard by date range |
-| **Windows Portable** | Portable `.zip` build — no installer required |
-| **Per-tool Cards** | Dedicated rendering cards for Bash, Read, Edit, Glob, Grep, Write, WebFetch, WebSearch, and Agent tools |
+| **Auto-refresh Sessions** | Session list auto-refreshes on file changes; auto-scroll to bottom on new messages |
+| **Project Panel Search** | Search box plus horizontal scrollbar for long project names |
+| **Session Right-click Menu** | Copy session ID, resume command, file path; delete session; show JSONL file; native rename with search integration |
+| **Sub-agent Conversation History** | View sub-agent (sidechain) conversation history |
+| **Custom Claude Config Directories** | Support directories outside `~/.claude` |
 
-### v1.9.0
-
-| Feature | Description |
-|---------|-------------|
-| **4 New Providers** | Added **Gemini CLI**, **Cline**, **Cursor**, and **Aider** — now supports 7 AI coding assistants |
-| **WSL Support** | Windows Subsystem for Linux integration — scan Claude Code projects inside WSL distros |
-| **Enhanced Global Search** | Project filter, LRU cache, aho-corasick multi-pattern optimization, and message navigation |
-| **Zoom Controls** | Keyboard shortcuts for zoom in/out |
-
-### v1.6.0
-
-| Feature | Description |
-|---------|-------------|
-| **WebUI Server Mode** | Run as a headless web server with `--serve` — access from any browser, deploy on VPS/Docker |
-| **Screenshot Capture** | Long screenshot with range selection, preview modal, and multi-selection export |
-| **Archive Management** | Create, browse, rename, and export session archives with per-file download |
-| **Accessibility** | Full keyboard navigation, screen reader support, font scaling, and high contrast mode |
-| **Mobile UI** | Responsive 390px viewport support with bottom tab bar |
-| **External Links** | All links open in system browser instead of the app's WebView |
+> Older releases: see [CHANGELOG.md](./CHANGELOG.md) for v1.10.0 and earlier.
 
 ### More
 

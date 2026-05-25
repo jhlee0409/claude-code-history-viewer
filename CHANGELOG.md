@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-05-25
+
+### Added
+- **macOS Custom Overlay Title Bar**: Draggable header with `data-tauri-drag-region`; eliminates the legacy macOS title bar so the app uses screen space more consistently. Linux/Windows behavior unchanged. (#337)
+- **Session Source Filter**: Reads the top-level `entrypoint` field (`cli`, `claude-vscode`, `claude-desktop`) in Claude Code JSONL records and exposes a filter to separate sessions by where they were created. Cache version bumped to invalidate stale snapshots. (#330)
+- **Codex Resume Command**: Right-click "Copy Resume Command" now supports Codex sessions and prefixes the copied command with `cd '<cwd>' && ` so paste-and-run lands in the session's original directory. SessionId is regex-validated before shell interpolation. (#302)
+
+### Changed
+- Sidebar resizable panel `maxWidth` raised from 480 → 800 to fit long project names; deep-path slug parsing delegates to the existing filesystem-check decoder. (#329)
+- macOS updater falls back to a native OS-level relaunch (`open -n`) when Tauri v2's `relaunch()` throws on macOS; Windows uses PowerShell `Wait-Process` + `Start-Process` (avoids `cmd /C "start"` `%` corruption); Linux uses `setsid`. All paths use parent-PID polling instead of fixed sleeps. (#325, closes #287)
+
+### Fixed
+- **Pricing accuracy**:
+  - `claude-opus-4-7` was billed at deprecated Opus 4 rates ($15/$75) via `includes()` match-order — added explicit entry at correct rates ($5/$25/$6.25/$0.50). Prevents 3× overcharge. (#335)
+  - Added `gpt-5.4`/`gpt-5.5` pricing rows and refactored Codex token extraction to return `(input, output, cached)` so `non_cached_input = delta_input − delta_cached` splits the two billing tiers correctly. (#336)
+- WSL settings no longer crash when partial settings omit `excludedDistros`; defaults-first spread keeps the toggle working. (#309)
+- Session delete failures now surface the backend error in the toast description with the session id, so reporters can diagnose. (#310)
+- WebUI mode: `get_session_subagents` registered on the Axum router; closes a Tauri↔Axum parity gap (#294). (#311)
+- ForgeCode: stricter virtual-path allowlist, env-guarded `FORGE_CONFIG` tests, archive/rename dialog polish. (#312)
+- Antigravity stats correctness: 7 follow-ups across stats aggregation, symlink guards on rpc-cache reads, filesystem-only brain session inclusion, refusing to guess root when marker absent, date-filtered tool usage, rpc-cache fallback for usage records, canonicalised `session_path` validation. (#313, #314, #315, #316, #317, #318, #320)
+- Codex session summary picker now skips the auto-injected `<environment_context>` so the displayed summary reflects the actual first user message. (#322)
+- Global stats aggregate `token_distribution.reasoning` correctly across providers. (#323)
+
+### Internal
+- Tauri 2.10.1 → 2.11.2 (+ plugin patches); JS/Rust version alignment preserved.
+- `tauriConfig.test.ts` realigned for the new "empty window[0].title, productName as CFBundleName" design.
+- Codex `and_then(|v| v.as_u64())` → `and_then(Value::as_u64)` for Rust 1.95 `clippy::redundant-closure-for-method-calls`.
+
+### New Contributors
+- @ypoet (#302)
+- @xxmy7 (#335, #336)
+- @SoraDaibu (#325)
+- @ggvswild (#330)
+- @mohammedi-haroune (#337)
+
 ## [1.12.0] - 2026-05-07
 
 ### Added
