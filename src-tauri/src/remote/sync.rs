@@ -220,7 +220,10 @@ fn validate_remote_relative_path(rel_path: &str) -> Result<()> {
         || path.components().any(|component| {
             matches!(
                 component,
-                Component::Prefix(_) | Component::RootDir | Component::ParentDir | Component::CurDir
+                Component::Prefix(_)
+                    | Component::RootDir
+                    | Component::ParentDir
+                    | Component::CurDir
             )
         })
     {
