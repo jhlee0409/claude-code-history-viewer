@@ -59,7 +59,6 @@ export const createGlobalStatsSlice: StateCreator<
   loadGlobalStats: async () => {
     const requestId = nextRequestId("globalStats");
     const { claudePath, activeProviders, dateFilter } = get();
-    if (!claudePath) return;
 
     set({ isLoadingGlobalStats: true });
     get().setError(null);
