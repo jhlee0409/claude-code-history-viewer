@@ -30,8 +30,14 @@ pub fn detect() -> Option<ProviderInfo> {
 pub fn get_base_path() -> Option<String> {
     if let Ok(kimi_home) = std::env::var("KIMI_HOME") {
         let path = PathBuf::from(&kimi_home);
-        if path.exists() {
-            return Some(kimi_home);
+        let absolute_path = if path.is_absolute() {
+            path
+        } else {
+            std::env::current_dir().ok()?.join(path)
+        };
+        if absolute_path.exists() {
+            let normalized = absolute_path.canonicalize().unwrap_or(absolute_path);
+            return Some(normalized.to_string_lossy().to_string());
         }
     }
 
@@ -427,8 +433,8 @@ fn convert_context_message(
             uuid,
             session_id,
             timestamp.to_string(),
-            "user",
-            Some("user"),
+            "tool",
+            Some("tool"),
             Some(json!([{
                 "type": "tool_result",
                 "tool_use_id": value.get("tool_call_id").and_then(Value::as_str).unwrap_or(""),
@@ -524,11 +530,23 @@ fn extract_working_directory(system_prompt: &str) -> Option<String> {
     let rest = &system_prompt[start..];
     let end = rest.find('`')?;
     let cwd = &rest[..end];
-    if cwd.starts_with('/') {
+    if is_absolute_working_directory(cwd) {
         Some(cwd.to_string())
     } else {
         None
     }
+}
+
+fn is_absolute_working_directory(cwd: &str) -> bool {
+    Path::new(cwd).is_absolute() || looks_like_windows_absolute_path(cwd)
+}
+
+fn looks_like_windows_absolute_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/')
 }
 
 fn read_json_file(path: &Path) -> Result<Value, String> {
@@ -623,4 +641,19 @@ fn project_name_from_actual_path(actual_path: &str, fallback: &str) -> String {
         .map(|name| name.to_string_lossy().to_string())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| fallback.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_working_directory_accepts_windows_absolute_paths() {
+        let prompt = "The current working directory is `C:\\Users\\max\\repo`.";
+
+        assert_eq!(
+            extract_working_directory(prompt).as_deref(),
+            Some("C:\\Users\\max\\repo")
+        );
+    }
 }

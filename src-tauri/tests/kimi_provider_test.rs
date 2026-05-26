@@ -1,4 +1,8 @@
 use claude_code_history_viewer_lib::providers;
+use serial_test::serial;
+use std::ffi::OsString;
+use std::fs;
+use tempfile::TempDir;
 
 #[test]
 fn kimi_provider_scans_projects_from_sessions_tree() {
@@ -67,12 +71,32 @@ fn kimi_provider_loads_messages_without_internal_roles() {
         messages[1].content.as_ref().unwrap()[0]["thinking"],
         "I should inspect the provider registry first."
     );
-    assert_eq!(messages[2].message_type, "user");
+    assert_eq!(messages[2].message_type, "tool");
     assert_eq!(
         messages[2].content.as_ref().unwrap()[0]["type"],
         "tool_result"
     );
     assert_eq!(messages[3].message_type, "assistant");
+}
+
+#[test]
+#[serial]
+fn kimi_provider_normalizes_relative_kimi_home_to_absolute_path() {
+    let temp_dir = TempDir::new().expect("temp dir should be created");
+    let original_cwd = std::env::current_dir().expect("current dir should exist");
+    let _cwd_guard = CurrentDirGuard::set(temp_dir.path());
+    let _env_guard = EnvVarGuard::set("KIMI_HOME", OsString::from(".kimi"));
+    fs::create_dir(temp_dir.path().join(".kimi")).expect("KIMI_HOME dir should be created");
+
+    let base_path = providers::kimi::get_base_path().expect("KIMI_HOME should be detected");
+
+    assert!(std::path::Path::new(&base_path).is_absolute());
+    assert_eq!(
+        std::path::PathBuf::from(base_path),
+        temp_dir.path().join(".kimi").canonicalize().unwrap()
+    );
+
+    std::env::set_current_dir(original_cwd).expect("current dir should be restored");
 }
 
 #[test]
@@ -96,4 +120,45 @@ fn fixture_base() -> std::path::PathBuf {
         .join("tests")
         .join("fixtures")
         .join("kimi")
+}
+
+struct EnvVarGuard {
+    key: &'static str,
+    original: Option<OsString>,
+}
+
+impl EnvVarGuard {
+    fn set(key: &'static str, value: OsString) -> Self {
+        let original = std::env::var_os(key);
+        std::env::set_var(key, value);
+        Self { key, original }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        if let Some(value) = self.original.as_ref() {
+            std::env::set_var(self.key, value);
+        } else {
+            std::env::remove_var(self.key);
+        }
+    }
+}
+
+struct CurrentDirGuard {
+    original: std::path::PathBuf,
+}
+
+impl CurrentDirGuard {
+    fn set(path: &std::path::Path) -> Self {
+        let original = std::env::current_dir().expect("current dir should exist");
+        std::env::set_current_dir(path).expect("current dir should be set");
+        Self { original }
+    }
+}
+
+impl Drop for CurrentDirGuard {
+    fn drop(&mut self) {
+        std::env::set_current_dir(&self.original).expect("current dir should be restored");
+    }
 }

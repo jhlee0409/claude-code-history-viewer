@@ -55,7 +55,7 @@ export interface ClaudeProject {
   git_info?: GitInfo;
   /** Provider identifier (claude, codex, opencode) */
   provider?: ProviderId;
-  /** Storage type (json, sqlite) — OpenCode only */
+  /** Storage type (json, jsonl, sqlite) */
   storage_type?: "json" | "jsonl" | "sqlite";
   /** Label for custom Claude directory source (e.g., "Personal") */
   custom_directory_label?: string;

@@ -1694,14 +1694,9 @@ fn resolve_provider_project_name_from_session(
             "codex".to_string()
         }
         StatsProvider::Kimi => {
-            if let Ok(projects) = providers::kimi::scan_projects() {
-                for project in projects {
-                    if let Ok(sessions) = providers::kimi::load_sessions(&project.path, false) {
-                        if sessions.iter().any(|s| s.file_path == session_path) {
-                            return project.name;
-                        }
-                    }
-                }
+            if let Some(project_dir) = Path::new(session_path).parent() {
+                let project_path = format!("kimi://{}", project_dir.to_string_lossy());
+                return resolve_provider_project_name(provider, &project_path);
             }
             "kimi".to_string()
         }
@@ -4343,6 +4338,28 @@ mod tests {
             true,
             StatsMode::ConversationOnly
         ));
+        assert!(!should_include_stats_entry(
+            "tool",
+            Some(false),
+            false,
+            StatsMode::ConversationOnly
+        ));
+        assert!(!should_include_stats_entry(
+            "tool",
+            Some(false),
+            false,
+            StatsMode::BillingTotal
+        ));
+    }
+
+    #[test]
+    fn test_kimi_project_name_resolves_from_session_parent_directory() {
+        let session_path = "/tmp/kimi/sessions/project-hash/session-1";
+
+        assert_eq!(
+            resolve_provider_project_name_from_session(StatsProvider::Kimi, session_path),
+            "project-hash"
+        );
     }
 
     #[test]
