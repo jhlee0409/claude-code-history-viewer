@@ -834,7 +834,7 @@ fn open_db_snapshot(db_path: &Path) -> Option<OpenCodeDb> {
 
 /// Open the `OpenCode` `SQLite` database in read-only mode.
 ///
-/// Live OpenCode instances can keep the DB locked, especially through WSL/Podman
+/// Live `OpenCode` instances can keep the DB locked, especially through WSL/Podman
 /// UNC paths. When the direct read-only connection cannot be probed, read from a
 /// short-lived copied snapshot instead.
 fn open_db(base_path: &str) -> Option<OpenCodeDb> {

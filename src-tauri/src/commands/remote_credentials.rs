@@ -68,8 +68,7 @@ pub async fn delete_remote_credential(param: DeleteRemoteCredentialParam) -> Res
     tauri::async_runtime::spawn_blocking(move || {
         let entry = entry_for_ref(&param.credential_ref)?;
         match entry.delete_credential() {
-            Ok(()) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()),
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(e.to_string()),
         }
     })

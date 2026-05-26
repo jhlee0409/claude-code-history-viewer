@@ -89,6 +89,147 @@ fn dedupe_injected_projects(projects: Vec<ClaudeProject>) -> Vec<ClaudeProject> 
     deduped
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LocalPodmanVolumeProvider {
+    Claude,
+    OpenCode,
+}
+
+fn local_podman_volume_provider(volume_name: &str) -> Option<(LocalPodmanVolumeProvider, String)> {
+    for suffix in ["-opencode", "_opencode"] {
+        if let Some(name) = volume_name.strip_suffix(suffix) {
+            return Some((LocalPodmanVolumeProvider::OpenCode, name.to_string()));
+        }
+    }
+    for suffix in ["-claude", "_claude"] {
+        if let Some(name) = volume_name.strip_suffix(suffix) {
+            return Some((LocalPodmanVolumeProvider::Claude, name.to_string()));
+        }
+    }
+    None
+}
+
+fn infer_local_podman_volume_provider(
+    volume_name: &str,
+    data_path: &std::path::Path,
+) -> Option<(LocalPodmanVolumeProvider, String)> {
+    if let Some(provider) = local_podman_volume_provider(volume_name) {
+        return Some(provider);
+    }
+
+    if data_path.join("opencode.db").is_file() || data_path.join("storage").is_dir() {
+        return Some((LocalPodmanVolumeProvider::OpenCode, volume_name.to_string()));
+    }
+
+    if data_path.join("projects").is_dir() {
+        let workload_name = volume_name
+            .rsplit_once(['-', '_'])
+            .map_or(volume_name, |(prefix, _)| prefix)
+            .to_string();
+        return Some((LocalPodmanVolumeProvider::Claude, workload_name));
+    }
+
+    None
+}
+
+pub(crate) async fn scan_local_podman_projects(providers_to_scan: &[String]) -> Vec<ClaudeProject> {
+    let wants_claude = providers_to_scan.iter().any(|p| p == "claude");
+    let wants_opencode = providers_to_scan.iter().any(|p| p == "opencode");
+    if !wants_claude && !wants_opencode {
+        return Vec::new();
+    }
+
+    let mut projects = Vec::new();
+    for distro in crate::wsl::detect_distros()
+        .into_iter()
+        .filter(|distro| distro.name.starts_with("podman-machine"))
+    {
+        let volume_root =
+            std::path::Path::new("/home/user/.local/share/containers/storage/volumes");
+        let Some(volume_root_unc) =
+            crate::wsl::resolve_wsl_provider_path(&distro.name, volume_root)
+        else {
+            continue;
+        };
+
+        let Ok(entries) = std::fs::read_dir(&volume_root_unc) else {
+            continue;
+        };
+
+        for entry in entries.flatten() {
+            if entry.file_type().map_or(true, |ft| !ft.is_dir()) {
+                continue;
+            }
+            let volume_name = entry.file_name().to_string_lossy().to_string();
+            let data_path = entry.path().join("_data");
+            if !data_path.is_dir() {
+                continue;
+            }
+            let Some((provider, workload_name)) =
+                infer_local_podman_volume_provider(&volume_name, &data_path)
+            else {
+                continue;
+            };
+            if (provider == LocalPodmanVolumeProvider::Claude && !wants_claude)
+                || (provider == LocalPodmanVolumeProvider::OpenCode && !wants_opencode)
+            {
+                continue;
+            }
+
+            let data_path_str = data_path.to_string_lossy().to_string();
+            let label = format!("Podman: {workload_name} @ local");
+            let source = ProjectSource {
+                id: format!("local-podman:{}:{}", distro.name, volume_name),
+                kind: "podman-container".to_string(),
+                display_label: label.clone(),
+                debug_label: Some(format!("WSL distro {} local Podman volume", distro.name)),
+            };
+
+            match provider {
+                LocalPodmanVolumeProvider::Claude => {
+                    match crate::commands::project::scan_projects(data_path_str).await {
+                        Ok(mut scanned) => {
+                            for project in &mut scanned {
+                                if project.provider.is_none() {
+                                    project.provider = Some("claude".to_string());
+                                }
+                                project.custom_directory_label = Some(label.clone());
+                                project.source = Some(source.clone());
+                            }
+                            projects.extend(scanned);
+                        }
+                        Err(e) => {
+                            log::warn!("Local Podman Claude scan failed for {workload_name}: {e}");
+                        }
+                    }
+                }
+                LocalPodmanVolumeProvider::OpenCode => {
+                    match providers::opencode::scan_projects_from_path(&data_path_str) {
+                        Ok(scanned) => {
+                            let mut scanned = providers::opencode::scope_projects_to_base(
+                                scanned,
+                                &data_path_str,
+                            );
+                            for project in &mut scanned {
+                                project.custom_directory_label = Some(label.clone());
+                                project.source = Some(source.clone());
+                            }
+                            projects.extend(scanned);
+                        }
+                        Err(e) => {
+                            log::warn!(
+                                "Local Podman OpenCode scan failed for {workload_name}: {e}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    projects
+}
+
 /// Detect all available providers
 #[tauri::command]
 pub async fn detect_providers() -> Result<Vec<providers::ProviderInfo>, String> {
@@ -326,6 +467,8 @@ pub async fn scan_all_projects(
             }
         }
     }
+
+    all_projects.extend(scan_local_podman_projects(&providers_to_scan).await);
 
     // Hide empty containers that have no session files regardless of provider.
     all_projects.retain(|project| project.session_count > 0);
@@ -878,6 +1021,25 @@ mod tests {
             &custom,
             &["opencode", ".opencode"]
         ));
+    }
+
+    #[test]
+    fn local_podman_volume_provider_detects_named_history_volumes() {
+        assert_eq!(
+            local_podman_volume_provider("worker-alpha-opencode"),
+            Some((
+                LocalPodmanVolumeProvider::OpenCode,
+                "worker-alpha".to_string()
+            ))
+        );
+        assert_eq!(
+            local_podman_volume_provider("worker-alpha-claude"),
+            Some((
+                LocalPodmanVolumeProvider::Claude,
+                "worker-alpha".to_string()
+            ))
+        );
+        assert_eq!(local_podman_volume_provider("postgres-data"), None);
     }
 
     #[test]

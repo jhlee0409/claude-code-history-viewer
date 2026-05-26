@@ -973,6 +973,17 @@ fn collect_provider_global_file_stats(
         StatsProvider::Claude => Vec::new(),
     };
 
+    collect_provider_global_file_stats_from_projects(provider, projects, mode, s_limit, e_limit)
+}
+
+/// Collect global stats rows from already-discovered non-Claude projects.
+fn collect_provider_global_file_stats_from_projects(
+    provider: StatsProvider,
+    projects: Vec<crate::models::ClaudeProject>,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> (Vec<SessionFileStats>, HashSet<String>) {
     let provider_tag = match provider {
         StatsProvider::Codex => "codex",
         StatsProvider::ForgeCode => "forgecode",
@@ -980,6 +991,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::Claude => "claude",
     };
+    let mut project_keys = HashSet::new();
 
     // Collect all (project_display_name, session_file_path) pairs first
     let mut session_tasks: Vec<(String, String)> = Vec::new();
@@ -3262,6 +3274,29 @@ pub async fn get_global_stats_summary(
             }
         }
     }
+    if providers_to_include.contains(&StatsProvider::Claude) {
+        let local_podman_projects =
+            crate::commands::multi_provider::scan_local_podman_projects(&["claude".to_string()])
+                .await
+                .into_iter()
+                .filter(|project| project.provider.as_deref() == Some("claude"))
+                .collect::<Vec<_>>();
+
+        for project in local_podman_projects {
+            let project_path = PathBuf::from(&project.path);
+            if !project_path.is_dir() {
+                continue;
+            }
+            project_names.insert(format!("claude:{}", project.path));
+            for entry in WalkDir::new(&project_path)
+                .into_iter()
+                .filter_map(std::result::Result::ok)
+                .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+            {
+                session_files.push(entry.path().to_path_buf());
+            }
+        }
+    }
 
     // Phase 2: Process all session files in parallel
     let s_ref = s_limit.as_ref();
@@ -3290,6 +3325,22 @@ pub async fn get_global_stats_summary(
             collect_provider_global_file_stats(StatsProvider::OpenCode, mode, s_ref, e_ref);
         project_names.extend(opencode_projects);
         file_stats.extend(opencode_stats);
+
+        let local_podman_projects =
+            crate::commands::multi_provider::scan_local_podman_projects(&["opencode".to_string()])
+                .await
+                .into_iter()
+                .filter(|project| project.provider.as_deref() == Some("opencode"))
+                .collect::<Vec<_>>();
+        let (podman_stats, podman_projects) = collect_provider_global_file_stats_from_projects(
+            StatsProvider::OpenCode,
+            local_podman_projects,
+            mode,
+            s_ref,
+            e_ref,
+        );
+        project_names.extend(podman_projects);
+        file_stats.extend(podman_stats);
     }
 
     if providers_to_include.contains(&StatsProvider::Antigravity) {

@@ -27,8 +27,14 @@ pub fn is_wsl_available() -> bool {
     use winreg::enums::HKEY_CURRENT_USER;
     use winreg::RegKey;
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    hkcu.open_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Lxss")
+    if hkcu
+        .open_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Lxss")
         .is_ok()
+    {
+        return true;
+    }
+
+    !detect_distros_from_command().is_empty()
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -69,6 +75,9 @@ pub fn detect_distros() -> Vec<WslDistro> {
             .cmp(&a.is_default)
             .then_with(|| a.name.cmp(&b.name))
     });
+    if distros.is_empty() {
+        return detect_distros_from_command();
+    }
     distros
 }
 
@@ -133,6 +142,35 @@ fn decode_utf16le(bytes: &[u8]) -> Result<String, String> {
     String::from_utf16(&u16s)
         .map(|s| s.replace('\0', ""))
         .map_err(|e| format!("UTF-16LE decode error: {e}"))
+}
+
+#[cfg(target_os = "windows")]
+fn detect_distros_from_command() -> Vec<WslDistro> {
+    use std::process::Command;
+
+    let Ok(output) = Command::new("wsl").args(["-l", "-q"]).output() else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    let distro_list = String::from_utf8(output.stdout.clone())
+        .or_else(|_| decode_utf16le(&output.stdout))
+        .unwrap_or_default()
+        .replace('\0', "");
+
+    let mut distros = distro_list
+        .lines()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(|name| WslDistro {
+            name: name.to_string(),
+            is_default: false,
+        })
+        .collect::<Vec<_>>();
+    distros.sort_by(|a, b| a.name.cmp(&b.name));
+    distros
 }
 
 pub fn resolve_wsl_provider_path(distro: &str, linux_path: &Path) -> Option<PathBuf> {
