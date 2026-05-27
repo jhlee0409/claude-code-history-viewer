@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-06-19T18:02:24.674Z
- * 총 키 개수: 1788
+ * 생성 시간: 2026-06-19T18:02:38.134Z
+ * 총 키 개수: 1796
  * Namespace 수: 11
  */
 
@@ -1262,7 +1262,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (94개)
+ * message namespace의 번역 키 (101개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1313,8 +1313,15 @@ export type MessageKeys =
   | 'messageViewer.debugInfo.lastMessage'
   | 'messageViewer.debugInfo.loading'
   | 'messageViewer.debugInfo.messages'
+  | 'messageViewer.debugInfo.no'
+  | 'messageViewer.debugInfo.noSearch'
+  | 'messageViewer.debugInfo.null'
   | 'messageViewer.debugInfo.offset'
+  | 'messageViewer.debugInfo.overlay'
+  | 'messageViewer.debugInfo.search'
   | 'messageViewer.debugInfo.session'
+  | 'messageViewer.debugInfo.virtual'
+  | 'messageViewer.debugInfo.yes'
   | 'messageViewer.filterContent'
   | 'messageViewer.filterToolId'
   | 'messageViewer.filterType'
@@ -1362,7 +1369,7 @@ export type MessageKeys =
   | 'navigator.userOnly';
 
 /**
- * renderers namespace의 번역 키 (383개)
+ * renderers namespace의 번역 키 (384개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1672,6 +1679,7 @@ export type RenderersKeys =
   | 'systemMessageRenderer.subtypes.localCommand'
   | 'systemMessageRenderer.subtypes.microcompactBoundary'
   | 'systemMessageRenderer.subtypes.stopHook'
+  | 'systemMessageRenderer.subtypes.systemPrompt'
   | 'systemMessageRenderer.subtypes.turnDuration'
   | 'systemMessageRenderer.title'
   | 'systemMessageRenderer.trigger'
@@ -2580,8 +2588,15 @@ export type TranslationKey =
   | 'messageViewer.debugInfo.lastMessage'
   | 'messageViewer.debugInfo.loading'
   | 'messageViewer.debugInfo.messages'
+  | 'messageViewer.debugInfo.no'
+  | 'messageViewer.debugInfo.noSearch'
+  | 'messageViewer.debugInfo.null'
   | 'messageViewer.debugInfo.offset'
+  | 'messageViewer.debugInfo.overlay'
+  | 'messageViewer.debugInfo.search'
   | 'messageViewer.debugInfo.session'
+  | 'messageViewer.debugInfo.virtual'
+  | 'messageViewer.debugInfo.yes'
   | 'messageViewer.filterContent'
   | 'messageViewer.filterToolId'
   | 'messageViewer.filterType'
@@ -3485,6 +3500,7 @@ export type TranslationKey =
   | 'systemMessageRenderer.subtypes.localCommand'
   | 'systemMessageRenderer.subtypes.microcompactBoundary'
   | 'systemMessageRenderer.subtypes.stopHook'
+  | 'systemMessageRenderer.subtypes.systemPrompt'
   | 'systemMessageRenderer.subtypes.turnDuration'
   | 'systemMessageRenderer.title'
   | 'systemMessageRenderer.trigger'

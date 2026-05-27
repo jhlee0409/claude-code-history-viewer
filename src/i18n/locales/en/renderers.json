@@ -277,6 +277,7 @@
   "systemMessageRenderer.subtypes.localCommand": "Local Command",
   "systemMessageRenderer.subtypes.microcompactBoundary": "Context Microcompacted",
   "systemMessageRenderer.subtypes.stopHook": "Stop Hook",
+  "systemMessageRenderer.subtypes.systemPrompt": "System Prompt",
   "systemMessageRenderer.subtypes.turnDuration": "Turn Duration",
   "systemMessageRenderer.title": "System",
   "systemMessageRenderer.trigger": "Trigger",

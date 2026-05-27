@@ -141,6 +141,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
       compact_boundary: t("systemMessageRenderer.subtypes.compactBoundary", { defaultValue: "Conversation Compacted" }),
       microcompact_boundary: t("systemMessageRenderer.subtypes.microcompactBoundary", { defaultValue: "Context Microcompacted" }),
       local_command: t("systemMessageRenderer.subtypes.localCommand", { defaultValue: "Local Command" }),
+      system_prompt: t("systemMessageRenderer.subtypes.systemPrompt", { defaultValue: "System Prompt" }),
     };
     return labels[sub] || sub;
   };

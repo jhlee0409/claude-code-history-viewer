@@ -334,7 +334,7 @@ export const ClaudeMessageNode = React.memo(({
 
   // System messages (local_command, compact_boundary, api_error, etc.)
   if (message.type === "system") {
-    const contentStr = typeof message.content === "string" ? message.content : undefined;
+    const contentStr = extractClaudeMessageContent(message) ?? undefined;
     return (
       <ExpandKeyProvider value={message.uuid}>
         <div
