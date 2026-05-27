@@ -336,40 +336,22 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollElementReady]);
 
-  // Wait for OverlayScrollbars to initialize
+  // OverlayScrollbars initialized callback (stable ref to avoid re-bindingclear)
+  const handleScrollbarsInitialized = useCallback(() => {
+    if (import.meta.env.DEV) {
+      console.log(`[MessageViewer] scrollElementReady via initialized event`);
+    }
+    setScrollElementReady(true);
+  }, []);
+
+  // Fallback: if OverlayScrollbars already initialized before event binding (e.g. fast mount)
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let attempts = 0;
-    const maxAttempts = 50; // 최대 50번 시도 (약 500ms)
-    const checkInterval = 10; // 10ms 간격
-    const startTime = import.meta.env.DEV ? performance.now() : 0;
-
-    const checkScrollElement = () => {
+    if (!scrollElementReady) {
       const element = scrollContainerRef.current?.osInstance()?.elements().viewport;
-      if (element && !scrollElementReady) {
-        if (import.meta.env.DEV) {
-          console.log(`[MessageViewer] scrollElementReady after ${attempts} attempts, ${(performance.now() - startTime).toFixed(1)}ms`);
-        }
+      if (element) {
         setScrollElementReady(true);
-        return;
       }
-
-      attempts++;
-      if (attempts < maxAttempts) {
-        timeoutId = setTimeout(checkScrollElement, checkInterval);
-      } else if (import.meta.env.DEV) {
-        console.warn(`[MessageViewer] scrollElement not ready after ${maxAttempts} attempts (${maxAttempts * checkInterval}ms)`);
-      }
-    };
-
-    // Check immediately
-    checkScrollElement();
-
-    return () => {
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
-      }
-    };
+    }
   }, [scrollElementReady, selectedSession?.session_id]);
 
   // Virtual scrolling
@@ -938,6 +920,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           options={{
             scrollbars: { theme: "os-theme-custom", autoHide: "leave", autoHideDelay: 400 },
           }}
+          events={{ initialized: handleScrollbarsInitialized }}
         >
         {/* 디버깅 정보 */}
         {import.meta.env.DEV && (
