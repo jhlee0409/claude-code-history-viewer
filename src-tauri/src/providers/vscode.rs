@@ -202,6 +202,11 @@ pub fn load_sessions(
             None => continue,
         };
 
+        // Skip empty sessions (e.g., chat panels opened but never used).
+        if info.message_count == 0 {
+            continue;
+        }
+
         sessions.push(ClaudeSession {
             session_id: session_path.to_string_lossy().to_string(),
             actual_session_id: info.session_id,
@@ -902,5 +907,59 @@ mod tests {
     fn header_without_kind_zero_errors() {
         let log = json!({"kind": 1, "k": ["x"], "v": 1}).to_string();
         assert!(replay_session(&log).is_err());
+    }
+
+    #[test]
+    fn load_sessions_skips_empty_chat_panels() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let chat_dir = tmp.path().join("chatSessions");
+        fs::create_dir_all(&chat_dir).unwrap();
+        fs::write(
+            tmp.path().join("workspace.json"),
+            r#"{"folder":"file:///Users/me/repo"}"#,
+        )
+        .unwrap();
+
+        // Empty panel: only kind:0 header with requests:[]
+        fs::write(
+            chat_dir.join("empty-1111-1111-1111-111111111111.jsonl"),
+            json!({"kind": 0, "v": {
+                "sessionId": "empty-1111-1111-1111-111111111111",
+                "creationDate": 1779490058917u64,
+                "requests": []
+            }})
+            .to_string(),
+        )
+        .unwrap();
+
+        // Used session with at least one user request.
+        let header = json!({"kind": 0, "v": {
+            "sessionId": "used-2222-2222-2222-222222222222",
+            "creationDate": 1779490058917u64,
+            "requests": [{
+                "message": {"text": "hello"},
+                "response": []
+            }]
+        }})
+        .to_string();
+        fs::write(
+            chat_dir.join("used-2222-2222-2222-222222222222.jsonl"),
+            header,
+        )
+        .unwrap();
+
+        let sessions = load_sessions(&tmp.path().to_string_lossy(), false).unwrap();
+        let ids: Vec<&str> = sessions
+            .iter()
+            .map(|s| s.actual_session_id.as_str())
+            .collect();
+        assert!(
+            ids.iter().any(|id| id.starts_with("used-")),
+            "non-empty session must surface: {ids:?}",
+        );
+        assert!(
+            !ids.iter().any(|id| id.starts_with("empty-")),
+            "empty chat panel must be skipped: {ids:?}",
+        );
     }
 }

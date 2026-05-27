@@ -127,6 +127,11 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
         .filter(|e| is_events_jsonl(e.path()))
     {
         if let Ok(info) = extract_session_info(entry.path()) {
+            // Skip empty sessions (e.g., terminals where Copilot CLI was
+            // launched but no prompt was sent).
+            if info.message_count == 0 {
+                continue;
+            }
             let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
             project_map.entry(cwd).or_default().push(info);
         }
@@ -134,6 +139,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 
     let mut projects: Vec<ClaudeProject> = project_map
         .into_iter()
+        .filter(|(_, sessions)| !sessions.is_empty())
         .map(|(cwd, sessions)| {
             let name = Path::new(&cwd)
                 .file_name()
@@ -194,6 +200,10 @@ pub fn load_sessions(
         .filter(|e| is_events_jsonl(e.path()))
     {
         if let Ok(info) = extract_session_info(entry.path()) {
+            // Skip empty sessions to match scan_projects.
+            if info.message_count == 0 {
+                continue;
+            }
             let session_cwd = info.cwd.as_deref().unwrap_or("");
             if session_cwd != target_cwd {
                 continue;
@@ -782,14 +792,21 @@ mod tests {
         write_session(
             tmp.path(),
             "33333333-3333-3333-3333-333333333333",
-            &[json!({
-                "type": "session.start",
-                "data": {
-                    "sessionId": "33333333-3333-3333-3333-333333333333",
-                    "context": {"cwd": "/repo/b"}
-                },
-                "timestamp": "2026-01-03T00:00:00.000Z"
-            })],
+            &[
+                json!({
+                    "type": "session.start",
+                    "data": {
+                        "sessionId": "33333333-3333-3333-3333-333333333333",
+                        "context": {"cwd": "/repo/b"}
+                    },
+                    "timestamp": "2026-01-03T00:00:00.000Z"
+                }),
+                json!({
+                    "type": "user.message",
+                    "data": {"content": "third"},
+                    "timestamp": "2026-01-03T00:00:01.000Z"
+                }),
+            ],
         );
 
         let projects = scan_projects().unwrap();
@@ -801,6 +818,64 @@ mod tests {
         assert_eq!(project_a.session_count, 2);
         assert!(project_a.path.starts_with("copilot-cli://"));
         assert_eq!(project_a.provider.as_deref(), Some("copilot-cli"));
+    }
+
+    #[test]
+    #[serial]
+    fn scan_and_load_skip_empty_sessions() {
+        let tmp = TempDir::new().unwrap();
+        let _env_guard = EnvVarGuard::set("COPILOT_CLI_HOME", tmp.path());
+
+        // session with no user/assistant messages
+        write_session(
+            tmp.path(),
+            "44444444-4444-4444-4444-444444444444",
+            &[json!({
+                "type": "session.start",
+                "data": {
+                    "sessionId": "44444444-4444-4444-4444-444444444444",
+                    "context": {"cwd": "/repo/empty"}
+                },
+                "timestamp": "2026-01-04T00:00:00.000Z"
+            })],
+        );
+        // session with at least one user message
+        write_session(
+            tmp.path(),
+            "55555555-5555-5555-5555-555555555555",
+            &[
+                json!({
+                    "type": "session.start",
+                    "data": {
+                        "sessionId": "55555555-5555-5555-5555-555555555555",
+                        "context": {"cwd": "/repo/used"}
+                    },
+                    "timestamp": "2026-01-05T00:00:00.000Z"
+                }),
+                json!({
+                    "type": "user.message",
+                    "data": {"content": "hi"},
+                    "timestamp": "2026-01-05T00:00:01.000Z"
+                }),
+            ],
+        );
+
+        let projects = scan_projects().unwrap();
+        let paths: Vec<_> = projects.iter().map(|p| p.actual_path.as_str()).collect();
+        assert!(
+            paths.contains(&"/repo/used"),
+            "non-empty session's project must be listed: {paths:?}",
+        );
+        assert!(
+            !paths.contains(&"/repo/empty"),
+            "empty-session-only project must be skipped: {paths:?}",
+        );
+
+        let sessions = load_sessions("copilot-cli:///repo/empty", false).unwrap();
+        assert!(
+            sessions.is_empty(),
+            "empty sessions must not surface in load_sessions: {sessions:?}",
+        );
     }
 
     #[test]
