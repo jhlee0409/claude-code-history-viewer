@@ -1039,7 +1039,7 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
-    if let Some(vscode_base) = providers::vscode::get_base_path() {
+    for vscode_base in providers::vscode::get_base_paths() {
         let ws_storage = vscode_base.join("workspaceStorage");
         if ws_storage.is_dir() {
             paths.push(ws_storage);

@@ -75,6 +75,12 @@ describe("providers utils", () => {
     expect(getResumeCommand("codex", "abc-123")).toBe("codex resume abc-123");
   });
 
+  it("returns the Copilot CLI resume flag for copilot sessions", () => {
+    expect(getResumeCommand("copilot-cli", "abc-123")).toBe(
+      "copilot --resume=abc-123"
+    );
+  });
+
   it("getResumeCommand fails closed for unknown provider strings", () => {
     expect(getResumeCommand("not-a-real-provider", "abc")).toBeNull();
     expect(getResumeCommand(undefined, "abc")).toBeNull();
@@ -89,6 +95,9 @@ describe("providers utils", () => {
     );
     expect(getResumeCommand("codex", "abc", "/Users/foo/proj")).toBe(
       "cd '/Users/foo/proj' && codex resume abc"
+    );
+    expect(getResumeCommand("copilot-cli", "abc", "/Users/foo/proj")).toBe(
+      "cd '/Users/foo/proj' && copilot --resume=abc"
     );
     expect(getResumeCommand("forgecode", "abc", "/Users/foo/proj")).toBe(
       "cd '/Users/foo/proj' && forge conversation resume abc"

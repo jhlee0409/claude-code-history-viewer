@@ -77,7 +77,7 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
   "copilot-cli": {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
-    supportsResumeCommand: false,
+    supportsResumeCommand: true,
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
@@ -227,6 +227,9 @@ export function getResumeCommand(
       break;
     case "codex":
       resume = `codex resume ${sessionId}`;
+      break;
+    case "copilot-cli":
+      resume = `copilot --resume=${sessionId}`;
       break;
     case "forgecode":
       resume = `forge conversation resume ${sessionId}`;

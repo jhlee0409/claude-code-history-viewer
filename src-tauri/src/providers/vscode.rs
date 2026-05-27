@@ -28,11 +28,19 @@ use std::path::{Path, PathBuf};
 
 const PROVIDER_ID: &str = "vscode";
 
+#[derive(Debug, Clone)]
+struct UserDataRoot {
+    path: PathBuf,
+    label: &'static str,
+}
+
 /// Detect a VS Code (stable) installation that has Copilot Chat data.
 pub fn detect() -> Option<ProviderInfo> {
-    let base = get_base_path()?;
-    let ws_storage = base.join("workspaceStorage");
-    let is_available = ws_storage.is_dir();
+    let roots = get_user_data_roots();
+    let base = roots.first()?.path.clone();
+    let is_available = roots
+        .iter()
+        .any(|root| root.path.join("workspaceStorage").is_dir());
     Some(ProviderInfo {
         id: PROVIDER_ID.to_string(),
         display_name: "VS Code".to_string(),
@@ -41,33 +49,125 @@ pub fn detect() -> Option<ProviderInfo> {
     })
 }
 
-/// `<UserData>` for VS Code stable, per OS.
+/// First available `<UserData>` for VS Code-family builds, per OS.
 pub fn get_base_path() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
+    get_user_data_roots()
+        .into_iter()
+        .next()
+        .map(|root| root.path)
+}
+
+pub fn get_base_paths() -> Vec<PathBuf> {
+    get_user_data_roots()
+        .into_iter()
+        .map(|root| root.path)
+        .collect()
+}
+
+fn get_user_data_roots() -> Vec<UserDataRoot> {
+    let Some(home) = dirs::home_dir() else {
+        return Vec::new();
+    };
 
     #[cfg(target_os = "macos")]
-    let base = home.join("Library/Application Support/Code/User");
+    let candidates = [
+        ("Code", "VS Code"),
+        ("Code - Insiders", "VS Code Insiders"),
+        ("VSCodium", "VSCodium"),
+    ]
+    .into_iter()
+    .map(|(dir, label)| UserDataRoot {
+        path: home
+            .join("Library/Application Support")
+            .join(dir)
+            .join("User"),
+        label,
+    })
+    .collect::<Vec<_>>();
 
     #[cfg(target_os = "linux")]
-    let base = home.join(".config/Code/User");
+    let candidates = [
+        ("Code", "VS Code"),
+        ("Code - Insiders", "VS Code Insiders"),
+        ("VSCodium", "VSCodium"),
+    ]
+    .into_iter()
+    .map(|(dir, label)| UserDataRoot {
+        path: home.join(".config").join(dir).join("User"),
+        label,
+    })
+    .collect::<Vec<_>>();
 
     #[cfg(target_os = "windows")]
-    let base = home.join("AppData/Roaming/Code/User");
+    let candidates = [
+        ("Code", "VS Code"),
+        ("Code - Insiders", "VS Code Insiders"),
+        ("VSCodium", "VSCodium"),
+    ]
+    .into_iter()
+    .map(|(dir, label)| UserDataRoot {
+        path: home.join("AppData/Roaming").join(dir).join("User"),
+        label,
+    })
+    .collect::<Vec<_>>();
 
-    if base.is_dir() {
-        Some(base)
+    candidates
+        .into_iter()
+        .filter(|candidate| candidate.path.is_dir())
+        .collect()
+}
+
+fn get_workspace_storage_roots() -> Result<Vec<PathBuf>, String> {
+    let roots = get_base_paths()
+        .into_iter()
+        .map(|base| base.join("workspaceStorage"))
+        .collect::<Vec<_>>();
+    if roots.is_empty() {
+        Err("VS Code user data directory not found".to_string())
     } else {
-        None
+        Ok(roots)
     }
 }
 
-fn get_workspace_storage_root() -> Result<PathBuf, String> {
-    get_base_path()
-        .map(|base| base.join("workspaceStorage"))
-        .ok_or_else(|| "VS Code user data directory not found".to_string())
+fn is_wsl_unc_path(path: &Path) -> bool {
+    let path = path.to_string_lossy();
+    path.starts_with(r"\\wsl.localhost\")
+        || path.starts_with(r"\\wsl$\")
+        || path.starts_with(r"\\?\UNC\wsl.localhost\")
+        || path.starts_with(r"\\?\UNC\wsl$\")
 }
 
-fn validate_workspace_path_in(raw: &str, workspace_storage_root: &Path) -> Result<PathBuf, String> {
+fn is_within_any_root(canonical: &Path, roots: &[PathBuf]) -> bool {
+    for root in roots {
+        let root = match root.canonicalize() {
+            Ok(root) => root,
+            Err(_) => continue,
+        };
+        if canonical.starts_with(&root) {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_wsl_workspace_storage_path(path: &Path) -> bool {
+    if !is_wsl_unc_path(path) {
+        return false;
+    }
+    let path = path.to_string_lossy().replace('/', "\\");
+    [
+        r"\.vscode-server\data\User\workspaceStorage\",
+        r"\.vscode-server-insiders\data\User\workspaceStorage\",
+        r"\.vscodium-server\data\User\workspaceStorage\",
+    ]
+    .iter()
+    .any(|segment| path.contains(segment))
+}
+
+fn validate_workspace_path_in(
+    raw: &str,
+    workspace_storage_roots: &[PathBuf],
+) -> Result<PathBuf, String> {
     let ws_path = raw.strip_prefix("vscode://").unwrap_or(raw);
     let path = PathBuf::from(ws_path);
     if !path.is_absolute() {
@@ -77,18 +177,20 @@ fn validate_workspace_path_in(raw: &str, workspace_storage_root: &Path) -> Resul
     let canonical = path
         .canonicalize()
         .map_err(|e| format!("Failed to resolve VS Code workspace path: {e}"))?;
-    let root = workspace_storage_root
-        .canonicalize()
-        .map_err(|e| format!("Failed to resolve VS Code workspace storage root: {e}"))?;
 
-    if !canonical.starts_with(&root) {
+    if !is_within_any_root(&canonical, workspace_storage_roots)
+        && !is_wsl_workspace_storage_path(&canonical)
+    {
         return Err("VS Code workspace path is outside workspaceStorage".to_string());
     }
 
     Ok(canonical)
 }
 
-fn validate_session_path_in(raw: &str, workspace_storage_root: &Path) -> Result<PathBuf, String> {
+fn validate_session_path_in(
+    raw: &str,
+    workspace_storage_roots: &[PathBuf],
+) -> Result<PathBuf, String> {
     let path = PathBuf::from(raw);
     if !path.is_absolute() {
         return Err("VS Code session path must be absolute".to_string());
@@ -114,11 +216,10 @@ fn validate_session_path_in(raw: &str, workspace_storage_root: &Path) -> Result<
     let canonical = path
         .canonicalize()
         .map_err(|e| format!("Failed to resolve VS Code session path: {e}"))?;
-    let root = workspace_storage_root
-        .canonicalize()
-        .map_err(|e| format!("Failed to resolve VS Code workspace storage root: {e}"))?;
 
-    if !canonical.starts_with(&root) {
+    if !is_within_any_root(&canonical, workspace_storage_roots)
+        && !is_wsl_workspace_storage_path(&canonical)
+    {
         return Err("VS Code session path is outside workspaceStorage".to_string());
     }
 
@@ -126,21 +227,35 @@ fn validate_session_path_in(raw: &str, workspace_storage_root: &Path) -> Result<
 }
 
 fn validate_session_path(session_path: &str) -> Result<PathBuf, String> {
-    let root = get_workspace_storage_root()?;
-    validate_session_path_in(session_path, &root)
+    let roots = get_workspace_storage_roots().unwrap_or_default();
+    validate_session_path_in(session_path, &roots)
 }
 
 /// One workspace folder → one project.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let base = match get_base_path() {
-        Some(p) => p,
-        None => return Ok(Vec::new()),
-    };
-    let ws_root = base.join("workspaceStorage");
-    scan_projects_in(&ws_root)
+    let mut projects = Vec::new();
+    for root in get_user_data_roots() {
+        let label = (root.label != "VS Code").then_some(root.label);
+        projects.extend(scan_projects_from_user_data_path(&root.path, label)?);
+    }
+    projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    Ok(projects)
 }
 
-fn scan_projects_in(ws_root: &Path) -> Result<Vec<ClaudeProject>, String> {
+pub fn scan_projects_from_user_data_path(
+    user_data_path: &Path,
+    custom_directory_label: Option<&str>,
+) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_in(
+        &user_data_path.join("workspaceStorage"),
+        custom_directory_label,
+    )
+}
+
+fn scan_projects_in(
+    ws_root: &Path,
+    custom_directory_label: Option<&str>,
+) -> Result<Vec<ClaudeProject>, String> {
     if !ws_root.is_dir() {
         return Ok(Vec::new());
     }
@@ -220,7 +335,7 @@ fn scan_projects_in(ws_root: &Path) -> Result<Vec<ClaudeProject>, String> {
             git_info: None,
             provider: Some(PROVIDER_ID.to_string()),
             storage_type: None,
-            custom_directory_label: None,
+            custom_directory_label: custom_directory_label.map(ToString::to_string),
         });
     }
 
@@ -233,15 +348,15 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    let root = get_workspace_storage_root()?;
-    load_sessions_in(project_path, &root)
+    let roots = get_workspace_storage_roots().unwrap_or_default();
+    load_sessions_in(project_path, &roots)
 }
 
 fn load_sessions_in(
     project_path: &str,
-    workspace_storage_root: &Path,
+    workspace_storage_roots: &[PathBuf],
 ) -> Result<Vec<ClaudeSession>, String> {
-    let ws_path_buf = validate_workspace_path_in(project_path, workspace_storage_root)?;
+    let ws_path_buf = validate_workspace_path_in(project_path, workspace_storage_roots)?;
 
     let chat_dir = ws_path_buf.join("chatSessions");
     if !chat_dir.is_dir() {
@@ -320,19 +435,49 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 
 /// Naive case-insensitive search across every chat session.
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
-    let base = match get_base_path() {
-        Some(p) => p,
-        None => return Ok(Vec::new()),
-    };
-    let ws_root = base.join("workspaceStorage");
-    if !ws_root.is_dir() {
-        return Ok(Vec::new());
+    let mut results = Vec::new();
+    let query_lower = query.to_lowercase();
+    for root in get_user_data_roots() {
+        search_workspace_storage(
+            &root.path.join("workspaceStorage"),
+            &query_lower,
+            limit,
+            &mut results,
+        )?;
+        if results.len() >= limit {
+            break;
+        }
     }
+    Ok(results)
+}
 
+pub fn search_from_user_data_path(
+    user_data_path: &Path,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<ClaudeMessage>, String> {
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
+    search_workspace_storage(
+        &user_data_path.join("workspaceStorage"),
+        &query_lower,
+        limit,
+        &mut results,
+    )?;
+    Ok(results)
+}
 
-    for ws_entry in fs::read_dir(&ws_root).map_err(|e| e.to_string())?.flatten() {
+fn search_workspace_storage(
+    ws_root: &Path,
+    query_lower: &str,
+    limit: usize,
+    results: &mut Vec<ClaudeMessage>,
+) -> Result<(), String> {
+    if !ws_root.is_dir() {
+        return Ok(());
+    }
+
+    for ws_entry in fs::read_dir(ws_root).map_err(|e| e.to_string())?.flatten() {
         let ws_path = ws_entry.path();
         if is_symlink(&ws_path) || !ws_path.is_dir() {
             continue;
@@ -363,10 +508,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             if let Ok(messages) = load_messages(&session_path.to_string_lossy()) {
                 for msg in messages {
                     if results.len() >= limit {
-                        return Ok(results);
+                        return Ok(());
                     }
                     if let Some(content) = &msg.content {
-                        if search_json_value_case_insensitive(content, &query_lower) {
+                        if search_json_value_case_insensitive(content, query_lower) {
                             results.push(msg);
                         }
                     }
@@ -375,7 +520,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         }
     }
 
-    Ok(results)
+    Ok(())
 }
 
 // ============================================================================
@@ -1028,7 +1173,8 @@ mod tests {
         )
         .unwrap();
 
-        let sessions = load_sessions_in(&tmp.path().to_string_lossy(), tmp.path()).unwrap();
+        let roots = vec![tmp.path().to_path_buf()];
+        let sessions = load_sessions_in(&tmp.path().to_string_lossy(), &roots).unwrap();
         let ids: Vec<&str> = sessions
             .iter()
             .map(|s| s.actual_session_id.as_str())
@@ -1100,7 +1246,7 @@ mod tests {
         )
         .unwrap();
 
-        let projects = scan_projects_in(ws_root.path()).unwrap();
+        let projects = scan_projects_in(ws_root.path(), None).unwrap();
         let names: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
         assert!(
             !names.contains(&"empty-repo"),
@@ -1137,14 +1283,10 @@ mod tests {
         let outside_session = outside_chat_dir.join("outside-1111-1111-1111-111111111111.jsonl");
         fs::write(&outside_session, "{}").unwrap();
 
-        assert!(validate_workspace_path_in(&workspace.to_string_lossy(), ws_root.path()).is_ok());
-        assert!(validate_session_path_in(&session_path.to_string_lossy(), ws_root.path()).is_ok());
-        assert!(
-            validate_workspace_path_in(&outside_workspace.to_string_lossy(), ws_root.path())
-                .is_err()
-        );
-        assert!(
-            validate_session_path_in(&outside_session.to_string_lossy(), ws_root.path()).is_err()
-        );
+        let roots = vec![ws_root.path().to_path_buf()];
+        assert!(validate_workspace_path_in(&workspace.to_string_lossy(), &roots).is_ok());
+        assert!(validate_session_path_in(&session_path.to_string_lossy(), &roots).is_ok());
+        assert!(validate_workspace_path_in(&outside_workspace.to_string_lossy(), &roots).is_err());
+        assert!(validate_session_path_in(&outside_session.to_string_lossy(), &roots).is_err());
     }
 }

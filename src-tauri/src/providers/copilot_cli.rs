@@ -73,6 +73,10 @@ fn get_session_root() -> Result<PathBuf, String> {
     Ok(Path::new(&base).join("session-state"))
 }
 
+fn get_session_root_from_base(base_path: &str) -> PathBuf {
+    Path::new(base_path).join("session-state")
+}
+
 fn is_events_jsonl(path: &Path) -> bool {
     path.file_name().is_some_and(|n| n == "events.jsonl")
 }
@@ -93,6 +97,74 @@ fn validate_session_path(session_path: &Path, raw: &str) -> Result<PathBuf, Stri
     Ok(canonical)
 }
 
+fn is_wsl_unc_path(path: &Path) -> bool {
+    let path = path.to_string_lossy();
+    path.starts_with(r"\\wsl.localhost\")
+        || path.starts_with(r"\\wsl$\")
+        || path.starts_with(r"\\?\UNC\wsl.localhost\")
+        || path.starts_with(r"\\?\UNC\wsl$\")
+}
+
+fn validate_wsl_session_path(session_path: &Path, raw: &str) -> Result<PathBuf, String> {
+    if !is_events_jsonl(session_path) {
+        return Err(format!(
+            "Copilot CLI session path must end with events.jsonl: {raw}"
+        ));
+    }
+
+    let canonical = session_path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve WSL Copilot CLI session path: {e}"))?;
+
+    if !is_wsl_unc_path(&canonical) {
+        return Err(format!(
+            "Session path is outside Copilot CLI session directory: {raw}"
+        ));
+    }
+
+    let path = canonical.to_string_lossy().replace('/', "\\");
+    if !path.contains(r"\.copilot\session-state\") {
+        return Err(format!(
+            "WSL Copilot CLI session path is outside .copilot\\session-state: {raw}"
+        ));
+    }
+
+    Ok(canonical)
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CopilotProjectPath {
+    base_path: String,
+    cwd: String,
+}
+
+fn build_project_path(cwd: &str, base_path: Option<&str>) -> String {
+    match base_path {
+        Some(base_path) => format!(
+            "copilot-cli://{}",
+            serde_json::to_string(&CopilotProjectPath {
+                base_path: base_path.to_string(),
+                cwd: cwd.to_string(),
+            })
+            .expect("CopilotProjectPath serialization cannot fail")
+        ),
+        None => format!("copilot-cli://{cwd}"),
+    }
+}
+
+fn parse_project_path(project_path: &str) -> Result<(Option<String>, String), String> {
+    let value = project_path
+        .strip_prefix("copilot-cli://")
+        .unwrap_or(project_path);
+    if value.trim_start().starts_with('{') {
+        let parsed: CopilotProjectPath = serde_json::from_str(value)
+            .map_err(|e| format!("Invalid Copilot CLI project path: {e}"))?;
+        return Ok((Some(parsed.base_path), parsed.cwd));
+    }
+    Ok((None, value.to_string()))
+}
+
 #[derive(Debug)]
 struct SessionInfo {
     session_id: String,
@@ -108,10 +180,18 @@ struct SessionInfo {
 
 /// Group sessions by `cwd` to expose virtual `copilot-cli://<cwd>` projects.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let root = match get_session_root() {
-        Ok(p) => p,
-        Err(_) => return Ok(Vec::new()),
+    let base = match get_base_path() {
+        Some(base) => base,
+        None => return Ok(Vec::new()),
     };
+    scan_projects_from_path(&base, None)
+}
+
+pub fn scan_projects_from_path(
+    base_path: &str,
+    custom_directory_label: Option<&str>,
+) -> Result<Vec<ClaudeProject>, String> {
+    let root = get_session_root_from_base(base_path);
     if !root.is_dir() {
         return Ok(Vec::new());
     }
@@ -155,7 +235,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                 .to_string();
             ClaudeProject {
                 name,
-                path: format!("copilot-cli://{cwd}"),
+                path: build_project_path(&cwd, custom_directory_label.map(|_| base_path)),
                 actual_path: cwd,
                 session_count,
                 message_count,
@@ -163,7 +243,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                 git_info: None,
                 provider: Some(PROVIDER_ID.to_string()),
                 storage_type: None,
-                custom_directory_label: None,
+                custom_directory_label: custom_directory_label.map(ToString::to_string),
             }
         })
         .collect();
@@ -177,17 +257,23 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    let root = match get_session_root() {
-        Ok(p) => p,
-        Err(_) => return Ok(Vec::new()),
+    let (base_path, target_cwd) = parse_project_path(project_path)?;
+    let root = match base_path {
+        Some(base_path) => {
+            let base = Path::new(&base_path);
+            if !is_wsl_unc_path(base) {
+                return Err("Copilot CLI project path has an unsupported base path".to_string());
+            }
+            get_session_root_from_base(&base_path)
+        }
+        None => match get_session_root() {
+            Ok(p) => p,
+            Err(_) => return Ok(Vec::new()),
+        },
     };
     if !root.is_dir() {
         return Ok(Vec::new());
     }
-
-    let target_cwd = project_path
-        .strip_prefix("copilot-cli://")
-        .unwrap_or(project_path);
 
     let mut sessions = Vec::new();
 
@@ -212,7 +298,7 @@ pub fn load_sessions(
                 session_id: info.file_path.clone(),
                 actual_session_id: info.session_id,
                 file_path: info.file_path,
-                project_name: Path::new(target_cwd)
+                project_name: Path::new(&target_cwd)
                     .file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_default(),
@@ -242,7 +328,8 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     if !path.exists() {
         return Err(format!("Session file not found: {session_path}"));
     }
-    let canonical = validate_session_path(path, session_path)?;
+    let canonical = validate_session_path(path, session_path)
+        .or_else(|_| validate_wsl_session_path(path, session_path))?;
 
     let file = File::open(&canonical).map_err(|e| e.to_string())?;
     // SAFETY: file is opened read-only and we only read the mapping.
@@ -332,10 +419,19 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 
 /// Naive case-insensitive search across every events.jsonl.
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
-    let root = match get_session_root() {
-        Ok(p) => p,
-        Err(_) => return Ok(Vec::new()),
+    let base = match get_base_path() {
+        Some(base) => base,
+        None => return Ok(Vec::new()),
     };
+    search_from_path(&base, query, limit)
+}
+
+pub fn search_from_path(
+    base_path: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<ClaudeMessage>, String> {
+    let root = get_session_root_from_base(base_path);
     if !root.is_dir() {
         return Ok(Vec::new());
     }

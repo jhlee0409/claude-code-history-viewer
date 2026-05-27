@@ -4,6 +4,7 @@ use crate::utils::parse_rfc3339_utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cmp::Ordering;
+use std::path::{Path, PathBuf};
 
 /// Parameter for passing custom Claude paths from frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,35 +203,77 @@ pub async fn scan_all_projects(
         }
     }
 
-    // WSL scanning (Claude only — other providers' load_sessions/load_messages
-    // use native base paths internally, so WSL projects would be visible but
-    // not loadable. Extending other providers requires base-path-aware loaders.)
-    if wsl_enabled.unwrap_or(false) && providers_to_scan.iter().any(|p| p == "claude") {
+    // WSL scanning
+    if wsl_enabled.unwrap_or(false)
+        && providers_to_scan
+            .iter()
+            .any(|p| matches!(p.as_str(), "claude" | "copilot-cli" | "vscode"))
+    {
         let excluded = wsl_excluded_distros.unwrap_or_default();
 
         for (distro, home_path) in resolve_active_wsl_distros(&excluded) {
             let wsl_label = format!("WSL: {}", distro.name);
-            let claude_linux_path = home_path.join(".claude");
 
-            let unc_path =
-                match crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path) {
-                    Some(p) => p,
-                    None => continue,
-                };
-
-            let unc_str = unc_path.to_string_lossy().to_string();
-            match crate::commands::project::scan_projects(unc_str).await {
-                Ok(mut projects) => {
-                    for p in &mut projects {
-                        if p.provider.is_none() {
-                            p.provider = Some("claude".to_string());
+            if providers_to_scan.iter().any(|p| p == "claude") {
+                let claude_linux_path = home_path.join(".claude");
+                if let Some(unc_path) =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path)
+                {
+                    let unc_str = unc_path.to_string_lossy().to_string();
+                    match crate::commands::project::scan_projects(unc_str).await {
+                        Ok(mut projects) => {
+                            for p in &mut projects {
+                                if p.provider.is_none() {
+                                    p.provider = Some("claude".to_string());
+                                }
+                                p.custom_directory_label = Some(wsl_label.clone());
+                            }
+                            all_projects.extend(projects);
                         }
-                        p.custom_directory_label = Some(wsl_label.clone());
+                        Err(e) => {
+                            log::warn!("WSL: Claude scan failed for '{}': {e}", distro.name);
+                        }
                     }
-                    all_projects.extend(projects);
                 }
-                Err(e) => {
-                    log::warn!("WSL: Claude scan failed for '{}': {e}", distro.name);
+            }
+
+            if providers_to_scan.iter().any(|p| p == "copilot-cli") {
+                let copilot_linux_path = home_path.join(".copilot");
+                if let Some(unc_path) =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
+                {
+                    match providers::copilot_cli::scan_projects_from_path(
+                        &unc_path.to_string_lossy(),
+                        Some(&wsl_label),
+                    ) {
+                        Ok(projects) => all_projects.extend(projects),
+                        Err(e) => {
+                            log::warn!("WSL: Copilot CLI scan failed for '{}': {e}", distro.name);
+                        }
+                    }
+                }
+            }
+
+            if providers_to_scan.iter().any(|p| p == "vscode") {
+                for (linux_path, editor_label) in wsl_vscode_user_data_paths(&home_path) {
+                    let Some(unc_path) =
+                        crate::wsl::resolve_wsl_provider_path(&distro.name, &linux_path)
+                    else {
+                        continue;
+                    };
+                    let label = format!("{wsl_label} ({editor_label})");
+                    match providers::vscode::scan_projects_from_user_data_path(
+                        &unc_path,
+                        Some(&label),
+                    ) {
+                        Ok(projects) => all_projects.extend(projects),
+                        Err(e) => {
+                            log::warn!(
+                                "WSL: VS Code scan failed for '{}' ({editor_label}): {e}",
+                                distro.name
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -527,34 +570,81 @@ pub async fn search_all_providers(
         }
     }
 
-    // WSL search (currently Claude only)
-    if wsl_enabled.unwrap_or(false) && providers_to_search.iter().any(|p| p == "claude") {
+    // WSL search
+    if wsl_enabled.unwrap_or(false)
+        && providers_to_search
+            .iter()
+            .any(|p| matches!(p.as_str(), "claude" | "copilot-cli" | "vscode"))
+    {
         let excluded = wsl_excluded_distros.unwrap_or_default();
 
         for (distro, home_path) in resolve_active_wsl_distros(&excluded) {
-            let claude_linux_path = home_path.join(".claude");
-            if let Some(unc_path) =
-                crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path)
-            {
-                let unc_str = unc_path.to_string_lossy().to_string();
-                match crate::commands::session::search_messages(
-                    unc_str,
-                    query.clone(),
-                    search_filters.clone(),
-                    Some(max_results),
-                )
-                .await
+            if providers_to_search.iter().any(|p| p == "claude") {
+                let claude_linux_path = home_path.join(".claude");
+                if let Some(unc_path) =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path)
                 {
-                    Ok(mut results) => {
-                        for m in &mut results {
-                            if m.provider.is_none() {
-                                m.provider = Some("claude".to_string());
+                    let unc_str = unc_path.to_string_lossy().to_string();
+                    match crate::commands::session::search_messages(
+                        unc_str,
+                        query.clone(),
+                        search_filters.clone(),
+                        Some(max_results),
+                    )
+                    .await
+                    {
+                        Ok(mut results) => {
+                            for m in &mut results {
+                                if m.provider.is_none() {
+                                    m.provider = Some("claude".to_string());
+                                }
                             }
+                            all_results.extend(results);
                         }
-                        all_results.extend(results);
+                        Err(e) => {
+                            log::warn!("WSL Claude search failed for '{}': {e}", distro.name);
+                        }
                     }
-                    Err(e) => {
-                        log::warn!("WSL Claude search failed for '{}': {e}", distro.name);
+                }
+            }
+
+            if providers_to_search.iter().any(|p| p == "copilot-cli") {
+                let copilot_linux_path = home_path.join(".copilot");
+                if let Some(unc_path) =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
+                {
+                    match providers::copilot_cli::search_from_path(
+                        &unc_path.to_string_lossy(),
+                        &query,
+                        max_results,
+                    ) {
+                        Ok(results) => all_results.extend(results),
+                        Err(e) => {
+                            log::warn!("WSL Copilot CLI search failed for '{}': {e}", distro.name);
+                        }
+                    }
+                }
+            }
+
+            if providers_to_search.iter().any(|p| p == "vscode") {
+                for (linux_path, editor_label) in wsl_vscode_user_data_paths(&home_path) {
+                    let Some(unc_path) =
+                        crate::wsl::resolve_wsl_provider_path(&distro.name, &linux_path)
+                    else {
+                        continue;
+                    };
+                    match providers::vscode::search_from_user_data_path(
+                        &unc_path,
+                        &query,
+                        max_results,
+                    ) {
+                        Ok(results) => all_results.extend(results),
+                        Err(e) => {
+                            log::warn!(
+                                "WSL VS Code search failed for '{}' ({editor_label}): {e}",
+                                distro.name
+                            );
+                        }
                     }
                 }
             }
@@ -581,15 +671,14 @@ pub async fn search_all_providers(
 }
 
 /// Resolve active (non-excluded) WSL distros with their home paths.
-fn resolve_active_wsl_distros(
-    excluded: &[String],
-) -> Vec<(crate::wsl::WslDistro, std::path::PathBuf)> {
+fn resolve_active_wsl_distros(excluded: &[String]) -> Vec<(crate::wsl::WslDistro, PathBuf)> {
     let distros = crate::wsl::detect_distros();
     let mut result = Vec::new();
     for distro in distros {
         if excluded.contains(&distro.name) {
             continue;
         }
+
         match crate::wsl::resolve_home_path(&distro.name) {
             Ok(home) => result.push((distro, home)),
             Err(e) => {
@@ -598,6 +687,20 @@ fn resolve_active_wsl_distros(
         }
     }
     result
+}
+
+fn wsl_vscode_user_data_paths(home_path: &Path) -> Vec<(PathBuf, &'static str)> {
+    vec![
+        (home_path.join(".vscode-server/data/User"), "VS Code Server"),
+        (
+            home_path.join(".vscode-server-insiders/data/User"),
+            "VS Code Insiders Server",
+        ),
+        (
+            home_path.join(".vscodium-server/data/User"),
+            "VSCodium Server",
+        ),
+    ]
 }
 
 /// Merge adjacent tool execution messages into display-friendly message groups.
