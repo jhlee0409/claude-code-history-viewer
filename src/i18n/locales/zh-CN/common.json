@@ -128,6 +128,8 @@
   "common.provider.detectError": "检测提供商失败。将仅使用 Claude。",
   "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
+  "common.provider.copilotCli": "Copilot CLI",
+  "common.provider.vscode": "VS Code",
   "common.view": "查看",
   "common.watcher.autoRefresh": "自动刷新",
   "common.watcher.disabled": "自动刷新已禁用",

@@ -45,10 +45,12 @@ describe("providers utils", () => {
       "cline",
       "codebuddy",
       "codex",
+      "copilot-cli",
       "cursor",
       "forgecode",
       "gemini",
       "opencode",
+      "vscode",
     ]);
   });
 

@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "cursor", "forgecode", "gemini", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "copilot-cli", "cursor", "forgecode", "gemini", "opencode", "vscode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -13,10 +13,12 @@ const PROVIDER_TRANSLATIONS: Record<
   cline: { key: "common.provider.cline", fallback: "Cline" },
   codebuddy: { key: "common.provider.codebuddy", fallback: "CodeBuddy Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
+  "copilot-cli": { key: "common.provider.copilotCli", fallback: "Copilot CLI" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
+  vscode: { key: "common.provider.vscode", fallback: "VS Code" },
 };
 
 type TranslateFn = (key: string, defaultValue: string) => string;
@@ -72,6 +74,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  "copilot-cli": {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   cursor: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -100,6 +109,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  vscode: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
 };
 
 export interface ProviderTokenStatsLike {
@@ -121,10 +137,12 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "cline":
     case "codebuddy":
     case "codex":
+    case "copilot-cli":
     case "cursor":
     case "gemini":
     case "forgecode":
     case "opencode":
+    case "vscode":
     case "claude":
       return provider;
     default:
@@ -240,6 +258,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   claude: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   codebuddy: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
+  "copilot-cli": "bg-slate-500/15 text-slate-700 dark:text-slate-300",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
@@ -247,6 +266,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
+  vscode: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
 };
 
 export function getProviderBadgeStyle(provider?: ProviderId | string): string {

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-06-17T09:57:18.950Z
- * 총 키 개수: 1786
+ * 생성 시간: 2026-06-19T18:02:24.674Z
+ * 총 키 개수: 1788
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (162개)
+ * common namespace의 번역 키 (164개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -113,11 +113,13 @@ export type CommonKeys =
   | 'common.provider.cline'
   | 'common.provider.codebuddy'
   | 'common.provider.codex'
+  | 'common.provider.copilotCli'
   | 'common.provider.cursor'
   | 'common.provider.detectError'
   | 'common.provider.forgecode'
   | 'common.provider.gemini'
   | 'common.provider.opencode'
+  | 'common.provider.vscode'
   | 'common.refresh'
   | 'common.remove'
   | 'common.restartApp'
@@ -2265,11 +2267,13 @@ export type TranslationKey =
   | 'common.provider.cline'
   | 'common.provider.codebuddy'
   | 'common.provider.codex'
+  | 'common.provider.copilotCli'
   | 'common.provider.cursor'
   | 'common.provider.detectError'
   | 'common.provider.forgecode'
   | 'common.provider.gemini'
   | 'common.provider.opencode'
+  | 'common.provider.vscode'
   | 'common.refresh'
   | 'common.remove'
   | 'common.restartApp'

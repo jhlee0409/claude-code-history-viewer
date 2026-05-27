@@ -1032,6 +1032,20 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
+        let session_state = PathBuf::from(copilot_base).join("session-state");
+        if session_state.is_dir() {
+            paths.push(session_state);
+        }
+    }
+
+    if let Some(vscode_base) = providers::vscode::get_base_path() {
+        let ws_storage = vscode_base.join("workspaceStorage");
+        if ws_storage.is_dir() {
+            paths.push(ws_storage);
+        }
+    }
+
     let mut seen = HashSet::new();
     paths
         .into_iter()

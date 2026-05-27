@@ -32,6 +32,7 @@ pub async fn scan_all_projects(
         vec![
             "claude".to_string(),
             "codex".to_string(),
+            "copilot-cli".to_string(),
             "gemini".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -40,6 +41,7 @@ pub async fn scan_all_projects(
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
+            "vscode".to_string(),
         ]
     });
 
@@ -180,6 +182,26 @@ pub async fn scan_all_projects(
         }
     }
 
+    // Copilot CLI
+    if providers_to_scan.iter().any(|p| p == "copilot-cli") {
+        match providers::copilot_cli::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Copilot CLI scan failed: {e}");
+            }
+        }
+    }
+
+    // VS Code (Copilot Chat)
+    if providers_to_scan.iter().any(|p| p == "vscode") {
+        match providers::vscode::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("VS Code scan failed: {e}");
+            }
+        }
+    }
+
     // WSL scanning (Claude only — other providers' load_sessions/load_messages
     // use native base paths internally, so WSL projects would be visible but
     // not loadable. Extending other providers requires base-path-aware loaders.)
@@ -253,6 +275,7 @@ pub async fn load_provider_sessions(
             Ok(sessions)
         }
         "codex" => providers::codex::load_sessions(&project_path, exclude),
+        "copilot-cli" => providers::copilot_cli::load_sessions(&project_path, exclude),
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
@@ -261,6 +284,7 @@ pub async fn load_provider_sessions(
         "aider" => providers::aider::load_sessions(&project_path, exclude),
         "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
         "codebuddy" => providers::codebuddy::load_sessions(&project_path, exclude),
+        "vscode" => providers::vscode::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -283,6 +307,7 @@ pub async fn load_provider_messages(
             messages
         }
         "codex" => providers::codex::load_messages(&session_path)?,
+        "copilot-cli" => providers::copilot_cli::load_messages(&session_path)?,
         "gemini" => providers::gemini::load_messages(&session_path)?,
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
@@ -291,6 +316,7 @@ pub async fn load_provider_messages(
         "aider" => providers::aider::load_messages(&session_path)?,
         "antigravity" => providers::antigravity::load_messages(&session_path)?,
         "codebuddy" => providers::codebuddy::load_messages(&session_path)?,
+        "vscode" => providers::vscode::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -319,6 +345,7 @@ pub async fn search_all_providers(
         vec![
             "claude".to_string(),
             "codex".to_string(),
+            "copilot-cli".to_string(),
             "gemini".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -327,6 +354,7 @@ pub async fn search_all_providers(
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
+            "vscode".to_string(),
         ]
     });
 
@@ -475,6 +503,26 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("CodeBuddy search failed: {e}");
+            }
+        }
+    }
+
+    // Copilot CLI
+    if providers_to_search.iter().any(|p| p == "copilot-cli") {
+        match providers::copilot_cli::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Copilot CLI search failed: {e}");
+            }
+        }
+    }
+
+    // VS Code (Copilot Chat)
+    if providers_to_search.iter().any(|p| p == "vscode") {
+        match providers::vscode::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("VS Code search failed: {e}");
             }
         }
     }

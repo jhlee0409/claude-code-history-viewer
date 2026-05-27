@@ -6,10 +6,12 @@ pub mod claude;
 pub mod cline;
 pub mod codebuddy;
 pub mod codex;
+pub mod copilot_cli;
 pub mod cursor;
 pub mod forgecode;
 pub mod gemini;
 pub mod opencode;
+pub mod vscode;
 
 /// Provider identifier
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -20,11 +22,14 @@ pub enum ProviderId {
     Cline,
     Codebuddy,
     Codex,
+    #[serde(rename = "copilot-cli")]
+    CopilotCli,
     Cursor,
     Gemini,
     ForgeCode,
     OpenCode,
     Antigravity,
+    VsCode,
 }
 
 impl ProviderId {
@@ -35,11 +40,13 @@ impl ProviderId {
             Self::Cline => "cline",
             Self::Codebuddy => "codebuddy",
             Self::Codex => "codex",
+            Self::CopilotCli => "copilot-cli",
             Self::Cursor => "cursor",
             Self::Gemini => "gemini",
             Self::ForgeCode => "forgecode",
             Self::OpenCode => "opencode",
             Self::Antigravity => "antigravity",
+            Self::VsCode => "vscode",
         }
     }
 
@@ -50,11 +57,13 @@ impl ProviderId {
             "cline" => Some(Self::Cline),
             "codebuddy" => Some(Self::Codebuddy),
             "codex" => Some(Self::Codex),
+            "copilot-cli" => Some(Self::CopilotCli),
             "cursor" => Some(Self::Cursor),
             "gemini" => Some(Self::Gemini),
             "forgecode" => Some(Self::ForgeCode),
             "opencode" => Some(Self::OpenCode),
             "antigravity" => Some(Self::Antigravity),
+            "vscode" => Some(Self::VsCode),
             _ => None,
         }
     }
@@ -66,11 +75,13 @@ impl ProviderId {
             Self::Cline => "Cline",
             Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
+            Self::CopilotCli => "Copilot CLI",
             Self::Cursor => "Cursor",
             Self::Gemini => "Gemini CLI",
             Self::ForgeCode => "ForgeCode",
             Self::OpenCode => "OpenCode",
             Self::Antigravity => "Antigravity",
+            Self::VsCode => "VS Code",
         }
     }
 }
@@ -116,6 +127,12 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = codebuddy::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = copilot_cli::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = vscode::detect() {
         providers.push(info);
     }
 

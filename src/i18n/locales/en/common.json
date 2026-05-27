@@ -128,6 +128,8 @@
   "common.provider.detectError": "Failed to detect providers. Using Claude only.",
   "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
+  "common.provider.copilotCli": "Copilot CLI",
+  "common.provider.vscode": "VS Code",
   "common.view": "View",
   "common.watcher.autoRefresh": "Auto-refresh",
   "common.watcher.disabled": "Auto-refresh disabled",
