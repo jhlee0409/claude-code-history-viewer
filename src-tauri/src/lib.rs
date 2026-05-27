@@ -77,6 +77,8 @@ pub fn run() {
 
 /// Run the normal Tauri desktop application.
 fn run_tauri() {
+    configure_linux_ime_environment();
+
     // Workaround for WebKitGTK GPU process crash in AppImage environments.
     //
     // AppImage bundles Ubuntu-compiled EGL/Mesa libs, but the system's
@@ -276,6 +278,88 @@ fn run_tauri() {
                 let _ = event;
             }
         });
+}
+
+#[cfg(test)]
+mod ime_environment_tests {
+    use super::linux_ime_environment_updates;
+
+    #[test]
+    fn linux_ime_environment_sets_missing_ibus_variables_when_ibus_is_available() {
+        let updates = linux_ime_environment_updates(None, None, Some("unix:path=/tmp/ibus"));
+
+        assert_eq!(
+            updates,
+            vec![("GTK_IM_MODULE", "ibus"), ("XMODIFIERS", "@im=ibus"),]
+        );
+    }
+
+    #[test]
+    fn linux_ime_environment_preserves_existing_values() {
+        let updates =
+            linux_ime_environment_updates(Some("custom-gtk"), Some("@im=custom"), Some("ibus"));
+
+        assert!(updates.is_empty());
+    }
+
+    #[test]
+    fn linux_ime_environment_uses_existing_ibus_values_as_signal() {
+        let updates = linux_ime_environment_updates(Some("ibus"), None, None);
+
+        assert_eq!(updates, vec![("XMODIFIERS", "@im=ibus")]);
+    }
+
+    #[test]
+    fn linux_ime_environment_does_nothing_without_ibus_signal() {
+        let updates = linux_ime_environment_updates(None, None, None);
+
+        assert!(updates.is_empty());
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn configure_linux_ime_environment() {
+    let gtk_im_module = std::env::var("GTK_IM_MODULE").ok();
+    let xmodifiers = std::env::var("XMODIFIERS").ok();
+    let ibus_address = std::env::var("IBUS_ADDRESS").ok();
+
+    for (key, value) in linux_ime_environment_updates(
+        gtk_im_module.as_deref(),
+        xmodifiers.as_deref(),
+        ibus_address.as_deref(),
+    ) {
+        std::env::set_var(key, value);
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn configure_linux_ime_environment() {}
+
+fn linux_ime_environment_updates<'a>(
+    gtk_im_module: Option<&str>,
+    xmodifiers: Option<&str>,
+    ibus_address: Option<&str>,
+) -> Vec<(&'static str, &'a str)> {
+    let has_ibus_signal = [gtk_im_module, xmodifiers, ibus_address]
+        .into_iter()
+        .flatten()
+        .any(|value| value.contains("ibus"));
+
+    if !has_ibus_signal {
+        return Vec::new();
+    }
+
+    let mut updates = Vec::new();
+
+    if gtk_im_module.map_or(true, str::is_empty) {
+        updates.push(("GTK_IM_MODULE", "ibus"));
+    }
+
+    if xmodifiers.map_or(true, str::is_empty) {
+        updates.push(("XMODIFIERS", "@im=ibus"));
+    }
+
+    updates
 }
 
 /// Run the Axum-based `WebUI` server (headless mode).
