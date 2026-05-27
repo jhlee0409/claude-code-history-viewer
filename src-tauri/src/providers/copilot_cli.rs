@@ -199,6 +199,7 @@ pub fn scan_projects_from_path(
     let mut project_map: HashMap<String, Vec<SessionInfo>> = HashMap::new();
 
     for entry in WalkDir::new(&root)
+        .follow_links(false)
         .min_depth(2)
         .max_depth(2)
         .into_iter()
@@ -278,6 +279,7 @@ pub fn load_sessions(
     let mut sessions = Vec::new();
 
     for entry in WalkDir::new(&root)
+        .follow_links(false)
         .min_depth(2)
         .max_depth(2)
         .into_iter()
@@ -440,6 +442,7 @@ pub fn search_from_path(
     let mut results = Vec::new();
 
     for entry in WalkDir::new(&root)
+        .follow_links(false)
         .min_depth(2)
         .max_depth(2)
         .into_iter()
