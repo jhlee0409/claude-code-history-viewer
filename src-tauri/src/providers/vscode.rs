@@ -68,13 +68,17 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
         None => return Ok(Vec::new()),
     };
     let ws_root = base.join("workspaceStorage");
+    scan_projects_in(&ws_root)
+}
+
+fn scan_projects_in(ws_root: &Path) -> Result<Vec<ClaudeProject>, String> {
     if !ws_root.is_dir() {
         return Ok(Vec::new());
     }
 
     let mut projects = Vec::new();
 
-    for entry in fs::read_dir(&ws_root).map_err(|e| e.to_string())?.flatten() {
+    for entry in fs::read_dir(ws_root).map_err(|e| e.to_string())?.flatten() {
         let ws_path = entry.path();
         if is_symlink(&ws_path) || !ws_path.is_dir() {
             continue;
@@ -116,6 +120,11 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                 Some(i) => i,
                 None => continue,
             };
+            // Empty chat panels (kind:0 with requests:[]) should not be
+            // counted as sessions or contribute to the project's tally.
+            if info.message_count == 0 {
+                continue;
+            }
             session_count += 1;
             message_count += info.message_count;
             if info.last_modified_ms > last_modified_ms {
@@ -960,6 +969,79 @@ mod tests {
         assert!(
             !ids.iter().any(|id| id.starts_with("empty-")),
             "empty chat panel must be skipped: {ids:?}",
+        );
+    }
+
+    #[test]
+    fn scan_projects_excludes_workspaces_with_only_empty_panels() {
+        let ws_root = tempfile::TempDir::new().unwrap();
+
+        // Workspace 1: only empty chat panels.
+        let ws1 = ws_root.path().join("hash-empty");
+        let chat1 = ws1.join("chatSessions");
+        fs::create_dir_all(&chat1).unwrap();
+        fs::write(
+            ws1.join("workspace.json"),
+            r#"{"folder":"file:///Users/me/empty-repo"}"#,
+        )
+        .unwrap();
+        fs::write(
+            chat1.join("empty-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl"),
+            json!({"kind": 0, "v": {
+                "sessionId": "empty-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "creationDate": 1779490058917u64,
+                "requests": []
+            }})
+            .to_string(),
+        )
+        .unwrap();
+
+        // Workspace 2: one empty panel + one used session.
+        let ws2 = ws_root.path().join("hash-used");
+        let chat2 = ws2.join("chatSessions");
+        fs::create_dir_all(&chat2).unwrap();
+        fs::write(
+            ws2.join("workspace.json"),
+            r#"{"folder":"file:///Users/me/used-repo"}"#,
+        )
+        .unwrap();
+        fs::write(
+            chat2.join("empty-bbbb-bbbb-bbbb-bbbbbbbbbbbb.jsonl"),
+            json!({"kind": 0, "v": {
+                "sessionId": "empty-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+                "creationDate": 1779490058917u64,
+                "requests": []
+            }})
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            chat2.join("used-cccc-cccc-cccc-cccccccccccc.jsonl"),
+            json!({"kind": 0, "v": {
+                "sessionId": "used-cccc-cccc-cccc-cccccccccccc",
+                "creationDate": 1779490058917u64,
+                "requests": [{
+                    "message": {"text": "hello"},
+                    "response": []
+                }]
+            }})
+            .to_string(),
+        )
+        .unwrap();
+
+        let projects = scan_projects_in(ws_root.path()).unwrap();
+        let names: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
+        assert!(
+            !names.contains(&"empty-repo"),
+            "workspace with only empty panels must be skipped: {names:?}",
+        );
+        let used = projects
+            .iter()
+            .find(|p| p.name == "used-repo")
+            .expect("used-repo project must be present");
+        assert_eq!(
+            used.session_count, 1,
+            "session count must exclude the empty panel",
         );
     }
 }
