@@ -61,6 +61,75 @@ pub fn get_base_path() -> Option<PathBuf> {
     }
 }
 
+fn get_workspace_storage_root() -> Result<PathBuf, String> {
+    get_base_path()
+        .map(|base| base.join("workspaceStorage"))
+        .ok_or_else(|| "VS Code user data directory not found".to_string())
+}
+
+fn validate_workspace_path_in(raw: &str, workspace_storage_root: &Path) -> Result<PathBuf, String> {
+    let ws_path = raw.strip_prefix("vscode://").unwrap_or(raw);
+    let path = PathBuf::from(ws_path);
+    if !path.is_absolute() {
+        return Err("VS Code workspace path must be absolute".to_string());
+    }
+
+    let canonical = path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve VS Code workspace path: {e}"))?;
+    let root = workspace_storage_root
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve VS Code workspace storage root: {e}"))?;
+
+    if !canonical.starts_with(&root) {
+        return Err("VS Code workspace path is outside workspaceStorage".to_string());
+    }
+
+    Ok(canonical)
+}
+
+fn validate_session_path_in(raw: &str, workspace_storage_root: &Path) -> Result<PathBuf, String> {
+    let path = PathBuf::from(raw);
+    if !path.is_absolute() {
+        return Err("VS Code session path must be absolute".to_string());
+    }
+    if path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+        != Some("jsonl")
+    {
+        return Err("VS Code session path must be a JSONL file".to_string());
+    }
+    if path
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|n| n.to_str())
+        != Some("chatSessions")
+    {
+        return Err("VS Code session path must be inside a chatSessions directory".to_string());
+    }
+
+    let canonical = path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve VS Code session path: {e}"))?;
+    let root = workspace_storage_root
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve VS Code workspace storage root: {e}"))?;
+
+    if !canonical.starts_with(&root) {
+        return Err("VS Code session path is outside workspaceStorage".to_string());
+    }
+
+    Ok(canonical)
+}
+
+fn validate_session_path(session_path: &str) -> Result<PathBuf, String> {
+    let root = get_workspace_storage_root()?;
+    validate_session_path_in(session_path, &root)
+}
+
 /// One workspace folder → one project.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let base = match get_base_path() {
@@ -164,13 +233,15 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    let ws_path = project_path
-        .strip_prefix("vscode://")
-        .unwrap_or(project_path);
-    let ws_path_buf = PathBuf::from(ws_path);
-    if !ws_path_buf.is_absolute() {
-        return Err("VS Code workspace path must be absolute".to_string());
-    }
+    let root = get_workspace_storage_root()?;
+    load_sessions_in(project_path, &root)
+}
+
+fn load_sessions_in(
+    project_path: &str,
+    workspace_storage_root: &Path,
+) -> Result<Vec<ClaudeSession>, String> {
+    let ws_path_buf = validate_workspace_path_in(project_path, workspace_storage_root)?;
 
     let chat_dir = ws_path_buf.join("chatSessions");
     if !chat_dir.is_dir() {
@@ -241,7 +312,7 @@ pub fn load_sessions(
 
 /// Replay the patch log, then convert each request into messages.
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
-    let path = Path::new(session_path);
+    let path = validate_session_path(session_path)?;
     let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let state = replay_session(&raw)?;
     Ok(messages_from_state(&state))
@@ -957,7 +1028,7 @@ mod tests {
         )
         .unwrap();
 
-        let sessions = load_sessions(&tmp.path().to_string_lossy(), false).unwrap();
+        let sessions = load_sessions_in(&tmp.path().to_string_lossy(), tmp.path()).unwrap();
         let ids: Vec<&str> = sessions
             .iter()
             .map(|s| s.actual_session_id.as_str())
@@ -1042,6 +1113,38 @@ mod tests {
         assert_eq!(
             used.session_count, 1,
             "session count must exclude the empty panel",
+        );
+    }
+
+    #[test]
+    fn path_validation_rejects_paths_outside_workspace_storage() {
+        let ws_root = tempfile::TempDir::new().unwrap();
+        let workspace = ws_root.path().join("hash-used");
+        let chat_dir = workspace.join("chatSessions");
+        fs::create_dir_all(&chat_dir).unwrap();
+        let session_path = chat_dir.join("session-1111-1111-1111-111111111111.jsonl");
+        fs::write(
+            &session_path,
+            json!({"kind": 0, "v": {"sessionId": "session-1111-1111-1111-111111111111", "requests": []}})
+                .to_string(),
+        )
+        .unwrap();
+
+        let outside = tempfile::TempDir::new().unwrap();
+        let outside_workspace = outside.path().join("workspace");
+        let outside_chat_dir = outside_workspace.join("chatSessions");
+        fs::create_dir_all(&outside_chat_dir).unwrap();
+        let outside_session = outside_chat_dir.join("outside-1111-1111-1111-111111111111.jsonl");
+        fs::write(&outside_session, "{}").unwrap();
+
+        assert!(validate_workspace_path_in(&workspace.to_string_lossy(), ws_root.path()).is_ok());
+        assert!(validate_session_path_in(&session_path.to_string_lossy(), ws_root.path()).is_ok());
+        assert!(
+            validate_workspace_path_in(&outside_workspace.to_string_lossy(), ws_root.path())
+                .is_err()
+        );
+        assert!(
+            validate_session_path_in(&outside_session.to_string_lossy(), ws_root.path()).is_err()
         );
     }
 }
