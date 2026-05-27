@@ -8,7 +8,7 @@ import { api } from "@/services/api";
 import type { ClaudeMessage, SearchFilters } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
-import { searchMessages as searchMessagesFromIndex } from "../../utils/searchIndex";
+import { searchMessagesAsync, buildSearchIndex, isSearchIndexReady, linearSearchMessages } from "../../utils/searchIndex";
 import {
   type SearchState,
   type SearchFilterType,
@@ -36,7 +36,7 @@ export interface SearchSliceActions {
   searchMessages: (query: string, filters?: SearchFilters) => Promise<void>;
   setSearchFilters: (filters: SearchFilters) => void;
   // Session search
-  setSessionSearchQuery: (query: string) => void;
+  setSessionSearchQuery: (query: string) => Promise<void> | void;
   setSearchFilterType: (filterType: SearchFilterType) => void;
   goToNextMatch: () => void;
   goToPrevMatch: () => void;
@@ -118,7 +118,7 @@ export const createSearchSlice: StateCreator<
   },
 
   // Session search (KakaoTalk-style navigation)
-  setSessionSearchQuery: (query: string) => {
+  setSessionSearchQuery: async (query: string) => {
     const { messages, sessionSearch } = get();
     const { filterType } = sessionSearch;
 
@@ -140,8 +140,18 @@ export const createSearchSlice: StateCreator<
     }));
 
     try {
-      // FlexSearch high-speed search (inverted index O(1) ~ O(log n))
-      const searchResults = searchMessagesFromIndex(query, filterType);
+      // Search strategy: Worker (async) > linear fallback (sync)
+      let searchResults: Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }>;
+
+      if (isSearchIndexReady()) {
+        // Worker index is ready — use fast async search
+        searchResults = await searchMessagesAsync(query, filterType);
+      } else {
+        // Index not ready — use linear search (instant, ~100-200ms for 50k messages)
+        searchResults = linearSearchMessages(messages, query, filterType);
+        // Trigger background Worker index build for future searches
+        buildSearchIndex(messages);
+      }
 
       // Convert to SearchMatch format (filter valid indices)
       const matches: SearchMatch[] = searchResults

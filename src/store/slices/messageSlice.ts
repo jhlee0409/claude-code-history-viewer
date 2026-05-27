@@ -17,7 +17,7 @@ import type {
 } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
-import { buildSearchIndex, clearSearchIndex } from "../../utils/searchIndex";
+import { clearSearchIndex } from "../../utils/searchIndex";
 import type { FullAppStore } from "./types";
 import {
   fetchSessionTokenStats,
@@ -260,17 +260,8 @@ export const createMessageSlice: StateCreator<
       // progress 메시지를 통한 parentToolUseID ↔ subagent 매핑이 성립.
       void get().loadSubagents(sessionPath, allMessages);
 
-      // Build FlexSearch index asynchronously after UI renders
-      // The buildSearchIndex now internally uses chunked async processing
-      if ("requestIdleCallback" in window) {
-        (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(() => {
-          buildSearchIndex(filteredMessages);
-        });
-      } else {
-        setTimeout(() => {
-          buildSearchIndex(filteredMessages);
-        }, 0);
-      }
+      // Search index is built lazily on first search to avoid blocking UI
+      // when loading large sessions (47k+ messages with tokenize:"full" is expensive).
     } catch (error) {
       // Stale error guard: await 중 다른 세션으로 이동했으면 abandoned request의
       // 에러·로딩 상태를 현재 UI에 덮어쓰지 않음 (success path의 L212 guard 미러링)

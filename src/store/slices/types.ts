@@ -233,7 +233,7 @@ export interface AppStoreActions {
   // Search actions
   searchMessages: (query: string, filters?: SearchFilters) => Promise<void>;
   setSearchFilters: (filters: SearchFilters) => void;
-  setSessionSearchQuery: (query: string) => void;
+  setSessionSearchQuery: (query: string) => Promise<void> | void;
   setSearchFilterType: (filterType: SearchFilterType) => void;
   goToNextMatch: () => void;
   goToPrevMatch: () => void;
