@@ -362,6 +362,7 @@ export const ClaudeMessageNode = React.memo(({
               durationMs={message.durationMs}
               compactMetadata={message.compactMetadata}
               microcompactMetadata={message.microcompactMetadata}
+              expandKey={message.uuid}
             />
           </div>
         </div>

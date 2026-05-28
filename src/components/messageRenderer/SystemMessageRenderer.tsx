@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CommandRenderer } from "../contentRenderer";
+import { Renderer } from "@/shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,7 @@ type Props = {
   compactMetadata?: CompactMetadata;
   // microcompact_boundary fields
   microcompactMetadata?: CompactMetadata;
+  expandKey?: string;
 };
 
 const LEVEL_CONFIG = {
@@ -132,6 +134,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
   durationMs,
   compactMetadata,
   microcompactMetadata,
+  expandKey,
 }: Props) {
   const { t } = useTranslation();
 
@@ -289,17 +292,21 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
 
   if (subtype === "system_prompt") {
     return (
-      <details className={cn(`${config.bgColor} border ${config.borderColor} ${layout.smallText}`, layout.rounded, layout.containerPadding)}>
-        <summary className={cn("cursor-pointer select-none", config.color)}>
-          <span className={cn("inline-flex items-center font-medium", layout.iconSpacing)}>
-            <Icon className={cn(layout.iconSize, config.color)} />
-            <span>{getSubtypeLabel(subtype)}</span>
-          </span>
-        </summary>
-        <div className="mt-2 text-foreground whitespace-pre-wrap break-words">
-          {content || t("systemMessageRenderer.empty", { defaultValue: "No content" })}
-        </div>
-      </details>
+      <Renderer
+        className={cn(config.bgColor, config.borderColor)}
+        expandKey={expandKey ? `system-prompt-${expandKey}` : "system-prompt"}
+      >
+        <Renderer.Header
+          title={getSubtypeLabel(subtype)}
+          icon={<Icon className={cn(layout.iconSize, config.color)} />}
+          titleClassName={config.color}
+        />
+        <Renderer.Content>
+          <div className="text-foreground whitespace-pre-wrap break-words">
+            {content || t("systemMessageRenderer.empty", { defaultValue: "No content" })}
+          </div>
+        </Renderer.Content>
+      </Renderer>
     );
   }
 
