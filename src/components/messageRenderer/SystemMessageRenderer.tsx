@@ -28,7 +28,7 @@ interface CompactMetadata {
   preTokens?: number;
 }
 
-type SystemSubtype = "stop_hook_summary" | "turn_duration" | "compact_boundary" | "microcompact_boundary" | "local_command";
+type SystemSubtype = "stop_hook_summary" | "turn_duration" | "compact_boundary" | "microcompact_boundary" | "local_command" | "system_prompt";
 
 type Props = {
   content?: string;
@@ -104,6 +104,12 @@ const SUBTYPE_CONFIG: Record<SystemSubtype, { icon: typeof Info; color: string; 
     color: "text-tool-terminal",
     bgColor: "bg-tool-terminal/10",
     borderColor: "border-tool-terminal/30",
+  },
+  system_prompt: {
+    icon: FileText,
+    color: "text-muted-foreground",
+    bgColor: "bg-muted/50",
+    borderColor: "border-border",
   },
 };
 
@@ -279,6 +285,22 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
 
   if (hasCommandTags && content) {
     return <CommandRenderer text={content} variant="system" />;
+  }
+
+  if (subtype === "system_prompt") {
+    return (
+      <details className={cn(`${config.bgColor} border ${config.borderColor} ${layout.smallText}`, layout.rounded, layout.containerPadding)}>
+        <summary className={cn("cursor-pointer select-none", config.color)}>
+          <span className={cn("inline-flex items-center font-medium", layout.iconSpacing)}>
+            <Icon className={cn(layout.iconSize, config.color)} />
+            <span>{getSubtypeLabel(subtype)}</span>
+          </span>
+        </summary>
+        <div className="mt-2 text-foreground whitespace-pre-wrap break-words">
+          {content || t("systemMessageRenderer.empty", { defaultValue: "No content" })}
+        </div>
+      </details>
+    );
   }
 
   // Handle regular content or empty
