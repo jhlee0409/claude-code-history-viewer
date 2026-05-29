@@ -98,6 +98,7 @@
   "session.revealError": "Could not reveal file",
   "session.deleteConfirm": "This will move the session file and all associated data (subagents, tool results) to the trash.",
   "session.deleteError": "Failed to delete session",
+  "session.selectError": "Failed to open session",
   "session.deleteSession": "Delete Session",
   "session.deleteSuccess": "Session deleted",
   "session.deleteTitle": "Delete Session",

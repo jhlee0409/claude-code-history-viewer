@@ -41,13 +41,14 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
     let home = home_raw.canonicalize().unwrap_or_else(|_| home_raw.clone());
     let home = strip_windows_prefix(&home);
 
-    let allowed: [PathBuf; 6] = [
+    let allowed: [PathBuf; 7] = [
         home.join(".claude").join("projects"),
         home.join(".codex").join("sessions"),
         home.join(".gemini"),
         home.join(".local").join("share").join("opencode"),
         home.join(".cline").join("tasks"),
         home.join(".cursor"),
+        home.join(".codebuddy").join("projects"),
     ];
 
     let canonical = if path.exists() {

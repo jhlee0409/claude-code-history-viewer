@@ -4,6 +4,7 @@ pub mod aider;
 pub mod antigravity;
 pub mod claude;
 pub mod cline;
+pub mod codebuddy;
 pub mod codex;
 pub mod cursor;
 pub mod forgecode;
@@ -17,6 +18,7 @@ pub enum ProviderId {
     Aider,
     Claude,
     Cline,
+    Codebuddy,
     Codex,
     Cursor,
     Gemini,
@@ -31,6 +33,7 @@ impl ProviderId {
             Self::Aider => "aider",
             Self::Claude => "claude",
             Self::Cline => "cline",
+            Self::Codebuddy => "codebuddy",
             Self::Codex => "codex",
             Self::Cursor => "cursor",
             Self::Gemini => "gemini",
@@ -45,6 +48,7 @@ impl ProviderId {
             "aider" => Some(Self::Aider),
             "claude" => Some(Self::Claude),
             "cline" => Some(Self::Cline),
+            "codebuddy" => Some(Self::Codebuddy),
             "codex" => Some(Self::Codex),
             "cursor" => Some(Self::Cursor),
             "gemini" => Some(Self::Gemini),
@@ -60,6 +64,7 @@ impl ProviderId {
             Self::Aider => "Aider",
             Self::Claude => "Claude Code",
             Self::Cline => "Cline",
+            Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
             Self::Cursor => "Cursor",
             Self::Gemini => "Gemini CLI",
@@ -108,6 +113,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = antigravity::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = codebuddy::detect() {
         providers.push(info);
     }
 

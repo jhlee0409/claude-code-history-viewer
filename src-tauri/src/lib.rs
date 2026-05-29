@@ -542,6 +542,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(codebuddy_base) = providers::codebuddy::get_base_path() {
+        let codebuddy_projects = PathBuf::from(codebuddy_base);
+        if codebuddy_projects.is_dir() {
+            paths.push(codebuddy_projects);
+        }
+    }
+
     let mut seen = HashSet::new();
     paths
         .into_iter()

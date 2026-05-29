@@ -98,6 +98,7 @@
   "session.revealError": "无法显示文件",
   "session.deleteConfirm": "这将把会话文件及所有相关数据（子代理、工具结果）移至回收站。",
   "session.deleteError": "删除会话失败",
+  "session.selectError": "打开会话失败",
   "session.deleteSession": "删除会话",
   "session.deleteSuccess": "会话已删除",
   "session.deleteTitle": "删除会话",

@@ -98,6 +98,7 @@
   "session.revealError": "파일을 열 수 없습니다",
   "session.deleteConfirm": "세션 파일과 관련된 모든 데이터(서브에이전트, 도구 결과)가 휴지통으로 이동됩니다.",
   "session.deleteError": "세션 삭제에 실패했습니다",
+  "session.selectError": "세션을 열 수 없습니다",
   "session.deleteSession": "세션 삭제",
   "session.deleteSuccess": "세션이 삭제되었습니다",
   "session.deleteTitle": "세션 삭제",

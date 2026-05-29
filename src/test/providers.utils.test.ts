@@ -43,6 +43,7 @@ describe("providers utils", () => {
       "antigravity",
       "claude",
       "cline",
+      "codebuddy",
       "codex",
       "cursor",
       "forgecode",

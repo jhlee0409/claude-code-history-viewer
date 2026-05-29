@@ -21,6 +21,7 @@ use walkdir::WalkDir;
 enum StatsProvider {
     #[default]
     Claude,
+    Codebuddy,
     Codex,
     ForgeCode,
     OpenCode,
@@ -56,6 +57,7 @@ fn parse_stats_mode(stats_mode: Option<String>) -> StatsMode {
 fn stats_provider_id(provider: StatsProvider) -> &'static str {
     match provider {
         StatsProvider::Claude => "claude",
+        StatsProvider::Codebuddy => "codebuddy",
         StatsProvider::Codex => "codex",
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
@@ -209,6 +211,7 @@ fn should_include_stats_message(message: &ClaudeMessage, mode: StatsMode) -> boo
 fn all_stats_providers() -> HashSet<StatsProvider> {
     [
         StatsProvider::Claude,
+        StatsProvider::Codebuddy,
         StatsProvider::Codex,
         StatsProvider::ForgeCode,
         StatsProvider::OpenCode,
@@ -229,6 +232,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
         .into_iter()
         .filter_map(|provider| match provider.as_str() {
             "claude" => Some(StatsProvider::Claude),
+            "codebuddy" => Some(StatsProvider::Codebuddy),
             "codex" => Some(StatsProvider::Codex),
             "forgecode" => Some(StatsProvider::ForgeCode),
             "opencode" => Some(StatsProvider::OpenCode),
@@ -260,6 +264,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::OpenCode
     } else if is_antigravity_path(project_path) {
         StatsProvider::Antigravity
+    } else if project_path.contains(".codebuddy") {
+        StatsProvider::Codebuddy
     } else {
         StatsProvider::Claude
     }
@@ -277,6 +283,11 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
 
     if session_path.starts_with("forgecode://") || session_path.starts_with("forgecode-db://") {
         return StatsProvider::ForgeCode;
+    }
+
+    // CodeBuddy: path contains .codebuddy
+    if session_path.contains(".codebuddy") {
+        return StatsProvider::Codebuddy;
     }
 
     let is_rollout = PathBuf::from(session_path)
@@ -966,6 +977,7 @@ fn collect_provider_global_file_stats(
     }
 
     let projects = match provider {
+        StatsProvider::Codebuddy => providers::codebuddy::scan_projects().unwrap_or_default(),
         StatsProvider::Codex => providers::codex::scan_projects().unwrap_or_default(),
         StatsProvider::ForgeCode => providers::forgecode::scan_projects().unwrap_or_default(),
         StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
@@ -974,6 +986,7 @@ fn collect_provider_global_file_stats(
     };
 
     let provider_tag = match provider {
+        StatsProvider::Codebuddy => "codebuddy",
         StatsProvider::Codex => "codex",
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
@@ -989,6 +1002,7 @@ fn collect_provider_global_file_stats(
         project_keys.insert(format!("{provider_tag}:{}", project.path));
 
         let sessions = match provider {
+            StatsProvider::Codebuddy => providers::codebuddy::load_sessions(&project.path, false),
             StatsProvider::Codex => providers::codex::load_sessions(&project.path, false),
             StatsProvider::ForgeCode => providers::forgecode::load_sessions(&project.path, false),
             StatsProvider::OpenCode => providers::opencode::load_sessions(&project.path, false),
@@ -1009,6 +1023,7 @@ fn collect_provider_global_file_stats(
         .par_iter()
         .filter_map(|(project_name, file_path)| {
             let messages = match provider {
+                StatsProvider::Codebuddy => providers::codebuddy::load_messages(file_path),
                 StatsProvider::Codex => providers::codex::load_messages(file_path),
                 StatsProvider::ForgeCode => providers::forgecode::load_messages(file_path),
                 StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
@@ -1580,6 +1595,18 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
             .and_then(|n| n.to_str())
             .unwrap_or("Unknown")
             .to_string(),
+        StatsProvider::Codebuddy => {
+            if let Ok(projects) = providers::codebuddy::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            PathBuf::from(project_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown")
+                .to_string()
+        }
         StatsProvider::Codex => {
             let cwd = project_path
                 .strip_prefix("codex://")
@@ -1646,6 +1673,19 @@ fn resolve_provider_project_name_from_session(
             let project_path = format!("opencode://{project_part}");
             resolve_provider_project_name(provider, &project_path)
         }
+        StatsProvider::Codebuddy => {
+            if let Ok(projects) = providers::codebuddy::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::codebuddy::load_sessions(&project.path, false)
+                    {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "codebuddy".to_string()
+        }
         StatsProvider::Codex => {
             if let Ok(projects) = providers::codex::scan_projects() {
                 for project in projects {
@@ -1669,6 +1709,7 @@ fn load_provider_sessions_for_stats(
     project_path: &str,
 ) -> Result<Vec<crate::models::ClaudeSession>, String> {
     match provider {
+        StatsProvider::Codebuddy => providers::codebuddy::load_sessions(project_path, false),
         StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
         StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
@@ -1685,6 +1726,7 @@ fn load_provider_messages_for_stats(
     session: &crate::models::ClaudeSession,
 ) -> Result<Vec<ClaudeMessage>, String> {
     match provider {
+        StatsProvider::Codebuddy => providers::codebuddy::load_messages(&session.file_path),
         StatsProvider::Codex => providers::codex::load_messages(&session.file_path),
         StatsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path),
         StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
@@ -2429,6 +2471,7 @@ pub async fn get_session_token_stats(
         }
 
         let messages = match provider {
+            StatsProvider::Codebuddy => providers::codebuddy::load_messages(&session_path)?,
             StatsProvider::Codex => providers::codex::load_messages(&session_path)?,
             StatsProvider::ForgeCode => providers::forgecode::load_messages(&session_path)?,
             StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
@@ -3270,6 +3313,13 @@ pub async fn get_global_stats_summary(
         .par_iter()
         .filter_map(|path| process_session_file_for_global_stats(path, mode, s_ref, e_ref))
         .collect();
+
+    if providers_to_include.contains(&StatsProvider::Codebuddy) {
+        let (codebuddy_stats, codebuddy_projects) =
+            collect_provider_global_file_stats(StatsProvider::Codebuddy, mode, s_ref, e_ref);
+        project_names.extend(codebuddy_projects);
+        file_stats.extend(codebuddy_stats);
+    }
 
     if providers_to_include.contains(&StatsProvider::Codex) {
         let (codex_stats, codex_projects) =

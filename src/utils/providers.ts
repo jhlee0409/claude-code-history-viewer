@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codex", "cursor", "forgecode", "gemini", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "cursor", "forgecode", "gemini", "opencode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -11,6 +11,7 @@ const PROVIDER_TRANSLATIONS: Record<
   antigravity: { key: "common.provider.antigravity", fallback: "Antigravity" },
   claude: { key: "common.provider.claude", fallback: "Claude Code" },
   cline: { key: "common.provider.cline", fallback: "Cline" },
+  codebuddy: { key: "common.provider.codebuddy", fallback: "CodeBuddy Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
@@ -51,6 +52,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsArchiveCreation: true,
   },
   cline: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  codebuddy: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
@@ -111,6 +119,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "aider":
     case "antigravity":
     case "cline":
+    case "codebuddy":
     case "codex":
     case "cursor":
     case "gemini":
@@ -229,6 +238,7 @@ export function supportsArchiveCreation(provider?: ProviderId | string): boolean
 
 export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   claude: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  codebuddy: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",

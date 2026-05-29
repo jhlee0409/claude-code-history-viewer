@@ -98,6 +98,7 @@
   "session.revealError": "ファイルを表示できませんでした",
   "session.deleteConfirm": "セッションファイルと関連するすべてのデータ（サブエージェント、ツール結果）がゴミ箱に移動されます。",
   "session.deleteError": "セッションの削除に失敗しました",
+  "session.selectError": "セッションを開けませんでした",
   "session.deleteSession": "セッションを削除",
   "session.deleteSuccess": "セッションを削除しました",
   "session.deleteTitle": "セッションを削除",
