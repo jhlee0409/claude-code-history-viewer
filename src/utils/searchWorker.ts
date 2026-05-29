@@ -6,6 +6,7 @@
  */
 
 import FlexSearch from "flexsearch";
+import type { Document as FlexSearchDocument } from "flexsearch";
 
 // ============================================================================
 // Types (duplicated here since workers can't import from main thread modules)
@@ -21,8 +22,9 @@ interface ClaudeMessageMinimal {
 
 type SearchFilterType = "content" | "toolId";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type FlexSearchDocumentIndex = any;
+// FlexSearch document shape used by this worker's content / toolId indexes
+type SearchDoc = { uuid: string; messageIndex: number; text: string };
+type FlexSearchDocumentIndex = FlexSearchDocument<SearchDoc>;
 
 // ============================================================================
 // Worker Message Protocol
@@ -200,7 +202,9 @@ function searchIndex(
 
   const results = index.search(lowerQuery, { limit: 1000, enrich: true });
   const matchedUuids = new Set<string>();
-  results.forEach((fieldResult: { result: Array<string | { id: string }> }) => {
+  // FlexSearch's enriched result type is complex; cast to the shape we actually consume.
+  const enrichedResults = results as unknown as Array<{ result: Array<string | { id: string }> }>;
+  enrichedResults.forEach((fieldResult) => {
     if (fieldResult.result) {
       fieldResult.result.forEach((item: string | { id: string }) => {
         matchedUuids.add(typeof item === "string" ? item : item.id);

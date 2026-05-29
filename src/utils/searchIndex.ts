@@ -1,9 +1,11 @@
 import FlexSearch from "flexsearch";
+import type { Document as FlexSearchDocument } from "flexsearch";
 import type { ClaudeMessage } from "../types";
 import type { SearchFilterType } from "../store/useAppStore";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type FlexSearchDocumentIndex = any;
+// FlexSearch document shape used by this module's content / toolId indexes
+type SearchDoc = { uuid: string; messageIndex: number; text: string };
+type FlexSearchDocumentIndex = FlexSearchDocument<SearchDoc>;
 
 // Type guards for safe type checking
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -400,7 +402,9 @@ class MessageSearchIndex {
 
     // 매치된 메시지 UUID 수집
     const matchedUuids = new Set<string>();
-    results.forEach((fieldResult: { field: string; result: (string | EnrichedResult)[] }) => {
+    // FlexSearch's enriched result type is complex; cast to the shape we actually consume.
+    const enrichedResults = results as unknown as Array<{ field: string; result: (string | EnrichedResult)[] }>;
+    enrichedResults.forEach((fieldResult) => {
       if (fieldResult.result) {
         fieldResult.result.forEach((item: string | EnrichedResult) => {
           const uuid = extractUuidFromResult(item);
@@ -471,8 +475,37 @@ type SearchResult = { messageUuid: string; messageIndex: number; matchIndex: num
 
 let worker: Worker | null = null;
 let workerReady = false;
+// In-flight build guard: prevents repeated index rebuilds when the user
+// types continuously. Same messages reference is a no-op while a build
+// is in flight or already ready.
+let workerBuildInFlight = false;
+let lastBuildMessagesRef: ClaudeMessage[] | null = null;
 const pendingSearchCallbacks = new Map<number, (results: SearchResult[]) => void>();
+const pendingSearchTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
+const SEARCH_TIMEOUT_MS = 5000;
 let searchIdCounter = 0;
+
+// Internal: clear a pending search (cancel its timeout + delete its callback).
+function resolveAndCleanupSearch(id: number, results: SearchResult[]): void {
+  const callback = pendingSearchCallbacks.get(id);
+  if (!callback) return;
+  pendingSearchCallbacks.delete(id);
+  const timer = pendingSearchTimeouts.get(id);
+  if (timer != null) {
+    clearTimeout(timer);
+    pendingSearchTimeouts.delete(id);
+  }
+  callback(results);
+}
+
+// Internal: resolve every pending search with [] - used when the worker
+// errors out or is cleared, so callbacks don't leak and the UI is unstuck.
+function resolveAllPendingSearches(): void {
+  const ids = Array.from(pendingSearchCallbacks.keys());
+  for (const id of ids) {
+    resolveAndCleanupSearch(id, []);
+  }
+}
 
 function getWorker(): Worker | null {
   if (worker) return worker;
@@ -482,16 +515,23 @@ function getWorker(): Worker | null {
       const msg = event.data;
       if (msg.type === "build-complete") {
         workerReady = true;
+        workerBuildInFlight = false;
         if (import.meta.env.DEV) {
           console.log(`[SearchIndex Worker] Index built for ${msg.count} messages`);
         }
       } else if (msg.type === "search-result") {
-        const callback = pendingSearchCallbacks.get(msg.id);
-        if (callback) {
-          pendingSearchCallbacks.delete(msg.id);
-          callback(msg.results);
-        }
+        resolveAndCleanupSearch(msg.id, msg.results);
       }
+    };
+    // Resolve all pending searches on worker crash/error so the UI never
+    // gets stuck in a "searching..." state.
+    worker.onerror = (event) => {
+      if (import.meta.env.DEV) {
+        console.error("[SearchIndex Worker] Worker error:", event);
+      }
+      workerReady = false;
+      workerBuildInFlight = false;
+      resolveAllPendingSearches();
     };
     return worker;
   } catch {
@@ -504,7 +544,13 @@ function getWorker(): Worker | null {
 export const buildSearchIndex = (messages: ClaudeMessage[]): void => {
   const w = getWorker();
   if (w) {
+    // De-dup: skip if the same messages reference is already building or built.
+    if (lastBuildMessagesRef === messages && (workerBuildInFlight || workerReady)) {
+      return;
+    }
     workerReady = false;
+    workerBuildInFlight = true;
+    lastBuildMessagesRef = messages;
     // Send minimal message data to worker (avoid transferring unnecessary fields)
     const minimalMessages = messages.map(m => ({
       uuid: m.uuid,
@@ -529,6 +575,15 @@ export const searchMessagesAsync = (
     return new Promise((resolve) => {
       const id = ++searchIdCounter;
       pendingSearchCallbacks.set(id, resolve);
+      // 5s safety timeout so the promise never stays pending if the worker
+      // drops the message or the search hangs.
+      const timer = setTimeout(() => {
+        if (import.meta.env.DEV) {
+          console.warn(`[SearchIndex Worker] Search ${id} timed out after ${SEARCH_TIMEOUT_MS}ms`);
+        }
+        resolveAndCleanupSearch(id, []);
+      }, SEARCH_TIMEOUT_MS);
+      pendingSearchTimeouts.set(id, timer);
       w.postMessage({ type: "search", id, query, filterType });
     });
   }
@@ -547,6 +602,10 @@ export const searchMessages = (
 export const clearSearchIndex = (): void => {
   messageSearchIndex.clear();
   workerReady = false;
+  workerBuildInFlight = false;
+  lastBuildMessagesRef = null;
+  // Also resolve pending searches so callbacks don't linger past the clear.
+  resolveAllPendingSearches();
   const w = getWorker();
   if (w) {
     w.postMessage({ type: "clear" });
