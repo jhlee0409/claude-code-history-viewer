@@ -34,11 +34,20 @@ pub fn get_base_path() -> Option<String> {
     }
 }
 
-/// Scan `CodeBuddy` projects
+/// Scan `CodeBuddy` projects under the user's `~/.codebuddy/projects` root.
+///
+/// Thin wrapper over [`scan_projects_in`] that resolves the production root
+/// from `dirs::home_dir()`. Tests should call `scan_projects_in` directly with
+/// a tempdir so the assertion runs against the real production code path
+/// instead of a copy of the loop logic.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let base_path = get_base_path().ok_or("CodeBuddy projects path not found")?;
-    let base = Path::new(&base_path);
+    scan_projects_in(Path::new(&base_path))
+}
 
+/// Implementation of [`scan_projects`] parameterized by the projects root.
+/// Extracted so tests can pass an isolated tempdir.
+pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
     let mut projects = Vec::new();
 
     for entry in WalkDir::new(base)
@@ -62,6 +71,15 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
             .filter_map(Result::ok)
             .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         {
+            // Skip symlinked .jsonl entries: they could leak file counts and
+            // mtimes from outside the project root into the sidebar summary.
+            // Mirrors the symlink check in `load_sessions`.
+            if std::fs::symlink_metadata(jsonl_entry.path())
+                .map(|m| m.file_type().is_symlink())
+                .unwrap_or(false)
+            {
+                continue;
+            }
             session_count += 1;
             if let Ok(metadata) = jsonl_entry.metadata() {
                 message_count += (metadata.len() / 500) as usize;
@@ -450,9 +468,9 @@ fn convert_function_call(
         "input": input,
     });
 
-    let content = Some(Value::Array(vec![tool_use.clone()]));
+    let content = Some(Value::Array(vec![tool_use]));
 
-    let mut msg = build_provider_message(
+    build_provider_message(
         PROVIDER_ID,
         uuid,
         session_id,
@@ -461,9 +479,7 @@ fn convert_function_call(
         Some("assistant"),
         content,
         None,
-    );
-    msg.tool_use = Some(tool_use);
-    msg
+    )
 }
 
 /// Convert a `"function_call_result"` entry to a Claude-native `tool_result`
@@ -736,7 +752,10 @@ mod tests {
         assert_eq!(tool_use["name"], "Bash");
         // Critical: input must be an OBJECT, not a string
         let input = &tool_use["input"];
-        assert!(input.is_object(), "input must be parsed object, got: {input:?}");
+        assert!(
+            input.is_object(),
+            "input must be parsed object, got: {input:?}"
+        );
         assert_eq!(input["command"], "ls -la");
         assert_eq!(input["description"], "list files");
     }
@@ -777,7 +796,8 @@ mod tests {
         });
 
         let mut counter = 0u64;
-        let msg = convert_function_call_result(&raw, "session-1", "2026-05-29T00:00:00Z", &mut counter);
+        let msg =
+            convert_function_call_result(&raw, "session-1", "2026-05-29T00:00:00Z", &mut counter);
 
         // Should be a "user" type message (Claude-native shape)
         assert_eq!(msg.message_type, "user");
@@ -884,6 +904,83 @@ mod tests {
         assert!(
             result.is_err(),
             "path outside codebuddy root must error, got: {result:?}"
+        );
+    }
+
+    /// Regression for the `function_call` -> `tool_use` conversion. Earlier
+    /// revisions wrote the `tool_use` entry to BOTH `msg.content[]` and the
+    /// top-level `msg.tool_use` field. That double-write doubled tool usage
+    /// counts in `track_tool_usage` and pushed success rate to 50%. Native
+    /// Claude JSONL only carries the entry inside `message.content[]`; the
+    /// top-level `tool_use` field stays `None` and downstream code (`load.rs`)
+    /// extracts from content as needed. This test pins that contract.
+    #[test]
+    fn function_call_does_not_double_write_tool_use() {
+        let raw = json!({
+            "type": "function_call",
+            "id": "fc-1",
+            "callId": "toolu_abc",
+            "name": "Bash",
+            "arguments": "{\"command\":\"ls\"}",
+            "timestamp": 1779785490404_i64,
+        });
+        let mut counter = 0u64;
+        let msg = convert_function_call(&raw, "session-1", "2026-05-29T00:00:00Z", &mut counter);
+
+        // Content array MUST carry the tool_use entry (so the UI renders it
+        // and `load.rs` extracts it on demand).
+        let content = msg.content.expect("content present");
+        let arr = content.as_array().expect("content is array");
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["type"], "tool_use");
+
+        // Top-level tool_use MUST stay None — duplicating the entry there
+        // re-introduces the stats double-counting bug.
+        assert!(
+            msg.tool_use.is_none(),
+            "top-level msg.tool_use must remain None to avoid stats double-count, got: {:?}",
+            msg.tool_use
+        );
+    }
+
+    /// Regression for `scan_projects` symlink handling. A symlinked `.jsonl`
+    /// inside a project directory used to be counted in the sidebar summary
+    /// (file count + mtime), leaking metadata about external files. The fix
+    /// skips entries whose `symlink_metadata().file_type().is_symlink()` is
+    /// true — same guard used by `load_sessions`.
+    ///
+    /// Calls the real `scan_projects_in` so any future change to the filter
+    /// chain is exercised by this test (no hand-rolled walkdir copy here).
+    #[cfg(unix)]
+    #[test]
+    fn scan_projects_skips_symlinked_jsonl() {
+        use std::os::unix::fs::symlink;
+
+        // Isolated projects root: `<tmp>/projects/<project>/`.
+        // `scan_projects_in` walks the dir we hand it as the projects root,
+        // so we point it at `<tmp>/projects` directly.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let projects_root = tmp.path().join("projects");
+        std::fs::create_dir(&projects_root).expect("create projects root");
+        let project_dir = projects_root.join("test-project");
+        std::fs::create_dir(&project_dir).expect("create project");
+
+        // One regular .jsonl file
+        let real = project_dir.join("real.jsonl");
+        std::fs::write(&real, b"{}\n").expect("write real");
+
+        // One .jsonl symlink pointing outside the project root entirely
+        let target = tmp.path().join("outside.jsonl");
+        std::fs::write(&target, b"{}\n").expect("write target");
+        let linked = project_dir.join("linked.jsonl");
+        symlink(&target, &linked).expect("create symlink");
+
+        // Drive the real production function with the tempdir root.
+        let projects = scan_projects_in(&projects_root).expect("scan ok");
+        assert_eq!(projects.len(), 1, "exactly one project should be reported");
+        assert_eq!(
+            projects[0].session_count, 1,
+            "symlinked .jsonl must not be counted; only the regular file should"
         );
     }
 }

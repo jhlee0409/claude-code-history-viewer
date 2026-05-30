@@ -264,7 +264,7 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::OpenCode
     } else if is_antigravity_path(project_path) {
         StatsProvider::Antigravity
-    } else if project_path.contains(".codebuddy") {
+    } else if is_codebuddy_path(project_path) {
         StatsProvider::Codebuddy
     } else {
         StatsProvider::Claude
@@ -285,8 +285,9 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
         return StatsProvider::ForgeCode;
     }
 
-    // CodeBuddy: path contains .codebuddy
-    if session_path.contains(".codebuddy") {
+    // CodeBuddy: path is anchored under ~/.codebuddy/projects (not just substring
+    // match, which would misclassify paths like "/work/foo.codebuddy-test").
+    if is_codebuddy_path(session_path) {
         return StatsProvider::Codebuddy;
     }
 
@@ -311,6 +312,23 @@ fn is_antigravity_path(path: &str) -> bool {
     crate::commands::antigravity::resolve_antigravity_root()
         .map(|root| Path::new(path).starts_with(root.as_path()))
         .unwrap_or(false)
+}
+
+/// Whether `path` lies under `~/.codebuddy/projects/`. Anchored detection avoids
+/// false positives from arbitrary substrings (e.g. `/work/foo.codebuddy-test`).
+fn is_codebuddy_path(path: &str) -> bool {
+    let Some(home) = dirs::home_dir() else {
+        return false;
+    };
+    is_codebuddy_path_under(path, &home)
+}
+
+/// Implementation of [`is_codebuddy_path`] parameterized by the home dir,
+/// so tests can drive the anchored check with a fixed home and not depend
+/// on whether the CI runner has a HOME env at all.
+fn is_codebuddy_path_under(path: &str, home: &Path) -> bool {
+    let root = home.join(".codebuddy").join("projects");
+    Path::new(path).starts_with(root)
 }
 
 /// Parse a line using simd-json (requires mutable slice)
@@ -5548,5 +5566,49 @@ mod tests {
         assert_eq!(stats.total_cache_creation_tokens, 28644);
         assert_eq!(stats.total_cache_read_tokens, 14732);
         assert_eq!(stats.total_tokens, 6 + 222 + 28644 + 14732);
+    }
+
+    /// `CodeBuddy` provider detection must be anchored under
+    /// `~/.codebuddy/projects`, not a substring match. Otherwise paths like
+    /// `/work/foo.codebuddy-test/...` get routed to `CodeBuddy` loaders that
+    /// then return empty / error, breaking stats for the actual provider.
+    /// Uses an injected home so the assertion is meaningful regardless of
+    /// the runner's environment.
+    #[test]
+    fn is_codebuddy_path_rejects_substring_lookalikes() {
+        let home = Path::new("/test-home/user");
+        // Substring-style matches that the OLD `path.contains(".codebuddy")`
+        // logic would have accepted — all must be rejected by the anchored
+        // version.
+        assert!(
+            !is_codebuddy_path_under("/work/foo.codebuddy-test/projects/abc.jsonl", home),
+            "name suffix lookalike must not match"
+        );
+        assert!(
+            !is_codebuddy_path_under("/Users/dev/notes/.codebuddy-clone/data.jsonl", home),
+            "hidden-dir lookalike must not match"
+        );
+        assert!(
+            !is_codebuddy_path_under("/tmp/sample.codebuddy.jsonl", home),
+            "filename containing the substring must not match"
+        );
+    }
+
+    /// Real-shaped `CodeBuddy` paths must still be detected. Mirrors the
+    /// runtime layout: `~/.codebuddy/projects/<project>/<session>.jsonl`.
+    /// Uses an injected home so the test does not silently skip on runners
+    /// without `$HOME` and does not depend on the actual user's filesystem.
+    #[test]
+    fn is_codebuddy_path_accepts_real_layout() {
+        let home = Path::new("/test-home/user");
+        let real = home
+            .join(".codebuddy")
+            .join("projects")
+            .join("my-project")
+            .join("session-1.jsonl");
+        assert!(
+            is_codebuddy_path_under(real.to_string_lossy().as_ref(), home),
+            "anchored detection must accept ~/.codebuddy/projects/.../*.jsonl"
+        );
     }
 }
