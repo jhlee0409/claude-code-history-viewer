@@ -227,7 +227,7 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
 /// 2. Check `/Users/jack` (exists? continue)
 /// 3. Check `/Users/jack/client` (exists? continue)
 /// 4. Check `/Users/jack/client/claude-code-history-viewer` (exists? ✓ return this)
-fn decode_with_filesystem_check(encoded: &str) -> Option<String> {
+pub(crate) fn decode_with_filesystem_check(encoded: &str) -> Option<String> {
     decode_recursive(encoded, "")
 }
 

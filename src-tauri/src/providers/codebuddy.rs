@@ -1,10 +1,14 @@
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
-use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
+use crate::utils::{
+    build_provider_message, decode_with_filesystem_check, find_line_ranges,
+    search_json_value_case_insensitive,
+};
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
 use serde_json::Value;
 use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -59,10 +63,14 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
     {
         let project_dir = entry.path();
 
-        // Count JSONL files
+        // Count JSONL files. While scanning, also opportunistically capture
+        // the first session file path so we can recover the project's real
+        // working directory from its `cwd` field (CodeBuddy's directory
+        // encoding is lossy when project names contain hyphens).
         let mut session_count = 0usize;
         let mut message_count = 0usize;
         let mut last_modified_ts = 0u64;
+        let mut sample_session_paths: Vec<std::path::PathBuf> = Vec::new();
 
         for jsonl_entry in WalkDir::new(project_dir)
             .min_depth(1)
@@ -81,6 +89,9 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
                 continue;
             }
             session_count += 1;
+            if sample_session_paths.len() < 3 {
+                sample_session_paths.push(jsonl_entry.path().to_path_buf());
+            }
             if let Ok(metadata) = jsonl_entry.metadata() {
                 message_count += (metadata.len() / 500) as usize;
                 if let Ok(modified) = metadata.modified() {
@@ -100,7 +111,37 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
             .and_then(|n| n.to_str())
             .unwrap_or("Unknown");
 
-        let display_name = dir_name.rsplit('-').next().unwrap_or(dir_name).to_string();
+        // Resolve the project's real path so we can show a faithful display
+        // name. CodeBuddy stores projects under names like
+        // `Users-rassyan-WebstormProjects-claude-code-history-viewer` — the
+        // path separator `/` is replaced by `-` without escaping, so a
+        // naive `rsplit('-').next()` would truncate hyphenated project
+        // names (`claude-code-history-viewer` -> `viewer`).
+        //
+        // Resolution order:
+        //   1. Read `cwd` from a session jsonl (CodeBuddy writes the real
+        //      absolute path on every message line) — 100% accurate.
+        //   2. Fall back to filesystem-existence-based decoding (same
+        //      strategy Claude Code uses in `utils::decode_project_path`).
+        //   3. Last resort: keep the existing rsplit('-') behavior so this
+        //      change cannot regress projects that previously displayed
+        //      correctly.
+        let resolved_path = read_cwd_from_jsonls(&sample_session_paths)
+            .or_else(|| decode_with_filesystem_check(dir_name));
+
+        let (display_name, actual_path) = match resolved_path {
+            Some(real_path) => {
+                let leaf = Path::new(&real_path)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| dir_name.to_string());
+                (leaf, real_path)
+            }
+            None => (
+                dir_name.rsplit('-').next().unwrap_or(dir_name).to_string(),
+                project_dir.to_string_lossy().to_string(),
+            ),
+        };
 
         #[allow(clippy::cast_possible_wrap)]
         let last_modified = if last_modified_ts > 0 {
@@ -113,8 +154,12 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
 
         projects.push(ClaudeProject {
             name: display_name,
+            // `path` remains the on-disk storage path used to look up
+            // sessions later; `actual_path` is the user-facing real working
+            // directory (when we could recover it) so downstream features
+            // like git-info detection see the correct repo location.
             path: project_dir.to_string_lossy().to_string(),
-            actual_path: project_dir.to_string_lossy().to_string(),
+            actual_path,
             session_count,
             message_count,
             last_modified,
@@ -127,6 +172,39 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
 
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
+}
+
+/// Try to extract the real working directory of a `CodeBuddy` project by
+/// reading the `cwd` field from the head of one of its session jsonl files.
+///
+/// `CodeBuddy` writes the real absolute path on every `type:"message"` line,
+/// so the first non-empty `cwd` we can parse is authoritative. We scan only
+/// the first few lines of at most 3 candidate files to keep this cheap
+/// during project listing.
+fn read_cwd_from_jsonls(candidates: &[std::path::PathBuf]) -> Option<String> {
+    const MAX_LINES_PER_FILE: usize = 10;
+
+    for path in candidates {
+        let Ok(file) = File::open(path) else { continue };
+        let reader = BufReader::new(file);
+        for line in reader.lines().take(MAX_LINES_PER_FILE).map_while(Result::ok) {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let Ok(value) = serde_json::from_str::<Value>(trimmed) else {
+                continue;
+            };
+            if let Some(cwd) = value.get("cwd").and_then(|v| v.as_str()) {
+                let cwd_trimmed = cwd.trim();
+                if !cwd_trimmed.is_empty() && Path::new(cwd_trimmed).is_absolute() {
+                    return Some(cwd_trimmed.to_string());
+                }
+            }
+        }
+    }
+
+    None
 }
 
 /// Load sessions for a `CodeBuddy` project
@@ -651,9 +729,13 @@ fn extract_session_info(file_path: &Path) -> Option<ClaudeSession> {
                 }
             }
             "topic" => {
-                if summary.is_none() {
-                    if let Some(topic) = val.get("topic").and_then(|v| v.as_str()) {
-                        summary = Some(topic.to_string());
+                // Last-wins: CodeBuddy may emit multiple `topic` entries as
+                // the conversation evolves. The latest one is the current
+                // session title, so always overwrite (ignoring empty strings).
+                if let Some(topic) = val.get("topic").and_then(|v| v.as_str()) {
+                    let trimmed = topic.trim();
+                    if !trimmed.is_empty() {
+                        summary = Some(trimmed.to_string());
                     }
                 }
             }
@@ -724,6 +806,18 @@ fn extract_session_info(file_path: &Path) -> Option<ClaudeSession> {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::fmt::Write as _;
+
+    /// Serialize a slice of JSON values into a newline-delimited body for
+    /// writing a synthetic .jsonl test fixture. Equivalent to
+    /// `lines.iter().map(|v| format!("{v}\n")).collect::<String>()` but
+    /// satisfies `clippy::format_collect`.
+    fn join_jsonl(lines: &[serde_json::Value]) -> String {
+        lines.iter().fold(String::new(), |mut acc, v| {
+            let _ = writeln!(acc, "{v}");
+            acc
+        })
+    }
 
     /// `function_call.arguments` is a JSON string in `CodeBuddy`. Verify we
     /// parse it into a real object so frontend renderers can read individual
@@ -981,6 +1075,160 @@ mod tests {
         assert_eq!(
             projects[0].session_count, 1,
             "symlinked .jsonl must not be counted; only the regular file should"
+        );
+    }
+
+    /// `CodeBuddy` emits a `type:"topic"` entry every time the conversation's
+    /// running title updates. Earlier revisions kept only the FIRST topic
+    /// (because of an `if summary.is_none()` guard), which caused sessions
+    /// that started on one topic and pivoted to another to keep showing the
+    /// stale original title. Pin the last-wins contract.
+    #[test]
+    fn extract_session_info_uses_last_topic() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let projects_root = tmp.path().join("projects");
+        std::fs::create_dir(&projects_root).expect("create projects root");
+        let project_dir = projects_root.join("Users-foo-bar");
+        std::fs::create_dir(&project_dir).expect("create project");
+        let session_path = project_dir.join("session.jsonl");
+
+        // Two topics + a real message so the session passes the
+        // `message_count > 0` gate.
+        let lines = [
+            json!({"type": "topic", "topic": "Initial Topic", "timestamp": 1_700_000_000_000i64}),
+            json!({"type": "message", "role": "user", "sessionId": "s1",
+                    "timestamp": 1_700_000_001_000i64,
+                    "content": [{"type": "input_text", "text": "hello"}]}),
+            json!({"type": "topic", "topic": "Updated Topic", "timestamp": 1_700_000_002_000i64}),
+        ];
+        let body = join_jsonl(&lines);
+        std::fs::write(&session_path, body).expect("write session");
+
+        let session = extract_session_info(&session_path).expect("session parsed");
+        assert_eq!(
+            session.summary.as_deref(),
+            Some("Updated Topic"),
+            "later topic must override earlier one"
+        );
+    }
+
+    /// Defensive: a later `topic` entry whose value is empty/whitespace must
+    /// NOT clobber a previously-valid title. Otherwise a single accidental
+    /// empty topic write would erase the session label entirely.
+    #[test]
+    fn extract_session_info_ignores_empty_topic() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let projects_root = tmp.path().join("projects");
+        std::fs::create_dir(&projects_root).expect("create projects root");
+        let project_dir = projects_root.join("Users-foo-bar");
+        std::fs::create_dir(&project_dir).expect("create project");
+        let session_path = project_dir.join("session.jsonl");
+
+        let lines = [
+            json!({"type": "topic", "topic": "Real Topic", "timestamp": 1_700_000_000_000i64}),
+            json!({"type": "message", "role": "user", "sessionId": "s1",
+                    "timestamp": 1_700_000_001_000i64,
+                    "content": [{"type": "input_text", "text": "hello"}]}),
+            json!({"type": "topic", "topic": "   ", "timestamp": 1_700_000_002_000i64}),
+        ];
+        let body = join_jsonl(&lines);
+        std::fs::write(&session_path, body).expect("write session");
+
+        let session = extract_session_info(&session_path).expect("session parsed");
+        assert_eq!(
+            session.summary.as_deref(),
+            Some("Real Topic"),
+            "whitespace-only topic must not overwrite the prior valid one"
+        );
+    }
+
+    /// `scan_projects_in` must derive the display name from each session
+    /// file's `cwd` field rather than splitting the lossy directory name on
+    /// `-`. Without this, hyphenated project names like
+    /// `claude-code-history-viewer` get truncated to just `viewer`.
+    #[test]
+    fn scan_projects_uses_cwd_for_display_name() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let projects_root = tmp.path().join("projects");
+        std::fs::create_dir(&projects_root).expect("create projects root");
+
+        // Mimic CodeBuddy's lossy encoding: '/' -> '-', no escaping.
+        let project_dir = projects_root.join("Users-rassyan-WebstormProjects-claude-code-history-viewer");
+        std::fs::create_dir(&project_dir).expect("create project");
+
+        let session = project_dir.join("s.jsonl");
+        let line = json!({
+            "type": "message",
+            "role": "user",
+            "sessionId": "s1",
+            "timestamp": 1_700_000_000_000i64,
+            "cwd": "/Users/rassyan/WebstormProjects/claude-code-history-viewer",
+            "content": [{"type": "input_text", "text": "hi"}],
+        });
+        std::fs::write(&session, format!("{line}\n")).expect("write");
+
+        let projects = scan_projects_in(&projects_root).expect("scan ok");
+        assert_eq!(projects.len(), 1);
+        assert_eq!(
+            projects[0].name, "claude-code-history-viewer",
+            "display name must keep the full hyphenated project leaf"
+        );
+        assert_eq!(
+            projects[0].actual_path, "/Users/rassyan/WebstormProjects/claude-code-history-viewer",
+            "actual_path must be the real cwd, not the lossy storage path"
+        );
+    }
+
+    /// If a project's sessions have no `cwd` (older format, corrupted, etc.)
+    /// the resolver must fall back to filesystem-existence-based decoding so
+    /// hyphenated leaves still survive. We build a real nested tempdir layout
+    /// so the filesystem check has something to recognize.
+    ///
+    /// Note: we canonicalize the tempdir path because on macOS `/var` is a
+    /// symlink to `/private/var`. `decode_with_filesystem_check` uses
+    /// `symlink_metadata` and refuses to recurse through symlinks (a
+    /// reasonable security stance), so without canonicalization the encoded
+    /// path starting with `var-folders-...` would never match the real
+    /// `/var -> /private/var` symlink.
+    #[test]
+    fn scan_projects_falls_back_to_fs_decoding_when_cwd_missing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let canonical_tmp = std::fs::canonicalize(tmp.path())
+            .expect("canonicalize tempdir");
+
+        let projects_root = canonical_tmp.join("projects");
+        std::fs::create_dir(&projects_root).expect("create projects root");
+
+        // Build a real on-disk path `<tmp>/work/hyphenated-leaf` so
+        // `decode_with_filesystem_check` can walk and recognize it.
+        let real_parent = canonical_tmp.join("work");
+        let real_leaf = real_parent.join("hyphenated-leaf");
+        std::fs::create_dir_all(&real_leaf).expect("create real layout");
+
+        // Build the matching CodeBuddy-style lossy encoding. We strip the
+        // leading `/` and join with `-`, mirroring how CodeBuddy actually
+        // names project directories on disk.
+        let real_leaf_str = real_leaf.to_string_lossy().to_string();
+        let encoded = real_leaf_str.trim_start_matches('/').replace('/', "-");
+        let project_dir = projects_root.join(&encoded);
+        std::fs::create_dir(&project_dir).expect("create project");
+
+        // Session without any `cwd` field — forces fallback path.
+        let session = project_dir.join("s.jsonl");
+        let line = json!({
+            "type": "message",
+            "role": "user",
+            "sessionId": "s1",
+            "timestamp": 1_700_000_000_000i64,
+            "content": [{"type": "input_text", "text": "hi"}],
+        });
+        std::fs::write(&session, format!("{line}\n")).expect("write");
+
+        let projects = scan_projects_in(&projects_root).expect("scan ok");
+        assert_eq!(projects.len(), 1);
+        assert_eq!(
+            projects[0].name, "hyphenated-leaf",
+            "fs-decoding fallback must preserve the hyphenated leaf"
         );
     }
 }
