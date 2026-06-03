@@ -165,6 +165,18 @@ fn parse_project_path(project_path: &str) -> Result<(Option<String>, String), St
     Ok((None, value.to_string()))
 }
 
+/// Best-effort display name for a `copilot-cli://…` project path.
+///
+/// Handles both the local form (`copilot-cli://<cwd>`) and the WSL form
+/// (`copilot-cli://<JSON>`), returning the basename of the recorded `cwd`.
+pub fn project_name_for_path(project_path: &str) -> Option<String> {
+    let (_, cwd) = parse_project_path(project_path).ok()?;
+    Path::new(&cwd)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .or_else(|| (!cwd.is_empty()).then_some(cwd))
+}
+
 #[derive(Debug)]
 struct SessionInfo {
     session_id: String,
@@ -519,6 +531,10 @@ fn extract_session_info(events_path: &Path) -> Result<SessionInfo, String> {
                 }
             }
             "user.message" | "assistant.message" | "system.message" => {
+                if !is_renderable_message_event(event_type, data) {
+                    continue;
+                }
+
                 message_count += 1;
                 if first_time.is_empty() && !ts.is_empty() {
                     first_time.clone_from(&ts);
@@ -575,6 +591,32 @@ fn truncate_preview(text: &str, max_chars: usize) -> String {
     match text.char_indices().nth(max_chars) {
         Some((idx, _)) => format!("{}...", &text[..idx]),
         None => text.to_string(),
+    }
+}
+
+fn is_renderable_message_event(event_type: &str, data: Option<&Value>) -> bool {
+    let Some(data) = data else {
+        return false;
+    };
+
+    match event_type {
+        "system.message" | "user.message" => data
+            .get("content")
+            .and_then(Value::as_str)
+            .map(|content| !content.is_empty())
+            .unwrap_or(false),
+        "assistant.message" => {
+            data.get("content")
+                .and_then(Value::as_str)
+                .map(|content| !content.is_empty())
+                .unwrap_or(false)
+                || data
+                    .get("toolRequests")
+                    .and_then(Value::as_array)
+                    .map(|requests| !requests.is_empty())
+                    .unwrap_or(false)
+        }
+        _ => false,
     }
 }
 
@@ -925,18 +967,26 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let _env_guard = EnvVarGuard::set("COPILOT_CLI_HOME", tmp.path());
 
-        // session with no user/assistant messages
+        // session with no renderable messages; Copilot CLI often writes
+        // startup-only logs that would otherwise spam the session list.
         write_session(
             tmp.path(),
             "44444444-4444-4444-4444-444444444444",
-            &[json!({
-                "type": "session.start",
-                "data": {
-                    "sessionId": "44444444-4444-4444-4444-444444444444",
-                    "context": {"cwd": "/repo/empty"}
-                },
-                "timestamp": "2026-01-04T00:00:00.000Z"
-            })],
+            &[
+                json!({
+                    "type": "session.start",
+                    "data": {
+                        "sessionId": "44444444-4444-4444-4444-444444444444",
+                        "context": {"cwd": "/repo/empty"}
+                    },
+                    "timestamp": "2026-01-04T00:00:00.000Z"
+                }),
+                json!({
+                    "type": "system.message",
+                    "data": {"content": ""},
+                    "timestamp": "2026-01-04T00:00:01.000Z"
+                }),
+            ],
         );
         // session with at least one user message
         write_session(
@@ -1098,5 +1148,29 @@ mod tests {
         let err =
             load_messages(&outside_file.to_string_lossy()).expect_err("path should be rejected");
         assert!(err.contains("outside Copilot CLI"));
+    }
+
+    #[test]
+    fn project_name_for_path_handles_local_and_wsl_forms() {
+        // Local form: basename of cwd
+        assert_eq!(
+            project_name_for_path("copilot-cli:///Users/jack/repos/my-app"),
+            Some("my-app".to_string())
+        );
+
+        // WSL form: JSON-encoded { basePath, cwd }; must NOT return the JSON blob
+        let wsl = build_project_path(
+            "/home/jack/repos/my-app",
+            Some(r"\\wsl$\Ubuntu\home\jack\.copilot"),
+        );
+        assert_eq!(project_name_for_path(&wsl), Some("my-app".to_string()));
+
+        // Root cwd has no basename; falls back to the cwd string itself
+        assert_eq!(
+            project_name_for_path("copilot-cli:///"),
+            Some("/".to_string())
+        );
+        // Empty cwd yields None
+        assert_eq!(project_name_for_path("copilot-cli://"), None);
     }
 }

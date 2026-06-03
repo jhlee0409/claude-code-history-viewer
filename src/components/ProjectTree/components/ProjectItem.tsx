@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
 import { getWorktreeLabel } from "../../../utils/worktreeUtils";
-import { getProviderId, getProviderLabel, getProviderBadgeStyle } from "../../../utils/providers";
+import { getProviderBadgeStyle, getProviderId, getProviderLabel } from "../../../utils/providers";
 
 export const ProjectItem: React.FC<ProjectItemProps> = ({
   project,

@@ -261,7 +261,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   claude: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   codebuddy: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
-  "copilot-cli": "bg-slate-500/15 text-slate-700 dark:text-slate-300",
+  "copilot-cli": "bg-[#8250df]/15 text-[#6639ba] dark:text-[#d2a8ff]",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
@@ -269,7 +269,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
-  vscode: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+  vscode: "bg-[#007acc]/15 text-[#0065a9] dark:text-[#4fc3f7]",
 };
 
 export function getProviderBadgeStyle(provider?: ProviderId | string): string {

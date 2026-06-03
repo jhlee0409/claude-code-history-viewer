@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
 
 // Mock Tauri APIs for testing environment
 interface TauriMock {
@@ -43,8 +43,19 @@ function createMemoryStorage(): Storage {
   };
 }
 
-if (typeof globalThis.localStorage?.clear !== 'function') {
+let testStorage: Storage | undefined;
+let needsMemoryStorage = false;
+
+try {
+  testStorage = globalThis.localStorage;
+  needsMemoryStorage = typeof testStorage?.clear !== 'function';
+} catch {
+  needsMemoryStorage = true;
+}
+
+if (needsMemoryStorage) {
   const storage = createMemoryStorage();
+  testStorage = storage;
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
     writable: true,
@@ -55,6 +66,10 @@ if (typeof globalThis.localStorage?.clear !== 'function') {
     value: storage,
   });
 }
+
+beforeEach(() => {
+  testStorage?.clear();
+});
 
 // Mock matchMedia for components that use media queries
 Object.defineProperty(window, 'matchMedia', {

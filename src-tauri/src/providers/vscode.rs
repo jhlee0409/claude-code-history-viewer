@@ -802,7 +802,7 @@ fn build_assistant_message(
                 if is_complete && !past_text.is_empty() {
                     blocks.push(serde_json::json!({
                         "type": "tool_result",
-                        "tool_use_id": part.get("toolCallId").and_then(Value::as_str).unwrap_or(""),
+                        "tool_use_id": call_id,
                         "content": past_text,
                     }));
                 }
@@ -959,6 +959,12 @@ fn probe_session_metadata(session_path: &Path) -> Option<SessionMetadata> {
                             has_tool_use = true;
                             true
                         }
+                        Some("progressTaskSerialized") => part
+                            .get("content")
+                            .and_then(|c| c.get("value"))
+                            .and_then(Value::as_str)
+                            .map(|s| !s.is_empty())
+                            .unwrap_or(false),
                         _ => false,
                     }
                 });
@@ -1114,7 +1120,61 @@ mod tests {
             .map(|b| b["type"].as_str().unwrap_or(""))
             .collect();
         assert_eq!(kinds, vec!["text", "thinking", "tool_use", "tool_result"]);
+        let blocks = msgs[1].content.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(blocks[2]["id"], "tc-1");
+        assert_eq!(blocks[3]["tool_use_id"], "tc-1");
         assert!(msgs[1].tool_use.is_some());
+    }
+
+    #[test]
+    fn messages_pair_generated_tool_call_ids() {
+        let state = json!({
+            "sessionId": "sess-1",
+            "creationDate": 1700000000000u64,
+            "requests": [{
+                "requestId": "req-1",
+                "responseId": "resp-1",
+                "message": {"text": "Read the file"},
+                "response": [{
+                    "kind": "toolInvocationSerialized",
+                    "toolId": "copilot_readFile",
+                    "isComplete": true,
+                    "invocationMessage": {"value": "Reading foo.txt"},
+                    "pastTenseMessage": {"value": "Read foo.txt"}
+                }]
+            }]
+        });
+
+        let msgs = messages_from_state(&state);
+        let blocks = msgs[1].content.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(blocks[0]["type"], "tool_use");
+        assert_eq!(blocks[1]["type"], "tool_result");
+        assert_eq!(blocks[0]["id"], blocks[1]["tool_use_id"]);
+        assert_eq!(blocks[0]["id"], "vscode-tool-0-2");
+    }
+
+    #[test]
+    fn probe_counts_progress_task_responses_as_visible() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let session_path = tmp.path().join("progress.jsonl");
+        fs::write(
+            &session_path,
+            json!({"kind": 0, "v": {
+                "sessionId": "progress-1111-1111-1111-111111111111",
+                "creationDate": 1779490058917u64,
+                "requests": [{
+                    "response": [{
+                        "kind": "progressTaskSerialized",
+                        "content": {"value": "Working..."}
+                    }]
+                }]
+            }})
+            .to_string(),
+        )
+        .unwrap();
+
+        let metadata = probe_session_metadata(&session_path).unwrap();
+        assert_eq!(metadata.message_count, 1);
     }
 
     #[test]

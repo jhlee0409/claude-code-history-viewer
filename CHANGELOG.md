@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **GitHub Copilot CLI provider**: Reads `~/.copilot/session-state/<id>/events.jsonl`. Sessions are grouped by recorded `cwd`. Tool calls and results are paired via `toolCallId`. Resume command (`copilot --resume=<id>`) is supported via the right-click menu.
+- **VS Code Copilot Chat provider**: Reads `<UserData>/workspaceStorage/<hash>/chatSessions/*.jsonl`. Each file is replayed as a `kind:0` snapshot + `kind:1`/`kind:2` patch log to recover final session state. Workspace ↔ folder mapping uses `workspace.json`'s `folder` URI. Detects VS Code, VS Code Insiders, and VSCodium (macOS/Linux/Windows + WSL Server variants).
+- WSL: Both new providers participate in WSL scanning and search alongside Claude Code.
+
+### Fixed
+- Stats: `resolve_provider_project_name` now handles WSL Copilot CLI project paths (which are JSON-encoded `{basePath, cwd}`) instead of treating the JSON blob as a file path.
+- Stats: VS Code session-path detection uses `Path::extension()` for case-insensitive `.jsonl` matching (clippy `case_sensitive_file_extension_comparisons`).
+- Copilot CLI: Skip empty/startup-only sessions when scanning (matches behaviour of other providers).
+- Copilot CLI: Render the system prompt as a collapsible system-level note instead of dropping it on the floor.
+- VS Code: Pair generated `tool_use_id`s correctly when `toolCallId` is missing on a `toolInvocationSerialized` part. Previously the result block referenced an empty string.
+- VS Code: Count `progressTaskSerialized` responses as visible messages so sessions that finish with a progress update aren't misclassified as empty.
+- MessageViewer debug filename: `split(/[\\/]/)` for Windows path compatibility.
+- Test setup: `localStorage` cleared in `beforeEach` to prevent cross-test bleed; safe-fallback when `globalThis.localStorage` access throws.
+
 ## [1.13.0] - 2026-05-25
 
 ### Added
