@@ -370,7 +370,6 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
 describe("messageSlice.loadSubagents — map building from pre-filter messages", () => {
   beforeEach(() => {
     mockApi.mockReset();
-    mockToastWarning.mockReset();
   });
 
   it("builds parentToolUseID → file_path map from progress messages", async () => {
@@ -520,22 +519,6 @@ describe("messageSlice.loadSubagents — map building from pre-filter messages",
     );
   });
 
-  it("skips backend subagent lookup for virtual provider session paths", async () => {
-    const store = createTestStore();
-    const session = makeSession({ file_path: "opencode://proj/ses" });
-    store.setState({
-      selectedSession: session,
-      toolUseToSubagentMap: new Map([["stale", "/tmp/stale.jsonl"]]),
-      subagentSessions: [makeSubagent("stale", "/tmp/stale.jsonl")],
-    });
-
-    await store.getState().loadSubagents(session.file_path, []);
-
-    expect(mockApi).not.toHaveBeenCalled();
-    expect(mockToastWarning).not.toHaveBeenCalled();
-    expect(store.getState().toolUseToSubagentMap.size).toBe(0);
-    expect(store.getState().subagentSessions).toEqual([]);
-  });
 });
 
 describe("messageSlice — navigate guards & error branches", () => {

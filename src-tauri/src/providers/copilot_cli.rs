@@ -269,6 +269,12 @@ struct WorkspaceMetadata {
     name: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SessionInfoCacheFreshness {
+    events_mtime: SystemTime,
+    workspace_mtime: Option<SystemTime>,
+}
+
 /// Parse a flat key:value YAML file. Quoted values are unquoted; we intentionally
 /// do NOT handle nested mappings, anchors, multiline scalars, or escapes —
 /// `workspace.yaml` only ever contains scalar fields.
@@ -306,14 +312,17 @@ fn parse_flat_yaml(input: &str) -> WorkspaceMetadata {
 
 /// Read `workspace.yaml` next to `events.jsonl` (best-effort; absence ⇒ default).
 fn read_workspace_metadata(events_path: &Path) -> WorkspaceMetadata {
-    let Some(dir) = events_path.parent() else {
+    let Some(yaml_path) = workspace_metadata_path(events_path) else {
         return WorkspaceMetadata::default();
     };
-    let yaml_path = dir.join("workspace.yaml");
     match std::fs::read_to_string(&yaml_path) {
         Ok(s) => parse_flat_yaml(&s),
         Err(_) => WorkspaceMetadata::default(),
     }
+}
+
+fn workspace_metadata_path(events_path: &Path) -> Option<PathBuf> {
+    events_path.parent().map(|dir| dir.join("workspace.yaml"))
 }
 
 fn classify_client(meta: &WorkspaceMetadata) -> ClientKind {
@@ -680,13 +689,14 @@ fn search_filtered(
 // ============================================================================
 
 /// Process-wide cache of parsed session metadata, keyed by absolute events.jsonl
-/// path with the file's mtime as a freshness marker. Both `scan_projects` and
-/// `load_sessions` walk every session under `~/.copilot/session-state/` (the
-/// CLI doesn't physically group sessions by cwd), so without this cache we'd
-/// reparse the entire JSONL stream on every project click and on every stats
-/// recalculation. Cache entries are O(`num_sessions`); a single `SessionInfo` is
-/// ~200 bytes, so even 10k sessions stays well under 5 MB.
-static SESSION_INFO_CACHE: Lazy<Mutex<HashMap<PathBuf, (SystemTime, SessionInfo)>>> =
+/// path with the event log and workspace.yaml mtimes as freshness markers. Both
+/// `scan_projects` and `load_sessions` walk every session under
+/// `~/.copilot/session-state/` (the CLI doesn't physically group sessions by
+/// cwd), so without this cache we'd reparse the entire JSONL stream on every
+/// project click and on every stats recalculation. Cache entries are
+/// O(`num_sessions`); a single `SessionInfo` is ~200 bytes, so even 10k sessions
+/// stays well under 5 MB.
+static SESSION_INFO_CACHE: Lazy<Mutex<HashMap<PathBuf, (SessionInfoCacheFreshness, SessionInfo)>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Cached version of [`extract_session_info`]. Looks up `events_path` in the
@@ -694,29 +704,39 @@ static SESSION_INFO_CACHE: Lazy<Mutex<HashMap<PathBuf, (SystemTime, SessionInfo)
 /// held only for the lookup/insert, never across the parse, so concurrent
 /// workers can parse different files in parallel.
 fn extract_session_info_cached(events_path: &Path) -> Result<SessionInfo, String> {
-    let mtime = std::fs::metadata(events_path)
-        .and_then(|m| m.modified())
-        .ok();
+    let freshness = session_info_cache_freshness(events_path);
 
-    if let Some(mtime) = mtime {
+    if let Some(freshness) = freshness {
         if let Some(cached) = SESSION_INFO_CACHE
             .lock()
             .ok()
             .and_then(|map| map.get(events_path).cloned())
         {
-            if cached.0 == mtime {
+            if cached.0 == freshness {
                 return Ok(cached.1);
             }
         }
     }
 
     let info = extract_session_info(events_path)?;
-    if let Some(mtime) = mtime {
+    if let Some(freshness) = freshness {
         if let Ok(mut map) = SESSION_INFO_CACHE.lock() {
-            map.insert(events_path.to_path_buf(), (mtime, info.clone()));
+            map.insert(events_path.to_path_buf(), (freshness, info.clone()));
         }
     }
     Ok(info)
+}
+
+fn session_info_cache_freshness(events_path: &Path) -> Option<SessionInfoCacheFreshness> {
+    let events_mtime = std::fs::metadata(events_path)
+        .and_then(|m| m.modified())
+        .ok()?;
+    let workspace_mtime = workspace_metadata_path(events_path)
+        .and_then(|path| std::fs::metadata(path).and_then(|m| m.modified()).ok());
+    Some(SessionInfoCacheFreshness {
+        events_mtime,
+        workspace_mtime,
+    })
 }
 
 #[allow(unsafe_code)] // mmap is needed for performance over large event logs
@@ -1512,5 +1532,42 @@ mod tests {
         let info = extract_session_info(&events).unwrap();
         assert_eq!(info.client_kind, ClientKind::Desktop);
         assert_eq!(info.summary.as_deref(), Some("Friendly Session Name"));
+    }
+
+    #[test]
+    fn cached_session_info_invalidates_when_workspace_yaml_appears() {
+        use std::fs;
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let session_dir = dir.path().join("cache-refresh");
+        fs::create_dir(&session_dir).unwrap();
+
+        let events = session_dir.join("events.jsonl");
+        let payload = serde_json::json!({
+            "type": "session.start",
+            "timestamp": "2025-01-01T00:00:00Z",
+            "data": { "sessionId": "s1", "context": { "cwd": "/tmp/proj" } }
+        });
+        let user = serde_json::json!({
+            "type": "user.message",
+            "timestamp": "2025-01-01T00:00:01Z",
+            "data": { "content": "hi" }
+        });
+        fs::write(&events, format!("{payload}\n{user}\n")).unwrap();
+
+        let before = extract_session_info_cached(&events).unwrap();
+        assert_eq!(before.client_kind, ClientKind::Cli);
+        assert_eq!(before.summary.as_deref(), Some("hi"));
+
+        fs::write(
+            session_dir.join("workspace.yaml"),
+            "client_name: github/autopilot\nname: Delayed Workspace Name\n",
+        )
+        .unwrap();
+
+        let after = extract_session_info_cached(&events).unwrap();
+        assert_eq!(after.client_kind, ClientKind::Desktop);
+        assert_eq!(after.summary.as_deref(), Some("Delayed Workspace Name"));
     }
 }

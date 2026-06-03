@@ -244,13 +244,26 @@ pub async fn scan_all_projects(
                         .collect();
 
                 // Single Copilot scan covering Copilot CLI/Desktop on this
-                // distro plus the canonical Stable VS Code user-data root.
-                let canonical_vscode = vscode_bases.first().map(|(p, _)| p.clone());
+                // distro plus the canonical Stable VS Code user-data root when
+                // available. If only Insiders/VSCodium exists, preserve that
+                // source label instead of showing it as plain Stable.
+                let canonical_index = select_wsl_vscode_base_index(&vscode_bases);
+                let canonical_vscode = canonical_index.map(|idx| vscode_bases[idx].0.clone());
+                let canonical_label = canonical_index
+                    .map(|idx| {
+                        let editor_label = vscode_bases[idx].1;
+                        if editor_label == "VS Code Server" {
+                            wsl_label.clone()
+                        } else {
+                            format!("{wsl_label} ({editor_label})")
+                        }
+                    })
+                    .unwrap_or_else(|| wsl_label.clone());
                 if copilot_base.is_some() || canonical_vscode.is_some() {
                     match providers::copilot::scan_projects_from_paths(
                         copilot_base.as_deref(),
                         canonical_vscode.as_deref(),
-                        Some(&wsl_label),
+                        Some(&canonical_label),
                     ) {
                         Ok(projects) => all_projects.extend(projects),
                         Err(e) => {
@@ -259,9 +272,12 @@ pub async fn scan_all_projects(
                     }
                 }
 
-                // Additional VS Code Insiders root (we want both shown — the
+                // Additional VS Code-family roots (we want each shown — the
                 // aggregator scans one base at a time, so call it again).
-                for (unc_path, editor_label) in vscode_bases.into_iter().skip(1) {
+                for (idx, (unc_path, editor_label)) in vscode_bases.into_iter().enumerate() {
+                    if Some(idx) == canonical_index {
+                        continue;
+                    }
                     let label = format!("{wsl_label} ({editor_label})");
                     match providers::copilot::scan_projects_from_paths(
                         None,
@@ -612,7 +628,8 @@ pub async fn search_all_providers(
                         })
                         .collect();
 
-                let canonical_vscode = vscode_bases.first().map(|(p, _)| p.clone());
+                let canonical_index = select_wsl_vscode_base_index(&vscode_bases);
+                let canonical_vscode = canonical_index.map(|idx| vscode_bases[idx].0.clone());
                 if copilot_base.is_some() || canonical_vscode.is_some() {
                     match providers::copilot::search_from_paths(
                         copilot_base.as_deref(),
@@ -627,7 +644,10 @@ pub async fn search_all_providers(
                     }
                 }
 
-                for (unc_path, editor_label) in vscode_bases.into_iter().skip(1) {
+                for (idx, (unc_path, editor_label)) in vscode_bases.into_iter().enumerate() {
+                    if Some(idx) == canonical_index {
+                        continue;
+                    }
                     match providers::copilot::search_from_paths(
                         None,
                         Some(unc_path.as_path()),
@@ -697,6 +717,13 @@ fn wsl_vscode_user_data_paths(home_path: &Path) -> Vec<(PathBuf, &'static str)> 
             "VSCodium Server",
         ),
     ]
+}
+
+fn select_wsl_vscode_base_index(bases: &[(PathBuf, &'static str)]) -> Option<usize> {
+    bases
+        .iter()
+        .position(|(_, label)| *label == "VS Code Server")
+        .or_else(|| (!bases.is_empty()).then_some(0))
 }
 
 /// Merge adjacent tool execution messages into display-friendly message groups.
@@ -821,6 +848,28 @@ mod tests {
             microcompact_metadata: None,
             provider: Some("claude".to_string()),
         }
+    }
+
+    #[test]
+    fn select_wsl_vscode_base_prefers_stable_but_preserves_fallback() {
+        let insiders_only = vec![(
+            PathBuf::from(r"\\wsl.localhost\Ubuntu\home\me\.vscode-server-insiders\data\User"),
+            "VS Code Insiders Server",
+        )];
+        assert_eq!(select_wsl_vscode_base_index(&insiders_only), Some(0));
+
+        let all_roots = vec![
+            (
+                PathBuf::from(r"\\wsl.localhost\Ubuntu\home\me\.vscode-server-insiders\data\User"),
+                "VS Code Insiders Server",
+            ),
+            (
+                PathBuf::from(r"\\wsl.localhost\Ubuntu\home\me\.vscode-server\data\User"),
+                "VS Code Server",
+            ),
+        ];
+        assert_eq!(select_wsl_vscode_base_index(&all_roots), Some(1));
+        assert_eq!(select_wsl_vscode_base_index(&[]), None);
     }
 
     #[test]

@@ -46,14 +46,7 @@ function createMemoryStorage(): Storage {
 let testStorage: Storage | undefined;
 let needsMemoryStorage = false;
 
-try {
-  testStorage = globalThis.localStorage;
-  needsMemoryStorage = typeof testStorage?.clear !== 'function';
-} catch {
-  needsMemoryStorage = true;
-}
-
-if (needsMemoryStorage) {
+function installMemoryStorage(): Storage {
   const storage = createMemoryStorage();
   testStorage = storage;
   Object.defineProperty(globalThis, 'localStorage', {
@@ -65,10 +58,26 @@ if (needsMemoryStorage) {
     configurable: true,
     value: storage,
   });
+  return storage;
+}
+
+try {
+  testStorage = globalThis.localStorage;
+  needsMemoryStorage = typeof testStorage?.clear !== 'function';
+} catch {
+  needsMemoryStorage = true;
+}
+
+if (needsMemoryStorage) {
+  installMemoryStorage();
 }
 
 beforeEach(() => {
-  testStorage?.clear();
+  try {
+    testStorage?.clear();
+  } catch {
+    installMemoryStorage().clear();
+  }
 });
 
 // Mock matchMedia for components that use media queries
