@@ -20,6 +20,8 @@
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::{copilot_cli, vscode, ProviderInfo};
+use base64::Engine;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -28,6 +30,52 @@ pub const PROVIDER_ID: &str = "copilot";
 
 /// Synthetic URL scheme for merged Copilot projects.
 const PROJECT_SCHEME: &str = "copilot://";
+
+/// Which sub-provider a source path belongs to. Stored inside the merged
+/// project URL so `load_sessions` can dispatch directly without rescanning
+/// every sub-provider.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum SourceKind {
+    /// `~/.copilot/session-state` walked by [`copilot_cli`] in CLI mode.
+    Cli,
+    /// Same storage walked by [`copilot_cli`] in Desktop mode.
+    Desktop,
+    /// VS Code Copilot Chat workspace storage walked by [`vscode`].
+    VsCode,
+}
+
+/// One sub-source contributing to a merged project. `path` is whatever the
+/// underlying scanner uses to identify the project (CLI: bare filesystem path
+/// of the workspace folder; VS Code: encoded `vscode://...` path the vscode
+/// scanner expects on load).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SourceRef {
+    kind: SourceKind,
+    path: String,
+}
+
+/// Payload encoded into the merged project URL so we can recover the original
+/// sub-source paths on `load_sessions` without re-scanning everything.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ProjectRef {
+    actual: String,
+    sources: Vec<SourceRef>,
+}
+
+fn encode_project_ref(r: &ProjectRef) -> String {
+    let json = serde_json::to_string(r).unwrap_or_default();
+    let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json);
+    format!("{PROJECT_SCHEME}{b64}")
+}
+
+fn decode_project_ref(project_path: &str) -> Option<ProjectRef> {
+    let payload = project_path.strip_prefix(PROJECT_SCHEME)?;
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
 
 /// Detect a Copilot installation. Reports available if any of the three
 /// sub-providers has data on disk.
@@ -69,24 +117,25 @@ fn group_key(actual_path: &str) -> String {
         .to_string()
 }
 
-fn merge_projects(parts: Vec<ClaudeProject>) -> Vec<ClaudeProject> {
-    let mut grouped: HashMap<String, Vec<ClaudeProject>> = HashMap::new();
-    for project in parts {
+/// Tag each project with its sub-source kind, then group by canonical folder.
+fn merge_projects(parts: Vec<(SourceKind, ClaudeProject)>) -> Vec<ClaudeProject> {
+    let mut grouped: HashMap<String, Vec<(SourceKind, ClaudeProject)>> = HashMap::new();
+    for (kind, project) in parts {
         let key = group_key(&project.actual_path);
-        grouped.entry(key).or_default().push(project);
+        grouped.entry(key).or_default().push((kind, project));
     }
 
     let mut merged: Vec<ClaudeProject> = grouped
-        .into_iter()
-        .map(|(key, mut group)| {
-            // Use the first project as the template; aggregate counters.
-            group.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
-            let template = group.first().cloned().expect("group is non-empty");
-            let session_count = group.iter().map(|p| p.session_count).sum();
-            let message_count = group.iter().map(|p| p.message_count).sum();
+        .into_values()
+        .map(|mut group| {
+            // Use the most-recently-modified project as the display template.
+            group.sort_by(|a, b| b.1.last_modified.cmp(&a.1.last_modified));
+            let template = group.first().map(|(_, p)| p.clone()).expect("group is non-empty");
+            let session_count = group.iter().map(|(_, p)| p.session_count).sum();
+            let message_count = group.iter().map(|(_, p)| p.message_count).sum();
             let last_modified = group
                 .iter()
-                .map(|p| p.last_modified.as_str())
+                .map(|(_, p)| p.last_modified.as_str())
                 .max()
                 .unwrap_or("")
                 .to_string();
@@ -94,7 +143,7 @@ fn merge_projects(parts: Vec<ClaudeProject>) -> Vec<ClaudeProject> {
             // a plain filesystem path.
             let actual_path = group
                 .iter()
-                .map(|p| p.actual_path.as_str())
+                .map(|(_, p)| p.actual_path.as_str())
                 .find(|p| !p.starts_with("file://"))
                 .unwrap_or(&template.actual_path)
                 .to_string();
@@ -102,9 +151,19 @@ fn merge_projects(parts: Vec<ClaudeProject>) -> Vec<ClaudeProject> {
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_else(|| template.name.clone());
+
+            let sources: Vec<SourceRef> = group
+                .iter()
+                .map(|(kind, p)| SourceRef { kind: *kind, path: p.path.clone() })
+                .collect();
+            let path = encode_project_ref(&ProjectRef {
+                actual: actual_path.clone(),
+                sources,
+            });
+
             ClaudeProject {
                 name,
-                path: format!("{PROJECT_SCHEME}{key}"),
+                path,
                 actual_path,
                 session_count,
                 message_count,
@@ -121,17 +180,24 @@ fn merge_projects(parts: Vec<ClaudeProject>) -> Vec<ClaudeProject> {
     merged
 }
 
+fn tag<I: IntoIterator<Item = ClaudeProject>>(
+    kind: SourceKind,
+    iter: I,
+) -> impl Iterator<Item = (SourceKind, ClaudeProject)> {
+    iter.into_iter().map(move |p| (kind, p))
+}
+
 /// Scan all three Copilot sub-providers and return one merged project list.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let mut all = Vec::new();
     if let Ok(p) = copilot_cli::scan_projects() {
-        all.extend(p);
+        all.extend(tag(SourceKind::Cli, p));
     }
     if let Ok(p) = copilot_cli::scan_desktop_projects() {
-        all.extend(p);
+        all.extend(tag(SourceKind::Desktop, p));
     }
     if let Ok(p) = vscode::scan_projects() {
-        all.extend(p);
+        all.extend(tag(SourceKind::VsCode, p));
     }
     Ok(merge_projects(all))
 }
@@ -147,35 +213,54 @@ pub fn scan_projects_from_paths(
     let mut all = Vec::new();
     if let Some(base) = copilot_base_path {
         if let Ok(p) = copilot_cli::scan_projects_from_path(base, custom_directory_label) {
-            all.extend(p);
+            all.extend(tag(SourceKind::Cli, p));
         }
         if let Ok(p) = copilot_cli::scan_desktop_projects_from_path(base, custom_directory_label) {
-            all.extend(p);
+            all.extend(tag(SourceKind::Desktop, p));
         }
     }
     if let Some(base) = vscode_user_data_path {
         if let Ok(p) = vscode::scan_projects_from_user_data_path(base, custom_directory_label) {
-            all.extend(p);
+            all.extend(tag(SourceKind::VsCode, p));
         }
     }
     Ok(merge_projects(all))
 }
 
-/// Strip the `copilot://` scheme from a merged project path.
-fn parse_project_path(project_path: &str) -> &str {
-    project_path.strip_prefix(PROJECT_SCHEME).unwrap_or(project_path)
+/// Load sessions for a merged project. Decodes the source list embedded in
+/// the project URL and dispatches each sub-source directly. No rescan.
+pub fn load_sessions(project_path: &str, exclude: bool) -> Result<Vec<ClaudeSession>, String> {
+    let Some(project_ref) = decode_project_ref(project_path) else {
+        // Older/malformed URL — degrade to a rescan-and-filter fallback so we
+        // don't break in case stale URLs survive in any cache.
+        return Ok(load_sessions_fallback(project_path, exclude));
+    };
+
+    let mut sessions = Vec::new();
+    for src in project_ref.sources {
+        let result = match src.kind {
+            SourceKind::Cli | SourceKind::Desktop => copilot_cli::load_sessions(&src.path, exclude),
+            SourceKind::VsCode => vscode::load_sessions(&src.path, exclude),
+        };
+        if let Ok(s) = result {
+            sessions.extend(s);
+        }
+    }
+
+    sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    Ok(sessions)
 }
 
-/// Load sessions for a merged project. Re-scans the three sub-providers and
-/// filters by matching `actual_path` (after normalisation), then concatenates
-/// `load_sessions` results from each sub-source whose project matches.
-pub fn load_sessions(project_path: &str, exclude: bool) -> Result<Vec<ClaudeSession>, String> {
-    let target_key = group_key(parse_project_path(project_path));
+/// Legacy fallback: if a caller hands us a project URL without an embedded
+/// source list (unlikely after this refactor, but defensive), fall back to
+/// the old scan-and-filter behaviour.
+fn load_sessions_fallback(project_path: &str, exclude: bool) -> Vec<ClaudeSession> {
+    type Loader = dyn Fn(&str, bool) -> Result<Vec<ClaudeSession>, String>;
+    let raw = project_path.strip_prefix(PROJECT_SCHEME).unwrap_or(project_path);
+    let target_key = group_key(raw);
     let mut sessions = Vec::new();
 
-    let collect = |scanned: Vec<ClaudeProject>,
-                   loader: &dyn Fn(&str, bool) -> Result<Vec<ClaudeSession>, String>,
-                   sink: &mut Vec<ClaudeSession>| {
+    let collect = |scanned: Vec<ClaudeProject>, loader: &Loader, sink: &mut Vec<ClaudeSession>| {
         for p in scanned {
             if group_key(&p.actual_path) == target_key {
                 if let Ok(s) = loader(&p.path, exclude) {
@@ -196,7 +281,7 @@ pub fn load_sessions(project_path: &str, exclude: bool) -> Result<Vec<ClaudeSess
     }
 
     sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
-    Ok(sessions)
+    sessions
 }
 
 /// Heuristic: does this look like a VS Code chat session file path?
@@ -206,7 +291,7 @@ fn is_vscode_session_path(session_path: &str) -> bool {
 }
 
 /// Load messages by sniffing the session file path and dispatching to the
-/// correct sub-scanner. Both copilot_cli and vscode loaders already stamp
+/// correct sub-scanner. Both `copilot_cli` and `vscode` loaders already stamp
 /// `provider: "copilot"` on each message because we updated their constants.
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     if is_vscode_session_path(session_path) {
@@ -295,28 +380,59 @@ mod tests {
             3,
             70,
         );
-        let merged = merge_projects(vec![cli, vsc]);
+        let merged = merge_projects(vec![
+            (SourceKind::Cli, cli),
+            (SourceKind::VsCode, vsc),
+        ]);
         assert_eq!(merged.len(), 1);
         let p = &merged[0];
         assert_eq!(p.session_count, 5);
         assert_eq!(p.message_count, 120);
         assert_eq!(p.actual_path, "/Users/me/repo");
-        assert_eq!(p.path, "copilot:///Users/me/repo");
+        assert!(p.path.starts_with("copilot://"));
         assert_eq!(p.provider.as_deref(), Some("copilot"));
+
+        // Round-trip: decoded ref should preserve both source paths.
+        let decoded = decode_project_ref(&p.path).expect("decodes");
+        assert_eq!(decoded.actual, "/Users/me/repo");
+        assert_eq!(decoded.sources.len(), 2);
+        let cli_src = decoded.sources.iter().find(|s| s.kind == SourceKind::Cli).unwrap();
+        let vsc_src = decoded.sources.iter().find(|s| s.kind == SourceKind::VsCode).unwrap();
+        assert_eq!(cli_src.path, "copilot-cli:///Users/me/repo");
+        assert_eq!(vsc_src.path, "vscode:///Users/me/.vscode/workspaceStorage/abc");
     }
 
     #[test]
     fn merge_keeps_distinct_folders_separate() {
         let a = project("/repo/a", "copilot-cli:///repo/a", 1, 5);
         let b = project("/repo/b", "copilot-cli:///repo/b", 2, 10);
-        let merged = merge_projects(vec![a, b]);
+        let merged = merge_projects(vec![
+            (SourceKind::Cli, a),
+            (SourceKind::Cli, b),
+        ]);
         assert_eq!(merged.len(), 2);
     }
 
     #[test]
-    fn parse_project_path_strips_scheme() {
-        assert_eq!(parse_project_path("copilot:///repo/a"), "/repo/a");
-        assert_eq!(parse_project_path("/repo/a"), "/repo/a");
+    fn project_ref_round_trips() {
+        let r = ProjectRef {
+            actual: "/Users/me/repo".to_string(),
+            sources: vec![
+                SourceRef { kind: SourceKind::Cli, path: "copilot-cli:///x".to_string() },
+                SourceRef { kind: SourceKind::VsCode, path: "vscode:///y".to_string() },
+            ],
+        };
+        let encoded = encode_project_ref(&r);
+        assert!(encoded.starts_with("copilot://"));
+        let decoded = decode_project_ref(&encoded).unwrap();
+        assert_eq!(decoded.actual, r.actual);
+        assert_eq!(decoded.sources.len(), 2);
+    }
+
+    #[test]
+    fn decode_project_ref_returns_none_for_legacy_url() {
+        // Old format without base64 payload should not falsely decode.
+        assert!(decode_project_ref("copilot:///repo/a").is_none());
     }
 
     #[test]
