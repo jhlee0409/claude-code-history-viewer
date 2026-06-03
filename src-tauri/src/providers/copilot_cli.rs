@@ -27,10 +27,14 @@ use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
+use once_cell::sync::Lazy;
+use rayon::prelude::*;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::SystemTime;
 use walkdir::WalkDir;
 
 /// Public provider id stamped on every project/session/message regardless of
@@ -241,6 +245,7 @@ pub fn project_name_for_path(project_path: &str) -> Option<String> {
 }
 
 #[derive(Debug)]
+#[derive(Clone)]
 struct SessionInfo {
     session_id: String,
     cwd: Option<String>,
@@ -363,9 +368,7 @@ fn scan_projects_filtered(
         return Ok(Vec::new());
     }
 
-    let mut project_map: HashMap<String, Vec<SessionInfo>> = HashMap::new();
-
-    for entry in WalkDir::new(&root)
+    let entries: Vec<PathBuf> = WalkDir::new(&root)
         .follow_links(false)
         .min_depth(2)
         .max_depth(2)
@@ -373,20 +376,21 @@ fn scan_projects_filtered(
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .filter(|e| is_events_jsonl(e.path()))
-    {
-        if let Ok(info) = extract_session_info(entry.path()) {
-            // Skip empty sessions (e.g., terminals where Copilot was
-            // launched but no prompt was sent).
-            if info.message_count == 0 {
-                continue;
-            }
-            // Route each session to the matching provider.
-            if info.client_kind != client {
-                continue;
-            }
-            let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
-            project_map.entry(cwd).or_default().push(info);
-        }
+        .map(walkdir::DirEntry::into_path)
+        .collect();
+
+    // Parse files in parallel; cache hits are essentially free, misses dominate
+    // on first scan where there's a big multi-MB events.jsonl in the mix.
+    let infos: Vec<SessionInfo> = entries
+        .par_iter()
+        .filter_map(|path| extract_session_info_cached(path).ok())
+        .filter(|info| info.message_count > 0 && info.client_kind == client)
+        .collect();
+
+    let mut project_map: HashMap<String, Vec<SessionInfo>> = HashMap::new();
+    for info in infos {
+        let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
+        project_map.entry(cwd).or_default().push(info);
     }
 
     let mut projects: Vec<ClaudeProject> = project_map
@@ -447,9 +451,7 @@ pub fn load_sessions(
         return Ok(Vec::new());
     }
 
-    let mut sessions = Vec::new();
-
-    for entry in WalkDir::new(&root)
+    let entries: Vec<PathBuf> = WalkDir::new(&root)
         .follow_links(false)
         .min_depth(2)
         .max_depth(2)
@@ -457,44 +459,37 @@ pub fn load_sessions(
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .filter(|e| is_events_jsonl(e.path()))
-    {
-        if let Ok(info) = extract_session_info(entry.path()) {
-            // Skip empty sessions to match scan_projects.
-            if info.message_count == 0 {
-                continue;
-            }
-            // Filter to the client kind encoded in the project path so
-            // copilot-cli:// and copilot-desktop:// don't bleed into each
-            // other when they share the same cwd.
-            if info.client_kind != client {
-                continue;
-            }
-            let session_cwd = info.cwd.as_deref().unwrap_or("");
-            if session_cwd != target_cwd {
-                continue;
-            }
-            sessions.push(ClaudeSession {
-                session_id: info.file_path.clone(),
-                actual_session_id: info.session_id,
-                file_path: info.file_path,
-                project_name: Path::new(&target_cwd)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_default(),
-                message_count: info.message_count,
-                first_message_time: info.first_message_time,
-                last_message_time: info.last_message_time,
-                last_modified: info.last_modified,
-                has_tool_use: info.has_tool_use,
-                has_errors: false,
-                summary: info.summary,
-                is_renamed: false,
-                provider: Some(client.provider_id().to_string()),
-                storage_type: None,
-                entrypoint: Some(info.client_kind.entrypoint().to_string()),
-            });
-        }
-    }
+        .map(walkdir::DirEntry::into_path)
+        .collect();
+
+    // Parallel cached extraction. After the first scan most calls hit the
+    // mtime cache and return instantly.
+    let mut sessions: Vec<ClaudeSession> = entries
+        .par_iter()
+        .filter_map(|path| extract_session_info_cached(path).ok())
+        .filter(|info| info.message_count > 0 && info.client_kind == client)
+        .filter(|info| info.cwd.as_deref().unwrap_or("") == target_cwd)
+        .map(|info| ClaudeSession {
+            session_id: info.file_path.clone(),
+            actual_session_id: info.session_id,
+            file_path: info.file_path,
+            project_name: Path::new(&target_cwd)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default(),
+            message_count: info.message_count,
+            first_message_time: info.first_message_time,
+            last_message_time: info.last_message_time,
+            last_modified: info.last_modified,
+            has_tool_use: info.has_tool_use,
+            has_errors: false,
+            summary: info.summary,
+            is_renamed: false,
+            provider: Some(client.provider_id().to_string()),
+            storage_type: None,
+            entrypoint: Some(info.client_kind.entrypoint().to_string()),
+        })
+        .collect();
 
     sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(sessions)
@@ -684,6 +679,46 @@ fn search_filtered(
 // ============================================================================
 // Internal helpers
 // ============================================================================
+
+/// Process-wide cache of parsed session metadata, keyed by absolute events.jsonl
+/// path with the file's mtime as a freshness marker. Both `scan_projects` and
+/// `load_sessions` walk every session under `~/.copilot/session-state/` (the
+/// CLI doesn't physically group sessions by cwd), so without this cache we'd
+/// reparse the entire JSONL stream on every project click and on every stats
+/// recalculation. Cache entries are O(`num_sessions`); a single `SessionInfo` is
+/// ~200 bytes, so even 10k sessions stays well under 5 MB.
+static SESSION_INFO_CACHE: Lazy<Mutex<HashMap<PathBuf, (SystemTime, SessionInfo)>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// Cached version of [`extract_session_info`]. Looks up `events_path` in the
+/// process-wide cache; on miss or stale mtime, parses and stores. The lock is
+/// held only for the lookup/insert, never across the parse, so concurrent
+/// workers can parse different files in parallel.
+fn extract_session_info_cached(events_path: &Path) -> Result<SessionInfo, String> {
+    let mtime = std::fs::metadata(events_path)
+        .and_then(|m| m.modified())
+        .ok();
+
+    if let Some(mtime) = mtime {
+        if let Some(cached) = SESSION_INFO_CACHE
+            .lock()
+            .ok()
+            .and_then(|map| map.get(events_path).cloned())
+        {
+            if cached.0 == mtime {
+                return Ok(cached.1);
+            }
+        }
+    }
+
+    let info = extract_session_info(events_path)?;
+    if let Some(mtime) = mtime {
+        if let Ok(mut map) = SESSION_INFO_CACHE.lock() {
+            map.insert(events_path.to_path_buf(), (mtime, info.clone()));
+        }
+    }
+    Ok(info)
+}
 
 #[allow(unsafe_code)] // mmap is needed for performance over large event logs
 fn extract_session_info(events_path: &Path) -> Result<SessionInfo, String> {
