@@ -319,6 +319,9 @@ mod ime_environment_tests {
 
 #[cfg(target_os = "linux")]
 fn configure_linux_ime_environment() {
+    // configure_linux_ime_environment runs during process startup before Tauri
+    // spawns threads, so applying linux_ime_environment_updates with
+    // std::env::set_var avoids the Rust 2024 environment mutation hazard.
     let gtk_im_module = std::env::var("GTK_IM_MODULE").ok();
     let xmodifiers = std::env::var("XMODIFIERS").ok();
     let ibus_address = std::env::var("IBUS_ADDRESS").ok();
@@ -335,11 +338,11 @@ fn configure_linux_ime_environment() {
 #[cfg(not(target_os = "linux"))]
 fn configure_linux_ime_environment() {}
 
-fn linux_ime_environment_updates<'a>(
+fn linux_ime_environment_updates(
     gtk_im_module: Option<&str>,
     xmodifiers: Option<&str>,
     ibus_address: Option<&str>,
-) -> Vec<(&'static str, &'a str)> {
+) -> Vec<(&'static str, &'static str)> {
     let has_ibus_signal = [gtk_im_module, xmodifiers, ibus_address]
         .into_iter()
         .flatten()
