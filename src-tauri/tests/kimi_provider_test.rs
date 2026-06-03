@@ -20,7 +20,7 @@ fn kimi_provider_scans_projects_from_sessions_tree() {
     );
     assert_eq!(project.actual_path, "project-hash");
     assert_eq!(project.session_count, 2);
-    assert_eq!(project.message_count, 5);
+    assert_eq!(project.message_count, 6);
     assert_eq!(project.provider.as_deref(), Some("kimi"));
     assert_eq!(project.storage_type.as_deref(), Some("jsonl"));
 }
@@ -44,7 +44,7 @@ fn kimi_provider_loads_sessions_with_titles_and_timestamps() {
     assert_eq!(second.actual_session_id, "session-1");
     assert_eq!(second.summary.as_deref(), Some("Implement Kimi provider"));
     assert!(second.has_tool_use);
-    assert_eq!(second.message_count, 3);
+    assert_eq!(second.message_count, 4);
     assert_eq!(second.provider.as_deref(), Some("kimi"));
 }
 
@@ -77,6 +77,9 @@ fn kimi_provider_loads_messages_without_internal_roles() {
         "tool_result"
     );
     assert_eq!(messages[3].message_type, "assistant");
+
+    let first_wire_ts = "2026-02-02T02:40:00+00:00";
+    assert!(messages.iter().all(|m| m.timestamp == first_wire_ts));
 }
 
 #[test]
@@ -131,6 +134,13 @@ impl EnvVarGuard {
     fn set(key: &'static str, value: OsString) -> Self {
         let original = std::env::var_os(key);
         std::env::set_var(key, value);
+        Self { key, original }
+    }
+
+    #[allow(dead_code)]
+    fn remove(key: &'static str) -> Self {
+        let original = std::env::var_os(key);
+        std::env::remove_var(key);
         Self { key, original }
     }
 }

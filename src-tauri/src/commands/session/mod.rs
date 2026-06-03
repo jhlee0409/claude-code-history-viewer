@@ -45,7 +45,6 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
         home.join(".claude").join("projects"),
         home.join(".codex").join("sessions"),
         home.join(".gemini"),
-        home.join(".kimi").join("sessions"),
         home.join(".local").join("share").join("opencode"),
         home.join(".cline").join("tasks"),
         home.join(".cursor"),

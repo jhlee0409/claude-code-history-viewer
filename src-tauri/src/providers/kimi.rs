@@ -28,8 +28,8 @@ pub fn detect() -> Option<ProviderInfo> {
 }
 
 pub fn get_base_path() -> Option<String> {
-    if let Ok(kimi_home) = std::env::var("KIMI_HOME") {
-        let path = PathBuf::from(&kimi_home);
+    if let Ok(env_val) = std::env::var("KIMI_SHARE_DIR").or_else(|_| std::env::var("KIMI_HOME")) {
+        let path = PathBuf::from(&env_val);
         let absolute_path = if path.is_absolute() {
             path
         } else {
@@ -41,7 +41,13 @@ pub fn get_base_path() -> Option<String> {
         }
     }
 
-    dirs::home_dir().map(|home| home.join(".kimi").to_string_lossy().to_string())
+    let default = dirs::home_dir()?.join(".kimi");
+    if default.exists() {
+        let normalized = default.canonicalize().unwrap_or(default);
+        Some(normalized.to_string_lossy().to_string())
+    } else {
+        None
+    }
 }
 
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
@@ -233,8 +239,10 @@ pub fn load_messages_from_base_path(
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "unknown".to_string());
     let timestamps = read_wire_timestamps(&session_dir);
-    let fallback_timestamp = timestamps.first().cloned().unwrap_or_default();
-    let mut timestamp_index = 0usize;
+    let session_timestamp = timestamps
+        .first()
+        .cloned()
+        .unwrap_or_else(|| file_modified_iso(&session_dir.join(CONTEXT_FILE)).unwrap_or_default());
     let mut messages = Vec::new();
     let mut counter = 0u64;
 
@@ -243,15 +251,8 @@ pub fn load_messages_from_base_path(
         if role.starts_with('_') {
             continue;
         }
-
-        let timestamp = timestamps
-            .get(timestamp_index)
-            .cloned()
-            .unwrap_or_else(|| fallback_timestamp.clone());
-        timestamp_index += 1;
-
         if let Some(message) =
-            convert_context_message(&value, role, &session_id, &timestamp, &mut counter)
+            convert_context_message(&value, role, &session_id, &session_timestamp, &mut counter)
         {
             messages.push(message);
         }
@@ -340,7 +341,7 @@ fn extract_session_info(session_dir: &Path) -> Option<SessionInfo> {
         if role.starts_with('_') {
             continue;
         }
-        if role == "user" || role == "assistant" {
+        if role == "user" || role == "assistant" || role == "tool" {
             message_count += 1;
         }
         if role == "tool"
@@ -543,10 +544,19 @@ fn is_absolute_working_directory(cwd: &str) -> bool {
 
 fn looks_like_windows_absolute_path(path: &str) -> bool {
     let bytes = path.as_bytes();
-    bytes.len() >= 3
+    // Drive-letter path: C:\ or C:/
+    if bytes.len() >= 3
         && bytes[0].is_ascii_alphabetic()
         && bytes[1] == b':'
         && matches!(bytes[2], b'\\' | b'/')
+    {
+        return true;
+    }
+    // UNC path: \\server\share or //server/share
+    if bytes.len() >= 2 && matches!(bytes[0], b'\\' | b'/') && bytes[0] == bytes[1] {
+        return true;
+    }
+    false
 }
 
 fn read_json_file(path: &Path) -> Result<Value, String> {
@@ -590,6 +600,10 @@ fn read_wire_timestamps(session_dir: &Path) -> Vec<String> {
 }
 
 fn epoch_to_iso(seconds: f64) -> Option<String> {
+    // Valid range: 1970-2100 (Unix seconds 0 ~ 4_102_444_800)
+    if !(0.0..=4_102_444_800.0).contains(&seconds) {
+        return None;
+    }
     let whole = seconds.trunc() as i64;
     let nanos = ((seconds.fract() * 1_000_000_000.0).round() as u32).min(999_999_999);
     Utc.timestamp_opt(whole, nanos)
@@ -646,6 +660,38 @@ fn project_name_from_actual_path(actual_path: &str, fallback: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+    use std::fs;
+    use tempfile::TempDir;
+
+    struct EnvVarGuard {
+        key: &'static str,
+        original: Option<std::ffi::OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: std::ffi::OsString) -> Self {
+            let original = std::env::var_os(key);
+            std::env::set_var(key, value);
+            Self { key, original }
+        }
+
+        fn remove(key: &'static str) -> Self {
+            let original = std::env::var_os(key);
+            std::env::remove_var(key);
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(value) = self.original.as_ref() {
+                std::env::set_var(self.key, value);
+            } else {
+                std::env::remove_var(self.key);
+            }
+        }
+    }
 
     #[test]
     fn extract_working_directory_accepts_windows_absolute_paths() {
@@ -655,5 +701,45 @@ mod tests {
             extract_working_directory(prompt).as_deref(),
             Some("C:\\Users\\max\\repo")
         );
+    }
+
+    #[test]
+    fn extract_working_directory_accepts_unc_paths() {
+        let prompt = r"The current working directory is `\\fileserver\share\project`.";
+        assert_eq!(
+            extract_working_directory(prompt).as_deref(),
+            Some(r"\\fileserver\share\project")
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn get_base_path_prefers_kimi_share_dir_over_kimi_home() {
+        let temp = TempDir::new().unwrap();
+        let share_dir = temp.path().join("share");
+        let home_dir = temp.path().join("home");
+        fs::create_dir_all(&share_dir).unwrap();
+        fs::create_dir_all(&home_dir).unwrap();
+        let _share = EnvVarGuard::set("KIMI_SHARE_DIR", share_dir.as_os_str().to_owned());
+        let _home = EnvVarGuard::set("KIMI_HOME", home_dir.as_os_str().to_owned());
+        let path = get_base_path().unwrap();
+        assert_eq!(
+            std::path::PathBuf::from(path),
+            share_dir.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn get_base_path_returns_none_when_default_dir_absent() {
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home_env = EnvVarGuard::remove("KIMI_HOME");
+        if dirs::home_dir()
+            .map(|h| h.join(".kimi").exists())
+            .unwrap_or(false)
+        {
+            return;
+        }
+        assert!(get_base_path().is_none());
     }
 }
