@@ -34,6 +34,7 @@ pub async fn scan_all_projects(
             "claude".to_string(),
             "codex".to_string(),
             "copilot-cli".to_string(),
+            "copilot-desktop".to_string(),
             "gemini".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -193,6 +194,17 @@ pub async fn scan_all_projects(
         }
     }
 
+    // Copilot Desktop (shares ~/.copilot with the CLI; differentiated via
+    // workspace.yaml::client_name).
+    if providers_to_scan.iter().any(|p| p == "copilot-desktop") {
+        match providers::copilot_desktop::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Copilot Desktop scan failed: {e}");
+            }
+        }
+    }
+
     // VS Code (Copilot Chat)
     if providers_to_scan.iter().any(|p| p == "vscode") {
         match providers::vscode::scan_projects() {
@@ -205,9 +217,12 @@ pub async fn scan_all_projects(
 
     // WSL scanning
     if wsl_enabled.unwrap_or(false)
-        && providers_to_scan
-            .iter()
-            .any(|p| matches!(p.as_str(), "claude" | "copilot-cli" | "vscode"))
+        && providers_to_scan.iter().any(|p| {
+            matches!(
+                p.as_str(),
+                "claude" | "copilot-cli" | "copilot-desktop" | "vscode"
+            )
+        })
     {
         let excluded = wsl_excluded_distros.unwrap_or_default();
 
@@ -249,6 +264,26 @@ pub async fn scan_all_projects(
                         Ok(projects) => all_projects.extend(projects),
                         Err(e) => {
                             log::warn!("WSL: Copilot CLI scan failed for '{}': {e}", distro.name);
+                        }
+                    }
+                }
+            }
+
+            if providers_to_scan.iter().any(|p| p == "copilot-desktop") {
+                let copilot_linux_path = home_path.join(".copilot");
+                if let Some(unc_path) =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
+                {
+                    match providers::copilot_desktop::scan_projects_from_user_data_path(
+                        &unc_path.to_string_lossy(),
+                        Some(&wsl_label),
+                    ) {
+                        Ok(projects) => all_projects.extend(projects),
+                        Err(e) => {
+                            log::warn!(
+                                "WSL: Copilot Desktop scan failed for '{}': {e}",
+                                distro.name
+                            );
                         }
                     }
                 }
@@ -319,6 +354,7 @@ pub async fn load_provider_sessions(
         }
         "codex" => providers::codex::load_sessions(&project_path, exclude),
         "copilot-cli" => providers::copilot_cli::load_sessions(&project_path, exclude),
+        "copilot-desktop" => providers::copilot_desktop::load_sessions(&project_path, exclude),
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
@@ -351,6 +387,7 @@ pub async fn load_provider_messages(
         }
         "codex" => providers::codex::load_messages(&session_path)?,
         "copilot-cli" => providers::copilot_cli::load_messages(&session_path)?,
+        "copilot-desktop" => providers::copilot_desktop::load_messages(&session_path)?,
         "gemini" => providers::gemini::load_messages(&session_path)?,
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
@@ -389,6 +426,7 @@ pub async fn search_all_providers(
             "claude".to_string(),
             "codex".to_string(),
             "copilot-cli".to_string(),
+            "copilot-desktop".to_string(),
             "gemini".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -560,6 +598,16 @@ pub async fn search_all_providers(
         }
     }
 
+    // Copilot Desktop
+    if providers_to_search.iter().any(|p| p == "copilot-desktop") {
+        match providers::copilot_desktop::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Copilot Desktop search failed: {e}");
+            }
+        }
+    }
+
     // VS Code (Copilot Chat)
     if providers_to_search.iter().any(|p| p == "vscode") {
         match providers::vscode::search(&query, max_results) {
@@ -572,9 +620,12 @@ pub async fn search_all_providers(
 
     // WSL search
     if wsl_enabled.unwrap_or(false)
-        && providers_to_search
-            .iter()
-            .any(|p| matches!(p.as_str(), "claude" | "copilot-cli" | "vscode"))
+        && providers_to_search.iter().any(|p| {
+            matches!(
+                p.as_str(),
+                "claude" | "copilot-cli" | "copilot-desktop" | "vscode"
+            )
+        })
     {
         let excluded = wsl_excluded_distros.unwrap_or_default();
 
@@ -621,6 +672,27 @@ pub async fn search_all_providers(
                         Ok(results) => all_results.extend(results),
                         Err(e) => {
                             log::warn!("WSL Copilot CLI search failed for '{}': {e}", distro.name);
+                        }
+                    }
+                }
+            }
+
+            if providers_to_search.iter().any(|p| p == "copilot-desktop") {
+                let copilot_linux_path = home_path.join(".copilot");
+                if let Some(unc_path) =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
+                {
+                    match providers::copilot_desktop::search_from_path(
+                        &unc_path.to_string_lossy(),
+                        &query,
+                        max_results,
+                    ) {
+                        Ok(results) => all_results.extend(results),
+                        Err(e) => {
+                            log::warn!(
+                                "WSL Copilot Desktop search failed for '{}': {e}",
+                                distro.name
+                            );
                         }
                     }
                 }

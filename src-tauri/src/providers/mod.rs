@@ -7,6 +7,7 @@ pub mod cline;
 pub mod codebuddy;
 pub mod codex;
 pub mod copilot_cli;
+pub mod copilot_desktop;
 pub mod cursor;
 pub mod forgecode;
 pub mod gemini;
@@ -24,6 +25,8 @@ pub enum ProviderId {
     Codex,
     #[serde(rename = "copilot-cli")]
     CopilotCli,
+    #[serde(rename = "copilot-desktop")]
+    CopilotDesktop,
     Cursor,
     Gemini,
     ForgeCode,
@@ -41,6 +44,7 @@ impl ProviderId {
             Self::Codebuddy => "codebuddy",
             Self::Codex => "codex",
             Self::CopilotCli => "copilot-cli",
+            Self::CopilotDesktop => "copilot-desktop",
             Self::Cursor => "cursor",
             Self::Gemini => "gemini",
             Self::ForgeCode => "forgecode",
@@ -58,6 +62,7 @@ impl ProviderId {
             "codebuddy" => Some(Self::Codebuddy),
             "codex" => Some(Self::Codex),
             "copilot-cli" => Some(Self::CopilotCli),
+            "copilot-desktop" => Some(Self::CopilotDesktop),
             "cursor" => Some(Self::Cursor),
             "gemini" => Some(Self::Gemini),
             "forgecode" => Some(Self::ForgeCode),
@@ -76,6 +81,7 @@ impl ProviderId {
             Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
             Self::CopilotCli => "Copilot CLI",
+            Self::CopilotDesktop => "Copilot Desktop",
             Self::Cursor => "Cursor",
             Self::Gemini => "Gemini CLI",
             Self::ForgeCode => "ForgeCode",
@@ -130,6 +136,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = copilot_cli::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = copilot_desktop::detect() {
         providers.push(info);
     }
     if let Some(info) = vscode::detect() {

@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **GitHub Copilot CLI provider**: Reads `~/.copilot/session-state/<id>/events.jsonl`. Sessions are grouped by recorded `cwd`. Tool calls and results are paired via `toolCallId`. Resume command (`copilot --resume=<id>`) is supported via the right-click menu.
+- **GitHub Copilot Desktop provider**: Same on-disk format and base directory as Copilot CLI; differentiated per-session via `<sessionDir>/workspace.yaml::client_name` (`github/autopilot` → Desktop, `github/cli` or missing → CLI). Distinct provider id (`copilot-desktop`), URL scheme (`copilot-desktop://<cwd>`), and badge color so the two surface as separate trees in the UI. The friendly `name` from `workspace.yaml` is preferred over the truncated first prompt as the session summary.
 - **VS Code Copilot Chat provider**: Reads `<UserData>/workspaceStorage/<hash>/chatSessions/*.jsonl`. Each file is replayed as a `kind:0` snapshot + `kind:1`/`kind:2` patch log to recover final session state. Workspace ↔ folder mapping uses `workspace.json`'s `folder` URI. Detects VS Code, VS Code Insiders, and VSCodium (macOS/Linux/Windows + WSL Server variants).
-- WSL: Both new providers participate in WSL scanning and search alongside Claude Code.
+- WSL: Copilot CLI, Copilot Desktop, and VS Code all participate in WSL scanning and search alongside Claude Code.
 
 ### Fixed
 - Stats: `resolve_provider_project_name` now handles WSL Copilot CLI project paths (which are JSON-encoded `{basePath, cwd}`) instead of treating the JSON blob as a file path.

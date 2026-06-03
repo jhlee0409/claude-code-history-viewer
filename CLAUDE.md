@@ -245,8 +245,9 @@ gh release edit v1.3.1 --notes-file /path/to/notes.md
 ```
 Claude Code:        ~/.claude/projects/[project]/*.jsonl                              ─┐
 Codex CLI:          ~/.codex/sessions/**/rollout-*.jsonl                               │
-OpenCode:           ~/.local/share/opencode/storage/                                   ├→ Rust Backend → Tauri IPC → React Frontend → Virtual List
-Copilot CLI:        ~/.copilot/session-state/<id>/events.jsonl                         │
+OpenCode:           ~/.local/share/opencode/storage/                                   │
+Copilot CLI:        ~/.copilot/session-state/<id>/events.jsonl   (workspace.yaml:      ├→ Rust Backend → Tauri IPC → React Frontend → Virtual List
+Copilot Desktop:    ~/.copilot/session-state/<id>/events.jsonl    client_name routes)  │
 VS Code Copilot:    <UserData>/workspaceStorage/<hash>/chatSessions/*.jsonl            ─┘
 ```
 

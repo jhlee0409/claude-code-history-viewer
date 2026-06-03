@@ -34,6 +34,34 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 const PROVIDER_ID: &str = "copilot-cli";
+pub const COPILOT_DESKTOP_PROVIDER_ID: &str = "copilot-desktop";
+
+/// Differentiates sessions that share `~/.copilot/session-state/` between the
+/// terminal Copilot CLI (`github/cli`) and the Copilot Desktop app
+/// (`github/autopilot`). Recorded in `<sessionDir>/workspace.yaml`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClientKind {
+    /// Terminal Copilot CLI, or legacy session with no `workspace.yaml`.
+    Cli,
+    /// Copilot Desktop app (`client_name: github/autopilot`).
+    Desktop,
+}
+
+impl ClientKind {
+    pub fn provider_id(self) -> &'static str {
+        match self {
+            ClientKind::Cli => PROVIDER_ID,
+            ClientKind::Desktop => COPILOT_DESKTOP_PROVIDER_ID,
+        }
+    }
+
+    pub fn project_scheme(self) -> &'static str {
+        match self {
+            ClientKind::Cli => "copilot-cli://",
+            ClientKind::Desktop => "copilot-desktop://",
+        }
+    }
+}
 
 /// Detect a Copilot CLI installation.
 pub fn detect() -> Option<ProviderInfo> {
@@ -43,6 +71,21 @@ pub fn detect() -> Option<ProviderInfo> {
     Some(ProviderInfo {
         id: PROVIDER_ID.to_string(),
         display_name: "Copilot CLI".to_string(),
+        base_path: base,
+        is_available,
+    })
+}
+
+/// Detect a Copilot Desktop installation. Shares storage with the CLI under
+/// `~/.copilot/`, so we report the same base path; the two are differentiated
+/// per-session by `workspace.yaml::client_name`.
+pub fn detect_desktop() -> Option<ProviderInfo> {
+    let base = get_base_path()?;
+    let session_dir = Path::new(&base).join("session-state");
+    let is_available = session_dir.is_dir();
+    Some(ProviderInfo {
+        id: COPILOT_DESKTOP_PROVIDER_ID.to_string(),
+        display_name: "Copilot Desktop".to_string(),
         base_path: base,
         is_available,
     })
@@ -139,38 +182,45 @@ struct CopilotProjectPath {
     cwd: String,
 }
 
-fn build_project_path(cwd: &str, base_path: Option<&str>) -> String {
+fn build_project_path(cwd: &str, base_path: Option<&str>, client: ClientKind) -> String {
+    let scheme = client.project_scheme();
     match base_path {
         Some(base_path) => format!(
-            "copilot-cli://{}",
+            "{scheme}{}",
             serde_json::to_string(&CopilotProjectPath {
                 base_path: base_path.to_string(),
                 cwd: cwd.to_string(),
             })
             .expect("CopilotProjectPath serialization cannot fail")
         ),
-        None => format!("copilot-cli://{cwd}"),
+        None => format!("{scheme}{cwd}"),
     }
 }
 
-fn parse_project_path(project_path: &str) -> Result<(Option<String>, String), String> {
-    let value = project_path
-        .strip_prefix("copilot-cli://")
-        .unwrap_or(project_path);
+fn parse_project_path(project_path: &str) -> Result<(Option<String>, String, ClientKind), String> {
+    let (value, client) = if let Some(rest) = project_path.strip_prefix("copilot-desktop://") {
+        (rest, ClientKind::Desktop)
+    } else if let Some(rest) = project_path.strip_prefix("copilot-cli://") {
+        (rest, ClientKind::Cli)
+    } else {
+        // Tolerate raw cwd inputs by assuming CLI.
+        (project_path, ClientKind::Cli)
+    };
     if value.trim_start().starts_with('{') {
         let parsed: CopilotProjectPath = serde_json::from_str(value)
-            .map_err(|e| format!("Invalid Copilot CLI project path: {e}"))?;
-        return Ok((Some(parsed.base_path), parsed.cwd));
+            .map_err(|e| format!("Invalid Copilot project path: {e}"))?;
+        return Ok((Some(parsed.base_path), parsed.cwd, client));
     }
-    Ok((None, value.to_string()))
+    Ok((None, value.to_string(), client))
 }
 
-/// Best-effort display name for a `copilot-cli://…` project path.
+/// Best-effort display name for a `copilot-cli://…` or `copilot-desktop://…`
+/// project path.
 ///
-/// Handles both the local form (`copilot-cli://<cwd>`) and the WSL form
-/// (`copilot-cli://<JSON>`), returning the basename of the recorded `cwd`.
+/// Handles both the local form (`<scheme>://<cwd>`) and the WSL form
+/// (`<scheme>://<JSON>`), returning the basename of the recorded `cwd`.
 pub fn project_name_for_path(project_path: &str) -> Option<String> {
-    let (_, cwd) = parse_project_path(project_path).ok()?;
+    let (_, cwd, _) = parse_project_path(project_path).ok()?;
     Path::new(&cwd)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -188,6 +238,73 @@ struct SessionInfo {
     file_path: String,
     has_tool_use: bool,
     summary: Option<String>,
+    client_kind: ClientKind,
+}
+
+/// Parsed subset of `<sessionDir>/workspace.yaml`.
+///
+/// Copilot writes a flat (key: value) YAML file alongside `events.jsonl` with
+/// session metadata. We tolerate missing files and malformed lines because
+/// only the `client_name`/`name` fields are load-bearing for routing/UI.
+#[derive(Debug, Default)]
+struct WorkspaceMetadata {
+    client_name: Option<String>,
+    name: Option<String>,
+}
+
+/// Parse a flat key:value YAML file. Quoted values are unquoted; we intentionally
+/// do NOT handle nested mappings, anchors, multiline scalars, or escapes —
+/// `workspace.yaml` only ever contains scalar fields.
+fn parse_flat_yaml(input: &str) -> WorkspaceMetadata {
+    let mut meta = WorkspaceMetadata::default();
+    for line in input.lines() {
+        let line = line.trim_end();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim();
+        // Strip matching outer quotes only.
+        let value = if (value.starts_with('"') && value.ends_with('"') && value.len() >= 2)
+            || (value.starts_with('\'') && value.ends_with('\'') && value.len() >= 2)
+        {
+            &value[1..value.len() - 1]
+        } else {
+            value
+        };
+        if value.is_empty() {
+            continue;
+        }
+        match key {
+            "client_name" => meta.client_name = Some(value.to_string()),
+            "name" => meta.name = Some(value.to_string()),
+            _ => {}
+        }
+    }
+    meta
+}
+
+/// Read `workspace.yaml` next to `events.jsonl` (best-effort; absence ⇒ default).
+fn read_workspace_metadata(events_path: &Path) -> WorkspaceMetadata {
+    let Some(dir) = events_path.parent() else {
+        return WorkspaceMetadata::default();
+    };
+    let yaml_path = dir.join("workspace.yaml");
+    match std::fs::read_to_string(&yaml_path) {
+        Ok(s) => parse_flat_yaml(&s),
+        Err(_) => WorkspaceMetadata::default(),
+    }
+}
+
+fn classify_client(meta: &WorkspaceMetadata) -> ClientKind {
+    match meta.client_name.as_deref() {
+        Some("github/autopilot") => ClientKind::Desktop,
+        // "github/cli" or anything else (including missing) → CLI.
+        _ => ClientKind::Cli,
+    }
 }
 
 /// Group sessions by `cwd` to expose virtual `copilot-cli://<cwd>` projects.
@@ -196,12 +313,37 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    scan_projects_from_path(&base, None)
+    scan_projects_filtered(&base, None, ClientKind::Cli)
+}
+
+/// Group sessions by `cwd` to expose virtual `copilot-desktop://<cwd>` projects.
+pub fn scan_desktop_projects() -> Result<Vec<ClaudeProject>, String> {
+    let base = match get_base_path() {
+        Some(base) => base,
+        None => return Ok(Vec::new()),
+    };
+    scan_projects_filtered(&base, None, ClientKind::Desktop)
 }
 
 pub fn scan_projects_from_path(
     base_path: &str,
     custom_directory_label: Option<&str>,
+) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_filtered(base_path, custom_directory_label, ClientKind::Cli)
+}
+
+pub fn scan_desktop_projects_from_path(
+    base_path: &str,
+    custom_directory_label: Option<&str>,
+) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_filtered(base_path, custom_directory_label, ClientKind::Desktop)
+}
+
+#[allow(clippy::unnecessary_wraps)] // Result kept to match public API shape.
+fn scan_projects_filtered(
+    base_path: &str,
+    custom_directory_label: Option<&str>,
+    client: ClientKind,
 ) -> Result<Vec<ClaudeProject>, String> {
     let root = get_session_root_from_base(base_path);
     if !root.is_dir() {
@@ -220,9 +362,13 @@ pub fn scan_projects_from_path(
         .filter(|e| is_events_jsonl(e.path()))
     {
         if let Ok(info) = extract_session_info(entry.path()) {
-            // Skip empty sessions (e.g., terminals where Copilot CLI was
+            // Skip empty sessions (e.g., terminals where Copilot was
             // launched but no prompt was sent).
             if info.message_count == 0 {
+                continue;
+            }
+            // Route each session to the matching provider.
+            if info.client_kind != client {
                 continue;
             }
             let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
@@ -248,13 +394,13 @@ pub fn scan_projects_from_path(
                 .to_string();
             ClaudeProject {
                 name,
-                path: build_project_path(&cwd, custom_directory_label.map(|_| base_path)),
+                path: build_project_path(&cwd, custom_directory_label.map(|_| base_path), client),
                 actual_path: cwd,
                 session_count,
                 message_count,
                 last_modified,
                 git_info: None,
-                provider: Some(PROVIDER_ID.to_string()),
+                provider: Some(client.provider_id().to_string()),
                 storage_type: None,
                 custom_directory_label: custom_directory_label.map(ToString::to_string),
             }
@@ -270,7 +416,7 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    let (base_path, target_cwd) = parse_project_path(project_path)?;
+    let (base_path, target_cwd, client) = parse_project_path(project_path)?;
     let root = match base_path {
         Some(base_path) => {
             let base = Path::new(&base_path);
@@ -304,6 +450,12 @@ pub fn load_sessions(
             if info.message_count == 0 {
                 continue;
             }
+            // Filter to the client kind encoded in the project path so
+            // copilot-cli:// and copilot-desktop:// don't bleed into each
+            // other when they share the same cwd.
+            if info.client_kind != client {
+                continue;
+            }
             let session_cwd = info.cwd.as_deref().unwrap_or("");
             if session_cwd != target_cwd {
                 continue;
@@ -324,7 +476,7 @@ pub fn load_sessions(
                 has_errors: false,
                 summary: info.summary,
                 is_renamed: false,
-                provider: Some(PROVIDER_ID.to_string()),
+                provider: Some(client.provider_id().to_string()),
                 storage_type: None,
                 entrypoint: None,
             });
@@ -344,6 +496,8 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     }
     let canonical = validate_session_path(path, session_path)
         .or_else(|_| validate_wsl_session_path(path, session_path))?;
+
+    let client = classify_client(&read_workspace_metadata(&canonical));
 
     let file = File::open(&canonical).map_err(|e| e.to_string())?;
     // SAFETY: file is opened read-only and we only read the mapping.
@@ -391,7 +545,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
             }
             "system.message" => {
                 if let Some(msg) =
-                    convert_system_message(data, &session_id, &timestamp, &mut counter)
+                    convert_system_message(data, &session_id, &timestamp, &mut counter, client)
                 {
                     messages.push(msg);
                 }
@@ -403,6 +557,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
                     &session_id,
                     &timestamp,
                     &mut counter,
+                    client,
                 ) {
                     messages.push(msg);
                 }
@@ -415,6 +570,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
                     &timestamp,
                     current_model.as_deref(),
                     &mut counter,
+                    client,
                 ) {
                     messages.push(msg);
                 }
@@ -440,10 +596,38 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     search_from_path(&base, query, limit)
 }
 
+/// Same as `search`, but only matches sessions whose workspace.yaml
+/// classifies them as the Desktop client.
+pub fn search_desktop(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
+    let base = match get_base_path() {
+        Some(base) => base,
+        None => return Ok(Vec::new()),
+    };
+    search_desktop_from_path(&base, query, limit)
+}
+
 pub fn search_from_path(
     base_path: &str,
     query: &str,
     limit: usize,
+) -> Result<Vec<ClaudeMessage>, String> {
+    search_filtered(base_path, query, limit, ClientKind::Cli)
+}
+
+pub fn search_desktop_from_path(
+    base_path: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<ClaudeMessage>, String> {
+    search_filtered(base_path, query, limit, ClientKind::Desktop)
+}
+
+#[allow(clippy::unnecessary_wraps)] // Result kept to match public API shape.
+fn search_filtered(
+    base_path: &str,
+    query: &str,
+    limit: usize,
+    client: ClientKind,
 ) -> Result<Vec<ClaudeMessage>, String> {
     let root = get_session_root_from_base(base_path);
     if !root.is_dir() {
@@ -462,6 +646,11 @@ pub fn search_from_path(
         .filter(|e| e.file_type().is_file())
         .filter(|e| is_events_jsonl(e.path()))
     {
+        // Cheap filter: skip whole session if it isn't the requested client.
+        let session_client = classify_client(&read_workspace_metadata(entry.path()));
+        if session_client != client {
+            continue;
+        }
         if let Ok(messages) = load_messages(&entry.path().to_string_lossy()) {
             for msg in messages {
                 if results.len() >= limit {
@@ -574,6 +763,18 @@ fn extract_session_info(events_path: &Path) -> Result<SessionInfo, String> {
         last_time.clone()
     };
 
+    let workspace = read_workspace_metadata(events_path);
+    let client_kind = classify_client(&workspace);
+
+    // Prefer workspace.yaml's user-friendly `name` as the session summary
+    // when present; the Desktop app sets it from the first user prompt and
+    // the CLI sometimes sets it via `/name`.
+    let summary = workspace
+        .name
+        .filter(|s| !s.is_empty())
+        .map(|s| truncate_preview(&s, 200))
+        .or(summary);
+
     Ok(SessionInfo {
         session_id,
         cwd,
@@ -584,6 +785,7 @@ fn extract_session_info(events_path: &Path) -> Result<SessionInfo, String> {
         file_path: events_path.to_string_lossy().to_string(),
         has_tool_use,
         summary,
+        client_kind,
     })
 }
 
@@ -625,6 +827,7 @@ fn convert_system_message(
     session_id: &str,
     timestamp: &str,
     counter: &mut u64,
+    client: ClientKind,
 ) -> Option<ClaudeMessage> {
     let content = data.get("content").and_then(Value::as_str)?;
     if content.is_empty() {
@@ -633,7 +836,7 @@ fn convert_system_message(
     *counter += 1;
     let body = serde_json::json!([{ "type": "text", "text": content }]);
     let mut msg = build_provider_message(
-        PROVIDER_ID,
+        client.provider_id(),
         format!("copilot-cli-system-{counter}"),
         session_id,
         timestamp.to_string(),
@@ -653,6 +856,7 @@ fn convert_user_message(
     session_id: &str,
     timestamp: &str,
     counter: &mut u64,
+    client: ClientKind,
 ) -> Option<ClaudeMessage> {
     let content = data.get("content").and_then(Value::as_str)?;
     if content.is_empty() {
@@ -664,7 +868,7 @@ fn convert_user_message(
         .map(str::to_string)
         .unwrap_or_else(|| format!("copilot-cli-user-{counter}"));
     Some(build_provider_message(
-        PROVIDER_ID,
+        client.provider_id(),
         uuid,
         session_id,
         timestamp.to_string(),
@@ -682,6 +886,7 @@ fn convert_assistant_message(
     timestamp: &str,
     model: Option<&str>,
     counter: &mut u64,
+    client: ClientKind,
 ) -> Option<ClaudeMessage> {
     *counter += 1;
     let uuid = event_id
@@ -748,7 +953,7 @@ fn convert_assistant_message(
         .cloned();
 
     let mut msg = build_provider_message(
-        PROVIDER_ID,
+        client.provider_id(),
         uuid,
         session_id,
         timestamp.to_string(),
@@ -1162,6 +1367,7 @@ mod tests {
         let wsl = build_project_path(
             "/home/jack/repos/my-app",
             Some(r"\\wsl$\Ubuntu\home\jack\.copilot"),
+            ClientKind::Cli,
         );
         assert_eq!(project_name_for_path(&wsl), Some("my-app".to_string()));
 
@@ -1172,5 +1378,92 @@ mod tests {
         );
         // Empty cwd yields None
         assert_eq!(project_name_for_path("copilot-cli://"), None);
+
+        // Desktop scheme uses the same logic.
+        assert_eq!(
+            project_name_for_path("copilot-desktop:///Users/jack/repos/my-app"),
+            Some("my-app".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_flat_yaml_handles_quotes_and_colons_in_values() {
+        let text = "client_name: github/autopilot\nname: \"Hello: world\"\nbroken-line-no-colon\n";
+        let meta = parse_flat_yaml(text);
+        assert_eq!(meta.client_name.as_deref(), Some("github/autopilot"));
+        assert_eq!(meta.name.as_deref(), Some("Hello: world"));
+
+        // Single-quoted name
+        let meta2 = parse_flat_yaml("name: 'Quoted Name'\n");
+        assert_eq!(meta2.name.as_deref(), Some("Quoted Name"));
+
+        // Empty value drops the key.
+        let meta3 = parse_flat_yaml("name:\nclient_name: github/cli\n");
+        assert!(meta3.name.is_none());
+        assert_eq!(meta3.client_name.as_deref(), Some("github/cli"));
+
+        // Comments and blank lines ignored.
+        let meta4 = parse_flat_yaml("# comment\n\nclient_name: github/autopilot\n");
+        assert_eq!(meta4.client_name.as_deref(), Some("github/autopilot"));
+    }
+
+    #[test]
+    fn classify_client_routes_by_client_name() {
+        let meta = WorkspaceMetadata {
+            client_name: Some("github/autopilot".to_string()),
+            name: None,
+        };
+        assert_eq!(classify_client(&meta), ClientKind::Desktop);
+
+        let meta = WorkspaceMetadata {
+            client_name: Some("github/cli".to_string()),
+            name: None,
+        };
+        assert_eq!(classify_client(&meta), ClientKind::Cli);
+
+        // Unknown / missing values default to Cli for back-compat with legacy
+        // sessions that pre-date workspace.yaml.
+        assert_eq!(
+            classify_client(&WorkspaceMetadata::default()),
+            ClientKind::Cli
+        );
+
+        let meta = WorkspaceMetadata {
+            client_name: Some("github/something-new".to_string()),
+            name: None,
+        };
+        assert_eq!(classify_client(&meta), ClientKind::Cli);
+    }
+
+    #[test]
+    fn extract_session_info_picks_up_workspace_yaml_summary() {
+        use std::fs;
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let session_dir = dir.path().join("aaaa-bbbb");
+        fs::create_dir(&session_dir).unwrap();
+
+        let events = session_dir.join("events.jsonl");
+        let payload = serde_json::json!({
+            "type": "session.start",
+            "timestamp": "2025-01-01T00:00:00Z",
+            "data": { "sessionId": "s1", "context": { "cwd": "/tmp/proj" } }
+        });
+        let user = serde_json::json!({
+            "type": "user.message",
+            "timestamp": "2025-01-01T00:00:01Z",
+            "data": { "content": "hi" }
+        });
+        fs::write(&events, format!("{payload}\n{user}\n")).unwrap();
+        fs::write(
+            session_dir.join("workspace.yaml"),
+            "client_name: github/autopilot\nname: Friendly Session Name\n",
+        )
+        .unwrap();
+
+        let info = extract_session_info(&events).unwrap();
+        assert_eq!(info.client_kind, ClientKind::Desktop);
+        assert_eq!(info.summary.as_deref(), Some("Friendly Session Name"));
     }
 }

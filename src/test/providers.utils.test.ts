@@ -46,6 +46,7 @@ describe("providers utils", () => {
       "codebuddy",
       "codex",
       "copilot-cli",
+      "copilot-desktop",
       "cursor",
       "forgecode",
       "gemini",

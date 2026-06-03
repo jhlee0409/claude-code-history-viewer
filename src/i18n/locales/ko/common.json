@@ -129,6 +129,7 @@
   "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
   "common.provider.copilotCli": "Copilot CLI",
+  "common.provider.copilotDesktop": "Copilot Desktop",
   "common.provider.vscode": "VS Code",
   "common.view": "보기",
   "common.watcher.autoRefresh": "자동 새로고침",

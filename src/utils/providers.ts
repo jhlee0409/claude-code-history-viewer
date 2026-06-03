@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "copilot-cli", "cursor", "forgecode", "gemini", "opencode", "vscode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "copilot-cli", "copilot-desktop", "cursor", "forgecode", "gemini", "opencode", "vscode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -14,6 +14,7 @@ const PROVIDER_TRANSLATIONS: Record<
   codebuddy: { key: "common.provider.codebuddy", fallback: "CodeBuddy Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
   "copilot-cli": { key: "common.provider.copilotCli", fallback: "Copilot CLI" },
+  "copilot-desktop": { key: "common.provider.copilotDesktop", fallback: "Copilot Desktop" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
@@ -81,6 +82,15 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  "copilot-desktop": {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    // Desktop sessions resume by reopening the GitHub Copilot app, not via a
+    // shell command. Hide the "resume" button for now.
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   cursor: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -138,6 +148,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "codebuddy":
     case "codex":
     case "copilot-cli":
+    case "copilot-desktop":
     case "cursor":
     case "gemini":
     case "forgecode":
@@ -262,6 +273,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   codebuddy: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
   "copilot-cli": "bg-[#8250df]/15 text-[#6639ba] dark:text-[#d2a8ff]",
+  "copilot-desktop": "bg-[#1f6feb]/15 text-[#0550ae] dark:text-[#79c0ff]",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",

@@ -27,6 +27,7 @@ enum StatsProvider {
     OpenCode,
     Antigravity,
     CopilotCli,
+    CopilotDesktop,
     VsCode,
 }
 
@@ -65,6 +66,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::OpenCode => "opencode",
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::CopilotCli => "copilot-cli",
+        StatsProvider::CopilotDesktop => "copilot-desktop",
         StatsProvider::VsCode => "vscode",
     }
 }
@@ -221,6 +223,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::OpenCode,
         StatsProvider::Antigravity,
         StatsProvider::CopilotCli,
+        StatsProvider::CopilotDesktop,
         StatsProvider::VsCode,
     ]
     .into_iter()
@@ -244,6 +247,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "opencode" => Some(StatsProvider::OpenCode),
             "antigravity" => Some(StatsProvider::Antigravity),
             "copilot-cli" => Some(StatsProvider::CopilotCli),
+            "copilot-desktop" => Some(StatsProvider::CopilotDesktop),
             "vscode" => Some(StatsProvider::VsCode),
             _ => {
                 unknown.push(provider);
@@ -276,6 +280,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Codebuddy
     } else if project_path.starts_with("copilot-cli://") {
         StatsProvider::CopilotCli
+    } else if project_path.starts_with("copilot-desktop://") {
+        StatsProvider::CopilotDesktop
     } else if project_path.starts_with("vscode://") {
         StatsProvider::VsCode
     } else {
@@ -299,6 +305,28 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.contains("/.copilot/session-state/")
         || session_path.contains("\\.copilot\\session-state\\")
     {
+        // CLI and Desktop both live under ~/.copilot/session-state/<id>/. Peek
+        // at the sibling workspace.yaml to decide which provider should claim
+        // this session.
+        let parent = PathBuf::from(session_path)
+            .parent()
+            .map(|p| p.join("workspace.yaml"));
+        if let Some(yaml_path) = parent {
+            if let Ok(text) = std::fs::read_to_string(&yaml_path) {
+                let is_desktop = text.lines().any(|line| {
+                    line.trim_start()
+                        .strip_prefix("client_name:")
+                        .map(|v| {
+                            v.trim().trim_matches(|c: char| c == '"' || c == '\'')
+                                == "github/autopilot"
+                        })
+                        .unwrap_or(false)
+                });
+                if is_desktop {
+                    return StatsProvider::CopilotDesktop;
+                }
+            }
+        }
         return StatsProvider::CopilotCli;
     }
     if (session_path.contains("/workspaceStorage/")
@@ -1027,6 +1055,9 @@ fn collect_provider_global_file_stats(
         StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
         StatsProvider::CopilotCli => providers::copilot_cli::scan_projects().unwrap_or_default(),
+        StatsProvider::CopilotDesktop => {
+            providers::copilot_desktop::scan_projects().unwrap_or_default()
+        }
         StatsProvider::VsCode => providers::vscode::scan_projects().unwrap_or_default(),
         StatsProvider::Claude => Vec::new(),
     };
@@ -1038,6 +1069,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::OpenCode => "opencode",
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::CopilotCli => "copilot-cli",
+        StatsProvider::CopilotDesktop => "copilot-desktop",
         StatsProvider::VsCode => "vscode",
         StatsProvider::Claude => "claude",
     };
@@ -1060,6 +1092,9 @@ fn collect_provider_global_file_stats(
             StatsProvider::CopilotCli => {
                 providers::copilot_cli::load_sessions(&project.path, false)
             }
+            StatsProvider::CopilotDesktop => {
+                providers::copilot_desktop::load_sessions(&project.path, false)
+            }
             StatsProvider::VsCode => providers::vscode::load_sessions(&project.path, false),
             StatsProvider::Claude => Ok(Vec::new()),
         }
@@ -1081,6 +1116,9 @@ fn collect_provider_global_file_stats(
                 StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
                 StatsProvider::CopilotCli => providers::copilot_cli::load_messages(file_path),
+                StatsProvider::CopilotDesktop => {
+                    providers::copilot_desktop::load_messages(file_path)
+                }
                 StatsProvider::VsCode => providers::vscode::load_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
             }
@@ -1703,6 +1741,10 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
         }
         StatsProvider::CopilotCli => providers::copilot_cli::project_name_for_path(project_path)
             .unwrap_or_else(|| "Copilot CLI".to_string()),
+        StatsProvider::CopilotDesktop => {
+            providers::copilot_cli::project_name_for_path(project_path)
+                .unwrap_or_else(|| "Copilot Desktop".to_string())
+        }
         StatsProvider::VsCode => providers::vscode::scan_projects()
             .ok()
             .and_then(|projects| {
@@ -1778,6 +1820,20 @@ fn resolve_provider_project_name_from_session(
             }
             "Copilot CLI".to_string()
         }
+        StatsProvider::CopilotDesktop => {
+            if let Ok(projects) = providers::copilot_desktop::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) =
+                        providers::copilot_desktop::load_sessions(&project.path, false)
+                    {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "Copilot Desktop".to_string()
+        }
         StatsProvider::VsCode => {
             if let Ok(projects) = providers::vscode::scan_projects() {
                 for project in projects {
@@ -1806,6 +1862,9 @@ fn load_provider_sessions_for_stats(
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
         StatsProvider::CopilotCli => providers::copilot_cli::load_sessions(project_path, false),
+        StatsProvider::CopilotDesktop => {
+            providers::copilot_desktop::load_sessions(project_path, false)
+        }
         StatsProvider::VsCode => providers::vscode::load_sessions(project_path, false),
         StatsProvider::Claude => {
             Err("Claude sessions are handled by legacy stats path".to_string())
@@ -1825,6 +1884,9 @@ fn load_provider_messages_for_stats(
         StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
         StatsProvider::CopilotCli => providers::copilot_cli::load_messages(&session.file_path),
+        StatsProvider::CopilotDesktop => {
+            providers::copilot_desktop::load_messages(&session.file_path)
+        }
         StatsProvider::VsCode => providers::vscode::load_messages(&session.file_path),
         StatsProvider::Claude => {
             Err("Claude messages are handled by legacy stats path".to_string())
@@ -2572,6 +2634,9 @@ pub async fn get_session_token_stats(
             StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
             StatsProvider::CopilotCli => providers::copilot_cli::load_messages(&session_path)?,
+            StatsProvider::CopilotDesktop => {
+                providers::copilot_desktop::load_messages(&session_path)?
+            }
             StatsProvider::VsCode => providers::vscode::load_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
         };
