@@ -1701,7 +1701,7 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                     .find(|project| project.path == project_path)
                     .map(|project| project.name)
             })
-            .unwrap_or_else(|| "GitHub Copilot".to_string()),
+            .unwrap_or_else(|| "Copilot".to_string()),
     }
 }
 
@@ -1766,7 +1766,7 @@ fn resolve_provider_project_name_from_session(
                     }
                 }
             }
-            "GitHub Copilot".to_string()
+            "Copilot".to_string()
         }
         StatsProvider::Claude => "unknown".to_string(),
     }

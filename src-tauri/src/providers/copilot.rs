@@ -51,7 +51,7 @@ pub fn detect() -> Option<ProviderInfo> {
 
     Some(ProviderInfo {
         id: PROVIDER_ID.to_string(),
-        display_name: "GitHub Copilot".to_string(),
+        display_name: "Copilot".to_string(),
         base_path,
         is_available,
     })

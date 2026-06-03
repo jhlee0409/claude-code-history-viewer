@@ -13,7 +13,7 @@ const PROVIDER_TRANSLATIONS: Record<
   cline: { key: "common.provider.cline", fallback: "Cline" },
   codebuddy: { key: "common.provider.codebuddy", fallback: "CodeBuddy Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
-  copilot: { key: "common.provider.copilot", fallback: "GitHub Copilot" },
+  copilot: { key: "common.provider.copilot", fallback: "Copilot" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },

@@ -75,7 +75,7 @@ impl ProviderId {
             Self::Cline => "Cline",
             Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
-            Self::Copilot => "GitHub Copilot",
+            Self::Copilot => "Copilot",
             Self::Cursor => "Cursor",
             Self::Gemini => "Gemini CLI",
             Self::ForgeCode => "ForgeCode",
