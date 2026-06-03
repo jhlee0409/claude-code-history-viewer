@@ -128,9 +128,6 @@
   "common.provider.detectError": "プロバイダーの検出に失敗しました。Claude のみ使用します。",
   "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
-  "common.provider.copilotCli": "Copilot CLI",
-  "common.provider.copilotDesktop": "Copilot Desktop",
-  "common.provider.vscode": "VS Code",
   "common.view": "表示",
   "common.watcher.autoRefresh": "自動更新",
   "common.watcher.disabled": "自動更新が無効です",
@@ -163,5 +160,6 @@
   "time.start": "開始:",
   "time.secondShort": "秒",
   "time.today": "今日",
-  "time.yesterday": "昨日"
+  "time.yesterday": "昨日",
+  "common.provider.copilot": "GitHub Copilot"
 }

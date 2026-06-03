@@ -128,9 +128,6 @@
   "common.provider.detectError": "프로바이더 감지에 실패했습니다. Claude만 사용합니다.",
   "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
-  "common.provider.copilotCli": "Copilot CLI",
-  "common.provider.copilotDesktop": "Copilot Desktop",
-  "common.provider.vscode": "VS Code",
   "common.view": "보기",
   "common.watcher.autoRefresh": "자동 새로고침",
   "common.watcher.disabled": "자동 새로고침 비활성화됨",
@@ -163,5 +160,6 @@
   "time.start": "시작:",
   "time.secondShort": "초",
   "time.today": "오늘",
-  "time.yesterday": "어제"
+  "time.yesterday": "어제",
+  "common.provider.copilot": "GitHub Copilot"
 }

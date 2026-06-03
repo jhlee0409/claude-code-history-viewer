@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "copilot-cli", "copilot-desktop", "cursor", "forgecode", "gemini", "opencode", "vscode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "copilot", "cursor", "forgecode", "gemini", "opencode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -13,13 +13,11 @@ const PROVIDER_TRANSLATIONS: Record<
   cline: { key: "common.provider.cline", fallback: "Cline" },
   codebuddy: { key: "common.provider.codebuddy", fallback: "CodeBuddy Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
-  "copilot-cli": { key: "common.provider.copilotCli", fallback: "Copilot CLI" },
-  "copilot-desktop": { key: "common.provider.copilotDesktop", fallback: "Copilot Desktop" },
+  copilot: { key: "common.provider.copilot", fallback: "GitHub Copilot" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
-  vscode: { key: "common.provider.vscode", fallback: "VS Code" },
 };
 
 type TranslateFn = (key: string, defaultValue: string) => string;
@@ -75,19 +73,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
-  "copilot-cli": {
+  copilot: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
+    // Resume capability is entrypoint-dependent (CLI yes, Desktop/VS Code no).
+    // The provider-level capability is the optimistic union; per-session
+    // gating is done by `supportsResumeCommandForSession` below.
     supportsResumeCommand: true,
-    supportsSessionDeletion: false,
-    supportsArchiveCreation: false,
-  },
-  "copilot-desktop": {
-    supportsConversationBreakdown: false,
-    supportsNativeRename: false,
-    // Desktop sessions resume by reopening the GitHub Copilot app, not via a
-    // shell command. Hide the "resume" button for now.
-    supportsResumeCommand: false,
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
@@ -119,13 +111,6 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
-  vscode: {
-    supportsConversationBreakdown: false,
-    supportsNativeRename: false,
-    supportsResumeCommand: false,
-    supportsSessionDeletion: false,
-    supportsArchiveCreation: false,
-  },
 };
 
 export interface ProviderTokenStatsLike {
@@ -147,13 +132,11 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "cline":
     case "codebuddy":
     case "codex":
-    case "copilot-cli":
-    case "copilot-desktop":
+    case "copilot":
     case "cursor":
     case "gemini":
     case "forgecode":
     case "opencode":
-    case "vscode":
     case "claude":
       return provider;
     default:
@@ -213,7 +196,8 @@ function shellQuotePath(p: string): string {
 export function getResumeCommand(
   provider: ProviderId | string | undefined,
   sessionId: string,
-  cwd?: string
+  cwd?: string,
+  entrypoint?: string
 ): string | null {
   if (!sessionId) {
     return null;
@@ -239,8 +223,13 @@ export function getResumeCommand(
     case "codex":
       resume = `codex resume ${sessionId}`;
       break;
-    case "copilot-cli":
-      resume = `copilot --resume=${sessionId}`;
+    case "copilot":
+      // Only the CLI surface has a resume command; Desktop/VS Code resume by
+      // reopening the app.
+      resume =
+        entrypoint === "copilot-cli"
+          ? `copilot --resume=${sessionId}`
+          : null;
       break;
     case "forgecode":
       resume = `forge conversation resume ${sessionId}`;
@@ -251,6 +240,19 @@ export function getResumeCommand(
 
   if (resume == null) return null;
   return cwd ? `cd ${shellQuotePath(cwd)} && ${resume}` : resume;
+}
+
+/**
+ * Per-session variant of supportsResumeCommand. Matches `getResumeCommand`'s
+ * gating exactly (Copilot resume requires entrypoint === "copilot-cli").
+ */
+export function supportsResumeCommandForSession(
+  provider: ProviderId | string | undefined,
+  entrypoint: string | undefined
+): boolean {
+  if (!supportsResumeCommand(provider)) return false;
+  if (provider === "copilot") return entrypoint === "copilot-cli";
+  return true;
 }
 
 export function supportsSessionDeletion(provider?: ProviderId | string): boolean {
@@ -272,8 +274,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   claude: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   codebuddy: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
-  "copilot-cli": "bg-[#8250df]/15 text-[#6639ba] dark:text-[#d2a8ff]",
-  "copilot-desktop": "bg-[#1f6feb]/15 text-[#0550ae] dark:text-[#79c0ff]",
+  copilot: "bg-[#8250df]/15 text-[#6639ba] dark:text-[#d2a8ff]",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
@@ -281,7 +282,6 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
-  vscode: "bg-[#007acc]/15 text-[#0065a9] dark:text-[#4fc3f7]",
 };
 
 export function getProviderBadgeStyle(provider?: ProviderId | string): string {

@@ -8,7 +8,7 @@
 // Provider Types
 // ============================================================================
 
-export type ProviderId = "aider" | "antigravity" | "claude" | "cline" | "codebuddy" | "codex" | "copilot-cli" | "copilot-desktop" | "cursor" | "forgecode" | "gemini" | "opencode" | "vscode";
+export type ProviderId = "aider" | "antigravity" | "claude" | "cline" | "codebuddy" | "codex" | "copilot" | "cursor" | "forgecode" | "gemini" | "opencode";
 
 export interface ProviderInfo {
   id: ProviderId;
@@ -81,9 +81,11 @@ export interface ClaudeSession {
   /** Storage type (json, sqlite) — OpenCode only */
   storage_type?: "json" | "sqlite";
   /**
-   * Originating client for Claude Code sessions: "cli" / "claude-vscode" /
-   * "claude-desktop". Raw value from the JSONL `entrypoint` field. Undefined
-   * for non-Claude providers or sessions predating the field.
+   * Originating client/surface for the session. Raw value from the JSONL
+   * `entrypoint` field. Known values:
+   *   * Claude:  "cli" / "claude-vscode" / "claude-desktop"
+   *   * Copilot: "copilot-cli" / "copilot-desktop" / "copilot-vscode"
+   * Undefined for providers that don't stamp the field, or older sessions.
    */
   entrypoint?: string;
 }

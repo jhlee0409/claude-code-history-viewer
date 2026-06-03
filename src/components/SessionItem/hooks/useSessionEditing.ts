@@ -11,7 +11,7 @@ import { isAbsolutePath } from "@/utils/pathUtils";
 import {
   getResumeCommand,
   supportsNativeRename as providerSupportsNativeRename,
-  supportsResumeCommand as providerSupportsResumeCommand,
+  supportsResumeCommandForSession,
   supportsSessionDeletion as providerSupportsSessionDeletion,
 } from "@/utils/providers";
 import type { ClaudeSession } from "@/types";
@@ -56,7 +56,10 @@ export function useSessionEditing(session: ClaudeSession) {
   const isServerReadOnly = useAppStore((state) => state.isServerReadOnly);
   const supportsNativeRename =
     !isServerReadOnly && providerSupportsNativeRename(providerId);
-  const supportsResumeCommand = providerSupportsResumeCommand(providerId);
+  const supportsResumeCommand = supportsResumeCommandForSession(
+    providerId,
+    session.entrypoint
+  );
   const supportsSessionDeletion =
     !isServerReadOnly && providerSupportsSessionDeletion(providerId);
   const supportsRevealInFinder = isAbsolutePath(session.file_path);
@@ -208,7 +211,8 @@ export function useSessionEditing(session: ClaudeSession) {
       const resumeCommand = getResumeCommand(
         providerId,
         session.actual_session_id,
-        projectCwd
+        projectCwd,
+        session.entrypoint
       );
       if (!resumeCommand) {
         e.stopPropagation();
@@ -228,7 +232,7 @@ export function useSessionEditing(session: ClaudeSession) {
             )
       );
     },
-    [handleCopyToClipboard, projectCwd, providerId, session.actual_session_id, t]
+    [handleCopyToClipboard, projectCwd, providerId, session.actual_session_id, session.entrypoint, t]
   );
 
   const handleCopyFilePath = useCallback(

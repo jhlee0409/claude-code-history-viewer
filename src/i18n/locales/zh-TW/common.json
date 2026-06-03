@@ -128,9 +128,6 @@
   "common.provider.detectError": "偵測提供者失敗。將僅使用 Claude。",
   "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
-  "common.provider.copilotCli": "Copilot CLI",
-  "common.provider.copilotDesktop": "Copilot Desktop",
-  "common.provider.vscode": "VS Code",
   "common.view": "檢視",
   "common.watcher.autoRefresh": "自動重新整理",
   "common.watcher.disabled": "自動重新整理已停用",
@@ -163,5 +160,6 @@
   "time.start": "開始：",
   "time.secondShort": "秒",
   "time.today": "今天",
-  "time.yesterday": "昨天"
+  "time.yesterday": "昨天",
+  "common.provider.copilot": "GitHub Copilot"
 }

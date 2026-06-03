@@ -128,9 +128,6 @@
   "common.provider.detectError": "Failed to detect providers. Using Claude only.",
   "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
-  "common.provider.copilotCli": "Copilot CLI",
-  "common.provider.copilotDesktop": "Copilot Desktop",
-  "common.provider.vscode": "VS Code",
   "common.view": "View",
   "common.watcher.autoRefresh": "Auto-refresh",
   "common.watcher.disabled": "Auto-refresh disabled",
@@ -163,5 +160,6 @@
   "time.start": "Start:",
   "time.secondShort": "s",
   "time.today": "Today",
-  "time.yesterday": "Yesterday"
+  "time.yesterday": "Yesterday",
+  "common.provider.copilot": "GitHub Copilot"
 }

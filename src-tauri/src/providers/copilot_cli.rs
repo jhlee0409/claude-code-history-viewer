@@ -33,8 +33,10 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-const PROVIDER_ID: &str = "copilot-cli";
-pub const COPILOT_DESKTOP_PROVIDER_ID: &str = "copilot-desktop";
+/// Public provider id stamped on every project/session/message regardless of
+/// `ClientKind`. The CLI and Desktop variants are distinguished by the
+/// per-session `entrypoint` field instead.
+const PROVIDER_ID: &str = "copilot";
 
 /// Differentiates sessions that share `~/.copilot/session-state/` between the
 /// terminal Copilot CLI (`github/cli`) and the Copilot Desktop app
@@ -48,13 +50,24 @@ pub enum ClientKind {
 }
 
 impl ClientKind {
+    /// Top-level provider id is unified for both kinds — disambiguation lives
+    /// in the per-session `entrypoint` field.
     pub fn provider_id(self) -> &'static str {
+        PROVIDER_ID
+    }
+
+    /// Entrypoint tag that the frontend's source filter (CLI / VS Code /
+    /// Desktop) uses to bucket sessions inside the unified Copilot provider.
+    pub fn entrypoint(self) -> &'static str {
         match self {
-            ClientKind::Cli => PROVIDER_ID,
-            ClientKind::Desktop => COPILOT_DESKTOP_PROVIDER_ID,
+            ClientKind::Cli => "copilot-cli",
+            ClientKind::Desktop => "copilot-desktop",
         }
     }
 
+    /// URL-scheme prefix used to encode `cwd` into the project `path` field.
+    /// Kept distinct per kind so the back-end can route a stored project path
+    /// back to the correct sub-scanner without re-reading workspace.yaml.
     pub fn project_scheme(self) -> &'static str {
         match self {
             ClientKind::Cli => "copilot-cli://",
@@ -84,7 +97,7 @@ pub fn detect_desktop() -> Option<ProviderInfo> {
     let session_dir = Path::new(&base).join("session-state");
     let is_available = session_dir.is_dir();
     Some(ProviderInfo {
-        id: COPILOT_DESKTOP_PROVIDER_ID.to_string(),
+        id: PROVIDER_ID.to_string(),
         display_name: "Copilot Desktop".to_string(),
         base_path: base,
         is_available,
@@ -478,7 +491,7 @@ pub fn load_sessions(
                 is_renamed: false,
                 provider: Some(client.provider_id().to_string()),
                 storage_type: None,
-                entrypoint: None,
+                entrypoint: Some(info.client_kind.entrypoint().to_string()),
             });
         }
     }
@@ -1086,7 +1099,7 @@ mod tests {
         let _env_guard = EnvVarGuard::set("COPILOT_CLI_HOME", tmp.path());
 
         let info = detect().expect("provider detected");
-        assert_eq!(info.id, "copilot-cli");
+        assert_eq!(info.id, "copilot");
         assert!(info.is_available);
         assert_eq!(info.base_path, tmp.path().to_string_lossy());
     }
@@ -1163,7 +1176,7 @@ mod tests {
             .expect("project /repo/a present");
         assert_eq!(project_a.session_count, 2);
         assert!(project_a.path.starts_with("copilot-cli://"));
-        assert_eq!(project_a.provider.as_deref(), Some("copilot-cli"));
+        assert_eq!(project_a.provider.as_deref(), Some("copilot"));
     }
 
     #[test]

@@ -26,9 +26,7 @@ enum StatsProvider {
     ForgeCode,
     OpenCode,
     Antigravity,
-    CopilotCli,
-    CopilotDesktop,
-    VsCode,
+    Copilot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,9 +63,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
         StatsProvider::Antigravity => "antigravity",
-        StatsProvider::CopilotCli => "copilot-cli",
-        StatsProvider::CopilotDesktop => "copilot-desktop",
-        StatsProvider::VsCode => "vscode",
+        StatsProvider::Copilot => "copilot",
     }
 }
 
@@ -222,9 +218,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::ForgeCode,
         StatsProvider::OpenCode,
         StatsProvider::Antigravity,
-        StatsProvider::CopilotCli,
-        StatsProvider::CopilotDesktop,
-        StatsProvider::VsCode,
+        StatsProvider::Copilot,
     ]
     .into_iter()
     .collect()
@@ -246,9 +240,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "forgecode" => Some(StatsProvider::ForgeCode),
             "opencode" => Some(StatsProvider::OpenCode),
             "antigravity" => Some(StatsProvider::Antigravity),
-            "copilot-cli" => Some(StatsProvider::CopilotCli),
-            "copilot-desktop" => Some(StatsProvider::CopilotDesktop),
-            "vscode" => Some(StatsProvider::VsCode),
+            "copilot" => Some(StatsProvider::Copilot),
             _ => {
                 unknown.push(provider);
                 None
@@ -278,12 +270,12 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Antigravity
     } else if is_codebuddy_path(project_path) {
         StatsProvider::Codebuddy
-    } else if project_path.starts_with("copilot-cli://") {
-        StatsProvider::CopilotCli
-    } else if project_path.starts_with("copilot-desktop://") {
-        StatsProvider::CopilotDesktop
-    } else if project_path.starts_with("vscode://") {
-        StatsProvider::VsCode
+    } else if project_path.starts_with("copilot://")
+        || project_path.starts_with("copilot-cli://")
+        || project_path.starts_with("copilot-desktop://")
+        || project_path.starts_with("vscode://")
+    {
+        StatsProvider::Copilot
     } else {
         StatsProvider::Claude
     }
@@ -305,29 +297,7 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.contains("/.copilot/session-state/")
         || session_path.contains("\\.copilot\\session-state\\")
     {
-        // CLI and Desktop both live under ~/.copilot/session-state/<id>/. Peek
-        // at the sibling workspace.yaml to decide which provider should claim
-        // this session.
-        let parent = PathBuf::from(session_path)
-            .parent()
-            .map(|p| p.join("workspace.yaml"));
-        if let Some(yaml_path) = parent {
-            if let Ok(text) = std::fs::read_to_string(&yaml_path) {
-                let is_desktop = text.lines().any(|line| {
-                    line.trim_start()
-                        .strip_prefix("client_name:")
-                        .map(|v| {
-                            v.trim().trim_matches(|c: char| c == '"' || c == '\'')
-                                == "github/autopilot"
-                        })
-                        .unwrap_or(false)
-                });
-                if is_desktop {
-                    return StatsProvider::CopilotDesktop;
-                }
-            }
-        }
-        return StatsProvider::CopilotCli;
+        return StatsProvider::Copilot;
     }
     if (session_path.contains("/workspaceStorage/")
         || session_path.contains("\\workspaceStorage\\"))
@@ -336,7 +306,7 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("jsonl"))
     {
-        return StatsProvider::VsCode;
+        return StatsProvider::Copilot;
     }
 
     // CodeBuddy: path is anchored under ~/.codebuddy/projects (not just substring
@@ -1054,11 +1024,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::ForgeCode => providers::forgecode::scan_projects().unwrap_or_default(),
         StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
-        StatsProvider::CopilotCli => providers::copilot_cli::scan_projects().unwrap_or_default(),
-        StatsProvider::CopilotDesktop => {
-            providers::copilot_desktop::scan_projects().unwrap_or_default()
-        }
-        StatsProvider::VsCode => providers::vscode::scan_projects().unwrap_or_default(),
+        StatsProvider::Copilot => providers::copilot::scan_projects().unwrap_or_default(),
         StatsProvider::Claude => Vec::new(),
     };
 
@@ -1068,9 +1034,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
         StatsProvider::Antigravity => "antigravity",
-        StatsProvider::CopilotCli => "copilot-cli",
-        StatsProvider::CopilotDesktop => "copilot-desktop",
-        StatsProvider::VsCode => "vscode",
+        StatsProvider::Copilot => "copilot",
         StatsProvider::Claude => "claude",
     };
 
@@ -1089,13 +1053,7 @@ fn collect_provider_global_file_stats(
             StatsProvider::Antigravity => {
                 providers::antigravity::load_sessions(&project.path, false)
             }
-            StatsProvider::CopilotCli => {
-                providers::copilot_cli::load_sessions(&project.path, false)
-            }
-            StatsProvider::CopilotDesktop => {
-                providers::copilot_desktop::load_sessions(&project.path, false)
-            }
-            StatsProvider::VsCode => providers::vscode::load_sessions(&project.path, false),
+            StatsProvider::Copilot => providers::copilot::load_sessions(&project.path, false),
             StatsProvider::Claude => Ok(Vec::new()),
         }
         .unwrap_or_default();
@@ -1115,11 +1073,7 @@ fn collect_provider_global_file_stats(
                 StatsProvider::ForgeCode => providers::forgecode::load_messages(file_path),
                 StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
-                StatsProvider::CopilotCli => providers::copilot_cli::load_messages(file_path),
-                StatsProvider::CopilotDesktop => {
-                    providers::copilot_desktop::load_messages(file_path)
-                }
-                StatsProvider::VsCode => providers::vscode::load_messages(file_path),
+                StatsProvider::Copilot => providers::copilot::load_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
             }
             .unwrap_or_default();
@@ -1739,13 +1693,7 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
             }
             "Antigravity".to_string()
         }
-        StatsProvider::CopilotCli => providers::copilot_cli::project_name_for_path(project_path)
-            .unwrap_or_else(|| "Copilot CLI".to_string()),
-        StatsProvider::CopilotDesktop => {
-            providers::copilot_cli::project_name_for_path(project_path)
-                .unwrap_or_else(|| "Copilot Desktop".to_string())
-        }
-        StatsProvider::VsCode => providers::vscode::scan_projects()
+        StatsProvider::Copilot => providers::copilot::scan_projects()
             .ok()
             .and_then(|projects| {
                 projects
@@ -1753,7 +1701,7 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                     .find(|project| project.path == project_path)
                     .map(|project| project.name)
             })
-            .unwrap_or_else(|| "VS Code".to_string()),
+            .unwrap_or_else(|| "GitHub Copilot".to_string()),
     }
 }
 
@@ -1806,11 +1754,11 @@ fn resolve_provider_project_name_from_session(
             "codex".to_string()
         }
         StatsProvider::Antigravity => "Antigravity".to_string(),
-        StatsProvider::CopilotCli => {
-            if let Ok(projects) = providers::copilot_cli::scan_projects() {
+        StatsProvider::Copilot => {
+            if let Ok(projects) = providers::copilot::scan_projects() {
                 for project in projects {
                     if let Ok(sessions) =
-                        providers::copilot_cli::load_sessions(&project.path, false)
+                        providers::copilot::load_sessions(&project.path, false)
                     {
                         if sessions.iter().any(|s| s.file_path == session_path) {
                             return project.name;
@@ -1818,33 +1766,7 @@ fn resolve_provider_project_name_from_session(
                     }
                 }
             }
-            "Copilot CLI".to_string()
-        }
-        StatsProvider::CopilotDesktop => {
-            if let Ok(projects) = providers::copilot_desktop::scan_projects() {
-                for project in projects {
-                    if let Ok(sessions) =
-                        providers::copilot_desktop::load_sessions(&project.path, false)
-                    {
-                        if sessions.iter().any(|s| s.file_path == session_path) {
-                            return project.name;
-                        }
-                    }
-                }
-            }
-            "Copilot Desktop".to_string()
-        }
-        StatsProvider::VsCode => {
-            if let Ok(projects) = providers::vscode::scan_projects() {
-                for project in projects {
-                    if let Ok(sessions) = providers::vscode::load_sessions(&project.path, false) {
-                        if sessions.iter().any(|s| s.file_path == session_path) {
-                            return project.name;
-                        }
-                    }
-                }
-            }
-            "VS Code".to_string()
+            "GitHub Copilot".to_string()
         }
         StatsProvider::Claude => "unknown".to_string(),
     }
@@ -1861,11 +1783,7 @@ fn load_provider_sessions_for_stats(
         StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
-        StatsProvider::CopilotCli => providers::copilot_cli::load_sessions(project_path, false),
-        StatsProvider::CopilotDesktop => {
-            providers::copilot_desktop::load_sessions(project_path, false)
-        }
-        StatsProvider::VsCode => providers::vscode::load_sessions(project_path, false),
+        StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
         StatsProvider::Claude => {
             Err("Claude sessions are handled by legacy stats path".to_string())
         }
@@ -1883,11 +1801,7 @@ fn load_provider_messages_for_stats(
         StatsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path),
         StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
-        StatsProvider::CopilotCli => providers::copilot_cli::load_messages(&session.file_path),
-        StatsProvider::CopilotDesktop => {
-            providers::copilot_desktop::load_messages(&session.file_path)
-        }
-        StatsProvider::VsCode => providers::vscode::load_messages(&session.file_path),
+        StatsProvider::Copilot => providers::copilot::load_messages(&session.file_path),
         StatsProvider::Claude => {
             Err("Claude messages are handled by legacy stats path".to_string())
         }
@@ -2633,11 +2547,7 @@ pub async fn get_session_token_stats(
             StatsProvider::ForgeCode => providers::forgecode::load_messages(&session_path)?,
             StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
-            StatsProvider::CopilotCli => providers::copilot_cli::load_messages(&session_path)?,
-            StatsProvider::CopilotDesktop => {
-                providers::copilot_desktop::load_messages(&session_path)?
-            }
-            StatsProvider::VsCode => providers::vscode::load_messages(&session_path)?,
+            StatsProvider::Copilot => providers::copilot::load_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
         };
 
@@ -4339,13 +4249,21 @@ mod tests {
         );
         assert_eq!(
             detect_project_provider("copilot-cli:///Users/jack/workspace"),
-            StatsProvider::CopilotCli
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_project_provider("copilot-desktop:///Users/jack/workspace"),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_project_provider("copilot:///Users/jack/workspace"),
+            StatsProvider::Copilot
         );
         assert_eq!(
             detect_project_provider(
                 "vscode:///Users/jack/Library/Application Support/Code/User/workspaceStorage/hash"
             ),
-            StatsProvider::VsCode
+            StatsProvider::Copilot
         );
         assert_eq!(
             detect_project_provider("/Users/jack/.claude/projects/my-project"),
@@ -4382,13 +4300,13 @@ mod tests {
         );
         assert_eq!(
             detect_session_provider("/Users/jack/.copilot/session-state/abcd-1234/events.jsonl"),
-            StatsProvider::CopilotCli
+            StatsProvider::Copilot
         );
         assert_eq!(
             detect_session_provider(
                 r"C:\Users\jack\AppData\Roaming\Code\User\workspaceStorage\hash\chatSessions\session.jsonl"
             ),
-            StatsProvider::VsCode
+            StatsProvider::Copilot
         );
         assert_eq!(
             detect_session_provider(
@@ -4426,8 +4344,7 @@ mod tests {
         assert!(providers.contains(&StatsProvider::ForgeCode));
         assert!(providers.contains(&StatsProvider::OpenCode));
         assert!(providers.contains(&StatsProvider::Antigravity));
-        assert!(providers.contains(&StatsProvider::CopilotCli));
-        assert!(providers.contains(&StatsProvider::VsCode));
+        assert!(providers.contains(&StatsProvider::Copilot));
     }
 
     #[test]
@@ -4462,15 +4379,11 @@ mod tests {
     }
 
     #[test]
-    /// Verify parse active stats providers supports Copilot CLI and VS Code.
-    fn test_parse_active_stats_providers_supports_copilot_cli_and_vscode() {
-        let providers = parse_active_stats_providers(Some(vec![
-            "copilot-cli".to_string(),
-            "vscode".to_string(),
-        ]));
-        assert_eq!(providers.len(), 2);
-        assert!(providers.contains(&StatsProvider::CopilotCli));
-        assert!(providers.contains(&StatsProvider::VsCode));
+    /// Verify parse active stats providers supports Copilot.
+    fn test_parse_active_stats_providers_supports_copilot() {
+        let providers = parse_active_stats_providers(Some(vec!["copilot".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Copilot));
     }
 
     #[test]

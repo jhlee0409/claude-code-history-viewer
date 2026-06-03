@@ -26,7 +26,11 @@ use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const PROVIDER_ID: &str = "vscode";
+/// Public provider id stamped on every project/session/message — unified
+/// with the Copilot CLI/Desktop providers under "copilot". Per-session
+/// disambiguation lives in `entrypoint = "copilot-vscode"`.
+const PROVIDER_ID: &str = "copilot";
+const ENTRYPOINT: &str = "copilot-vscode";
 
 #[derive(Debug, Clone)]
 struct UserDataRoot {
@@ -417,7 +421,7 @@ fn load_sessions_in(
             is_renamed: false,
             provider: Some(PROVIDER_ID.to_string()),
             storage_type: None,
-            entrypoint: None,
+            entrypoint: Some(ENTRYPOINT.to_string()),
         });
     }
 
@@ -1099,7 +1103,7 @@ mod tests {
         let msgs = messages_from_state(&state);
         assert_eq!(msgs.len(), 2);
         assert_eq!(msgs[0].message_type, "user");
-        assert_eq!(msgs[0].provider.as_deref(), Some("vscode"));
+        assert_eq!(msgs[0].provider.as_deref(), Some("copilot"));
         let user_blocks = msgs[0].content.as_ref().unwrap().as_array().unwrap();
         assert_eq!(user_blocks[0]["text"], "What is foo?");
 

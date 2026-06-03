@@ -128,9 +128,6 @@
   "common.provider.detectError": "检测提供商失败。将仅使用 Claude。",
   "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",
-  "common.provider.copilotCli": "Copilot CLI",
-  "common.provider.copilotDesktop": "Copilot Desktop",
-  "common.provider.vscode": "VS Code",
   "common.view": "查看",
   "common.watcher.autoRefresh": "自动刷新",
   "common.watcher.disabled": "自动刷新已禁用",
@@ -163,5 +160,6 @@
   "time.start": "开始：",
   "time.secondShort": "秒",
   "time.today": "今天",
-  "time.yesterday": "昨天"
+  "time.yesterday": "昨天",
+  "common.provider.copilot": "GitHub Copilot"
 }

@@ -33,8 +33,7 @@ pub async fn scan_all_projects(
         vec![
             "claude".to_string(),
             "codex".to_string(),
-            "copilot-cli".to_string(),
-            "copilot-desktop".to_string(),
+            "copilot".to_string(),
             "gemini".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -43,7 +42,6 @@ pub async fn scan_all_projects(
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
-            "vscode".to_string(),
         ]
     });
 
@@ -184,45 +182,21 @@ pub async fn scan_all_projects(
         }
     }
 
-    // Copilot CLI
-    if providers_to_scan.iter().any(|p| p == "copilot-cli") {
-        match providers::copilot_cli::scan_projects() {
+    // Unified GitHub Copilot provider (CLI + Desktop + VS Code Copilot Chat).
+    if providers_to_scan.iter().any(|p| p == "copilot") {
+        match providers::copilot::scan_projects() {
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
-                log::warn!("Copilot CLI scan failed: {e}");
-            }
-        }
-    }
-
-    // Copilot Desktop (shares ~/.copilot with the CLI; differentiated via
-    // workspace.yaml::client_name).
-    if providers_to_scan.iter().any(|p| p == "copilot-desktop") {
-        match providers::copilot_desktop::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Copilot Desktop scan failed: {e}");
-            }
-        }
-    }
-
-    // VS Code (Copilot Chat)
-    if providers_to_scan.iter().any(|p| p == "vscode") {
-        match providers::vscode::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("VS Code scan failed: {e}");
+                log::warn!("Copilot scan failed: {e}");
             }
         }
     }
 
     // WSL scanning
     if wsl_enabled.unwrap_or(false)
-        && providers_to_scan.iter().any(|p| {
-            matches!(
-                p.as_str(),
-                "claude" | "copilot-cli" | "copilot-desktop" | "vscode"
-            )
-        })
+        && providers_to_scan
+            .iter()
+            .any(|p| matches!(p.as_str(), "claude" | "copilot"))
     {
         let excluded = wsl_excluded_distros.unwrap_or_default();
 
@@ -252,59 +226,54 @@ pub async fn scan_all_projects(
                 }
             }
 
-            if providers_to_scan.iter().any(|p| p == "copilot-cli") {
+            if providers_to_scan.iter().any(|p| p == "copilot") {
+                // Copilot CLI/Desktop base
                 let copilot_linux_path = home_path.join(".copilot");
-                if let Some(unc_path) =
-                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
-                {
-                    match providers::copilot_cli::scan_projects_from_path(
-                        &unc_path.to_string_lossy(),
+                let copilot_base = crate::wsl::resolve_wsl_provider_path(
+                    &distro.name,
+                    &copilot_linux_path,
+                )
+                .map(|p| p.to_string_lossy().to_string());
+
+                // Iterate VS Code user-data dirs (Stable + Insiders).
+                let vscode_bases: Vec<(std::path::PathBuf, &'static str)> =
+                    wsl_vscode_user_data_paths(&home_path)
+                        .into_iter()
+                        .filter_map(|(linux_path, editor_label)| {
+                            crate::wsl::resolve_wsl_provider_path(&distro.name, &linux_path)
+                                .map(|unc| (unc, editor_label))
+                        })
+                        .collect();
+
+                // Single Copilot scan covering Copilot CLI/Desktop on this
+                // distro plus the canonical Stable VS Code user-data root.
+                let canonical_vscode = vscode_bases.first().map(|(p, _)| p.clone());
+                if copilot_base.is_some() || canonical_vscode.is_some() {
+                    match providers::copilot::scan_projects_from_paths(
+                        copilot_base.as_deref(),
+                        canonical_vscode.as_deref(),
                         Some(&wsl_label),
                     ) {
                         Ok(projects) => all_projects.extend(projects),
                         Err(e) => {
-                            log::warn!("WSL: Copilot CLI scan failed for '{}': {e}", distro.name);
+                            log::warn!("WSL: Copilot scan failed for '{}': {e}", distro.name);
                         }
                     }
                 }
-            }
 
-            if providers_to_scan.iter().any(|p| p == "copilot-desktop") {
-                let copilot_linux_path = home_path.join(".copilot");
-                if let Some(unc_path) =
-                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
-                {
-                    match providers::copilot_desktop::scan_projects_from_user_data_path(
-                        &unc_path.to_string_lossy(),
-                        Some(&wsl_label),
-                    ) {
-                        Ok(projects) => all_projects.extend(projects),
-                        Err(e) => {
-                            log::warn!(
-                                "WSL: Copilot Desktop scan failed for '{}': {e}",
-                                distro.name
-                            );
-                        }
-                    }
-                }
-            }
-
-            if providers_to_scan.iter().any(|p| p == "vscode") {
-                for (linux_path, editor_label) in wsl_vscode_user_data_paths(&home_path) {
-                    let Some(unc_path) =
-                        crate::wsl::resolve_wsl_provider_path(&distro.name, &linux_path)
-                    else {
-                        continue;
-                    };
+                // Additional VS Code Insiders root (we want both shown — the
+                // aggregator scans one base at a time, so call it again).
+                for (unc_path, editor_label) in vscode_bases.into_iter().skip(1) {
                     let label = format!("{wsl_label} ({editor_label})");
-                    match providers::vscode::scan_projects_from_user_data_path(
-                        &unc_path,
+                    match providers::copilot::scan_projects_from_paths(
+                        None,
+                        Some(unc_path.as_path()),
                         Some(&label),
                     ) {
                         Ok(projects) => all_projects.extend(projects),
                         Err(e) => {
                             log::warn!(
-                                "WSL: VS Code scan failed for '{}' ({editor_label}): {e}",
+                                "WSL: Copilot ({editor_label}) scan failed for '{}': {e}",
                                 distro.name
                             );
                         }
@@ -353,8 +322,7 @@ pub async fn load_provider_sessions(
             Ok(sessions)
         }
         "codex" => providers::codex::load_sessions(&project_path, exclude),
-        "copilot-cli" => providers::copilot_cli::load_sessions(&project_path, exclude),
-        "copilot-desktop" => providers::copilot_desktop::load_sessions(&project_path, exclude),
+        "copilot" => providers::copilot::load_sessions(&project_path, exclude),
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
@@ -363,7 +331,6 @@ pub async fn load_provider_sessions(
         "aider" => providers::aider::load_sessions(&project_path, exclude),
         "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
         "codebuddy" => providers::codebuddy::load_sessions(&project_path, exclude),
-        "vscode" => providers::vscode::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -386,8 +353,7 @@ pub async fn load_provider_messages(
             messages
         }
         "codex" => providers::codex::load_messages(&session_path)?,
-        "copilot-cli" => providers::copilot_cli::load_messages(&session_path)?,
-        "copilot-desktop" => providers::copilot_desktop::load_messages(&session_path)?,
+        "copilot" => providers::copilot::load_messages(&session_path)?,
         "gemini" => providers::gemini::load_messages(&session_path)?,
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
@@ -396,7 +362,6 @@ pub async fn load_provider_messages(
         "aider" => providers::aider::load_messages(&session_path)?,
         "antigravity" => providers::antigravity::load_messages(&session_path)?,
         "codebuddy" => providers::codebuddy::load_messages(&session_path)?,
-        "vscode" => providers::vscode::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -425,8 +390,7 @@ pub async fn search_all_providers(
         vec![
             "claude".to_string(),
             "codex".to_string(),
-            "copilot-cli".to_string(),
-            "copilot-desktop".to_string(),
+            "copilot".to_string(),
             "gemini".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -435,7 +399,6 @@ pub async fn search_all_providers(
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
-            "vscode".to_string(),
         ]
     });
 
@@ -588,44 +551,21 @@ pub async fn search_all_providers(
         }
     }
 
-    // Copilot CLI
-    if providers_to_search.iter().any(|p| p == "copilot-cli") {
-        match providers::copilot_cli::search(&query, max_results) {
+    // Unified GitHub Copilot search (CLI + Desktop + VS Code Copilot Chat).
+    if providers_to_search.iter().any(|p| p == "copilot") {
+        match providers::copilot::search(&query, max_results) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
-                log::warn!("Copilot CLI search failed: {e}");
-            }
-        }
-    }
-
-    // Copilot Desktop
-    if providers_to_search.iter().any(|p| p == "copilot-desktop") {
-        match providers::copilot_desktop::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Copilot Desktop search failed: {e}");
-            }
-        }
-    }
-
-    // VS Code (Copilot Chat)
-    if providers_to_search.iter().any(|p| p == "vscode") {
-        match providers::vscode::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("VS Code search failed: {e}");
+                log::warn!("Copilot search failed: {e}");
             }
         }
     }
 
     // WSL search
     if wsl_enabled.unwrap_or(false)
-        && providers_to_search.iter().any(|p| {
-            matches!(
-                p.as_str(),
-                "claude" | "copilot-cli" | "copilot-desktop" | "vscode"
-            )
-        })
+        && providers_to_search
+            .iter()
+            .any(|p| matches!(p.as_str(), "claude" | "copilot"))
     {
         let excluded = wsl_excluded_distros.unwrap_or_default();
 
@@ -659,61 +599,49 @@ pub async fn search_all_providers(
                 }
             }
 
-            if providers_to_search.iter().any(|p| p == "copilot-cli") {
+            if providers_to_search.iter().any(|p| p == "copilot") {
                 let copilot_linux_path = home_path.join(".copilot");
-                if let Some(unc_path) =
-                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
-                {
-                    match providers::copilot_cli::search_from_path(
-                        &unc_path.to_string_lossy(),
+                let copilot_base = crate::wsl::resolve_wsl_provider_path(
+                    &distro.name,
+                    &copilot_linux_path,
+                )
+                .map(|p| p.to_string_lossy().to_string());
+
+                let vscode_bases: Vec<(std::path::PathBuf, &'static str)> =
+                    wsl_vscode_user_data_paths(&home_path)
+                        .into_iter()
+                        .filter_map(|(linux_path, editor_label)| {
+                            crate::wsl::resolve_wsl_provider_path(&distro.name, &linux_path)
+                                .map(|unc| (unc, editor_label))
+                        })
+                        .collect();
+
+                let canonical_vscode = vscode_bases.first().map(|(p, _)| p.clone());
+                if copilot_base.is_some() || canonical_vscode.is_some() {
+                    match providers::copilot::search_from_paths(
+                        copilot_base.as_deref(),
+                        canonical_vscode.as_deref(),
                         &query,
                         max_results,
                     ) {
                         Ok(results) => all_results.extend(results),
                         Err(e) => {
-                            log::warn!("WSL Copilot CLI search failed for '{}': {e}", distro.name);
+                            log::warn!("WSL Copilot search failed for '{}': {e}", distro.name);
                         }
                     }
                 }
-            }
 
-            if providers_to_search.iter().any(|p| p == "copilot-desktop") {
-                let copilot_linux_path = home_path.join(".copilot");
-                if let Some(unc_path) =
-                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
-                {
-                    match providers::copilot_desktop::search_from_path(
-                        &unc_path.to_string_lossy(),
+                for (unc_path, editor_label) in vscode_bases.into_iter().skip(1) {
+                    match providers::copilot::search_from_paths(
+                        None,
+                        Some(unc_path.as_path()),
                         &query,
                         max_results,
                     ) {
                         Ok(results) => all_results.extend(results),
                         Err(e) => {
                             log::warn!(
-                                "WSL Copilot Desktop search failed for '{}': {e}",
-                                distro.name
-                            );
-                        }
-                    }
-                }
-            }
-
-            if providers_to_search.iter().any(|p| p == "vscode") {
-                for (linux_path, editor_label) in wsl_vscode_user_data_paths(&home_path) {
-                    let Some(unc_path) =
-                        crate::wsl::resolve_wsl_provider_path(&distro.name, &linux_path)
-                    else {
-                        continue;
-                    };
-                    match providers::vscode::search_from_user_data_path(
-                        &unc_path,
-                        &query,
-                        max_results,
-                    ) {
-                        Ok(results) => all_results.extend(results),
-                        Err(e) => {
-                            log::warn!(
-                                "WSL VS Code search failed for '{}' ({editor_label}): {e}",
+                                "WSL Copilot ({editor_label}) search failed for '{}': {e}",
                                 distro.name
                             );
                         }

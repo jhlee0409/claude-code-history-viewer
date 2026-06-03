@@ -6,8 +6,8 @@ pub mod claude;
 pub mod cline;
 pub mod codebuddy;
 pub mod codex;
+pub mod copilot;
 pub mod copilot_cli;
-pub mod copilot_desktop;
 pub mod cursor;
 pub mod forgecode;
 pub mod gemini;
@@ -23,16 +23,15 @@ pub enum ProviderId {
     Cline,
     Codebuddy,
     Codex,
-    #[serde(rename = "copilot-cli")]
-    CopilotCli,
-    #[serde(rename = "copilot-desktop")]
-    CopilotDesktop,
+    /// Unified GitHub Copilot provider covering CLI, Desktop, and the VS Code
+    /// Copilot Chat extension. Per-session disambiguation lives in the
+    /// `entrypoint` field (`copilot-cli` / `copilot-desktop` / `copilot-vscode`).
+    Copilot,
     Cursor,
     Gemini,
     ForgeCode,
     OpenCode,
     Antigravity,
-    VsCode,
 }
 
 impl ProviderId {
@@ -43,14 +42,12 @@ impl ProviderId {
             Self::Cline => "cline",
             Self::Codebuddy => "codebuddy",
             Self::Codex => "codex",
-            Self::CopilotCli => "copilot-cli",
-            Self::CopilotDesktop => "copilot-desktop",
+            Self::Copilot => "copilot",
             Self::Cursor => "cursor",
             Self::Gemini => "gemini",
             Self::ForgeCode => "forgecode",
             Self::OpenCode => "opencode",
             Self::Antigravity => "antigravity",
-            Self::VsCode => "vscode",
         }
     }
 
@@ -61,14 +58,12 @@ impl ProviderId {
             "cline" => Some(Self::Cline),
             "codebuddy" => Some(Self::Codebuddy),
             "codex" => Some(Self::Codex),
-            "copilot-cli" => Some(Self::CopilotCli),
-            "copilot-desktop" => Some(Self::CopilotDesktop),
+            "copilot" => Some(Self::Copilot),
             "cursor" => Some(Self::Cursor),
             "gemini" => Some(Self::Gemini),
             "forgecode" => Some(Self::ForgeCode),
             "opencode" => Some(Self::OpenCode),
             "antigravity" => Some(Self::Antigravity),
-            "vscode" => Some(Self::VsCode),
             _ => None,
         }
     }
@@ -80,14 +75,12 @@ impl ProviderId {
             Self::Cline => "Cline",
             Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
-            Self::CopilotCli => "Copilot CLI",
-            Self::CopilotDesktop => "Copilot Desktop",
+            Self::Copilot => "GitHub Copilot",
             Self::Cursor => "Cursor",
             Self::Gemini => "Gemini CLI",
             Self::ForgeCode => "ForgeCode",
             Self::OpenCode => "OpenCode",
             Self::Antigravity => "Antigravity",
-            Self::VsCode => "VS Code",
         }
     }
 }
@@ -135,13 +128,7 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
     if let Some(info) = codebuddy::detect() {
         providers.push(info);
     }
-    if let Some(info) = copilot_cli::detect() {
-        providers.push(info);
-    }
-    if let Some(info) = copilot_desktop::detect() {
-        providers.push(info);
-    }
-    if let Some(info) = vscode::detect() {
+    if let Some(info) = copilot::detect() {
         providers.push(info);
     }
 
