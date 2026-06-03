@@ -229,11 +229,9 @@ pub async fn scan_all_projects(
             if providers_to_scan.iter().any(|p| p == "copilot") {
                 // Copilot CLI/Desktop base
                 let copilot_linux_path = home_path.join(".copilot");
-                let copilot_base = crate::wsl::resolve_wsl_provider_path(
-                    &distro.name,
-                    &copilot_linux_path,
-                )
-                .map(|p| p.to_string_lossy().to_string());
+                let copilot_base =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
+                        .map(|p| p.to_string_lossy().to_string());
 
                 // Iterate VS Code user-data dirs (Stable + Insiders).
                 let vscode_bases: Vec<(std::path::PathBuf, &'static str)> =
@@ -601,11 +599,9 @@ pub async fn search_all_providers(
 
             if providers_to_search.iter().any(|p| p == "copilot") {
                 let copilot_linux_path = home_path.join(".copilot");
-                let copilot_base = crate::wsl::resolve_wsl_provider_path(
-                    &distro.name,
-                    &copilot_linux_path,
-                )
-                .map(|p| p.to_string_lossy().to_string());
+                let copilot_base =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
+                        .map(|p| p.to_string_lossy().to_string());
 
                 let vscode_bases: Vec<(std::path::PathBuf, &'static str)> =
                     wsl_vscode_user_data_paths(&home_path)

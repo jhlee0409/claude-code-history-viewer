@@ -34,6 +34,7 @@ import {
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { supportsConversationBreakdown } from "../../utils/providers";
 import { normalizeDateFilterOptions } from "../../utils/date";
+import { isAbsolutePath } from "../../utils/pathUtils";
 import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
 
 // ============================================================================
@@ -753,6 +754,16 @@ export const createMessageSlice: StateCreator<
     sessionPath: string,
     sourceMessages: ClaudeMessage[],
   ) => {
+    if (!isAbsolutePath(sessionPath)) {
+      if (get().selectedSession?.file_path === sessionPath) {
+        set({
+          subagentSessions: [],
+          toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
+        });
+      }
+      return;
+    }
+
     try {
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
         sessionPath,

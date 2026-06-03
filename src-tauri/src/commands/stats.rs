@@ -294,7 +294,8 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.starts_with("forgecode://") || session_path.starts_with("forgecode-db://") {
         return StatsProvider::ForgeCode;
     }
-    if session_path.contains("/.copilot/session-state/")
+    if is_copilot_cli_session_path(session_path)
+        || session_path.contains("/.copilot/session-state/")
         || session_path.contains("\\.copilot\\session-state\\")
     {
         return StatsProvider::Copilot;
@@ -330,6 +331,26 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     } else {
         StatsProvider::Claude
     }
+}
+
+fn is_copilot_cli_session_path(session_path: &str) -> bool {
+    if !Path::new(session_path)
+        .file_name()
+        .is_some_and(|name| name == "events.jsonl")
+    {
+        return false;
+    }
+    let Some(base) = providers::copilot_cli::get_base_path() else {
+        return false;
+    };
+    let root = Path::new(&base).join("session-state");
+    let Ok(root) = root.canonicalize() else {
+        return false;
+    };
+    let Ok(path) = Path::new(session_path).canonicalize() else {
+        return false;
+    };
+    path.starts_with(root)
 }
 
 fn is_antigravity_path(path: &str) -> bool {
@@ -1757,9 +1778,7 @@ fn resolve_provider_project_name_from_session(
         StatsProvider::Copilot => {
             if let Ok(projects) = providers::copilot::scan_projects() {
                 for project in projects {
-                    if let Ok(sessions) =
-                        providers::copilot::load_sessions(&project.path, false)
-                    {
+                    if let Ok(sessions) = providers::copilot::load_sessions(&project.path, false) {
                         if sessions.iter().any(|s| s.file_path == session_path) {
                             return project.name;
                         }
@@ -3682,10 +3701,34 @@ mod tests {
     use super::*;
     use serde_json::json;
     use serial_test::serial;
+    use std::ffi::OsString;
     use std::fs;
     use std::fs::File;
     use std::io::Write;
     use tempfile::TempDir;
+
+    struct EnvVarGuard {
+        key: &'static str,
+        original: Option<OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: &std::path::Path) -> Self {
+            let original = std::env::var_os(key);
+            std::env::set_var(key, value);
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(value) = self.original.as_ref() {
+                std::env::set_var(self.key, value);
+            } else {
+                std::env::remove_var(self.key);
+            }
+        }
+    }
 
     fn make_test_message(
         provider: Option<&str>,
@@ -4333,6 +4376,25 @@ mod tests {
                 StatsProvider::Antigravity
             );
         }
+    }
+
+    #[test]
+    #[serial]
+    fn detect_session_provider_uses_copilot_cli_home_env() {
+        let tmp = TempDir::new().unwrap();
+        let events_path = tmp
+            .path()
+            .join("session-state")
+            .join("abcd-1234")
+            .join("events.jsonl");
+        fs::create_dir_all(events_path.parent().unwrap()).unwrap();
+        fs::write(&events_path, "").unwrap();
+        let _env_guard = EnvVarGuard::set("COPILOT_CLI_HOME", tmp.path());
+
+        assert_eq!(
+            detect_session_provider(&events_path.to_string_lossy()),
+            StatsProvider::Copilot
+        );
     }
 
     #[test]

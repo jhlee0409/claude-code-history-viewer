@@ -244,8 +244,7 @@ pub fn project_name_for_path(project_path: &str) -> Option<String> {
         .or_else(|| (!cwd.is_empty()).then_some(cwd))
 }
 
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct SessionInfo {
     session_id: String,
     cwd: Option<String>,

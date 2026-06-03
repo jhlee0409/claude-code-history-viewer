@@ -7,10 +7,10 @@
 /**
  * Check if a path is absolute (Unix or Windows)
  * - Unix: starts with /
- * - Windows: starts with drive letter (e.g., C:\)
+ * - Windows: starts with drive letter (e.g., C:\) or UNC prefix (e.g., \\wsl.localhost\)
  */
 export function isAbsolutePath(path: string): boolean {
-  return /^(?:[A-Za-z]:[\\/]|\/)/.test(path);
+  return /^(?:[A-Za-z]:[\\/]|\/|\\\\)/.test(path);
 }
 
 /**
