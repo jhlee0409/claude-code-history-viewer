@@ -556,8 +556,8 @@ export const buildSearchIndex = (messages: ClaudeMessage[]): void => {
       uuid: m.uuid,
       type: m.type,
       content: m.content,
-      toolUse: (m as Record<string, unknown>).toolUse,
-      toolUseResult: (m as Record<string, unknown>).toolUseResult,
+      toolUse: (m as unknown as Record<string, unknown>).toolUse,
+      toolUseResult: (m as unknown as Record<string, unknown>).toolUseResult,
     }));
     w.postMessage({ type: "build", messages: minimalMessages });
   } else {
@@ -606,9 +606,10 @@ export const clearSearchIndex = (): void => {
   lastBuildMessagesRef = null;
   // Also resolve pending searches so callbacks don't linger past the clear.
   resolveAllPendingSearches();
-  const w = getWorker();
-  if (w) {
-    w.postMessage({ type: "clear" });
+  // Only send clear to worker if it already exists — avoids eagerly
+  // spinning up the worker on every selectSession.
+  if (worker) {
+    worker.postMessage({ type: "clear" });
   }
 };
 

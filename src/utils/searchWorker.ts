@@ -59,8 +59,7 @@ interface SearchResultResponse {
   results: Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _OutgoingMessage = BuildCompleteResponse | SearchResultResponse;
+type OutgoingMessage = BuildCompleteResponse | SearchResultResponse;
 
 // ============================================================================
 // Text Extraction (same logic as main thread searchIndex.ts)
@@ -233,7 +232,7 @@ function searchIndex(
     }
   });
 
-  allMatches.sort((a, b) => a.messageIndex - b.messageIndex || a.matchIndex - b.matchIndex);
+  allMatches.sort((a, b) => b.messageIndex - a.messageIndex || b.matchIndex - a.matchIndex);
   return allMatches;
 }
 
@@ -248,13 +247,13 @@ self.onmessage = (event: MessageEvent<IncomingMessage>) => {
     case "build": {
       buildIndex(msg.messages);
       const response: BuildCompleteResponse = { type: "build-complete", count: msg.messages.length };
-      self.postMessage(response);
+      self.postMessage(response satisfies OutgoingMessage);
       break;
     }
     case "search": {
       const results = searchIndex(msg.query, msg.filterType);
       const response: SearchResultResponse = { type: "search-result", id: msg.id, results };
-      self.postMessage(response);
+      self.postMessage(response satisfies OutgoingMessage);
       break;
     }
     case "clear": {
