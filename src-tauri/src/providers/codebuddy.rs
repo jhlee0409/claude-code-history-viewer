@@ -187,7 +187,11 @@ fn read_cwd_from_jsonls(candidates: &[std::path::PathBuf]) -> Option<String> {
     for path in candidates {
         let Ok(file) = File::open(path) else { continue };
         let reader = BufReader::new(file);
-        for line in reader.lines().take(MAX_LINES_PER_FILE).map_while(Result::ok) {
+        for line in reader
+            .lines()
+            .take(MAX_LINES_PER_FILE)
+            .map_while(Result::ok)
+        {
             let trimmed = line.trim();
             if trimmed.is_empty() {
                 continue;
@@ -1153,7 +1157,8 @@ mod tests {
         std::fs::create_dir(&projects_root).expect("create projects root");
 
         // Mimic CodeBuddy's lossy encoding: '/' -> '-', no escaping.
-        let project_dir = projects_root.join("Users-rassyan-WebstormProjects-claude-code-history-viewer");
+        let project_dir =
+            projects_root.join("Users-rassyan-WebstormProjects-claude-code-history-viewer");
         std::fs::create_dir(&project_dir).expect("create project");
 
         let session = project_dir.join("s.jsonl");
@@ -1193,8 +1198,7 @@ mod tests {
     #[test]
     fn scan_projects_falls_back_to_fs_decoding_when_cwd_missing() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let canonical_tmp = std::fs::canonicalize(tmp.path())
-            .expect("canonicalize tempdir");
+        let canonical_tmp = std::fs::canonicalize(tmp.path()).expect("canonicalize tempdir");
 
         let projects_root = canonical_tmp.join("projects");
         std::fs::create_dir(&projects_root).expect("create projects root");
