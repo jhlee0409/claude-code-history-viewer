@@ -258,9 +258,25 @@ const extractUuidFromResult = (item: string | EnrichedResult): string => {
 };
 
 // FlexSearch Document 인덱스 생성 헬퍼
+//
+// Tokenize mode: "forward" (prefix-only indexing).
+//
+// Why not "full":
+//   "full" creates every substring of every word (O(n²) tokens), which
+//   pegs the CPU at 100% for large sessions (47k+ messages, ~20s freeze).
+//   "forward" creates only prefix substrings (O(n) tokens), keeping index
+//   construction well under a second even for our largest sessions.
+//
+// Tradeoff — recall gap:
+//   forward tokenize only matches queries that appear at a word boundary.
+//   Searching for "bug" will NOT match "debugging" (no token starts with "bug").
+//   With "full", it would.  For chat history search this is an acceptable
+//   tradeoff — the common case (whole-word / prefix search) is fast and
+//   accurate, and the linear fallback (linearSearchMessages) provides full
+//   substring recall during the brief window before the index is ready.
 const createFlexSearchIndex = (): FlexSearchDocumentIndex => {
   return new FlexSearch.Document({
-    tokenize: "forward", // 전방 매칭 (O(n) 인덱싱, "full"은 O(n²)로 대량 메시지에서 CPU 폭주)
+    tokenize: "forward",
     cache: 100, // 최근 100개 쿼리 캐시
     document: {
       id: "uuid",
@@ -444,12 +460,12 @@ class MessageSearchIndex {
     });
 
     // 완전 역순 정렬: 아래에서 위로 탐색 (최신 메시지의 마지막 매치부터)
-    allMatches.sort((a, b) => {
-      if (a.messageIndex !== b.messageIndex) {
-        return b.messageIndex - a.messageIndex; // 최신 메시지 우선
-      }
-      return b.matchIndex - a.matchIndex; // 메시지 내에서도 마지막 매치부터
-    });
+  allMatches.sort((a, b) => {
+    if (a.messageIndex !== b.messageIndex) {
+      return b.messageIndex - a.messageIndex; // newest messages first
+    }
+    return b.matchIndex - a.matchIndex; // last match within a message first
+  });
 
     return allMatches;
   }
@@ -619,8 +635,17 @@ export const isSearchIndexReady = (): boolean => {
 
 /**
  * Linear search fallback — scans all messages with String.includes.
- * Used when FlexSearch index is not yet built. O(n) but non-blocking
- * (runs synchronously in a single pass, typically 50-200ms for 50k messages).
+ * Used when FlexSearch index is not yet built (pre-index stage).
+ *
+ * Returns results in newest-first order (descending messageIndex, then
+ * descending matchIndex), matching the FlexSearch path so navigation is
+ * consistent regardless of which code path is active.
+ *
+ * Performance: O(n) single pass, typically 50-200ms for 50k messages.
+ * Recall: substring match (indexOf) — finds queries even mid-word, which
+ * means the first search after session load may return more results than
+ * subsequent searches through the FlexSearch "forward" index.  This gap
+ * is a conscious tradeoff; see createFlexSearchIndex above.
  */
 export const linearSearchMessages = (
   messages: ClaudeMessage[],
@@ -662,6 +687,9 @@ export const linearSearchMessages = (
       }
     }
   }
+
+  // Sort newest-first to match FlexSearch result order for consistent navigation
+  results.sort((a, b) => b.messageIndex - a.messageIndex || b.matchIndex - a.matchIndex);
 
   return results;
 };

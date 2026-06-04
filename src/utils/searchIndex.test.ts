@@ -35,12 +35,13 @@ describe("linearSearchMessages", () => {
   it("finds multiple matches within same message", () => {
     const results = linearSearchMessages(messages, "bug");
     // "bug" appears twice in msg-4: "found the bug" and "The bug was"
+    // Sorted newest-first with descending matchIndex, so matchIndex 1 comes first
     const msg4Results = results.filter(r => r.messageUuid === "msg-4");
     expect(msg4Results.length).toBe(2);
-    expect(msg4Results[0].matchIndex).toBe(0);
-    expect(msg4Results[0].matchCount).toBe(2);
-    expect(msg4Results[1].matchIndex).toBe(1);
+    expect(msg4Results[1].matchIndex).toBe(0);
     expect(msg4Results[1].matchCount).toBe(2);
+    expect(msg4Results[0].matchIndex).toBe(1);
+    expect(msg4Results[0].matchCount).toBe(2);
   });
 
   it("finds matches across multiple messages", () => {
@@ -93,6 +94,41 @@ describe("linearSearchMessages", () => {
     const results = linearSearchMessages([msgWithToolUse], "toolu_abc123", "toolId");
     expect(results.length).toBe(1);
     expect(results[0].messageUuid).toBe("msg-tid");
+  });
+
+  it("returns results newest-first (descending messageIndex)", () => {
+    // msg-1 (oldest, index 0) has "hello", msg-4 (newest, index 3) has "bug"
+    // Searching for "bug" should return msg-4 before msg-1
+    const results = linearSearchMessages(messages, "bug");
+    expect(results.length).toBe(3); // msg-3 has 1, msg-4 has 2 = 3 total
+    // The result at index 0 should be from msg-4 (latest message with matches)
+    expect(results[0].messageUuid).toBe("msg-4");
+    // Results should be in descending messageIndex order
+    for (let i = 1; i < results.length; i++) {
+      expect(results[i].messageIndex).toBeLessThanOrEqual(results[i - 1].messageIndex);
+    }
+  });
+
+  it("finds mid-word substrings that FlexSearch forward tokenize would miss", () => {
+    // FlexSearch "forward" tokenize only matches at word boundaries.
+    // Searching for "orld" in "Hello world" — "forward" misses it because
+    // "world" tokenizes to ["w","wo","wor","worl","world"].  "orld" starts
+    // with "o", not "w", so it's not a prefix of any "world" token.
+    // The linear fallback (indexOf) correctly finds it as a substring.
+    const msg = createMessage({
+      uuid: "msg-mid",
+      type: "user",
+      content: "Hello world and a big debugging session",
+    });
+    const resultsMidWord = linearSearchMessages([msg], "orld");
+    expect(resultsMidWord.length).toBe(1);
+    expect(resultsMidWord[0].messageUuid).toBe("msg-mid");
+
+    // Also verify "bug" embedded in "debugging" is found (forward tokenize
+    // would miss this because "debugging" tokens don't include "bug").
+    const resultsEmbedded = linearSearchMessages([msg], "bug");
+    expect(resultsEmbedded.length).toBe(1);
+    expect(resultsEmbedded[0].messageUuid).toBe("msg-mid");
   });
 });
 

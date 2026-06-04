@@ -138,6 +138,13 @@ const extractToolIds = (message: ClaudeMessageMinimal): string => {
 
 // ============================================================================
 // FlexSearch Index
+//
+// Tokenize: "forward" (prefix-only, O(n) indexing).
+// "full" would create every substring (O(n²)) and freeze the UI on
+// large sessions.  The tradeoff is that forward tokenize only matches
+// queries at word boundaries — "bug" won't match "debugging".
+// The main-thread linear fallback provides full substring recall during
+// the brief window before this worker index is ready.
 // ============================================================================
 
 const createFlexSearchIndex = (): FlexSearchDocumentIndex => {
