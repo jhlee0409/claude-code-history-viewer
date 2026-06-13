@@ -38,6 +38,9 @@ const initialWatcherState: WatcherSliceState = {
   lastUpdateTime: {},
 };
 
+const PROJECT_UPDATE_DEBOUNCE_MS = 250;
+const SESSION_REFRESH_MIN_INTERVAL_MS = 1000;
+
 // ============================================================================
 // Slice Creator
 // ============================================================================
@@ -47,54 +50,131 @@ export const createWatcherSlice: StateCreator<
   [],
   [],
   WatcherSlice
-> = (set, get) => ({
-  ...initialWatcherState,
+> = (set, get) => {
+  const projectUpdateTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const sessionRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const sessionRefreshInFlight = new Set<string>();
+  const queuedSessionRefreshes = new Map<string, string>();
+  const lastSessionRefreshStartedAt = new Map<string, number>();
 
-  setWatcherEnabled: (enabled) => set({ watcherEnabled: enabled }),
-
-  markProjectUpdated: (projectPath) =>
-    set((state) => ({
-      lastUpdateTime: {
-        ...state.lastUpdateTime,
-        [projectPath]: Date.now(),
-      },
-    })),
-
-  triggerProjectRefresh: async (projectPath) => {
-    try {
-      const { selectedProject, selectProject } = get();
-
-      // If this is the currently selected project, reload its sessions
-      if (selectedProject && selectedProject.path === projectPath) {
-        await selectProject(selectedProject);
-      }
-    } catch (error) {
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message: `Failed to refresh project: ${String(error)}`,
-      });
-    } finally {
-      // Always mark as updated regardless of success/failure
-      get().markProjectUpdated(projectPath);
+  const scheduleProjectUpdated = (projectPath: string) => {
+    if (projectUpdateTimers.has(projectPath)) {
+      return;
     }
-  },
 
-  triggerSessionRefresh: async (projectPath, sessionPath) => {
+    const timer = setTimeout(() => {
+      projectUpdateTimers.delete(projectPath);
+      get().markProjectUpdated(projectPath);
+    }, PROJECT_UPDATE_DEBOUNCE_MS);
+
+    projectUpdateTimers.set(projectPath, timer);
+  };
+
+  const scheduleSessionRefresh = (projectPath: string, sessionPath: string) => {
+    scheduleProjectUpdated(projectPath);
+
+    const selectedSession = get().selectedSession;
+    if (!selectedSession || selectedSession.file_path !== sessionPath) {
+      return Promise.resolve();
+    }
+
+    queuedSessionRefreshes.set(sessionPath, projectPath);
+    if (
+      sessionRefreshInFlight.has(sessionPath) ||
+      sessionRefreshTimers.has(sessionPath)
+    ) {
+      return Promise.resolve();
+    }
+
+    const elapsed =
+      Date.now() - (lastSessionRefreshStartedAt.get(sessionPath) ?? 0);
+    const delay = Math.max(0, SESSION_REFRESH_MIN_INTERVAL_MS - elapsed);
+
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(async () => {
+        sessionRefreshTimers.delete(sessionPath);
+        const queuedProjectPath =
+          queuedSessionRefreshes.get(sessionPath) ?? projectPath;
+        queuedSessionRefreshes.delete(sessionPath);
+        await runSessionRefresh(queuedProjectPath, sessionPath);
+        resolve();
+      }, delay);
+
+      sessionRefreshTimers.set(sessionPath, timer);
+    });
+  };
+
+  const runSessionRefresh = async (
+    projectPath: string,
+    sessionPath: string
+  ) => {
+    if (sessionRefreshInFlight.has(sessionPath)) {
+      queuedSessionRefreshes.set(sessionPath, projectPath);
+      return;
+    }
+
+    const selectedSession = get().selectedSession;
+    if (!selectedSession || selectedSession.file_path !== sessionPath) {
+      return;
+    }
+
+    sessionRefreshInFlight.add(sessionPath);
+    lastSessionRefreshStartedAt.set(sessionPath, Date.now());
+
     try {
-      const { selectedSession, selectSession } = get();
-
-      // If this is the currently selected session, reload its messages
-      if (selectedSession && selectedSession.file_path === sessionPath) {
-        await selectSession(selectedSession);
-      }
+      await get().selectSession(selectedSession);
     } catch (error) {
       get().setError({
         type: AppErrorType.UNKNOWN,
         message: `Failed to refresh session: ${String(error)}`,
       });
     } finally {
-      // Always mark project as updated regardless of success/failure
-      get().markProjectUpdated(projectPath);
+      sessionRefreshInFlight.delete(sessionPath);
+
+      const queuedProjectPath = queuedSessionRefreshes.get(sessionPath);
+      queuedSessionRefreshes.delete(sessionPath);
+      if (
+        queuedProjectPath &&
+        get().selectedSession?.file_path === sessionPath
+      ) {
+        void scheduleSessionRefresh(queuedProjectPath, sessionPath);
+      }
     }
-  },
-});
+  };
+
+  return {
+    ...initialWatcherState,
+
+    setWatcherEnabled: (enabled) => set({ watcherEnabled: enabled }),
+
+    markProjectUpdated: (projectPath) =>
+      set((state) => ({
+        lastUpdateTime: {
+          ...state.lastUpdateTime,
+          [projectPath]: Date.now(),
+        },
+      })),
+
+    triggerProjectRefresh: async (projectPath) => {
+      try {
+        const { selectedProject, selectProject } = get();
+
+        // If this is the currently selected project, reload its sessions
+        if (selectedProject && selectedProject.path === projectPath) {
+          await selectProject(selectedProject);
+        }
+      } catch (error) {
+        get().setError({
+          type: AppErrorType.UNKNOWN,
+          message: `Failed to refresh project: ${String(error)}`,
+        });
+      } finally {
+        // Always mark as updated regardless of success/failure
+        get().markProjectUpdated(projectPath);
+      }
+    },
+
+    triggerSessionRefresh: async (projectPath, sessionPath) =>
+      scheduleSessionRefresh(projectPath, sessionPath),
+  };
+};

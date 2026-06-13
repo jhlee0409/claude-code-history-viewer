@@ -191,7 +191,7 @@ pub fn prime_watch_signatures(root: &Path) {
             continue;
         }
         if let Some(signature) = file_signature(path) {
-            signatures.insert(path.to_path_buf(), signature);
+            signatures.insert(file_signature_key(path), signature);
         }
     }
 }
@@ -202,22 +202,27 @@ fn watched_file_signatures() -> &'static Mutex<HashMap<PathBuf, FileSignature>> 
 
 fn record_content_signature_change(path: &Path) -> bool {
     let signature = file_signature(path);
+    let signature_key = file_signature_key(path);
     let Ok(mut signatures) = watched_file_signatures().lock() else {
         return true;
     };
 
     if let Some(current) = signature {
-        match signatures.get(path) {
+        match signatures.get(&signature_key) {
             Some(previous) if *previous == current => false,
             _ => {
-                signatures.insert(path.to_path_buf(), current);
+                signatures.insert(signature_key, current);
                 true
             }
         }
     } else {
-        signatures.remove(path);
+        signatures.remove(&signature_key);
         true
     }
+}
+
+fn file_signature_key(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn file_signature(path: &Path) -> Option<FileSignature> {
