@@ -232,6 +232,33 @@ export const createProjectSlice: StateCreator<
     try {
       const start = performance.now();
       const settings = get().userMetadata?.settings;
+      const shouldHydrateClaudeFirst =
+        Boolean(claudePath) &&
+        scanProviders.includes(DEFAULT_PROVIDER_ID) &&
+        (hasNonClaudeProviders || hasCustomPaths) &&
+        get().projects.length === 0;
+
+      if (shouldHydrateClaudeFirst) {
+        try {
+          const claudeProjects = await api<ClaudeProject[]>("scan_projects", {
+            claudePath,
+          });
+          if (requestId !== getRequestId("scanProjects")) {
+            return;
+          }
+          set({
+            projects: claudeProjects.map((project) => ({
+              ...project,
+              provider: project.provider ?? DEFAULT_PROVIDER_ID,
+            })),
+          });
+        } catch (quickScanError) {
+          if (import.meta.env.DEV) {
+            console.warn("[Frontend] Claude quick project scan failed:", quickScanError);
+          }
+        }
+      }
+
       const projects = (hasNonClaudeProviders || hasCustomPaths)
         ? await api<ClaudeProject[]>("scan_all_projects", {
             ...(claudePath && { claudePath }),
