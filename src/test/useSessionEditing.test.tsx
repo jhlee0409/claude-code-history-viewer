@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useSessionEditing } from "@/components/SessionItem/hooks/useSessionEditing";
+import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 
@@ -21,6 +22,16 @@ vi.mock("sonner", () => ({
     success: vi.fn(),
     error: vi.fn(),
   },
+}));
+
+vi.mock("@/services/api", () => ({
+  api: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  ask: vi.fn(() => {
+    throw new Error("Tauri dialog should not be used in WebUI tests");
+  }),
 }));
 
 vi.mock("@/hooks/useSessionMetadata", () => ({
@@ -52,7 +63,13 @@ const session: ClaudeSession & { provider: string; is_renamed: boolean } = {
 describe("useSessionEditing clipboard actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAppStore.setState({ projects: [] });
+    vi.mocked(api).mockReset();
+    useAppStore.setState({
+      projects: [],
+      selectedProject: null,
+      selectedSession: null,
+      sessions: [],
+    });
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
@@ -60,6 +77,10 @@ describe("useSessionEditing clipboard actions", () => {
       },
     });
     Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(window, "confirm", {
       configurable: true,
       value: vi.fn(),
     });
@@ -218,5 +239,67 @@ describe("useSessionEditing clipboard actions", () => {
     expect(execCommand).toHaveBeenCalledWith("copy");
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith("Copy failed");
+  });
+
+  it("confirms before deleting a session in WebUI mode", async () => {
+    const otherSession: ClaudeSession = {
+      ...session,
+      session_id: "other-session-id",
+      actual_session_id: "other-actual-session-id",
+      file_path: "/tmp/other-session.jsonl",
+    };
+    const confirm = vi.fn().mockReturnValue(true);
+    Object.defineProperty(window, "confirm", {
+      configurable: true,
+      value: confirm,
+    });
+    vi.mocked(api).mockResolvedValue(undefined);
+    useAppStore.setState({
+      sessions: [session, otherSession],
+      selectedSession: session,
+    });
+
+    const { result } = renderHook(() => useSessionEditing(session));
+
+    await act(async () => {
+      await result.current.handleDeleteSession({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(confirm).toHaveBeenCalledWith(
+      expect.stringContaining("Delete Session"),
+    );
+    expect(api).toHaveBeenCalledWith("delete_session", {
+      filePath: session.file_path,
+    });
+    expect(useAppStore.getState().sessions).toEqual([otherSession]);
+    expect(useAppStore.getState().selectedSession).toBeNull();
+    expect(toast.success).toHaveBeenCalledWith("Session deleted");
+  });
+
+  it("does not delete when the WebUI confirmation is cancelled", async () => {
+    const confirm = vi.fn().mockReturnValue(false);
+    Object.defineProperty(window, "confirm", {
+      configurable: true,
+      value: confirm,
+    });
+    useAppStore.setState({
+      sessions: [session],
+      selectedSession: session,
+    });
+
+    const { result } = renderHook(() => useSessionEditing(session));
+
+    await act(async () => {
+      await result.current.handleDeleteSession({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(confirm).toHaveBeenCalled();
+    expect(api).not.toHaveBeenCalled();
+    expect(useAppStore.getState().sessions).toEqual([session]);
+    expect(useAppStore.getState().selectedSession).toEqual(session);
   });
 });

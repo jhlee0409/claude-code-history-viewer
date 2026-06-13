@@ -7,6 +7,7 @@ import {
 } from "@/hooks/useSessionMetadata";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/services/api";
+import { isTauri } from "@/utils/platform";
 import { isAbsolutePath } from "@/utils/pathUtils";
 import {
   getResumeCommand,
@@ -40,6 +41,21 @@ function legacyCopy(text: string): void {
   } finally {
     document.removeEventListener("copy", handleCopy);
   }
+}
+
+async function confirmSessionDelete(
+  message: string,
+  title: string,
+): Promise<boolean> {
+  if (isTauri()) {
+    const { ask } = await import("@tauri-apps/plugin-dialog");
+    return ask(message, {
+      title,
+      kind: "warning",
+    });
+  }
+
+  return window.confirm(`${title}\n\n${message}`);
 }
 
 export function useSessionEditing(session: ClaudeSession) {
@@ -256,7 +272,6 @@ export function useSessionEditing(session: ClaudeSession) {
         return;
       }
       try {
-        const { ask } = await import("@tauri-apps/plugin-dialog");
         const deleteConfirmMessage =
           providerId === "forgecode"
             ? t(
@@ -267,10 +282,10 @@ export function useSessionEditing(session: ClaudeSession) {
                 "session.deleteConfirm",
                 "This will move the session file and associated data (subagents, tool results) to your system Trash."
               );
-        const confirmed = await ask(deleteConfirmMessage, {
-          title: t("session.deleteTitle", "Delete Session"),
-          kind: "warning",
-        });
+        const confirmed = await confirmSessionDelete(
+          deleteConfirmMessage,
+          t("session.deleteTitle", "Delete Session"),
+        );
         if (!confirmed) return;
         await api("delete_session", { filePath: session.file_path });
         const { sessions, setSessions, selectedSession, setSelectedSession } =
