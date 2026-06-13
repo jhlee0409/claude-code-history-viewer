@@ -29,6 +29,11 @@ const createDeferred = <T,>(): Deferred<T> => {
   return { promise, resolve };
 };
 
+const flushMicrotasks = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
 type TestStore = ProjectSlice & {
   providers: ProviderInfo[];
   userMetadata: UserMetadata;
@@ -39,13 +44,14 @@ type TestStore = ProjectSlice & {
 const createMockProject = (
   name: string,
   provider?: ClaudeProject["provider"],
+  lastModified = "2026-01-01T00:00:00.000Z",
 ): ClaudeProject => ({
   name,
   path: `/sessions/${name}`,
   actual_path: `/workspace/${name}`,
   session_count: 1,
   message_count: 1,
-  last_modified: "2026-01-01T00:00:00.000Z",
+  last_modified: lastModified,
   git_info: null,
   ...(provider ? { provider } : {}),
 });
@@ -68,11 +74,25 @@ describe("projectSlice scanProjects", () => {
     vi.mocked(api).mockReset();
   });
 
-  it("hydrates Claude projects before a slower multi-provider scan completes", async () => {
+  it("publishes each provider as soon as that provider scan completes", async () => {
     const store = createTestStore();
-    const claudeProject = createMockProject("claude-only");
-    const codexProject = createMockProject("codex-project", "codex");
-    const fullScan = createDeferred<ClaudeProject[]>();
+    const claudeProject = createMockProject(
+      "claude-only",
+      undefined,
+      "2026-01-03T00:00:00.000Z",
+    );
+    const geminiProject = createMockProject(
+      "gemini-project",
+      "gemini",
+      "2026-01-02T00:00:00.000Z",
+    );
+    const codexProject = createMockProject(
+      "codex-project",
+      "codex",
+      "2026-01-01T00:00:00.000Z",
+    );
+    const codexScan = createDeferred<ClaudeProject[]>();
+    const geminiScan = createDeferred<ClaudeProject[]>();
 
     store.setState({
       claudePath: "/root/.claude",
@@ -89,33 +109,55 @@ describe("projectSlice scanProjects", () => {
           base_path: "/root/.codex",
           is_available: true,
         },
+        {
+          id: "gemini",
+          display_name: "Gemini CLI",
+          base_path: "/root/.gemini",
+          is_available: true,
+        },
       ],
     });
 
-    vi.mocked(api).mockImplementation((command) => {
+    vi.mocked(api).mockImplementation((command, args) => {
       if (command === "scan_projects") {
         return Promise.resolve([claudeProject]);
       }
       if (command === "scan_all_projects") {
-        return fullScan.promise;
+        const provider = (args?.activeProviders as string[] | undefined)?.[0];
+        if (provider === "codex") {
+          return codexScan.promise;
+        }
+        if (provider === "gemini") {
+          return geminiScan.promise;
+        }
       }
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });
 
     const scanPromise = store.getState().scanProjects();
-    await Promise.resolve();
+    await flushMicrotasks();
 
     expect(store.getState().isLoadingProjects).toBe(true);
     expect(store.getState().projects).toEqual([
       { ...claudeProject, provider: "claude" },
     ]);
 
-    fullScan.resolve([{ ...claudeProject, provider: "claude" }, codexProject]);
+    geminiScan.resolve([geminiProject]);
+    await flushMicrotasks();
+
+    expect(store.getState().isLoadingProjects).toBe(true);
+    expect(store.getState().projects).toEqual([
+      { ...claudeProject, provider: "claude" },
+      geminiProject,
+    ]);
+
+    codexScan.resolve([codexProject]);
     await scanPromise;
 
     expect(store.getState().isLoadingProjects).toBe(false);
     expect(store.getState().projects).toEqual([
       { ...claudeProject, provider: "claude" },
+      geminiProject,
       codexProject,
     ]);
   });
