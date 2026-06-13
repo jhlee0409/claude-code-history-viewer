@@ -196,14 +196,14 @@ describe("useSessionEditing clipboard actions", () => {
       last_modified: session.last_modified,
       provider: "claude",
     };
-    const sameNameCodexProject: ClaudeProject = {
+    const sameNameClaudeProject: ClaudeProject = {
       name: "cym",
-      path: "codex:///home/cym",
-      actual_path: "/wrong/codex/cym",
+      path: "/root/.claude/projects/-home-cym-alt",
+      actual_path: "/wrong/claude/cym",
       session_count: 1,
       message_count: 1,
       last_modified: session.last_modified,
-      provider: "codex",
+      provider: "claude",
     };
     const loadedSession: ClaudeSession = {
       ...session,
@@ -211,7 +211,7 @@ describe("useSessionEditing clipboard actions", () => {
       file_path: "/root/.claude/projects/-home-cym/session.jsonl",
     };
     useAppStore.setState({
-      projects: [sameNameCodexProject, selectedProject],
+      projects: [sameNameClaudeProject, selectedProject],
       selectedProject,
       sessions: [loadedSession],
     });

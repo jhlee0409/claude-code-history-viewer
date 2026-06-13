@@ -325,12 +325,19 @@ fn extract_cwd_from_session_file(file_path: &Path) -> Option<String> {
 
     let file = fs::File::open(file_path).ok()?;
     let reader = BufReader::new(file);
+    let mut checked_non_empty = 0;
 
-    for line in reader.lines().map_while(Result::ok).take(100) {
-        if line.trim().is_empty() {
+    for line in reader.lines().map_while(Result::ok) {
+        let line = line.trim();
+        if line.is_empty() {
             continue;
         }
-        let Ok(entry) = serde_json::from_str::<CwdEntry>(&line) else {
+        if checked_non_empty >= 100 {
+            break;
+        }
+        checked_non_empty += 1;
+
+        let Ok(entry) = serde_json::from_str::<CwdEntry>(line) else {
             continue;
         };
         let Some(cwd) = entry.cwd else {
@@ -572,6 +579,30 @@ mod tests {
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].actual_path, actual_cwd);
         assert_eq!(projects[0].name, "claude_prompt_design");
+    }
+
+    #[test]
+    fn test_extract_cwd_from_session_file_ignores_empty_lines_before_limit() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut lines = vec![String::new(); 150];
+        lines.push(
+            serde_json::json!({
+                "type": "user",
+                "cwd": "/tmp/cchv-empty-line-test",
+            })
+            .to_string(),
+        );
+        create_test_jsonl_file(
+            &temp_dir.path().to_path_buf(),
+            "session.jsonl",
+            &lines.join("\n"),
+        );
+
+        let file_path = temp_dir.path().join("session.jsonl");
+        assert_eq!(
+            extract_cwd_from_session_file(&file_path),
+            Some("/tmp/cchv-empty-line-test".to_string())
+        );
     }
 
     #[tokio::test]

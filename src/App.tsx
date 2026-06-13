@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { useAppStore } from "./store/useAppStore";
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useUpdater } from "./hooks/useUpdater";
@@ -315,9 +316,10 @@ function App() {
         await selectSession(session);
       } catch (error) {
         console.error("Failed to select session:", error);
+        toast.error(t("session.selectError", "Failed to select session"));
       }
     },
-    [projects, selectProject, selectSession, setAnalyticsCurrentView]
+    [projects, selectProject, selectSession, setAnalyticsCurrentView, t]
   );
 
   const handleTokenStatClick = useCallback(
