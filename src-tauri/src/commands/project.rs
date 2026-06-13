@@ -206,7 +206,8 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         let mut session_count = 0;
         let mut message_count = 0;
         let mut last_modified = None;
-        let mut cwd_candidate: Option<(SystemTime, String)> = None;
+        let mut direct_cwd_candidate: Option<(SystemTime, String)> = None;
+        let mut nested_cwd_candidate: Option<(SystemTime, String)> = None;
 
         for jsonl_entry in WalkDir::new(entry.path())
             .into_iter()
@@ -227,6 +228,15 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
                 let estimated_messages = estimate_message_count_from_size(metadata.len());
                 message_count += estimated_messages;
 
+                let is_direct_session = jsonl_entry
+                    .path()
+                    .strip_prefix(entry.path())
+                    .is_ok_and(|relative| relative.components().count() == 1);
+                let cwd_candidate = if is_direct_session {
+                    &mut direct_cwd_candidate
+                } else {
+                    &mut nested_cwd_candidate
+                };
                 let should_check_cwd = match (&cwd_candidate, modified) {
                     (None, _) => true,
                     (Some((current_modified, _)), Some(modified)) => modified > *current_modified,
@@ -234,7 +244,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
                 };
                 if should_check_cwd {
                     if let Some(cwd) = extract_cwd_from_session_file(jsonl_entry.path()) {
-                        cwd_candidate = Some((modified.unwrap_or(SystemTime::UNIX_EPOCH), cwd));
+                        *cwd_candidate = Some((modified.unwrap_or(SystemTime::UNIX_EPOCH), cwd));
                     }
                 }
             }
@@ -263,7 +273,13 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         // Prefer the exact cwd Claude wrote into JSONL. Claude's storage
         // directory names are lossy (`_` and path separators can both become
         // `-`), so decoding the folder name can produce a non-existent cwd.
-        let actual_path = cwd_candidate
+        // Project-level identity should come from top-level session files.
+        // Subagent JSONL files can run in narrower cwd values (for example
+        // `/home/cym/paseo`) while the parent Claude project directory remains
+        // `/home/cym`; using nested files here would rename the whole project
+        // based on whichever subagent was modified most recently.
+        let actual_path = direct_cwd_candidate
+            .or(nested_cwd_candidate)
             .map(|(_, cwd)| cwd)
             .unwrap_or_else(|| crate::utils::decode_project_path(&project_path));
         let project_name = project_display_name_from_path(&actual_path)
@@ -302,6 +318,11 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 }
 
 fn extract_cwd_from_session_file(file_path: &Path) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct CwdEntry {
+        cwd: Option<String>,
+    }
+
     let file = fs::File::open(file_path).ok()?;
     let reader = BufReader::new(file);
 
@@ -309,12 +330,15 @@ fn extract_cwd_from_session_file(file_path: &Path) -> Option<String> {
         if line.trim().is_empty() {
             continue;
         }
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) else {
+        let Ok(entry) = serde_json::from_str::<CwdEntry>(&line) else {
             continue;
         };
-        let cwd = value.get("cwd").and_then(serde_json::Value::as_str)?.trim();
+        let Some(cwd) = entry.cwd else {
+            continue;
+        };
+        let cwd = cwd.trim().to_string();
         if !cwd.is_empty() {
-            return Some(cwd.to_string());
+            return Some(cwd);
         }
     }
 
@@ -514,7 +538,8 @@ mod tests {
             &project_dir,
             "session.jsonl",
             &format!(
-                r#"{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{actual_cwd}","message":{{"role":"user","content":"Hello"}}}}"#
+                r#"{{"type":"mode","mode":"normal","sessionId":"session-1"}}
+{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{actual_cwd}","message":{{"role":"user","content":"Hello"}}}}"#
             ),
         );
 
@@ -525,6 +550,47 @@ mod tests {
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].actual_path, actual_cwd);
         assert_eq!(projects[0].name, "claude_prompt_design");
+    }
+
+    #[tokio::test]
+    async fn test_scan_projects_prefers_top_level_cwd_over_subagent_cwd() {
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+        let project_dir = projects_dir.join("-home-cym");
+        let subagent_dir = project_dir.join("parent-session").join("subagents");
+        fs::create_dir_all(&subagent_dir).unwrap();
+
+        let parent_cwd = temp_dir.path().join("cym");
+        let subagent_cwd = parent_cwd.join("paseo");
+        fs::create_dir_all(&subagent_cwd).unwrap();
+        let parent_cwd = parent_cwd.to_string_lossy();
+        let subagent_cwd = subagent_cwd.to_string_lossy();
+
+        create_test_jsonl_file(
+            &project_dir,
+            "parent-session.jsonl",
+            &format!(
+                r#"{{"type":"mode","mode":"normal","sessionId":"session-1"}}
+{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{parent_cwd}","message":{{"role":"user","content":"Clone paseo here"}}}}"#
+            ),
+        );
+        create_test_jsonl_file(
+            &subagent_dir,
+            "agent-a.jsonl",
+            &format!(
+                r#"{{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"{subagent_cwd}","message":{{"role":"user","content":"Analyze paseo"}}}}"#
+            ),
+        );
+
+        let projects = scan_projects(claude_dir.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].actual_path, parent_cwd);
+        assert_eq!(projects[0].name, "cym");
+        assert_eq!(projects[0].session_count, 2);
     }
 
     #[tokio::test]

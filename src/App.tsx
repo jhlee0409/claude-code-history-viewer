@@ -281,7 +281,19 @@ function App() {
         setAnalyticsCurrentView("messages");
 
         const currentProject = useAppStore.getState().selectedProject;
-        if (!currentProject || currentProject.name !== session.project_name) {
+        const currentSessions = useAppStore.getState().sessions;
+        const isCurrentProjectSession =
+          !!currentProject &&
+          currentSessions.some(
+            (loadedSession) =>
+              loadedSession.session_id === session.session_id ||
+              loadedSession.file_path === session.file_path
+          );
+
+        if (
+          !isCurrentProjectSession &&
+          (!currentProject || currentProject.name !== session.project_name)
+        ) {
           const project = projects.find((p) => p.name === session.project_name);
           if (project) {
             await selectProject(project);
