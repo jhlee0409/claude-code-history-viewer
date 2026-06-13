@@ -89,7 +89,9 @@ export function useSessionEditing(session: ClaudeSession) {
   const hasCustomName = !!customName;
   const hasClaudeCodeNamePattern = /^\[.+?\]\s/.test(localSummary ?? "");
   const hasClaudeCodeName =
-    providerId === "claude" && (hasClaudeCodeNameMeta || hasClaudeCodeNamePattern);
+    providerId === "claude"
+      ? hasClaudeCodeNameMeta || hasClaudeCodeNamePattern
+      : supportsNativeRename && !!session.is_renamed;
   const isNamed = hasCustomName || hasClaudeCodeName || !!session.is_renamed;
 
   const startEditing = useCallback(() => {
@@ -326,13 +328,12 @@ export function useSessionEditing(session: ClaudeSession) {
   );
 
   const handleNativeRenameSuccess = useCallback(
-    async (newTitle: string) => {
+    async (newTitle: string, isNativeRenamed: boolean) => {
       if (newTitle) {
         setLocalSummary(newTitle);
-        const hasPrefix = /^\[.+?\]\s/.test(newTitle);
         try {
           if (providerId === "claude") {
-            await setHasClaudeCodeName(hasPrefix);
+            await setHasClaudeCodeName(isNativeRenamed);
           }
         } catch (error) {
           console.error("Failed to update Claude Code name metadata:", error);
@@ -341,12 +342,19 @@ export function useSessionEditing(session: ClaudeSession) {
 
         const { sessions: currentSessions, setSessions } = useAppStore.getState();
         const updatedSessions = currentSessions.map((s) =>
-          s.session_id === session.session_id ? { ...s, summary: newTitle } : s
+          s.session_id === session.session_id
+            ? {
+                ...s,
+                summary: newTitle,
+                is_renamed:
+                  supportsNativeRename ? isNativeRenamed : s.is_renamed,
+              }
+            : s
         );
         setSessions(updatedSessions);
       }
     },
-    [providerId, setHasClaudeCodeName, t, session.session_id]
+    [providerId, setHasClaudeCodeName, supportsNativeRename, t, session.session_id]
   );
 
   return {

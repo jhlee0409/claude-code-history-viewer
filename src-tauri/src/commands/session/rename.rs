@@ -104,6 +104,10 @@ pub async fn rename_session_native(
         return Err(RenameError::FileNotFound(file_path).to_string());
     }
 
+    if crate::providers::codex::is_session_path(&file_path) {
+        return crate::providers::codex::rename_session_title(&file_path, &new_title);
+    }
+
     // 2. Validate file path is within ~/.claude directory (security: prevent path traversal)
     validate_claude_path(&file_path)?;
 

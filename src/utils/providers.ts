@@ -59,9 +59,9 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
   },
   codex: {
     supportsConversationBreakdown: false,
-    supportsNativeRename: false,
+    supportsNativeRename: true,
     supportsResumeCommand: true,
-    supportsSessionDeletion: false,
+    supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
   cursor: {

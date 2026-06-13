@@ -524,7 +524,7 @@ describe("SessionItem", () => {
       expect(screen.getByText("Rename in OpenCode")).toBeInTheDocument();
     });
 
-    it("should hide native rename menu for unsupported provider", () => {
+    it("should show Codex native rename and delete menu for codex provider", () => {
       const session = createMockSession({ provider: "codex" });
 
       render(
@@ -536,11 +536,8 @@ describe("SessionItem", () => {
         />
       );
 
-      expect(screen.queryByText("Rename in Claude Code")).not.toBeInTheDocument();
-      expect(screen.queryByText("Rename in OpenCode")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("Native rename not supported for this provider")
-      ).not.toBeInTheDocument();
+      expect(screen.getByText("Rename in Codex CLI")).toBeInTheDocument();
+      expect(screen.getByText("Delete Session")).toBeInTheDocument();
     });
   });
 

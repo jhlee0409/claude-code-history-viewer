@@ -141,6 +141,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         onOpenChange={editing.setIsNativeRenameOpen}
         filePath={session.file_path}
         currentName={editing.localSummary || ""}
+        isRenamed={session.is_renamed}
         provider={editing.providerId}
         onSuccess={editing.handleNativeRenameSuccess}
       />

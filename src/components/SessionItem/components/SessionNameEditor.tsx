@@ -60,6 +60,22 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   onContextMenuOpenChange,
 }) => {
   const { t } = useTranslation();
+  const cliSyncTitle =
+    providerId === "codex"
+      ? t("session.cliSync.titleCodex", "Session name synced with Codex CLI")
+      : providerId === "opencode"
+        ? t("session.cliSync.titleOpenCode", "Session name synced with OpenCode")
+        : providerId === "forgecode"
+          ? t("session.cliSync.titleForgeCode", "Session name synced with ForgeCode")
+          : t("session.cliSync.title", "Session name synced with CLI");
+  const cliSyncDescription =
+    providerId === "codex"
+      ? t("session.cliSync.descriptionCodex", "This session's name is also visible in Codex CLI")
+      : providerId === "opencode"
+        ? t("session.cliSync.descriptionOpenCode", "This session's name is also visible in OpenCode")
+        : providerId === "forgecode"
+          ? t("session.cliSync.descriptionForgeCode", "This session's name is also visible in ForgeCode")
+          : t("session.cliSync.description", "This session's name is also visible in Claude Code CLI");
 
   if (isEditing) {
     return (
@@ -135,10 +151,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
               <button
                 type="button"
                 className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-help shrink-0"
-                aria-label={t(
-                  "session.cliSync.title",
-                  "Synced with Claude Code CLI"
-                )}
+                aria-label={cliSyncTitle}
               >
                 <Link2
                   className="w-2.5 h-2.5 text-blue-400"
@@ -150,14 +163,9 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
-              <p className="font-medium">
-                {t("session.cliSync.title", "Synced with Claude Code CLI")}
-              </p>
+              <p className="font-medium">{cliSyncTitle}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {t(
-                  "session.cliSync.description",
-                  "This session is synchronized with your terminal"
-                )}
+                {cliSyncDescription}
               </p>
             </TooltipContent>
           </Tooltip>
@@ -208,6 +216,11 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                       "session.nativeRename.menuItemOpenCode",
                       "Rename in OpenCode"
                     )
+                  : providerId === "codex"
+                    ? t(
+                        "session.nativeRename.menuItemCodex",
+                        "Rename in Codex CLI"
+                      )
                   : providerId === "forgecode"
                     ? t(
                         "session.nativeRename.menuItemForgeCode",

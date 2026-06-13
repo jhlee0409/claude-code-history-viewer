@@ -3,12 +3,17 @@ use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
+use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::Path;
 use std::path::PathBuf;
 use walkdir::WalkDir;
+
+use crate::commands::session::NativeRenameResult;
+
+const STATE_DB_FILENAME: &str = "state_5.sqlite";
 
 /// Detect Codex CLI installation
 pub fn detect() -> Option<ProviderInfo> {
@@ -70,6 +75,15 @@ fn is_rollout_jsonl(path: &Path) -> bool {
         .map(|name| name.to_string_lossy().starts_with("rollout-"))
         .unwrap_or(false)
         && path.extension().is_some_and(|ext| ext == "jsonl")
+}
+
+/// Return true when `session_path` is a Codex rollout JSONL inside the active
+/// or archived session roots.
+pub fn is_session_path(session_path: &str) -> bool {
+    let path = Path::new(session_path);
+    validate_session_path(path, session_path)
+        .map(|canonical_path| is_rollout_jsonl(&canonical_path))
+        .unwrap_or(false)
 }
 
 fn validate_session_path(session_path: &Path, raw_session_path: &str) -> Result<PathBuf, String> {
@@ -209,6 +223,9 @@ pub fn load_sessions(
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     let session_dirs = get_existing_session_dirs()?;
+    let title_index = get_base_path()
+        .map(|base_path| load_native_title_index(&base_path))
+        .unwrap_or_default();
 
     if session_dirs.is_empty() {
         return Ok(vec![]);
@@ -232,6 +249,7 @@ pub fn load_sessions(
             let rollout_path = entry.path();
 
             if let Ok(info) = extract_session_info(rollout_path) {
+                let native_title = title_index.get(&info.session_id);
                 let session_cwd = info.cwd.as_deref().unwrap_or("");
                 if session_cwd != target_cwd {
                     continue;
@@ -251,8 +269,8 @@ pub fn load_sessions(
                     last_modified: info.last_modified,
                     has_tool_use: info.has_tool_use,
                     has_errors: false,
-                    summary: info.summary,
-                    is_renamed: false,
+                    summary: native_title.cloned().or(info.summary),
+                    is_renamed: native_title.is_some(),
                     provider: Some("codex".to_string()),
                     storage_type: None,
                     entrypoint: None,
@@ -450,9 +468,152 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     Ok(results)
 }
 
+/// Rename a Codex CLI session by updating its native thread title in
+/// `state_5.sqlite`. Codex stores the authoritative, resume-picker-visible
+/// name in `threads.title`; the rollout JSONL remains the immutable transcript.
+pub fn rename_session_title(
+    session_path: &str,
+    new_title: &str,
+) -> Result<NativeRenameResult, String> {
+    let base_path = get_base_path().ok_or_else(|| "Codex not found".to_string())?;
+    rename_session_title_from_path(&base_path, session_path, new_title)
+}
+
+fn rename_session_title_from_path(
+    base_path: &str,
+    session_path: &str,
+    new_title: &str,
+) -> Result<NativeRenameResult, String> {
+    let canonical_path = validate_session_path(Path::new(session_path), session_path)?;
+    if !is_rollout_jsonl(&canonical_path) {
+        return Err(format!("Invalid Codex rollout path: {session_path}"));
+    }
+
+    let info = extract_session_info(&canonical_path)?;
+    if info.session_id.is_empty() {
+        return Err("Codex rollout is missing session metadata id".to_string());
+    }
+
+    let conn = open_state_db_read_write(base_path)?;
+    let (previous_title, first_user_message): (String, String) = conn
+        .query_row(
+            "SELECT title, first_user_message FROM threads WHERE id = ?1",
+            rusqlite::params![&info.session_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|e| {
+            if matches!(e, rusqlite::Error::QueryReturnedNoRows) {
+                format!(
+                    "Codex thread not found in state database: {}",
+                    info.session_id
+                )
+            } else {
+                format!("Failed to read Codex thread metadata: {e}")
+            }
+        })?;
+
+    let normalized_title = new_title.trim();
+    if normalized_title.chars().any(|ch| ch == '\n' || ch == '\r') {
+        return Err("Invalid title: Title cannot contain newline characters".to_string());
+    }
+
+    let reset_title = if first_user_message.trim().is_empty() {
+        info.summary.clone().unwrap_or_default()
+    } else {
+        first_user_message
+    };
+    let next_title = if normalized_title.is_empty() {
+        reset_title
+    } else {
+        normalized_title.to_string()
+    };
+
+    let affected_rows = conn
+        .execute(
+            "UPDATE threads SET title = ?1 WHERE id = ?2",
+            rusqlite::params![&next_title, &info.session_id],
+        )
+        .map_err(|e| format!("Failed to rename Codex session: {e}"))?;
+
+    if affected_rows == 0 {
+        return Err(format!(
+            "Codex thread not found in state database: {}",
+            info.session_id
+        ));
+    }
+
+    Ok(NativeRenameResult {
+        success: true,
+        previous_title,
+        new_title: next_title,
+        file_path: session_path.to_string(),
+    })
+}
+
 // ============================================================================
 // Internal helpers
 // ============================================================================
+
+fn state_db_path(base_path: &str) -> PathBuf {
+    Path::new(base_path).join(STATE_DB_FILENAME)
+}
+
+fn open_state_db(base_path: &str) -> Option<Connection> {
+    let db_path = state_db_path(base_path);
+    if !db_path.is_file() {
+        return None;
+    }
+
+    Connection::open_with_flags(
+        db_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .ok()
+}
+
+fn open_state_db_read_write(base_path: &str) -> Result<Connection, String> {
+    let db_path = state_db_path(base_path);
+    if !db_path.is_file() {
+        return Err(format!(
+            "Codex state database not found: {}",
+            db_path.display()
+        ));
+    }
+
+    Connection::open_with_flags(
+        db_path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|e| format!("Failed to open Codex state database: {e}"))
+}
+
+fn load_native_title_index(base_path: &str) -> HashMap<String, String> {
+    let Some(conn) = open_state_db(base_path) else {
+        return HashMap::new();
+    };
+    let Ok(mut stmt) = conn.prepare("SELECT id, title, first_user_message FROM threads") else {
+        return HashMap::new();
+    };
+    let Ok(rows) = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    }) else {
+        return HashMap::new();
+    };
+
+    rows.filter_map(std::result::Result::ok)
+        .filter_map(|(id, title, first_user_message)| {
+            let title = title.trim();
+            if title.is_empty() || title == first_user_message.trim() {
+                return None;
+            }
+            Some((id, title.to_string()))
+        })
+        .collect()
+}
 
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
@@ -1329,6 +1490,62 @@ mod tests {
             } else {
                 std::env::remove_var(self.key);
             }
+        }
+    }
+
+    fn write_codex_rollout(
+        sessions_dir: &Path,
+        filename: &str,
+        session_id: &str,
+        cwd: &str,
+        first_prompt: &str,
+    ) -> PathBuf {
+        let rollout_path = sessions_dir.join(filename);
+        let lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": session_id, "cwd": cwd }
+            }),
+            json!({
+                "timestamp": "2026-02-21T10:00:00Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-02-21T10:00:00Z",
+                    "content": [{ "type": "input_text", "text": first_prompt }]
+                }
+            }),
+        ];
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n"))
+            .expect("rollout fixture should be written");
+        rollout_path
+    }
+
+    fn create_codex_state_db(codex_home: &Path, rows: &[(&str, &str, &str)]) {
+        let conn = Connection::open(codex_home.join(STATE_DB_FILENAME))
+            .expect("codex state db should be created");
+        conn.execute(
+            "CREATE TABLE threads (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                first_user_message TEXT NOT NULL
+            )",
+            [],
+        )
+        .expect("threads table should be created");
+
+        for (id, title, first_user_message) in rows {
+            conn.execute(
+                "INSERT INTO threads (id, title, first_user_message) VALUES (?1, ?2, ?3)",
+                rusqlite::params![id, title, first_user_message],
+            )
+            .expect("thread row should be inserted");
         }
     }
 
@@ -2282,6 +2499,106 @@ mod tests {
         assert!(sessions
             .iter()
             .any(|s| s.file_path.contains("/archived_sessions/")));
+    }
+
+    #[test]
+    #[serial]
+    fn load_sessions_uses_codex_native_title_from_state_db() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let project_cwd = "/Users/jack/client/claude-code-history-viewer";
+        write_codex_rollout(
+            &sessions_dir,
+            "rollout-native-title.jsonl",
+            "native-title-session",
+            project_cwd,
+            "Original first prompt",
+        );
+        create_codex_state_db(
+            &codex_home,
+            &[(
+                "native-title-session",
+                "Pinned Codex title",
+                "Original first prompt",
+            )],
+        );
+
+        let sessions = load_sessions(&format!("codex://{project_cwd}"), false)
+            .expect("sessions should be loaded");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].summary.as_deref(), Some("Pinned Codex title"));
+        assert!(sessions[0].is_renamed);
+    }
+
+    #[test]
+    #[serial]
+    fn rename_session_title_updates_codex_state_db_and_resets_to_first_prompt() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let rollout_path = write_codex_rollout(
+            &sessions_dir,
+            "rollout-rename-title.jsonl",
+            "rename-title-session",
+            "/Users/jack/client/claude-code-history-viewer",
+            "Original first prompt",
+        );
+        create_codex_state_db(
+            &codex_home,
+            &[(
+                "rename-title-session",
+                "Original first prompt",
+                "Original first prompt",
+            )],
+        );
+
+        let result = rename_session_title(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+            "  Better Codex title  ",
+        )
+        .expect("rename should update state db");
+
+        assert_eq!(result.previous_title, "Original first prompt");
+        assert_eq!(result.new_title, "Better Codex title");
+
+        let conn = Connection::open(codex_home.join(STATE_DB_FILENAME))
+            .expect("codex state db should be readable");
+        let title: String = conn
+            .query_row(
+                "SELECT title FROM threads WHERE id = ?1",
+                rusqlite::params!["rename-title-session"],
+                |row| row.get(0),
+            )
+            .expect("renamed title should be readable");
+        assert_eq!(title, "Better Codex title");
+
+        let reset = rename_session_title(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+            "",
+        )
+        .expect("reset should update state db");
+        assert_eq!(reset.previous_title, "Better Codex title");
+        assert_eq!(reset.new_title, "Original first prompt");
     }
 
     #[test]
