@@ -4,8 +4,10 @@ use crate::utils::{
 };
 use chrono::{DateTime, Utc};
 use std::fs;
-use std::path::PathBuf;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::SystemTime;
 use walkdir::WalkDir;
 
 #[tauri::command]
@@ -205,6 +207,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         let mut session_count = 0;
         let mut message_count = 0;
         let mut last_modified = None;
+        let mut cwd_candidate: Option<(SystemTime, String)> = None;
 
         for jsonl_entry in WalkDir::new(entry.path())
             .into_iter()
@@ -214,7 +217,8 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             session_count += 1;
 
             if let Ok(metadata) = jsonl_entry.metadata() {
-                if let Ok(modified) = metadata.modified() {
+                let modified = metadata.modified().ok();
+                if let Some(modified) = modified {
                     if last_modified.is_none() || modified > last_modified.unwrap() {
                         last_modified = Some(modified);
                     }
@@ -223,6 +227,17 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
                 // Estimate message count from file size - much faster
                 let estimated_messages = estimate_message_count_from_size(metadata.len());
                 message_count += estimated_messages;
+
+                let should_check_cwd = match (&cwd_candidate, modified) {
+                    (None, _) => true,
+                    (Some((current_modified, _)), Some(modified)) => modified > *current_modified,
+                    (Some(_), None) => false,
+                };
+                if should_check_cwd {
+                    if let Some(cwd) = extract_cwd_from_session_file(jsonl_entry.path()) {
+                        cwd_candidate = Some((modified.unwrap_or(SystemTime::UNIX_EPOCH), cwd));
+                    }
+                }
             }
         }
 
@@ -246,8 +261,12 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             continue;
         }
 
-        // Decode the actual filesystem path FIRST
-        let actual_path = crate::utils::decode_project_path(&project_path);
+        // Prefer the exact cwd Claude wrote into JSONL. Claude's storage
+        // directory names are lossy (`_` and path separators can both become
+        // `-`), so decoding the folder name can produce a non-existent cwd.
+        let actual_path = cwd_candidate
+            .map(|(_, cwd)| cwd)
+            .unwrap_or_else(|| crate::utils::decode_project_path(&project_path));
 
         // Detect git worktree information using the actual filesystem path
         let git_info = detect_git_worktree_info(&actual_path);
@@ -279,6 +298,26 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
     }
 
     Ok(projects)
+}
+
+fn extract_cwd_from_session_file(file_path: &Path) -> Option<String> {
+    let file = fs::File::open(file_path).ok()?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines().map_while(Result::ok).take(100) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) else {
+            continue;
+        };
+        let cwd = value.get("cwd").and_then(serde_json::Value::as_str)?.trim();
+        if !cwd.is_empty() {
+            return Some(cwd.to_string());
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -445,6 +484,33 @@ mod tests {
         // extract_project_name extracts the 4th part from splitn(4, '-')
         // "-Users-jack-client-myapp" -> ["", "Users", "jack", "client-myapp"]
         assert_eq!(projects[0].name, "client-myapp");
+    }
+
+    #[tokio::test]
+    async fn test_scan_projects_prefers_jsonl_cwd_over_lossy_storage_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let projects_dir = claude_dir.join("projects");
+        let project_dir = projects_dir.join("-home-cym-claude-prompt-design");
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let actual_cwd = temp_dir.path().join("claude_prompt_design");
+        fs::create_dir_all(&actual_cwd).unwrap();
+        let actual_cwd = actual_cwd.to_string_lossy();
+        create_test_jsonl_file(
+            &project_dir,
+            "session.jsonl",
+            &format!(
+                r#"{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{actual_cwd}","message":{{"role":"user","content":"Hello"}}}}"#
+            ),
+        );
+
+        let projects = scan_projects(claude_dir.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].actual_path, actual_cwd);
     }
 
     #[tokio::test]
