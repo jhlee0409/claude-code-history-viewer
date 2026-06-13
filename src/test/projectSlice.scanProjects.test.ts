@@ -6,6 +6,7 @@ import {
   type ProjectSlice,
 } from "../store/slices/projectSlice";
 import {
+  AppErrorType,
   DEFAULT_USER_METADATA,
   type ClaudeProject,
   type ProviderInfo,
@@ -160,5 +161,47 @@ describe("projectSlice scanProjects", () => {
       geminiProject,
       codexProject,
     ]);
+  });
+
+  it("reports provider errors when successful scans return no projects", async () => {
+    const store = createTestStore();
+
+    store.setState({
+      providers: [
+        {
+          id: "codex",
+          display_name: "Codex",
+          base_path: "/root/.codex",
+          is_available: true,
+        },
+        {
+          id: "gemini",
+          display_name: "Gemini CLI",
+          base_path: "/root/.gemini",
+          is_available: true,
+        },
+      ],
+    });
+
+    vi.mocked(api).mockImplementation((command, args) => {
+      if (command === "scan_all_projects") {
+        const provider = (args?.activeProviders as string[] | undefined)?.[0];
+        if (provider === "codex") {
+          return Promise.resolve([]);
+        }
+        if (provider === "gemini") {
+          return Promise.reject(new Error("scan failed"));
+        }
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().scanProjects();
+
+    expect(store.getState().projects).toEqual([]);
+    expect(store.getState().error).toEqual({
+      type: AppErrorType.UNKNOWN,
+      message: "gemini: scan failed",
+    });
   });
 });

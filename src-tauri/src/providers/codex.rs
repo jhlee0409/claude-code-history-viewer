@@ -248,7 +248,7 @@ pub fn load_sessions(
             }
 
             if let Ok(info) = extract_session_info(rollout_path) {
-                let session_cwd = info.cwd.as_deref().unwrap_or("");
+                let session_cwd = info.cwd.as_deref().unwrap_or("unknown");
                 if session_cwd != target_cwd {
                     continue;
                 }
@@ -2417,6 +2417,56 @@ mod tests {
         assert!(sessions
             .iter()
             .any(|s| s.file_path.contains("/archived_sessions/")));
+    }
+
+    #[test]
+    #[serial]
+    fn missing_cwd_sessions_load_from_unknown_project() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let rollout_path = sessions_dir.join("rollout-no-cwd.jsonl");
+        let lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": "no-cwd-session" }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-02-21T10:00:00Z",
+                    "content": [{ "type": "input_text", "text": "missing cwd" }]
+                }
+            }),
+        ];
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n")).expect("fixture should be written");
+
+        let projects = scan_projects_from_path(
+            codex_home
+                .to_str()
+                .expect("codex home path should be valid UTF-8"),
+        )
+        .expect("projects should be scanned");
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].path, "codex://unknown");
+
+        let sessions = load_sessions("codex://unknown", false).expect("sessions should be loaded");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].actual_session_id, "no-cwd-session");
     }
 
     #[test]

@@ -365,7 +365,7 @@ export const createProjectSlice: StateCreator<
         return;
       }
       set({ projects });
-      if (projectsByProvider.size === 0 && providerErrors.length > 0) {
+      if (projects.length === 0 && providerErrors.length > 0) {
         set({
           error: {
             type: AppErrorType.UNKNOWN,
