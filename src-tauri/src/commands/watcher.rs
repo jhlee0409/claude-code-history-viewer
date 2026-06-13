@@ -4,8 +4,8 @@ use notify_debouncer_mini::{new_debouncer, DebouncedEvent, DebouncedEventKind, D
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +21,14 @@ type OpenCodeSessionCache = HashMap<String, String>;
 
 static OPENCODE_SESSION_PROJECT_CACHE: std::sync::OnceLock<Mutex<OpenCodeSessionCache>> =
     std::sync::OnceLock::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FileSignature {
+    len: u64,
+    modified_unix_nanos: u64,
+}
+
+static WATCHED_FILE_SIGNATURES: OnceLock<Mutex<HashMap<PathBuf, FileSignature>>> = OnceLock::new();
 
 /// Start watching the Claude projects directory for file changes
 #[tauri::command]
@@ -85,6 +93,7 @@ pub async fn start_file_watcher(
         .watcher()
         .watch(&canonical_projects, RecursiveMode::Recursive)
         .map_err(|e| format!("Failed to watch directory: {e}"))?;
+    prime_watch_signatures(&canonical_projects);
 
     // Also watch custom Claude directories if provided
     if let Some(custom_paths) = custom_claude_paths {
@@ -97,6 +106,7 @@ pub async fn start_file_watcher(
                         .watch(&canonical_projects, RecursiveMode::Recursive)
                         .is_ok()
                     {
+                        prime_watch_signatures(&canonical_projects);
                         log::info!(
                             "File watcher added custom path: {}",
                             canonical_projects.display()
@@ -143,10 +153,12 @@ pub fn to_file_watch_event(event: &DebouncedEvent) -> Option<FileWatchEvent> {
     let path = &event.path;
     let (project_path, session_path) = extract_provider_paths(path)?;
 
-    // Note: `notify_debouncer_mini` only provides `Any` / `AnyContinuous` kinds —
-    // it does not distinguish create vs modify vs delete.  All events are emitted
-    // as "session-file-changed" and the frontend treats them uniformly as a
-    // signal to refresh the affected session data.
+    if !record_content_signature_change(path) {
+        return None;
+    }
+
+    // Note: `notify_debouncer_mini` only provides `Any` / `AnyContinuous` kinds,
+    // so content-change filtering is handled with the file signature cache above.
     let event_type = match event.kind {
         DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous | _ => "session-file-changed",
     };
@@ -155,6 +167,75 @@ pub fn to_file_watch_event(event: &DebouncedEvent) -> Option<FileWatchEvent> {
         project_path,
         session_path,
         event_type: event_type.to_string(),
+    })
+}
+
+/// Seed the file signature cache for a watched tree.
+///
+/// `notify_debouncer_mini` intentionally collapses raw filesystem events into
+/// ambiguous `Any` events. On Linux, simply reading a `.jsonl` can surface as an
+/// access event; without a content signature check, `WebUI` reloads the selected
+/// session, which reads the file again and creates a refresh loop.
+pub fn prime_watch_signatures(root: &Path) {
+    let Some(mut signatures) = watched_file_signatures().lock().ok() else {
+        return;
+    };
+
+    for entry in walkdir::WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        let path = entry.path();
+        if extract_provider_paths(path).is_none() {
+            continue;
+        }
+        if let Some(signature) = file_signature(path) {
+            signatures.insert(path.to_path_buf(), signature);
+        }
+    }
+}
+
+fn watched_file_signatures() -> &'static Mutex<HashMap<PathBuf, FileSignature>> {
+    WATCHED_FILE_SIGNATURES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn record_content_signature_change(path: &Path) -> bool {
+    let signature = file_signature(path);
+    let Ok(mut signatures) = watched_file_signatures().lock() else {
+        return true;
+    };
+
+    if let Some(current) = signature {
+        match signatures.get(path) {
+            Some(previous) if *previous == current => false,
+            _ => {
+                signatures.insert(path.to_path_buf(), current);
+                true
+            }
+        }
+    } else {
+        signatures.remove(path);
+        true
+    }
+}
+
+fn file_signature(path: &Path) -> Option<FileSignature> {
+    let metadata = std::fs::metadata(path).ok()?;
+    if !metadata.is_file() {
+        return None;
+    }
+
+    let modified = metadata.modified().ok()?;
+    let modified_duration = modified.duration_since(UNIX_EPOCH).ok()?;
+    let modified_unix_nanos = modified_duration
+        .as_secs()
+        .saturating_mul(1_000_000_000)
+        .saturating_add(u64::from(modified_duration.subsec_nanos()));
+
+    Some(FileSignature {
+        len: metadata.len(),
+        modified_unix_nanos,
     })
 }
 
@@ -414,6 +495,40 @@ mod tests {
         let result = extract_paths(&path);
 
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_to_file_watch_event_ignores_unchanged_content_signature() {
+        let temp = TempDir::new().unwrap();
+        let project_dir = temp
+            .path()
+            .join(".claude")
+            .join("projects")
+            .join("my-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let session_path = project_dir.join("session.jsonl");
+        std::fs::write(&session_path, "{}\n").unwrap();
+        prime_watch_signatures(&project_dir);
+
+        let unchanged = DebouncedEvent {
+            path: session_path.clone(),
+            kind: DebouncedEventKind::Any,
+        };
+        assert!(to_file_watch_event(&unchanged).is_none());
+
+        std::fs::write(&session_path, "{}\n{\"type\":\"user\"}\n").unwrap();
+        let changed = DebouncedEvent {
+            path: session_path.clone(),
+            kind: DebouncedEventKind::Any,
+        };
+        assert!(to_file_watch_event(&changed).is_some());
+
+        let repeated = DebouncedEvent {
+            path: session_path,
+            kind: DebouncedEventKind::Any,
+        };
+        assert!(to_file_watch_event(&repeated).is_none());
     }
 
     #[test]
