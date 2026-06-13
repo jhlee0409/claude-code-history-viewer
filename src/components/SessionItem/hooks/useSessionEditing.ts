@@ -7,7 +7,6 @@ import {
 } from "@/hooks/useSessionMetadata";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/services/api";
-import { isTauri } from "@/utils/platform";
 import { isAbsolutePath } from "@/utils/pathUtils";
 import {
   getResumeCommand,
@@ -43,27 +42,14 @@ function legacyCopy(text: string): void {
   }
 }
 
-async function confirmSessionDelete(
-  message: string,
-  title: string,
-): Promise<boolean> {
-  if (isTauri()) {
-    const { ask } = await import("@tauri-apps/plugin-dialog");
-    return ask(message, {
-      title,
-      kind: "warning",
-    });
-  }
-
-  return window.confirm(`${title}\n\n${message}`);
-}
-
 export function useSessionEditing(session: ClaudeSession) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const [isNativeRenameOpen, setIsNativeRenameOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
   const [localSummary, setLocalSummary] = useState(session.summary);
   const inputRef = useRef<HTMLInputElement>(null);
   const ignoreBlurRef = useRef<boolean>(false);
@@ -76,6 +62,17 @@ export function useSessionEditing(session: ClaudeSession) {
   const isArchivedCodexSession =
     providerId === "codex" &&
     /(?:^|[\\/])archived_sessions(?:[\\/]|$)/.test(session.file_path);
+  const deleteDialogTitle = t("session.deleteTitle", "Delete Session");
+  const deleteDialogDescription =
+    providerId === "forgecode"
+      ? t(
+          "session.deleteConfirmForgeCode",
+          "This will permanently delete the ForgeCode conversation from the Forge database."
+        )
+      : t(
+          "session.deleteConfirm",
+          "This will move the session file and associated data (subagents, tool results) to your system Trash."
+        );
 
   // Sync localSummary when session.summary prop changes
   useEffect(() => {
@@ -264,50 +261,59 @@ export function useSessionEditing(session: ClaudeSession) {
   );
 
   const handleDeleteSession = useCallback(
-    async (e: React.MouseEvent) => {
+    (e: React.MouseEvent) => {
       e.stopPropagation();
       setIsContextMenuOpen(false);
       if (!session.file_path || !supportsSessionDeletion) {
         toast.error(t("session.deleteError", "Failed to delete session"));
         return;
       }
-      try {
-        const deleteConfirmMessage =
-          providerId === "forgecode"
-            ? t(
-                "session.deleteConfirmForgeCode",
-                "This will permanently delete the ForgeCode conversation from the Forge database."
-              )
-            : t(
-                "session.deleteConfirm",
-                "This will move the session file and associated data (subagents, tool results) to your system Trash."
-              );
-        const confirmed = await confirmSessionDelete(
-          deleteConfirmMessage,
-          t("session.deleteTitle", "Delete Session"),
-        );
-        if (!confirmed) return;
-        await api("delete_session", { filePath: session.file_path });
-        const { sessions, setSessions, selectedSession, setSelectedSession } =
-          useAppStore.getState();
-        setSessions(sessions.filter((s) => s.session_id !== session.session_id));
-        if (selectedSession?.session_id === session.session_id) {
-          setSelectedSession(null);
-        }
-        toast.success(t("session.deleteSuccess", "Session deleted"));
-      } catch (error) {
-        const description =
-          error instanceof Error ? error.message : String(error);
-        console.error("[session delete] failed", {
-          sessionId: session.session_id,
-          error,
-        });
-        toast.error(t("session.deleteError", "Failed to delete session"), {
-          description,
-        });
-      }
+      setIsDeleteDialogOpen(true);
     },
-    [providerId, session.file_path, session.session_id, supportsSessionDeletion, t]
+    [session.file_path, supportsSessionDeletion, t]
+  );
+
+  const handleConfirmDeleteSession = useCallback(async () => {
+    if (!session.file_path || !supportsSessionDeletion) {
+      setIsDeleteDialogOpen(false);
+      toast.error(t("session.deleteError", "Failed to delete session"));
+      return;
+    }
+
+    setIsDeletingSession(true);
+    try {
+      await api("delete_session", { filePath: session.file_path });
+      const { sessions, setSessions, selectedSession, setSelectedSession } =
+        useAppStore.getState();
+      setSessions(sessions.filter((s) => s.session_id !== session.session_id));
+      if (selectedSession?.session_id === session.session_id) {
+        setSelectedSession(null);
+      }
+      setIsDeleteDialogOpen(false);
+      toast.success(t("session.deleteSuccess", "Session deleted"));
+    } catch (error) {
+      const description =
+        error instanceof Error ? error.message : String(error);
+      console.error("[session delete] failed", {
+        sessionId: session.session_id,
+        error,
+      });
+      toast.error(t("session.deleteError", "Failed to delete session"), {
+        description,
+      });
+    } finally {
+      setIsDeletingSession(false);
+    }
+  }, [session.file_path, session.session_id, supportsSessionDeletion, t]);
+
+  const handleDeleteDialogOpenChange = useCallback(
+    (open: boolean) => {
+      if (isDeletingSession) {
+        return;
+      }
+      setIsDeleteDialogOpen(open);
+    },
+    [isDeletingSession]
   );
 
   const handleNativeRenameClick = useCallback(
@@ -349,6 +355,8 @@ export function useSessionEditing(session: ClaudeSession) {
     editValue,
     isContextMenuOpen,
     isNativeRenameOpen,
+    isDeleteDialogOpen,
+    isDeletingSession,
     localSummary,
     displayName,
     hasCustomName,
@@ -360,6 +368,8 @@ export function useSessionEditing(session: ClaudeSession) {
     supportsSessionDeletion,
     supportsRevealInFinder,
     isArchivedCodexSession,
+    deleteDialogTitle,
+    deleteDialogDescription,
     inputRef,
     ignoreBlurRef,
 
@@ -367,6 +377,7 @@ export function useSessionEditing(session: ClaudeSession) {
     setEditValue,
     setIsContextMenuOpen,
     setIsNativeRenameOpen,
+    setIsDeleteDialogOpen: handleDeleteDialogOpenChange,
     saveCustomName,
     cancelEditing,
     resetCustomName,
@@ -378,6 +389,7 @@ export function useSessionEditing(session: ClaudeSession) {
     handleCopyFilePath,
     handleRevealInFinder,
     handleDeleteSession,
+    handleConfirmDeleteSession,
     handleNativeRenameClick,
     handleNativeRenameSuccess,
   };

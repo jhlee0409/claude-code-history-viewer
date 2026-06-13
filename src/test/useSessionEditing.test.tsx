@@ -28,12 +28,6 @@ vi.mock("@/services/api", () => ({
   api: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  ask: vi.fn(() => {
-    throw new Error("Tauri dialog should not be used in WebUI tests");
-  }),
-}));
-
 vi.mock("@/hooks/useSessionMetadata", () => ({
   useSessionDisplayName: () => "Session title",
   useSessionMetadata: () => ({
@@ -77,10 +71,6 @@ describe("useSessionEditing clipboard actions", () => {
       },
     });
     Object.defineProperty(document, "execCommand", {
-      configurable: true,
-      value: vi.fn(),
-    });
-    Object.defineProperty(window, "confirm", {
       configurable: true,
       value: vi.fn(),
     });
@@ -241,45 +231,8 @@ describe("useSessionEditing clipboard actions", () => {
     expect(toast.error).toHaveBeenCalledWith("Copy failed");
   });
 
-  it("confirms before deleting a session in WebUI mode", async () => {
-    const otherSession: ClaudeSession = {
-      ...session,
-      session_id: "other-session-id",
-      actual_session_id: "other-actual-session-id",
-      file_path: "/tmp/other-session.jsonl",
-    };
-    const confirm = vi.fn().mockReturnValue(true);
-    Object.defineProperty(window, "confirm", {
-      configurable: true,
-      value: confirm,
-    });
-    vi.mocked(api).mockResolvedValue(undefined);
-    useAppStore.setState({
-      sessions: [session, otherSession],
-      selectedSession: session,
-    });
-
-    const { result } = renderHook(() => useSessionEditing(session));
-
-    await act(async () => {
-      await result.current.handleDeleteSession({
-        stopPropagation: vi.fn(),
-      } as unknown as React.MouseEvent);
-    });
-
-    expect(confirm).toHaveBeenCalledWith(
-      expect.stringContaining("Delete Session"),
-    );
-    expect(api).toHaveBeenCalledWith("delete_session", {
-      filePath: session.file_path,
-    });
-    expect(useAppStore.getState().sessions).toEqual([otherSession]);
-    expect(useAppStore.getState().selectedSession).toBeNull();
-    expect(toast.success).toHaveBeenCalledWith("Session deleted");
-  });
-
-  it("does not delete when the WebUI confirmation is cancelled", async () => {
-    const confirm = vi.fn().mockReturnValue(false);
+  it("opens the in-app confirmation dialog before deleting a session", () => {
+    const confirm = vi.fn();
     Object.defineProperty(window, "confirm", {
       configurable: true,
       value: confirm,
@@ -291,13 +244,77 @@ describe("useSessionEditing clipboard actions", () => {
 
     const { result } = renderHook(() => useSessionEditing(session));
 
-    await act(async () => {
-      await result.current.handleDeleteSession({
+    act(() => {
+      result.current.handleDeleteSession({
         stopPropagation: vi.fn(),
       } as unknown as React.MouseEvent);
     });
 
-    expect(confirm).toHaveBeenCalled();
+    expect(result.current.isDeleteDialogOpen).toBe(true);
+    expect(result.current.deleteDialogTitle).toBe("Delete Session");
+    expect(result.current.deleteDialogDescription).toContain("Trash");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(api).not.toHaveBeenCalled();
+    expect(useAppStore.getState().sessions).toEqual([session]);
+    expect(useAppStore.getState().selectedSession).toEqual(session);
+  });
+
+  it("deletes a session after the in-app confirmation is accepted", async () => {
+    const otherSession: ClaudeSession = {
+      ...session,
+      session_id: "other-session-id",
+      actual_session_id: "other-actual-session-id",
+      file_path: "/tmp/other-session.jsonl",
+    };
+    vi.mocked(api).mockResolvedValue(undefined);
+    useAppStore.setState({
+      sessions: [session, otherSession],
+      selectedSession: session,
+    });
+
+    const { result } = renderHook(() => useSessionEditing(session));
+
+    act(() => {
+      result.current.handleDeleteSession({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(result.current.isDeleteDialogOpen).toBe(true);
+
+    await act(async () => {
+      await result.current.handleConfirmDeleteSession();
+    });
+
+    expect(api).toHaveBeenCalledWith("delete_session", {
+      filePath: session.file_path,
+    });
+    expect(result.current.isDeleteDialogOpen).toBe(false);
+    expect(result.current.isDeletingSession).toBe(false);
+    expect(useAppStore.getState().sessions).toEqual([otherSession]);
+    expect(useAppStore.getState().selectedSession).toBeNull();
+    expect(toast.success).toHaveBeenCalledWith("Session deleted");
+  });
+
+  it("does not delete when the in-app confirmation dialog is cancelled", () => {
+    useAppStore.setState({
+      sessions: [session],
+      selectedSession: session,
+    });
+
+    const { result } = renderHook(() => useSessionEditing(session));
+
+    act(() => {
+      result.current.handleDeleteSession({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    act(() => {
+      result.current.setIsDeleteDialogOpen(false);
+    });
+
+    expect(result.current.isDeleteDialogOpen).toBe(false);
     expect(api).not.toHaveBeenCalled();
     expect(useAppStore.getState().sessions).toEqual([session]);
     expect(useAppStore.getState().selectedSession).toEqual(session);

@@ -5,6 +5,7 @@ import { useSessionEditing } from "./hooks/useSessionEditing";
 import { SessionHeader } from "./components/SessionHeader";
 import { SessionNameEditor } from "./components/SessionNameEditor";
 import { SessionContextMenu } from "./components/SessionContextMenu";
+import { SessionDeleteDialog } from "./components/SessionDeleteDialog";
 import { SessionMeta } from "./components/SessionMeta";
 import type { SessionItemProps } from "./types";
 import type { Boundary } from "@/utils/contextMenu";
@@ -142,6 +143,16 @@ export const SessionItem: React.FC<SessionItemProps> = ({
         currentName={editing.localSummary || ""}
         provider={editing.providerId}
         onSuccess={editing.handleNativeRenameSuccess}
+      />
+
+      <SessionDeleteDialog
+        open={editing.isDeleteDialogOpen}
+        onOpenChange={editing.setIsDeleteDialogOpen}
+        title={editing.deleteDialogTitle}
+        description={editing.deleteDialogDescription}
+        filePath={session.file_path}
+        isDeleting={editing.isDeletingSession}
+        onConfirm={editing.handleConfirmDeleteSession}
       />
     </div>
   );
