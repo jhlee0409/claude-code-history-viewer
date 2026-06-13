@@ -379,6 +379,14 @@ mod tests {
         file.write_all(content.as_bytes()).unwrap();
     }
 
+    fn jsonl_lines(lines: Vec<serde_json::Value>) -> String {
+        lines
+            .into_iter()
+            .map(|line| line.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     // Test validate_claude_folder
     #[tokio::test]
     async fn test_validate_claude_folder_nonexistent() {
@@ -533,14 +541,28 @@ mod tests {
 
         let actual_cwd = temp_dir.path().join("claude_prompt_design");
         fs::create_dir_all(&actual_cwd).unwrap();
-        let actual_cwd = actual_cwd.to_string_lossy();
+        let actual_cwd = actual_cwd.to_string_lossy().to_string();
         create_test_jsonl_file(
             &project_dir,
             "session.jsonl",
-            &format!(
-                r#"{{"type":"mode","mode":"normal","sessionId":"session-1"}}
-{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{actual_cwd}","message":{{"role":"user","content":"Hello"}}}}"#
-            ),
+            &jsonl_lines(vec![
+                serde_json::json!({
+                    "type": "mode",
+                    "mode": "normal",
+                    "sessionId": "session-1",
+                }),
+                serde_json::json!({
+                    "uuid": "uuid-1",
+                    "sessionId": "session-1",
+                    "timestamp": "2025-06-26T10:00:00Z",
+                    "type": "user",
+                    "cwd": actual_cwd,
+                    "message": {
+                        "role": "user",
+                        "content": "Hello",
+                    },
+                }),
+            ]),
         );
 
         let projects = scan_projects(claude_dir.to_string_lossy().to_string())
@@ -564,23 +586,45 @@ mod tests {
         let parent_cwd = temp_dir.path().join("cym");
         let subagent_cwd = parent_cwd.join("paseo");
         fs::create_dir_all(&subagent_cwd).unwrap();
-        let parent_cwd = parent_cwd.to_string_lossy();
-        let subagent_cwd = subagent_cwd.to_string_lossy();
+        let parent_cwd = parent_cwd.to_string_lossy().to_string();
+        let subagent_cwd = subagent_cwd.to_string_lossy().to_string();
 
         create_test_jsonl_file(
             &project_dir,
             "parent-session.jsonl",
-            &format!(
-                r#"{{"type":"mode","mode":"normal","sessionId":"session-1"}}
-{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{parent_cwd}","message":{{"role":"user","content":"Clone paseo here"}}}}"#
-            ),
+            &jsonl_lines(vec![
+                serde_json::json!({
+                    "type": "mode",
+                    "mode": "normal",
+                    "sessionId": "session-1",
+                }),
+                serde_json::json!({
+                    "uuid": "uuid-1",
+                    "sessionId": "session-1",
+                    "timestamp": "2025-06-26T10:00:00Z",
+                    "type": "user",
+                    "cwd": parent_cwd,
+                    "message": {
+                        "role": "user",
+                        "content": "Clone paseo here",
+                    },
+                }),
+            ]),
         );
         create_test_jsonl_file(
             &subagent_dir,
             "agent-a.jsonl",
-            &format!(
-                r#"{{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"{subagent_cwd}","message":{{"role":"user","content":"Analyze paseo"}}}}"#
-            ),
+            &jsonl_lines(vec![serde_json::json!({
+                "uuid": "uuid-2",
+                "sessionId": "session-1",
+                "timestamp": "2025-06-26T10:01:00Z",
+                "type": "user",
+                "cwd": subagent_cwd,
+                "message": {
+                    "role": "user",
+                    "content": "Analyze paseo",
+                },
+            })]),
         );
 
         let projects = scan_projects(claude_dir.to_string_lossy().to_string())

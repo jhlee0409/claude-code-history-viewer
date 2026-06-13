@@ -16,7 +16,11 @@ import {
   type SessionTokenStats,
   type GroupingMode,
 } from "./types";
-import { getProviderLabel, normalizeProviderIds } from "./utils/providers";
+import {
+  getProviderId,
+  getProviderLabel,
+  normalizeProviderIds,
+} from "./utils/providers";
 import {
   fetchStartupSessionHint,
   preloadSessionFromCli,
@@ -282,19 +286,27 @@ function App() {
 
         const currentProject = useAppStore.getState().selectedProject;
         const currentSessions = useAppStore.getState().sessions;
+        const sessionProvider = getProviderId(session.provider);
+        const projectMatchesSession = (project: ClaudeProject) =>
+          project.name === session.project_name &&
+          getProviderId(project.provider) === sessionProvider;
         const isCurrentProjectSession =
           !!currentProject &&
+          projectMatchesSession(currentProject) &&
           currentSessions.some(
             (loadedSession) =>
-              loadedSession.session_id === session.session_id ||
-              loadedSession.file_path === session.file_path
+              getProviderId(loadedSession.provider) === sessionProvider &&
+              (loadedSession.session_id === session.session_id ||
+                loadedSession.file_path === session.file_path)
           );
 
         if (
           !isCurrentProjectSession &&
-          (!currentProject || currentProject.name !== session.project_name)
+          (!currentProject || !projectMatchesSession(currentProject))
         ) {
-          const project = projects.find((p) => p.name === session.project_name);
+          const project =
+            projects.find(projectMatchesSession) ??
+            projects.find((p) => p.name === session.project_name);
           if (project) {
             await selectProject(project);
           }
