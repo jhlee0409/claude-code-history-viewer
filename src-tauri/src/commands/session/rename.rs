@@ -217,7 +217,11 @@ fn reset_claude_session_file(file_path: &str) -> Result<NativeRenameResult, Stri
     let current_message = extract_message_content(&user_message).ok_or_else(|| {
         RenameError::InvalidJsonFormat("No 'message' field found".to_string()).to_string()
     })?;
-    let base_message = strip_title_prefix(&current_message);
+    let base_message = if removed_rename {
+        current_message.clone()
+    } else {
+        strip_title_prefix(&current_message)
+    };
     let mut stripped_legacy_prefix = false;
 
     if base_message != current_message {
@@ -874,7 +878,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reset_claude_session_removes_rename_event_and_legacy_prefix() {
+    async fn test_reset_claude_session_removes_rename_event_without_rewriting_user_message() {
         let temp_dir = tempfile::TempDir::new().unwrap();
         let file_path = temp_dir.path().join("session-456.jsonl");
         let session_id = "session-456";
@@ -882,11 +886,7 @@ mod tests {
         let assistant_uuid = "assistant-uuid";
         let content = format!(
             "{}\n{}\n{}\n",
-            sample_rename_test_user(
-                session_id,
-                user_uuid,
-                "[Legacy Title] Original user request"
-            ),
+            sample_rename_test_user(session_id, user_uuid, "[RFC] draft parser"),
             sample_rename_test_assistant(session_id, user_uuid, assistant_uuid),
             sample_rename_test_event(session_id, assistant_uuid, "Current Title")
         );
@@ -895,10 +895,56 @@ mod tests {
         let result = reset_claude_session_file(file_path.to_str().unwrap()).unwrap();
 
         assert_eq!(result.previous_title, "Current Title");
-        assert_eq!(result.new_title, "Original user request");
+        assert_eq!(result.new_title, "[RFC] draft parser");
 
         let updated = fs::read_to_string(&file_path).unwrap();
         assert!(!updated.contains("Session renamed to:"));
+        let lines: Vec<&str> = updated.lines().collect();
+        assert_eq!(lines.len(), 2);
+        let first_message: Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(
+            first_message["message"]["content"].as_str(),
+            Some("[RFC] draft parser")
+        );
+
+        let sessions = crate::commands::session::load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].summary, Some("[RFC] draft parser".to_string()));
+        assert!(!sessions[0].is_renamed);
+    }
+
+    #[tokio::test]
+    async fn test_reset_claude_session_strips_legacy_prefix_without_rename_event() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session-legacy.jsonl");
+        let session_id = "session-legacy";
+        let user_uuid = "user-uuid";
+        let assistant_uuid = "assistant-uuid";
+        let content = format!(
+            "{}\n{}\n",
+            sample_rename_test_user(
+                session_id,
+                user_uuid,
+                "[Legacy Title] Original user request"
+            ),
+            sample_rename_test_assistant(session_id, user_uuid, assistant_uuid)
+        );
+        fs::write(&file_path, content).unwrap();
+
+        let result = reset_claude_session_file(file_path.to_str().unwrap()).unwrap();
+
+        assert_eq!(
+            result.previous_title,
+            "[Legacy Title] Original user request"
+        );
+        assert_eq!(result.new_title, "Original user request");
+
+        let updated = fs::read_to_string(&file_path).unwrap();
         let lines: Vec<&str> = updated.lines().collect();
         assert_eq!(lines.len(), 2);
         let first_message: Value = serde_json::from_str(lines[0]).unwrap();
