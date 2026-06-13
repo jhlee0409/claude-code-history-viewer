@@ -38,6 +38,8 @@ interface UseMessageVirtualizationOptions {
   hiddenMessageIds?: string[];
   /** Whether capture mode is active */
   isCaptureMode?: boolean;
+  /** Whether the viewer is currently showing a subagent session. */
+  isInSubagent?: boolean;
 }
 
 interface UseMessageVirtualizationReturn {
@@ -63,6 +65,7 @@ export const useMessageVirtualization = ({
   getScrollElement,
   hiddenMessageIds = [],
   isCaptureMode = false,
+  isInSubagent = false,
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
   // Only apply hidden filter when in capture mode (hybrid approach)
   const effectiveHiddenIds = useMemo(
@@ -124,9 +127,9 @@ export const useMessageVirtualization = ({
     (index: number) => {
       const item = flattenedMessages[index];
       if (!item) return MIN_ROW_HEIGHT;
-      return estimateMessageHeight(item);
+      return estimateMessageHeight(item, isInSubagent);
     },
-    [flattenedMessages]
+    [flattenedMessages, isInSubagent]
   );
 
   // Initialize virtualizer

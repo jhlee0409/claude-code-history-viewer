@@ -161,6 +161,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     isLoadingMessages,
   } = useAppStore();
 
+  const isInSubagent = parentSessionStack.length > 0;
+
   // Apply role + content type filters
   const displayMessages = useMemo(() => {
     const { roles, contentTypes } = messageFilter;
@@ -390,6 +392,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     getScrollElement,
     hiddenMessageIds,
     isCaptureMode,
+    isInSubagent,
   });
 
   // Set of selected message UUIDs for O(1) lookup
@@ -1045,6 +1048,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   onRestoreAll={restoreMessages}
                   isSelected={itemIsSelected}
                   onRangeSelect={isCaptureMode ? handleRangeSelect : undefined}
+                  isInSubagent={isInSubagent}
                 />
               );
             })}

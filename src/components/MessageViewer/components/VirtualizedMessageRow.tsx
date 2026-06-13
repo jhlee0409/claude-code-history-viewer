@@ -14,6 +14,7 @@ import type { FlattenedMessage } from "../types";
 import { ClaudeMessageNode } from "./ClaudeMessageNode";
 import { DateDivider } from "./DateDivider";
 import { HiddenBlocksIndicator } from "./HiddenBlocksIndicator";
+import { isZeroHeightMessageRow } from "../helpers/heightEstimation";
 
 interface VirtualizedMessageRowProps {
   virtualRow: VirtualItem;
@@ -31,6 +32,7 @@ interface VirtualizedMessageRowProps {
   // Multi-selection
   isSelected?: boolean;
   onRangeSelect?: (uuid: string, modifiers: { shift: boolean; cmdOrCtrl: boolean }) => void;
+  isInSubagent?: boolean;
 }
 
 /**
@@ -54,6 +56,7 @@ export const VirtualizedMessageRow = forwardRef<
     onRestoreAll,
     isSelected,
     onRangeSelect,
+    isInSubagent = false,
   },
   ref
 ) {
@@ -104,18 +107,15 @@ export const VirtualizedMessageRow = forwardRef<
   const {
     message,
     depth,
-    isGroupMember,
-    isProgressGroupMember,
-    isTaskOperationGroupMember,
     agentTaskGroup,
     agentProgressGroup,
     taskOperationGroup,
     taskRegistry,
   } = item;
 
-  // Group members render as hidden placeholders for DOM presence (search needs them)
-  // but with zero height they won't affect layout
-  if (isGroupMember || isProgressGroupMember || isTaskOperationGroupMember) {
+  // Hidden rows stay in the virtual index space for navigation/search metadata,
+  // but must measure as 0px or long hidden runs create blank scroll gaps.
+  if (isZeroHeightMessageRow(item, isInSubagent)) {
     return (
       <div
         ref={ref}

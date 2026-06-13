@@ -5,6 +5,7 @@
  */
 
 import type { FlattenedMessage } from "../types";
+import { isEmptyMessage } from "./messageHelpers";
 
 // Default heights by message type (in pixels)
 const HEIGHT_DEFAULTS = {
@@ -21,11 +22,40 @@ const HEIGHT_DEFAULTS = {
   hidden: 0,
 } as const;
 
+export function isZeroHeightMessageRow(
+  item: FlattenedMessage,
+  isInSubagent = false
+): boolean {
+  if (item.type !== "message") {
+    return false;
+  }
+
+  const {
+    message,
+    isGroupMember,
+    isProgressGroupMember,
+    isTaskOperationGroupMember,
+  } = item;
+
+  if (isGroupMember || isProgressGroupMember || isTaskOperationGroupMember) {
+    return true;
+  }
+
+  if (message.isSidechain && !isInSubagent) {
+    return true;
+  }
+
+  return isEmptyMessage(message);
+}
+
 /**
  * Estimate the height of a message for virtual scrolling.
  * This is used as the initial estimate before actual measurement.
  */
-export function estimateMessageHeight(item: FlattenedMessage): number {
+export function estimateMessageHeight(
+  item: FlattenedMessage,
+  isInSubagent = false
+): number {
   // Hidden placeholder has fixed height
   if (item.type === "hidden-placeholder") {
     return 40; // Compact placeholder height
@@ -36,15 +66,9 @@ export function estimateMessageHeight(item: FlattenedMessage): number {
     return 36;
   }
 
-  const { message, isGroupMember, isProgressGroupMember, isTaskOperationGroupMember, agentTaskGroup, agentProgressGroup } = item;
+  const { message, agentTaskGroup, agentProgressGroup } = item;
 
-  // Group members are hidden (height: 0)
-  if (isGroupMember || isProgressGroupMember || isTaskOperationGroupMember) {
-    return HEIGHT_DEFAULTS.hidden;
-  }
-
-  // Sidechain messages are hidden
-  if (message.isSidechain) {
+  if (isZeroHeightMessageRow(item, isInSubagent)) {
     return HEIGHT_DEFAULTS.hidden;
   }
 
