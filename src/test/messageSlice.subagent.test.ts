@@ -114,7 +114,7 @@ const createTestStore = () => {
     showSystemMessages: false,
     setError: vi.fn(),
     setSelectedSession: (s) => set({ selectedSession: s }),
-    resetMessageFilter: () => {},
+    resetMessageFilter: vi.fn(),
     selectedProject: null,
     dateFilter: { start: null, end: null },
     ...createMessageSlice(
@@ -281,6 +281,43 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
     // Stack preserved, sidechain filter bypassed → all subagent msgs visible
     expect(store.getState().parentSessionStack).toHaveLength(1);
     expect(store.getState().messages).toHaveLength(2);
+  });
+
+  it("in-place reload keeps current messages visible while the refresh is pending", async () => {
+    const store = createTestStore();
+    const session = makeSession({ file_path: "/tmp/live.jsonl" });
+    const existingMessage = makeUserMessage("existing");
+    const refreshedMessage = makeUserMessage("refreshed");
+    const refresh = defer<ClaudeMessage[]>();
+
+    store.setState({
+      selectedSession: session,
+      messages: [existingMessage],
+      isLoadingMessages: false,
+    });
+
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "load_provider_messages") return refresh.promise;
+      if (cmd === "get_session_subagents") return Promise.resolve([]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    const pending = store.getState().selectSession(session);
+    await Promise.resolve();
+
+    expect(mockClearSearchIndex).not.toHaveBeenCalled();
+    expect(store.getState().resetMessageFilter).not.toHaveBeenCalled();
+    expect(store.getState().isLoadingMessages).toBe(false);
+    expect(store.getState().messages.map((message) => message.uuid)).toEqual([
+      "existing",
+    ]);
+
+    refresh.resolve([refreshedMessage]);
+    await pending;
+
+    expect(store.getState().messages.map((message) => message.uuid)).toEqual([
+      "refreshed",
+    ]);
   });
 
   it("top-level reselection clears parentSessionStack", async () => {

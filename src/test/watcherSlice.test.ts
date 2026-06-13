@@ -6,19 +6,6 @@ import {
 } from "../store/slices/watcherSlice";
 import type { ClaudeSession } from "../types";
 
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-};
-
-const createDeferred = <T,>(): Deferred<T> => {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { promise, resolve };
-};
-
 const flushMicrotasks = async () => {
   await Promise.resolve();
   await Promise.resolve();
@@ -69,20 +56,32 @@ describe("watcherSlice refresh coalescing", () => {
     vi.useRealTimers();
   });
 
-  it("coalesces selected-session event storms into a leading and trailing refresh", async () => {
+  it("waits for a quiet period before refreshing the selected session", async () => {
     const store = createTestStore();
-    const firstRefresh = createDeferred<void>();
-    store.getState().selectSession.mockReturnValueOnce(firstRefresh.promise);
 
     void store
       .getState()
       .triggerSessionRefresh("/project", selectedSession.file_path);
-    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.advanceTimersByTimeAsync(1499);
+    await flushMicrotasks();
+    expect(store.getState().selectSession).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
     await flushMicrotasks();
 
     expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
+  });
 
-    for (let i = 0; i < 25; i += 1) {
+  it("uses a max wait when selected-session events never go quiet", async () => {
+    const store = createTestStore();
+
+    void store
+      .getState()
+      .triggerSessionRefresh("/project", selectedSession.file_path);
+
+    for (let i = 0; i < 9; i += 1) {
+      await vi.advanceTimersByTimeAsync(1000);
       void store
         .getState()
         .triggerSessionRefresh("/project", selectedSession.file_path);
@@ -90,14 +89,13 @@ describe("watcherSlice refresh coalescing", () => {
 
     await vi.advanceTimersByTimeAsync(999);
     await flushMicrotasks();
-    expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
 
-    firstRefresh.resolve();
-    await flushMicrotasks();
+    expect(store.getState().selectSession).not.toHaveBeenCalled();
+
     await vi.advanceTimersByTimeAsync(1);
     await flushMicrotasks();
 
-    expect(store.getState().selectSession).toHaveBeenCalledTimes(2);
+    expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
   });
 
   it("throttles project update markers for unrelated session events", async () => {

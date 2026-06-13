@@ -39,7 +39,8 @@ const initialWatcherState: WatcherSliceState = {
 };
 
 const PROJECT_UPDATE_DEBOUNCE_MS = 250;
-const SESSION_REFRESH_MIN_INTERVAL_MS = 1000;
+const SESSION_REFRESH_QUIET_MS = 1500;
+const SESSION_REFRESH_MAX_WAIT_MS = 10000;
 
 // ============================================================================
 // Slice Creator
@@ -53,9 +54,12 @@ export const createWatcherSlice: StateCreator<
 > = (set, get) => {
   const projectUpdateTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const sessionRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const sessionRefreshMaxTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
   const sessionRefreshInFlight = new Set<string>();
   const queuedSessionRefreshes = new Map<string, string>();
-  const lastSessionRefreshStartedAt = new Map<string, number>();
 
   const scheduleProjectUpdated = (projectPath: string) => {
     if (projectUpdateTimers.has(projectPath)) {
@@ -70,6 +74,31 @@ export const createWatcherSlice: StateCreator<
     projectUpdateTimers.set(projectPath, timer);
   };
 
+  const clearSessionRefreshTimers = (sessionPath: string) => {
+    const quietTimer = sessionRefreshTimers.get(sessionPath);
+    if (quietTimer) {
+      clearTimeout(quietTimer);
+      sessionRefreshTimers.delete(sessionPath);
+    }
+
+    const maxTimer = sessionRefreshMaxTimers.get(sessionPath);
+    if (maxTimer) {
+      clearTimeout(maxTimer);
+      sessionRefreshMaxTimers.delete(sessionPath);
+    }
+  };
+
+  const flushSessionRefresh = (sessionPath: string) => {
+    clearSessionRefreshTimers(sessionPath);
+    const queuedProjectPath = queuedSessionRefreshes.get(sessionPath);
+    if (!queuedProjectPath) {
+      return;
+    }
+
+    queuedSessionRefreshes.delete(sessionPath);
+    void runSessionRefresh(queuedProjectPath, sessionPath);
+  };
+
   const scheduleSessionRefresh = (projectPath: string, sessionPath: string) => {
     scheduleProjectUpdated(projectPath);
 
@@ -79,29 +108,28 @@ export const createWatcherSlice: StateCreator<
     }
 
     queuedSessionRefreshes.set(sessionPath, projectPath);
-    if (
-      sessionRefreshInFlight.has(sessionPath) ||
-      sessionRefreshTimers.has(sessionPath)
-    ) {
+    if (sessionRefreshInFlight.has(sessionPath)) {
       return Promise.resolve();
     }
 
-    const elapsed =
-      Date.now() - (lastSessionRefreshStartedAt.get(sessionPath) ?? 0);
-    const delay = Math.max(0, SESSION_REFRESH_MIN_INTERVAL_MS - elapsed);
+    const existingQuietTimer = sessionRefreshTimers.get(sessionPath);
+    if (existingQuietTimer) {
+      clearTimeout(existingQuietTimer);
+    }
 
-    return new Promise<void>((resolve) => {
-      const timer = setTimeout(async () => {
-        sessionRefreshTimers.delete(sessionPath);
-        const queuedProjectPath =
-          queuedSessionRefreshes.get(sessionPath) ?? projectPath;
-        queuedSessionRefreshes.delete(sessionPath);
-        await runSessionRefresh(queuedProjectPath, sessionPath);
-        resolve();
-      }, delay);
+    const quietTimer = setTimeout(() => {
+      flushSessionRefresh(sessionPath);
+    }, SESSION_REFRESH_QUIET_MS);
+    sessionRefreshTimers.set(sessionPath, quietTimer);
 
-      sessionRefreshTimers.set(sessionPath, timer);
-    });
+    if (!sessionRefreshMaxTimers.has(sessionPath)) {
+      const maxTimer = setTimeout(() => {
+        flushSessionRefresh(sessionPath);
+      }, SESSION_REFRESH_MAX_WAIT_MS);
+      sessionRefreshMaxTimers.set(sessionPath, maxTimer);
+    }
+
+    return Promise.resolve();
   };
 
   const runSessionRefresh = async (
@@ -119,7 +147,6 @@ export const createWatcherSlice: StateCreator<
     }
 
     sessionRefreshInFlight.add(sessionPath);
-    lastSessionRefreshStartedAt.set(sessionPath, Date.now());
 
     try {
       await get().selectSession(selectedSession);

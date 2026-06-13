@@ -173,9 +173,6 @@ export const createMessageSlice: StateCreator<
     ...initialMessageState,
 
   selectSession: async (session: ClaudeSession) => {
-    // Clear previous session's search index
-    clearSearchIndex();
-
     // Subagent intent를 await 전에 캡처하여 async race 차단.
     // - isSubagentNav: navigateToSubagent가 세팅한 1회성 플래그
     // - isInPlaceReload: filter toggle/refreshCurrentSession에서 같은 세션을 재로드하는 경우
@@ -188,17 +185,24 @@ export const createMessageSlice: StateCreator<
     const preserveStack = shouldTreatAsSubagent;
     isSubagentNav = false;
 
-    set({
-      messages: [],
-      pagination: { ...INITIAL_PAGINATION },
-      isLoadingMessages: true,
-      subagentSessions: [],
-      toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
-      ...(preserveStack ? {} : { parentSessionStack: [] }),
-    });
+    if (isInPlaceReload) {
+      if (get().messages.length === 0) {
+        set({ isLoadingMessages: true });
+      }
+    } else {
+      clearSearchIndex();
+      set({
+        messages: [],
+        pagination: { ...INITIAL_PAGINATION },
+        isLoadingMessages: true,
+        subagentSessions: [],
+        toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
+        ...(preserveStack ? {} : { parentSessionStack: [] }),
+      });
 
-    // Reset message filters on session switch
-    get().resetMessageFilter();
+      // Reset message filters on session switch
+      get().resetMessageFilter();
+    }
 
     get().setSelectedSession(session);
     // Note: sessionSearch state reset is handled by searchSlice
