@@ -202,7 +202,6 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 
         let raw_project_name = entry.file_name().to_string_lossy().to_string();
         let project_path = entry.path().to_string_lossy().to_string();
-        let project_name = extract_project_name(&raw_project_name);
 
         let mut session_count = 0;
         let mut message_count = 0;
@@ -267,6 +266,8 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         let actual_path = cwd_candidate
             .map(|(_, cwd)| cwd)
             .unwrap_or_else(|| crate::utils::decode_project_path(&project_path));
+        let project_name = project_display_name_from_path(&actual_path)
+            .unwrap_or_else(|| extract_project_name(&raw_project_name));
 
         // Detect git worktree information using the actual filesystem path
         let git_info = detect_git_worktree_info(&actual_path);
@@ -318,6 +319,18 @@ fn extract_cwd_from_session_file(file_path: &Path) -> Option<String> {
     }
 
     None
+}
+
+fn project_display_name_from_path(path: &str) -> Option<String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Path::new(trimmed)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 #[cfg(test)]
@@ -511,6 +524,7 @@ mod tests {
 
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].actual_path, actual_cwd);
+        assert_eq!(projects[0].name, "claude_prompt_design");
     }
 
     #[tokio::test]

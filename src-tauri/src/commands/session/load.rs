@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use uuid::Uuid;
 use walkdir::WalkDir;
@@ -53,9 +53,9 @@ struct SessionMetadataCache {
     entries: HashMap<String, CachedSessionMetadata>,
 }
 
-// Bumped 8 -> 9: ClaudeSession gained the `entrypoint` field, so stale caches
-// must be invalidated to force a reparse that populates it.
-const CACHE_VERSION: u32 = 9;
+// Bumped 9 -> 10: Claude project names are now derived from JSONL `cwd`
+// when available, so stale caches must be invalidated.
+const CACHE_VERSION: u32 = 10;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -142,6 +142,8 @@ struct IncrementalParseState {
     rename_name: Option<String>,
     /// Originating client entrypoint (already known)
     entrypoint: Option<String>,
+    /// Project display name (already known)
+    project_name: Option<String>,
 }
 
 /// Minimal struct for fast line classification (avoids full parsing)
@@ -176,6 +178,7 @@ struct SessionMetadataEntry {
     #[serde(rename = "toolUseResult")]
     tool_use_result: Option<serde_json::Value>,
     entrypoint: Option<String>,
+    cwd: Option<String>,
     message: Option<SessionMetadataMessage>,
 }
 
@@ -270,6 +273,8 @@ fn extract_session_metadata_internal(
         mut first_assistant_text,
         mut rename_name,
         mut entrypoint,
+        mut session_cwd,
+        incremental_project_name,
     ) = if let Some(ref state) = incremental_state {
         (
             state.start_offset,
@@ -286,11 +291,13 @@ fn extract_session_metadata_internal(
             state.first_assistant_text.clone(),
             state.rename_name.clone(),
             state.entrypoint.clone(),
+            None,
+            state.project_name.clone(),
         )
     } else {
         (
             0u64, 0usize, 0usize, None, None, None, None, false, false, None, None, None, None,
-            None,
+            None, None, None,
         )
     };
 
@@ -324,6 +331,15 @@ fn extract_session_metadata_internal(
         // Phase 1: Full metadata extraction for first N lines (skip if incremental)
         if !metadata_complete && lines_processed <= METADATA_PHASE_LINES {
             if let Ok(entry) = serde_json::from_str::<SessionMetadataEntry>(&line) {
+                if session_cwd.is_none() {
+                    if let Some(ref cwd) = entry.cwd {
+                        let trimmed = cwd.trim();
+                        if !trimmed.is_empty() {
+                            session_cwd = Some(trimmed.to_string());
+                        }
+                    }
+                }
+
                 // Handle summary messages
                 if entry.message_type == "summary" {
                     if session_summary.is_none() {
@@ -544,7 +560,11 @@ fn extract_session_metadata_internal(
         .unwrap_or("Unknown")
         .to_string();
 
-    let project_name = extract_project_name(&raw_project_name);
+    let project_name = session_cwd
+        .as_deref()
+        .and_then(project_display_name_from_path)
+        .or(incremental_project_name)
+        .unwrap_or_else(|| extract_project_name(&raw_project_name));
     // Rename name takes highest priority, then existing summary fallback chain
     let final_summary = rename_name
         .clone()
@@ -640,6 +660,18 @@ fn try_extract_rename(entry: &SessionMetadataEntry) -> Option<String> {
         return None;
     }
     entry.content.as_ref().and_then(extract_rename_from_content)
+}
+
+fn project_display_name_from_path(path: &str) -> Option<String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Path::new(trimmed)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 /// Fast classification of a line without full parsing
@@ -894,6 +926,7 @@ pub async fn load_project_sessions(
                             first_assistant_text: cached.first_assistant_text.clone(),
                             rename_name: cached.rename_name.clone(),
                             entrypoint: session.entrypoint.clone(),
+                            project_name: Some(session.project_name.clone()),
                         },
                     ));
                     continue;
@@ -1978,6 +2011,31 @@ mod tests {
         let sessions = result.unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].message_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_prefers_jsonl_cwd_for_project_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("-home-cym-claude-prompt-design");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let actual_cwd = temp_dir.path().join("claude_prompt_design");
+        std::fs::create_dir_all(&actual_cwd).unwrap();
+        let actual_cwd = actual_cwd.to_string_lossy();
+
+        let content = format!(
+            r#"{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{actual_cwd}","message":{{"role":"user","content":"Hello world"}}}}
+"#
+        );
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_project_sessions(project_dir.to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].project_name, "claude_prompt_design");
     }
 
     #[tokio::test]
