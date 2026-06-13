@@ -40,7 +40,6 @@ const initialWatcherState: WatcherSliceState = {
 
 const PROJECT_UPDATE_DEBOUNCE_MS = 250;
 const SESSION_REFRESH_QUIET_MS = 1500;
-const SESSION_REFRESH_MAX_WAIT_MS = 10000;
 
 // ============================================================================
 // Slice Creator
@@ -54,10 +53,6 @@ export const createWatcherSlice: StateCreator<
 > = (set, get) => {
   const projectUpdateTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const sessionRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  const sessionRefreshMaxTimers = new Map<
-    string,
-    ReturnType<typeof setTimeout>
-  >();
   const sessionRefreshInFlight = new Set<string>();
   const queuedSessionRefreshes = new Map<string, string>();
 
@@ -79,12 +74,6 @@ export const createWatcherSlice: StateCreator<
     if (quietTimer) {
       clearTimeout(quietTimer);
       sessionRefreshTimers.delete(sessionPath);
-    }
-
-    const maxTimer = sessionRefreshMaxTimers.get(sessionPath);
-    if (maxTimer) {
-      clearTimeout(maxTimer);
-      sessionRefreshMaxTimers.delete(sessionPath);
     }
   };
 
@@ -121,13 +110,6 @@ export const createWatcherSlice: StateCreator<
       flushSessionRefresh(sessionPath);
     }, SESSION_REFRESH_QUIET_MS);
     sessionRefreshTimers.set(sessionPath, quietTimer);
-
-    if (!sessionRefreshMaxTimers.has(sessionPath)) {
-      const maxTimer = setTimeout(() => {
-        flushSessionRefresh(sessionPath);
-      }, SESSION_REFRESH_MAX_WAIT_MS);
-      sessionRefreshMaxTimers.set(sessionPath, maxTimer);
-    }
 
     return Promise.resolve();
   };

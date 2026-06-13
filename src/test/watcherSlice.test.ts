@@ -73,21 +73,21 @@ describe("watcherSlice refresh coalescing", () => {
     expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
   });
 
-  it("uses a max wait when selected-session events never go quiet", async () => {
+  it("keeps deferring selected-session refresh until events go quiet", async () => {
     const store = createTestStore();
 
     void store
       .getState()
       .triggerSessionRefresh("/project", selectedSession.file_path);
 
-    for (let i = 0; i < 9; i += 1) {
+    for (let i = 0; i < 15; i += 1) {
       await vi.advanceTimersByTimeAsync(1000);
       void store
         .getState()
         .triggerSessionRefresh("/project", selectedSession.file_path);
     }
 
-    await vi.advanceTimersByTimeAsync(999);
+    await vi.advanceTimersByTimeAsync(1499);
     await flushMicrotasks();
 
     expect(store.getState().selectSession).not.toHaveBeenCalled();

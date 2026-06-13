@@ -320,6 +320,31 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
     ]);
   });
 
+  it("in-place reload skips state replacement when messages are unchanged", async () => {
+    const store = createTestStore();
+    const session = makeSession({ file_path: "/tmp/live.jsonl" });
+    const existingMessage = makeUserMessage("existing");
+    const sameMessage = { ...existingMessage } as ClaudeMessage;
+
+    store.setState({
+      selectedSession: session,
+      messages: [existingMessage],
+      isLoadingMessages: false,
+    });
+
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "load_provider_messages") return Promise.resolve([sameMessage]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    await store.getState().selectSession(session);
+
+    expect(store.getState().messages).toEqual([existingMessage]);
+    expect(store.getState().messages[0]).toBe(existingMessage);
+    expect(mockBuildSearchIndex).not.toHaveBeenCalled();
+    expect(mockApi).toHaveBeenCalledTimes(1);
+  });
+
   it("top-level reselection clears parentSessionStack", async () => {
     const store = createTestStore();
     const top = makeSession({ file_path: "/tmp/top.jsonl" });

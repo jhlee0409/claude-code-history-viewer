@@ -102,6 +102,32 @@ export const INITIAL_PAGINATION = {
 // 빈 Map 재사용으로 useAppStore 구독자의 불필요한 re-render 방지
 const EMPTY_SUBAGENT_MAP: ReadonlyMap<string, string> = new Map();
 
+const areMessagesEquivalent = (
+  currentMessages: ClaudeMessage[],
+  nextMessages: ClaudeMessage[]
+) => {
+  if (currentMessages.length !== nextMessages.length) {
+    return false;
+  }
+
+  return currentMessages.every((message, index) => {
+    const nextMessage = nextMessages[index];
+    if (message === nextMessage) {
+      return true;
+    }
+
+    if (
+      message.uuid !== nextMessage.uuid ||
+      message.type !== nextMessage.type ||
+      message.timestamp !== nextMessage.timestamp
+    ) {
+      return false;
+    }
+
+    return JSON.stringify(message) === JSON.stringify(nextMessage);
+  });
+};
+
 const initialMessageState: MessageSliceState = {
   messages: [],
   pagination: { ...INITIAL_PAGINATION },
@@ -245,6 +271,11 @@ export const createMessageSlice: StateCreator<
         console.log(
           `[Frontend] selectSession: ${filteredMessages.length}개 메시지 로드, ${duration.toFixed(1)}ms`
         );
+      }
+
+      if (isInPlaceReload && areMessagesEquivalent(get().messages, filteredMessages)) {
+        set({ isLoadingMessages: false });
+        return;
       }
 
       // Update state first to allow UI to render immediately
