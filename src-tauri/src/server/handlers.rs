@@ -103,6 +103,18 @@ pub struct LoadProjectSessionsParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LoadProjectSessionsPageParams {
+    pub project_path: String,
+    #[serde(default)]
+    pub exclude_sidechain: Option<bool>,
+    #[serde(default)]
+    pub offset: Option<usize>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PaginatedParams {
     pub session_path: String,
     pub offset: usize,
@@ -313,6 +325,19 @@ pub struct ProviderSessionsParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProviderSessionsPageParams {
+    pub provider: String,
+    pub project_path: String,
+    #[serde(default)]
+    pub exclude_sidechain: Option<bool>,
+    #[serde(default)]
+    pub offset: Option<usize>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderMessagesParams {
     pub provider: String,
     pub session_path: String,
@@ -426,6 +451,20 @@ handler_json!(
     LoadProjectSessionsParams,
     |p: LoadProjectSessionsParams| async move {
         commands::session::load_project_sessions(p.project_path, p.exclude_sidechain).await
+    }
+);
+
+handler_json!(
+    load_project_sessions_page,
+    LoadProjectSessionsPageParams,
+    |p: LoadProjectSessionsPageParams| async move {
+        commands::session::load_project_sessions_page(
+            p.project_path,
+            p.exclude_sidechain,
+            p.offset,
+            p.limit,
+        )
+        .await
     }
 );
 
@@ -790,6 +829,21 @@ handler_json!(
             p.provider,
             p.project_path,
             p.exclude_sidechain,
+        )
+        .await
+    }
+);
+
+handler_json!(
+    load_provider_sessions_page,
+    ProviderSessionsPageParams,
+    |p: ProviderSessionsPageParams| async move {
+        commands::multi_provider::load_provider_sessions_page(
+            p.provider,
+            p.project_path,
+            p.exclude_sidechain,
+            p.offset,
+            p.limit,
         )
         .await
     }

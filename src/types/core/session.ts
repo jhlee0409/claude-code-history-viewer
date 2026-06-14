@@ -88,6 +88,15 @@ export interface ClaudeSession {
   entrypoint?: string;
 }
 
+export interface SessionPage {
+  sessions: ClaudeSession[];
+  total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number;
+  hasMore: boolean;
+}
+
 // ============================================================================
 // Search Filters
 // ============================================================================
