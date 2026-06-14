@@ -15,6 +15,7 @@ import { AppErrorType } from "../../types";
 export interface WatcherSliceState {
   watcherEnabled: boolean;
   lastUpdateTime: Record<string, number>; // projectPath -> timestamp
+  activeSessionNearBottom: boolean;
 }
 
 export interface WatcherSliceActions {
@@ -25,6 +26,7 @@ export interface WatcherSliceActions {
     projectPath: string,
     sessionPath: string
   ) => Promise<void>;
+  setActiveSessionNearBottom: (nearBottom: boolean) => void;
 }
 
 export type WatcherSlice = WatcherSliceState & WatcherSliceActions;
@@ -36,10 +38,12 @@ export type WatcherSlice = WatcherSliceState & WatcherSliceActions;
 const initialWatcherState: WatcherSliceState = {
   watcherEnabled: true,
   lastUpdateTime: {},
+  activeSessionNearBottom: true,
 };
 
 const PROJECT_UPDATE_DEBOUNCE_MS = 250;
 const SESSION_REFRESH_QUIET_MS = 1500;
+const SESSION_REFRESH_MIN_INTERVAL_MS = 5000;
 
 // ============================================================================
 // Slice Creator
@@ -55,6 +59,8 @@ export const createWatcherSlice: StateCreator<
   const sessionRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const sessionRefreshInFlight = new Set<string>();
   const queuedSessionRefreshes = new Map<string, string>();
+  const deferredSessionRefreshes = new Map<string, string>();
+  const lastSessionRefreshAt = new Map<string, number>();
 
   const scheduleProjectUpdated = (projectPath: string) => {
     if (projectUpdateTimers.has(projectPath)) {
@@ -77,7 +83,14 @@ export const createWatcherSlice: StateCreator<
     }
   };
 
-  const flushSessionRefresh = (sessionPath: string) => {
+  const reportRefreshError = (error: unknown) => {
+    get().setError({
+      type: AppErrorType.UNKNOWN,
+      message: `Failed to refresh session: ${String(error)}`,
+    });
+  };
+
+  const flushSessionRefresh = async (sessionPath: string) => {
     clearSessionRefreshTimers(sessionPath);
     const queuedProjectPath = queuedSessionRefreshes.get(sessionPath);
     if (!queuedProjectPath) {
@@ -85,7 +98,11 @@ export const createWatcherSlice: StateCreator<
     }
 
     queuedSessionRefreshes.delete(sessionPath);
-    void runSessionRefresh(queuedProjectPath, sessionPath);
+    try {
+      await runSessionRefresh(queuedProjectPath, sessionPath);
+    } catch (error) {
+      reportRefreshError(error);
+    }
   };
 
   const scheduleSessionRefresh = (projectPath: string, sessionPath: string) => {
@@ -93,6 +110,12 @@ export const createWatcherSlice: StateCreator<
 
     const selectedSession = get().selectedSession;
     if (!selectedSession || selectedSession.file_path !== sessionPath) {
+      return Promise.resolve();
+    }
+
+    if (get().messages.length > 0 && !get().activeSessionNearBottom) {
+      deferredSessionRefreshes.set(sessionPath, projectPath);
+      clearSessionRefreshTimers(sessionPath);
       return Promise.resolve();
     }
 
@@ -106,9 +129,22 @@ export const createWatcherSlice: StateCreator<
       clearTimeout(existingQuietTimer);
     }
 
+    const elapsedSinceLastRefresh =
+      Date.now() - (lastSessionRefreshAt.get(sessionPath) ?? 0);
+    const delay = Math.max(
+      SESSION_REFRESH_QUIET_MS,
+      SESSION_REFRESH_MIN_INTERVAL_MS - elapsedSinceLastRefresh
+    );
+
     const quietTimer = setTimeout(() => {
-      flushSessionRefresh(sessionPath);
-    }, SESSION_REFRESH_QUIET_MS);
+      void (async () => {
+        try {
+          await flushSessionRefresh(sessionPath);
+        } catch (error) {
+          reportRefreshError(error);
+        }
+      })();
+    }, delay);
     sessionRefreshTimers.set(sessionPath, quietTimer);
 
     return Promise.resolve();
@@ -133,11 +169,9 @@ export const createWatcherSlice: StateCreator<
     try {
       await get().selectSession(selectedSession);
     } catch (error) {
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message: `Failed to refresh session: ${String(error)}`,
-      });
+      reportRefreshError(error);
     } finally {
+      lastSessionRefreshAt.set(sessionPath, Date.now());
       sessionRefreshInFlight.delete(sessionPath);
 
       const queuedProjectPath = queuedSessionRefreshes.get(sessionPath);
@@ -155,6 +189,32 @@ export const createWatcherSlice: StateCreator<
     ...initialWatcherState,
 
     setWatcherEnabled: (enabled) => set({ watcherEnabled: enabled }),
+
+    setActiveSessionNearBottom: (nearBottom) => {
+      if (get().activeSessionNearBottom === nearBottom) {
+        return;
+      }
+
+      set({ activeSessionNearBottom: nearBottom });
+
+      if (!nearBottom) {
+        return;
+      }
+
+      const selectedSession = get().selectedSession;
+      if (!selectedSession) {
+        return;
+      }
+
+      const sessionPath = selectedSession.file_path;
+      const projectPath = deferredSessionRefreshes.get(sessionPath);
+      if (!projectPath) {
+        return;
+      }
+
+      deferredSessionRefreshes.delete(sessionPath);
+      void scheduleSessionRefresh(projectPath, sessionPath);
+    },
 
     markProjectUpdated: (projectPath) =>
       set((state) => ({

@@ -4,7 +4,7 @@ import {
   createWatcherSlice,
   type WatcherSlice,
 } from "../store/slices/watcherSlice";
-import type { ClaudeSession } from "../types";
+import { AppErrorType, type ClaudeSession } from "../types";
 
 const flushMicrotasks = async () => {
   await Promise.resolve();
@@ -27,6 +27,7 @@ const selectedSession: ClaudeSession = {
 type TestStore = WatcherSlice & {
   selectedSession: ClaudeSession | null;
   selectedProject: { path: string } | null;
+  messages: unknown[];
   selectSession: ReturnType<typeof vi.fn>;
   selectProject: ReturnType<typeof vi.fn>;
   setError: ReturnType<typeof vi.fn>;
@@ -36,6 +37,7 @@ const createTestStore = () =>
   create<TestStore>()((set, get) => ({
     selectedSession,
     selectedProject: null,
+    messages: [],
     selectSession: vi.fn().mockResolvedValue(undefined),
     selectProject: vi.fn().mockResolvedValue(undefined),
     setError: vi.fn(),
@@ -113,5 +115,51 @@ describe("watcherSlice refresh coalescing", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(Object.keys(store.getState().lastUpdateTime)).toEqual(["/project"]);
     expect(store.getState().selectSession).not.toHaveBeenCalled();
+  });
+
+  it("defers active-session refresh while the user is reading away from the bottom", async () => {
+    const store = createTestStore();
+    store.setState({ messages: [{}] });
+    store.getState().setActiveSessionNearBottom(false);
+
+    void store
+      .getState()
+      .triggerSessionRefresh("/project", selectedSession.file_path);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await flushMicrotasks();
+
+    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(Object.keys(store.getState().lastUpdateTime)).toEqual(["/project"]);
+
+    store.getState().setActiveSessionNearBottom(true);
+
+    await vi.advanceTimersByTimeAsync(1499);
+    await flushMicrotasks();
+    expect(store.getState().selectSession).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    await flushMicrotasks();
+
+    expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces selected-session refresh failures from the timer callback", async () => {
+    const store = createTestStore();
+    store
+      .getState()
+      .selectSession.mockRejectedValueOnce(new Error("load failed"));
+
+    void store
+      .getState()
+      .triggerSessionRefresh("/project", selectedSession.file_path);
+
+    await vi.advanceTimersByTimeAsync(1500);
+    await flushMicrotasks();
+
+    expect(store.getState().setError).toHaveBeenCalledWith({
+      type: AppErrorType.UNKNOWN,
+      message: "Failed to refresh session: Error: load failed",
+    });
   });
 });
