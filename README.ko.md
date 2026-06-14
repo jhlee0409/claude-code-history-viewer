@@ -269,6 +269,7 @@ cchv-server --serve
 | `--host <address>` | `0.0.0.0` | 바인드 주소 (로컬 전용: `127.0.0.1`) |
 | `--token <value>` | 자동 (uuid v4) | 커스텀 인증 토큰 |
 | `--no-auth` | — | 인증 비활성화 (공개 네트워크에서 비권장) |
+| `--read-only` | — | 이름 변경, 삭제, 설정 저장, 아카이브 변경 등 쓰기 API 거부 |
 | `--dist <path>` | 내장 | 내장 프론트엔드 대신 외부 `dist/` 디렉토리 사용 |
 
 ### 인증
@@ -279,6 +280,7 @@ cchv-server --serve
 - **API 접근**: `Authorization: Bearer <token>` 헤더 포함.
 - **커스텀 토큰**: `--token my-secret-token`으로 직접 설정.
 - **비활성화**: `--no-auth`로 인증 건너뛰기 (신뢰할 수 있는 네트워크에서만).
+- **읽기 전용 공유**: `--read-only`는 탐색과 검색은 허용하지만 쓰기 API에는 `403`을 반환합니다.
 
 ### 실시간 업데이트
 

@@ -43,6 +43,7 @@ function normalizePath(p: string): string {
 interface CustomDirectoriesSectionProps {
   isExpanded: boolean;
   onToggle: (open: boolean) => void;
+  readOnly?: boolean;
 }
 
 // ============================================================================
@@ -52,6 +53,7 @@ interface CustomDirectoriesSectionProps {
 export function CustomDirectoriesSection({
   isExpanded,
   onToggle,
+  readOnly = false,
 }: CustomDirectoriesSectionProps) {
   const { t } = useTranslation();
   const {
@@ -257,7 +259,7 @@ export function CustomDirectoriesSection({
                   )
                 )}
               </div>
-              {editingPath !== cp.path && (
+              {!readOnly && editingPath !== cp.path && (
                 <div className="flex shrink-0 gap-1">
                   <Button
                     variant="ghost"
@@ -294,7 +296,7 @@ export function CustomDirectoriesSection({
           )}
 
           {/* Add form */}
-          {isAdding ? (
+          {!readOnly && isAdding ? (
             <div
               className={cn(
                 "space-y-2 rounded-md border border-border p-3",
@@ -371,7 +373,7 @@ export function CustomDirectoriesSection({
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : !readOnly ? (
             <Button
               variant="outline"
               size="sm"
@@ -381,7 +383,7 @@ export function CustomDirectoriesSection({
               <FolderPlus className="h-3.5 w-3.5 mr-1.5" />
               {t("settings.customDirectories.addDirectory")}
             </Button>
-          )}
+          ) : null}
         </div>
       </CollapsibleContent>
     </Collapsible>

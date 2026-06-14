@@ -88,6 +88,8 @@ const isTauriAvailable = () => {
 /** Auto-register CLAUDE_CONFIG_DIR as a custom directory if not already present. */
 async function autoRegisterConfigDir(get: () => FullAppStore): Promise<void> {
   try {
+    if (get().isServerReadOnly) return;
+
     const detected = await api<string | null>("detect_claude_config_dir");
     if (!detected) return;
 
@@ -120,6 +122,8 @@ export const createProjectSlice: StateCreator<
   initializeApp: async () => {
     set({ isLoading: true, error: null });
     try {
+      await get().loadServerConfig();
+
       if (!isTauriAvailable()) {
         throw new Error(
           "Tauri API를 사용할 수 없습니다. 데스크톱 앱에서 실행해주세요."
@@ -259,7 +263,7 @@ export const createProjectSlice: StateCreator<
       const { userMetadata, updateUserSettings } = get();
       const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
       const userHasSet = userMetadata?.settings?.worktreeGroupingUserSet ?? false;
-      if (!worktreeGrouping && !userHasSet && projects.length > 0) {
+      if (!get().isServerReadOnly && !worktreeGrouping && !userHasSet && projects.length > 0) {
         const { groups } = detectWorktreeGroupsHybrid(projects);
         if (groups.length > 0) {
           if (requestId !== getRequestId("scanProjects")) {

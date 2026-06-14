@@ -22,6 +22,7 @@ export interface SessionNameEditorProps {
   isNamed: boolean;
   isSelected: boolean;
   isContextMenuOpen: boolean;
+  readOnly: boolean;
   providerId: string;
   supportsNativeRename: boolean;
   supportsResumeCommand: boolean;

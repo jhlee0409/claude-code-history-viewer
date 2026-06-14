@@ -273,6 +273,7 @@ Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer
 | `--host <address>` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
 | `--token <value>` | auto (uuid v4) | Custom authentication token |
 | `--no-auth` | — | Disable authentication (not recommended for public networks) |
+| `--read-only` | — | Reject mutating API calls such as rename, delete, settings save, and archive changes |
 | `--dist <path>` | embedded | Override built-in frontend with external `dist/` directory |
 
 ### Authentication
@@ -284,6 +285,7 @@ All `/api/*` endpoints are protected by Bearer token authentication. The token i
 - **Custom token**: `--token my-secret-token` to set your own.
 - **Environment variable**: `CCHV_TOKEN=your-token cchv-server --serve` (useful for systemd/Docker).
 - **Disable**: `--no-auth` to skip authentication entirely (only use on trusted networks).
+- **Read-only sharing**: `--read-only` keeps browsing/searching enabled while returning `403` for mutating API calls.
 
 ### Real-time Updates
 

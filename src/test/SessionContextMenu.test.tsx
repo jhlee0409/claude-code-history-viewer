@@ -16,7 +16,11 @@ function makeProps(overrides: Partial<React.ComponentProps<typeof SessionContext
   return {
     position: { x: 100, y: 100 },
     hasCustomName: false,
+    readOnly: false,
     supportsNativeRename: false,
+    supportsResumeCommand: true,
+    supportsSessionDeletion: true,
+    supportsRevealInFinder: true,
     providerId: "claude",
     onClose: vi.fn(),
     onRenameClick: vi.fn(),

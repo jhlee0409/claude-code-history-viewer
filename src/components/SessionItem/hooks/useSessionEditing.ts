@@ -53,9 +53,12 @@ export function useSessionEditing(session: ClaudeSession) {
   const ignoreBlurRef = useRef<boolean>(false);
 
   const providerId = session.provider ?? "claude";
-  const supportsNativeRename = providerSupportsNativeRename(providerId);
+  const isServerReadOnly = useAppStore((state) => state.isServerReadOnly);
+  const supportsNativeRename =
+    !isServerReadOnly && providerSupportsNativeRename(providerId);
   const supportsResumeCommand = providerSupportsResumeCommand(providerId);
-  const supportsSessionDeletion = providerSupportsSessionDeletion(providerId);
+  const supportsSessionDeletion =
+    !isServerReadOnly && providerSupportsSessionDeletion(providerId);
   const supportsRevealInFinder = isAbsolutePath(session.file_path);
   const isArchivedCodexSession =
     providerId === "codex" &&
@@ -80,11 +83,16 @@ export function useSessionEditing(session: ClaudeSession) {
   const isNamed = hasCustomName || hasClaudeCodeName || !!session.is_renamed;
 
   const startEditing = useCallback(() => {
+    if (isServerReadOnly) return;
     setEditValue(displayName || "");
     setIsEditing(true);
-  }, [displayName]);
+  }, [displayName, isServerReadOnly]);
 
   const saveCustomName = useCallback(async () => {
+    if (isServerReadOnly) {
+      setIsEditing(false);
+      return;
+    }
     try {
       const trimmedValue = editValue.trim();
       if (!trimmedValue || trimmedValue === localSummary) {
@@ -98,7 +106,7 @@ export function useSessionEditing(session: ClaudeSession) {
     } finally {
       setIsEditing(false);
     }
-  }, [editValue, localSummary, setCustomName, t]);
+  }, [editValue, isServerReadOnly, localSummary, setCustomName, t]);
 
   const cancelEditing = useCallback(() => {
     setIsEditing(false);
@@ -106,6 +114,10 @@ export function useSessionEditing(session: ClaudeSession) {
   }, []);
 
   const resetCustomName = useCallback(async () => {
+    if (isServerReadOnly) {
+      setIsContextMenuOpen(false);
+      return;
+    }
     try {
       await setCustomName(undefined);
     } catch (error) {
@@ -114,7 +126,7 @@ export function useSessionEditing(session: ClaudeSession) {
     } finally {
       setIsContextMenuOpen(false);
     }
-  }, [setCustomName, t]);
+  }, [isServerReadOnly, setCustomName, t]);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -345,6 +357,7 @@ export function useSessionEditing(session: ClaudeSession) {
     supportsSessionDeletion,
     supportsRevealInFinder,
     isArchivedCodexSession,
+    isServerReadOnly,
     inputRef,
     ignoreBlurRef,
 

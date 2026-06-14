@@ -269,6 +269,7 @@ cchv-server --serve
 | `--host <address>` | `0.0.0.0` | 绑定地址（仅本地: `127.0.0.1`） |
 | `--token <value>` | 自动 (uuid v4) | 自定义认证令牌 |
 | `--no-auth` | — | 禁用认证（不建议在公共网络使用） |
+| `--read-only` | — | 拒绝重命名、删除、保存设置、修改归档等写入 API |
 | `--dist <path>` | 内嵌 | 使用外部 `dist/` 目录替代内嵌前端 |
 
 ### 认证
@@ -279,6 +280,7 @@ cchv-server --serve
 - **API 访问**: 包含 `Authorization: Bearer <token>` 请求头。
 - **自定义令牌**: `--token my-secret-token` 设置自定义令牌。
 - **禁用**: `--no-auth` 跳过认证（仅在可信网络使用）。
+- **只读共享**: `--read-only` 保留浏览和搜索能力，但写入类 API 会返回 `403`。
 
 ### 实时更新
 

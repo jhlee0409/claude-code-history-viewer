@@ -18,6 +18,8 @@ pub struct AppState {
     pub start_time: Instant,
     /// Bearer token for API authentication. `None` means auth is disabled (`--no-auth`).
     pub auth_token: Option<String>,
+    /// Whether mutating `WebUI` API endpoints should be rejected.
+    pub read_only: bool,
     /// Broadcast channel for file-change events (SSE consumers subscribe here).
     pub event_tx: broadcast::Sender<FileWatchEvent>,
 }

@@ -197,6 +197,10 @@ export interface AppStoreState {
   // Session picker state (used by CLI `--session-title` hint with multi-match)
   sessionPickerCandidates: import('./sessionPickerSlice').SessionPickerCandidate[] | null;
   sessionPickerHintValue: string | null;
+
+  // WebUI server state
+  isServerReadOnly: boolean;
+  isServerConfigLoaded: boolean;
 }
 
 export interface AppStoreActions {
@@ -383,6 +387,9 @@ export interface AppStoreActions {
     hintValue: string,
   ) => void;
   closeSessionPicker: () => void;
+
+  // WebUI server actions
+  loadServerConfig: () => Promise<void>;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;

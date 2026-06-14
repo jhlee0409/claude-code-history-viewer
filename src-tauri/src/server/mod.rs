@@ -34,6 +34,34 @@ use tower_http::services::ServeDir;
 use self::handlers as h;
 use self::state::AppState;
 
+const READ_ONLY_BLOCKED_API_PATHS: &[&str] = &[
+    "/restore_file",
+    "/delete_session",
+    "/rename_session_native",
+    "/reset_session_native_name",
+    "/rename_opencode_session_title",
+    "/send_feedback",
+    "/save_user_metadata",
+    "/update_session_metadata",
+    "/update_project_metadata",
+    "/update_user_settings",
+    "/save_preset",
+    "/delete_preset",
+    "/save_mcp_preset",
+    "/delete_mcp_preset",
+    "/save_unified_preset",
+    "/delete_unified_preset",
+    "/save_settings",
+    "/save_mcp_servers",
+    "/write_text_file",
+    "/save_screenshot",
+    "/start_file_watcher",
+    "/stop_file_watcher",
+    "/create_archive",
+    "/delete_archive",
+    "/rename_archive",
+];
+
 /// Frontend assets embedded at compile time from the `dist/` directory.
 ///
 /// When building with `cargo build --features webui-server`, the contents of
@@ -64,6 +92,7 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
     let api = Router::new()
         // SSE endpoint for real-time file change events
         .route("/events", get(sse_handler))
+        .route("/get_server_config", post(h::get_server_config))
         // Project commands
         .route("/get_claude_folder_path", post(h::get_claude_folder_path))
         .route("/validate_claude_folder", post(h::validate_claude_folder))
@@ -185,6 +214,10 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
         // Auth middleware — checks Bearer header or ?token= query param
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
+            read_only_middleware,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
             auth_middleware,
         ));
 
@@ -231,6 +264,32 @@ async fn security_headers_middleware(request: Request, next: Next) -> Response {
         HeaderValue::from_static("nosniff"),
     );
     response
+}
+
+async fn read_only_middleware(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if state.read_only
+        && request.method() == Method::POST
+        && is_read_only_blocked_path(request.uri().path())
+    {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "Server is running in read-only mode"
+            })),
+        )
+            .into_response();
+    }
+
+    next.run(request).await
+}
+
+fn is_read_only_blocked_path(path: &str) -> bool {
+    let api_path = path.strip_prefix("/api").unwrap_or(path);
+    READ_ONLY_BLOCKED_API_PATHS.contains(&api_path)
 }
 
 /// Axum middleware that validates a Bearer token on every `/api/*` request.
@@ -450,5 +509,37 @@ mod tests {
             .body(Body::empty())
             .unwrap();
         assert!(!allow_query_token(&non_sse_get));
+    }
+
+    #[test]
+    fn test_read_only_blocks_mutating_api_paths() {
+        for path in [
+            "/delete_session",
+            "/api/delete_session",
+            "/api/rename_session_native",
+            "/api/update_user_settings",
+            "/api/save_settings",
+            "/api/write_text_file",
+            "/api/create_archive",
+        ] {
+            assert!(is_read_only_blocked_path(path), "{path} should be blocked");
+        }
+    }
+
+    #[test]
+    fn test_read_only_allows_read_api_paths() {
+        for path in [
+            "/get_server_config",
+            "/api/get_server_config",
+            "/api/load_session_messages",
+            "/api/search_messages",
+            "/api/get_all_settings",
+            "/api/export_session",
+        ] {
+            assert!(
+                !is_read_only_blocked_path(path),
+                "{path} should remain readable"
+            );
+        }
     }
 }
