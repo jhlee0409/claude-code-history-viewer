@@ -22,7 +22,7 @@ const makeMessage = (
 const makeFlattenedMessage = (
   message: ClaudeMessage,
   overrides: Partial<Extract<FlattenedMessage, { type: "message" }>> = {},
-): FlattenedMessage => ({
+): Extract<FlattenedMessage, { type: "message" }> => ({
   type: "message",
   message,
   depth: 0,
@@ -60,5 +60,44 @@ describe("message height estimation", () => {
 
     expect(isZeroHeightMessageRow(item)).toBe(true);
     expect(estimateMessageHeight(item)).toBe(0);
+  });
+
+  it("scales assistant message estimates with long text content", () => {
+    const shortHeight = estimateMessageHeight(
+      makeFlattenedMessage(
+        makeMessage({
+          type: "assistant",
+          role: "assistant",
+          content: "short",
+        } as Partial<ClaudeMessage>),
+      ),
+    );
+    const longHeight = estimateMessageHeight(
+      makeFlattenedMessage(
+        makeMessage({
+          type: "assistant",
+          role: "assistant",
+          content: "line\n".repeat(180),
+        } as Partial<ClaudeMessage>),
+      ),
+    );
+
+    expect(longHeight).toBeGreaterThan(shortHeight + 500);
+  });
+
+  it("scales tool-result estimates with nested payload content", () => {
+    const height = estimateMessageHeight(
+      makeFlattenedMessage(
+        makeMessage({
+          type: "assistant",
+          role: "assistant",
+          toolUseResult: {
+            content: "tool output\n".repeat(220),
+          },
+        } as Partial<ClaudeMessage>),
+      ),
+    );
+
+    expect(height).toBeGreaterThan(900);
   });
 });

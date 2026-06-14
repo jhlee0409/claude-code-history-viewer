@@ -19,6 +19,7 @@ import { isZeroHeightMessageRow } from "../helpers/heightEstimation";
 interface VirtualizedMessageRowProps {
   virtualRow: VirtualItem;
   item: FlattenedMessage;
+  translateOffset?: number;
   isMatch: boolean;
   isCurrentMatch: boolean;
   searchQuery?: string;
@@ -45,6 +46,7 @@ export const VirtualizedMessageRow = forwardRef<
   {
     virtualRow,
     item,
+    translateOffset = 0,
     isMatch,
     isCurrentMatch,
     searchQuery,
@@ -60,6 +62,8 @@ export const VirtualizedMessageRow = forwardRef<
   },
   ref
 ) {
+  const translateY = virtualRow.start - translateOffset;
+
   // Handle date divider
   if (item.type === "date-divider") {
     return (
@@ -71,7 +75,7 @@ export const VirtualizedMessageRow = forwardRef<
           top: 0,
           left: 0,
           width: "100%",
-          transform: `translateY(${virtualRow.start}px)`,
+          transform: `translateY(${translateY}px)`,
         }}
       >
         <DateDivider timestamp={item.timestamp} />
@@ -90,7 +94,7 @@ export const VirtualizedMessageRow = forwardRef<
           top: 0,
           left: 0,
           width: "100%",
-          transform: `translateY(${virtualRow.start}px)`,
+          transform: `translateY(${translateY}px)`,
         }}
       >
         <HiddenBlocksIndicator
@@ -126,7 +130,7 @@ export const VirtualizedMessageRow = forwardRef<
           top: 0,
           left: 0,
           width: "100%",
-          transform: `translateY(${virtualRow.start}px)`,
+          transform: `translateY(${translateY}px)`,
           height: 0,
           overflow: "hidden",
         }}
@@ -145,7 +149,7 @@ export const VirtualizedMessageRow = forwardRef<
         top: 0,
         left: 0,
         width: "100%",
-        transform: `translateY(${virtualRow.start}px)`,
+        transform: `translateY(${translateY}px)`,
       }}
     >
       <ClaudeMessageNode

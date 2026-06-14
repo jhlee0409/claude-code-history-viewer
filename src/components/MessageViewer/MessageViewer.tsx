@@ -123,9 +123,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const { t } = useTranslation();
   const scrollContainerRef = useRef<OverlayScrollbarsComponentRef>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const virtualHeaderRef = useRef<HTMLDivElement>(null);
 
   // Track when OverlayScrollbars is initialized
   const [scrollElementReady, setScrollElementReady] = useState(false);
+  const [virtualScrollMargin, setVirtualScrollMargin] = useState(0);
 
   // SubAgent 패널 접힘 상태 — MessageViewer에 lift해야 filter toggle 같은
   // 분기 재렌더(패널 자식 unmount)에서 유저 선택이 보존됨.
@@ -338,6 +340,35 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollElementReady]);
 
+  const hasMessageListHeader = displayMessages.length > 0 && !sessionSearch.query;
+
+  useEffect(() => {
+    if (!hasMessageListHeader) {
+      setVirtualScrollMargin(0);
+      return;
+    }
+
+    const element = virtualHeaderRef.current;
+    if (!element) {
+      setVirtualScrollMargin(0);
+      return;
+    }
+
+    const updateMargin = () => {
+      setVirtualScrollMargin(Math.ceil(element.getBoundingClientRect().height));
+    };
+
+    updateMargin();
+
+    if (!("ResizeObserver" in window)) {
+      return;
+    }
+
+    const observer = new ResizeObserver(updateMargin);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasMessageListHeader]);
+
   // Wait for OverlayScrollbars to initialize
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -381,6 +412,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     virtualRows,
     totalSize,
     getScrollIndex,
+    rowTranslateOffset,
   } = useMessageVirtualization({
     messages: displayMessages,
     agentTaskGroups,
@@ -393,6 +425,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     hiddenMessageIds,
     isCaptureMode,
     isInSubagent,
+    scrollMargin: virtualScrollMargin,
   });
 
   // Set of selected message UUIDs for O(1) lookup
@@ -986,8 +1019,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         )}
 
         {/* 메시지 목록 헤더 */}
-        {displayMessages.length > 0 && !sessionSearch.query && (
-          <div className="max-w-4xl mx-auto flex items-center justify-center py-4">
+        {hasMessageListHeader && (
+          <div
+            ref={virtualHeaderRef}
+            className="max-w-4xl mx-auto flex items-center justify-center py-4"
+          >
             <div className="text-sm text-muted-foreground">
               {t("messageViewer.allMessagesLoaded", {
                 count: messages.length,
@@ -1037,6 +1073,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   ref={virtualizer.measureElement}
                   virtualRow={virtualRow}
                   item={item}
+                  translateOffset={rowTranslateOffset}
                   isMatch={isMatch}
                   isCurrentMatch={isCurrentMatch}
                   searchQuery={sessionSearch.query}
