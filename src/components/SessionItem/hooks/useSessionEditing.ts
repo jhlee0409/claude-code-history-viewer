@@ -282,7 +282,7 @@ export function useSessionEditing(session: ClaudeSession) {
 
     setIsDeletingSession(true);
     try {
-      await api("delete_session", { filePath: session.file_path });
+      await api("delete_session", { file_path: session.file_path });
       const { sessions, setSessions, selectedSession, setSelectedSession } =
         useAppStore.getState();
       setSessions(sessions.filter((s) => s.session_id !== session.session_id));
