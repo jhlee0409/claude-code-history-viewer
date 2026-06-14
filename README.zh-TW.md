@@ -268,17 +268,18 @@ cchv-server --serve
 | `--port <number>` | `3727` | 伺服器連接埠 |
 | `--host <address>` | `0.0.0.0` | 繫結位址（僅本機: `127.0.0.1`） |
 | `--token <value>` | 自動 (uuid v4) | 自訂驗證權杖 |
-| `--no-auth` | — | 停用驗證（不建議在公開網路使用） |
+| `--no-auth` | — | 停用驗證（僅 loopback 位址直接允許） |
+| `--allow-unsafe-no-auth` | — | 允許在網路可存取位址上使用 `--no-auth`（危險） |
 | `--dist <path>` | 內嵌 | 使用外部 `dist/` 目錄取代內嵌前端 |
 
 ### 驗證
 
-所有 `/api/*` 端點受 Bearer 權杖驗證保護。權杖在每次伺服器啟動時自動產生並輸出至 stderr。
+所有 `/api/*` 端點受 Bearer 權杖驗證保護。權杖在每次伺服器啟動時自動產生、儲存到本機，且只會向 stderr 輸出短預覽。
 
 - **瀏覽器存取**: 使用啟動時輸出的 `?token=...` URL。權杖自動儲存至 `localStorage`。
 - **API 存取**: 包含 `Authorization: Bearer <token>` 請求標頭。
 - **自訂權杖**: `--token my-secret-token` 設定自訂權杖。
-- **停用**: `--no-auth` 略過驗證（僅在可信任的網路使用）。
+- **停用**: `--no-auth` 僅允許在 loopback 位址上略過驗證。網路可存取位址建議保留 token 驗證；若確實要繞過安全保護，需要明確加入 `--allow-unsafe-no-auth`。
 
 ### 即時更新
 

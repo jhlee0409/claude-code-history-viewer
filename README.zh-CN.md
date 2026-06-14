@@ -268,17 +268,18 @@ cchv-server --serve
 | `--port <number>` | `3727` | 服务器端口 |
 | `--host <address>` | `0.0.0.0` | 绑定地址（仅本地: `127.0.0.1`） |
 | `--token <value>` | 自动 (uuid v4) | 自定义认证令牌 |
-| `--no-auth` | — | 禁用认证（不建议在公共网络使用） |
+| `--no-auth` | — | 禁用认证（仅 loopback 地址直接允许） |
+| `--allow-unsafe-no-auth` | — | 允许在网络可访问地址上使用 `--no-auth`（危险） |
 | `--dist <path>` | 内嵌 | 使用外部 `dist/` 目录替代内嵌前端 |
 
 ### 认证
 
-所有 `/api/*` 端点受 Bearer 令牌认证保护。令牌在每次服务器启动时自动生成并输出到 stderr。
+所有 `/api/*` 端点受 Bearer 令牌认证保护。令牌在每次服务器启动时自动生成、保存到本地，并且只会向 stderr 输出短预览。
 
 - **浏览器访问**: 使用启动时输出的 `?token=...` URL。令牌自动保存到 `localStorage`。
 - **API 访问**: 包含 `Authorization: Bearer <token>` 请求头。
 - **自定义令牌**: `--token my-secret-token` 设置自定义令牌。
-- **禁用**: `--no-auth` 跳过认证（仅在可信网络使用）。
+- **禁用**: `--no-auth` 仅允许在 loopback 地址上跳过认证。网络可访问地址建议保留 token 认证；如果确实要绕过安全保护，需要显式添加 `--allow-unsafe-no-auth`。
 
 ### 实时更新
 

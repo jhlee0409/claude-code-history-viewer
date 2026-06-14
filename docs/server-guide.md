@@ -341,12 +341,13 @@ Edit frontend code → `pnpm build` → refresh browser.
 | `--port <number>` | `3727` | Server port |
 | `--host <address>` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
 | `--token <value>` | auto (uuid) | Set a fixed auth token |
-| `--no-auth` | — | Disable authentication |
+| `--no-auth` | — | Disable authentication on loopback hosts only |
+| `--allow-unsafe-no-auth` | — | Allow `--no-auth` on network-reachable hosts (dangerous) |
 | `--dist <path>` | embedded | Serve frontend from filesystem instead of embedded |
 
 ### Authentication
 
-All `/api/*` endpoints require a Bearer token. The token is auto-generated on each start.
+All `/api/*` endpoints require a Bearer token. The token is auto-generated on each start, saved locally, and only a short preview is printed to stderr.
 
 | Access method | How |
 |---------------|-----|
@@ -355,6 +356,8 @@ All `/api/*` endpoints require a Bearer token. The token is auto-generated on ea
 | SSE (EventSource) | `http://host:3727/api/events?token=TOKEN` query param |
 
 **Tip**: Use `--token my-fixed-token` for a persistent token that doesn't change between restarts. Especially useful with systemd.
+
+`--no-auth` is accepted by default only when the server is bound to a loopback host such as `127.0.0.1` or `localhost`. For network-reachable hosts, keep token auth enabled or add `--allow-unsafe-no-auth` only when you intentionally want unauthenticated network access.
 
 ### Real-time updates
 

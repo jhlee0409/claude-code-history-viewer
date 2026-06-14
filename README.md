@@ -272,18 +272,19 @@ Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer
 | `--port <number>` | `3727` | Server port |
 | `--host <address>` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
 | `--token <value>` | auto (uuid v4) | Custom authentication token |
-| `--no-auth` | — | Disable authentication (not recommended for public networks) |
+| `--no-auth` | — | Disable authentication (loopback only unless explicitly overridden) |
+| `--allow-unsafe-no-auth` | — | Allow `--no-auth` on network-reachable hosts (dangerous) |
 | `--dist <path>` | embedded | Override built-in frontend with external `dist/` directory |
 
 ### Authentication
 
-All `/api/*` endpoints are protected by Bearer token authentication. The token is auto-generated on each server start and printed to stderr.
+All `/api/*` endpoints are protected by Bearer token authentication. The token is auto-generated on each server start, saved locally, and only a short preview is printed to stderr.
 
 - **Browser access**: Use the `?token=...` URL printed at startup. The token is saved to `localStorage` automatically.
 - **API access**: Include `Authorization: Bearer <token>` header.
 - **Custom token**: `--token my-secret-token` to set your own.
 - **Environment variable**: `CCHV_TOKEN=your-token cchv-server --serve` (useful for systemd/Docker).
-- **Disable**: `--no-auth` to skip authentication entirely (only use on trusted networks).
+- **Disable**: `--no-auth` to skip authentication on loopback addresses only. For network-reachable hosts, prefer token auth; `--allow-unsafe-no-auth` is required to intentionally bypass this safety guard.
 
 ### Real-time Updates
 

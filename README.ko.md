@@ -268,17 +268,18 @@ cchv-server --serve
 | `--port <number>` | `3727` | 서버 포트 |
 | `--host <address>` | `0.0.0.0` | 바인드 주소 (로컬 전용: `127.0.0.1`) |
 | `--token <value>` | 자동 (uuid v4) | 커스텀 인증 토큰 |
-| `--no-auth` | — | 인증 비활성화 (공개 네트워크에서 비권장) |
+| `--no-auth` | — | 인증 비활성화 (loopback 주소에서만 직접 허용) |
+| `--allow-unsafe-no-auth` | — | 네트워크에서 접근 가능한 호스트에 `--no-auth` 허용 (위험) |
 | `--dist <path>` | 내장 | 내장 프론트엔드 대신 외부 `dist/` 디렉토리 사용 |
 
 ### 인증
 
-모든 `/api/*` 엔드포인트는 Bearer 토큰 인증으로 보호됩니다. 토큰은 서버 시작 시 자동 생성되며 stderr에 출력됩니다.
+모든 `/api/*` 엔드포인트는 Bearer 토큰 인증으로 보호됩니다. 토큰은 서버 시작 시 자동 생성되어 로컬에 저장되며 stderr에는 짧은 미리보기만 출력됩니다.
 
 - **브라우저 접근**: 시작 시 출력된 `?token=...` URL 사용. 토큰은 `localStorage`에 자동 저장.
 - **API 접근**: `Authorization: Bearer <token>` 헤더 포함.
 - **커스텀 토큰**: `--token my-secret-token`으로 직접 설정.
-- **비활성화**: `--no-auth`로 인증 건너뛰기 (신뢰할 수 있는 네트워크에서만).
+- **비활성화**: `--no-auth`는 loopback 주소에서만 인증을 건너뜁니다. 네트워크에서 접근 가능한 호스트에는 token 인증을 권장하며, 의도적으로 안전 가드를 우회하려면 `--allow-unsafe-no-auth`가 필요합니다.
 
 ### 실시간 업데이트
 

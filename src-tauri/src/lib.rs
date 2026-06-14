@@ -9,6 +9,12 @@ pub mod wsl;
 #[cfg(feature = "webui-server")]
 pub mod server;
 
+#[cfg(feature = "webui-server")]
+const ALLOW_UNSAFE_NO_AUTH_FLAG: &str = "--allow-unsafe-no-auth";
+
+#[cfg(feature = "webui-server")]
+const MIN_CUSTOM_TOKEN_LENGTH: usize = 32;
+
 #[cfg(test)]
 pub mod test_utils;
 
@@ -293,6 +299,14 @@ fn run_server(args: &[String]) {
     // Auth token: --token <value> | --no-auth | auto-generated uuid v4
     let auth_token_info = resolve_auth_token(args);
     let auth_token = auth_token_info.as_ref().map(|(token, _)| token.clone());
+    let allow_unsafe_no_auth = args.iter().any(|a| a == ALLOW_UNSAFE_NO_AUTH_FLAG);
+
+    if let Err(message) =
+        validate_auth_startup_options(&host, auth_token.is_some(), allow_unsafe_no_auth)
+    {
+        eprintln!("{message}");
+        std::process::exit(2);
+    }
 
     let metadata = Arc::new(MetadataState::default());
     let (event_tx, _rx) =
@@ -315,6 +329,11 @@ fn run_server(args: &[String]) {
     if let Some((token, source)) = auth_token_info {
         let preview: String = token.chars().take(8).collect();
         eprintln!("🔑 Auth token enabled: {preview}...");
+        if is_weak_custom_token(&token, source) {
+            eprintln!(
+                "⚠ Custom auth token is shorter than {MIN_CUSTOM_TOKEN_LENGTH} characters; use a strong random token for network access."
+            );
+        }
         eprintln!("   Open in browser: http://{display_addr}");
 
         match source {
@@ -332,8 +351,10 @@ fn run_server(args: &[String]) {
         }
     } else {
         eprintln!("🔓 Authentication disabled (--no-auth)");
-        if host == "0.0.0.0" {
-            eprintln!("⚠ WARNING: --no-auth with 0.0.0.0 exposes your data to the entire network!");
+        if !is_loopback_bind_host(&host) {
+            eprintln!(
+                "⚠ WARNING: --no-auth on a non-loopback host exposes your data to the network!"
+            );
             eprintln!("  Anyone on your network can read your conversation history without authentication.");
         }
         eprintln!("   Open in browser: http://{display_addr}");
@@ -367,6 +388,46 @@ enum AuthTokenSource {
     Generated,
 }
 
+#[cfg(feature = "webui-server")]
+fn validate_auth_startup_options(
+    host: &str,
+    auth_enabled: bool,
+    allow_unsafe_no_auth: bool,
+) -> Result<(), String> {
+    if auth_enabled || is_loopback_bind_host(host) || allow_unsafe_no_auth {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Refusing to start with --no-auth on non-loopback host '{host}'. \
+Use --host 127.0.0.1 for local-only access, enable token auth, or add \
+{ALLOW_UNSAFE_NO_AUTH_FLAG} if you intentionally want unauthenticated network access."
+    ))
+}
+
+#[cfg(feature = "webui-server")]
+fn is_loopback_bind_host(host: &str) -> bool {
+    let normalized = host
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim_end_matches('.');
+
+    if normalized.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+
+    normalized
+        .parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback())
+        .unwrap_or(false)
+}
+
+#[cfg(feature = "webui-server")]
+fn is_weak_custom_token(token: &str, source: AuthTokenSource) -> bool {
+    !matches!(source, AuthTokenSource::Generated) && token.chars().count() < MIN_CUSTOM_TOKEN_LENGTH
+}
+
 /// Resolve the authentication token from CLI arguments or environment.
 ///
 /// Priority:
@@ -398,6 +459,65 @@ fn resolve_auth_token(args: &[String]) -> Option<(String, AuthTokenSource)> {
         }
     }
     Some((uuid::Uuid::new_v4().to_string(), AuthTokenSource::Generated))
+}
+
+#[cfg(all(test, feature = "webui-server"))]
+mod webui_server_startup_tests {
+    use super::{
+        is_loopback_bind_host, is_weak_custom_token, validate_auth_startup_options, AuthTokenSource,
+    };
+
+    #[test]
+    fn loopback_hosts_are_considered_local_only() {
+        for host in ["127.0.0.1", "::1", "[::1]", "localhost", "localhost."] {
+            assert!(is_loopback_bind_host(host), "{host} should be loopback");
+        }
+    }
+
+    #[test]
+    fn remote_or_unspecified_hosts_are_not_local_only() {
+        for host in ["0.0.0.0", "::", "[::]", "192.168.1.20", "example.local"] {
+            assert!(
+                !is_loopback_bind_host(host),
+                "{host} should not be loopback"
+            );
+        }
+    }
+
+    #[test]
+    fn no_auth_rejects_remote_hosts_without_explicit_override() {
+        let result = validate_auth_startup_options("0.0.0.0", false, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn no_auth_allows_loopback_hosts() {
+        let result = validate_auth_startup_options("127.0.0.1", false, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn no_auth_allows_remote_hosts_with_explicit_override() {
+        let result = validate_auth_startup_options("0.0.0.0", false, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn auth_allows_remote_hosts() {
+        let result = validate_auth_startup_options("0.0.0.0", true, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn weak_custom_token_detection_ignores_generated_tokens() {
+        assert!(is_weak_custom_token("short", AuthTokenSource::Cli));
+        assert!(is_weak_custom_token("short", AuthTokenSource::Env));
+        assert!(!is_weak_custom_token("short", AuthTokenSource::Generated));
+        assert!(!is_weak_custom_token(
+            "0123456789abcdef0123456789abcdef",
+            AuthTokenSource::Cli
+        ));
+    }
 }
 
 /// Persist auto-generated token to a local file instead of logging the full secret.
