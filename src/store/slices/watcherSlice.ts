@@ -197,16 +197,23 @@ export const createWatcherSlice: StateCreator<
 
       set({ activeSessionNearBottom: nearBottom });
 
-      if (!nearBottom) {
-        return;
-      }
-
       const selectedSession = get().selectedSession;
       if (!selectedSession) {
         return;
       }
 
       const sessionPath = selectedSession.file_path;
+
+      if (!nearBottom) {
+        const queuedProjectPath = queuedSessionRefreshes.get(sessionPath);
+        if (queuedProjectPath) {
+          deferredSessionRefreshes.set(sessionPath, queuedProjectPath);
+          queuedSessionRefreshes.delete(sessionPath);
+        }
+        clearSessionRefreshTimers(sessionPath);
+        return;
+      }
+
       const projectPath = deferredSessionRefreshes.get(sessionPath);
       if (!projectPath) {
         return;

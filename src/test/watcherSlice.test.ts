@@ -144,6 +144,34 @@ describe("watcherSlice refresh coalescing", () => {
     expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
   });
 
+  it("cancels an already scheduled refresh when the user scrolls away from the bottom", async () => {
+    const store = createTestStore();
+    store.setState({ messages: [{}] });
+
+    void store
+      .getState()
+      .triggerSessionRefresh("/project", selectedSession.file_path);
+
+    await vi.advanceTimersByTimeAsync(500);
+    store.getState().setActiveSessionNearBottom(false);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await flushMicrotasks();
+
+    expect(store.getState().selectSession).not.toHaveBeenCalled();
+
+    store.getState().setActiveSessionNearBottom(true);
+
+    await vi.advanceTimersByTimeAsync(1499);
+    await flushMicrotasks();
+    expect(store.getState().selectSession).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    await flushMicrotasks();
+
+    expect(store.getState().selectSession).toHaveBeenCalledTimes(1);
+  });
+
   it("surfaces selected-session refresh failures from the timer callback", async () => {
     const store = createTestStore();
     store
