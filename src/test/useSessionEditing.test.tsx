@@ -287,7 +287,7 @@ describe("useSessionEditing clipboard actions", () => {
     });
 
     expect(api).toHaveBeenCalledWith("delete_session", {
-      filePath: session.file_path,
+      file_path: session.file_path,
     });
     expect(result.current.isDeleteDialogOpen).toBe(false);
     expect(result.current.isDeletingSession).toBe(false);
@@ -310,8 +310,9 @@ describe("useSessionEditing clipboard actions", () => {
       } as unknown as React.MouseEvent);
     });
 
+    const onDeleteDialogOpenChange = result.current.setIsDeleteDialogOpen;
     act(() => {
-      result.current.setIsDeleteDialogOpen(false);
+      onDeleteDialogOpenChange(false);
     });
 
     expect(result.current.isDeleteDialogOpen).toBe(false);
