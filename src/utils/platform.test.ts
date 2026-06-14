@@ -1,18 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EXTERNAL_OPEN_HELPER_ATTRIBUTE,
+  clearAuthCookie,
+  clearAuthErrorQuery,
   clearAuthToken,
   getAuthToken,
+  getCsrfToken,
+  hasAuthErrorQuery,
   initAuthToken,
+  loginWebUI,
   openExternalUrl,
-  recoverAuthFromErrorQuery,
   setAuthToken,
+  syncAuthCookieFromStoredToken,
 } from "./platform";
 
 describe("platform auth token helpers", () => {
   beforeEach(() => {
     localStorage.clear();
     window.history.replaceState({}, "", "/");
+    document.cookie = "cchv_csrf=; Max-Age=0; Path=/";
+    delete window.__WEBUI_API_BASE__;
     vi.restoreAllMocks();
   });
 
@@ -41,27 +48,95 @@ describe("platform auth token helpers", () => {
     expect(new URL(window.location.href).searchParams.get("token")).toBeNull();
   });
 
-  it("recoverAuthFromErrorQuery does nothing when auth_error is absent", () => {
+  it("hasAuthErrorQuery is false when auth_error is absent", () => {
     window.history.replaceState({}, "", "/?foo=bar");
-    expect(recoverAuthFromErrorQuery()).toBe(false);
+    expect(hasAuthErrorQuery()).toBe(false);
   });
 
-  it("recoverAuthFromErrorQuery clears auth_error when token already exists", () => {
-    setAuthToken("abc");
+  it("clearAuthErrorQuery removes auth_error from the URL", () => {
     window.history.replaceState({}, "", "/?auth_error=1");
 
-    expect(recoverAuthFromErrorQuery()).toBe(false);
+    expect(hasAuthErrorQuery()).toBe(true);
+    clearAuthErrorQuery();
     expect(new URL(window.location.href).searchParams.get("auth_error")).toBeNull();
   });
 
-  it("recoverAuthFromErrorQuery keeps page when prompt is cancelled", () => {
-    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue(null);
-    window.history.replaceState({}, "", "/?auth_error=1");
+  it("loginWebUI posts account credentials", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
 
-    expect(recoverAuthFromErrorQuery()).toBe(false);
-    expect(promptSpy).toHaveBeenCalled();
+    await expect(
+      loginWebUI({ username: " admin ", password: "secret" })
+    ).resolves.toEqual({ ok: true, status: 204 });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${window.location.origin}/api/auth/login`,
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        body: JSON.stringify({ username: "admin", password: "secret" }),
+      })
+    );
     expect(getAuthToken()).toBeNull();
-    expect(new URL(window.location.href).searchParams.get("auth_error")).toBe("1");
+  });
+
+  it("syncAuthCookieFromStoredToken exchanges saved token for HttpOnly cookie", async () => {
+    setAuthToken("secret-token");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(syncAuthCookieFromStoredToken()).resolves.toBe(true);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${window.location.origin}/api/auth/login`,
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        body: JSON.stringify({ token: "secret-token" }),
+      })
+    );
+    expect(getAuthToken()).toBeNull();
+  });
+
+  it("syncAuthCookieFromStoredToken keeps saved token when cookie login fails", async () => {
+    setAuthToken("secret-token");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 401 }));
+
+    await expect(syncAuthCookieFromStoredToken()).resolves.toBe(false);
+
+    expect(getAuthToken()).toBe("secret-token");
+  });
+
+  it("syncAuthCookieFromStoredToken skips request when no token is saved", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await expect(syncAuthCookieFromStoredToken()).resolves.toBe(false);
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("clearAuthCookie asks server to clear cookie", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await clearAuthCookie();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${window.location.origin}/api/auth/logout`,
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+      })
+    );
+  });
+
+  it("getCsrfToken reads the csrf cookie", () => {
+    document.cookie = "cchv_csrf=csrf-token; Path=/";
+
+    expect(getCsrfToken()).toBe("csrf-token");
   });
 });
 

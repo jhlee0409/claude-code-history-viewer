@@ -13,8 +13,10 @@ import {
   isTauri,
   getApiBase,
   getAuthToken,
+  getCsrfToken,
   setAuthToken,
   clearAuthToken,
+  clearAuthCookie,
 } from "@/utils/platform";
 
 /** Validate command name to prevent path traversal in URL. */
@@ -48,10 +50,15 @@ export async function api<T>(
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
+  const csrfToken = getCsrfToken();
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
 
   const response = await fetch(`${base}/api/${command}`, {
     method: "POST",
     headers,
+    credentials: "same-origin",
     body: JSON.stringify(args ?? {}),
   });
 
@@ -68,11 +75,13 @@ export async function api<T>(
     // Avoid redirect loops when already on an auth error page.
     if (params.get("auth_error") === "1") {
       clearAuthToken();
-      throw new Error("Authentication required. Open the app with a valid token.");
+      await clearAuthCookie();
+      throw new Error("Authentication required.");
     }
 
     // Clear stale token and redirect once to an explicit auth-error URL.
     clearAuthToken();
+    await clearAuthCookie();
     params.set("auth_error", "1");
     const query = params.toString();
     window.location.replace(

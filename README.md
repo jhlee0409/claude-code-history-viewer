@@ -272,18 +272,39 @@ Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer
 | `--port <number>` | `3727` | Server port |
 | `--host <address>` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
 | `--token <value>` | auto (uuid v4) | Custom authentication token |
-| `--no-auth` | — | Disable authentication (not recommended for public networks) |
+| `--auth-user <name>` | — | Enable account login with this username |
+| `--auth-password-hash <hash>` | — | Argon2id PHC password hash for account login |
+| `--print-password-hash <password>` | — | Print an Argon2id PHC hash and exit |
+| `--secure-cookies` | off | Add `Secure` to auth cookies for HTTPS reverse proxies |
+| `--no-auth` | — | Disable authentication (loopback only unless explicitly overridden) |
+| `--allow-unsafe-no-auth` | — | Allow `--no-auth` on network-reachable hosts (dangerous) |
 | `--dist <path>` | embedded | Override built-in frontend with external `dist/` directory |
 
 ### Authentication
 
-All `/api/*` endpoints are protected by Bearer token authentication. The token is auto-generated on each server start and printed to stderr.
+All `/api/*` endpoints are protected by authentication. By default the server uses token auth for backward compatibility; configure account auth to use a username/password login backed by a server-side session.
 
-- **Browser access**: Use the `?token=...` URL printed at startup. The token is saved to `localStorage` automatically.
+**Account login:**
+
+```bash
+CCHV_AUTH_PASSWORD='choose-a-strong-password' cchv-server --serve --print-password-hash
+CCHV_AUTH_USERNAME=admin \
+CCHV_AUTH_PASSWORD_HASH='$argon2id$...' \
+cchv-server --serve --secure-cookies
+```
+
+Account mode stores only an Argon2id PHC password hash, issues an HttpOnly session cookie, rate-limits failed login attempts, and requires CSRF headers for mutating API calls.
+
+**Token login:**
+
+When account auth is not configured, the token is auto-generated on each server start, saved locally, and only a short preview is printed to stderr.
+
+- **Browser access**: Use the `?token=...` URL printed at startup. The browser exchanges it for an HttpOnly cookie and removes the readable stored token after login.
 - **API access**: Include `Authorization: Bearer <token>` header.
 - **Custom token**: `--token my-secret-token` to set your own.
 - **Environment variable**: `CCHV_TOKEN=your-token cchv-server --serve` (useful for systemd/Docker).
-- **Disable**: `--no-auth` to skip authentication entirely (only use on trusted networks).
+- **HTTPS reverse proxy**: Add `--secure-cookies` so auth cookies are sent only over HTTPS.
+- **Disable**: `--no-auth` to skip authentication on loopback addresses only. For network-reachable hosts, prefer token auth; `--allow-unsafe-no-auth` is required to intentionally bypass this safety guard.
 
 ### Real-time Updates
 

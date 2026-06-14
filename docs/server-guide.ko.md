@@ -331,18 +331,45 @@ just serve-dev    # dist/ 디렉토리에서 서빙 (내장 아님)
 | `--port <숫자>` | `3727` | 서버 포트 |
 | `--host <주소>` | `0.0.0.0` | 바인드 주소 (`127.0.0.1`이면 로컬 전용) |
 | `--token <값>` | 자동 (uuid) | 고정 토큰 지정 |
-| `--no-auth` | — | 인증 비활성화 |
+| `--auth-user <이름>` | — | 이 사용자 이름으로 계정 로그인 활성화 |
+| `--auth-password-hash <hash>` | — | 계정 로그인용 Argon2id PHC 비밀번호 hash |
+| `--print-password-hash <비밀번호>` | — | Argon2id PHC hash를 출력하고 종료 |
+| `--secure-cookies` | 꺼짐 | HTTPS 리버스 프록시용 `Secure` auth cookie 사용 |
+| `--no-auth` | — | loopback 호스트에서만 인증 비활성화 |
+| `--allow-unsafe-no-auth` | — | 네트워크에서 접근 가능한 호스트에 `--no-auth` 허용 (위험) |
 | `--dist <경로>` | 내장 에셋 | 외부 dist/ 디렉토리로 오버라이드 |
 
 ### 인증
 
-`/api/*` 엔드포인트는 Bearer 토큰이 필요합니다.
+`/api/*` 엔드포인트는 인증이 필요합니다. 기존 호환성을 위해 기본값은 token 인증이며, 계정 인증을 설정하면 사용자 이름/비밀번호 로그인과 서버 측 session을 사용합니다.
+
+#### 계정 로그인
+
+Argon2id PHC 비밀번호 hash를 생성합니다:
+
+```bash
+CCHV_AUTH_PASSWORD='강력한-비밀번호' cchv-server --serve --print-password-hash
+```
+
+계정 인증으로 서버를 시작합니다:
+
+```bash
+CCHV_AUTH_USERNAME=admin \
+CCHV_AUTH_PASSWORD_HASH='$argon2id$...' \
+cchv-server --serve --secure-cookies
+```
+
+계정 모드는 비밀번호 hash만 저장하고, HttpOnly session cookie를 발급하며, 로그인 실패를 rate limit하고, 쓰기 API에는 CSRF header를 요구합니다. 브라우저가 HTTPS로 접근하는 경우 `--secure-cookies`를 사용하세요.
+
+#### Token 로그인
+
+계정 인증을 설정하지 않으면 token이 시작할 때 자동 생성되어 로컬에 저장되며 stderr에는 짧은 미리보기만 출력됩니다.
 
 | 접근 방법 | 사용법 |
 |-----------|--------|
-| 브라우저 | `http://host:3727?token=TOKEN` (localStorage에 자동 저장) |
+| 브라우저 | `http://host:3727?token=TOKEN` (HttpOnly cookie로 교환) |
 | API / curl | `Authorization: Bearer TOKEN` 헤더 |
-| SSE | `http://host:3727/api/events?token=TOKEN` 쿼리 파라미터 |
+| SSE | 브라우저 로그인 후 인증 cookie 사용; `?token=TOKEN`은 fallback으로 유지 |
 
 **팁**: `--token 내-고정-토큰`을 사용하면 재시작해도 토큰이 바뀌지 않습니다. systemd와 함께 쓸 때 특히 유용합니다.
 
@@ -404,4 +431,4 @@ echo "your-domain.com { reverse_proxy localhost:3727 }" | sudo tee /etc/caddy/Ca
 sudo systemctl restart caddy
 ```
 
-이후 `https://your-domain.com?token=...`으로 접속.
+그런 다음 서버를 `--secure-cookies`와 함께 시작하고 `https://your-domain.com`으로 접속하세요.

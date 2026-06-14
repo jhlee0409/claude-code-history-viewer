@@ -341,18 +341,45 @@ Edit frontend code → `pnpm build` → refresh browser.
 | `--port <number>` | `3727` | Server port |
 | `--host <address>` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
 | `--token <value>` | auto (uuid) | Set a fixed auth token |
-| `--no-auth` | — | Disable authentication |
+| `--auth-user <name>` | — | Enable account login with this username |
+| `--auth-password-hash <hash>` | — | Argon2id PHC password hash for account login |
+| `--print-password-hash <password>` | — | Print an Argon2id PHC hash and exit |
+| `--secure-cookies` | off | Add `Secure` to auth cookies for HTTPS reverse proxies |
+| `--no-auth` | — | Disable authentication on loopback hosts only |
+| `--allow-unsafe-no-auth` | — | Allow `--no-auth` on network-reachable hosts (dangerous) |
 | `--dist <path>` | embedded | Serve frontend from filesystem instead of embedded |
 
 ### Authentication
 
-All `/api/*` endpoints require a Bearer token. The token is auto-generated on each start.
+All `/api/*` endpoints require authentication. Token auth remains the default for backward compatibility; account auth enables a username/password login with server-side sessions.
+
+#### Account login
+
+Generate an Argon2id PHC password hash:
+
+```bash
+CCHV_AUTH_PASSWORD='choose-a-strong-password' cchv-server --serve --print-password-hash
+```
+
+Start the server with account auth:
+
+```bash
+CCHV_AUTH_USERNAME=admin \
+CCHV_AUTH_PASSWORD_HASH='$argon2id$...' \
+cchv-server --serve --secure-cookies
+```
+
+Account mode stores only the password hash, issues an HttpOnly session cookie, rate-limits failed login attempts, and requires CSRF headers for mutating API calls. Use `--secure-cookies` when the browser reaches the app over HTTPS.
+
+#### Token login
+
+When account auth is not configured, the token is auto-generated on each start, saved locally, and only a short preview is printed to stderr.
 
 | Access method | How |
 |---------------|-----|
-| Browser | `http://host:3727?token=TOKEN` (auto-saved to localStorage) |
+| Browser | `http://host:3727?token=TOKEN` (exchanged for an HttpOnly cookie) |
 | API / curl | `Authorization: Bearer TOKEN` header |
-| SSE (EventSource) | `http://host:3727/api/events?token=TOKEN` query param |
+| SSE (EventSource) | Auth cookie after browser login; `?token=TOKEN` remains as fallback |
 
 **Tip**: Use `--token my-fixed-token` for a persistent token that doesn't change between restarts. Especially useful with systemd.
 
@@ -416,4 +443,4 @@ echo "your-domain.com { reverse_proxy localhost:3727 }" | sudo tee /etc/caddy/Ca
 sudo systemctl restart caddy
 ```
 
-Then access via `https://your-domain.com?token=...`.
+Then start the server with `--secure-cookies` and access via `https://your-domain.com`.

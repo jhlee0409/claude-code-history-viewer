@@ -9,6 +9,24 @@ pub mod wsl;
 #[cfg(feature = "webui-server")]
 pub mod server;
 
+#[cfg(feature = "webui-server")]
+const ALLOW_UNSAFE_NO_AUTH_FLAG: &str = "--allow-unsafe-no-auth";
+
+#[cfg(feature = "webui-server")]
+const MIN_CUSTOM_TOKEN_LENGTH: usize = 32;
+
+#[cfg(feature = "webui-server")]
+const AUTH_USER_FLAG: &str = "--auth-user";
+
+#[cfg(feature = "webui-server")]
+const AUTH_PASSWORD_HASH_FLAG: &str = "--auth-password-hash";
+
+#[cfg(feature = "webui-server")]
+const SECURE_COOKIES_FLAG: &str = "--secure-cookies";
+
+#[cfg(feature = "webui-server")]
+const PRINT_PASSWORD_HASH_FLAG: &str = "--print-password-hash";
+
 #[cfg(test)]
 pub mod test_utils;
 
@@ -283,6 +301,15 @@ fn run_tauri() {
 fn run_server(args: &[String]) {
     use std::sync::Arc;
 
+    match maybe_print_password_hash(args) {
+        Ok(true) => return,
+        Ok(false) => {}
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(2);
+        }
+    }
+
     let port = crate::cli_args::extract_flag_value(args, "--port")
         .and_then(|v| v.parse::<u16>().ok())
         .unwrap_or(3727);
@@ -290,9 +317,18 @@ fn run_server(args: &[String]) {
         .unwrap_or_else(|| "0.0.0.0".to_string());
     let dist_dir = crate::cli_args::extract_flag_value(args, "--dist");
 
-    // Auth token: --token <value> | --no-auth | auto-generated uuid v4
-    let auth_token_info = resolve_auth_token(args);
-    let auth_token = auth_token_info.as_ref().map(|(token, _)| token.clone());
+    let resolved_auth = resolve_auth(args).unwrap_or_else(|message| {
+        eprintln!("{message}");
+        std::process::exit(2);
+    });
+    let allow_unsafe_no_auth = args.iter().any(|a| a == ALLOW_UNSAFE_NO_AUTH_FLAG);
+
+    if let Err(message) =
+        validate_auth_startup_options(&host, resolved_auth.auth.is_enabled(), allow_unsafe_no_auth)
+    {
+        eprintln!("{message}");
+        std::process::exit(2);
+    }
 
     let metadata = Arc::new(MetadataState::default());
     let (event_tx, _rx) =
@@ -301,7 +337,7 @@ fn run_server(args: &[String]) {
     let state = Arc::new(server::state::AppState {
         metadata,
         start_time: std::time::Instant::now(),
-        auth_token: auth_token.clone(),
+        auth: resolved_auth.auth.clone(),
         event_tx,
     });
 
@@ -312,31 +348,65 @@ fn run_server(args: &[String]) {
         host.clone()
     };
     let display_addr = format!("{display_host}:{port}");
-    if let Some((token, source)) = auth_token_info {
-        let preview: String = token.chars().take(8).collect();
-        eprintln!("🔑 Auth token enabled: {preview}...");
-        eprintln!("   Open in browser: http://{display_addr}");
+    match &resolved_auth.startup {
+        AuthStartup::Token { token, source } => {
+            let preview: String = token.chars().take(8).collect();
+            eprintln!("🔑 Auth token enabled: {preview}...");
+            if is_weak_custom_token(token, *source) {
+                eprintln!(
+                    "⚠ Custom auth token is shorter than {MIN_CUSTOM_TOKEN_LENGTH} characters; use a strong random token for network access."
+                );
+            }
+            eprintln!("   Open in browser: http://{display_addr}");
 
-        match source {
-            AuthTokenSource::Generated => {
-                if let Some(path) = write_generated_token_file(&token) {
-                    eprintln!("   Generated token saved to: {}", path.to_string_lossy());
-                    eprintln!("   First login: append '?token=<token-from-file>' to the URL");
-                } else {
-                    eprintln!("⚠ Failed to persist generated token. Re-run with --token <value>.");
+            match source {
+                AuthTokenSource::Generated => {
+                    if let Some(path) = write_generated_token_file(token) {
+                        eprintln!("   Generated token saved to: {}", path.to_string_lossy());
+                        eprintln!("   First login: append '?token=<token-from-file>' to the URL");
+                    } else {
+                        eprintln!(
+                            "⚠ Failed to persist generated token. Re-run with --token <value>."
+                        );
+                    }
+                }
+                AuthTokenSource::Cli | AuthTokenSource::Env => {
+                    eprintln!("   First login: append '?token=<your-token>' to the URL");
                 }
             }
-            AuthTokenSource::Cli | AuthTokenSource::Env => {
-                eprintln!("   First login: append '?token=<your-token>' to the URL");
+        }
+        AuthStartup::Account {
+            username,
+            source,
+            secure_cookies,
+        } => {
+            eprintln!("🔐 Account auth enabled for user: {username}");
+            eprintln!(
+                "   Credentials source: {}",
+                match source {
+                    AccountAuthSource::Cli => "CLI flags",
+                    AccountAuthSource::Env => "environment variables",
+                }
+            );
+            if *secure_cookies {
+                eprintln!("   Secure cookies enabled; serve behind HTTPS.");
+            } else if !is_loopback_bind_host(&host) {
+                eprintln!(
+                    "⚠ Secure cookies are disabled. Add {SECURE_COOKIES_FLAG} when using HTTPS reverse proxy."
+                );
             }
+            eprintln!("   Open in browser: http://{display_addr}");
         }
-    } else {
-        eprintln!("🔓 Authentication disabled (--no-auth)");
-        if host == "0.0.0.0" {
-            eprintln!("⚠ WARNING: --no-auth with 0.0.0.0 exposes your data to the entire network!");
-            eprintln!("  Anyone on your network can read your conversation history without authentication.");
+        AuthStartup::Disabled => {
+            eprintln!("🔓 Authentication disabled (--no-auth)");
+            if !is_loopback_bind_host(&host) {
+                eprintln!(
+                    "⚠ WARNING: --no-auth on a non-loopback host exposes your data to the network!"
+                );
+                eprintln!("  Anyone on your network can read your conversation history without authentication.");
+            }
+            eprintln!("   Open in browser: http://{display_addr}");
         }
-        eprintln!("   Open in browser: http://{display_addr}");
     }
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
@@ -365,6 +435,216 @@ enum AuthTokenSource {
     Cli,
     Env,
     Generated,
+}
+
+#[cfg(feature = "webui-server")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AccountAuthSource {
+    Cli,
+    Env,
+}
+
+#[cfg(feature = "webui-server")]
+struct ResolvedAuth {
+    auth: server::auth::AuthState,
+    startup: AuthStartup,
+}
+
+#[cfg(feature = "webui-server")]
+enum AuthStartup {
+    Disabled,
+    Token {
+        token: String,
+        source: AuthTokenSource,
+    },
+    Account {
+        username: String,
+        source: AccountAuthSource,
+        secure_cookies: bool,
+    },
+}
+
+#[cfg(feature = "webui-server")]
+fn resolve_auth(args: &[String]) -> Result<ResolvedAuth, String> {
+    if args.iter().any(|a| a == "--no-auth") {
+        return Ok(ResolvedAuth {
+            auth: server::auth::AuthState::Disabled,
+            startup: AuthStartup::Disabled,
+        });
+    }
+
+    let secure_cookies = secure_cookies_enabled(args);
+    if let Some(account) = resolve_account_auth(args, secure_cookies)? {
+        return Ok(account);
+    }
+
+    let Some((token, source)) = resolve_auth_token(args) else {
+        return Ok(ResolvedAuth {
+            auth: server::auth::AuthState::Disabled,
+            startup: AuthStartup::Disabled,
+        });
+    };
+
+    Ok(ResolvedAuth {
+        auth: server::auth::AuthState::Token {
+            token: token.clone(),
+            secure_cookies,
+        },
+        startup: AuthStartup::Token { token, source },
+    })
+}
+
+#[cfg(feature = "webui-server")]
+fn resolve_account_auth(
+    args: &[String],
+    secure_cookies: bool,
+) -> Result<Option<ResolvedAuth>, String> {
+    let username_from_cli = require_non_empty_flag(args, AUTH_USER_FLAG)?;
+    let hash_from_cli = require_non_empty_flag(args, AUTH_PASSWORD_HASH_FLAG)?;
+    let username_from_env = non_empty_env("CCHV_AUTH_USERNAME");
+    let hash_from_env = non_empty_env("CCHV_AUTH_PASSWORD_HASH");
+
+    let username = username_from_cli
+        .clone()
+        .or(username_from_env)
+        .unwrap_or_default();
+    let password_hash = hash_from_cli.clone().or(hash_from_env).unwrap_or_default();
+
+    if username.is_empty() && password_hash.is_empty() {
+        return Ok(None);
+    }
+    if username.is_empty() {
+        return Err(
+            "Account auth is missing a username. Set --auth-user or CCHV_AUTH_USERNAME."
+                .to_string(),
+        );
+    }
+    if password_hash.is_empty() {
+        return Err(
+            "Account auth is missing a password hash. Set --auth-password-hash or CCHV_AUTH_PASSWORD_HASH."
+                .to_string(),
+        );
+    }
+    if !server::auth::password_hash_is_valid(&password_hash) {
+        return Err("Account auth password hash must be a valid Argon2 PHC string.".to_string());
+    }
+
+    let source = if username_from_cli.is_some() || hash_from_cli.is_some() {
+        AccountAuthSource::Cli
+    } else {
+        AccountAuthSource::Env
+    };
+
+    Ok(Some(ResolvedAuth {
+        auth: server::auth::AuthState::Account(std::sync::Arc::new(
+            server::auth::AccountAuth::new(username.clone(), password_hash, secure_cookies),
+        )),
+        startup: AuthStartup::Account {
+            username,
+            source,
+            secure_cookies,
+        },
+    }))
+}
+
+#[cfg(feature = "webui-server")]
+fn require_non_empty_flag(args: &[String], flag: &str) -> Result<Option<String>, String> {
+    if let Some(value) = crate::cli_args::extract_flag_value(args, flag) {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(format!("{flag} must not be empty"));
+        }
+        return Ok(Some(trimmed.to_string()));
+    }
+    if crate::cli_args::has_explicit_empty_flag(args, flag) {
+        return Err(format!("{flag} must not be empty"));
+    }
+    Ok(None)
+}
+
+#[cfg(feature = "webui-server")]
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+#[cfg(feature = "webui-server")]
+fn secure_cookies_enabled(args: &[String]) -> bool {
+    args.iter().any(|a| a == SECURE_COOKIES_FLAG)
+        || non_empty_env("CCHV_SECURE_COOKIES")
+            .map(|value| {
+                matches!(
+                    value.to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                )
+            })
+            .unwrap_or(false)
+}
+
+#[cfg(feature = "webui-server")]
+fn maybe_print_password_hash(args: &[String]) -> Result<bool, String> {
+    let requested = args
+        .iter()
+        .any(|arg| arg == PRINT_PASSWORD_HASH_FLAG || arg.starts_with("--print-password-hash="));
+    if !requested {
+        return Ok(false);
+    }
+
+    let password = crate::cli_args::extract_flag_value(args, PRINT_PASSWORD_HASH_FLAG)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| non_empty_env("CCHV_AUTH_PASSWORD"))
+        .ok_or_else(|| {
+            format!(
+                "Set {PRINT_PASSWORD_HASH_FLAG} <password> or CCHV_AUTH_PASSWORD before generating a password hash."
+            )
+        })?;
+
+    let hash = server::auth::hash_password_argon2id(&password)?;
+    println!("{hash}");
+    Ok(true)
+}
+
+#[cfg(feature = "webui-server")]
+fn validate_auth_startup_options(
+    host: &str,
+    auth_enabled: bool,
+    allow_unsafe_no_auth: bool,
+) -> Result<(), String> {
+    if auth_enabled || is_loopback_bind_host(host) || allow_unsafe_no_auth {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Refusing to start with --no-auth on non-loopback host '{host}'. \
+Use --host 127.0.0.1 for local-only access, enable token auth, or add \
+{ALLOW_UNSAFE_NO_AUTH_FLAG} if you intentionally want unauthenticated network access."
+    ))
+}
+
+#[cfg(feature = "webui-server")]
+fn is_loopback_bind_host(host: &str) -> bool {
+    let normalized = host
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim_end_matches('.');
+
+    if normalized.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+
+    normalized
+        .parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback())
+        .unwrap_or(false)
+}
+
+#[cfg(feature = "webui-server")]
+fn is_weak_custom_token(token: &str, source: AuthTokenSource) -> bool {
+    !matches!(source, AuthTokenSource::Generated) && token.chars().count() < MIN_CUSTOM_TOKEN_LENGTH
 }
 
 /// Resolve the authentication token from CLI arguments or environment.

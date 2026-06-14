@@ -57,6 +57,7 @@ once_cell = "1.19"
 rusqlite = { version = "0.32", features = ["bundled"] }
 notify = { version = "7.0", default-features = false, features = ["macos_fsevent"] }
 notify-debouncer-mini = "0.5"
+argon2 = "0.5"
 
 # WebUI server mode (optional)
 axum = { version = "0.8", optional = true, features = ["json", "query", "tokio"] }
