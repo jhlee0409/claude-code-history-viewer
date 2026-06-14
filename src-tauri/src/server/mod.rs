@@ -23,6 +23,7 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{middleware, Json, Router};
 use rust_embed::Embed;
+use serde::Deserialize;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -33,6 +34,9 @@ use tower_http::services::ServeDir;
 
 use self::handlers as h;
 use self::state::AppState;
+
+const AUTH_COOKIE_NAME: &str = "cchv_auth";
+const AUTH_COOKIE_MAX_AGE_SECONDS: u64 = 60 * 60 * 24 * 30;
 
 /// Frontend assets embedded at compile time from the `dist/` directory.
 ///
@@ -61,7 +65,7 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
             .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
     };
 
-    let api = Router::new()
+    let protected_api = Router::new()
         // SSE endpoint for real-time file change events
         .route("/events", get(sse_handler))
         // Project commands
@@ -188,6 +192,11 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
             auth_middleware,
         ));
 
+    let api = Router::new()
+        .route("/auth/login", post(auth_login_handler))
+        .route("/auth/logout", post(auth_logout_handler))
+        .merge(protected_api);
+
     let mut app = Router::new()
         .route("/health", get(health_handler))
         .nest("/api", api)
@@ -219,6 +228,55 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
 // Auth middleware
 // ---------------------------------------------------------------------------
 
+#[derive(Deserialize)]
+struct AuthLoginRequest {
+    token: String,
+}
+
+async fn auth_login_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<AuthLoginRequest>,
+) -> Response {
+    let Some(expected) = &state.auth_token else {
+        return auth_cookie_clear_response();
+    };
+
+    let token = payload.token.trim();
+    if !constant_time_eq(token.as_bytes(), expected.as_bytes()) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    auth_cookie_set_response(token)
+}
+
+async fn auth_logout_handler() -> Response {
+    auth_cookie_clear_response()
+}
+
+fn auth_cookie_set_response(token: &str) -> Response {
+    let encoded = urlencoding::encode(token);
+    let cookie = format!(
+        "{AUTH_COOKIE_NAME}={encoded}; HttpOnly; SameSite=Lax; Path=/; Max-Age={AUTH_COOKIE_MAX_AGE_SECONDS}"
+    );
+
+    (
+        StatusCode::NO_CONTENT,
+        [(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap())],
+    )
+        .into_response()
+}
+
+fn auth_cookie_clear_response() -> Response {
+    (
+        StatusCode::NO_CONTENT,
+        [(
+            header::SET_COOKIE,
+            HeaderValue::from_static("cchv_auth=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"),
+        )],
+    )
+        .into_response()
+}
+
 /// Apply response security headers globally.
 async fn security_headers_middleware(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;
@@ -235,8 +293,9 @@ async fn security_headers_middleware(request: Request, next: Next) -> Response {
 
 /// Axum middleware that validates a Bearer token on every `/api/*` request.
 ///
-/// Accepts the token from either:
+/// Accepts the token from:
 ///   - `Authorization: Bearer <token>` header (normal API calls)
+///   - `cchv_auth=<token>` `HttpOnly` cookie (browser `WebUI` calls)
 ///   - `?token=<token>` query parameter (`EventSource` / SSE connections)
 ///
 /// When `auth_token` is `None` (i.e. `--no-auth`), all requests pass through.
@@ -260,7 +319,14 @@ async fn auth_middleware(
         }
     }
 
-    // 2. Check ?token= query parameter only for SSE endpoint
+    // 2. Check HttpOnly auth cookie set by /api/auth/login.
+    if let Some(token) = auth_cookie_token(&request) {
+        if constant_time_eq(token.as_bytes(), expected.as_bytes()) {
+            return Ok(next.run(request).await);
+        }
+    }
+
+    // 3. Check ?token= query parameter only for SSE endpoint
     // (EventSource cannot set custom Authorization headers).
     if allow_query_token(&request) {
         if let Some(query) = request.uri().query() {
@@ -276,6 +342,17 @@ async fn auth_middleware(
     }
 
     Err(StatusCode::UNAUTHORIZED)
+}
+
+fn auth_cookie_token(request: &Request) -> Option<String> {
+    let cookie_header = request.headers().get(header::COOKIE)?.to_str().ok()?;
+    for part in cookie_header.split(';') {
+        let trimmed = part.trim();
+        if let Some(value) = trimmed.strip_prefix(&format!("{AUTH_COOKIE_NAME}=")) {
+            return Some(urlencoding::decode(value).ok()?.into_owned());
+        }
+    }
+    None
 }
 
 /// Query-token auth is allowed only for SSE endpoint requests.
@@ -426,7 +503,20 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::metadata::MetadataState;
     use axum::body::Body;
+    use tower::ServiceExt;
+
+    fn test_state(auth_token: Option<&str>) -> Arc<AppState> {
+        let (event_tx, _rx) =
+            tokio::sync::broadcast::channel::<crate::commands::watcher::FileWatchEvent>(1);
+        Arc::new(AppState {
+            metadata: Arc::new(MetadataState::default()),
+            start_time: std::time::Instant::now(),
+            auth_token: auth_token.map(str::to_string),
+            event_tx,
+        })
+    }
 
     #[test]
     fn test_allow_query_token_only_for_sse_get() {
@@ -450,5 +540,82 @@ mod tests {
             .body(Body::empty())
             .unwrap();
         assert!(!allow_query_token(&non_sse_get));
+    }
+
+    #[test]
+    fn test_auth_cookie_token_reads_named_cookie() {
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri("/api/scan_projects")
+            .header(header::COOKIE, "theme=dark; cchv_auth=abc%20123; other=1")
+            .body(Body::empty())
+            .unwrap();
+
+        assert_eq!(auth_cookie_token(&request), Some("abc 123".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_auth_login_sets_http_only_cookie() {
+        let app = build_router(test_state(Some("secret-token")), "127.0.0.1", 3727, None);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/auth/login")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"token":"secret-token"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        let cookie = response
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(cookie.contains("cchv_auth=secret-token"));
+        assert!(cookie.contains("HttpOnly"));
+        assert!(cookie.contains("SameSite=Lax"));
+        assert!(cookie.contains("Path=/"));
+        assert!(cookie.contains("Max-Age=2592000"));
+    }
+
+    #[tokio::test]
+    async fn test_auth_cookie_allows_protected_api() {
+        let app = build_router(test_state(Some("secret-token")), "127.0.0.1", 3727, None);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::GET)
+                    .uri("/api/events")
+                    .header(header::COOKIE, "theme=dark; cchv_auth=secret-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_invalid_auth_login_is_rejected() {
+        let app = build_router(test_state(Some("secret-token")), "127.0.0.1", 3727, None);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/auth/login")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"token":"wrong"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }

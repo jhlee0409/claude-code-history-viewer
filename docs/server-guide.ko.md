@@ -336,13 +336,13 @@ just serve-dev    # dist/ 디렉토리에서 서빙 (내장 아님)
 
 ### 인증
 
-`/api/*` 엔드포인트는 Bearer 토큰이 필요합니다.
+`/api/*` 엔드포인트는 브라우저 인증 cookie 또는 Bearer 헤더를 통한 유효한 토큰이 필요합니다.
 
 | 접근 방법 | 사용법 |
 |-----------|--------|
-| 브라우저 | `http://host:3727?token=TOKEN` (localStorage에 자동 저장) |
+| 브라우저 | `http://host:3727?token=TOKEN` (HttpOnly cookie로 교환) |
 | API / curl | `Authorization: Bearer TOKEN` 헤더 |
-| SSE | `http://host:3727/api/events?token=TOKEN` 쿼리 파라미터 |
+| SSE | 브라우저 로그인 후 인증 cookie 사용; `?token=TOKEN`은 fallback으로 유지 |
 
 **팁**: `--token 내-고정-토큰`을 사용하면 재시작해도 토큰이 바뀌지 않습니다. systemd와 함께 쓸 때 특히 유용합니다.
 
@@ -374,8 +374,9 @@ GET /health
 
 토큰이 틀리거나 빠져 있습니다:
 1. URL에 `?token=올바른_토큰` 확인
-2. 서버 로그에서 `🔑 Auth token: ...` 확인
-3. 서버 재시작 시 토큰이 바뀜 → `--token` 플래그로 고정
+2. 브라우저에서 `?token=...` URL을 연 뒤 인증 cookie가 생성되었는지 확인
+3. 서버 로그에서 `🔑 Auth token: ...` 확인
+4. 서버 재시작 시 토큰이 바뀜 → `--token` 플래그로 고정
 
 ### 같은 WiFi에서는 되는데 LTE에서 안 됨
 

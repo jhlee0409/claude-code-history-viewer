@@ -273,9 +273,9 @@ cchv-server --serve
 
 ### 驗證
 
-所有 `/api/*` 端點受 Bearer 權杖驗證保護。權杖在每次伺服器啟動時自動產生並輸出至 stderr。
+所有 `/api/*` 端點受權杖驗證保護。權杖在每次伺服器啟動時自動產生並輸出至 stderr。
 
-- **瀏覽器存取**: 使用啟動時輸出的 `?token=...` URL。權杖自動儲存至 `localStorage`。
+- **瀏覽器存取**: 使用啟動時輸出的 `?token=...` URL。瀏覽器會將其交換為 HttpOnly cookie，並在登入後移除可被腳本讀取的本機權杖。
 - **API 存取**: 包含 `Authorization: Bearer <token>` 請求標頭。
 - **自訂權杖**: `--token my-secret-token` 設定自訂權杖。
 - **停用**: `--no-auth` 略過驗證（僅在可信任的網路使用）。

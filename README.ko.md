@@ -273,9 +273,9 @@ cchv-server --serve
 
 ### 인증
 
-모든 `/api/*` 엔드포인트는 Bearer 토큰 인증으로 보호됩니다. 토큰은 서버 시작 시 자동 생성되며 stderr에 출력됩니다.
+모든 `/api/*` 엔드포인트는 토큰 인증으로 보호됩니다. 토큰은 서버 시작 시 자동 생성되며 stderr에 출력됩니다.
 
-- **브라우저 접근**: 시작 시 출력된 `?token=...` URL 사용. 토큰은 `localStorage`에 자동 저장.
+- **브라우저 접근**: 시작 시 출력된 `?token=...` URL 사용. 브라우저가 이를 HttpOnly cookie로 교환하고 로그인 후 스크립트가 읽을 수 있는 로컬 토큰을 제거합니다.
 - **API 접근**: `Authorization: Bearer <token>` 헤더 포함.
 - **커스텀 토큰**: `--token my-secret-token`으로 직접 설정.
 - **비활성화**: `--no-auth`로 인증 건너뛰기 (신뢰할 수 있는 네트워크에서만).

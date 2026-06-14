@@ -128,6 +128,52 @@ export function setAuthToken(token: string): void {
 }
 
 /**
+ * Exchange the temporary localStorage token for an HttpOnly auth cookie.
+ *
+ * This keeps the existing URL-token/Bearer flow backward-compatible while
+ * moving the browser session to a cookie that JavaScript cannot read. On
+ * failure, the localStorage token is kept so existing Bearer auth still works.
+ */
+export async function syncAuthCookieFromStoredToken(): Promise<boolean> {
+  if (isTauri()) return false;
+
+  const token = getAuthToken();
+  if (!token) return false;
+
+  try {
+    const response = await fetch(`${getApiBase()}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ token }),
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    clearAuthToken();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Ask the WebUI server to clear its HttpOnly auth cookie. */
+export async function clearAuthCookie(): Promise<void> {
+  if (isTauri()) return;
+
+  try {
+    await fetch(`${getApiBase()}/api/auth/logout`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
+/**
  * Open a URL in the system default browser.
  *
  * In Tauri mode, uses `@tauri-apps/plugin-opener` to open links externally.

@@ -346,13 +346,13 @@ Edit frontend code → `pnpm build` → refresh browser.
 
 ### Authentication
 
-All `/api/*` endpoints require a Bearer token. The token is auto-generated on each start.
+All `/api/*` endpoints require a valid token, either through the browser auth cookie or a Bearer header. The token is auto-generated on each start.
 
 | Access method | How |
 |---------------|-----|
-| Browser | `http://host:3727?token=TOKEN` (auto-saved to localStorage) |
+| Browser | `http://host:3727?token=TOKEN` (exchanged for an HttpOnly cookie) |
 | API / curl | `Authorization: Bearer TOKEN` header |
-| SSE (EventSource) | `http://host:3727/api/events?token=TOKEN` query param |
+| SSE (EventSource) | Auth cookie after browser login; `?token=TOKEN` remains as fallback |
 
 **Tip**: Use `--token my-fixed-token` for a persistent token that doesn't change between restarts. Especially useful with systemd.
 
@@ -385,7 +385,8 @@ GET /health
 The token is wrong or missing. Check:
 1. Token in URL: `?token=CORRECT_TOKEN`
 2. Token in API header: `Authorization: Bearer CORRECT_TOKEN`
-3. Server logs show the token at startup (`🔑 Auth token: ...`)
+3. Browser login cookie was created after opening the `?token=...` URL
+4. Server logs show the token at startup (`🔑 Auth token: ...`)
 
 ### Can't access from phone (LTE) but works on same WiFi
 

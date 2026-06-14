@@ -15,6 +15,8 @@ import {
   getAuthToken,
   setAuthToken,
   clearAuthToken,
+  syncAuthCookieFromStoredToken,
+  clearAuthCookie,
 } from "@/utils/platform";
 
 /** Validate command name to prevent path traversal in URL. */
@@ -62,17 +64,20 @@ export async function api<T>(
     const urlToken = params.get("token");
     if (urlToken) {
       setAuthToken(urlToken);
+      await syncAuthCookieFromStoredToken();
       return api<T>(command, args, true);
     }
 
     // Avoid redirect loops when already on an auth error page.
     if (params.get("auth_error") === "1") {
       clearAuthToken();
+      await clearAuthCookie();
       throw new Error("Authentication required. Open the app with a valid token.");
     }
 
     // Clear stale token and redirect once to an explicit auth-error URL.
     clearAuthToken();
+    await clearAuthCookie();
     params.set("auth_error", "1");
     const query = params.toString();
     window.location.replace(
