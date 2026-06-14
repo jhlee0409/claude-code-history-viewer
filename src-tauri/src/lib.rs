@@ -289,6 +289,14 @@ fn run_server(args: &[String]) {
     let host = crate::cli_args::extract_flag_value(args, "--host")
         .unwrap_or_else(|| "0.0.0.0".to_string());
     let dist_dir = crate::cli_args::extract_flag_value(args, "--dist");
+    let base_path = crate::cli_args::extract_flag_value(args, "--base-path")
+        .map(|value| {
+            server::normalize_base_path(&value).unwrap_or_else(|error| {
+                eprintln!("❌ Invalid --base-path: {error}");
+                std::process::exit(2);
+            })
+        })
+        .unwrap_or_else(|| "/".to_string());
 
     // Auth token: --token <value> | --no-auth | auto-generated uuid v4
     let auth_token_info = resolve_auth_token(args);
@@ -315,7 +323,10 @@ fn run_server(args: &[String]) {
     if let Some((token, source)) = auth_token_info {
         let preview: String = token.chars().take(8).collect();
         eprintln!("🔑 Auth token enabled: {preview}...");
-        eprintln!("   Open in browser: http://{display_addr}");
+        eprintln!(
+            "   Open in browser: http://{display_addr}{}",
+            server_base_href(&base_path)
+        );
 
         match source {
             AuthTokenSource::Generated => {
@@ -336,7 +347,10 @@ fn run_server(args: &[String]) {
             eprintln!("⚠ WARNING: --no-auth with 0.0.0.0 exposes your data to the entire network!");
             eprintln!("  Anyone on your network can read your conversation history without authentication.");
         }
-        eprintln!("   Open in browser: http://{display_addr}");
+        eprintln!(
+            "   Open in browser: http://{display_addr}{}",
+            server_base_href(&base_path)
+        );
     }
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
@@ -344,8 +358,17 @@ fn run_server(args: &[String]) {
         // Start background file watcher (sends events to broadcast channel)
         let _watcher_handle = start_server_file_watcher(&state);
 
-        server::start(state, &host, port, dist_dir.as_deref()).await;
+        server::start(state, &host, port, dist_dir.as_deref(), &base_path).await;
     });
+}
+
+#[cfg(feature = "webui-server")]
+fn server_base_href(base_path: &str) -> String {
+    if base_path == "/" {
+        "/".to_string()
+    } else {
+        format!("{base_path}/")
+    }
 }
 
 /// Detect the machine's LAN IP address by connecting a UDP socket to an

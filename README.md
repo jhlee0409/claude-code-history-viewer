@@ -271,9 +271,12 @@ Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer
 | `--serve` | — | **Required.** Starts the HTTP server instead of the desktop app |
 | `--port <number>` | `3727` | Server port |
 | `--host <address>` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
+| `--base-path <path>` | `/` | Serve WebUI under a path prefix (for example `/cchv`) |
 | `--token <value>` | auto (uuid v4) | Custom authentication token |
 | `--no-auth` | — | Disable authentication (not recommended for public networks) |
 | `--dist <path>` | embedded | Override built-in frontend with external `dist/` directory |
+
+For reverse proxies that mount the app below a subpath, start the server with the same prefix, for example `cchv-server --serve --base-path /cchv`.
 
 ### Authentication
 

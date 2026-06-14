@@ -267,9 +267,12 @@ cchv-server --serve
 | `--serve` | — | **必要。** 啟動 HTTP 伺服器而非桌面應用程式 |
 | `--port <number>` | `3727` | 伺服器連接埠 |
 | `--host <address>` | `0.0.0.0` | 繫結位址（僅本機: `127.0.0.1`） |
+| `--base-path <path>` | `/` | 在路徑前綴下提供 WebUI（例如 `/cchv`） |
 | `--token <value>` | 自動 (uuid v4) | 自訂驗證權杖 |
 | `--no-auth` | — | 停用驗證（不建議在公開網路使用） |
 | `--dist <path>` | 內嵌 | 使用外部 `dist/` 目錄取代內嵌前端 |
+
+如果反向代理將應用程式掛載在子路徑下，請用相同前綴啟動伺服器，例如 `cchv-server --serve --base-path /cchv`。
 
 ### 驗證
 

@@ -267,9 +267,12 @@ cchv-server --serve
 | `--serve` | — | **필수.** 데스크톱 앱 대신 HTTP 서버 시작 |
 | `--port <number>` | `3727` | 서버 포트 |
 | `--host <address>` | `0.0.0.0` | 바인드 주소 (로컬 전용: `127.0.0.1`) |
+| `--base-path <path>` | `/` | 경로 프리픽스 아래에서 WebUI 제공 (예: `/cchv`) |
 | `--token <value>` | 자동 (uuid v4) | 커스텀 인증 토큰 |
 | `--no-auth` | — | 인증 비활성화 (공개 네트워크에서 비권장) |
 | `--dist <path>` | 내장 | 내장 프론트엔드 대신 외부 `dist/` 디렉토리 사용 |
+
+리버스 프록시에서 앱을 하위 경로에 마운트하는 경우 같은 프리픽스로 서버를 시작하세요. 예: `cchv-server --serve --base-path /cchv`
 
 ### 인증
 
