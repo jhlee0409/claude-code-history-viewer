@@ -894,11 +894,14 @@ enum FileParseStrategy {
     FullParse(PathBuf),
 }
 
+#[derive(Clone)]
 enum SessionPageCandidateSource {
     Cached(Box<ClaudeSession>, usize),
     Parse(PathBuf),
+    KnownDropped,
 }
 
+#[derive(Clone)]
 struct SessionPageCandidate {
     sort_key: i64,
     source: SessionPageCandidateSource,
@@ -911,6 +914,21 @@ pub async fn load_project_sessions_page(
     offset: Option<usize>,
     limit: Option<usize>,
 ) -> Result<SessionPage, String> {
+    let project_path = project_path.trim().to_string();
+    if project_path.is_empty() {
+        return Err("project_path is required".to_string());
+    }
+
+    let project_root = Path::new(&project_path);
+    if !project_root.is_absolute() {
+        return Err("project_path must be an absolute path".to_string());
+    }
+
+    let canonical_project_root = project_root
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve project_path: {error}"))?;
+    let project_path = canonical_project_root.to_string_lossy().to_string();
+
     let exclude = exclude_sidechain.unwrap_or(false);
     let offset = offset.unwrap_or(0);
     let limit = limit
@@ -921,19 +939,32 @@ pub async fn load_project_sessions_page(
     let mut cache_updated = false;
 
     let mut candidates: Vec<SessionPageCandidate> = Vec::new();
+    let mut known_dropped_candidates = 0usize;
 
-    for entry in WalkDir::new(&project_path)
+    for entry in WalkDir::new(&canonical_project_root)
+        .follow_links(false)
         .into_iter()
         .filter_map(std::result::Result::ok)
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
     {
-        let path = entry.path().to_path_buf();
+        if entry.file_type().is_symlink() {
+            continue;
+        }
+
+        let Ok(path) = entry.path().canonicalize() else {
+            continue;
+        };
+        if !path.starts_with(&canonical_project_root) {
+            continue;
+        }
+
         let path_str = path.to_string_lossy().to_string();
         let (current_mtime, current_size, modified_sort_key) = metadata_sort_snapshot(&path);
 
         if let Some(cached) = cache.entries.get(&path_str) {
             if Some(cached.modified_time) == current_mtime && cached.file_size == current_size {
-                if let Some(session) = cached.session.clone() {
+                let (sort_key, source) = if let Some(session) = cached.session.clone() {
+                    let sort_key = session_sort_key(&session);
                     if session_with_sidechain_filter(
                         session.clone(),
                         cached.sidechain_count,
@@ -941,15 +972,23 @@ pub async fn load_project_sessions_page(
                     )
                     .is_some()
                     {
-                        candidates.push(SessionPageCandidate {
-                            sort_key: session_sort_key(&session),
-                            source: SessionPageCandidateSource::Cached(
+                        (
+                            sort_key,
+                            SessionPageCandidateSource::Cached(
                                 Box::new(session),
                                 cached.sidechain_count,
                             ),
-                        });
+                        )
+                    } else {
+                        known_dropped_candidates = known_dropped_candidates.saturating_add(1);
+                        (sort_key, SessionPageCandidateSource::KnownDropped)
                     }
-                }
+                } else {
+                    known_dropped_candidates = known_dropped_candidates.saturating_add(1);
+                    (modified_sort_key, SessionPageCandidateSource::KnownDropped)
+                };
+
+                candidates.push(SessionPageCandidate { sort_key, source });
                 continue;
             }
 
@@ -972,97 +1011,126 @@ pub async fn load_project_sessions_page(
 
     candidates.sort_by_key(|candidate| Reverse(candidate.sort_key));
 
-    let total = candidates.len();
-    let page_candidates: Vec<SessionPageCandidate> =
-        candidates.into_iter().skip(offset).take(limit).collect();
-    let page_candidate_count = page_candidates.len();
-    let next_offset = offset.saturating_add(page_candidate_count);
+    let candidate_total = candidates.len();
+    let page_start_offset = offset.min(candidate_total);
+    let mut next_offset = page_start_offset;
+    let mut newly_dropped_candidates = 0usize;
+    let mut sessions: Vec<ClaudeSession> = Vec::with_capacity(limit);
 
-    let results: Vec<(SessionPageCandidateSource, Option<SessionExtractionResult>)> =
-        page_candidates
-            .into_par_iter()
-            .map(|candidate| match candidate.source {
-                SessionPageCandidateSource::Cached(session, sidechain_count) => (
-                    SessionPageCandidateSource::Cached(session, sidechain_count),
-                    None,
-                ),
-                SessionPageCandidateSource::Parse(path) => {
-                    let result = extract_session_metadata_from_file(&path);
-                    (SessionPageCandidateSource::Parse(path), result)
-                }
-            })
-            .collect();
+    while sessions.len() < limit && next_offset < candidate_total {
+        let remaining_slots = limit - sessions.len();
+        let batch_end = next_offset
+            .saturating_add(remaining_slots)
+            .min(candidate_total);
+        let page_candidates: Vec<SessionPageCandidate> =
+            candidates[next_offset..batch_end].to_vec();
+        next_offset = batch_end;
 
-    let mut sessions: Vec<ClaudeSession> = Vec::with_capacity(results.len());
-
-    for (source, result_opt) in results {
-        match source {
-            SessionPageCandidateSource::Cached(session, sidechain_count) => {
-                if let Some(session) =
-                    session_with_sidechain_filter(*session, sidechain_count, exclude)
-                {
-                    sessions.push(session);
-                }
-            }
-            SessionPageCandidateSource::Parse(path) => {
-                let path_str = path.to_string_lossy().to_string();
-                let (modified_time, file_size, _) = metadata_sort_snapshot(&path);
-
-                let (
-                    session_for_cache,
-                    sidechain_count,
-                    byte_offset,
-                    has_tool_use,
-                    has_errors,
-                    first_user_content,
-                    last_user_content,
-                    first_assistant_text,
-                    cached_rename_name,
-                ) = match &result_opt {
-                    Some(result) => (
-                        Some(result.session.clone()),
-                        result.sidechain_count,
-                        result.final_byte_offset,
-                        result.has_tool_use,
-                        result.has_errors,
-                        result.first_user_content.clone(),
-                        result.last_user_content.clone(),
-                        result.first_assistant_text.clone(),
-                        result.rename_name.clone(),
+        let results: Vec<(SessionPageCandidateSource, Option<SessionExtractionResult>)> =
+            page_candidates
+                .into_par_iter()
+                .map(|candidate| match candidate.source {
+                    SessionPageCandidateSource::Cached(session, sidechain_count) => (
+                        SessionPageCandidateSource::Cached(session, sidechain_count),
+                        None,
                     ),
-                    None => (None, 0, 0, false, false, None, None, None, None),
-                };
+                    SessionPageCandidateSource::Parse(path) => {
+                        let result = extract_session_metadata_from_file(&path);
+                        (SessionPageCandidateSource::Parse(path), result)
+                    }
+                    SessionPageCandidateSource::KnownDropped => {
+                        (SessionPageCandidateSource::KnownDropped, None)
+                    }
+                })
+                .collect();
 
-                cache.entries.insert(
-                    path_str,
-                    CachedSessionMetadata {
-                        modified_time: modified_time.unwrap_or(0),
-                        file_size,
-                        last_byte_offset: byte_offset,
-                        session: session_for_cache,
+        for (source, result_opt) in results {
+            match source {
+                SessionPageCandidateSource::Cached(session, sidechain_count) => {
+                    if let Some(session) =
+                        session_with_sidechain_filter(*session, sidechain_count, exclude)
+                    {
+                        sessions.push(session);
+                    } else {
+                        newly_dropped_candidates = newly_dropped_candidates.saturating_add(1);
+                    }
+                }
+                SessionPageCandidateSource::KnownDropped => {}
+                SessionPageCandidateSource::Parse(path) => {
+                    let path_str = path.to_string_lossy().to_string();
+                    let (modified_time, file_size, _) = metadata_sort_snapshot(&path);
+
+                    let (
+                        session_for_cache,
                         sidechain_count,
+                        byte_offset,
                         has_tool_use,
                         has_errors,
                         first_user_content,
                         last_user_content,
                         first_assistant_text,
-                        rename_name: cached_rename_name,
-                    },
-                );
-                cache_updated = true;
+                        cached_rename_name,
+                    ) = match &result_opt {
+                        Some(result) => (
+                            Some(result.session.clone()),
+                            result.sidechain_count,
+                            result.final_byte_offset,
+                            result.has_tool_use,
+                            result.has_errors,
+                            result.first_user_content.clone(),
+                            result.last_user_content.clone(),
+                            result.first_assistant_text.clone(),
+                            result.rename_name.clone(),
+                        ),
+                        None => (None, 0, 0, false, false, None, None, None, None),
+                    };
 
-                if let Some(result) = result_opt {
-                    if let Some(session) = session_with_sidechain_filter(
-                        result.session,
-                        result.sidechain_count,
-                        exclude,
-                    ) {
-                        sessions.push(session);
+                    cache.entries.insert(
+                        path_str,
+                        CachedSessionMetadata {
+                            modified_time: modified_time.unwrap_or(0),
+                            file_size,
+                            last_byte_offset: byte_offset,
+                            session: session_for_cache,
+                            sidechain_count,
+                            has_tool_use,
+                            has_errors,
+                            first_user_content,
+                            last_user_content,
+                            first_assistant_text,
+                            rename_name: cached_rename_name,
+                        },
+                    );
+                    cache_updated = true;
+
+                    match result_opt {
+                        Some(result) => {
+                            if let Some(session) = session_with_sidechain_filter(
+                                result.session,
+                                result.sidechain_count,
+                                exclude,
+                            ) {
+                                sessions.push(session);
+                            } else {
+                                newly_dropped_candidates =
+                                    newly_dropped_candidates.saturating_add(1);
+                            }
+                        }
+                        None => {
+                            newly_dropped_candidates = newly_dropped_candidates.saturating_add(1);
+                        }
                     }
                 }
             }
         }
     }
+
+    let total = candidate_total
+        .saturating_sub(known_dropped_candidates.saturating_add(newly_dropped_candidates));
+    let has_more = candidates
+        .iter()
+        .skip(next_offset)
+        .any(|candidate| !matches!(candidate.source, SessionPageCandidateSource::KnownDropped));
 
     sessions.sort_by_key(|session| Reverse(session_sort_key(session)));
     propagate_session_summaries(&mut sessions);
@@ -1078,7 +1146,7 @@ pub async fn load_project_sessions_page(
         offset,
         limit,
         next_offset,
-        has_more: next_offset < total,
+        has_more,
     })
 }
 
@@ -2364,6 +2432,97 @@ mod tests {
         assert_eq!(second_page.next_offset, 3);
         assert!(!second_page.has_more);
         assert_eq!(second_page.sessions[0].actual_session_id, "session-old");
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_page_rejects_invalid_project_path() {
+        let empty = load_project_sessions_page("  ".to_string(), None, None, None).await;
+        assert_eq!(empty.err().unwrap(), "project_path is required");
+
+        let relative =
+            load_project_sessions_page("relative/project".to_string(), None, None, None).await;
+        assert_eq!(
+            relative.err().unwrap(),
+            "project_path must be an absolute path"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_page_skips_invalid_candidates() {
+        let temp_dir = TempDir::new().unwrap();
+
+        create_test_jsonl_file(
+            &temp_dir,
+            "valid-1.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-valid-1", "session-valid-1", "Hello")
+            ),
+        );
+        create_test_jsonl_file(&temp_dir, "invalid.jsonl", "{}\n");
+        create_test_jsonl_file(
+            &temp_dir,
+            "valid-2.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-valid-2", "session-valid-2", "World")
+            ),
+        );
+
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+        let page = load_project_sessions_page(project_path.clone(), None, Some(0), Some(2))
+            .await
+            .unwrap();
+
+        let session_ids: Vec<&str> = page
+            .sessions
+            .iter()
+            .map(|session| session.actual_session_id.as_str())
+            .collect();
+        assert_eq!(page.total, 2);
+        assert_eq!(page.sessions.len(), 2);
+        assert_eq!(page.next_offset, 3);
+        assert!(!page.has_more);
+        assert!(session_ids.contains(&"session-valid-1"));
+        assert!(session_ids.contains(&"session-valid-2"));
+
+        let second_page =
+            load_project_sessions_page(project_path, None, Some(page.next_offset), Some(2))
+                .await
+                .unwrap();
+        assert_eq!(second_page.total, 2);
+        assert!(second_page.sessions.is_empty());
+        assert!(!second_page.has_more);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_load_project_sessions_page_ignores_symlinked_jsonl_outside_project() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+        let outside_file = create_test_jsonl_file(
+            &outside_dir,
+            "outside.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-outside", "session-outside", "Outside")
+            ),
+        );
+        let link_path = temp_dir.path().join("linked-outside.jsonl");
+        std::os::unix::fs::symlink(&outside_file, link_path).unwrap();
+
+        let page = load_project_sessions_page(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+            Some(0),
+            Some(2),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(page.total, 0);
+        assert!(page.sessions.is_empty());
+        assert!(!page.has_more);
     }
 
     #[tokio::test]

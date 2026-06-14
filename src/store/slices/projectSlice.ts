@@ -424,6 +424,8 @@ export const createProjectSlice: StateCreator<
   },
 
   clearProjectSelection: () => {
+    nextRequestId("selectProject");
+
     set({
       selectedProject: null,
       selectedSession: null,
