@@ -857,7 +857,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
         {/* Projects List */}
         <OverlayScrollbarsComponent
-          className="relative flex-1 py-2"
+          // min-h-0 lets this flex child shrink to its basis instead of growing
+          // to full content height (default min-height:auto). Without it,
+          // OverlayScrollbars measures a skewed content/viewport ratio and the
+          // thumb never reaches the bottom on long project lists (issue #101).
+          className="relative flex-1 min-h-0 py-2"
           options={{
             scrollbars: {
               theme: "os-theme-custom",
