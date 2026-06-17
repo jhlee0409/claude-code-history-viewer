@@ -719,9 +719,17 @@ fn maybe_print_password_hash(args: &[String]) -> Result<bool, String> {
         return Ok(false);
     }
 
-    let password = crate::cli_args::extract_flag_value(args, PRINT_PASSWORD_HASH_FLAG)
+    let cli_value = crate::cli_args::extract_flag_value(args, PRINT_PASSWORD_HASH_FLAG)
         .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
+        .filter(|value| !value.is_empty());
+    if cli_value.is_some() {
+        eprintln!(
+            "⚠ Passing the password on the command line exposes it in your shell history and process list. \
+Prefer: CCHV_AUTH_PASSWORD=<password> {PRINT_PASSWORD_HASH_FLAG}"
+        );
+    }
+
+    let password = cli_value
         .or_else(|| non_empty_env("CCHV_AUTH_PASSWORD"))
         .ok_or_else(|| {
             format!(

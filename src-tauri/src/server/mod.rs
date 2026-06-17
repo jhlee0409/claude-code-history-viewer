@@ -425,6 +425,17 @@ pub fn normalize_base_path(raw: &str) -> Result<String, String> {
         if segment == "." || segment == ".." {
             return Err("base path must not contain '.' or '..' segments".to_string());
         }
+        // Restrict to URL-unreserved characters so the value cannot break out of the
+        // injected `<base href="...">` attribute (defense-in-depth; operator-controlled).
+        if !segment
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '~'))
+        {
+            return Err(
+                "base path segments may only contain letters, digits, '-', '_', '.', '~'"
+                    .to_string(),
+            );
+        }
     }
 
     Ok(without_trailing.to_string())
@@ -659,9 +670,17 @@ pub async fn start(
 ) {
     let router = build_router(state, host, port, dist_dir, base_path);
 
-    let addr: SocketAddr = format!("{host}:{port}")
-        .parse()
-        .expect("Invalid server address");
+    // Resolve via lookup_host so hostnames (e.g. `--host localhost`, which the
+    // loopback guard accepts) work and an unresolvable address exits gracefully
+    // instead of panicking — SocketAddr::parse alone rejects non-IP hosts.
+    let addr: SocketAddr = tokio::net::lookup_host((host, port))
+        .await
+        .ok()
+        .and_then(|mut addrs| addrs.next())
+        .unwrap_or_else(|| {
+            eprintln!("❌ Could not resolve server address '{host}:{port}'");
+            std::process::exit(2);
+        });
 
     if host != "127.0.0.1" {
         eprintln!(
@@ -759,6 +778,18 @@ mod tests {
                 false,
             ))),
             read_only: false,
+            event_tx,
+        })
+    }
+
+    fn test_state_read_only() -> Arc<AppState> {
+        let (event_tx, _rx) =
+            tokio::sync::broadcast::channel::<crate::commands::watcher::FileWatchEvent>(1);
+        Arc::new(AppState {
+            metadata: Arc::new(MetadataState::default()),
+            start_time: std::time::Instant::now(),
+            auth: AuthState::Disabled,
+            read_only: true,
             event_tx,
         })
     }
@@ -1046,8 +1077,9 @@ mod tests {
             .map(|i| start + i)
             .expect("test module marker after build_router");
         let src = &full[start..end];
-        // Matches both inline and multi-line `.route( "<path>", post(` forms.
-        let re = regex::Regex::new(r#"\.route\(\s*"(/[a-z_]+)"\s*,\s*post\("#).unwrap();
+        // Matches both inline and multi-line `.route( "<path>", post(` forms. Charset
+        // is broad (letters/digits/-/_) so a future route can't evade classification.
+        let re = regex::Regex::new(r#"\.route\(\s*"(/[A-Za-z0-9_-]+)"\s*,\s*post\("#).unwrap();
         let registered: HashSet<&str> = re
             .captures_iter(src)
             .map(|c| c.get(1).unwrap().as_str())
@@ -1178,5 +1210,58 @@ mod tests {
             let body = String::from_utf8(body.to_vec()).unwrap();
             assert!(body.contains("<base href=\"/viewer/\" />"));
         }
+    }
+
+    #[tokio::test]
+    async fn read_only_mode_blocks_mutations_over_http() {
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3727, None, "/");
+        // A mutating route is rejected with 403 by the read-only layer.
+        let blocked = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/delete_session")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(blocked.status(), StatusCode::FORBIDDEN);
+        // An allowed read route passes the read-only layer (it reaches the handler and
+        // is never 403'd by read-only). get_server_config is lightweight and does not
+        // touch the filesystem, so this stays fast and deterministic.
+        let allowed = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/get_server_config")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(allowed.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn read_only_enforcement_survives_base_path_nesting() {
+        // .nest(&base_path, app) strips the prefix, so the inner read-only layer must
+        // still see /api/... and block mutations under a configured base path.
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3727, None, "/viewer");
+        let blocked = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/viewer/api/delete_session")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(blocked.status(), StatusCode::FORBIDDEN);
     }
 }

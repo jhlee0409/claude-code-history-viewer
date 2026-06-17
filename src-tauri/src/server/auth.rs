@@ -249,10 +249,13 @@ impl AccountAuth {
 
     fn check_rate_limit(&self, key: &str) -> Result<(), AuthFailure> {
         let now = Instant::now();
+        // Recover from a poisoned lock instead of failing: this runs on the critical
+        // path of every login, so treating poison as a hard error would permanently
+        // brick authentication for the operator after any panic-while-locked.
         let mut attempts = self
             .attempts
             .lock()
-            .map_err(|_| AuthFailure::InvalidCredentials)?;
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let attempt = attempts.entry(key.to_string()).or_default();
 
         if let Some(until) = attempt.locked_until {
@@ -276,15 +279,17 @@ impl AccountAuth {
 
     fn record_failure(&self, key: &str) {
         let now = Instant::now();
-        if let Ok(mut attempts) = self.attempts.lock() {
-            let attempt = attempts.entry(key.to_string()).or_default();
-            if attempt.first_failure.is_none() {
-                attempt.first_failure = Some(now);
-            }
-            attempt.failures = attempt.failures.saturating_add(1);
-            if attempt.failures >= MAX_LOGIN_FAILURES {
-                attempt.locked_until = Some(now + LOGIN_LOCKOUT);
-            }
+        let mut attempts = self
+            .attempts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let attempt = attempts.entry(key.to_string()).or_default();
+        if attempt.first_failure.is_none() {
+            attempt.first_failure = Some(now);
+        }
+        attempt.failures = attempt.failures.saturating_add(1);
+        if attempt.failures >= MAX_LOGIN_FAILURES {
+            attempt.locked_until = Some(now + LOGIN_LOCKOUT);
         }
     }
 
@@ -637,5 +642,30 @@ mod tests {
             "sessions map must stay bounded, got {}",
             sessions.len()
         );
+    }
+
+    #[test]
+    fn account_locks_out_after_max_failures() {
+        let auth = AccountAuth::new("admin".to_string(), test_hash(), false);
+        let wrong = AuthLoginRequest {
+            token: None,
+            username: Some("admin".to_string()),
+            password: Some("wrong".to_string()),
+        };
+        for _ in 0..MAX_LOGIN_FAILURES {
+            assert_eq!(
+                auth.login(&wrong).unwrap_err(),
+                AuthFailure::InvalidCredentials
+            );
+        }
+        // Once the threshold is hit the account bucket is locked, so even the correct
+        // password is rate-limited — the accepted residual (a correct-username flood
+        // can lock out the operator; per-IP limiting is deliberately out of scope here).
+        let good = AuthLoginRequest {
+            token: None,
+            username: Some("admin".to_string()),
+            password: Some("correct horse battery staple".to_string()),
+        };
+        assert_eq!(auth.login(&good).unwrap_err(), AuthFailure::RateLimited);
     }
 }
