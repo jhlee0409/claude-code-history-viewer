@@ -457,6 +457,7 @@ fn start_server_file_watcher(
             .watch(path, notify::RecursiveMode::Recursive)
         {
             Ok(()) => {
+                crate::commands::watcher::prime_watch_signatures(path);
                 watched_count += 1;
                 eprintln!("👁 File watcher active: {}", path.display());
             }

@@ -34,6 +34,8 @@ interface UseScrollNavigationOptions {
   scrollElementReady?: boolean;
   /** When set, skip auto-scroll-to-bottom so the target useEffect can scroll instead */
   targetMessageUuid?: string | null;
+  /** Reports whether the message viewport is close enough to live-follow new writes. */
+  onNearBottomChange?: (nearBottom: boolean) => void;
 }
 
 interface UseScrollNavigationReturn {
@@ -57,6 +59,7 @@ export const useScrollNavigation = ({
   getScrollIndex,
   scrollElementReady = false,
   targetMessageUuid,
+  onNearBottomChange,
 }: UseScrollNavigationOptions): UseScrollNavigationReturn => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -65,12 +68,26 @@ export const useScrollNavigation = ({
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tracks whether user is near bottom for auto-scroll on new messages
   const isNearBottomRef = useRef(true);
+  const lastReportedNearBottomRef = useRef<boolean | null>(null);
   const prevMessagesLengthRef = useRef(0);
 
   // Helper to get the scroll viewport element
   const getScrollViewport = useCallback(() => {
     return scrollContainerRef.current?.osInstance()?.elements().viewport ?? null;
   }, [scrollContainerRef]);
+
+  const reportNearBottom = useCallback(
+    (nearBottom: boolean) => {
+      isNearBottomRef.current = nearBottom;
+      if (lastReportedNearBottomRef.current === nearBottom) {
+        return;
+      }
+
+      lastReportedNearBottomRef.current = nearBottom;
+      onNearBottomChange?.(nearBottom);
+    },
+    [onNearBottomChange],
+  );
 
   // 맨 아래로 스크롤하는 함수
   const scrollToBottom = useCallback(() => {
@@ -264,7 +281,9 @@ export const useScrollNavigation = ({
       // Update near-bottom ref immediately for accurate auto-scroll decisions
       const vp = getScrollViewport();
       if (vp) {
-        isNearBottomRef.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < SCROLL_THRESHOLD_PX;
+        reportNearBottom(
+          vp.scrollHeight - vp.scrollTop - vp.clientHeight < SCROLL_THRESHOLD_PX
+        );
       }
 
       if (throttleTimer) return;
@@ -276,6 +295,7 @@ export const useScrollNavigation = ({
             const { scrollTop, scrollHeight, clientHeight } = viewport;
             const isNearBottom = scrollHeight - scrollTop - clientHeight < SCROLL_THRESHOLD_PX;
             const isNearTop = scrollTop < SCROLL_THRESHOLD_PX;
+            reportNearBottom(isNearBottom);
             setShowScrollToBottom(!isNearBottom && messagesLength > MIN_MESSAGES_FOR_SCROLL_BUTTONS);
             setShowScrollToTop(!isNearTop && messagesLength > MIN_MESSAGES_FOR_SCROLL_BUTTONS);
           }
@@ -305,12 +325,14 @@ export const useScrollNavigation = ({
         scrollElementRef.removeEventListener("scroll", handleScroll);
       }
     };
-  }, [messagesLength, getScrollViewport]);
+  }, [messagesLength, getScrollViewport, reportNearBottom]);
 
   // Reset prevMessagesLength on session switch
   useEffect(() => {
     prevMessagesLengthRef.current = 0;
-  }, [selectedSessionId]);
+    lastReportedNearBottomRef.current = null;
+    reportNearBottom(true);
+  }, [selectedSessionId, reportNearBottom]);
 
   // Auto-scroll to bottom when new messages arrive and user was already at bottom
   useEffect(() => {

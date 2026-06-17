@@ -159,6 +159,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     navigateBackToParent,
     // 메시지 로딩 상태 — 로딩 스피너 표시 조건
     isLoadingMessages,
+    setActiveSessionNearBottom,
   } = useAppStore();
 
   // Apply role + content type filters
@@ -545,6 +546,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     getScrollIndex,
     scrollElementReady,
     targetMessageUuid,
+    onNearBottomChange: setActiveSessionNearBottom,
   });
 
   // Handle Deep Linking / Scrolling to Target

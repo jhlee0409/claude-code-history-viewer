@@ -102,6 +102,32 @@ export const INITIAL_PAGINATION = {
 // 빈 Map 재사용으로 useAppStore 구독자의 불필요한 re-render 방지
 const EMPTY_SUBAGENT_MAP: ReadonlyMap<string, string> = new Map();
 
+const areMessagesEquivalent = (
+  currentMessages: ClaudeMessage[],
+  nextMessages: ClaudeMessage[]
+) => {
+  if (currentMessages.length !== nextMessages.length) {
+    return false;
+  }
+
+  return currentMessages.every((message, index) => {
+    const nextMessage = nextMessages[index];
+    if (message === nextMessage) {
+      return true;
+    }
+
+    if (
+      message.uuid !== nextMessage.uuid ||
+      message.type !== nextMessage.type ||
+      message.timestamp !== nextMessage.timestamp
+    ) {
+      return false;
+    }
+
+    return JSON.stringify(message) === JSON.stringify(nextMessage);
+  });
+};
+
 const initialMessageState: MessageSliceState = {
   messages: [],
   pagination: { ...INITIAL_PAGINATION },
@@ -173,9 +199,6 @@ export const createMessageSlice: StateCreator<
     ...initialMessageState,
 
   selectSession: async (session: ClaudeSession) => {
-    // Clear previous session's search index
-    clearSearchIndex();
-
     // Subagent intent를 await 전에 캡처하여 async race 차단.
     // - isSubagentNav: navigateToSubagent가 세팅한 1회성 플래그
     // - isInPlaceReload: filter toggle/refreshCurrentSession에서 같은 세션을 재로드하는 경우
@@ -188,17 +211,24 @@ export const createMessageSlice: StateCreator<
     const preserveStack = shouldTreatAsSubagent;
     isSubagentNav = false;
 
-    set({
-      messages: [],
-      pagination: { ...INITIAL_PAGINATION },
-      isLoadingMessages: true,
-      subagentSessions: [],
-      toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
-      ...(preserveStack ? {} : { parentSessionStack: [] }),
-    });
+    if (isInPlaceReload) {
+      if (get().messages.length === 0) {
+        set({ isLoadingMessages: true });
+      }
+    } else {
+      clearSearchIndex();
+      set({
+        messages: [],
+        pagination: { ...INITIAL_PAGINATION },
+        isLoadingMessages: true,
+        subagentSessions: [],
+        toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
+        ...(preserveStack ? {} : { parentSessionStack: [] }),
+      });
 
-    // Reset message filters on session switch
-    get().resetMessageFilter();
+      // Reset message filters on session switch
+      get().resetMessageFilter();
+    }
 
     get().setSelectedSession(session);
     // Note: sessionSearch state reset is handled by searchSlice
@@ -241,6 +271,11 @@ export const createMessageSlice: StateCreator<
         console.log(
           `[Frontend] selectSession: ${filteredMessages.length}개 메시지 로드, ${duration.toFixed(1)}ms`
         );
+      }
+
+      if (isInPlaceReload && areMessagesEquivalent(get().messages, filteredMessages)) {
+        set({ isLoadingMessages: false });
+        return;
       }
 
       // Update state first to allow UI to render immediately

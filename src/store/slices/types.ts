@@ -182,6 +182,7 @@ export interface AppStoreState {
   // Watcher state
   watcherEnabled: boolean;
   lastUpdateTime: Record<string, number>;
+  activeSessionNearBottom: boolean;
 
   // Navigator state
   isNavigatorOpen: boolean;
@@ -346,6 +347,7 @@ export interface AppStoreActions {
   markProjectUpdated: (projectPath: string) => void;
   triggerProjectRefresh: (projectPath: string) => Promise<void>;
   triggerSessionRefresh: (projectPath: string, sessionPath: string) => Promise<void>;
+  setActiveSessionNearBottom: (nearBottom: boolean) => void;
 
   // Navigator actions
   toggleNavigator: () => void;
