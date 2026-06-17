@@ -211,8 +211,8 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let data =
         fs::read_to_string(&path).map_err(|e| format!("Failed to read session file: {e}"))?;
 
-    let record: Value =
-        serde_json::from_str(&data).map_err(|e| format!("Failed to parse session: {e}"))?;
+    let (record, messages) =
+        parse_gemini_session(&data).ok_or_else(|| "Failed to parse session".to_string())?;
 
     let session_id = record
         .get("sessionId")
@@ -220,15 +220,9 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         .unwrap_or("unknown")
         .to_string();
 
-    let empty = Vec::new();
-    let messages = record
-        .get("messages")
-        .and_then(Value::as_array)
-        .unwrap_or(&empty);
-
     let mut result = Vec::with_capacity(messages.len());
 
-    for msg in messages {
+    for msg in &messages {
         if let Some(claude_msg) = convert_gemini_message(msg, &session_id) {
             result.push(claude_msg);
         }
@@ -276,9 +270,8 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 Ok(d) => d,
                 Err(_) => continue,
             };
-            let record: Value = match serde_json::from_str(&data) {
-                Ok(v) => v,
-                Err(_) => continue,
+            let Some((record, msgs)) = parse_gemini_session(&data) else {
+                continue;
             };
 
             let kind = record.get("kind").and_then(Value::as_str).unwrap_or("main");
@@ -292,15 +285,13 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 .unwrap_or("")
                 .to_string();
 
-            if let Some(msgs) = record.get("messages").and_then(Value::as_array) {
-                for msg in msgs {
-                    if search_json_value_case_insensitive(msg, &query_lower) {
-                        if let Some(mut claude_msg) = convert_gemini_message(msg, &session_id) {
-                            claude_msg.project_name = Some(project_name.clone());
-                            results.push(claude_msg);
-                            if results.len() >= limit {
-                                return Ok(results);
-                            }
+            for msg in &msgs {
+                if search_json_value_case_insensitive(msg, &query_lower) {
+                    if let Some(mut claude_msg) = convert_gemini_message(msg, &session_id) {
+                        claude_msg.project_name = Some(project_name.clone());
+                        results.push(claude_msg);
+                        if results.len() >= limit {
+                            return Ok(results);
                         }
                     }
                 }
@@ -358,9 +349,11 @@ fn is_session_file(entry: &fs::DirEntry) -> bool {
             .file_name()
             .and_then(|n| n.to_str())
             .is_some_and(|name| name.starts_with("session-"))
-        && path
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+        && path.extension().is_some_and(|ext| {
+            // Current Gemini CLI writes append-only `.jsonl` logs; older
+            // versions wrote monolithic `.json` (issue #348, gemini-cli#23749).
+            ext.eq_ignore_ascii_case("json") || ext.eq_ignore_ascii_case("jsonl")
+        })
 }
 
 /// Check if a path is a symlink (without following it)
@@ -383,6 +376,87 @@ fn read_project_root(project_dir: &Path) -> Option<String> {
 }
 
 // ============================================================================
+// Session parsing (handles both on-disk formats)
+// ============================================================================
+
+/// Parse a Gemini session file in either on-disk format and return the merged
+/// session-metadata object plus the ordered message records.
+///
+/// Gemini CLI migrated chat recording from a monolithic `.json` object to an
+/// append-only `.jsonl` log (google-gemini/gemini-cli#23749, issue #348):
+/// - legacy `.json`: a single object
+///   `{ sessionId, projectHash, startTime, lastUpdated, kind, messages: [ { id, type, content, .. } ] }`.
+/// - current `.jsonl`: the first line is session metadata (identified by string
+///   `sessionId` + `projectHash`), followed by one message record per line
+///   (identified by a string `id`). Metadata updates arrive as `{ "$set": {..} }`
+///   lines; `{ "$rewindTo": .. }` markers carry no displayable content.
+///
+/// The message records share the same shape in both formats, so callers can run
+/// them through `convert_gemini_message` unchanged.
+fn parse_gemini_session(data: &str) -> Option<(Value, Vec<Value>)> {
+    // Legacy monolithic object: parses whole-file and carries a `messages` array.
+    if let Ok(record) = serde_json::from_str::<Value>(data) {
+        if record.get("messages").is_some_and(Value::is_array) {
+            let messages = record
+                .get("messages")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            return Some((record, messages));
+        }
+    }
+
+    // JSONL log: classify each line as metadata, metadata-update, or message.
+    let mut metadata = serde_json::Map::new();
+    let mut messages: Vec<Value> = Vec::new();
+    let mut saw_record = false;
+
+    for line in data.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Ok(value) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        let Some(obj) = value.as_object() else {
+            continue;
+        };
+        saw_record = true;
+
+        // `{ "$set": { ..partial metadata.. } }` updates (e.g. lastUpdated).
+        if let Some(set) = obj.get("$set").and_then(Value::as_object) {
+            for (key, val) in set {
+                metadata.insert(key.clone(), val.clone());
+            }
+            continue;
+        }
+        // `{ "$rewindTo": .. }` markers have no displayable content.
+        if obj.contains_key("$rewindTo") {
+            continue;
+        }
+
+        let is_metadata = obj.get("sessionId").and_then(Value::as_str).is_some()
+            && obj.get("projectHash").and_then(Value::as_str).is_some();
+        if is_metadata {
+            for (key, val) in obj {
+                metadata.insert(key.clone(), val.clone());
+            }
+            continue;
+        }
+
+        if obj.get("id").and_then(Value::as_str).is_some() {
+            messages.push(value);
+        }
+    }
+
+    if !saw_record {
+        return None;
+    }
+    Some((Value::Object(metadata), messages))
+}
+
+// ============================================================================
 // Lightweight metadata extraction (C-1/W-3)
 // ============================================================================
 
@@ -402,7 +476,7 @@ struct SessionMetadata {
 /// avoiding per-message content conversion.
 fn extract_session_metadata(path: &Path) -> Option<SessionMetadata> {
     let data = fs::read_to_string(path).ok()?;
-    let record: Value = serde_json::from_str(&data).ok()?;
+    let (record, messages) = parse_gemini_session(&data)?;
 
     let session_id = record
         .get("sessionId")
@@ -428,19 +502,14 @@ fn extract_session_metadata(path: &Path) -> Option<SessionMetadata> {
         .unwrap_or("")
         .to_string();
 
-    let messages = record.get("messages").and_then(Value::as_array);
-    let message_count = messages.map_or(0, Vec::len);
+    let message_count = messages.len();
 
     // Lightweight check: just see if any message has a non-empty toolCalls array
-    let has_tool_use = messages
-        .map(|msgs| {
-            msgs.iter().any(|m| {
-                m.get("toolCalls")
-                    .and_then(Value::as_array)
-                    .is_some_and(|arr| !arr.is_empty())
-            })
-        })
-        .unwrap_or(false);
+    let has_tool_use = messages.iter().any(|m| {
+        m.get("toolCalls")
+            .and_then(Value::as_array)
+            .is_some_and(|arr| !arr.is_empty())
+    });
 
     let summary = record
         .get("summary")
@@ -953,6 +1022,105 @@ fn map_gemini_tool_name(name: &str) -> &str {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn test_parse_gemini_session_legacy_json() {
+        let data = json!({
+            "sessionId": "s-legacy",
+            "projectHash": "hash-1",
+            "startTime": "2026-03-24T12:00:00Z",
+            "lastUpdated": "2026-03-24T12:05:00Z",
+            "kind": "main",
+            "messages": [
+                {"id": "u1", "type": "user", "content": [{"text": "hi"}]},
+                {"id": "g1", "type": "gemini", "content": [{"text": "hello"}]}
+            ]
+        })
+        .to_string();
+
+        let (meta, msgs) = parse_gemini_session(&data).expect("legacy session should parse");
+        assert_eq!(
+            meta.get("sessionId").and_then(Value::as_str),
+            Some("s-legacy")
+        );
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].get("id").and_then(Value::as_str), Some("u1"));
+        assert_eq!(msgs[1].get("id").and_then(Value::as_str), Some("g1"));
+    }
+
+    #[test]
+    fn test_parse_gemini_session_jsonl() {
+        // Metadata first line, then one message record per line (gemini-cli#23749).
+        let data = [
+            r#"{"sessionId":"s-jsonl","projectHash":"hash-2","startTime":"2026-06-01T00:00:00Z","lastUpdated":"2026-06-01T00:00:00Z","kind":"main"}"#,
+            r#"{"id":"u1","timestamp":"2026-06-01T00:00:01Z","type":"user","content":[{"text":"need help"}]}"#,
+            r#"{"id":"g1","timestamp":"2026-06-01T00:00:02Z","type":"gemini","content":[{"text":"sure"}]}"#,
+        ]
+        .join("\n");
+
+        let (meta, msgs) = parse_gemini_session(&data).expect("jsonl session should parse");
+        assert_eq!(
+            meta.get("sessionId").and_then(Value::as_str),
+            Some("s-jsonl")
+        );
+        assert_eq!(meta.get("kind").and_then(Value::as_str), Some("main"));
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].get("id").and_then(Value::as_str), Some("u1"));
+        assert_eq!(msgs[1].get("type").and_then(Value::as_str), Some("gemini"));
+    }
+
+    #[test]
+    fn test_parse_gemini_session_jsonl_set_update_and_rewind() {
+        // `$set` updates metadata (e.g. lastUpdated); `$rewindTo` is not a message.
+        let data = [
+            r#"{"sessionId":"s3","projectHash":"h3","lastUpdated":"2026-06-01T00:00:00Z"}"#,
+            r#"{"id":"u1","type":"user","content":[{"text":"a"}]}"#,
+            r#"{"$set":{"lastUpdated":"2026-06-01T01:00:00Z"}}"#,
+            r#"{"$rewindTo":"u1"}"#,
+            r#"{"id":"g1","type":"gemini","content":[{"text":"b"}]}"#,
+        ]
+        .join("\n");
+
+        let (meta, msgs) = parse_gemini_session(&data).expect("should parse");
+        assert_eq!(
+            meta.get("lastUpdated").and_then(Value::as_str),
+            Some("2026-06-01T01:00:00Z")
+        );
+        // Two real messages; the $set and $rewindTo lines are not messages.
+        assert_eq!(msgs.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_gemini_session_jsonl_metadata_only() {
+        // A freshly-created session may have only the metadata line and no messages.
+        let data = r#"{"sessionId":"s5","projectHash":"h5","kind":"main"}"#;
+        let (meta, msgs) = parse_gemini_session(data).expect("metadata-only should parse");
+        assert_eq!(meta.get("sessionId").and_then(Value::as_str), Some("s5"));
+        assert!(msgs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_gemini_session_empty_returns_none() {
+        assert!(parse_gemini_session("").is_none());
+        assert!(parse_gemini_session("   \n  \n").is_none());
+        // Malformed lines are skipped; with nothing valid, returns None.
+        assert!(parse_gemini_session("not json\n{bad").is_none());
+    }
+
+    #[test]
+    fn test_parse_gemini_session_jsonl_message_converts() {
+        // End-to-end: a .jsonl message record converts via convert_gemini_message.
+        let data = [
+            r#"{"sessionId":"s4","projectHash":"h4"}"#,
+            r#"{"id":"u1","timestamp":"2026-06-01T00:00:01Z","type":"user","content":[{"text":"hello"}]}"#,
+        ]
+        .join("\n");
+        let (meta, msgs) = parse_gemini_session(&data).unwrap();
+        let sid = meta.get("sessionId").and_then(Value::as_str).unwrap();
+        let converted = convert_gemini_message(&msgs[0], sid).unwrap();
+        assert_eq!(converted.message_type, "user");
+        assert_eq!(converted.provider, Some("gemini".to_string()));
+    }
 
     #[test]
     fn test_map_gemini_tool_name() {
