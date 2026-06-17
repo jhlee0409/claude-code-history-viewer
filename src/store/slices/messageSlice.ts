@@ -227,8 +227,8 @@ export const createMessageSlice: StateCreator<
         ...(preserveStack ? {} : { parentSessionStack: [] }),
       });
 
-      // Reset message filters on session switch
-      get().resetMessageFilter();
+      // Message filters intentionally persist across session switches (see
+      // filterSlice localStorage persistence); the toolbar reset button clears them.
     }
 
     get().setSelectedSession(session);
