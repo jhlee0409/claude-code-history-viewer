@@ -17,9 +17,12 @@ interface GroupedProjectListProps {
   ungroupedProjects?: ClaudeProject[];
   showProviderBadge?: boolean;
   sessions: ClaudeSession[];
+  sessionsTotal?: number;
+  hasMoreSessions?: boolean;
   selectedProject: ClaudeProject | null;
   selectedSession: ClaudeSession | null;
   isLoading: boolean;
+  isLoadingMoreSessions?: boolean;
   expandedProjects: Set<string>;
   setExpandedProjects: React.Dispatch<React.SetStateAction<Set<string>>>;
   isProjectExpanded: (path: string) => boolean;
@@ -27,6 +30,7 @@ interface GroupedProjectListProps {
   handleContextMenu: (e: React.MouseEvent, project: ClaudeProject) => void;
   onSessionSelect: (session: ClaudeSession) => void;
   onSessionHover?: (session: ClaudeSession) => void;
+  onLoadMoreSessions?: () => void;
   formatTimeAgo: (date: string) => string;
 }
 
@@ -38,9 +42,12 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   ungroupedProjects,
   showProviderBadge = true,
   sessions,
+  sessionsTotal = sessions.length,
+  hasMoreSessions = false,
   selectedProject,
   selectedSession,
   isLoading,
+  isLoadingMoreSessions = false,
   expandedProjects,
   setExpandedProjects,
   isProjectExpanded,
@@ -48,6 +55,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   handleContextMenu,
   onSessionSelect,
   onSessionHover,
+  onLoadMoreSessions = () => {},
   formatTimeAgo,
 }) => {
   const { t } = useTranslation();
@@ -93,10 +101,14 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           <div role="none">
             <SessionList
               sessions={sessions}
+              sessionsTotal={sessionsTotal}
+              hasMoreSessions={hasMoreSessions}
               selectedSession={selectedSession}
               isLoading={isLoading}
+              isLoadingMoreSessions={isLoadingMoreSessions}
               onSessionSelect={onSessionSelect}
               onSessionHover={onSessionHover}
+              onLoadMoreSessions={onLoadMoreSessions}
               formatTimeAgo={formatTimeAgo}
               variant={variant}
             />

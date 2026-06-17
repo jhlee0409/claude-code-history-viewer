@@ -1,8 +1,8 @@
 // src/components/ProjectTree/components/SessionList.tsx
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FixedSizeList as List } from "react-window";
-import { Search, X, SortDesc, SortAsc } from "lucide-react";
+import { Search, X, SortDesc, SortAsc, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -166,15 +166,20 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
 
 export const SessionList: React.FC<SessionListProps> = ({
   sessions,
+  sessionsTotal = sessions.length,
+  hasMoreSessions = false,
   selectedSession,
   isLoading,
+  isLoadingMoreSessions = false,
   onSessionSelect,
   onSessionHover,
+  onLoadMoreSessions = () => {},
   formatTimeAgo,
   variant = "default",
 }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
+  const lastAutoLoadLengthRef = useRef(0);
   const {
     sessionSortOrder,
     setSessionSortOrder,
@@ -228,10 +233,34 @@ export const SessionList: React.FC<SessionListProps> = ({
   }, [sessions, sessionSortOrder, sessionEntrypointFilter, searchQuery, getSessionDisplayName]);
 
   // Show controls only if we have enough sessions
-  const showControls = sessions.length >= 3;
+  const showControls = sessions.length >= 3 || sessionsTotal >= 3;
 
   const handleToggleSortOrder = () =>
     setSessionSortOrder(sessionSortOrder === 'newest' ? 'oldest' : 'newest');
+
+  const canAutoLoadMore =
+    hasMoreSessions &&
+    !isLoadingMoreSessions &&
+    sessionSortOrder === "newest" &&
+    sessionEntrypointFilter === "all" &&
+    !searchQuery.trim();
+
+  const handleItemsRendered = useCallback(
+    ({ visibleStopIndex }: { visibleStopIndex: number }) => {
+      if (!canAutoLoadMore) {
+        return;
+      }
+      if (visibleStopIndex < filteredAndSortedSessions.length - 8) {
+        return;
+      }
+      if (lastAutoLoadLengthRef.current === filteredAndSortedSessions.length) {
+        return;
+      }
+      lastAutoLoadLengthRef.current = filteredAndSortedSessions.length;
+      onLoadMoreSessions();
+    },
+    [canAutoLoadMore, filteredAndSortedSessions.length, onLoadMoreSessions]
+  );
 
   const controls = showControls ? (
     <SessionListControls
@@ -242,6 +271,35 @@ export const SessionList: React.FC<SessionListProps> = ({
       sessionEntrypointFilter={sessionEntrypointFilter}
       onEntrypointFilterChange={setSessionEntrypointFilter}
     />
+  ) : null;
+
+  const loadMoreControl = hasMoreSessions ? (
+    <div className="px-2 pb-2">
+      <button
+        type="button"
+        onClick={onLoadMoreSessions}
+        disabled={isLoadingMoreSessions}
+        className={cn(
+          "w-full h-8 rounded-md border border-border/60 bg-background/70",
+          "text-2xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          "disabled:cursor-not-allowed disabled:opacity-70 transition-colors"
+        )}
+      >
+        <span className="inline-flex items-center justify-center gap-1.5">
+          {isLoadingMoreSessions && (
+            <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+          )}
+          <span>
+            {isLoadingMoreSessions
+              ? t("common.loading", "Loading...")
+              : t("session.loadMore", "Load more")}
+          </span>
+          <span className="text-muted-foreground/70">
+            {Math.min(sessions.length, sessionsTotal)} / {sessionsTotal}
+          </span>
+        </span>
+      </button>
+    </div>
   ) : null;
 
   // Virtual list에 전달할 데이터 memoize
@@ -281,7 +339,7 @@ export const SessionList: React.FC<SessionListProps> = ({
     );
   }
 
-  if (sessions.length === 0) {
+  if (sessions.length === 0 && !hasMoreSessions) {
     return (
       <div className={cn(containerClass, "py-2 text-2xs text-muted-foreground", isWorktree || isMain ? "ml-5" : "ml-7")}>
         {t("components:session.notFound", "No sessions")}
@@ -314,6 +372,7 @@ export const SessionList: React.FC<SessionListProps> = ({
             ))
           )}
         </div>
+        {loadMoreControl}
       </div>
     );
   }
@@ -338,11 +397,13 @@ export const SessionList: React.FC<SessionListProps> = ({
             itemData={itemData}
             overscanCount={5}
             className="session-virtual-list"
+            onItemsRendered={handleItemsRendered}
           >
             {SessionRow}
           </List>
         )}
       </div>
+      {loadMoreControl}
     </div>
   );
 };

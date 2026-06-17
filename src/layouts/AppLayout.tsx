@@ -51,12 +51,15 @@ export interface AppLayoutProps {
   // Store state
   projects: ClaudeProject[];
   sessions: ClaudeSession[];
+  sessionsTotal: number;
+  hasMoreSessions: boolean;
   selectedProject: ClaudeProject | null;
   selectedSession: ClaudeSession | null;
   messages: ClaudeMessage[];
   isLoading: boolean;
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
+  isLoadingMoreSessions: boolean;
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;
   error: AppError | null;
@@ -110,6 +113,7 @@ export interface AppLayoutProps {
 
   // Callbacks
   handleProjectSelect: (project: ClaudeProject) => void;
+  loadMoreSessions: () => void;
   handleSessionSelect: (session: ClaudeSession) => void;
   handleSessionHover: (session: ClaudeSession) => void;
   handleGlobalStatsClick: () => void;
@@ -138,12 +142,15 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const {
     projects,
     sessions,
+    sessionsTotal,
+    hasMoreSessions,
     selectedProject,
     selectedSession,
     messages,
     isLoading,
     isLoadingProjects,
     isLoadingSessions,
+    isLoadingMoreSessions,
     isLoadingMessages,
     isLoadingTokenStats,
     error,
@@ -181,6 +188,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     directoryGroups,
     ungroupedProjects,
     handleProjectSelect,
+    loadMoreSessions,
     handleSessionSelect,
     handleSessionHover,
     handleGlobalStatsClick,
@@ -293,13 +301,17 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               <ProjectTree
                 projects={projects}
                 sessions={sessions}
+                sessionsTotal={sessionsTotal}
+                hasMoreSessions={hasMoreSessions}
                 selectedProject={selectedProject}
                 selectedSession={selectedSession}
                 onProjectSelect={handleProjectSelect}
                 onSessionSelect={handleSessionSelect}
                 onSessionHover={handleSessionHover}
+                onLoadMoreSessions={loadMoreSessions}
                 onGlobalStatsClick={handleGlobalStatsClick}
                 isLoading={isLoadingProjects || isLoadingSessions}
+                isLoadingMoreSessions={isLoadingMoreSessions}
                 isViewingGlobalStats={isViewingGlobalStats}
                 groupingMode={groupingMode}
                 worktreeGroups={worktreeGroups}
@@ -324,13 +336,17 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               <ProjectTree
                 projects={projects}
                 sessions={sessions}
+                sessionsTotal={sessionsTotal}
+                hasMoreSessions={hasMoreSessions}
                 selectedProject={selectedProject}
                 selectedSession={selectedSession}
                 onProjectSelect={handleProjectSelect}
                 onSessionSelect={handleSessionSelect}
                 onSessionHover={handleSessionHover}
+                onLoadMoreSessions={loadMoreSessions}
                 onGlobalStatsClick={handleGlobalStatsClick}
                 isLoading={isLoadingProjects || isLoadingSessions}
+                isLoadingMoreSessions={isLoadingMoreSessions}
                 isViewingGlobalStats={isViewingGlobalStats}
                 width={isSidebarCollapsed ? undefined : sidebarWidth}
                 isResizing={isSidebarResizing}

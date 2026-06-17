@@ -12,13 +12,17 @@ export interface ContextMenuState {
 export interface ProjectTreeProps {
   projects: ClaudeProject[];
   sessions: ClaudeSession[];
+  sessionsTotal?: number;
+  hasMoreSessions?: boolean;
   selectedProject: ClaudeProject | null;
   selectedSession: ClaudeSession | null;
   onProjectSelect: (project: ClaudeProject) => void;
   onSessionSelect: (session: ClaudeSession) => void;
   onSessionHover?: (session: ClaudeSession) => void;
+  onLoadMoreSessions?: () => void;
   onGlobalStatsClick: () => void;
   isLoading: boolean;
+  isLoadingMoreSessions?: boolean;
   isViewingGlobalStats: boolean;
   width?: number;
   isResizing?: boolean;
@@ -57,10 +61,14 @@ export interface ProjectItemProps {
 
 export interface SessionListProps {
   sessions: ClaudeSession[];
+  sessionsTotal?: number;
+  hasMoreSessions?: boolean;
   selectedSession: ClaudeSession | null;
   isLoading: boolean;
+  isLoadingMoreSessions?: boolean;
   onSessionSelect: (session: ClaudeSession) => void;
   onSessionHover?: (session: ClaudeSession) => void;
+  onLoadMoreSessions?: () => void;
   formatTimeAgo: (date: string) => string;
   variant?: "default" | "main" | "worktree";
 }

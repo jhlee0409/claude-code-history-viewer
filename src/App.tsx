@@ -30,12 +30,15 @@ function App() {
   const {
     projects,
     sessions,
+    sessionsTotal,
+    hasMoreSessions,
     selectedProject,
     selectedSession,
     messages,
     isLoading,
     isLoadingProjects,
     isLoadingSessions,
+    isLoadingMoreSessions,
     isLoadingMessages,
     isLoadingTokenStats,
     error,
@@ -48,6 +51,7 @@ function App() {
     projectTokenStatsPagination,
     sessionSearch,
     selectProject,
+    loadMoreSessions,
     selectSession,
     clearProjectSelection,
     setSessionSearchQuery,
@@ -405,12 +409,15 @@ function App() {
     <AppLayout
       projects={projects}
       sessions={sessions}
+      sessionsTotal={sessionsTotal}
+      hasMoreSessions={hasMoreSessions}
       selectedProject={selectedProject}
       selectedSession={selectedSession}
       messages={messages}
       isLoading={isLoading}
       isLoadingProjects={isLoadingProjects}
       isLoadingSessions={isLoadingSessions}
+      isLoadingMoreSessions={isLoadingMoreSessions}
       isLoadingMessages={isLoadingMessages}
       isLoadingTokenStats={isLoadingTokenStats}
       error={error}
@@ -448,6 +455,7 @@ function App() {
       directoryGroups={directoryGroups}
       ungroupedProjects={ungroupedProjects}
       handleProjectSelect={handleProjectSelect}
+      loadMoreSessions={loadMoreSessions}
       handleSessionSelect={handleSessionSelect}
       handleSessionHover={handleSessionHover}
       handleGlobalStatsClick={handleGlobalStatsClick}

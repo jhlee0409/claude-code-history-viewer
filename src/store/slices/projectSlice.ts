@@ -6,7 +6,7 @@
 
 import { api } from "@/services/api";
 import { storageAdapter } from "@/services/storage";
-import type { ClaudeProject, ClaudeSession, AppError } from "../../types";
+import type { ClaudeProject, ClaudeSession, SessionPage, AppError } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
@@ -30,10 +30,14 @@ export interface ProjectSliceState {
   projects: ClaudeProject[];
   selectedProject: ClaudeProject | null;
   sessions: ClaudeSession[];
+  sessionsTotal: number;
+  sessionsOffset: number;
+  hasMoreSessions: boolean;
   selectedSession: ClaudeSession | null;
   isLoading: boolean;
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
+  isLoadingMoreSessions: boolean;
   error: AppError | null;
 }
 
@@ -41,6 +45,7 @@ export interface ProjectSliceActions {
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
+  loadMoreSessions: () => Promise<void>;
   clearProjectSelection: () => void;
   setClaudePath: (path: string) => Promise<void>;
   setError: (error: AppError | null) => void;
@@ -62,11 +67,30 @@ const initialProjectState: ProjectSliceState = {
   projects: [],
   selectedProject: null,
   sessions: [],
+  sessionsTotal: 0,
+  sessionsOffset: 0,
+  hasMoreSessions: false,
   selectedSession: null,
   isLoading: false,
   isLoadingProjects: false,
   isLoadingSessions: false,
+  isLoadingMoreSessions: false,
   error: null,
+};
+
+const SESSION_PAGE_LIMIT = 250;
+
+const dedupeSessionsById = (sessions: ClaudeSession[]): ClaudeSession[] => {
+  const seen = new Set<string>();
+  const deduped: ClaudeSession[] = [];
+  for (const session of sessions) {
+    if (seen.has(session.session_id)) {
+      continue;
+    }
+    seen.add(session.session_id);
+    deduped.push(session);
+  }
+  return deduped;
 };
 
 // ============================================================================
@@ -296,53 +320,129 @@ export const createProjectSlice: StateCreator<
   },
 
   selectProject: async (project: ClaudeProject) => {
+    const requestId = nextRequestId("selectProject");
     set({
       selectedProject: project,
       sessions: [],
+      sessionsTotal: project.session_count,
+      sessionsOffset: 0,
+      hasMoreSessions: false,
       selectedSession: null,
       isLoadingSessions: true,
+      isLoadingMoreSessions: false,
     });
     try {
       const provider = project.provider ?? "claude";
-      const sessions = provider !== "claude"
-        ? await api<ClaudeSession[]>("load_provider_sessions", {
-            provider,
-            projectPath: project.path,
-            excludeSidechain: get().excludeSidechain,
-          })
-        : await api<ClaudeSession[]>("load_project_sessions", {
-            projectPath: project.path,
-            excludeSidechain: get().excludeSidechain,
-          });
-      set({ sessions });
+      const page = await api<SessionPage>("load_provider_sessions_page", {
+        provider,
+        projectPath: project.path,
+        excludeSidechain: get().excludeSidechain,
+        offset: 0,
+        limit: SESSION_PAGE_LIMIT,
+      });
+
+      if (requestId !== getRequestId("selectProject")) {
+        return;
+      }
+
+      set({
+        sessions: page.sessions,
+        sessionsTotal: page.total,
+        sessionsOffset: page.nextOffset,
+        hasMoreSessions: page.hasMore,
+      });
 
       // Update project's session_count to match actual loaded sessions
       // (scan_projects counts files, but load_sessions filters invalid ones)
-      if (sessions.length !== project.session_count) {
+      if (page.total !== project.session_count) {
         const projects = get().projects.map((p) =>
           p.path === project.path
-            ? { ...p, session_count: sessions.length }
+            ? { ...p, session_count: page.total }
             : p
         );
         set({ projects });
       }
     } catch (error) {
+      if (requestId !== getRequestId("selectProject")) {
+        return;
+      }
       console.error("Failed to load project sessions:", error);
       set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
     } finally {
-      set({ isLoadingSessions: false });
+      if (requestId === getRequestId("selectProject")) {
+        set({ isLoadingSessions: false });
+      }
+    }
+  },
+
+  loadMoreSessions: async () => {
+    const {
+      selectedProject,
+      sessionsOffset,
+      hasMoreSessions,
+      isLoadingSessions,
+      isLoadingMoreSessions,
+    } = get();
+
+    if (
+      selectedProject == null ||
+      !hasMoreSessions ||
+      isLoadingSessions ||
+      isLoadingMoreSessions
+    ) {
+      return;
+    }
+
+    const requestId = getRequestId("selectProject");
+    set({ isLoadingMoreSessions: true });
+
+    try {
+      const page = await api<SessionPage>("load_provider_sessions_page", {
+        provider: selectedProject.provider ?? "claude",
+        projectPath: selectedProject.path,
+        excludeSidechain: get().excludeSidechain,
+        offset: sessionsOffset,
+        limit: SESSION_PAGE_LIMIT,
+      });
+
+      if (requestId !== getRequestId("selectProject")) {
+        return;
+      }
+
+      set({
+        sessions: dedupeSessionsById([...get().sessions, ...page.sessions]),
+        sessionsTotal: page.total,
+        sessionsOffset: page.nextOffset,
+        hasMoreSessions: page.hasMore,
+      });
+    } catch (error) {
+      if (requestId !== getRequestId("selectProject")) {
+        return;
+      }
+      console.error("Failed to load more project sessions:", error);
+      set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
+    } finally {
+      if (requestId === getRequestId("selectProject")) {
+        set({ isLoadingMoreSessions: false });
+      }
     }
   },
 
   clearProjectSelection: () => {
+    nextRequestId("selectProject");
+
     set({
       selectedProject: null,
       selectedSession: null,
       sessions: [],
+      sessionsTotal: 0,
+      sessionsOffset: 0,
+      hasMoreSessions: false,
       messages: [],
       pagination: { ...INITIAL_PAGINATION },
       isLoadingMessages: false,
       isLoadingSessions: false,
+      isLoadingMoreSessions: false,
       subagentSessions: [],
       parentSessionStack: [],
     });
@@ -379,7 +479,12 @@ export const createProjectSlice: StateCreator<
   },
 
   setSessions: (sessions: ClaudeSession[]) => {
-    set({ sessions });
+    set({
+      sessions,
+      sessionsTotal: sessions.length,
+      sessionsOffset: sessions.length,
+      hasMoreSessions: false,
+    });
   },
 
   getGroupedProjects: () => {

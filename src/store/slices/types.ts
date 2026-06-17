@@ -99,10 +99,14 @@ export interface AppStoreState {
   projects: ClaudeProject[];
   selectedProject: ClaudeProject | null;
   sessions: ClaudeSession[];
+  sessionsTotal: number;
+  sessionsOffset: number;
+  hasMoreSessions: boolean;
   selectedSession: ClaudeSession | null;
   isLoading: boolean;
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
+  isLoadingMoreSessions: boolean;
   error: AppError | null;
 
   // Message state
@@ -213,6 +217,7 @@ export interface AppStoreActions {
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
+  loadMoreSessions: () => Promise<void>;
   clearProjectSelection: () => void;
   setClaudePath: (path: string) => Promise<void>;
   setError: (error: AppError | null) => void;
