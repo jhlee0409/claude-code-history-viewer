@@ -407,6 +407,7 @@ fn run_server(args: &[String]) {
     let host = crate::cli_args::extract_flag_value(args, "--host")
         .unwrap_or_else(|| "0.0.0.0".to_string());
     let dist_dir = crate::cli_args::extract_flag_value(args, "--dist");
+    let read_only = args.iter().any(|a| a == "--read-only");
 
     let resolved_auth = resolve_auth(args).unwrap_or_else(|message| {
         eprintln!("{message}");
@@ -434,6 +435,7 @@ fn run_server(args: &[String]) {
         metadata,
         start_time: std::time::Instant::now(),
         auth: resolved_auth.auth.clone(),
+        read_only,
         event_tx,
     });
 
@@ -503,6 +505,9 @@ fn run_server(args: &[String]) {
             }
             eprintln!("   Open in browser: http://{display_addr}");
         }
+    }
+    if read_only {
+        eprintln!("🔒 Read-only mode enabled: mutating API endpoints will return 403");
     }
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");

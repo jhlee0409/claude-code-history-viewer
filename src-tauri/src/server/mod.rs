@@ -38,6 +38,100 @@ use self::auth::{
 };
 use self::handlers as h;
 use self::state::AppState;
+/// `/api/*` POST routes that are safe to serve while the server is in read-only
+/// mode (the read/load/scan/search/export surface).
+///
+/// Read-only enforcement is **deny-by-default**: `read_only_middleware` rejects any
+/// protected POST whose path is not on this allowlist. Listing safe reads (instead
+/// of blocking known mutations) means a newly added mutating route is blocked
+/// automatically rather than silently leaking through — the safe failure direction.
+/// This list must stay in sync with the POST routes registered on `protected_api`
+/// in `build_router`; the `read_only_*` tests below pin the current classification.
+const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
+    "/detect_providers",
+    "/export_session",
+    "/get_all_mcp_servers",
+    "/get_all_settings",
+    "/get_archive_base_path",
+    "/get_archive_disk_usage",
+    "/get_archive_sessions",
+    "/get_claude_folder_path",
+    "/get_claude_json_config",
+    "/get_expiring_sessions",
+    "/get_git_log",
+    "/get_global_stats_summary",
+    "/get_mcp_preset",
+    "/get_mcp_servers",
+    "/get_metadata_folder_path",
+    "/get_preset",
+    "/get_project_stats_summary",
+    "/get_project_token_stats",
+    "/get_recent_edits",
+    "/get_server_config",
+    "/get_session_comparison",
+    "/get_session_display_name",
+    "/get_session_message_count",
+    "/get_session_subagents",
+    "/get_session_token_stats",
+    "/get_settings_by_scope",
+    "/get_system_info",
+    "/get_unified_preset",
+    "/is_project_hidden",
+    "/list_archives",
+    "/load_archive_session_messages",
+    "/load_mcp_presets",
+    "/load_presets",
+    "/load_project_sessions",
+    "/load_provider_messages",
+    "/load_provider_sessions",
+    "/load_session_messages",
+    "/load_session_messages_paginated",
+    "/load_unified_presets",
+    "/load_user_metadata",
+    "/open_github_issues",
+    "/read_text_file",
+    "/scan_all_projects",
+    "/scan_projects",
+    "/search_all_providers",
+    "/search_messages",
+    "/validate_claude_folder",
+    "/validate_custom_claude_dir",
+];
+
+/// The mutating `/api/*` POST routes — rejected in read-only mode. This list is the
+/// complement of [`READ_ONLY_ALLOWED_API_PATHS`] over the protected POST surface and
+/// exists only so a test can assert the two together cover every registered route
+/// (so a newly added route can't be silently misclassified). `/events` is GET-only
+/// and never reaches the POST check.
+#[cfg(test)]
+const READ_ONLY_MUTATING_API_PATHS: &[&str] = &[
+    "/create_archive",
+    "/delete_archive",
+    "/delete_mcp_preset",
+    "/delete_preset",
+    "/delete_session",
+    "/delete_unified_preset",
+    "/rename_archive",
+    "/rename_opencode_session_title",
+    "/rename_session_native",
+    "/reset_session_native_name",
+    "/restore_file",
+    "/save_mcp_preset",
+    "/save_mcp_servers",
+    "/save_preset",
+    "/save_screenshot",
+    "/save_settings",
+    "/save_unified_preset",
+    "/save_user_metadata",
+    "/send_feedback",
+    "/start_file_watcher",
+    "/stop_file_watcher",
+    "/update_project_metadata",
+    "/update_session_metadata",
+    "/update_user_settings",
+    "/write_text_file",
+];
+
 /// Frontend assets embedded at compile time from the `dist/` directory.
 ///
 /// When building with `cargo build --features webui-server`, the contents of
@@ -76,6 +170,7 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
     let protected_api = Router::new()
         // SSE endpoint for real-time file change events
         .route("/events", get(sse_handler))
+        .route("/get_server_config", post(h::get_server_config))
         // Project commands
         .route("/get_claude_folder_path", post(h::get_claude_folder_path))
         .route("/validate_claude_folder", post(h::validate_claude_folder))
@@ -197,6 +292,10 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
         // Auth middleware — checks Bearer header or ?token= query param
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
+            read_only_middleware,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
             auth_middleware,
         ));
 
@@ -263,6 +362,34 @@ async fn security_headers_middleware(request: Request, next: Next) -> Response {
         HeaderValue::from_static("nosniff"),
     );
     response
+}
+
+async fn read_only_middleware(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if state.read_only
+        && request.method() == Method::POST
+        && !is_read_only_allowed_path(request.uri().path())
+    {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "Server is running in read-only mode"
+            })),
+        )
+            .into_response();
+    }
+
+    next.run(request).await
+}
+
+/// Whether a protected `/api/*` POST path is on the read-only allowlist. Anything
+/// not listed is treated as mutating and rejected when `--read-only` is set.
+fn is_read_only_allowed_path(path: &str) -> bool {
+    let api_path = path.strip_prefix("/api").unwrap_or(path);
+    READ_ONLY_ALLOWED_API_PATHS.contains(&api_path)
 }
 
 /// Axum middleware that validates a Bearer token on every `/api/*` request.
@@ -447,6 +574,7 @@ mod tests {
                     secure_cookies: false,
                 })
                 .unwrap_or(AuthState::Disabled),
+            read_only: false,
             event_tx,
         })
     }
@@ -463,6 +591,7 @@ mod tests {
                 password_hash,
                 false,
             ))),
+            read_only: false,
             event_tx,
         })
     }
@@ -665,5 +794,96 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[test]
+    fn test_read_only_blocks_mutating_api_paths() {
+        for path in [
+            "/delete_session",
+            "/api/delete_session",
+            "/api/rename_session_native",
+            "/api/update_user_settings",
+            "/api/save_settings",
+            "/api/write_text_file",
+            "/api/create_archive",
+        ] {
+            assert!(!is_read_only_allowed_path(path), "{path} should be blocked");
+        }
+    }
+
+    #[test]
+    fn test_read_only_allows_read_api_paths() {
+        for path in [
+            "/get_server_config",
+            "/api/get_server_config",
+            "/api/load_session_messages",
+            "/api/search_messages",
+            "/api/get_all_settings",
+            "/api/export_session",
+        ] {
+            assert!(
+                is_read_only_allowed_path(path),
+                "{path} should remain readable"
+            );
+        }
+    }
+
+    #[test]
+    fn test_read_only_blocks_unknown_routes_by_default() {
+        // Deny-by-default: a route that is not on the read allowlist (e.g. a future
+        // mutating command someone forgets to classify) is blocked rather than leaked.
+        for path in ["/api/some_future_command", "/api/purge_everything"] {
+            assert!(
+                !is_read_only_allowed_path(path),
+                "{path} must be denied by default"
+            );
+        }
+    }
+
+    /// Self-maintaining guard: parse every POST route registered in this file and
+    /// assert each is classified (allowed read or mutating), and that neither list
+    /// has a stale entry. Adding a `.route("/x", post(..))` without classifying it
+    /// fails here — the failure mode the read-only allowlist must never regress into.
+    #[test]
+    fn read_only_classification_covers_every_post_route() {
+        use std::collections::HashSet;
+        // Scope to the build_router body so doc-comment examples and test-only routers
+        // elsewhere in this file are not parsed as real routes.
+        let full = include_str!("mod.rs");
+        let start = full
+            .find("pub fn build_router")
+            .expect("build_router definition");
+        let end = full[start..]
+            .find("\nasync fn embedded_asset_handler")
+            .map(|i| start + i)
+            .unwrap_or(full.len());
+        let src = &full[start..end];
+        // Matches both inline and multi-line `.route( "<path>", post(` forms.
+        let re = regex::Regex::new(r#"\.route\(\s*"(/[a-z_]+)"\s*,\s*post\("#).unwrap();
+        let registered: HashSet<&str> = re
+            .captures_iter(src)
+            .map(|c| c.get(1).unwrap().as_str())
+            .collect();
+        let allowed: HashSet<&str> = READ_ONLY_ALLOWED_API_PATHS.iter().copied().collect();
+        let mutating: HashSet<&str> = READ_ONLY_MUTATING_API_PATHS.iter().copied().collect();
+
+        assert!(
+            allowed.is_disjoint(&mutating),
+            "a path is classified as both read and mutating"
+        );
+        assert!(!registered.is_empty(), "route extraction matched nothing");
+        for path in &registered {
+            assert!(
+                allowed.contains(path) || mutating.contains(path),
+                "POST route {path} is unclassified — add it to READ_ONLY_ALLOWED_API_PATHS \
+                 (reads) or READ_ONLY_MUTATING_API_PATHS (mutations)"
+            );
+        }
+        for path in allowed.iter().chain(mutating.iter()) {
+            assert!(
+                registered.contains(path),
+                "classified path {path} is not a registered POST route (stale entry)"
+            );
+        }
     }
 }

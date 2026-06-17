@@ -386,6 +386,14 @@ handler_no_params!(
     commands::metadata::get_metadata_folder_path
 );
 
+pub async fn get_server_config(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Value>, ApiError> {
+    Ok(Json(serde_json::json!({
+        "readOnly": state.read_only,
+    })))
+}
+
 /// Note: scope parameter is accepted for API contract compatibility but not used
 /// by the underlying command (it always reads the global MCP config).
 pub async fn get_mcp_servers(Json(_p): Json<McpScopeParam>) -> Result<Json<Value>, ApiError> {

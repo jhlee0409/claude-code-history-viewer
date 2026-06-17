@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Play,
   Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   isNamed,
   isSelected,
   isContextMenuOpen,
+  readOnly,
   providerId,
   supportsNativeRename,
   supportsResumeCommand,
@@ -124,10 +126,11 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
       <span
         className={cn(
           "text-xs leading-relaxed line-clamp-2 transition-colors duration-300 flex-1 cursor-pointer flex items-start gap-1",
+          readOnly && "cursor-default",
           isSelected ? "text-accent font-medium" : "text-sidebar-foreground/70"
         )}
-        onDoubleClick={onDoubleClick}
-        title={t("session.renameHint", "Double-click to rename")}
+        onDoubleClick={readOnly ? undefined : onDoubleClick}
+        title={readOnly ? displayName : t("session.renameHint", "Double-click to rename")}
       >
         {hasClaudeCodeName && (
           <Tooltip>
@@ -181,24 +184,26 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
               "hover:bg-accent/20 text-muted-foreground hover:text-accent",
               isContextMenuOpen && "opacity-100"
             )}
-            title={t("session.renameAction", "Rename session")}
-            aria-label={t("session.renameAction", "Rename session")}
+            title={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
+            aria-label={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
           >
-            <Pencil className="w-3 h-3" />
+            {readOnly ? <MoreHorizontal className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={onRenameClick}>
-            <Pencil className="w-3 h-3 mr-2" />
-            {t("session.renameMenuItem", "Rename")}
-          </DropdownMenuItem>
-          {hasCustomName && (
+          {!readOnly && (
+            <DropdownMenuItem onClick={onRenameClick}>
+              <Pencil className="w-3 h-3 mr-2" />
+              {t("session.renameMenuItem", "Rename")}
+            </DropdownMenuItem>
+          )}
+          {!readOnly && hasCustomName && (
             <DropdownMenuItem onClick={onResetCustomName}>
               <RotateCcw className="w-3 h-3 mr-2" />
               {t("session.resetName", "Reset name")}
             </DropdownMenuItem>
           )}
-          {supportsNativeRename && (
+          {!readOnly && supportsNativeRename && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onNativeRenameClick}>
@@ -220,7 +225,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
               </DropdownMenuItem>
             </>
           )}
-          <DropdownMenuSeparator />
+          {!readOnly && <DropdownMenuSeparator />}
           <DropdownMenuItem onClick={onCopySessionId}>
             <Copy className="w-3 h-3 mr-2" />
             {t("session.copySessionId", "Copy Session ID")}

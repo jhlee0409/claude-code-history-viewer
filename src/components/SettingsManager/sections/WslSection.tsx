@@ -28,13 +28,14 @@ import type { WslDistro } from "@/types";
 interface WslSectionProps {
   isExpanded: boolean;
   onToggle: (open: boolean) => void;
+  readOnly?: boolean;
 }
 
 // ============================================================================
 // Inner component (rendered only when WSL is available on Windows Tauri)
 // ============================================================================
 
-function WslSectionInner({ isExpanded, onToggle }: WslSectionProps) {
+function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionProps) {
   const { t } = useTranslation();
   const { userMetadata, setWslEnabled, toggleWslDistro } = useAppStore();
 
@@ -126,6 +127,7 @@ function WslSectionInner({ isExpanded, onToggle }: WslSectionProps) {
               id="wsl-enabled"
               checked={wslSettings.enabled}
               onCheckedChange={handleToggleEnabled}
+              disabled={readOnly}
             />
           </div>
 
@@ -163,6 +165,7 @@ function WslSectionInner({ isExpanded, onToggle }: WslSectionProps) {
                           type="checkbox"
                           checked={!isExcluded}
                           onChange={() => handleToggleDistro(distro.name)}
+                          disabled={readOnly}
                           aria-label={distro.name}
                           className="h-4 w-4 rounded border-border"
                         />

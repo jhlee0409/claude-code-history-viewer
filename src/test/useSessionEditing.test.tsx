@@ -52,7 +52,7 @@ const session: ClaudeSession & { provider: string; is_renamed: boolean } = {
 describe("useSessionEditing clipboard actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAppStore.setState({ projects: [] });
+    useAppStore.setState({ projects: [], isServerReadOnly: false });
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
@@ -218,5 +218,22 @@ describe("useSessionEditing clipboard actions", () => {
     expect(execCommand).toHaveBeenCalledWith("copy");
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith("Copy failed");
+  });
+
+  it("disables mutating session actions in server read-only mode", () => {
+    useAppStore.setState({ isServerReadOnly: true });
+
+    const { result } = renderHook(() => useSessionEditing(session));
+
+    expect(result.current.supportsNativeRename).toBe(false);
+    expect(result.current.supportsSessionDeletion).toBe(false);
+
+    act(() => {
+      result.current.handleDoubleClick({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(result.current.isEditing).toBe(false);
   });
 });
