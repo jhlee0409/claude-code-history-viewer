@@ -15,6 +15,7 @@ import type {
   GlobalStatsSummary,
   ProviderId,
   StatsMode,
+  CustomClaudePath,
 } from "../types";
 
 // ============================================================================
@@ -243,13 +244,19 @@ export async function fetchGlobalStatsSummary(
   activeProviders?: ProviderId[],
   startDate?: string,
   endDate?: string,
+  customClaudePaths?: CustomClaudePath[],
 ): Promise<GlobalStatsSummary> {
   const normalizedProviders = [...new Set(activeProviders ?? [])].sort();
   const providersKey = normalizedProviders.length > 0
     ? normalizedProviders.join(",")
     : "all";
   const dateKey = `${startDate ?? "none"}:${endDate ?? "none"}`;
-  const key = `globalStatsSummary:${claudePath}:${providersKey}:${statsMode}:${dateKey}`;
+  const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
+  // Include custom paths in the dedupe key so requests with/without them don't collapse.
+  const customKey = hasCustomPaths
+    ? customClaudePaths.map((p) => p.path).join("|")
+    : "none";
+  const key = `globalStatsSummary:${claudePath}:${providersKey}:${statsMode}:${dateKey}:${customKey}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
@@ -259,6 +266,7 @@ export async function fetchGlobalStatsSummary(
       statsMode,
       startDate,
       endDate,
+      customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
     });
 
     if (import.meta.env.DEV) {

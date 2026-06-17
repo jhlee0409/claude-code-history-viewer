@@ -348,6 +348,7 @@ mod integration_tests {
             Some("billing_total".to_string()),
             None,
             None,
+            None,
         )
         .await
         .expect("get_global_stats_summary failed");
@@ -383,6 +384,7 @@ mod integration_tests {
             Some("billing_total".to_string()),
             Some("2026-04-12T00:00:00.000Z".to_string()),
             Some("2026-04-17T23:59:59.999Z".to_string()),
+            None,
         )
         .await
         .expect("get_global_stats_summary failed");
@@ -418,6 +420,7 @@ mod integration_tests {
             Some("billing_total".to_string()),
             Some("2026-04-12T00:00:00.000Z".to_string()),
             Some("2026-04-17T23:59:59.999Z".to_string()),
+            None,
         )
         .await
         .expect("billing summary failed");
@@ -428,6 +431,7 @@ mod integration_tests {
             Some("conversation_only".to_string()),
             Some("2026-04-12T00:00:00.000Z".to_string()),
             Some("2026-04-17T23:59:59.999Z".to_string()),
+            None,
         )
         .await
         .expect("conversation summary failed");

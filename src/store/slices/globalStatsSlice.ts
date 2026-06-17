@@ -61,6 +61,10 @@ export const createGlobalStatsSlice: StateCreator<
     const { claudePath, activeProviders, dateFilter } = get();
     if (!claudePath) return;
 
+    // Custom Claude directories must be aggregated into the global summary too,
+    // matching the project list and search (#362).
+    const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
+
     set({ isLoadingGlobalStats: true });
     get().setError(null);
 
@@ -88,6 +92,7 @@ export const createGlobalStatsSlice: StateCreator<
           activeProviders,
           startDate,
           endDate,
+          customClaudePaths,
         ),
         canLoadConversationSummary
           ? fetchGlobalStatsSummary(
@@ -96,6 +101,7 @@ export const createGlobalStatsSlice: StateCreator<
               activeProviders,
               startDate,
               endDate,
+              customClaudePaths,
             ).catch((error) => {
               if (requestId !== getRequestId("globalStats")) {
                 return null;

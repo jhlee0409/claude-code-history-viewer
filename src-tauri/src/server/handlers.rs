@@ -219,6 +219,8 @@ pub struct GlobalStatsParams {
     pub start_date: Option<String>,
     #[serde(default)]
     pub end_date: Option<String>,
+    #[serde(default)]
+    pub custom_claude_paths: Option<Vec<commands::multi_provider::CustomClaudePathParam>>,
 }
 
 #[derive(Deserialize)]
@@ -720,6 +722,7 @@ handler_json!(
             p.stats_mode,
             p.start_date,
             p.end_date,
+            p.custom_claude_paths,
         )
         .await
     }

@@ -3275,18 +3275,27 @@ pub async fn get_global_stats_summary(
     stats_mode: Option<String>,
     start_date: Option<String>,
     end_date: Option<String>,
+    custom_claude_paths: Option<Vec<crate::commands::multi_provider::CustomClaudePathParam>>,
 ) -> Result<GlobalStatsSummary, String> {
     let mode = parse_stats_mode(stats_mode);
     let providers_to_include = parse_active_stats_providers(active_providers);
     let s_limit = parse_date_limit(start_date, "global start_date");
     let e_limit = parse_date_limit(end_date, "global end_date");
-    let projects_path = PathBuf::from(&claude_path).join("projects");
 
-    // Phase 1: Collect all session files and their project names
+    // Phase 1: Collect all session files and their project names from the default
+    // Claude root AND any user-configured custom Claude directories (#362). Without
+    // the custom roots the global summary undercounts everything for users who added
+    // extra Claude directories, even though the project list and search honor them.
     let mut session_files: Vec<PathBuf> = Vec::new();
     let mut project_names: HashSet<String> = HashSet::new();
-    if providers_to_include.contains(&StatsProvider::Claude) && projects_path.exists() {
-        match fs::read_dir(&projects_path) {
+
+    let collect_claude_base = |projects_path: &Path,
+                               session_files: &mut Vec<PathBuf>,
+                               project_names: &mut HashSet<String>| {
+        if !projects_path.exists() {
+            return;
+        }
+        match fs::read_dir(projects_path) {
             Ok(entries) => {
                 for project_entry in entries {
                     let project_entry = match project_entry {
@@ -3320,6 +3329,29 @@ pub async fn get_global_stats_summary(
             }
             Err(e) => {
                 log::warn!("Failed to read Claude projects directory: {e}");
+            }
+        }
+    };
+
+    if providers_to_include.contains(&StatsProvider::Claude) {
+        collect_claude_base(
+            &PathBuf::from(&claude_path).join("projects"),
+            &mut session_files,
+            &mut project_names,
+        );
+
+        if let Some(ref custom_paths) = custom_claude_paths {
+            for custom in custom_paths {
+                let base = PathBuf::from(&custom.path);
+                if let Err(e) = crate::utils::validate_custom_claude_path(&base) {
+                    log::warn!("Skipping invalid custom Claude path for global stats: {e}");
+                    continue;
+                }
+                collect_claude_base(
+                    &base.join("projects"),
+                    &mut session_files,
+                    &mut project_names,
+                );
             }
         }
     }
@@ -4539,6 +4571,7 @@ mod tests {
             Some("billing_total".to_string()),
             None,
             None,
+            None,
         )
         .await
         .expect("failed to get global billing stats");
@@ -4546,6 +4579,7 @@ mod tests {
             claude_path_str,
             Some(vec!["claude".to_string()]),
             Some("conversation_only".to_string()),
+            None,
             None,
             None,
         )
@@ -5011,6 +5045,7 @@ mod tests {
             Some("billing_total".to_string()),
             Some("2025-01-10T00:00:00Z".to_string()),
             Some("2025-01-10T23:59:59.999Z".to_string()),
+            None,
         )
         .await
         .expect("failed to get filtered global summary");
@@ -5018,6 +5053,91 @@ mod tests {
         assert_eq!(summary.total_projects, 1);
         assert_eq!(summary.total_sessions, 1);
         assert_eq!(summary.total_tokens, 22);
+    }
+
+    /// Write one assistant session line with the given token counts under
+    /// `<base>/projects/<project>/session.jsonl`.
+    fn write_claude_session(base: &Path, project: &str, input: u32, output: u32) {
+        let dir = base.join("projects").join(project);
+        fs::create_dir_all(&dir).expect("failed to create project dir");
+        let mut file = File::create(dir.join("session.jsonl")).expect("failed to create session");
+        let line = format!(
+            r#"{{"uuid":"u-{project}","sessionId":"s-{project}","timestamp":"2025-01-05T12:00:00Z","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"x"}}],"id":"m-{project}","model":"claude-sonnet-4","usage":{{"input_tokens":{input},"output_tokens":{output}}}}},"isSidechain":false}}"#
+        );
+        writeln!(file, "{line}").expect("failed to write session");
+    }
+
+    #[tokio::test]
+    /// Global summary must aggregate custom Claude directories, not just the default
+    /// root (#362) — and must NOT when no custom paths are supplied.
+    async fn test_global_summary_includes_custom_claude_paths() {
+        let default_dir = TempDir::new().expect("default tempdir");
+        let custom_dir = TempDir::new().expect("custom tempdir");
+        write_claude_session(default_dir.path(), "proj-default", 10, 1);
+        write_claude_session(custom_dir.path(), "proj-custom", 20, 2);
+
+        let customs = Some(vec![
+            crate::commands::multi_provider::CustomClaudePathParam {
+                path: custom_dir.path().to_string_lossy().to_string(),
+                label: Some("Personal".to_string()),
+            },
+        ]);
+
+        let with_custom = get_global_stats_summary(
+            default_dir.path().to_string_lossy().to_string(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            customs,
+        )
+        .await
+        .expect("failed to get global summary with custom paths");
+        assert_eq!(with_custom.total_projects, 2);
+        assert_eq!(with_custom.total_sessions, 2);
+        assert_eq!(with_custom.total_tokens, 11 + 22);
+
+        // Control: without custom paths, only the default root is aggregated.
+        let default_only = get_global_stats_summary(
+            default_dir.path().to_string_lossy().to_string(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("failed to get default-only global summary");
+        assert_eq!(default_only.total_projects, 1);
+        assert_eq!(default_only.total_tokens, 11);
+    }
+
+    #[tokio::test]
+    /// An invalid custom Claude path (no projects/ dir) is skipped, not fatal.
+    async fn test_global_summary_skips_invalid_custom_claude_path() {
+        let default_dir = TempDir::new().expect("default tempdir");
+        let bogus_dir = TempDir::new().expect("bogus tempdir"); // exists but has no projects/
+        write_claude_session(default_dir.path(), "proj-default", 10, 1);
+
+        let customs = Some(vec![
+            crate::commands::multi_provider::CustomClaudePathParam {
+                path: bogus_dir.path().to_string_lossy().to_string(),
+                label: None,
+            },
+        ]);
+
+        let summary = get_global_stats_summary(
+            default_dir.path().to_string_lossy().to_string(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            customs,
+        )
+        .await
+        .expect("invalid custom path must not be fatal");
+        assert_eq!(summary.total_projects, 1);
+        assert_eq!(summary.total_tokens, 11);
     }
 
     #[tokio::test]
@@ -5071,6 +5191,7 @@ mod tests {
             home.to_string_lossy().to_string(),
             Some(vec!["antigravity".to_string()]),
             Some("billing_total".to_string()),
+            None,
             None,
             None,
         )
@@ -5221,6 +5342,7 @@ mod tests {
             forge_dir.path().to_string_lossy().to_string(),
             Some(vec!["forgecode".to_string()]),
             Some("billing_total".to_string()),
+            None,
             None,
             None,
         )
