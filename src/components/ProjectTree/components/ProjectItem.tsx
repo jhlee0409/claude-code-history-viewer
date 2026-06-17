@@ -5,7 +5,16 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
 import { getWorktreeLabel } from "../../../utils/worktreeUtils";
-import { getProviderId, getProviderLabel, getProviderBadgeStyle } from "../../../utils/providers";
+import {
+  getProviderBadgeStyle,
+  getProviderId,
+  getProviderLabel,
+} from "../../../utils/providers";
+import {
+  getCompactParentPath,
+  getPathLeaf,
+  isAbsolutePath,
+} from "../../../utils/pathUtils";
 
 export const ProjectItem: React.FC<ProjectItemProps> = ({
   project,
@@ -24,12 +33,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   const isWorktree = variant === "worktree";
   const isGrouped = isMain || isWorktree;
   const isExpandable = project.session_count > 0;
-
-  const displayName = isMain
-    ? t("project.main", "main")
-    : isWorktree
-      ? getWorktreeLabel(project.actual_path)
-      : project.name;
+  const actualPath = project.actual_path || project.path || project.name;
 
   const providerId = getProviderId(project.provider);
   const baseProviderLabel = getProviderLabel(
@@ -39,6 +43,22 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   const providerLabel = project.custom_directory_label
     ? `${baseProviderLabel} (${project.custom_directory_label})`
     : baseProviderLabel;
+  const shouldShowParentPath = !isGrouped && isAbsolutePath(actualPath);
+  const parentPath = shouldShowParentPath ? getCompactParentPath(actualPath) : "";
+  const shouldPreferPathLeaf =
+    providerId === "claude" ||
+    project.name === project.path ||
+    project.name === actualPath ||
+    isAbsolutePath(project.name) ||
+    project.name.startsWith("-");
+
+  const displayName = isMain
+    ? t("project.main", "main")
+    : isWorktree
+      ? getWorktreeLabel(project.actual_path)
+      : shouldPreferPathLeaf
+        ? getPathLeaf(actualPath) || project.name
+        : project.name;
 
   return (
     <button
@@ -123,23 +143,32 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
 
       {/* Project Name */}
       <span
-        className={cn(
-          "whitespace-nowrap flex-1 transition-colors",
-          isGrouped ? "text-xs" : "text-sm",
-          isExpanded
-            ? isWorktree
-              ? "text-emerald-600 dark:text-emerald-400 font-medium"
-              : isGrouped
-                ? "text-accent font-medium"
-                : "text-accent font-semibold"
-            : isGrouped
-              ? "text-muted-foreground"
-              : "text-sidebar-foreground/80",
-          !isGrouped && "duration-300"
-        )}
-        title={project.actual_path}
+        className="min-w-0 flex-1"
+        title={actualPath}
       >
-        {displayName}
+        <span
+          className={cn(
+            "block truncate transition-colors",
+            isGrouped ? "text-xs" : "text-sm",
+            isExpanded
+              ? isWorktree
+                ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                : isGrouped
+                  ? "text-accent font-medium"
+                  : "text-accent font-semibold"
+              : isGrouped
+                ? "text-muted-foreground"
+                : "text-sidebar-foreground/80",
+            !isGrouped && "duration-300"
+          )}
+        >
+          {displayName}
+        </span>
+        {parentPath && (
+          <span className="mt-0.5 block truncate text-2xs text-muted-foreground/70">
+            {parentPath}
+          </span>
+        )}
       </span>
 
       {/* Provider Badge */}
