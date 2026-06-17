@@ -408,6 +408,14 @@ fn run_server(args: &[String]) {
         .unwrap_or_else(|| "0.0.0.0".to_string());
     let dist_dir = crate::cli_args::extract_flag_value(args, "--dist");
     let read_only = args.iter().any(|a| a == "--read-only");
+    let base_path = crate::cli_args::extract_flag_value(args, "--base-path")
+        .map(|value| {
+            server::normalize_base_path(&value).unwrap_or_else(|error| {
+                eprintln!("❌ Invalid --base-path: {error}");
+                std::process::exit(2);
+            })
+        })
+        .unwrap_or_else(|| "/".to_string());
 
     let resolved_auth = resolve_auth(args).unwrap_or_else(|message| {
         eprintln!("{message}");
@@ -455,7 +463,10 @@ fn run_server(args: &[String]) {
                     "⚠ Custom auth token is shorter than {MIN_CUSTOM_TOKEN_LENGTH} characters; use a strong random token for network access."
                 );
             }
-            eprintln!("   Open in browser: http://{display_addr}");
+            eprintln!(
+                "   Open in browser: http://{display_addr}{}",
+                server_base_href(&base_path)
+            );
 
             match source {
                 AuthTokenSource::Generated => {
@@ -493,7 +504,10 @@ fn run_server(args: &[String]) {
                     "⚠ Secure cookies are disabled. Add {SECURE_COOKIES_FLAG} when using HTTPS reverse proxy."
                 );
             }
-            eprintln!("   Open in browser: http://{display_addr}");
+            eprintln!(
+                "   Open in browser: http://{display_addr}{}",
+                server_base_href(&base_path)
+            );
         }
         AuthStartup::Disabled => {
             eprintln!("🔓 Authentication disabled (--no-auth)");
@@ -503,7 +517,10 @@ fn run_server(args: &[String]) {
                 );
                 eprintln!("  Anyone on your network can read your conversation history without authentication.");
             }
-            eprintln!("   Open in browser: http://{display_addr}");
+            eprintln!(
+                "   Open in browser: http://{display_addr}{}",
+                server_base_href(&base_path)
+            );
         }
     }
     if read_only {
@@ -515,8 +532,17 @@ fn run_server(args: &[String]) {
         // Start background file watcher (sends events to broadcast channel)
         let _watcher_handle = start_server_file_watcher(&state);
 
-        server::start(state, &host, port, dist_dir.as_deref()).await;
+        server::start(state, &host, port, dist_dir.as_deref(), &base_path).await;
     });
+}
+
+#[cfg(feature = "webui-server")]
+fn server_base_href(base_path: &str) -> String {
+    if base_path == "/" {
+        "/".to_string()
+    } else {
+        format!("{base_path}/")
+    }
 }
 
 /// Detect the machine's LAN IP address by connecting a UDP socket to an

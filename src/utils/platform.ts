@@ -9,6 +9,7 @@ declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
     __WEBUI_API_BASE__?: string;
+    __WEBUI_BASE_PATH__?: string;
   }
 }
 
@@ -31,18 +32,45 @@ export const isTauri = (): boolean =>
 /** True when running in the browser against the Axum WebUI server. */
 export const isWebUI = (): boolean => !isTauri();
 
+const normalizeWebUIBasePath = (value?: string): string => {
+  if (!value) return "";
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed === "/") return "";
+
+  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.replace(/\/+$/, "");
+};
+
+/** Path prefix where the WebUI is mounted, or an empty string for root. */
+export const getWebUIBasePath = (): string =>
+  typeof window !== "undefined"
+    ? normalizeWebUIBasePath(window.__WEBUI_BASE_PATH__)
+    : "";
+
 /**
  * Base URL for WebUI API calls.
  *
  * Defaults to the current origin (same-origin requests when the SPA is
- * served by the Axum server). Can be overridden via `window.__WEBUI_API_BASE__`
- * for development scenarios (e.g. Vite dev server proxying to a remote host).
+ * served by the Axum server). If the server injected `window.__WEBUI_BASE_PATH__`,
+ * API requests are sent below that path prefix. Can be overridden via
+ * `window.__WEBUI_API_BASE__` for development scenarios (e.g. Vite dev server
+ * proxying to a remote host).
  */
 export const getApiBase = (): string => {
   if (typeof window !== "undefined" && window.__WEBUI_API_BASE__) {
     return window.__WEBUI_API_BASE__;
   }
-  return typeof window !== "undefined" ? window.location.origin : "";
+  return typeof window !== "undefined"
+    ? `${window.location.origin}${getWebUIBasePath()}`
+    : "";
+};
+
+/** URL for public WebUI assets, respecting reverse-proxy path prefixes. */
+export const getAssetPath = (path: string): string => {
+  const normalizedPath = path.replace(/^\/+/, "");
+  const basePath = getWebUIBasePath();
+  return basePath ? `${basePath}/${normalizedPath}` : `/${normalizedPath}`;
 };
 
 // ---------------------------------------------------------------------------

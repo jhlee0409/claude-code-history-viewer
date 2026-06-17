@@ -20,7 +20,7 @@ import { useModal } from "@/contexts/modal";
 
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import { isMacOS, isTauri } from "@/utils/platform";
+import { getAssetPath, isMacOS, isTauri } from "@/utils/platform";
 import { SettingDropdown } from "./SettingDropdown";
 
 interface HeaderProps {
@@ -106,7 +106,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
       {/* Left: Logo & Title */}
       <div className="relative z-10 flex items-center gap-2.5 min-w-0 pointer-events-none">
         <img
-          src="/app-icon.png"
+          src={getAssetPath("app-icon.png")}
           alt="Claude Code History"
           className="w-6 h-6 hidden md:block"
         />

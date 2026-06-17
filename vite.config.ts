@@ -13,6 +13,7 @@ export default defineConfig(async () => {
     : null;
 
   return {
+  base: "./",
   plugins: [
     react(),
     tailwindcss(),

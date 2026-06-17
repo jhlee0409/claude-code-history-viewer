@@ -4,8 +4,11 @@ import {
   clearAuthCookie,
   clearAuthErrorQuery,
   clearAuthToken,
+  getApiBase,
+  getAssetPath,
   getAuthToken,
   getCsrfToken,
+  getWebUIBasePath,
   hasAuthErrorQuery,
   initAuthToken,
   loginWebUI,
@@ -20,6 +23,7 @@ describe("platform auth token helpers", () => {
     window.history.replaceState({}, "", "/");
     document.cookie = "cchv_csrf=; Max-Age=0; Path=/";
     delete window.__WEBUI_API_BASE__;
+    delete window.__WEBUI_BASE_PATH__;
     vi.restoreAllMocks();
   });
 
@@ -140,10 +144,41 @@ describe("platform auth token helpers", () => {
   });
 });
 
+describe("platform WebUI base path helpers", () => {
+  beforeEach(() => {
+    delete window.__WEBUI_API_BASE__;
+    delete window.__WEBUI_BASE_PATH__;
+    window.history.replaceState({}, "", "/viewer/");
+  });
+
+  it("uses the current origin at root by default", () => {
+    expect(getWebUIBasePath()).toBe("");
+    expect(getApiBase()).toBe(window.location.origin);
+    expect(getAssetPath("app-icon.png")).toBe("/app-icon.png");
+  });
+
+  it("adds the injected base path to API and asset URLs", () => {
+    window.__WEBUI_BASE_PATH__ = "/viewer/";
+
+    expect(getWebUIBasePath()).toBe("/viewer");
+    expect(getApiBase()).toBe(`${window.location.origin}/viewer`);
+    expect(getAssetPath("/app-icon.png")).toBe("/viewer/app-icon.png");
+  });
+
+  it("prefers explicit API base override", () => {
+    window.__WEBUI_BASE_PATH__ = "/viewer";
+    window.__WEBUI_API_BASE__ = "http://127.0.0.1:3727/custom";
+
+    expect(getApiBase()).toBe("http://127.0.0.1:3727/custom");
+  });
+});
+
 describe("openExternalUrl", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    delete window.__WEBUI_API_BASE__;
+    delete window.__WEBUI_BASE_PATH__;
   });
 
   it("rejects unsupported URL schemes", async () => {

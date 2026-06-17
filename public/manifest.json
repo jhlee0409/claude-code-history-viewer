@@ -1,13 +1,13 @@
 {
   "name": "Claude Code History Viewer",
   "short_name": "Code History",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#0a0a12",
   "theme_color": "#0a0a12",
   "icons": [
     {
-      "src": "/app-icon.png",
+      "src": "app-icon.png",
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "any maskable"
