@@ -38,6 +38,12 @@ interface UseMessageVirtualizationOptions {
   hiddenMessageIds?: string[];
   /** Whether capture mode is active */
   isCaptureMode?: boolean;
+  /**
+   * Whether the viewer is inside a subagent session (parentSessionStack > 0).
+   * Subagent rows are all `isSidechain` but rendered at full height, so the
+   * height estimate must not collapse them to 0 (issue #334).
+   */
+  isInSubagent?: boolean;
 }
 
 interface UseMessageVirtualizationReturn {
@@ -63,6 +69,7 @@ export const useMessageVirtualization = ({
   getScrollElement,
   hiddenMessageIds = [],
   isCaptureMode = false,
+  isInSubagent = false,
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
   // Only apply hidden filter when in capture mode (hybrid approach)
   const effectiveHiddenIds = useMemo(
@@ -124,9 +131,9 @@ export const useMessageVirtualization = ({
     (index: number) => {
       const item = flattenedMessages[index];
       if (!item) return MIN_ROW_HEIGHT;
-      return estimateMessageHeight(item);
+      return estimateMessageHeight(item, isInSubagent);
     },
-    [flattenedMessages]
+    [flattenedMessages, isInSubagent]
   );
 
   // Initialize virtualizer

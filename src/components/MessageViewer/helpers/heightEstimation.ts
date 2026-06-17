@@ -24,8 +24,17 @@ const HEIGHT_DEFAULTS = {
 /**
  * Estimate the height of a message for virtual scrolling.
  * This is used as the initial estimate before actual measurement.
+ *
+ * @param isInSubagent Whether the viewer is currently inside a subagent
+ *   session. Subagent sessions consist entirely of `isSidechain` messages
+ *   that are rendered at full height (the sidechain hide-rule is bypassed),
+ *   so they must NOT be estimated at 0 — see {@link estimateMessageHeight}
+ *   sidechain branch and `ClaudeMessageNode`'s matching `isInSubagent` guard.
  */
-export function estimateMessageHeight(item: FlattenedMessage): number {
+export function estimateMessageHeight(
+  item: FlattenedMessage,
+  isInSubagent = false
+): number {
   // Hidden placeholder has fixed height
   if (item.type === "hidden-placeholder") {
     return 40; // Compact placeholder height
@@ -43,8 +52,12 @@ export function estimateMessageHeight(item: FlattenedMessage): number {
     return HEIGHT_DEFAULTS.hidden;
   }
 
-  // Sidechain messages are hidden
-  if (message.isSidechain) {
+  // Sidechain messages are hidden in normal sessions (ClaudeMessageNode returns
+  // null for them), so estimate 0. Inside a subagent session the hide-rule is
+  // bypassed and every row IS sidechain rendered at full height — estimating 0
+  // there makes the virtualizer believe the whole list has ~0 total height and
+  // mount all rows at once (the #334 crash on large subagent sessions).
+  if (message.isSidechain && !isInSubagent) {
     return HEIGHT_DEFAULTS.hidden;
   }
 

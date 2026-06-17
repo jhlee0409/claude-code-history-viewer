@@ -373,6 +373,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     getScrollElement,
     hiddenMessageIds,
     isCaptureMode,
+    // Inside a subagent session every row is `isSidechain` but rendered at full
+    // height, so the height estimate must not collapse them to 0 (issue #334).
+    isInSubagent: parentSessionStack.length > 0,
   });
 
   // Set of selected message UUIDs for O(1) lookup
