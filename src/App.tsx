@@ -222,6 +222,19 @@ function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // A selected session and the project-agnostic global-stats overview are
+  // mutually exclusive — entering global stats clears the project/session
+  // (clearProjectSelection). The sidebar resets this flag explicitly on
+  // session select, but the global search modal selects sessions via store
+  // actions and can't reach this local state, so it would otherwise stay in
+  // the global-stats view and hide the navigated conversation. Guarantee the
+  // exit here whenever a session becomes selected (issue #390).
+  useEffect(() => {
+    if (selectedSession) {
+      setIsViewingGlobalStats(false);
+    }
+  }, [selectedSession]);
+
   // Sidebar resize
   const {
     width: sidebarWidth,

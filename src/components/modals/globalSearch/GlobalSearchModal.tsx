@@ -48,7 +48,7 @@ export const GlobalSearchModal = ({
     const resultsContainerRef = useRef<HTMLDivElement>(null);
     const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage, userMetadata } =
+    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage, setAnalyticsCurrentView, userMetadata } =
         useAppStore();
     const [selectedProjectPath, setSelectedProjectPath] = useState<string>("all");
 
@@ -162,6 +162,10 @@ export const GlobalSearchModal = ({
                 );
 
                 if (targetSession) {
+                    // Ensure the conversation pane is the active view — otherwise
+                    // a result clicked while in analytics/tokenStats/etc. loads the
+                    // session but stays hidden behind the other view (issue #390).
+                    setAnalyticsCurrentView("messages");
                     if (result.uuid) navigateToMessage(result.uuid);
                     await selectSession(targetSession);
                     onClose();
@@ -190,6 +194,7 @@ export const GlobalSearchModal = ({
                         );
 
                         if (targetSession) {
+                            setAnalyticsCurrentView("messages");
                             if (result.uuid) navigateToMessage(result.uuid);
                             await selectProject(project);
                             await selectSession(targetSession);
@@ -215,7 +220,7 @@ export const GlobalSearchModal = ({
                 onClose();
             }
         },
-        [projects, sessions, selectProject, selectSession, navigateToMessage, clearTargetMessage, onClose, t],
+        [projects, sessions, selectProject, selectSession, navigateToMessage, clearTargetMessage, setAnalyticsCurrentView, onClose, t],
     );
 
     // Keyboard navigation
