@@ -1401,6 +1401,10 @@ pub struct SubagentSession {
     pub first_message_time: Option<String>,
     pub last_message_time: Option<String>,
     pub summary: Option<String>,
+    /// Task `tool_use` id that spawned this subagent, read from the sibling
+    /// `agent-<id>.meta.json` (newer Claude Code format). `None` for older sessions
+    /// that have no meta file; the frontend then falls back to progress messages.
+    pub tool_use_id: Option<String>,
 }
 
 /// Returns subagent sessions for a given parent session file.
@@ -1437,6 +1441,12 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
         // Quick scan: first and last lines + line count
         let (message_count, first_time, last_time, summary) = extract_subagent_metadata(&sa_path);
 
+        // Newer Claude Code persists the spawning Task tool_use id in a sibling
+        // `agent-<id>.meta.json`. Read it so multi-subagent sessions can map a click
+        // to the right file (#288); older sessions have no meta file -> None.
+        let meta_path = sa_path.with_file_name(format!("{file_name}.meta.json"));
+        let tool_use_id = read_subagent_tool_use_id(&meta_path);
+
         sessions.push(SubagentSession {
             agent_id,
             file_path: sa_path.to_string_lossy().to_string(),
@@ -1445,6 +1455,7 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
             first_message_time: first_time,
             last_message_time: last_time,
             summary,
+            tool_use_id,
         });
     }
 
@@ -1452,6 +1463,27 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
     sessions.sort_by(|a, b| a.first_message_time.cmp(&b.first_message_time));
 
     Ok(sessions)
+}
+
+/// Read the `toolUseId` from a subagent's sibling `agent-<id>.meta.json`.
+/// Returns `None` if the file is missing, a symlink, unreadable, or has no
+/// non-empty `toolUseId` — all non-fatal, so a subagent without a meta file still
+/// lists. The symlink guard mirrors the session-path hardening.
+fn read_subagent_tool_use_id(meta_path: &std::path::Path) -> Option<String> {
+    let meta = std::fs::symlink_metadata(meta_path).ok()?;
+    if meta.file_type().is_symlink() {
+        return None;
+    }
+    let content = std::fs::read_to_string(meta_path).ok()?;
+
+    #[derive(serde::Deserialize)]
+    struct SubagentMeta {
+        #[serde(rename = "toolUseId")]
+        tool_use_id: Option<String>,
+    }
+
+    let parsed: SubagentMeta = serde_json::from_str(&content).ok()?;
+    parsed.tool_use_id.filter(|s| !s.is_empty())
 }
 
 /// Metadata extraction from a subagent JSONL file.
@@ -2617,5 +2649,53 @@ mod tests {
         assert_eq!(result[0].summary, Some("AppendedRename".to_string()));
         // System message not counted
         assert_eq!(result[0].message_count, 5);
+    }
+
+    #[test]
+    fn read_subagent_tool_use_id_reads_meta_json() {
+        let dir = TempDir::new().unwrap();
+        let meta = dir.path().join("agent-x.meta.json");
+        std::fs::write(
+            &meta,
+            r#"{"agentType":"task","description":"d","toolUseId":"toolu_123"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read_subagent_tool_use_id(&meta),
+            Some("toolu_123".to_string())
+        );
+    }
+
+    #[test]
+    fn read_subagent_tool_use_id_none_when_missing_invalid_or_empty() {
+        let dir = TempDir::new().unwrap();
+        // Missing file.
+        assert_eq!(
+            read_subagent_tool_use_id(&dir.path().join("nope.meta.json")),
+            None
+        );
+        // Present but no toolUseId (older meta or different shape).
+        let meta = dir.path().join("agent-y.meta.json");
+        std::fs::write(&meta, r#"{"agentType":"task"}"#).unwrap();
+        assert_eq!(read_subagent_tool_use_id(&meta), None);
+        // Empty toolUseId is treated as absent.
+        let meta_empty = dir.path().join("agent-z.meta.json");
+        std::fs::write(&meta_empty, r#"{"toolUseId":""}"#).unwrap();
+        assert_eq!(read_subagent_tool_use_id(&meta_empty), None);
+        // Invalid JSON is non-fatal.
+        let meta_bad = dir.path().join("agent-bad.meta.json");
+        std::fs::write(&meta_bad, "not json").unwrap();
+        assert_eq!(read_subagent_tool_use_id(&meta_bad), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_subagent_tool_use_id_rejects_symlink() {
+        let dir = TempDir::new().unwrap();
+        let real = dir.path().join("real.meta.json");
+        std::fs::write(&real, r#"{"toolUseId":"toolu_real"}"#).unwrap();
+        let link = dir.path().join("agent-link.meta.json");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        assert_eq!(read_subagent_tool_use_id(&link), None);
     }
 }

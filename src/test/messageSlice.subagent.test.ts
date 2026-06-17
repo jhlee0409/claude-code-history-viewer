@@ -146,6 +146,7 @@ const makeSession = (overrides: Partial<ClaudeSession> = {}): ClaudeSession => (
 const makeSubagent = (
   agent_id: string,
   file_path: string,
+  tool_use_id: string | null = null,
 ): SubagentSession => ({
   agent_id,
   file_path,
@@ -154,6 +155,7 @@ const makeSubagent = (
   first_message_time: null,
   last_message_time: null,
   summary: null,
+  tool_use_id,
 });
 
 const makeProgress = (
@@ -392,6 +394,51 @@ describe("messageSlice.loadSubagents — map building from pre-filter messages",
     const map = store.getState().toolUseToSubagentMap;
     expect(map.get("tool-1")).toBe("/tmp/subA.jsonl");
     expect(map.get("tool-2")).toBe("/tmp/subB.jsonl");
+  });
+
+  it("maps multiple subagents via meta.json tool_use_id with no progress messages (#288)", async () => {
+    const store = createTestStore();
+    // Newer Claude Code format: each subagent carries its spawning Task tool_use id
+    // (from agent-<id>.meta.json) and the session emits NO progress messages.
+    const subA = makeSubagent("agent-A", "/tmp/subA.jsonl", "toolu_A");
+    const subB = makeSubagent("agent-B", "/tmp/subB.jsonl", "toolu_B");
+    const session = makeSession({ file_path: "/tmp/parent.jsonl" });
+    store.setState({ selectedSession: session });
+
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "get_session_subagents")
+        return Promise.resolve([subA, subB]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    await store.getState().loadSubagents(session.file_path, []);
+
+    const map = store.getState().toolUseToSubagentMap;
+    expect(map.get("toolu_A")).toBe("/tmp/subA.jsonl");
+    expect(map.get("toolu_B")).toBe("/tmp/subB.jsonl");
+  });
+
+  it("prefers meta.json tool_use_id and falls back to progress for subagents without one", async () => {
+    const store = createTestStore();
+    const subA = makeSubagent("agent-A", "/tmp/subA.jsonl", "toolu_A"); // new format
+    const subB = makeSubagent("agent-B", "/tmp/subB.jsonl", null); // old format
+    const session = makeSession({ file_path: "/tmp/parent.jsonl" });
+    store.setState({ selectedSession: session });
+
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "get_session_subagents")
+        return Promise.resolve([subA, subB]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    const sourceMessages: ClaudeMessage[] = [
+      makeProgress("tool-2", "agent-B"), // back-compat mapping for B
+    ];
+    await store.getState().loadSubagents(session.file_path, sourceMessages);
+
+    const map = store.getState().toolUseToSubagentMap;
+    expect(map.get("toolu_A")).toBe("/tmp/subA.jsonl"); // from meta.json
+    expect(map.get("tool-2")).toBe("/tmp/subB.jsonl"); // from progress
   });
 
   it("skips progress messages missing parentToolUseID or with unknown agent_id", async () => {

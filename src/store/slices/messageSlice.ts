@@ -759,17 +759,30 @@ export const createMessageSlice: StateCreator<
       });
       // Guard: only update if still viewing the same session
       if (get().selectedSession?.file_path === sessionPath) {
-        // progress 메시지만 parentToolUseID와 agentId를 함께 보유 → 유일한 매핑 소스.
+        // toolUseId → subagent file_path 매핑. 두 소스 사용:
+        // 1) (신형) subagent.tool_use_id — agent-<id>.meta.json에서 읽은 Task tool_use id.
+        //    progress 메시지가 없는 다중 subagent 세션도 정확히 매핑 (#288).
+        // 2) (구형 back-compat) progress 메시지의 parentToolUseID ↔ agentId.
         // Map 값은 file_path(유일 식별자) — agent_id는 filename stem 기반이라 충돌 가능.
         // sourceMessages는 반드시 pre-filter(allMessages) — post-filter는 progress 제거됨.
         let map: Map<string, string> | ReadonlyMap<string, string> =
           EMPTY_SUBAGENT_MAP;
         if (subagents.length > 0) {
-          // O(1) lookup을 위해 agent_id → subagent 인덱스 선구축
-          const byAgentId = new Map(subagents.map((s) => [s.agent_id, s]));
           const built = new Map<string, string>();
+
+          // Primary (newer format): meta.json toolUseId, authoritative per file.
+          for (const sub of subagents) {
+            if (sub.tool_use_id) {
+              built.set(sub.tool_use_id, sub.file_path);
+            }
+          }
+
+          // Back-compat (older sessions without meta.json): progress messages.
+          // Only fill gaps not already mapped from meta.json (meta.json wins).
+          const byAgentId = new Map(subagents.map((s) => [s.agent_id, s]));
           for (const msg of sourceMessages) {
             if (msg.type !== "progress" || !msg.parentToolUseID) continue;
+            if (built.has(msg.parentToolUseID)) continue;
             const agentId = getAgentIdFromProgress(msg);
             if (!agentId) continue;
             const sub = byAgentId.get(agentId);
@@ -777,6 +790,7 @@ export const createMessageSlice: StateCreator<
               built.set(msg.parentToolUseID, sub.file_path);
             }
           }
+
           if (built.size > 0) map = built;
         }
         set({
