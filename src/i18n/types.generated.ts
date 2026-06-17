@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-06-17T08:01:22.449Z
- * 총 키 개수: 1783
+ * 생성 시간: 2026-06-17T09:57:18.950Z
+ * 총 키 개수: 1786
  * Namespace 수: 11
  */
 
@@ -1360,7 +1360,7 @@ export type MessageKeys =
   | 'navigator.userOnly';
 
 /**
- * renderers namespace의 번역 키 (380개)
+ * renderers namespace의 번역 키 (383개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1382,6 +1382,9 @@ export type RenderersKeys =
   | 'advancedTextDiff.same'
   | 'advancedTextDiff.textChanges'
   | 'advancedTextDiff.unchanged'
+  | 'advisorToolResultRenderer.empty'
+  | 'advisorToolResultRenderer.error'
+  | 'advisorToolResultRenderer.title'
   | 'agentProgressGroup.agent'
   | 'agentProgressGroup.steps'
   | 'agentTaskGroup.agent'
@@ -1910,6 +1913,9 @@ export type TranslationKey =
   | 'advancedTextDiff.same'
   | 'advancedTextDiff.textChanges'
   | 'advancedTextDiff.unchanged'
+  | 'advisorToolResultRenderer.empty'
+  | 'advisorToolResultRenderer.error'
+  | 'advisorToolResultRenderer.title'
   | 'agentProgressGroup.agent'
   | 'agentProgressGroup.steps'
   | 'agentTaskGroup.agent'
@@ -3681,6 +3687,7 @@ export type TranslationKey =
  */
 export type TranslationPrefix =
   | 'advancedTextDiff'
+  | 'advisorToolResultRenderer'
   | 'agentProgressGroup'
   | 'agentTaskGroup'
   | 'analytics'
