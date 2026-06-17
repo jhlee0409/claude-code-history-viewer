@@ -117,6 +117,7 @@ const areMessagesEquivalent = (
     }
 
     if (
+      !nextMessage ||
       message.uuid !== nextMessage.uuid ||
       message.type !== nextMessage.type ||
       message.timestamp !== nextMessage.timestamp

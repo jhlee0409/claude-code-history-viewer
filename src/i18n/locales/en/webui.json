@@ -1,0 +1,12 @@
+{
+  "webui.login.title": "WebUI sign in",
+  "webui.login.methodLabel": "Sign-in method",
+  "webui.login.account": "Account",
+  "webui.login.token": "Token",
+  "webui.login.username": "Username",
+  "webui.login.password": "Password",
+  "webui.login.accessToken": "Access token",
+  "webui.login.submit": "Sign in",
+  "webui.login.errorRateLimited": "Too many attempts. Try again later.",
+  "webui.login.errorFailed": "Sign in failed. Check your credentials and try again."
+}

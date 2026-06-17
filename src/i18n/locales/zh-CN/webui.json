@@ -1,0 +1,12 @@
+{
+  "webui.login.title": "WebUI 登录",
+  "webui.login.methodLabel": "登录方式",
+  "webui.login.account": "账户",
+  "webui.login.token": "令牌",
+  "webui.login.username": "用户名",
+  "webui.login.password": "密码",
+  "webui.login.accessToken": "访问令牌",
+  "webui.login.submit": "登录",
+  "webui.login.errorRateLimited": "尝试次数过多，请稍后再试。",
+  "webui.login.errorFailed": "登录失败，请检查您的凭据后重试。"
+}
