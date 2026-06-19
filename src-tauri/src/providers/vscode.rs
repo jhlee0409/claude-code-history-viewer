@@ -579,6 +579,11 @@ fn replay_session(raw: &str) -> Result<Value, String> {
     Ok(state)
 }
 
+/// Upper bound on array indices materialised during patch-log replay. VS Code
+/// writes small sequential indices; a wildly out-of-range index indicates a
+/// corrupt/truncated session file and must not drive an unbounded `push` loop.
+const MAX_REPLAY_ARRAY_INDEX: usize = 1_000_000;
+
 /// Walk to the parent of `path`, then assign `path.last()` to `value`.
 fn set_at_path(state: &mut Value, path: &[Value], value: Value) -> Result<(), ()> {
     if path.is_empty() {
@@ -594,6 +599,9 @@ fn set_at_path(state: &mut Value, path: &[Value], value: Value) -> Result<(), ()
         }
         (Value::Array(arr), Value::Number(n)) => {
             let idx = n.as_u64().ok_or(())? as usize;
+            if idx > MAX_REPLAY_ARRAY_INDEX {
+                return Err(());
+            }
             while arr.len() <= idx {
                 arr.push(Value::Null);
             }
@@ -624,6 +632,9 @@ fn traverse_mut<'a>(mut state: &'a mut Value, path: &[Value]) -> Result<&'a mut 
                 .or_insert(Value::Object(serde_json::Map::default())),
             (Value::Array(arr), Value::Number(n)) => {
                 let idx = n.as_u64().ok_or(())? as usize;
+                if idx > MAX_REPLAY_ARRAY_INDEX {
+                    return Err(());
+                }
                 while arr.len() <= idx {
                     arr.push(Value::Null);
                 }

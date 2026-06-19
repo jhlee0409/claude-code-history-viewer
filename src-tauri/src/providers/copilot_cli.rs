@@ -476,7 +476,7 @@ pub fn load_sessions(
         .par_iter()
         .filter_map(|path| extract_session_info_cached(path).ok())
         .filter(|info| info.message_count > 0 && info.client_kind == client)
-        .filter(|info| info.cwd.as_deref().unwrap_or("") == target_cwd)
+        .filter(|info| info.cwd.as_deref().unwrap_or("unknown") == target_cwd)
         .map(|info| ClaudeSession {
             session_id: info.file_path.clone(),
             actual_session_id: info.session_id,
