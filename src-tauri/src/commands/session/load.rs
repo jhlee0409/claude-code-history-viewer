@@ -55,7 +55,9 @@ struct SessionMetadataCache {
 
 // Bumped 8 -> 9: ClaudeSession gained the `entrypoint` field, so stale caches
 // must be invalidated to force a reparse that populates it.
-const CACHE_VERSION: u32 = 9;
+// Bumped 9 -> 10: rename_name is now also extracted from `/branch` custom-title
+// events, not just `/rename`; stale caches must be invalidated to pick this up.
+const CACHE_VERSION: u32 = 10;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -177,6 +179,8 @@ struct SessionMetadataEntry {
     tool_use_result: Option<serde_json::Value>,
     entrypoint: Option<String>,
     message: Option<SessionMetadataMessage>,
+    #[serde(rename = "customTitle")]
+    custom_title: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -197,6 +201,8 @@ struct QuickLineClassifier {
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
     entrypoint: Option<String>,
+    #[serde(rename = "customTitle")]
+    custom_title: Option<String>,
 }
 
 /// Fast session metadata extraction result
@@ -335,6 +341,16 @@ fn extract_session_metadata_internal(
                 // Extract rename name from system/local_command messages before skipping
                 if entry.message_type == "system" {
                     if let Some(name) = try_extract_rename(&entry) {
+                        rename_name = Some(name);
+                    }
+                    continue;
+                }
+
+                // Extract rename name from /branch custom-title events before skipping
+                if entry.message_type == "custom-title" {
+                    if let Some(name) =
+                        try_extract_custom_title(&entry.message_type, entry.custom_title.as_deref())
+                    {
                         rename_name = Some(name);
                     }
                     continue;
@@ -483,6 +499,17 @@ fn extract_session_metadata_internal(
                 continue;
             }
 
+            // Extract rename from /branch custom-title events (already parsed above)
+            if classifier.message_type == "custom-title" {
+                if let Some(name) = try_extract_custom_title(
+                    &classifier.message_type,
+                    classifier.custom_title.as_deref(),
+                ) {
+                    rename_name = Some(name);
+                }
+                continue;
+            }
+
             // Skip other system message types
             if is_system_message_type(&classifier.message_type) {
                 continue;
@@ -585,12 +612,15 @@ fn extract_session_metadata_internal(
 }
 
 /// Message types that should always be excluded from the viewer
-const EXCLUDED_MESSAGE_TYPES: [&str; 5] = [
+const EXCLUDED_MESSAGE_TYPES: [&str; 6] = [
     "progress",
     "queue-operation",
     "file-history-snapshot",
     "last-prompt",
     "pr-link",
+    // Emitted alongside "custom-title" by the `/branch` command; redundant with it
+    // (same name), so it's excluded from the viewer rather than used as a rename source.
+    "agent-name",
 ];
 
 /// System subtypes that are internal metadata (excluded from the viewer).
@@ -640,6 +670,19 @@ fn try_extract_rename(entry: &SessionMetadataEntry) -> Option<String> {
         return None;
     }
     entry.content.as_ref().and_then(extract_rename_from_content)
+}
+
+/// Try to extract a rename name from a top-level `custom-title` event, emitted by the
+/// `/branch` command (a newer alternative to `/rename` for naming a session).
+fn try_extract_custom_title(message_type: &str, custom_title: Option<&str>) -> Option<String> {
+    if message_type != "custom-title" {
+        return None;
+    }
+    let name = custom_title?.trim();
+    if name.is_empty() {
+        return None;
+    }
+    Some(name.to_string())
 }
 
 /// Fast classification of a line without full parsing
@@ -2648,6 +2691,188 @@ mod tests {
         // Incremental parse should pick up the rename
         assert_eq!(result[0].summary, Some("AppendedRename".to_string()));
         // System message not counted
+        assert_eq!(result[0].message_count, 5);
+    }
+
+    fn create_sample_custom_title_message(name: &str) -> String {
+        format!(r#"{{"type":"custom-title","customTitle":"{name}","sessionId":"session-1"}}"#)
+    }
+
+    fn create_sample_agent_name_message(name: &str) -> String {
+        format!(r#"{{"type":"agent-name","agentName":"{name}","sessionId":"session-1"}}"#)
+    }
+
+    #[tokio::test]
+    async fn test_should_extract_rename_from_branch_custom_title() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_custom_title_message("HC1-migration"),
+            create_sample_agent_name_message("HC1-migration")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("HC1-migration".to_string()));
+        assert!(result[0].is_renamed);
+        // custom-title and agent-name lines should not be counted as messages
+        assert_eq!(result[0].message_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_should_use_last_naming_event_regardless_of_kind() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // /branch (custom-title) happens, then a later /rename overrides it
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_custom_title_message("BranchName"),
+            create_sample_rename_message("LaterRename")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Whichever naming event is chronologically last in the file wins
+        assert_eq!(result[0].summary, Some("LaterRename".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_ignore_empty_custom_title() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello world"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            r#"{"type":"custom-title","customTitle":"","sessionId":"session-1"}"#
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("Hello world".to_string()));
+    }
+
+    #[test]
+    fn test_try_extract_custom_title() {
+        assert_eq!(
+            try_extract_custom_title("custom-title", Some("MyTitle")),
+            Some("MyTitle".to_string())
+        );
+        // Wrong message type
+        assert_eq!(
+            try_extract_custom_title("agent-name", Some("MyTitle")),
+            None
+        );
+        // Missing value
+        assert_eq!(try_extract_custom_title("custom-title", None), None);
+        // Empty/whitespace value
+        assert_eq!(try_extract_custom_title("custom-title", Some("   ")), None);
+    }
+
+    #[tokio::test]
+    async fn test_phase2_custom_title_beyond_metadata_lines() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Build a fixture with > METADATA_PHASE_LINES (100) to force Phase 2 parsing
+        let mut content = String::new();
+        for i in 1..=60 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(
+                    &format!("uuid-u{i}"),
+                    "session-1",
+                    &format!("User message {i}")
+                )
+            ));
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_assistant_message(
+                    &format!("uuid-a{i}"),
+                    "session-1",
+                    &format!("Assistant reply {i}")
+                )
+            ));
+        }
+        // Append custom-title after line 120 (beyond METADATA_PHASE_LINES=100)
+        content.push_str(&format!(
+            "{}\n",
+            create_sample_custom_title_message("LateBranchTitle")
+        ));
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("LateBranchTitle".to_string()));
+        assert_eq!(result[0].message_count, 120);
+    }
+
+    #[tokio::test]
+    async fn test_incremental_append_then_custom_title() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.jsonl");
+
+        let mut content = String::new();
+        for i in 1..=5 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(
+                    &format!("uuid-u{i}"),
+                    "session-1",
+                    &format!("Message {i}")
+                )
+            ));
+        }
+        std::fs::write(&file_path, &content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("Message 1".to_string()));
+        assert_eq!(result[0].message_count, 5);
+
+        // Append a /branch custom-title event — triggers incremental parsing
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file_path)
+            .unwrap();
+        writeln!(
+            file,
+            "{}",
+            create_sample_custom_title_message("AppendedBranchTitle")
+        )
+        .unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("AppendedBranchTitle".to_string()));
         assert_eq!(result[0].message_count, 5);
     }
 
