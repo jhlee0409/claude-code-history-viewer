@@ -5,10 +5,11 @@
  */
 
 import { api } from "@/services/api";
+import { toast } from "sonner";
 import type { ClaudeMessage, SearchFilters } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
-import { searchMessages as searchMessagesFromIndex } from "../../utils/searchIndex";
+import { searchMessagesAsync, buildSearchIndex, isSearchIndexReady, linearSearchMessages } from "../../utils/searchIndex";
 import {
   type SearchState,
   type SearchFilterType,
@@ -36,7 +37,7 @@ export interface SearchSliceActions {
   searchMessages: (query: string, filters?: SearchFilters) => Promise<void>;
   setSearchFilters: (filters: SearchFilters) => void;
   // Session search
-  setSessionSearchQuery: (query: string) => void;
+  setSessionSearchQuery: (query: string) => Promise<void> | void;
   setSearchFilterType: (filterType: SearchFilterType) => void;
   goToNextMatch: () => void;
   goToPrevMatch: () => void;
@@ -73,7 +74,15 @@ export const createSearchSlice: StateCreator<
   [],
   [],
   SearchSlice
-> = (set, get) => ({
+> = (set, get) => {
+  // Monotonic request token for setSessionSearchQuery: protects against
+  // stale async results overwriting newer ones when the user types quickly
+  // and the Worker is still building (linear fallback is sync, Worker path
+  // is async - earlier async result can otherwise land on top of a later
+  // sync result).
+  let sessionSearchRequestId = 0;
+
+  return {
   ...initialSearchState,
 
   // Global search
@@ -119,7 +128,8 @@ export const createSearchSlice: StateCreator<
   },
 
   // Session search (KakaoTalk-style navigation)
-  setSessionSearchQuery: (query: string) => {
+  setSessionSearchQuery: async (query: string) => {
+    const requestId = ++sessionSearchRequestId;
     const { messages, sessionSearch } = get();
     const { filterType } = sessionSearch;
 
@@ -140,9 +150,31 @@ export const createSearchSlice: StateCreator<
       },
     }));
 
+    // Helper: predicate "this request is still the latest one".
+    // When false, every set() guarded by this is dropped so a newer
+    // request's state cannot be clobbered by stale data, AND the
+    // `isSearching: false` reset is left to that newer request.
+    const isStillLatest = () => requestId === sessionSearchRequestId;
+
     try {
-      // FlexSearch high-speed search (inverted index O(1) ~ O(log n))
-      const searchResults = searchMessagesFromIndex(query, filterType);
+      // Search strategy: Worker (async) > linear fallback (sync)
+      let searchResults: Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }>;
+
+      if (isSearchIndexReady()) {
+        // Worker index is ready — use fast async search
+        searchResults = await searchMessagesAsync(query, filterType);
+      } else {
+        // Index not ready — use linear search (instant, ~100-200ms for 50k messages)
+        searchResults = linearSearchMessages(messages, query, filterType);
+        // Trigger background Worker index build for future searches
+        buildSearchIndex(messages);
+      }
+
+      // Drop stale results: a newer search has been started while this one
+      // was awaiting. The newer search owns `isSearching` and will clear it
+      // on its own success / failure path, so we intentionally do not touch
+      // it here.
+      if (!isStillLatest()) return;
 
       // Convert to SearchMatch format (filter valid indices)
       const matches: SearchMatch[] = searchResults
@@ -172,6 +204,11 @@ export const createSearchSlice: StateCreator<
       }));
     } catch (error) {
       console.error("[Search] Failed to search messages:", error);
+      // Drop stale error: a newer search has already started and owns
+      // the `isSearching` state.
+      if (!isStillLatest()) return;
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to search messages: ${message}`);
       set((state) => ({
         sessionSearch: {
           query,
@@ -247,4 +284,5 @@ export const createSearchSlice: StateCreator<
       sessionSearch: createEmptySearchState(filterType),
     }));
   },
-});
+  };
+};
