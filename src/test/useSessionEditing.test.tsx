@@ -52,7 +52,12 @@ const session: ClaudeSession & { provider: string; is_renamed: boolean } = {
 describe("useSessionEditing clipboard actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAppStore.setState({ projects: [], isServerReadOnly: false });
+    useAppStore.setState({
+      projects: [],
+      selectedProject: null,
+      sessions: [],
+      isServerReadOnly: false,
+    });
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
@@ -180,6 +185,55 @@ describe("useSessionEditing clipboard actions", () => {
     expect(toast.success).toHaveBeenCalledWith("Resume command copied");
 
     useAppStore.setState({ projects: [] });
+  });
+
+  it("uses the selected project cwd for a loaded session before same-name projects", async () => {
+    const selectedProject: ClaudeProject = {
+      name: "cym",
+      path: "/root/.claude/projects/-home-cym",
+      actual_path: "/home/cym",
+      session_count: 1,
+      message_count: 1,
+      last_modified: session.last_modified,
+      provider: "claude",
+    };
+    const sameNameClaudeProject: ClaudeProject = {
+      name: "cym",
+      path: "/root/.claude/projects/-home-cym-alt",
+      actual_path: "/wrong/claude/cym",
+      session_count: 1,
+      message_count: 1,
+      last_modified: session.last_modified,
+      provider: "claude",
+    };
+    const loadedSession: ClaudeSession = {
+      ...session,
+      project_name: "cym",
+      file_path: "/root/.claude/projects/-home-cym/session.jsonl",
+    };
+    useAppStore.setState({
+      projects: [sameNameClaudeProject, selectedProject],
+      selectedProject,
+      sessions: [loadedSession],
+    });
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    const { result } = renderHook(() => useSessionEditing(loadedSession));
+
+    await act(async () => {
+      await result.current.handleCopyResumeCommand({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(writeText).toHaveBeenCalledWith(
+      "cd '/home/cym' && claude --resume actual-session-id"
+    );
   });
 
   it("reports copy failure when fallback cannot write clipboard payload", async () => {
