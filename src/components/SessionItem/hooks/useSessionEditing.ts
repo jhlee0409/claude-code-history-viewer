@@ -317,13 +317,12 @@ export function useSessionEditing(session: ClaudeSession) {
   );
 
   const handleNativeRenameSuccess = useCallback(
-    async (newTitle: string) => {
+    async (newTitle: string, isNativeRenamed: boolean) => {
       if (newTitle) {
         setLocalSummary(newTitle);
-        const hasPrefix = /^\[.+?\]\s/.test(newTitle);
         try {
           if (providerId === "claude") {
-            await setHasClaudeCodeName(hasPrefix);
+            await setHasClaudeCodeName(isNativeRenamed);
           }
         } catch (error) {
           console.error("Failed to update Claude Code name metadata:", error);
@@ -332,7 +331,14 @@ export function useSessionEditing(session: ClaudeSession) {
 
         const { sessions: currentSessions, setSessions } = useAppStore.getState();
         const updatedSessions = currentSessions.map((s) =>
-          s.session_id === session.session_id ? { ...s, summary: newTitle } : s
+          s.session_id === session.session_id
+            ? {
+                ...s,
+                summary: newTitle,
+                is_renamed:
+                  providerId === "claude" ? isNativeRenamed : s.is_renamed,
+              }
+            : s
         );
         setSessions(updatedSessions);
       }

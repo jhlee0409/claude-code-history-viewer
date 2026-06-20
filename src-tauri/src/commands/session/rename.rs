@@ -1,16 +1,20 @@
 //! Native session renaming module
 //!
-//! Provides functionality to rename Claude Code sessions by modifying
-//! the first user message in the session JSONL file.
+//! Provides functionality to rename Claude Code sessions by appending
+//! the same `system/local_command` event shape written by Claude Code's
+//! `/rename` command.
 
+use chrono::{SecondsFormat, Utc};
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
+use uuid::Uuid;
 
 use crate::utils::is_safe_storage_id;
 
@@ -81,11 +85,11 @@ fn parse_opencode_session_path(session_path: &str) -> Result<(String, String), S
     Ok((project_id.to_string(), session_id.to_string()))
 }
 
-/// Renames a Claude Code session by modifying the first user message.
+/// Renames a Claude Code session by appending a `/rename`-equivalent event.
 ///
 /// # Arguments
 /// * `file_path` - Absolute path to the session JSONL file
-/// * `new_title` - Title to prepend (empty string to reset)
+/// * `new_title` - Title to apply (empty string to reset)
 ///
 /// # Returns
 /// * `Ok(NativeRenameResult)` - Success with previous and new titles
@@ -107,19 +111,42 @@ pub async fn rename_session_native(
     // 2. Validate file path is within ~/.claude directory (security: prevent path traversal)
     validate_claude_path(&file_path)?;
 
-    // 3. Validate title does not contain ']' character (due to nested bracket limitation)
-    if new_title.contains(']') {
-        return Err(RenameError::InvalidTitle(
-            "Title cannot contain ']' character. Use '[' for nested prefixes instead.".to_string(),
-        )
-        .to_string());
+    rename_claude_session_file(&file_path, &new_title)
+}
+
+fn rename_claude_session_file(
+    file_path: &str,
+    new_title: &str,
+) -> Result<NativeRenameResult, String> {
+    let normalized_title = new_title.trim().to_string();
+    if normalized_title.is_empty() {
+        return reset_claude_session_file(file_path);
     }
 
-    // 4. Read all lines from JSONL file
+    validate_claude_rename_title(&normalized_title)?;
+
+    let mut lines = read_jsonl_lines(file_path)?;
+    let context = collect_claude_rename_context(&lines, file_path)?;
+    let previous_title = context.current_title()?;
+    let rename_event = build_claude_rename_event(&context, &normalized_title);
+    let rename_line = serde_json::to_string(&rename_event)
+        .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
+    lines.push(rename_line);
+    write_jsonl_lines(file_path, &lines)?;
+
+    Ok(NativeRenameResult {
+        success: true,
+        previous_title,
+        new_title: normalized_title,
+        file_path: file_path.to_string(),
+    })
+}
+
+fn read_jsonl_lines(file_path: &str) -> Result<Vec<String>, String> {
     let file =
-        File::open(&file_path).map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+        File::open(file_path).map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
     let reader = BufReader::new(file);
-    let mut lines: Vec<String> = reader
+    let lines: Vec<String> = reader
         .lines()
         .collect::<Result<_, _>>()
         .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
@@ -128,38 +155,14 @@ pub async fn rename_session_native(
         return Err(RenameError::EmptySession.to_string());
     }
 
-    // 5. Find first user message (type: "user", not isMeta)
-    let user_message_index = find_first_user_message_index(&lines)?;
+    Ok(lines)
+}
 
-    // 6. Parse the user message line as JSON
-    let mut user_message: serde_json::Value = serde_json::from_str(&lines[user_message_index])
-        .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
-
-    // 7. Extract current message content - handle nested structure
-    let current_message = extract_message_content(&user_message).ok_or_else(|| {
-        RenameError::InvalidJsonFormat("No 'message' field found".to_string()).to_string()
-    })?;
-
-    // 8. Strip existing bracket prefix if present
-    let base_message = strip_title_prefix(&current_message);
-
-    // 9. Construct new message with title prefix
-    let new_message = if new_title.trim().is_empty() {
-        base_message.clone()
-    } else {
-        format!("[{}] {}", new_title.trim(), base_message)
-    };
-
-    // 10. Update JSON object - handle nested structure
-    if !update_message_content(&mut user_message, &new_message) {
-        return Err(RenameError::UnsupportedContentFormat.to_string());
+fn write_jsonl_lines(file_path: &str, lines: &[String]) -> Result<(), String> {
+    if lines.is_empty() {
+        return Err(RenameError::EmptySession.to_string());
     }
 
-    // 11. Serialize back to JSON string
-    lines[user_message_index] = serde_json::to_string(&user_message)
-        .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
-
-    // 12. Write atomically (write to temp with unique nonce, then rename)
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
@@ -187,14 +190,58 @@ pub async fn rename_session_native(
         }
     }
 
-    fs::rename(&temp_path, &file_path)
+    fs::rename(&temp_path, file_path)
         .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+
+    Ok(())
+}
+
+fn reset_claude_session_file(file_path: &str) -> Result<NativeRenameResult, String> {
+    let lines = read_jsonl_lines(file_path)?;
+    let context = collect_claude_rename_context(&lines, file_path)?;
+    let previous_title = context.current_title()?;
+    let mut filtered_lines = Vec::with_capacity(lines.len());
+    let mut removed_rename = false;
+
+    for line in lines {
+        if is_claude_rename_event_line(&line) {
+            removed_rename = true;
+            continue;
+        }
+        filtered_lines.push(line);
+    }
+
+    let user_message_index = find_first_user_message_index(&filtered_lines)?;
+    let mut user_message: Value = serde_json::from_str(&filtered_lines[user_message_index])
+        .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
+    let current_message = extract_message_content(&user_message).ok_or_else(|| {
+        RenameError::InvalidJsonFormat("No 'message' field found".to_string()).to_string()
+    })?;
+    let base_message = if removed_rename {
+        current_message.clone()
+    } else {
+        strip_title_prefix(&current_message)
+    };
+    let mut stripped_legacy_prefix = false;
+
+    if base_message != current_message {
+        if !update_message_content(&mut user_message, &base_message) {
+            return Err(RenameError::UnsupportedContentFormat.to_string());
+        }
+        filtered_lines[user_message_index] = serde_json::to_string(&user_message)
+            .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
+        stripped_legacy_prefix = true;
+    }
+
+    if removed_rename || stripped_legacy_prefix {
+        write_jsonl_lines(file_path, &filtered_lines)?;
+    }
 
     Ok(NativeRenameResult {
         success: true,
-        previous_title: current_message,
-        new_title: new_message,
-        file_path,
+        previous_title,
+        new_title: base_message,
+        file_path: file_path.to_string(),
     })
 }
 
@@ -282,8 +329,183 @@ fn validate_claude_path(file_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Debug, Default)]
+struct ClaudeRenameContext {
+    first_user_content: Option<String>,
+    latest_rename: Option<String>,
+    last_uuid: Option<String>,
+    session_id: Option<String>,
+    cwd: Option<String>,
+    entrypoint: Option<String>,
+    user_type: Option<String>,
+    version: Option<String>,
+    git_branch: Option<String>,
+}
+
+impl ClaudeRenameContext {
+    fn current_title(&self) -> Result<String, String> {
+        self.latest_rename
+            .clone()
+            .or_else(|| self.first_user_content.clone())
+            .ok_or_else(|| RenameError::NoUserMessage.to_string())
+    }
+}
+
+fn collect_claude_rename_context(
+    lines: &[String],
+    file_path: &str,
+) -> Result<ClaudeRenameContext, String> {
+    let mut context = ClaudeRenameContext::default();
+
+    for line in lines {
+        let Ok(json) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+
+        update_context_field(&mut context.last_uuid, &json, "uuid");
+        update_context_field(&mut context.session_id, &json, "sessionId");
+        update_context_field(&mut context.cwd, &json, "cwd");
+        update_context_field(&mut context.entrypoint, &json, "entrypoint");
+        update_context_field(&mut context.user_type, &json, "userType");
+        update_context_field(&mut context.version, &json, "version");
+        update_context_field(&mut context.git_branch, &json, "gitBranch");
+
+        if let Some(rename_name) = extract_claude_rename_from_value(&json) {
+            context.latest_rename = Some(rename_name);
+        }
+
+        let is_user = json.get("type").and_then(Value::as_str) == Some("user");
+        let is_meta = json.get("isMeta").and_then(Value::as_bool).unwrap_or(false);
+        if is_user && !is_meta && context.first_user_content.is_none() {
+            context.first_user_content = extract_message_content(&json);
+        }
+    }
+
+    if context.session_id.is_none() {
+        context.session_id = Path::new(file_path)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .map(ToOwned::to_owned);
+    }
+
+    if context.first_user_content.is_none() {
+        return Err(RenameError::NoUserMessage.to_string());
+    }
+
+    Ok(context)
+}
+
+fn update_context_field(target: &mut Option<String>, json: &Value, key: &str) {
+    if let Some(value) = json.get(key).and_then(Value::as_str) {
+        *target = Some(value.to_string());
+    }
+}
+
+fn validate_claude_rename_title(title: &str) -> Result<(), String> {
+    if title.chars().any(|ch| ch == '\n' || ch == '\r') {
+        return Err(RenameError::InvalidTitle(
+            "Title cannot contain newline characters".to_string(),
+        )
+        .to_string());
+    }
+    Ok(())
+}
+
+fn build_claude_rename_event(context: &ClaudeRenameContext, new_title: &str) -> Value {
+    let mut event = Map::new();
+    event.insert(
+        "parentUuid".to_string(),
+        context
+            .last_uuid
+            .clone()
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+    );
+    event.insert("isSidechain".to_string(), Value::Bool(false));
+    event.insert("type".to_string(), Value::String("system".to_string()));
+    event.insert(
+        "subtype".to_string(),
+        Value::String("local_command".to_string()),
+    );
+    event.insert(
+        "content".to_string(),
+        Value::String(format!(
+            "<local-command-stdout>Session renamed to: {new_title}</local-command-stdout>"
+        )),
+    );
+    event.insert("level".to_string(), Value::String("info".to_string()));
+    event.insert(
+        "timestamp".to_string(),
+        Value::String(Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)),
+    );
+    event.insert(
+        "uuid".to_string(),
+        Value::String(Uuid::new_v4().to_string()),
+    );
+    event.insert("isMeta".to_string(), Value::Bool(false));
+    event.insert(
+        "userType".to_string(),
+        Value::String(
+            context
+                .user_type
+                .clone()
+                .unwrap_or_else(|| "external".to_string()),
+        ),
+    );
+    event.insert(
+        "entrypoint".to_string(),
+        Value::String(
+            context
+                .entrypoint
+                .clone()
+                .unwrap_or_else(|| "cli".to_string()),
+        ),
+    );
+
+    if let Some(cwd) = &context.cwd {
+        event.insert("cwd".to_string(), Value::String(cwd.clone()));
+    }
+    if let Some(session_id) = &context.session_id {
+        event.insert("sessionId".to_string(), Value::String(session_id.clone()));
+    }
+    if let Some(version) = &context.version {
+        event.insert("version".to_string(), Value::String(version.clone()));
+    }
+    if let Some(git_branch) = &context.git_branch {
+        event.insert("gitBranch".to_string(), Value::String(git_branch.clone()));
+    }
+
+    Value::Object(event)
+}
+
+fn extract_claude_rename_from_value(json: &Value) -> Option<String> {
+    if json.get("type").and_then(Value::as_str) != Some("system") {
+        return None;
+    }
+    if json.get("subtype").and_then(Value::as_str) != Some("local_command") {
+        return None;
+    }
+    let text = json.get("content").and_then(Value::as_str)?;
+    const PREFIX: &str = "<local-command-stdout>Session renamed to: ";
+    const SUFFIX: &str = "</local-command-stdout>";
+    let rest = text.strip_prefix(PREFIX)?;
+    let name = rest.strip_suffix(SUFFIX)?;
+    let name = name.trim();
+    if name.is_empty() {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+fn is_claude_rename_event_line(line: &str) -> bool {
+    serde_json::from_str::<Value>(line)
+        .ok()
+        .and_then(|json| extract_claude_rename_from_value(&json))
+        .is_some()
+}
+
 /// Extracts message content from JSON, handling both direct string and nested object formats
-fn extract_message_content(json: &serde_json::Value) -> Option<String> {
+fn extract_message_content(json: &Value) -> Option<String> {
     json.get("message").and_then(|m| {
         // Handle direct string: {"message": "text"}
         if let Some(s) = m.as_str() {
@@ -536,6 +758,221 @@ pub async fn rename_opencode_session_title(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_rename_test_user(session_id: &str, uuid: &str, content: &str) -> String {
+        serde_json::json!({
+            "parentUuid": Value::Null,
+            "isSidechain": false,
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": content,
+            },
+            "timestamp": "2026-06-13T01:00:00.000Z",
+            "uuid": uuid,
+            "isMeta": false,
+            "userType": "external",
+            "entrypoint": "cli",
+            "cwd": "/tmp/cchv-rename-test",
+            "sessionId": session_id,
+            "version": "2.1.169",
+            "gitBranch": "main",
+        })
+        .to_string()
+    }
+
+    fn sample_rename_test_assistant(session_id: &str, parent_uuid: &str, uuid: &str) -> String {
+        serde_json::json!({
+            "parentUuid": parent_uuid,
+            "isSidechain": false,
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": "Assistant reply long enough",
+            },
+            "timestamp": "2026-06-13T01:00:03.000Z",
+            "uuid": uuid,
+            "isMeta": false,
+            "userType": "external",
+            "entrypoint": "cli",
+            "cwd": "/tmp/cchv-rename-test",
+            "sessionId": session_id,
+            "version": "2.1.169",
+            "gitBranch": "main",
+        })
+        .to_string()
+    }
+
+    fn sample_rename_test_event(session_id: &str, parent_uuid: &str, title: &str) -> String {
+        serde_json::json!({
+            "parentUuid": parent_uuid,
+            "isSidechain": false,
+            "type": "system",
+            "subtype": "local_command",
+            "content": format!("<local-command-stdout>Session renamed to: {title}</local-command-stdout>"),
+            "level": "info",
+            "timestamp": "2026-06-13T01:00:05.000Z",
+            "uuid": "rename-event-uuid",
+            "isMeta": false,
+            "userType": "external",
+            "entrypoint": "cli",
+            "cwd": "/tmp/cchv-rename-test",
+            "sessionId": session_id,
+            "version": "2.1.169",
+            "gitBranch": "main",
+        })
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn test_rename_claude_session_appends_local_command_event() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session-123.jsonl");
+        let session_id = "session-123";
+        let user_uuid = "user-uuid";
+        let assistant_uuid = "assistant-uuid";
+        let content = format!(
+            "{}\n{}\n",
+            sample_rename_test_user(session_id, user_uuid, "Original user request"),
+            sample_rename_test_assistant(session_id, user_uuid, assistant_uuid)
+        );
+        fs::write(&file_path, content).unwrap();
+
+        let result =
+            rename_claude_session_file(file_path.to_str().unwrap(), "My [Project] v2").unwrap();
+
+        assert_eq!(result.previous_title, "Original user request");
+        assert_eq!(result.new_title, "My [Project] v2");
+
+        let updated = fs::read_to_string(&file_path).unwrap();
+        let lines: Vec<&str> = updated.lines().collect();
+        assert_eq!(lines.len(), 3);
+
+        let first_message: Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(
+            first_message["message"]["content"].as_str(),
+            Some("Original user request")
+        );
+
+        let rename_event: Value = serde_json::from_str(lines[2]).unwrap();
+        assert_eq!(rename_event["type"].as_str(), Some("system"));
+        assert_eq!(rename_event["subtype"].as_str(), Some("local_command"));
+        assert_eq!(rename_event["parentUuid"].as_str(), Some(assistant_uuid));
+        assert_eq!(rename_event["sessionId"].as_str(), Some(session_id));
+        assert_eq!(
+            rename_event["content"].as_str(),
+            Some(
+                "<local-command-stdout>Session renamed to: My [Project] v2</local-command-stdout>"
+            )
+        );
+
+        let sessions = crate::commands::session::load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].summary, Some("My [Project] v2".to_string()));
+        assert!(sessions[0].is_renamed);
+    }
+
+    #[tokio::test]
+    async fn test_reset_claude_session_removes_rename_event_without_rewriting_user_message() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session-456.jsonl");
+        let session_id = "session-456";
+        let user_uuid = "user-uuid";
+        let assistant_uuid = "assistant-uuid";
+        let content = format!(
+            "{}\n{}\n{}\n",
+            sample_rename_test_user(session_id, user_uuid, "[RFC] draft parser"),
+            sample_rename_test_assistant(session_id, user_uuid, assistant_uuid),
+            sample_rename_test_event(session_id, assistant_uuid, "Current Title")
+        );
+        fs::write(&file_path, content).unwrap();
+
+        let result = reset_claude_session_file(file_path.to_str().unwrap()).unwrap();
+
+        assert_eq!(result.previous_title, "Current Title");
+        assert_eq!(result.new_title, "[RFC] draft parser");
+
+        let updated = fs::read_to_string(&file_path).unwrap();
+        assert!(!updated.contains("Session renamed to:"));
+        let lines: Vec<&str> = updated.lines().collect();
+        assert_eq!(lines.len(), 2);
+        let first_message: Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(
+            first_message["message"]["content"].as_str(),
+            Some("[RFC] draft parser")
+        );
+
+        let sessions = crate::commands::session::load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].summary, Some("[RFC] draft parser".to_string()));
+        assert!(!sessions[0].is_renamed);
+    }
+
+    #[tokio::test]
+    async fn test_reset_claude_session_strips_legacy_prefix_without_rename_event() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session-legacy.jsonl");
+        let session_id = "session-legacy";
+        let user_uuid = "user-uuid";
+        let assistant_uuid = "assistant-uuid";
+        let content = format!(
+            "{}\n{}\n",
+            sample_rename_test_user(
+                session_id,
+                user_uuid,
+                "[Legacy Title] Original user request"
+            ),
+            sample_rename_test_assistant(session_id, user_uuid, assistant_uuid)
+        );
+        fs::write(&file_path, content).unwrap();
+
+        let result = reset_claude_session_file(file_path.to_str().unwrap()).unwrap();
+
+        assert_eq!(
+            result.previous_title,
+            "[Legacy Title] Original user request"
+        );
+        assert_eq!(result.new_title, "Original user request");
+
+        let updated = fs::read_to_string(&file_path).unwrap();
+        let lines: Vec<&str> = updated.lines().collect();
+        assert_eq!(lines.len(), 2);
+        let first_message: Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(
+            first_message["message"]["content"].as_str(),
+            Some("Original user request")
+        );
+
+        let sessions = crate::commands::session::load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(
+            sessions[0].summary,
+            Some("Original user request".to_string())
+        );
+        assert!(!sessions[0].is_renamed);
+    }
+
+    #[test]
+    fn test_claude_rename_title_rejects_newline() {
+        let result = validate_claude_rename_title("bad\ntitle");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("newline"));
+    }
 
     #[test]
     fn test_parse_opencode_session_path_valid() {
@@ -898,11 +1335,11 @@ mod tests {
     // --- Title validation tests ---
 
     #[test]
-    fn test_title_with_closing_bracket_rejected() {
-        // This test verifies that titles containing ']' are rejected
-        // due to the nested bracket limitation in strip_title_prefix
+    fn test_claude_rename_title_allows_closing_bracket() {
+        // Claude-style rename events store the title as command output, so
+        // bracket characters no longer conflict with legacy prefix stripping.
         let title_with_bracket = "Test ] Title";
-        assert!(title_with_bracket.contains(']'));
+        assert!(validate_claude_rename_title(title_with_bracket).is_ok());
     }
 
     #[test]

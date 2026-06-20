@@ -21,8 +21,9 @@ interface NativeRenameDialogProps {
   onOpenChange: (open: boolean) => void;
   filePath: string;
   currentName: string;
+  isRenamed?: boolean;
   provider?: ProviderId;
-  onSuccess?: (newTitle: string) => void;
+  onSuccess?: (newTitle: string, isNativeRenamed: boolean) => void;
 }
 
 export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
@@ -30,36 +31,40 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
   onOpenChange,
   filePath,
   currentName,
+  isRenamed = false,
   provider = "claude",
   onSuccess,
 }) => {
   const { t } = useTranslation();
   const { renameNative, isRenaming, error } = useNativeRename();
   const [title, setTitle] = useState("");
+  const isClaude = provider === "claude";
   const inputId = useId();
   const isOpenCode = provider === "opencode";
   const isForgeCode = provider === "forgecode";
-  const usesStandaloneTitlePreview = isOpenCode || isForgeCode;
+  const usesStandaloneTitlePreview = isClaude || isOpenCode || isForgeCode;
 
-  // Extract existing title if present. For providers that use a
-  // standalone title (OpenCode, ForgeCode) the saved name *is* the title,
+  // Extract existing title if present. For providers that use a standalone
+  // title (OpenCode, ForgeCode, and Claude `/rename`) the saved name is the title,
   // so mirror the parsing path the save side uses — otherwise the input
   // arrives empty and a blind save would silently reset the title.
   useEffect(() => {
     if (!open) return;
-    if (usesStandaloneTitlePreview) {
+    if (isOpenCode || isForgeCode || (isClaude && isRenamed)) {
       setTitle(currentName);
     } else {
+      // Legacy Claude rename used a `[Title] first message` prefix.
       const match = currentName.match(/^\[(.+?)\]/);
       setTitle(match?.[1] ?? "");
     }
-  }, [open, currentName, usesStandaloneTitlePreview]);
+  }, [open, currentName, isClaude, isForgeCode, isOpenCode, isRenamed]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const normalizedTitle = title.trim();
       const result = await renameNative(filePath, title, provider);
-      onSuccess?.(result.new_title);
+      onSuccess?.(result.new_title, isClaude ? normalizedTitle.length > 0 : !!result.new_title);
       onOpenChange(false);
     } catch {
       // Error is handled by the hook
