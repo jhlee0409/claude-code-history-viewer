@@ -24,8 +24,8 @@ export interface UseNativeRenameReturn {
 /**
  * Hook for native Claude Code session renaming operations.
  *
- * This hook provides functionality to rename sessions at the file level,
- * making the rename visible in Claude Code CLI.
+ * This hook provides functionality to rename sessions in the provider's
+ * native storage, making the rename visible in the corresponding CLI.
  *
  * @example
  * ```tsx
@@ -77,7 +77,7 @@ export const useNativeRename = (): UseNativeRenameReturn => {
         }
       }
 
-      if (provider !== "claude" && provider !== "forgecode") {
+      if (provider !== "claude" && provider !== "codex" && provider !== "forgecode") {
         const errorMessage = `Native rename is not supported for provider: ${provider}`;
         setError(errorMessage);
         throw new Error(errorMessage);
@@ -89,8 +89,8 @@ export const useNativeRename = (): UseNativeRenameReturn => {
         throw new Error(errorMessage);
       }
 
-      // Claude sessions are filesystem-backed and require absolute paths.
-      if (provider === "claude" && !isAbsolutePath(filePath)) {
+      // Claude and Codex sessions are filesystem-backed and require absolute paths.
+      if ((provider === "claude" || provider === "codex") && !isAbsolutePath(filePath)) {
         const errorMessage = "Invalid file path: must be an absolute path";
         setError(errorMessage);
         throw new Error(errorMessage);

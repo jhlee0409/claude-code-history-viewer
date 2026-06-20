@@ -163,6 +163,8 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
               <span>
                 {providerId === "opencode"
                   ? t("session.nativeRename.menuItemOpenCode", "Rename in OpenCode")
+                  : providerId === "codex"
+                    ? t("session.nativeRename.menuItemCodex", "Rename in Codex CLI")
                   : providerId === "forgecode"
                     ? t("session.nativeRename.menuItemForgeCode", "Rename in ForgeCode")
                     : t("session.nativeRename.menuItem", "Rename in Claude Code")}

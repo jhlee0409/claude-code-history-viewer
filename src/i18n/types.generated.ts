@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-06-20T14:12:29.699Z
- * 총 키 개수: 1789
+ * 생성 시간: 2026-06-20T15:28:47.019Z
+ * 총 키 개수: 1799
  * Namespace 수: 11
  */
 
@@ -396,7 +396,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (207개)
+ * session namespace의 번역 키 (217개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -489,7 +489,13 @@ export type SessionKeys =
   | 'session.claudeCodeSynced'
   | 'session.cliSync.badge'
   | 'session.cliSync.description'
+  | 'session.cliSync.descriptionCodex'
+  | 'session.cliSync.descriptionForgeCode'
+  | 'session.cliSync.descriptionOpenCode'
   | 'session.cliSync.title'
+  | 'session.cliSync.titleCodex'
+  | 'session.cliSync.titleForgeCode'
+  | 'session.cliSync.titleOpenCode'
   | 'session.copiedFilePath'
   | 'session.copiedResumeCommand'
   | 'session.copiedResumeCommandNoCwd'
@@ -567,10 +573,12 @@ export type SessionKeys =
   | 'session.loading'
   | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
+  | 'session.nativeRename.descriptionCodex'
   | 'session.nativeRename.descriptionForgeCode'
   | 'session.nativeRename.descriptionOpenCode'
   | 'session.nativeRename.label'
   | 'session.nativeRename.menuItem'
+  | 'session.nativeRename.menuItemCodex'
   | 'session.nativeRename.menuItemForgeCode'
   | 'session.nativeRename.menuItemOpenCode'
   | 'session.nativeRename.placeholder'
@@ -579,10 +587,12 @@ export type SessionKeys =
   | 'session.nativeRename.resetMenuItem'
   | 'session.nativeRename.success'
   | 'session.nativeRename.title'
+  | 'session.nativeRename.titleCodex'
   | 'session.nativeRename.titleForgeCode'
   | 'session.nativeRename.titleOpenCode'
   | 'session.nativeRename.titlePlaceholder'
   | 'session.nativeRename.warning'
+  | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
   | 'session.refresh'
@@ -2810,7 +2820,13 @@ export type TranslationKey =
   | 'session.claudeCodeSynced'
   | 'session.cliSync.badge'
   | 'session.cliSync.description'
+  | 'session.cliSync.descriptionCodex'
+  | 'session.cliSync.descriptionForgeCode'
+  | 'session.cliSync.descriptionOpenCode'
   | 'session.cliSync.title'
+  | 'session.cliSync.titleCodex'
+  | 'session.cliSync.titleForgeCode'
+  | 'session.cliSync.titleOpenCode'
   | 'session.copiedFilePath'
   | 'session.copiedResumeCommand'
   | 'session.copiedResumeCommandNoCwd'
@@ -2888,10 +2904,12 @@ export type TranslationKey =
   | 'session.loading'
   | 'session.nativeRename.currentName'
   | 'session.nativeRename.description'
+  | 'session.nativeRename.descriptionCodex'
   | 'session.nativeRename.descriptionForgeCode'
   | 'session.nativeRename.descriptionOpenCode'
   | 'session.nativeRename.label'
   | 'session.nativeRename.menuItem'
+  | 'session.nativeRename.menuItemCodex'
   | 'session.nativeRename.menuItemForgeCode'
   | 'session.nativeRename.menuItemOpenCode'
   | 'session.nativeRename.placeholder'
@@ -2900,10 +2918,12 @@ export type TranslationKey =
   | 'session.nativeRename.resetMenuItem'
   | 'session.nativeRename.success'
   | 'session.nativeRename.title'
+  | 'session.nativeRename.titleCodex'
   | 'session.nativeRename.titleForgeCode'
   | 'session.nativeRename.titleOpenCode'
   | 'session.nativeRename.titlePlaceholder'
   | 'session.nativeRename.warning'
+  | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
   | 'session.refresh'

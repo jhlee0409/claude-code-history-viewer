@@ -73,6 +73,8 @@ describe("providers utils", () => {
   });
 
   it("returns the codex resume subcommand for codex sessions", () => {
+    expect(supportsNativeRename("codex")).toBe(true);
+    expect(supportsSessionDeletion("codex")).toBe(true);
     expect(getResumeCommand("codex", "abc-123")).toBe("codex resume abc-123");
   });
 

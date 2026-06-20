@@ -41,30 +41,34 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
   const isClaude = provider === "claude";
   const inputId = useId();
   const isOpenCode = provider === "opencode";
+  const isCodex = provider === "codex";
   const isForgeCode = provider === "forgecode";
-  const usesStandaloneTitlePreview = isClaude || isOpenCode || isForgeCode;
+  const usesStandaloneTitlePreview = isClaude || isCodex || isOpenCode || isForgeCode;
 
   // Extract existing title if present. For providers that use a standalone
-  // title (OpenCode, ForgeCode, and Claude `/rename`) the saved name is the title,
+  // title (OpenCode, Codex, ForgeCode, and Claude `/rename`) the saved name is the title,
   // so mirror the parsing path the save side uses — otherwise the input
   // arrives empty and a blind save would silently reset the title.
   useEffect(() => {
     if (!open) return;
-    if (isOpenCode || isForgeCode || (isClaude && isRenamed)) {
+    if (isOpenCode || isForgeCode || ((isClaude || isCodex) && isRenamed)) {
       setTitle(currentName);
     } else {
       // Legacy Claude rename used a `[Title] first message` prefix.
       const match = currentName.match(/^\[(.+?)\]/);
       setTitle(match?.[1] ?? "");
     }
-  }, [open, currentName, isClaude, isForgeCode, isOpenCode, isRenamed]);
+  }, [open, currentName, isClaude, isCodex, isForgeCode, isOpenCode, isRenamed]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const normalizedTitle = title.trim();
       const result = await renameNative(filePath, title, provider);
-      onSuccess?.(result.new_title, isClaude ? normalizedTitle.length > 0 : !!result.new_title);
+      onSuccess?.(
+        result.new_title,
+        isClaude || isCodex ? normalizedTitle.length > 0 : !!result.new_title
+      );
       onOpenChange(false);
     } catch {
       // Error is handled by the hook
@@ -85,6 +89,8 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
             <Terminal className="w-5 h-5" />
             {isOpenCode
               ? t("session.nativeRename.titleOpenCode", "Rename in OpenCode")
+              : isCodex
+                ? t("session.nativeRename.titleCodex", "Rename in Codex CLI")
               : isForgeCode
                 ? t("session.nativeRename.titleForgeCode", "Rename in ForgeCode")
                 : t("session.nativeRename.title")}
@@ -95,6 +101,11 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
                   "session.nativeRename.descriptionOpenCode",
                   "This updates the OpenCode session title in storage."
                 )
+              : isCodex
+                ? t(
+                    "session.nativeRename.descriptionCodex",
+                    "This updates the Codex CLI session title in the Codex state database."
+                  )
               : isForgeCode
                 ? t(
                     "session.nativeRename.descriptionForgeCode",
@@ -114,6 +125,11 @@ export const NativeRenameDialog: React.FC<NativeRenameDialogProps> = ({
                       "session.nativeRename.warningOpenCode",
                       "This operation modifies the OpenCode session metadata file. The change is reversible."
                     )
+                  : isCodex
+                    ? t(
+                        "session.nativeRename.warningCodex",
+                        "This operation updates Codex CLI thread metadata. The change is reversible."
+                      )
                   : isForgeCode
                     ? t(
                         "session.nativeRename.warningForgeCode",
