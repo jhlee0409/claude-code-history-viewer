@@ -92,6 +92,82 @@ const extractSearchableText = (message: ClaudeMessageMinimal): string => {
             if (item.type === "tool_use" && hasStringProperty(item, "name")) parts.push(item.name as string);
             if (item.type === "tool_result" && hasStringProperty(item, "content")) parts.push(item.content as string);
             if (item.type === "server_tool_use" && hasStringProperty(item, "name")) parts.push(item.name as string);
+            // Keep coverage in sync with src/utils/searchIndex.ts (#352): the
+            // worker must index the same content types as the main path, or
+            // search silently misses them.
+            const itemType = item.type as string | undefined;
+            if (itemType === "web_search_tool_result" && isRecord(item.content)) {
+              const c = item.content as Record<string, unknown>;
+              if (hasStringProperty(c, "title")) parts.push(c.title as string);
+              if (hasStringProperty(c, "url")) parts.push(c.url as string);
+            } else if (itemType === "web_search_tool_result" && Array.isArray(item.content)) {
+              for (const result of item.content) {
+                if (isRecord(result)) {
+                  if (hasStringProperty(result, "title")) parts.push(result.title as string);
+                  if (hasStringProperty(result, "url")) parts.push(result.url as string);
+                }
+              }
+            }
+            if (itemType === "document") {
+              if (hasStringProperty(item, "title")) parts.push(item.title as string);
+              if (hasStringProperty(item, "context")) parts.push(item.context as string);
+              if (isRecord(item.source) && (item.source as Record<string, unknown>).type === "text") {
+                const source = item.source as Record<string, unknown>;
+                if (hasStringProperty(source, "data")) parts.push(source.data as string);
+              }
+            }
+            if (itemType === "search_result") {
+              if (hasStringProperty(item, "title")) parts.push(item.title as string);
+              if (hasStringProperty(item, "source")) parts.push(item.source as string);
+              if (Array.isArray(item.content)) {
+                for (const tc of item.content) {
+                  if (isRecord(tc) && hasStringProperty(tc, "text")) parts.push(tc.text as string);
+                }
+              }
+            }
+            if (itemType === "mcp_tool_use") {
+              if (hasStringProperty(item, "server_name")) parts.push(item.server_name as string);
+              if (hasStringProperty(item, "tool_name")) parts.push(item.tool_name as string);
+            }
+            if (itemType === "mcp_tool_result") {
+              const c = item.content;
+              if (typeof c === "string") parts.push(c);
+              else if (isRecord(c)) {
+                if (hasStringProperty(c, "text")) parts.push(c.text as string);
+                if (hasStringProperty(c, "uri")) parts.push(c.uri as string);
+              }
+            }
+            if (itemType === "web_fetch_tool_result" && isRecord(item.content)) {
+              const content = item.content as Record<string, unknown>;
+              if (hasStringProperty(content, "url")) parts.push(content.url as string);
+              if (isRecord(content.content)) {
+                const doc = content.content as Record<string, unknown>;
+                if (hasStringProperty(doc, "title")) parts.push(doc.title as string);
+              }
+            }
+            if (
+              (itemType === "code_execution_tool_result" ||
+                itemType === "bash_code_execution_tool_result") &&
+              isRecord(item.content)
+            ) {
+              const content = item.content as Record<string, unknown>;
+              if (hasStringProperty(content, "stdout")) parts.push(content.stdout as string);
+              if (hasStringProperty(content, "stderr")) parts.push(content.stderr as string);
+            }
+            if (itemType === "text_editor_code_execution_tool_result" && isRecord(item.content)) {
+              const content = item.content as Record<string, unknown>;
+              if (hasStringProperty(content, "path")) parts.push(content.path as string);
+              if (hasStringProperty(content, "content")) parts.push(content.content as string);
+            }
+            if (itemType === "tool_search_tool_result" && Array.isArray(item.content)) {
+              for (const result of item.content) {
+                if (isRecord(result)) {
+                  if (hasStringProperty(result, "tool_name")) parts.push(result.tool_name as string);
+                  if (hasStringProperty(result, "server_name")) parts.push(result.server_name as string);
+                  if (hasStringProperty(result, "description")) parts.push(result.description as string);
+                }
+              }
+            }
           }
         }
       }
