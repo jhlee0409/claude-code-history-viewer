@@ -150,6 +150,7 @@
   "session.item.archivedDescription": "儲存於 Codex archived_sessions 中。",
   "session.item.containsErrors": "包含錯誤",
   "session.item.storageType.json": "JSON",
+  "session.item.storageType.jsonl": "JSONL",
   "session.item.storageType.sqlite": "SQLite",
   "session.item.containsToolUse": "包含工具使用",
   "session.item.lastModified": "最後修改",

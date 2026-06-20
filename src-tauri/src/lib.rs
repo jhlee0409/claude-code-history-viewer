@@ -1007,6 +1007,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(kimi_base) = providers::kimi::get_base_path() {
+        let sessions = PathBuf::from(kimi_base).join("sessions");
+        if sessions.is_dir() {
+            paths.push(sessions);
+        }
+    }
+
     if let Some(opencode_base) = providers::opencode::get_base_path() {
         let base = PathBuf::from(&opencode_base);
         let storage = base.join("storage");

@@ -16,8 +16,8 @@ import {
 
 describe("providers utils", () => {
   it("normalizes provider ids by canonical order", () => {
-    const ids = normalizeProviderIds(["opencode", "claude", "opencode"]);
-    expect(ids).toEqual(["claude", "opencode"]);
+    const ids = normalizeProviderIds(["opencode", "kimi", "claude", "opencode"]);
+    expect(ids).toEqual(["claude", "kimi", "opencode"]);
   });
 
   it("falls back to default provider for unknown values", () => {
@@ -49,6 +49,7 @@ describe("providers utils", () => {
       "cursor-agent",
       "forgecode",
       "gemini",
+      "kimi",
       "opencode",
     ]);
   });
@@ -58,6 +59,7 @@ describe("providers utils", () => {
     expect(supportsConversationBreakdown("antigravity")).toBe(true);
     expect(supportsConversationBreakdown("forgecode")).toBe(true);
     expect(supportsConversationBreakdown("codex")).toBe(false);
+    expect(supportsConversationBreakdown("kimi")).toBe(false);
     expect(supportsConversationBreakdown("opencode")).toBe(false);
     expect(supportsConversationBreakdown("unknown")).toBe(false);
   });
@@ -72,6 +74,13 @@ describe("providers utils", () => {
 
   it("returns the codex resume subcommand for codex sessions", () => {
     expect(getResumeCommand("codex", "abc-123")).toBe("codex resume abc-123");
+  });
+
+  it("returns the kimi resume subcommand for kimi sessions", () => {
+    expect(getProviderLabel((key, fallback) => `${key}:${fallback}`, "kimi")).toBe(
+      "common.provider.kimi:Kimi CLI"
+    );
+    expect(getResumeCommand("kimi", "abc-123")).toBe("kimi -r abc-123");
   });
 
   it("getResumeCommand fails closed for unknown provider strings", () => {
@@ -91,6 +100,9 @@ describe("providers utils", () => {
     );
     expect(getResumeCommand("forgecode", "abc", "/Users/foo/proj")).toBe(
       "cd '/Users/foo/proj' && forge conversation resume abc"
+    );
+    expect(getResumeCommand("kimi", "abc", "/Users/foo/proj")).toBe(
+      "cd '/Users/foo/proj' && kimi -r abc"
     );
   });
 
@@ -131,6 +143,7 @@ describe("providers utils", () => {
     expect(hasAnyConversationBreakdownProvider(["codex", "opencode"])).toBe(
       false
     );
+    expect(hasAnyConversationBreakdownProvider(["kimi"])).toBe(false);
     expect(hasAnyConversationBreakdownProvider([])).toBe(false);
     expect(hasAnyConversationBreakdownProvider(undefined)).toBe(false);
   });

@@ -126,6 +126,7 @@
   "common.provider.cursorAgent": "Cursor Agent",
   "common.provider.forgecode": "ForgeCode",
   "common.provider.gemini": "Gemini CLI",
+  "common.provider.kimi": "Kimi CLI",
   "common.provider.detectError": "プロバイダーの検出に失敗しました。Claude のみ使用します。",
   "common.provider.antigravity": "Antigravity",
   "common.provider.opencode": "OpenCode",

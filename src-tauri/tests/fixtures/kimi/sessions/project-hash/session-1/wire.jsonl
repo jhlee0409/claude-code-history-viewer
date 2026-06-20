@@ -1,0 +1,4 @@
+{"protocol_version":1,"type":"hello"}
+{"timestamp":1770000000.0,"message":{"type":"TurnBegin"}}
+{"timestamp":1770000005.5,"message":{"type":"ToolCall"}}
+{"timestamp":1770000010.25,"message":{"type":"TurnEnd"}}

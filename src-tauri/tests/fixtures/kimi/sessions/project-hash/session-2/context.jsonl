@@ -1,0 +1,3 @@
+{"role":"_system_prompt","content":"You are Kimi Code CLI."}
+{"role":"user","content":"Second session prompt"}
+{"role":"assistant","content":[{"type":"text","text":"Second session answer"}]}

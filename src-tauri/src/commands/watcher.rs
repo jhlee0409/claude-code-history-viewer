@@ -250,6 +250,9 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
     match ext {
         // Claude + Codex rollout logs
         "jsonl" => {
+            if let Some(paths) = extract_kimi_paths(path) {
+                return Some(paths);
+            }
             if let Some((project_path, session_path)) = extract_paths(path) {
                 return Some((
                     project_path.to_string_lossy().to_string(),
@@ -258,8 +261,8 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             }
             extract_codex_paths(path)
         }
-        // OpenCode storage files
-        "json" => extract_opencode_paths(path),
+        // Kimi state files and OpenCode storage files
+        "json" => extract_kimi_paths(path).or_else(|| extract_opencode_paths(path)),
         // OpenCode SQLite database change — emit broad refresh for all OpenCode projects
         "db" | "db-wal" => extract_opencode_db_event(path),
         _ => None,
@@ -335,6 +338,32 @@ fn extract_codex_paths(path: &Path) -> Option<(String, String)> {
     Some((
         "codex://watch".to_string(),
         path.to_string_lossy().to_string(),
+    ))
+}
+
+/// Extract Kimi session identifiers from files under
+/// `~/.kimi/sessions/{project_hash}/{session_id}/`.
+fn extract_kimi_paths(path: &Path) -> Option<(String, String)> {
+    let filename = path.file_name()?.to_str()?;
+    if !matches!(filename, "context.jsonl" | "wire.jsonl" | "state.json") {
+        return None;
+    }
+
+    let sessions_root = crate::providers::kimi::get_base_path()
+        .map(PathBuf::from)
+        .map(|base| base.join("sessions"))?;
+    let relative = path.strip_prefix(&sessions_root).ok()?;
+    let parts: Vec<_> = relative.components().collect();
+    if parts.len() != 3 {
+        return None;
+    }
+
+    let project_path = sessions_root.join(parts[0].as_os_str());
+    let session_path = project_path.join(parts[1].as_os_str());
+
+    Some((
+        format!("kimi://{}", project_path.to_string_lossy()),
+        session_path.to_string_lossy().to_string(),
     ))
 }
 
@@ -468,6 +497,7 @@ fn remember_opencode_project_id(storage_root: &Path, session_id: &str, project_i
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::TempDir;
 
     #[test]
@@ -543,6 +573,124 @@ mod tests {
 
         assert_eq!(result.0, "codex://watch");
         assert_eq!(result.1, path.to_string_lossy());
+    }
+
+    #[test]
+    #[serial]
+    fn test_extract_kimi_context_paths() {
+        let temp = TempDir::new().unwrap();
+        let old_kimi_home = std::env::var_os("KIMI_HOME");
+        std::env::set_var("KIMI_HOME", temp.path());
+
+        let path = temp
+            .path()
+            .join("sessions")
+            .join("project_hash")
+            .join("session_1")
+            .join("context.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{}\n").unwrap();
+
+        let result = extract_provider_paths(&path).unwrap();
+
+        if let Some(kimi_home) = old_kimi_home {
+            std::env::set_var("KIMI_HOME", kimi_home);
+        } else {
+            std::env::remove_var("KIMI_HOME");
+        }
+
+        assert_eq!(
+            result.0,
+            format!(
+                "kimi://{}",
+                temp.path().join("sessions/project_hash").display()
+            )
+        );
+        assert_eq!(
+            result.1,
+            temp.path()
+                .join("sessions/project_hash/session_1")
+                .to_string_lossy()
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_extract_kimi_state_paths() {
+        let temp = TempDir::new().unwrap();
+        let old_kimi_home = std::env::var_os("KIMI_HOME");
+        std::env::set_var("KIMI_HOME", temp.path());
+
+        let path = temp
+            .path()
+            .join("sessions")
+            .join("project_hash")
+            .join("session_1")
+            .join("state.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{}\n").unwrap();
+
+        let result = extract_provider_paths(&path).unwrap();
+
+        if let Some(kimi_home) = old_kimi_home {
+            std::env::set_var("KIMI_HOME", kimi_home);
+        } else {
+            std::env::remove_var("KIMI_HOME");
+        }
+
+        assert_eq!(
+            result.0,
+            format!(
+                "kimi://{}",
+                temp.path().join("sessions/project_hash").display()
+            )
+        );
+        assert_eq!(
+            result.1,
+            temp.path()
+                .join("sessions/project_hash/session_1")
+                .to_string_lossy()
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_extract_kimi_paths_from_custom_home() {
+        let temp = TempDir::new().unwrap();
+        let old_kimi_home = std::env::var_os("KIMI_HOME");
+        std::env::set_var("KIMI_HOME", temp.path());
+
+        let path = temp
+            .path()
+            .join("sessions")
+            .join("project_hash")
+            .join("session_1")
+            .join("wire.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{}\n").unwrap();
+
+        let result = extract_provider_paths(&path);
+
+        if let Some(kimi_home) = old_kimi_home {
+            std::env::set_var("KIMI_HOME", kimi_home);
+        } else {
+            std::env::remove_var("KIMI_HOME");
+        }
+
+        let result = result.unwrap();
+        assert_eq!(
+            result.0,
+            format!(
+                "kimi://{}",
+                temp.path().join("sessions/project_hash").display()
+            )
+        );
+        assert_eq!(
+            result.1,
+            temp.path()
+                .join("sessions/project_hash/session_1")
+                .to_string_lossy()
+        );
     }
 
     #[test]
