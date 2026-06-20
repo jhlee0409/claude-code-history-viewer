@@ -11,6 +11,7 @@ pub mod cursor_agent;
 pub mod forgecode;
 pub mod gemini;
 pub mod kimi;
+pub mod kiro;
 pub mod opencode;
 
 /// Provider identifier
@@ -28,6 +29,7 @@ pub enum ProviderId {
     Gemini,
     Kimi,
     ForgeCode,
+    Kiro,
     OpenCode,
     Antigravity,
 }
@@ -45,6 +47,7 @@ impl ProviderId {
             Self::Gemini => "gemini",
             Self::Kimi => "kimi",
             Self::ForgeCode => "forgecode",
+            Self::Kiro => "kiro",
             Self::OpenCode => "opencode",
             Self::Antigravity => "antigravity",
         }
@@ -62,6 +65,7 @@ impl ProviderId {
             "gemini" => Some(Self::Gemini),
             "kimi" => Some(Self::Kimi),
             "forgecode" => Some(Self::ForgeCode),
+            "kiro" => Some(Self::Kiro),
             "opencode" => Some(Self::OpenCode),
             "antigravity" => Some(Self::Antigravity),
             _ => None,
@@ -80,6 +84,7 @@ impl ProviderId {
             Self::Gemini => "Gemini CLI",
             Self::Kimi => "Kimi CLI",
             Self::ForgeCode => "ForgeCode",
+            Self::Kiro => "Kiro CLI",
             Self::OpenCode => "OpenCode",
             Self::Antigravity => "Antigravity",
         }
@@ -133,6 +138,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = codebuddy::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = kiro::detect() {
         providers.push(info);
     }
 

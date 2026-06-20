@@ -50,6 +50,7 @@ describe("providers utils", () => {
       "forgecode",
       "gemini",
       "kimi",
+      "kiro",
       "opencode",
     ]);
   });

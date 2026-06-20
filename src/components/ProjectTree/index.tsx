@@ -112,6 +112,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       forgecode: 0,
       gemini: 0,
       kimi: 0,
+      kiro: 0,
       opencode: 0,
     };
 
