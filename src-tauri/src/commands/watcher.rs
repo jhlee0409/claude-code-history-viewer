@@ -352,7 +352,14 @@ fn extract_kimi_paths(path: &Path) -> Option<(String, String)> {
     let sessions_root = crate::providers::kimi::get_base_path()
         .map(PathBuf::from)
         .map(|base| base.join("sessions"))?;
-    let relative = path.strip_prefix(&sessions_root).ok()?;
+    // `get_base_path()` canonicalizes, but the watcher event path may not be
+    // (e.g. on macOS `/var` is a symlink to `/private/var`), so a raw
+    // `strip_prefix` would miss and the Kimi change event would be silently
+    // dropped — breaking watcher auto-refresh on macOS. Canonicalize the event
+    // path so both sides are like-for-like; fall back to the original path if it
+    // no longer exists (e.g. a delete event).
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let relative = canonical_path.strip_prefix(&sessions_root).ok()?;
     let parts: Vec<_> = relative.components().collect();
     if parts.len() != 3 {
         return None;
@@ -603,12 +610,18 @@ mod tests {
             result.0,
             format!(
                 "kimi://{}",
-                temp.path().join("sessions/project_hash").display()
+                temp.path()
+                    .canonicalize()
+                    .unwrap()
+                    .join("sessions/project_hash")
+                    .display()
             )
         );
         assert_eq!(
             result.1,
             temp.path()
+                .canonicalize()
+                .unwrap()
                 .join("sessions/project_hash/session_1")
                 .to_string_lossy()
         );
@@ -642,12 +655,18 @@ mod tests {
             result.0,
             format!(
                 "kimi://{}",
-                temp.path().join("sessions/project_hash").display()
+                temp.path()
+                    .canonicalize()
+                    .unwrap()
+                    .join("sessions/project_hash")
+                    .display()
             )
         );
         assert_eq!(
             result.1,
             temp.path()
+                .canonicalize()
+                .unwrap()
                 .join("sessions/project_hash/session_1")
                 .to_string_lossy()
         );
@@ -682,12 +701,18 @@ mod tests {
             result.0,
             format!(
                 "kimi://{}",
-                temp.path().join("sessions/project_hash").display()
+                temp.path()
+                    .canonicalize()
+                    .unwrap()
+                    .join("sessions/project_hash")
+                    .display()
             )
         );
         assert_eq!(
             result.1,
             temp.path()
+                .canonicalize()
+                .unwrap()
                 .join("sessions/project_hash/session_1")
                 .to_string_lossy()
         );
