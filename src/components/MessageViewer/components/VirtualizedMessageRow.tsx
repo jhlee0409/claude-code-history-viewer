@@ -14,10 +14,12 @@ import type { FlattenedMessage } from "../types";
 import { ClaudeMessageNode } from "./ClaudeMessageNode";
 import { DateDivider } from "./DateDivider";
 import { HiddenBlocksIndicator } from "./HiddenBlocksIndicator";
+import { isZeroHeightMessageRow } from "../helpers/heightEstimation";
 
 interface VirtualizedMessageRowProps {
   virtualRow: VirtualItem;
   item: FlattenedMessage;
+  translateOffset?: number;
   isMatch: boolean;
   isCurrentMatch: boolean;
   searchQuery?: string;
@@ -31,6 +33,7 @@ interface VirtualizedMessageRowProps {
   // Multi-selection
   isSelected?: boolean;
   onRangeSelect?: (uuid: string, modifiers: { shift: boolean; cmdOrCtrl: boolean }) => void;
+  isInSubagent?: boolean;
 }
 
 /**
@@ -43,6 +46,7 @@ export const VirtualizedMessageRow = forwardRef<
   {
     virtualRow,
     item,
+    translateOffset = 0,
     isMatch,
     isCurrentMatch,
     searchQuery,
@@ -54,9 +58,12 @@ export const VirtualizedMessageRow = forwardRef<
     onRestoreAll,
     isSelected,
     onRangeSelect,
+    isInSubagent = false,
   },
   ref
 ) {
+  const translateY = virtualRow.start - translateOffset;
+
   // Handle date divider
   if (item.type === "date-divider") {
     return (
@@ -68,7 +75,7 @@ export const VirtualizedMessageRow = forwardRef<
           top: 0,
           left: 0,
           width: "100%",
-          transform: `translateY(${virtualRow.start}px)`,
+          transform: `translateY(${translateY}px)`,
         }}
       >
         <DateDivider timestamp={item.timestamp} />
@@ -87,7 +94,7 @@ export const VirtualizedMessageRow = forwardRef<
           top: 0,
           left: 0,
           width: "100%",
-          transform: `translateY(${virtualRow.start}px)`,
+          transform: `translateY(${translateY}px)`,
         }}
       >
         <HiddenBlocksIndicator
@@ -104,18 +111,15 @@ export const VirtualizedMessageRow = forwardRef<
   const {
     message,
     depth,
-    isGroupMember,
-    isProgressGroupMember,
-    isTaskOperationGroupMember,
     agentTaskGroup,
     agentProgressGroup,
     taskOperationGroup,
     taskRegistry,
   } = item;
 
-  // Group members render as hidden placeholders for DOM presence (search needs them)
-  // but with zero height they won't affect layout
-  if (isGroupMember || isProgressGroupMember || isTaskOperationGroupMember) {
+  // Hidden rows stay in the virtual index space for navigation/search metadata,
+  // but must measure as 0px or long hidden runs create blank scroll gaps.
+  if (isZeroHeightMessageRow(item, isInSubagent)) {
     return (
       <div
         ref={ref}
@@ -126,7 +130,7 @@ export const VirtualizedMessageRow = forwardRef<
           top: 0,
           left: 0,
           width: "100%",
-          transform: `translateY(${virtualRow.start}px)`,
+          transform: `translateY(${translateY}px)`,
           height: 0,
           overflow: "hidden",
         }}
@@ -145,7 +149,7 @@ export const VirtualizedMessageRow = forwardRef<
         top: 0,
         left: 0,
         width: "100%",
-        transform: `translateY(${virtualRow.start}px)`,
+        transform: `translateY(${translateY}px)`,
       }}
     >
       <ClaudeMessageNode
