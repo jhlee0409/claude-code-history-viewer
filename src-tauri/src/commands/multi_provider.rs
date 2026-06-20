@@ -41,6 +41,7 @@ pub async fn scan_all_projects(
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
+            "kiro".to_string(),
         ]
     });
 
@@ -190,6 +191,15 @@ pub async fn scan_all_projects(
             }
         }
     }
+    // Kiro
+    if providers_to_scan.iter().any(|p| p == "kiro") {
+        match providers::kiro::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Kiro scan failed: {e}");
+            }
+        }
+    }
 
     // WSL scanning (Claude only — other providers' load_sessions/load_messages
     // use native base paths internally, so WSL projects would be visible but
@@ -273,6 +283,7 @@ pub async fn load_provider_sessions(
         "aider" => providers::aider::load_sessions(&project_path, exclude),
         "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
         "codebuddy" => providers::codebuddy::load_sessions(&project_path, exclude),
+        "kiro" => providers::kiro::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -304,6 +315,7 @@ pub async fn load_provider_messages(
         "aider" => providers::aider::load_messages(&session_path)?,
         "antigravity" => providers::antigravity::load_messages(&session_path)?,
         "codebuddy" => providers::codebuddy::load_messages(&session_path)?,
+        "kiro" => providers::kiro::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -341,6 +353,7 @@ pub async fn search_all_providers(
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
+            "kiro".to_string(),
         ]
     });
 
@@ -499,6 +512,15 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("CodeBuddy search failed: {e}");
+            }
+        }
+    }
+    // Kiro
+    if providers_to_search.iter().any(|p| p == "kiro") {
+        match providers::kiro::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Kiro search failed: {e}");
             }
         }
     }

@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "cursor", "cursor-agent", "forgecode", "gemini", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "cursor", "cursor-agent", "forgecode", "gemini", "kiro", "opencode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -17,6 +17,7 @@ const PROVIDER_TRANSLATIONS: Record<
   "cursor-agent": { key: "common.provider.cursorAgent", fallback: "Cursor Agent" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
+  kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
 };
 
@@ -101,6 +102,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  kiro: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   opencode: {
     supportsConversationBreakdown: false,
     supportsNativeRename: true,
@@ -133,6 +141,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "cursor-agent":
     case "gemini":
     case "forgecode":
+    case "kiro":
     case "opencode":
     case "claude":
       return provider;
@@ -254,6 +263,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   "cursor-agent": "bg-violet-500/15 text-violet-600 dark:text-violet-400",
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+  kiro: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",

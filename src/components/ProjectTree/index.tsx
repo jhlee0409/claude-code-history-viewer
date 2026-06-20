@@ -111,6 +111,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       "cursor-agent": 0,
       forgecode: 0,
       gemini: 0,
+      kiro: 0,
       opencode: 0,
     };
 
