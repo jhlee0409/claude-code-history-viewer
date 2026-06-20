@@ -1,7 +1,11 @@
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
-use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
+use crate::utils::{
+    build_provider_message, estimate_message_count_from_size, find_line_ranges,
+    search_json_value_case_insensitive,
+};
 use chrono::{DateTime, Utc};
+use memchr::{memchr_iter, memmem};
 use memmap2::Mmap;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -120,6 +124,13 @@ struct SessionInfo {
     summary: Option<String>,
 }
 
+/// Lightweight metadata used by project-level scans.
+struct ProjectScanInfo {
+    cwd: Option<String>,
+    message_count: usize,
+    last_modified: String,
+}
+
 /// Scan Codex projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "Codex base path")?;
@@ -142,7 +153,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
     }
 
     // Group sessions by cwd
-    let mut project_map: HashMap<String, Vec<SessionInfo>> = HashMap::new();
+    let mut project_map: HashMap<String, Vec<ProjectScanInfo>> = HashMap::new();
 
     for session_dir in session_dirs {
         for entry in WalkDir::new(session_dir)
@@ -154,7 +165,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
         {
             let rollout_path = entry.path();
 
-            if let Ok(info) = extract_session_info(rollout_path) {
+            if let Ok(info) = extract_project_scan_info(rollout_path) {
                 let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
                 project_map.entry(cwd).or_default().push(info);
             }
@@ -231,8 +242,13 @@ pub fn load_sessions(
         {
             let rollout_path = entry.path();
 
+            match extract_session_cwd(rollout_path) {
+                Ok(Some(session_cwd)) if session_cwd != target_cwd => continue,
+                Ok(_) | Err(_) => {}
+            }
+
             if let Ok(info) = extract_session_info(rollout_path) {
-                let session_cwd = info.cwd.as_deref().unwrap_or("");
+                let session_cwd = info.cwd.as_deref().unwrap_or("unknown");
                 if session_cwd != target_cwd {
                     continue;
                 }
@@ -454,6 +470,132 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // Internal helpers
 // ============================================================================
 
+const JSON_TYPE_KEY: &[u8] = b"\"type\"";
+fn skip_json_ws(bytes: &[u8], mut index: usize) -> usize {
+    while bytes
+        .get(index)
+        .is_some_and(|b| matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
+    {
+        index += 1;
+    }
+    index
+}
+
+fn has_json_string_field_value(line: &[u8], key: &[u8], value: &[u8]) -> bool {
+    let mut search_offset = 0;
+    while search_offset < line.len() {
+        let Some(relative_pos) = memmem::find(&line[search_offset..], key) else {
+            return false;
+        };
+
+        let mut index = search_offset + relative_pos + key.len();
+        index = skip_json_ws(line, index);
+        if line.get(index) != Some(&b':') {
+            search_offset = index.min(line.len());
+            continue;
+        }
+
+        index = skip_json_ws(line, index + 1);
+        if line.get(index) != Some(&b'"') {
+            search_offset = index.min(line.len());
+            continue;
+        }
+
+        let value_start = index + 1;
+        let value_end = value_start + value.len();
+        if line.get(value_start..value_end) == Some(value) && line.get(value_end) == Some(&b'"') {
+            return true;
+        }
+
+        search_offset = value_end.min(line.len());
+    }
+
+    false
+}
+
+fn for_each_jsonl_line(data: &[u8], mut visit: impl FnMut(&[u8]) -> bool) {
+    let mut start = 0;
+    for end in memchr_iter(b'\n', data) {
+        let line_end = if end > start && data[end - 1] == b'\r' {
+            end - 1
+        } else {
+            end
+        };
+        if !visit(&data[start..line_end]) {
+            return;
+        }
+        start = end + 1;
+    }
+
+    if start < data.len() {
+        let line = &data[start..];
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        visit(line);
+    }
+}
+
+fn parse_session_meta_cwd(line: &[u8]) -> Option<String> {
+    if !has_json_string_field_value(line, JSON_TYPE_KEY, b"session_meta") {
+        return None;
+    }
+
+    let mut buf = line.to_vec();
+    let val: Value = simd_json::from_slice(&mut buf).ok()?;
+    if val.get("type").and_then(|t| t.as_str()) != Some("session_meta") {
+        return None;
+    }
+
+    val.get("payload")?
+        .get("cwd")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+}
+
+fn file_modified_rfc3339(path: &Path) -> String {
+    fs::metadata(path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .map(|t| {
+            let dt: DateTime<Utc> = t.into();
+            dt.to_rfc3339()
+        })
+        .unwrap_or_else(|| Utc::now().to_rfc3339())
+}
+
+fn estimate_rollout_message_count(path: &Path) -> usize {
+    fs::metadata(path)
+        .map(|metadata| estimate_message_count_from_size(metadata.len()))
+        .unwrap_or(0)
+}
+
+#[allow(unsafe_code)] // Required for mmap performance optimization
+fn extract_session_cwd(rollout_path: &Path) -> Result<Option<String>, String> {
+    let file = File::open(rollout_path).map_err(|e| e.to_string())?;
+    // SAFETY: File is read-only and we only read from the mapping
+    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
+
+    let mut cwd = None;
+    for_each_jsonl_line(&mmap, |line| {
+        if let Some(found) = parse_session_meta_cwd(line) {
+            cwd = Some(found);
+            return false;
+        }
+        true
+    });
+
+    Ok(cwd)
+}
+
+fn extract_project_scan_info(rollout_path: &Path) -> Result<ProjectScanInfo, String> {
+    Ok(ProjectScanInfo {
+        cwd: extract_session_cwd(rollout_path)?,
+        // Project list scans stay lightweight; session-level message counts
+        // are still computed exactly when the project is opened.
+        message_count: estimate_rollout_message_count(rollout_path),
+        last_modified: file_modified_rfc3339(rollout_path),
+    })
+}
+
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
     let file = File::open(rollout_path).map_err(|e| e.to_string())?;
@@ -556,14 +698,7 @@ fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
     }
 
     let last_modified = if last_time.is_empty() {
-        fs::metadata(rollout_path)
-            .ok()
-            .and_then(|m| m.modified().ok())
-            .map(|t| {
-                let dt: DateTime<Utc> = t.into();
-                dt.to_rfc3339()
-            })
-            .unwrap_or_else(|| Utc::now().to_rfc3339())
+        file_modified_rfc3339(rollout_path)
     } else {
         last_time.clone()
     };
@@ -2286,6 +2421,56 @@ mod tests {
 
     #[test]
     #[serial]
+    fn missing_cwd_sessions_load_from_unknown_project() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let rollout_path = sessions_dir.join("rollout-no-cwd.jsonl");
+        let lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": "no-cwd-session" }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-02-21T10:00:00Z",
+                    "content": [{ "type": "input_text", "text": "missing cwd" }]
+                }
+            }),
+        ];
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n")).expect("fixture should be written");
+
+        let projects = scan_projects_from_path(
+            codex_home
+                .to_str()
+                .expect("codex home path should be valid UTF-8"),
+        )
+        .expect("projects should be scanned");
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].path, "codex://unknown");
+
+        let sessions = load_sessions("codex://unknown", false).expect("sessions should be loaded");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].actual_session_id, "no-cwd-session");
+    }
+
+    #[test]
+    #[serial]
     fn load_messages_accepts_archived_session_path() {
         let tmp = TempDir::new().expect("temp dir should be created");
         let codex_home = tmp.path().join("codex-home");
@@ -2342,6 +2527,18 @@ mod tests {
         extract_session_info(&rollout_path).expect("extract_session_info should succeed")
     }
 
+    fn run_extract_project_scan_info_on_lines(lines: Vec<Value>) -> ProjectScanInfo {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let rollout_path = tmp.path().join("rollout-2026-05-13.jsonl");
+        let body = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{body}\n")).expect("rollout fixture should be written");
+        extract_project_scan_info(&rollout_path).expect("extract_project_scan_info should succeed")
+    }
+
     fn session_meta_line() -> Value {
         json!({
             "timestamp": "2026-05-13T08:00:00Z",
@@ -2363,6 +2560,66 @@ mod tests {
     }
 
     const ENV_CONTEXT_BLOCK: &str = "<environment_context>\n  <cwd>/tmp/proj</cwd>\n  <shell>powershell</shell>\n  <current_date>2026-05-13</current_date>\n  <timezone>Asia/Shanghai</timezone>\n</environment_context>";
+
+    #[test]
+    fn project_scan_info_uses_lightweight_metadata() {
+        let info = run_extract_project_scan_info_on_lines(vec![
+            session_meta_line(),
+            json!({
+                "timestamp": "2026-05-13T08:00:01Z",
+                "type": "event_msg",
+                "payload": { "type": "user_message", "message": "duplicate event" }
+            }),
+            json!({
+                "timestamp": "2026-05-13T08:00:02Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{ "type": "input_text", "text": "hello" }]
+                }
+            }),
+            json!({
+                "timestamp": "2026-05-13T08:00:03Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "name": "exec_command",
+                    "arguments": "{}"
+                }
+            }),
+            json!({
+                "timestamp": "2026-05-13T08:00:04Z",
+                "type": "response_item",
+                "payload": { "type": "reasoning", "summary": [] }
+            }),
+            json!({
+                "timestamp": "2026-05-13T08:00:05Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": "call-1",
+                    "output": "done"
+                }
+            }),
+        ]);
+
+        assert_eq!(info.cwd.as_deref(), Some("/tmp/proj"));
+        assert!(info.message_count > 0);
+        assert!(!info.last_modified.is_empty());
+    }
+
+    #[test]
+    fn json_field_matcher_accepts_whitespace_around_colon() {
+        let line = br#"{ "type" : "response_item", "payload": { "type" : "message" } }"#;
+
+        assert!(has_json_string_field_value(
+            line,
+            JSON_TYPE_KEY,
+            b"response_item"
+        ));
+        assert!(has_json_string_field_value(line, JSON_TYPE_KEY, b"message"));
+    }
 
     #[test]
     /// First user message is an auto-injected `<environment_context>` block;

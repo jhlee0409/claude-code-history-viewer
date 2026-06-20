@@ -1,0 +1,26 @@
+{
+  "$comment": "Shared maintainer-harness config (committed). Personal overrides live in settings.local.json (gitignored).",
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh label list:*)",
+      "Bash(pnpm run i18n:validate)",
+      "Bash(pnpm exec tsc:*)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm vitest run:*)",
+      "Bash(rg:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": [
+      "Bash(cargo:*)"
+    ]
+  }
+}

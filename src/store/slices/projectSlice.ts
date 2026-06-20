@@ -6,7 +6,7 @@
 
 import { api } from "@/services/api";
 import { storageAdapter } from "@/services/storage";
-import type { ClaudeProject, ClaudeSession, AppError } from "../../types";
+import type { ClaudeProject, ClaudeSession, AppError, ProviderId, UserSettings } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
@@ -17,7 +17,7 @@ import {
   type DirectoryGroupingResult,
 } from "../../utils/worktreeUtils";
 import type { GroupingMode } from "../../types/metadata.types";
-import { DEFAULT_PROVIDER_ID } from "../../utils/providers";
+import { DEFAULT_PROVIDER_ID, getProviderId, PROVIDER_IDS } from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 
@@ -79,6 +79,76 @@ const isTauriAvailable = () => {
   } catch {
     return false;
   }
+};
+
+const projectTimestamp = (project: ClaudeProject): number | null => {
+  const timestamp = Date.parse(project.last_modified);
+  return Number.isNaN(timestamp) ? null : timestamp;
+};
+
+const sortProjectsByLastModified = (projects: ClaudeProject[]): ClaudeProject[] =>
+  [...projects].sort((a, b) => {
+    const aTimestamp = projectTimestamp(a);
+    const bTimestamp = projectTimestamp(b);
+    if (aTimestamp != null && bTimestamp != null) {
+      return bTimestamp - aTimestamp;
+    }
+    if (aTimestamp != null) {
+      return -1;
+    }
+    if (bTimestamp != null) {
+      return 1;
+    }
+    return b.last_modified.localeCompare(a.last_modified);
+  });
+
+const withProvider = (
+  projects: ClaudeProject[],
+  provider: ProviderId,
+): ClaudeProject[] =>
+  projects.map((project) => ({
+    ...project,
+    provider: project.provider ?? provider,
+  }));
+
+const scanProviderProjects = async ({
+  provider,
+  claudePath,
+  customClaudePaths,
+  settings,
+}: {
+  provider: ProviderId;
+  claudePath: string;
+  customClaudePaths: UserSettings["customClaudePaths"];
+  settings: UserSettings | undefined;
+}): Promise<ClaudeProject[]> => {
+  const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
+  const wslEnabled = settings?.wsl?.enabled ?? false;
+
+  if (provider === DEFAULT_PROVIDER_ID && !hasCustomPaths && !wslEnabled) {
+    if (!claudePath) {
+      return [];
+    }
+    const projects = await api<ClaudeProject[]>("scan_projects", {
+      claudePath,
+    });
+    return withProvider(projects, provider);
+  }
+
+  const projects = await api<ClaudeProject[]>("scan_all_projects", {
+    ...(claudePath && { claudePath }),
+    activeProviders: [provider],
+    ...(provider === DEFAULT_PROVIDER_ID && hasCustomPaths
+      ? { customClaudePaths }
+      : {}),
+    ...(provider === DEFAULT_PROVIDER_ID
+      ? {
+          wslEnabled,
+          wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
+        }
+      : {}),
+  });
+  return withProvider(projects, provider);
 };
 
 // ============================================================================
@@ -213,20 +283,23 @@ export const createProjectSlice: StateCreator<
     }
   },
 
-  // NOTE: scanProjects always loads ALL available providers' projects.
-  // Filtering by activeProviders happens client-side in the ProjectTree UI.
-  // This is intentionally asymmetric with loadGlobalStats (which filters server-side)
-  // because project scanning is fast and we want instant client-side tab switching,
-  // whereas global stats aggregation is expensive and benefits from server-side filtering.
+  // NOTE: scanProjects loads ALL available providers' projects, while filtering
+  // by activeProviders happens client-side in the ProjectTree UI. Provider scans
+  // are launched independently so a slow provider does not block fast providers
+  // from appearing in the sidebar.
   scanProjects: async () => {
     const requestId = nextRequestId("scanProjects");
     const { claudePath, providers } = get();
     const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
     const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
-    const availableProviders = providers
+    const detectedAvailableProviders = providers
       .filter((provider) => provider.is_available)
       .map((provider) => provider.id);
-    const scanProviders = availableProviders.length > 0 ? availableProviders : [DEFAULT_PROVIDER_ID];
+    const providerSet = new Set<ProviderId>(detectedAvailableProviders);
+    if (claudePath || hasCustomPaths || providerSet.size === 0) {
+      providerSet.add(DEFAULT_PROVIDER_ID);
+    }
+    const scanProviders = PROVIDER_IDS.filter((provider) => providerSet.has(provider));
     const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
     // Allow scanning when at least one source is available: a saved Claude path,
     // a custom Claude path, or any non-Claude provider detected on disk (#222).
@@ -236,19 +309,57 @@ export const createProjectSlice: StateCreator<
     try {
       const start = performance.now();
       const settings = get().userMetadata?.settings;
-      const wslEnabled = settings?.wsl?.enabled ?? false;
-      const projects = (hasNonClaudeProviders || hasCustomPaths || wslEnabled)
-        ? await api<ClaudeProject[]>("scan_all_projects", {
-            ...(claudePath && { claudePath }),
-            activeProviders: scanProviders,
-            customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
-            wslEnabled,
-            wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
-          })
-        : await api<ClaudeProject[]>("scan_projects", {
-            claudePath,
-          });
+      const previouslyLoadedProjects = get().projects.filter((project) =>
+        scanProviders.includes(getProviderId(project.provider))
+      );
+      const loadedProviders = new Set<ProviderId>();
+      const projectsByProvider = new Map<ProviderId, ClaudeProject[]>();
+      const providerErrors: string[] = [];
+
+      const publishPartialResults = () => {
+        const pendingPreviousProjects = previouslyLoadedProjects.filter(
+          (project) => !loadedProviders.has(getProviderId(project.provider))
+        );
+        const loadedProjects = Array.from(projectsByProvider.values()).flat();
+        set({
+          projects: sortProjectsByLastModified([
+            ...pendingPreviousProjects,
+            ...loadedProjects,
+          ]),
+        });
+      };
+
+      await Promise.all(
+        scanProviders.map(async (provider) => {
+          try {
+            const providerProjects = await scanProviderProjects({
+              provider,
+              claudePath,
+              customClaudePaths,
+              settings,
+            });
+            if (requestId !== getRequestId("scanProjects")) {
+              return;
+            }
+            loadedProviders.add(provider);
+            projectsByProvider.set(provider, providerProjects);
+            publishPartialResults();
+          } catch (scanError) {
+            const message = scanError instanceof Error
+              ? scanError.message
+              : String(scanError);
+            providerErrors.push(`${provider}: ${message}`);
+            if (import.meta.env.DEV) {
+              console.warn(`[Frontend] ${provider} project scan failed:`, scanError);
+            }
+          }
+        })
+      );
+
       const duration = performance.now() - start;
+      const projects = sortProjectsByLastModified(
+        Array.from(projectsByProvider.values()).flat()
+      );
       if (import.meta.env.DEV) {
         console.log(
           `[Frontend] scanProjects: ${projects.length}개 프로젝트, ${duration.toFixed(1)}ms`
@@ -258,6 +369,14 @@ export const createProjectSlice: StateCreator<
         return;
       }
       set({ projects });
+      if (projects.length === 0 && providerErrors.length > 0) {
+        set({
+          error: {
+            type: AppErrorType.UNKNOWN,
+            message: providerErrors.join("; "),
+          },
+        });
+      }
 
       // Auto-enable worktree grouping if worktrees are detected
       // Only auto-enable if user has never explicitly set the preference

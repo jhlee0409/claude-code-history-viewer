@@ -1,0 +1,89 @@
+name: PR Auto Label
+
+# Zero-cost labeler — pure github-script, no Claude API. Parses the conventional-
+# commit prefix in the PR title and applies a type label + a size label, creating
+# either label if it doesn't exist yet. Runs on every PR open/edit/sync.
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-auto-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const title = pr.title || "";
+            const { owner, repo } = context.repo;
+
+            // --- ensure a label exists (idempotent) ---
+            async function ensureLabel(name, color, description) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name });
+              } catch (e) {
+                if (e.status === 404) {
+                  await github.rest.issues.createLabel({ owner, repo, name, color, description });
+                } else { throw e; }
+              }
+            }
+
+            const toAdd = new Set();
+
+            // --- type from conventional-commit prefix: type(scope)!: ... ---
+            const m = title.match(/^(\w+)(\([^)]*\))?(!)?:/);
+            const type = m ? m[1].toLowerCase() : null;
+            const scope = m && m[2] ? m[2].slice(1, -1).toLowerCase() : "";
+
+            const typeMap = {
+              feat: "enhancement",
+              fix: "bug",
+              perf: "enhancement",
+              docs: "documentation",
+              doc: "documentation",
+            };
+            if (type && typeMap[type]) toAdd.add(typeMap[type]);
+
+            // provider PRs get a dedicated label (created on demand)
+            if (scope.includes("provider")) {
+              await ensureLabel("provider", "5319e7", "Adds or changes an AI-assistant provider");
+              toAdd.add("provider");
+            }
+
+            // --- size label from total churn ---
+            const churn = (pr.additions || 0) + (pr.deletions || 0);
+            const size =
+              churn < 10   ? "size/XS" :
+              churn < 100  ? "size/S"  :
+              churn < 500  ? "size/M"  :
+              churn < 1000 ? "size/L"  : "size/XL";
+            const sizeColors = {
+              "size/XS": "c2e0c6", "size/S": "c2e0c6", "size/M": "fbca04",
+              "size/L": "e99695", "size/XL": "d93f0b",
+            };
+            await ensureLabel(size, sizeColors[size], "PR size by total lines changed");
+
+            // remove any stale size labels before adding the current one
+            const current = (pr.labels || []).map(l => l.name);
+            for (const l of current) {
+              if (l.startsWith("size/") && l !== size) {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number: pr.number, name: l }).catch(() => {});
+              }
+            }
+            toAdd.add(size);
+
+            const labels = [...toAdd];
+            if (labels.length) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels });
+              core.notice(`Applied labels: ${labels.join(", ")}`);
+            }
