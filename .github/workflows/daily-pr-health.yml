@@ -1,0 +1,52 @@
+name: Daily PR Health Digest
+
+# Once a day, Claude reviews all open PRs and posts/updates a single digest issue
+# titled "📋 Open PR Health Digest" — flagging which PRs are mergeable, which are
+# stale (no maintainer response > 7 days), and which need a decision. Gives the
+# solo maintainer a one-glance triage queue.
+#
+# REQUIRES: ANTHROPIC_API_KEY repo secret. Trigger manually first via the Actions
+# tab ("Run workflow") to confirm setup before relying on the schedule.
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # 00:00 UTC = 09:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model claude-sonnet-4-6
+            --max-turns 20
+          prompt: |
+            You are maintaining claude-code-history-viewer. Produce a daily open-PR
+            health digest for the solo maintainer.
+
+            1. List open PRs:  gh pr list --state open --json number,title,author,createdAt,updatedAt,additions,deletions,mergeable,labels,reviewDecision
+            2. For each PR, classify:
+               - Mergeable now (CI green, small, in-scope) — recommend MERGE
+               - Needs changes (failing CI, missing tests/i18n, scope creep)
+               - Needs maintainer decision (architecture/naming/provider policy)
+               - STALE: no maintainer comment in > 7 days (compute from updatedAt and comments)
+            3. PRs targeting `main` instead of `develop` are a policy violation — flag loudly.
+            4. Provider-addition PRs: note them as a group; consistency review needed.
+
+            Then upsert a SINGLE tracking issue:
+            - Search for an open issue titled exactly "📋 Open PR Health Digest".
+            - If it exists, edit its body with the new digest (do not open a new one).
+            - If not, create it with that exact title and a `needs-triage` label.
+            Body: a markdown table (PR # | title | author | age | size | status | recommended action)
+            plus a short "Top 3 to act on today" list. Keep it under 60 lines.
+            Write everything in English. Do not modify any PR or push code.

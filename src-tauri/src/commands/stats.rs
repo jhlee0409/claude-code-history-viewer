@@ -25,6 +25,7 @@ enum StatsProvider {
     Codex,
     ForgeCode,
     OpenCode,
+    Kimi,
     Antigravity,
 }
 
@@ -61,6 +62,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Codex => "codex",
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
+        StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
     }
 }
@@ -215,6 +217,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Codex,
         StatsProvider::ForgeCode,
         StatsProvider::OpenCode,
+        StatsProvider::Kimi,
         StatsProvider::Antigravity,
     ]
     .into_iter()
@@ -236,6 +239,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "codex" => Some(StatsProvider::Codex),
             "forgecode" => Some(StatsProvider::ForgeCode),
             "opencode" => Some(StatsProvider::OpenCode),
+            "kimi" => Some(StatsProvider::Kimi),
             "antigravity" => Some(StatsProvider::Antigravity),
             _ => {
                 unknown.push(provider);
@@ -262,6 +266,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::ForgeCode
     } else if project_path.starts_with("opencode://") {
         StatsProvider::OpenCode
+    } else if project_path.starts_with("kimi://") {
+        StatsProvider::Kimi
     } else if is_antigravity_path(project_path) {
         StatsProvider::Antigravity
     } else if is_codebuddy_path(project_path) {
@@ -275,6 +281,10 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
 fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.starts_with("opencode://") {
         return StatsProvider::OpenCode;
+    }
+
+    if is_kimi_path(session_path) {
+        return StatsProvider::Kimi;
     }
 
     if is_antigravity_path(session_path) {
@@ -329,6 +339,12 @@ fn is_codebuddy_path(path: &str) -> bool {
 fn is_codebuddy_path_under(path: &str, home: &Path) -> bool {
     let root = home.join(".codebuddy").join("projects");
     Path::new(path).starts_with(root)
+}
+
+fn is_kimi_path(path: &str) -> bool {
+    providers::kimi::get_base_path()
+        .map(|root| Path::new(path).starts_with(root))
+        .unwrap_or(false)
 }
 
 /// Parse a line using simd-json (requires mutable slice)
@@ -999,6 +1015,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::Codex => providers::codex::scan_projects().unwrap_or_default(),
         StatsProvider::ForgeCode => providers::forgecode::scan_projects().unwrap_or_default(),
         StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
+        StatsProvider::Kimi => providers::kimi::scan_projects().unwrap_or_default(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
         StatsProvider::Claude => Vec::new(),
     };
@@ -1008,6 +1025,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::Codex => "codex",
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
+        StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::Claude => "claude",
     };
@@ -1024,6 +1042,7 @@ fn collect_provider_global_file_stats(
             StatsProvider::Codex => providers::codex::load_sessions(&project.path, false),
             StatsProvider::ForgeCode => providers::forgecode::load_sessions(&project.path, false),
             StatsProvider::OpenCode => providers::opencode::load_sessions(&project.path, false),
+            StatsProvider::Kimi => providers::kimi::load_sessions(&project.path, false),
             StatsProvider::Antigravity => {
                 providers::antigravity::load_sessions(&project.path, false)
             }
@@ -1045,6 +1064,7 @@ fn collect_provider_global_file_stats(
                 StatsProvider::Codex => providers::codex::load_messages(file_path),
                 StatsProvider::ForgeCode => providers::forgecode::load_messages(file_path),
                 StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
+                StatsProvider::Kimi => providers::kimi::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
             }
@@ -1657,6 +1677,21 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 .unwrap_or(project_path)
                 .to_string()
         }
+        StatsProvider::Kimi => {
+            if let Ok(projects) = providers::kimi::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("kimi://")
+                .and_then(|p| {
+                    PathBuf::from(p)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                })
+                .unwrap_or_else(|| project_path.to_string())
+        }
         StatsProvider::Antigravity => {
             if let Ok(projects) = providers::antigravity::scan_projects() {
                 if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
@@ -1716,6 +1751,13 @@ fn resolve_provider_project_name_from_session(
             }
             "codex".to_string()
         }
+        StatsProvider::Kimi => {
+            if let Some(project_dir) = Path::new(session_path).parent() {
+                let project_path = format!("kimi://{}", project_dir.to_string_lossy());
+                return resolve_provider_project_name(provider, &project_path);
+            }
+            "kimi".to_string()
+        }
         StatsProvider::Antigravity => "Antigravity".to_string(),
         StatsProvider::Claude => "unknown".to_string(),
     }
@@ -1731,6 +1773,7 @@ fn load_provider_sessions_for_stats(
         StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
         StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
+        StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
         StatsProvider::Claude => {
             Err("Claude sessions are handled by legacy stats path".to_string())
@@ -1748,6 +1791,7 @@ fn load_provider_messages_for_stats(
         StatsProvider::Codex => providers::codex::load_messages(&session.file_path),
         StatsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path),
         StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
+        StatsProvider::Kimi => providers::kimi::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
         StatsProvider::Claude => {
             Err("Claude messages are handled by legacy stats path".to_string())
@@ -2493,6 +2537,7 @@ pub async fn get_session_token_stats(
             StatsProvider::Codex => providers::codex::load_messages(&session_path)?,
             StatsProvider::ForgeCode => providers::forgecode::load_messages(&session_path)?,
             StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
+            StatsProvider::Kimi => providers::kimi::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
         };
@@ -3392,6 +3437,13 @@ pub async fn get_global_stats_summary(
         file_stats.extend(opencode_stats);
     }
 
+    if providers_to_include.contains(&StatsProvider::Kimi) {
+        let (kimi_stats, kimi_projects) =
+            collect_provider_global_file_stats(StatsProvider::Kimi, mode, s_ref, e_ref);
+        project_names.extend(kimi_projects);
+        file_stats.extend(kimi_stats);
+    }
+
     if providers_to_include.contains(&StatsProvider::Antigravity) {
         let (antigravity_stats, antigravity_projects) =
             collect_provider_global_file_stats(StatsProvider::Antigravity, mode, s_ref, e_ref);
@@ -4194,6 +4246,10 @@ mod tests {
             StatsProvider::OpenCode
         );
         assert_eq!(
+            detect_project_provider("kimi:///Users/jack/.kimi/sessions/project-hash"),
+            StatsProvider::Kimi
+        );
+        assert_eq!(
             detect_project_provider("/Users/jack/.claude/projects/my-project"),
             StatsProvider::Claude
         );
@@ -4226,6 +4282,15 @@ mod tests {
             detect_session_provider("opencode://project/ses_abc"),
             StatsProvider::OpenCode
         );
+        if let Some(root) = providers::kimi::get_base_path() {
+            let kimi_session = PathBuf::from(root)
+                .join("sessions")
+                .join("project-hash")
+                .join("session-id")
+                .to_string_lossy()
+                .to_string();
+            assert_eq!(detect_session_provider(&kimi_session), StatsProvider::Kimi);
+        }
         assert_eq!(
             detect_session_provider(
                 "/Users/jack/.codex/sessions/2026/02/20/rollout-2026-02-20T11-04-52-1234.jsonl"
@@ -4261,6 +4326,7 @@ mod tests {
         assert!(providers.contains(&StatsProvider::Codex));
         assert!(providers.contains(&StatsProvider::ForgeCode));
         assert!(providers.contains(&StatsProvider::OpenCode));
+        assert!(providers.contains(&StatsProvider::Kimi));
         assert!(providers.contains(&StatsProvider::Antigravity));
     }
 
@@ -4293,6 +4359,14 @@ mod tests {
         let providers = parse_active_stats_providers(Some(vec!["forgecode".to_string()]));
         assert_eq!(providers.len(), 1);
         assert!(providers.contains(&StatsProvider::ForgeCode));
+    }
+
+    #[test]
+    /// Verify parse active stats providers supports Kimi.
+    fn test_parse_active_stats_providers_supports_kimi() {
+        let providers = parse_active_stats_providers(Some(vec!["kimi".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Kimi));
     }
 
     #[test]
@@ -4364,6 +4438,28 @@ mod tests {
             true,
             StatsMode::ConversationOnly
         ));
+        assert!(!should_include_stats_entry(
+            "tool",
+            Some(false),
+            false,
+            StatsMode::ConversationOnly
+        ));
+        assert!(!should_include_stats_entry(
+            "tool",
+            Some(false),
+            false,
+            StatsMode::BillingTotal
+        ));
+    }
+
+    #[test]
+    fn test_kimi_project_name_resolves_from_session_parent_directory() {
+        let session_path = "/tmp/kimi/sessions/project-hash/session-1";
+
+        assert_eq!(
+            resolve_provider_project_name_from_session(StatsProvider::Kimi, session_path),
+            "project-hash"
+        );
     }
 
     #[test]

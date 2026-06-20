@@ -8,8 +8,11 @@ The enhanced prompts will follow the language of the original prompt (e.g., Kore
 
 ## Principal
 
-First, You must use command "gemini -p {prompt}" and then use the result that returned response
-Use pnpm Package Manager
+Use pnpm Package Manager.
+
+`gemini`/`codex` CLIs are **opt-in adversarial reviewers only** — invoke them
+solely with explicit user approval (see `.claude/commands/pr-review-check.md`),
+never as a mandatory first step.
 
 가독성이 높은 설계 추구
 예측 가능성이 높은 설계 추구

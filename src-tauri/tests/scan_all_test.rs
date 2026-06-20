@@ -100,12 +100,15 @@ mod integration_tests {
         }
 
         // Test other providers if they are detected as available
-        for provider in &["codex", "gemini", "opencode", "cline", "cursor", "aider"] {
+        for provider in &[
+            "codex", "gemini", "kimi", "opencode", "cline", "cursor", "aider",
+        ] {
             let is_available = detected.iter().any(|p| p.id == *provider && p.is_available);
             if is_available {
                 let result = match *provider {
                     "codex" => providers::codex::scan_projects(),
                     "gemini" => providers::gemini::scan_projects(),
+                    "kimi" => providers::kimi::scan_projects(),
                     "opencode" => providers::opencode::scan_projects(),
                     "cline" => providers::cline::scan_projects(),
                     "cursor" => providers::cursor::scan_projects(),

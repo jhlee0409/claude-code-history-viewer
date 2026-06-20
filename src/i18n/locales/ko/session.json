@@ -150,6 +150,7 @@
   "session.item.archivedDescription": "Codex archived_sessions에 저장되어 있습니다.",
   "session.item.containsErrors": "오류 포함",
   "session.item.storageType.json": "JSON",
+  "session.item.storageType.jsonl": "JSONL",
   "session.item.storageType.sqlite": "SQLite",
   "session.item.containsToolUse": "도구 사용 포함",
   "session.item.lastModified": "마지막 수정",

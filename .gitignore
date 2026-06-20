@@ -71,15 +71,18 @@ debug.log*
 **/*/CLAUDE.md
 .serena/memories/
 
-# AFC plugin state
+# AFC plugin state (abandoned tooling — kept out of the repo)
 .claude/afc/
 .claude/afc.config.md
+.claude/.afc-timeline.jsonl
 
-# Claude Code worktrees
+# Claude Code worktrees and runtime locks (local-only)
 .claude/worktrees/
-
-# Local user-defined slash commands and runtime locks
-.claude/commands/
 .claude/scheduled_tasks.lock
+
+# Tracked maintainer harness (committed, do NOT ignore):
+#   .claude/agents/      — natural-language-routed subagents
+#   .claude/commands/    — shared slash commands (e.g. pr-review-check)
+#   .claude/settings.json — shared harness config
 
 PLAN.md

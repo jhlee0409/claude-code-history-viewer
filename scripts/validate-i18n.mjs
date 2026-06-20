@@ -30,7 +30,7 @@ function warn(msg) {
 
 const INTENTIONAL_UNTRANSLATED_KEY_PATTERNS = [
   /^common\.appName$/,
-  /^common\.provider\.(claude|codex|opencode)$/,
+  /^common\.provider\.(claude|codex|kimi|opencode)$/,
   /^error\.copyTemplate\.separator$/,
   /^messageViewer\.(codex|opencode)$/,
   /^progressRenderer\.types\.bash$/,

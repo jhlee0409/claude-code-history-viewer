@@ -199,8 +199,30 @@ export function useSessionEditing(session: ClaudeSession) {
   );
 
   const projectCwd = useAppStore(
-    (state) =>
-      state.projects.find((p) => p.name === session.project_name)?.actual_path
+    (state) => {
+      const selectedProject = state.selectedProject;
+      const isLoadedInSelectedProject =
+        !!selectedProject &&
+        state.sessions.some(
+          (loadedSession) =>
+            loadedSession.session_id === session.session_id ||
+            loadedSession.file_path === session.file_path
+        );
+
+      if (isLoadedInSelectedProject) {
+        return selectedProject.actual_path;
+      }
+
+      const providerMatch = state.projects.find(
+        (project) =>
+          (project.provider ?? "claude") === providerId &&
+          project.name === session.project_name
+      );
+      return (
+        providerMatch?.actual_path ??
+        state.projects.find((p) => p.name === session.project_name)?.actual_path
+      );
+    }
   );
 
   const handleCopyResumeCommand = useCallback(

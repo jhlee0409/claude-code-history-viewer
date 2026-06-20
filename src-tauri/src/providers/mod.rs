@@ -10,6 +10,7 @@ pub mod cursor;
 pub mod cursor_agent;
 pub mod forgecode;
 pub mod gemini;
+pub mod kimi;
 pub mod kiro;
 pub mod opencode;
 
@@ -26,6 +27,7 @@ pub enum ProviderId {
     #[serde(rename = "cursor-agent")]
     CursorAgent,
     Gemini,
+    Kimi,
     ForgeCode,
     Kiro,
     OpenCode,
@@ -43,6 +45,7 @@ impl ProviderId {
             Self::Cursor => "cursor",
             Self::CursorAgent => "cursor-agent",
             Self::Gemini => "gemini",
+            Self::Kimi => "kimi",
             Self::ForgeCode => "forgecode",
             Self::Kiro => "kiro",
             Self::OpenCode => "opencode",
@@ -60,6 +63,7 @@ impl ProviderId {
             "cursor" => Some(Self::Cursor),
             "cursor-agent" => Some(Self::CursorAgent),
             "gemini" => Some(Self::Gemini),
+            "kimi" => Some(Self::Kimi),
             "forgecode" => Some(Self::ForgeCode),
             "kiro" => Some(Self::Kiro),
             "opencode" => Some(Self::OpenCode),
@@ -78,6 +82,7 @@ impl ProviderId {
             Self::Cursor => "Cursor",
             Self::CursorAgent => "Cursor Agent",
             Self::Gemini => "Gemini CLI",
+            Self::Kimi => "Kimi CLI",
             Self::ForgeCode => "ForgeCode",
             Self::Kiro => "Kiro CLI",
             Self::OpenCode => "OpenCode",
@@ -106,6 +111,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = gemini::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = kimi::detect() {
         providers.push(info);
     }
     if let Some(info) = forgecode::detect() {

@@ -1,0 +1,43 @@
+name: Claude Mentions
+
+# Responds to @claude mentions in issues and PRs. A contributor (or the
+# maintainer) can ask Claude to investigate, explain, check i18n, or scaffold a
+# fix directly from a comment — reducing the maintainer-response bottleneck.
+#
+# REQUIRES: an ANTHROPIC_API_KEY repo secret, or the Claude GitHub App installed
+# via `/install-github-app`. Without it this workflow is a no-op (it won't error
+# on PRs from forks because it only triggers on the @claude phrase).
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model claude-sonnet-4-6
+            --max-turns 12
+            --append-system-prompt "This is claude-code-history-viewer, a solo-maintained Tauri 2 desktop app. Follow CLAUDE.md. PRs target the develop branch, never main. Reply in English. Do not run cargo locally. For any user-facing string, ensure the key exists in all dirs under src/i18n/locales/. If a frontend-callable command is added, update BOTH the Tauri generate_handler! in src-tauri/src/lib.rs AND the Axum router in src-tauri/src/server/mod.rs."
