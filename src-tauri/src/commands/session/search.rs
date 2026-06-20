@@ -134,13 +134,29 @@ fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessa
         };
 
         // Use aho-corasick for case-insensitive matching without heap allocation
-        let matches = match &message_content.content {
+        let content_matches = match &message_content.content {
             serde_json::Value::String(s) => matcher.is_match(s),
             serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
                 search_in_value(&message_content.content, matcher)
             }
             _ => false,
         };
+
+        // Also search the tool-call payloads. The in-session FlexSearch index
+        // covers `toolUseResult` (file contents, command stdout/stderr) and tool
+        // names, so global search must too — otherwise a query that only appears
+        // in a tool result is found inside a conversation but missed by the
+        // global search (issue #394). `search_in_value` already recurses every
+        // nested string (e.g. `toolUseResult.file.content`, `.stdout`).
+        let matches = content_matches
+            || log_entry
+                .tool_use_result
+                .as_ref()
+                .is_some_and(|v| search_in_value(v, matcher))
+            || log_entry
+                .tool_use
+                .as_ref()
+                .is_some_and(|v| search_in_value(v, matcher));
 
         if !matches {
             continue;
@@ -484,6 +500,20 @@ mod tests {
         )
     }
 
+    /// A user/tool-result message whose `message.content` text is `visible`, while
+    /// `result_stdout` lives only in the top-level `toolUseResult` field (mirrors
+    /// how Read/Bash results are stored on disk).
+    fn create_tool_result_message(
+        uuid: &str,
+        session_id: &str,
+        visible: &str,
+        result_stdout: &str,
+    ) -> String {
+        format!(
+            r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:02:00Z","type":"user","message":{{"role":"user","content":[{{"type":"tool_result","tool_use_id":"toolu_1","content":"{visible}"}}]}},"toolUseResult":{{"stdout":"{result_stdout}","stderr":"","interrupted":false}}}}"#
+        )
+    }
+
     #[tokio::test]
     async fn test_search_messages_basic() {
         let temp_dir = TempDir::new().unwrap();
@@ -513,6 +543,45 @@ mod tests {
         assert!(result.is_ok());
         let messages = result.unwrap();
         assert_eq!(messages.len(), 2); // Both messages contain "Rust"
+    }
+
+    #[tokio::test]
+    async fn test_search_messages_matches_tool_use_result() {
+        // Regression for #394: a query that appears ONLY in toolUseResult
+        // (e.g. command output / file contents) must be found by global search,
+        // mirroring the in-session FlexSearch index.
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        // The unique token only appears in toolUseResult.stdout, never in content.
+        let content = format!(
+            "{}\n",
+            create_tool_result_message(
+                "uuid-1",
+                "session-1",
+                "command output below",
+                "ZmagicMarker99"
+            )
+        );
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "ZmagicMarker99".to_string(),
+            serde_json::json!({}),
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            result.len(),
+            1,
+            "global search must match text found only in toolUseResult (#394)"
+        );
     }
 
     #[tokio::test]
