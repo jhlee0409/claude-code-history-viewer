@@ -7,6 +7,7 @@ pub mod cline;
 pub mod codebuddy;
 pub mod codex;
 pub mod cursor;
+pub mod cursor_agent;
 pub mod forgecode;
 pub mod gemini;
 pub mod opencode;
@@ -21,6 +22,8 @@ pub enum ProviderId {
     Codebuddy,
     Codex,
     Cursor,
+    #[serde(rename = "cursor-agent")]
+    CursorAgent,
     Gemini,
     ForgeCode,
     OpenCode,
@@ -36,6 +39,7 @@ impl ProviderId {
             Self::Codebuddy => "codebuddy",
             Self::Codex => "codex",
             Self::Cursor => "cursor",
+            Self::CursorAgent => "cursor-agent",
             Self::Gemini => "gemini",
             Self::ForgeCode => "forgecode",
             Self::OpenCode => "opencode",
@@ -51,6 +55,7 @@ impl ProviderId {
             "codebuddy" => Some(Self::Codebuddy),
             "codex" => Some(Self::Codex),
             "cursor" => Some(Self::Cursor),
+            "cursor-agent" => Some(Self::CursorAgent),
             "gemini" => Some(Self::Gemini),
             "forgecode" => Some(Self::ForgeCode),
             "opencode" => Some(Self::OpenCode),
@@ -67,6 +72,7 @@ impl ProviderId {
             Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
             Self::Cursor => "Cursor",
+            Self::CursorAgent => "Cursor Agent",
             Self::Gemini => "Gemini CLI",
             Self::ForgeCode => "ForgeCode",
             Self::OpenCode => "OpenCode",
@@ -107,6 +113,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = cursor::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = cursor_agent::detect() {
         providers.push(info);
     }
     if let Some(info) = aider::detect() {

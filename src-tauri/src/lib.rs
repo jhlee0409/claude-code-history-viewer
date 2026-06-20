@@ -1032,6 +1032,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(cursor_agent_base) = providers::cursor_agent::get_base_path() {
+        let cursor_agent_projects = PathBuf::from(cursor_agent_base);
+        if cursor_agent_projects.is_dir() {
+            paths.push(cursor_agent_projects);
+        }
+    }
+
     let mut seen = HashSet::new();
     paths
         .into_iter()

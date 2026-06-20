@@ -37,6 +37,7 @@ pub async fn scan_all_projects(
             "opencode".to_string(),
             "cline".to_string(),
             "cursor".to_string(),
+            "cursor-agent".to_string(),
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
@@ -150,6 +151,16 @@ pub async fn scan_all_projects(
         }
     }
 
+    // Cursor Agent (CLI transcripts under ~/.cursor/projects/*/agent-transcripts)
+    if providers_to_scan.iter().any(|p| p == "cursor-agent") {
+        match providers::cursor_agent::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Cursor Agent scan failed: {e}");
+            }
+        }
+    }
+
     // Aider
     if providers_to_scan.iter().any(|p| p == "aider") {
         match providers::aider::scan_projects() {
@@ -258,6 +269,7 @@ pub async fn load_provider_sessions(
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
         "cursor" => providers::cursor::load_sessions(&project_path, exclude),
+        "cursor-agent" => providers::cursor_agent::load_sessions(&project_path, exclude),
         "aider" => providers::aider::load_sessions(&project_path, exclude),
         "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
         "codebuddy" => providers::codebuddy::load_sessions(&project_path, exclude),
@@ -288,6 +300,7 @@ pub async fn load_provider_messages(
         "opencode" => providers::opencode::load_messages(&session_path)?,
         "cline" => providers::cline::load_messages(&session_path)?,
         "cursor" => providers::cursor::load_messages(&session_path)?,
+        "cursor-agent" => providers::cursor_agent::load_messages(&session_path)?,
         "aider" => providers::aider::load_messages(&session_path)?,
         "antigravity" => providers::antigravity::load_messages(&session_path)?,
         "codebuddy" => providers::codebuddy::load_messages(&session_path)?,
@@ -324,6 +337,7 @@ pub async fn search_all_providers(
             "opencode".to_string(),
             "cline".to_string(),
             "cursor".to_string(),
+            "cursor-agent".to_string(),
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
@@ -445,6 +459,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Cursor search failed: {e}");
+            }
+        }
+    }
+
+    // Cursor Agent
+    if providers_to_search.iter().any(|p| p == "cursor-agent") {
+        match providers::cursor_agent::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Cursor Agent search failed: {e}");
             }
         }
     }

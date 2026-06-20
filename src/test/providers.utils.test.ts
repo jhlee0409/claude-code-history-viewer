@@ -46,6 +46,7 @@ describe("providers utils", () => {
       "codebuddy",
       "codex",
       "cursor",
+      "cursor-agent",
       "forgecode",
       "gemini",
       "opencode",

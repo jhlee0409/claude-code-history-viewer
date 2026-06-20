@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "cursor", "forgecode", "gemini", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "cursor", "cursor-agent", "forgecode", "gemini", "opencode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -14,6 +14,7 @@ const PROVIDER_TRANSLATIONS: Record<
   codebuddy: { key: "common.provider.codebuddy", fallback: "CodeBuddy Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
+  "cursor-agent": { key: "common.provider.cursorAgent", fallback: "Cursor Agent" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
@@ -79,6 +80,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  "cursor-agent": {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   forgecode: {
     supportsConversationBreakdown: true,
     supportsNativeRename: true,
@@ -122,6 +130,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "codebuddy":
     case "codex":
     case "cursor":
+    case "cursor-agent":
     case "gemini":
     case "forgecode":
     case "opencode":
@@ -242,6 +251,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+  "cursor-agent": "bg-violet-500/15 text-violet-600 dark:text-violet-400",
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",

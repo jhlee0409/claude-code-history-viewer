@@ -123,6 +123,7 @@
   "common.provider.codebuddy": "CodeBuddy Code",
   "common.provider.codex": "Codex CLI",
   "common.provider.cursor": "Cursor",
+  "common.provider.cursorAgent": "Cursor Agent",
   "common.provider.forgecode": "ForgeCode",
   "common.provider.gemini": "Gemini CLI",
   "common.provider.detectError": "Failed to detect providers. Using Claude only.",
