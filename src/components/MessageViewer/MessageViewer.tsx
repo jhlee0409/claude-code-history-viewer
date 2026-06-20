@@ -123,9 +123,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const { t } = useTranslation();
   const scrollContainerRef = useRef<OverlayScrollbarsComponentRef>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const virtualHeaderRef = useRef<HTMLDivElement>(null);
 
   // Track when OverlayScrollbars is initialized
   const [scrollElementReady, setScrollElementReady] = useState(false);
+  const [virtualScrollMargin, setVirtualScrollMargin] = useState(0);
 
   // SubAgent 패널 접힘 상태 — MessageViewer에 lift해야 filter toggle 같은
   // 분기 재렌더(패널 자식 unmount)에서 유저 선택이 보존됨.
@@ -161,6 +163,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     isLoadingMessages,
     setActiveSessionNearBottom,
   } = useAppStore();
+
+  const isInSubagent = parentSessionStack.length > 0;
 
   // Apply role + content type filters
   const displayMessages = useMemo(() => {
@@ -345,6 +349,38 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     setScrollElementReady(true);
   }, []);
 
+  // Reserve a top scroll-margin equal to the sticky "all messages loaded"
+  // header height so the first virtualized rows aren't hidden behind it as a
+  // blank gap (#371).
+  const hasMessageListHeader = displayMessages.length > 0 && !sessionSearch.query;
+
+  useEffect(() => {
+    if (!hasMessageListHeader) {
+      setVirtualScrollMargin(0);
+      return;
+    }
+
+    const element = virtualHeaderRef.current;
+    if (!element) {
+      setVirtualScrollMargin(0);
+      return;
+    }
+
+    const updateMargin = () => {
+      setVirtualScrollMargin(Math.ceil(element.getBoundingClientRect().height));
+    };
+
+    updateMargin();
+
+    if (!("ResizeObserver" in window)) {
+      return;
+    }
+
+    const observer = new ResizeObserver(updateMargin);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasMessageListHeader]);
+
   // Fallback: if OverlayScrollbars already initialized before event binding (e.g. fast mount)
   useEffect(() => {
     if (!scrollElementReady) {
@@ -362,6 +398,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     virtualRows,
     totalSize,
     getScrollIndex,
+    rowTranslateOffset,
   } = useMessageVirtualization({
     messages: displayMessages,
     agentTaskGroups,
@@ -376,6 +413,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     // Inside a subagent session every row is `isSidechain` but rendered at full
     // height, so the height estimate must not collapse them to 0 (issue #334).
     isInSubagent: parentSessionStack.length > 0,
+    scrollMargin: virtualScrollMargin,
   });
 
   // Set of selected message UUIDs for O(1) lookup
@@ -971,8 +1009,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         )}
 
         {/* 메시지 목록 헤더 */}
-        {displayMessages.length > 0 && !sessionSearch.query && (
-          <div className="max-w-4xl mx-auto flex items-center justify-center py-4">
+        {hasMessageListHeader && (
+          <div
+            ref={virtualHeaderRef}
+            className="max-w-4xl mx-auto flex items-center justify-center py-4"
+          >
             <div className="text-sm text-muted-foreground">
               {t("messageViewer.allMessagesLoaded", {
                 count: messages.length,
@@ -1022,6 +1063,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   ref={virtualizer.measureElement}
                   virtualRow={virtualRow}
                   item={item}
+                  translateOffset={rowTranslateOffset}
                   isMatch={isMatch}
                   isCurrentMatch={isCurrentMatch}
                   searchQuery={sessionSearch.query}
@@ -1033,6 +1075,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   onRestoreAll={restoreMessages}
                   isSelected={itemIsSelected}
                   onRangeSelect={isCaptureMode ? handleRangeSelect : undefined}
+                  isInSubagent={isInSubagent}
                 />
               );
             })}
