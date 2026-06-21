@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod cli_args;
 pub mod commands;
+pub mod export;
 pub mod models;
 pub mod providers;
 pub mod utils;
@@ -80,6 +81,19 @@ use crate::commands::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Headless session export (issue #343): `--export <id|path> [--format html|json]
+    // [--output <file>]`. Handled before any GUI/webview so it works over SSH/CI
+    // with no display.
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if args
+            .iter()
+            .any(|a| a == "--export" || a.starts_with("--export="))
+        {
+            std::process::exit(export::run_export(&args));
+        }
+    }
+
     // Check for --serve flag (WebUI server mode)
     #[cfg(feature = "webui-server")]
     {
