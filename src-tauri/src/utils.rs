@@ -220,6 +220,43 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
     session_storage_path.to_string()
 }
 
+/// Resolve a session storage folder to a real on-disk project path, returning
+/// `None` when the folder name cannot be verified against the filesystem.
+///
+/// Unlike [`decode_project_path`], this never falls back to a lossy heuristic
+/// guess: it only ever returns a path that actually exists on disk. Callers can
+/// therefore treat a successful result as the folder's authoritative identity.
+///
+/// This complements the `cwd`-from-JSONL resolution introduced in #369: that
+/// handles the case where the *folder name* is lossy/unresolvable (so the real
+/// `cwd` is the better signal), while this handles the opposite case where the
+/// embedded `cwd` is stale — e.g. a session manually moved between project
+/// folders keeps its original `cwd`, but its containing folder is authoritative.
+pub fn decode_project_path_verified(session_storage_path: &str) -> Option<String> {
+    // 1. Prefer originalPath from sessions-index.json, but only if it still
+    //    points at an existing directory.
+    let index_path = Path::new(session_storage_path).join("sessions-index.json");
+    if let Ok(content) = std::fs::read_to_string(&index_path) {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(original) = parsed.get("originalPath").and_then(|v| v.as_str()) {
+                let original = original.trim();
+                let candidate = Path::new(original);
+                if candidate.is_absolute() && candidate.is_dir() {
+                    return Some(original.to_string());
+                }
+            }
+        }
+    }
+
+    // 2. Decode the encoded folder name, verifying each segment against the
+    //    filesystem. Returns `None` if the decoded path does not exist.
+    const MARKER: &str = ".claude/projects/";
+    let marker_pos = session_storage_path.find(MARKER)?;
+    let encoded = &session_storage_path[marker_pos + MARKER.len()..];
+    let stripped = encoded.strip_prefix('-')?;
+    decode_with_filesystem_check(stripped)
+}
+
 /// Decode path by checking filesystem existence at each possible split point
 ///
 /// For `-Users-jack-client-claude-code-history-viewer`:
@@ -745,6 +782,34 @@ mod tests {
     #[test]
     fn test_decode_project_path_regular() {
         assert_eq!(decode_project_path("/some/other/path"), "/some/other/path");
+    }
+
+    #[test]
+    fn test_decode_project_path_verified_resolves_existing_folder() {
+        // `/usr/lib` exists on macOS and Linux and contains no dashes, so the
+        // dash-decoder can resolve it against the real filesystem.
+        assert_eq!(
+            decode_project_path_verified("/Users/whoever/.claude/projects/-usr-lib"),
+            Some("/usr/lib".to_string())
+        );
+    }
+
+    #[test]
+    fn test_decode_project_path_verified_none_for_nonexistent() {
+        // This encoded folder name does not resolve to any real directory, so
+        // there is no verified result (callers fall back to the JSONL `cwd`).
+        assert_eq!(
+            decode_project_path_verified(
+                "/Users/whoever/.claude/projects/-this-does-not-exist-anywhere-xyzzy"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn test_decode_project_path_verified_none_without_marker() {
+        // Paths outside the `.claude/projects/` layout cannot be decoded.
+        assert_eq!(decode_project_path_verified("/some/other/path"), None);
     }
 
     #[test]

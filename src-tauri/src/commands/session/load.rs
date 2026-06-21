@@ -58,7 +58,10 @@ struct SessionMetadataCache {
 // Bumped 9 -> 10: rename_name is now also extracted from `/branch` custom-title
 // events (not just `/rename`), AND Claude project names are derived from the
 // JSONL `cwd` when available; stale caches must be invalidated to pick both up.
-const CACHE_VERSION: u32 = 10;
+// Bumped 10 -> 11: a verifiable folder name now takes priority over the JSONL
+// `cwd` for the project name (handles sessions moved between project folders);
+// stale caches must be invalidated to recompute project_name.
+const CACHE_VERSION: u32 = 11;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -588,9 +591,21 @@ fn extract_session_metadata_internal(
         .unwrap_or("Unknown")
         .to_string();
 
-    let project_name = session_cwd
+    // A verifiable folder name is authoritative (handles sessions moved between
+    // project folders, whose embedded `cwd` is stale); otherwise fall back to
+    // the JSONL `cwd`, then the cached value, then a lossy folder-name decode.
+    let verified_project_name = file_path
+        .parent()
+        .and_then(|p| p.to_str())
+        .and_then(crate::utils::decode_project_path_verified)
         .as_deref()
-        .and_then(project_display_name_from_path)
+        .and_then(project_display_name_from_path);
+    let project_name = verified_project_name
+        .or_else(|| {
+            session_cwd
+                .as_deref()
+                .and_then(project_display_name_from_path)
+        })
         .or(incremental_project_name)
         .unwrap_or_else(|| extract_project_name(&raw_project_name));
     // Rename name takes highest priority, then existing summary fallback chain
@@ -2113,6 +2128,38 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].project_name, "claude_prompt_design");
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_prefers_verified_folder_over_stale_cwd() {
+        let temp_dir = TempDir::new().unwrap();
+        // Folder name decodes to an existing directory (/usr/lib); the
+        // `.claude/projects/` marker must be present for verified decoding.
+        let project_dir = temp_dir
+            .path()
+            .join(".claude")
+            .join("projects")
+            .join("-usr-lib");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        // Stale embedded cwd simulates a session moved into this folder by hand.
+        let content = concat!(
+            r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","#,
+            r#""type":"user","cwd":"/some/stale/Dev","#,
+            r#""message":{"role":"user","content":"Hello world"}}"#,
+            "\n"
+        );
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_project_sessions(project_dir.to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 1);
+        // Verified folder name wins over the stale cwd.
+        assert_eq!(result[0].project_name, "lib");
     }
 
     #[tokio::test]
