@@ -161,7 +161,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
         >
           <Search className="w-3.5 h-3.5" />
           <span>{t("globalSearch.placeholder")}</span>
-          <kbd className="ml-1 px-1 py-0.5 text-[10px] font-mono bg-muted rounded border border-border">
+          <kbd className="ml-1 px-1 py-0.5 text-px10 font-mono bg-muted rounded border border-border">
             {SHORTCUT_LABEL}
           </kbd>
         </button>

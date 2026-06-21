@@ -79,7 +79,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
         rightContent={
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             {subagentType && (
-              <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide", layout.rounded, badge.bg, badge.text, "border", badge.border)}>
+              <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 font-mono text-px11 uppercase tracking-wide", layout.rounded, badge.bg, badge.text, "border", badge.border)}>
                 <SubIcon className="w-3 h-3" />{subagentType}
               </span>
             )}

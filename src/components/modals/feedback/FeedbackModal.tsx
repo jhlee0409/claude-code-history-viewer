@@ -249,7 +249,7 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
                 <InfoIcon className="h-3 w-3" />
                 {t("feedback.systemInfoPreview")}
               </div>
-              <div className="space-y-0.5 text-muted-foreground text-[11px]">
+              <div className="space-y-0.5 text-muted-foreground text-px11">
                 <div>{t("feedback.appVersion", { version: systemInfo.app_version })}</div>
                 <div>{t("feedback.os", { os: systemInfo.os_type, version: systemInfo.os_version })}</div>
                 <div>{t("feedback.architecture", { arch: systemInfo.arch })}</div>
@@ -287,7 +287,7 @@ export const FeedbackModal = ({ isOpen, prefill, onClose }: FeedbackModalProps) 
           <div className="font-medium text-foreground mb-1">
             {t("feedback.tips")}
           </div>
-          <ul className="list-disc list-inside space-y-0.5 text-muted-foreground text-[11px] ml-1">
+          <ul className="list-disc list-inside space-y-0.5 text-muted-foreground text-px11 ml-1">
             <li>{t("feedback.tipBugReport")}</li>
             <li>{t("feedback.tipFeatureRequest")}</li>
             <li>{t("feedback.tipScreenshot")}</li>

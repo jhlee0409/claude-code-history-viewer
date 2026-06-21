@@ -46,7 +46,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           {trend !== undefined && (
             <div
               className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold",
+                "flex items-center gap-1 px-2 py-1 rounded-md text-px10 font-semibold",
                 trend > 0
                   ? "bg-success/10 text-success"
                   : trend < 0
@@ -72,14 +72,14 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         </div>
 
         {/* Label */}
-        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-auto">
+        <div className="text-px11 font-medium text-muted-foreground uppercase tracking-wider mb-auto">
           {label}
         </div>
 
         {/* Sub value */}
         {subValue && (
           <div className="mt-3 pt-3 border-t border-border/30">
-            <div className="font-mono text-[11px] text-muted-foreground/70">
+            <div className="font-mono text-px11 text-muted-foreground/70">
               {subValue}
             </div>
           </div>

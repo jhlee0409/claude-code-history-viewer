@@ -129,7 +129,7 @@ export function HiddenBlocksIndicator({
             aria-label={t("captureMode.hiddenCount", { count })}
             className={cn(
               "fixed px-1.5 py-0.5 rounded-r-sm",
-              "text-[10px] font-mono tabular-nums",
+              "text-px10 font-mono tabular-nums",
               "bg-zinc-800 text-zinc-500",
               "border-y border-r border-zinc-700/50",
               "hover:bg-zinc-700 hover:text-zinc-300 cursor-pointer",
@@ -154,7 +154,7 @@ export function HiddenBlocksIndicator({
                 "fixed min-w-[180px] max-h-[240px] overflow-y-auto",
                 "bg-zinc-900 border border-zinc-700 rounded-md",
                 "shadow-2xl shadow-black/70",
-                "text-[11px]"
+                "text-px11"
               )}
               style={{
                 top: badgePosition.top + 12,
@@ -199,7 +199,7 @@ export function HiddenBlocksIndicator({
                     "transition-colors"
                   )}
                 >
-                  <span className="font-mono text-[10px] truncate text-zinc-500">
+                  <span className="font-mono text-px10 truncate text-zinc-500">
                     {uuid.slice(0, 8)}...
                   </span>
                   <RotateCcw className="w-3 h-3 shrink-0" />

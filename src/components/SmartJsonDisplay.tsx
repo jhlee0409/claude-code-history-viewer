@@ -39,7 +39,7 @@ const formatValue = (key: string, value: unknown): React.ReactNode => {
         return (
             <div className="flex flex-wrap gap-1 mt-0.5">
                 {value.map((v, i) => (
-                    <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-muted/50 border border-border/50 text-[10px] text-foreground font-mono">
+                    <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-muted/50 border border-border/50 text-px10 text-foreground font-mono">
                         {String(v)}
                     </span>
                 ))}
@@ -103,7 +103,7 @@ export const SmartJsonDisplay = ({ data, className }: SmartJsonDisplayProps) => 
                 if (['description', 'prompt', 'task'].includes(key) && typeof value === 'string') {
                     return (
                         <div key={key} className="flex flex-col gap-1 pb-1 border-b border-border/10 last:border-0">
-                            <div className="flex items-center gap-1.5 text-muted-foreground uppercase text-[10px] font-bold tracking-wider opacity-70">
+                            <div className="flex items-center gap-1.5 text-muted-foreground uppercase text-px10 font-bold tracking-wider opacity-70">
                                 {icon}
                                 <span>{key.replace(/_/g, ' ')}</span>
                             </div>

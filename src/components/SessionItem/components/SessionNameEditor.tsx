@@ -160,7 +160,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                   className="w-2.5 h-2.5 text-blue-400"
                   aria-hidden="true"
                 />
-                <span className="text-[9px] font-medium text-blue-400 uppercase tracking-wide">
+                <span className="text-px9 font-medium text-blue-400 uppercase tracking-wide">
                   {t("session.cliSync.badge", "CLI")}
                 </span>
               </button>

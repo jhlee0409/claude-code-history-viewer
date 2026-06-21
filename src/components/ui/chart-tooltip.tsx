@@ -32,15 +32,15 @@ export const ChartTooltip: React.FC<ChartTooltipProps> = ({
     >
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-[12px]">{title}</span>
+          <span className="font-semibold text-px12">{title}</span>
           {subtitle && (
-            <span className="text-primary-foreground/60 font-normal text-[10px]">
+            <span className="text-primary-foreground/60 font-normal text-px10">
               {subtitle}
             </span>
           )}
         </div>
         {rows && rows.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-px11">
             {rows.map((row, idx) => (
               <React.Fragment key={`${row.label}-${idx}`}>
                 <span className="text-primary-foreground/60">{row.label}</span>

@@ -55,7 +55,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
           {/* Header */}
           <div className="flex items-start justify-between mb-5">
             <div>
-              <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+              <h3 className="text-px10 font-medium text-muted-foreground uppercase tracking-wider mb-1">
                 {t("analytics.performanceInsights")}
               </h3>
               <div className="flex items-center gap-2">
@@ -75,7 +75,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
               className="px-3 py-2 rounded-md"
               style={{ background: `color-mix(in oklch, ${statusColor} 10%, transparent)` }}
             >
-              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.tokenRank")}
               </div>
               <div className="font-mono text-xl font-bold tabular-nums" style={{ color: statusColor }}>
@@ -89,14 +89,14 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
             <div className="p-3 rounded-md bg-muted/20">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Zap className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.projectShare")}
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
                 {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
               </div>
-              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+              <div className="text-px10 text-muted-foreground font-mono mt-0.5">
                 {formatNumber(sessionStats.total_tokens)} {t("analytics.tokens")}
               </div>
             </div>
@@ -104,14 +104,14 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
             <div className="p-3 rounded-md bg-muted/20">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.tokensPerMessage")}
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
                 {avgTokensPerMessage.toLocaleString()}
               </div>
-              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+              <div className="text-px10 text-muted-foreground font-mono mt-0.5">
                 {t("analytics.messageCountShort", "{{count}} msgs", {
                   count: sessionStats.message_count,
                 })}
@@ -121,7 +121,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
             <div className="p-3 rounded-md bg-muted/20">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Timer className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.sessionTime")}
                 </span>
               </div>
@@ -131,7 +131,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                   {t("analytics.minutesUnit")}
                 </span>
               </div>
-              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+              <div className="text-px10 text-muted-foreground font-mono mt-0.5">
                 {t("analytics.rank", "Rank {{rank}}", {
                   rank: sessionComparison.rank_by_duration,
                 })}
@@ -141,14 +141,14 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
             <div className="p-3 rounded-md bg-muted/20">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.percentile", "Percentile")}
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
                 {percentile}%
               </div>
-              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+              <div className="text-px10 text-muted-foreground font-mono mt-0.5">
                 {t("analytics.sessionCount", "{{count}} sessions", {
                   count: totalProjectSessions,
                 })}
@@ -176,10 +176,10 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
             {/* Start */}
             <div className="text-center z-10">
               <div className="w-2.5 h-2.5 rounded-full bg-metric-green mb-2 mx-auto" />
-              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.startTime")}
               </div>
-              <div className="font-mono text-[11px] text-foreground mt-0.5">
+              <div className="font-mono text-px11 text-foreground mt-0.5">
                 {formatTime(sessionStats.first_message_time)}
               </div>
             </div>
@@ -189,7 +189,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
             {/* Duration */}
             <div className="text-center z-10 px-3 py-1.5 bg-card rounded-md border border-border/40">
-              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.duration")}
               </div>
               <div className="font-mono text-base font-bold text-foreground">
@@ -200,10 +200,10 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
             {/* End */}
             <div className="text-center z-10">
               <div className="w-2.5 h-2.5 rounded-full bg-metric-amber mb-2 mx-auto" />
-              <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.endTime")}
               </div>
-              <div className="font-mono text-[11px] text-foreground mt-0.5">
+              <div className="font-mono text-px11 text-foreground mt-0.5">
                 {formatTime(sessionStats.last_message_time)}
               </div>
             </div>
@@ -211,10 +211,10 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
           {/* Session ID */}
           <div className="pt-3 border-t border-border/30 text-center">
-            <div className="text-[9px] font-medium text-muted-foreground/60 uppercase tracking-wider mb-1">
+            <div className="text-px9 font-medium text-muted-foreground/60 uppercase tracking-wider mb-1">
               {t("analytics.sessionIdLabel")}
             </div>
-            <code className="font-mono text-[10px] text-muted-foreground/70 select-all">
+            <code className="font-mono text-px10 text-muted-foreground/70 select-all">
               {sessionStats.session_id}
             </code>
           </div>
