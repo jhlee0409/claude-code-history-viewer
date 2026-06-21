@@ -46,6 +46,15 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
         return Err("Session target must be a regular .jsonl file".to_string());
     }
 
+    // If this is a Codex rollout, clean up its native-rename row in
+    // `state_5.sqlite` before the transcript is trashed (the session id is read
+    // from the rollout). Best-effort — never block the delete on DB cleanup.
+    if crate::providers::codex::is_session_path(&file_path) {
+        if let Err(e) = crate::providers::codex::delete_session_title(&file_path) {
+            log::warn!("Codex thread-row cleanup failed for {file_path}: {e}");
+        }
+    }
+
     // Trash the .jsonl first (authoritative artifact), then the associated folder
     trash::delete(path).map_err(|e| format!("Failed to move session file to trash: {e}"))?;
 

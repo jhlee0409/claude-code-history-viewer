@@ -566,6 +566,41 @@ fn rename_session_title_from_path(
     })
 }
 
+/// Best-effort removal of a Codex session's `threads` row from `state_5.sqlite`
+/// when the session is deleted, so a native-rename title (see
+/// `rename_session_title`) does not linger as an orphaned row after the rollout
+/// transcript is gone. Must be called BEFORE the rollout file is trashed — the
+/// session id is read from the rollout itself.
+///
+/// Returns `Ok(())` when there is nothing to clean up (no state database, or no
+/// matching row); only a genuine DB/IO failure is an `Err`.
+pub fn delete_session_title(session_path: &str) -> Result<(), String> {
+    let base_path = get_base_path().ok_or_else(|| "Codex not found".to_string())?;
+    let canonical_path = validate_session_path(Path::new(session_path), session_path)?;
+    if !is_rollout_jsonl(&canonical_path) {
+        return Err(format!("Invalid Codex rollout path: {session_path}"));
+    }
+
+    // No state database means there is no native title to clean up.
+    if !state_db_path(&base_path).is_file() {
+        return Ok(());
+    }
+
+    let info = extract_session_info(&canonical_path)?;
+    if info.session_id.is_empty() {
+        return Ok(());
+    }
+
+    let conn = open_state_db_read_write(&base_path)?;
+    conn.execute(
+        "DELETE FROM threads WHERE id = ?1",
+        rusqlite::params![&info.session_id],
+    )
+    .map_err(|e| format!("Failed to delete Codex thread row: {e}"))?;
+
+    Ok(())
+}
+
 // ============================================================================
 // Internal helpers
 // ============================================================================
@@ -2784,6 +2819,95 @@ mod tests {
         .expect("reset should update state db");
         assert_eq!(reset.previous_title, "Better Codex title");
         assert_eq!(reset.new_title, "Original first prompt");
+    }
+
+    #[test]
+    #[serial]
+    fn delete_session_title_removes_only_the_matching_thread_row() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let rollout_path = write_codex_rollout(
+            &sessions_dir,
+            "rollout-delete-cleanup.jsonl",
+            "delete-cleanup-session",
+            "/Users/jack/client/claude-code-history-viewer",
+            "Original first prompt",
+        );
+        create_codex_state_db(
+            &codex_home,
+            &[
+                (
+                    "delete-cleanup-session",
+                    "Pinned title",
+                    "Original first prompt",
+                ),
+                ("unrelated-session", "Keep me", "other prompt"),
+            ],
+        );
+
+        delete_session_title(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+        )
+        .expect("delete should clean the thread row");
+
+        let conn = Connection::open(codex_home.join(STATE_DB_FILENAME))
+            .expect("codex state db should be readable");
+        let removed: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM threads WHERE id = ?1",
+                rusqlite::params!["delete-cleanup-session"],
+                |row| row.get(0),
+            )
+            .expect("count query should run");
+        assert_eq!(removed, 0, "deleted session's thread row should be gone");
+
+        let kept: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM threads WHERE id = ?1",
+                rusqlite::params!["unrelated-session"],
+                |row| row.get(0),
+            )
+            .expect("count query should run");
+        assert_eq!(kept, 1, "unrelated thread rows must be untouched");
+    }
+
+    #[test]
+    #[serial]
+    fn delete_session_title_is_noop_without_state_db() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let rollout_path = write_codex_rollout(
+            &sessions_dir,
+            "rollout-no-state-db.jsonl",
+            "no-db-session",
+            "/tmp/project",
+            "hello",
+        );
+        // No state_5.sqlite exists — cleanup must be a no-op, not an error.
+        assert!(delete_session_title(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+        )
+        .is_ok());
     }
 
     #[test]
