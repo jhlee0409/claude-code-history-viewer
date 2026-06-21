@@ -53,6 +53,7 @@ pub async fn scan_all_projects(
             "codebuddy".to_string(),
             "kiro".to_string(),
             "llm".to_string(),
+            "zed".to_string(),
         ]
     });
 
@@ -199,6 +200,16 @@ pub async fn scan_all_projects(
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("Qwen scan failed: {e}");
+            }
+        }
+    }
+
+    // Zed (Agent Panel threads — SQLite + Zstd JSON)
+    if providers_to_scan.iter().any(|p| p == "zed") {
+        match providers::zed::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Zed scan failed: {e}");
             }
         }
     }
@@ -476,6 +487,7 @@ pub async fn load_provider_sessions(
         "codebuddy" => providers::codebuddy::load_sessions(&project_path, exclude),
         "kiro" => providers::kiro::load_sessions(&project_path, exclude),
         "llm" => providers::llm::load_sessions(&project_path, exclude),
+        "zed" => providers::zed::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -518,6 +530,7 @@ pub async fn load_provider_messages(
         "codebuddy" => providers::codebuddy::load_messages(&session_path)?,
         "kiro" => providers::kiro::load_messages(&session_path)?,
         "llm" => providers::llm::load_messages(&session_path)?,
+        "zed" => providers::zed::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -566,6 +579,7 @@ pub async fn search_all_providers(
             "codebuddy".to_string(),
             "kiro".to_string(),
             "llm".to_string(),
+            "zed".to_string(),
         ]
     });
 
@@ -823,6 +837,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("llm search failed: {e}");
+            }
+        }
+    }
+
+    // Zed
+    if providers_to_search.iter().any(|p| p == "zed") {
+        match providers::zed::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Zed search failed: {e}");
             }
         }
     }

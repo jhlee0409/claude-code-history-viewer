@@ -26,6 +26,7 @@ pub mod pearai;
 pub mod q_conversation;
 pub mod qwen;
 pub mod vscode;
+pub mod zed;
 
 /// Provider identifier
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -65,6 +66,8 @@ pub enum ProviderId {
     /// Qwen Code (Gemini-CLI fork) — JSONL transcripts under `~/.qwen/projects`.
     Qwen,
     Antigravity,
+    /// Zed Agent Panel threads (`SQLite` + Zstd JSON at `…/Zed/threads/threads.db`).
+    Zed,
 }
 
 impl ProviderId {
@@ -92,6 +95,7 @@ impl ProviderId {
             Self::OpenInterpreter => "openinterpreter",
             Self::Qwen => "qwen",
             Self::Antigravity => "antigravity",
+            Self::Zed => "zed",
         }
     }
 
@@ -119,6 +123,7 @@ impl ProviderId {
             "openinterpreter" => Some(Self::OpenInterpreter),
             "qwen" => Some(Self::Qwen),
             "antigravity" => Some(Self::Antigravity),
+            "zed" => Some(Self::Zed),
             _ => None,
         }
     }
@@ -147,6 +152,7 @@ impl ProviderId {
             Self::OpenInterpreter => "Open Interpreter",
             Self::Qwen => "Qwen Code",
             Self::Antigravity => "Antigravity",
+            Self::Zed => "Zed",
         }
     }
 }
@@ -195,6 +201,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = qwen::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = zed::detect() {
         providers.push(info);
     }
     if let Some(info) = cline::detect() {

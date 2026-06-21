@@ -1111,6 +1111,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(zed_base) = providers::zed::get_base_path() {
+        let zed_dir = PathBuf::from(zed_base);
+        if zed_dir.is_dir() {
+            paths.push(zed_dir);
+        }
+    }
+
     if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
         let session_state = PathBuf::from(copilot_base).join("session-state");
         if session_state.is_dir() {

@@ -61,6 +61,7 @@ describe("providers utils", () => {
       "openinterpreter",
       "pearai",
       "qwen",
+      "zed",
     ]);
   });
 
