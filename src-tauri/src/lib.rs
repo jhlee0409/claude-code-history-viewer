@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod cli_args;
 pub mod commands;
+pub mod export;
 pub mod models;
 pub mod providers;
 pub mod utils;
@@ -80,6 +81,19 @@ use crate::commands::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Headless session export (issue #343): `--export <id|path> [--format html|json]
+    // [--output <file>]`. Handled before any GUI/webview so it works over SSH/CI
+    // with no display.
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if args
+            .iter()
+            .any(|a| a == "--export" || a.starts_with("--export="))
+        {
+            std::process::exit(export::run_export(&args));
+        }
+    }
+
     // Check for --serve flag (WebUI server mode)
     #[cfg(feature = "webui-server")]
     {
@@ -1043,6 +1057,20 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         let cursor_agent_projects = PathBuf::from(cursor_agent_base);
         if cursor_agent_projects.is_dir() {
             paths.push(cursor_agent_projects);
+        }
+    }
+
+    if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
+        let session_state = PathBuf::from(copilot_base).join("session-state");
+        if session_state.is_dir() {
+            paths.push(session_state);
+        }
+    }
+
+    for vscode_base in providers::vscode::get_base_paths() {
+        let ws_storage = vscode_base.join("workspaceStorage");
+        if ws_storage.is_dir() {
+            paths.push(ws_storage);
         }
     }
 

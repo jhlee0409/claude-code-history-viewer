@@ -27,7 +27,7 @@ export const MetricModeToggle: React.FC<MetricModeToggleProps> = ({
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+      <span className="text-px11 text-muted-foreground whitespace-nowrap">
         {t("analytics.metricModeLabel", "Metric")}
       </span>
       <div className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg">
@@ -40,7 +40,7 @@ export const MetricModeToggle: React.FC<MetricModeToggleProps> = ({
               aria-pressed={active}
               onClick={() => onChange(mode.id)}
               className={cn(
-                "px-3 py-1.5 rounded-md text-[11px] font-medium transition-all duration-200",
+                "px-3 py-1.5 rounded-md text-px11 font-medium transition-all duration-200",
                 active
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"

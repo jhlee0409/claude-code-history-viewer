@@ -21,7 +21,7 @@ never as a mandatory first step.
 
 ## Project Overview
 
-Claude Code History Viewer is a Tauri-based desktop application that allows users to browse and analyze conversation history from multiple AI coding assistants: Claude Code (`~/.claude`), Codex CLI (`~/.codex`), and OpenCode (`~/.local/share/opencode/`).
+Claude Code History Viewer is a Tauri-based desktop application that allows users to browse and analyze conversation history from multiple AI coding assistants: Claude Code (`~/.claude`), Codex CLI (`~/.codex`), OpenCode (`~/.local/share/opencode/`), GitHub Copilot CLI (`~/.copilot/session-state/`), and VS Code Copilot Chat (`<UserData>/workspaceStorage/<hash>/chatSessions/`).
 
 ## Development Commands
 
@@ -246,9 +246,12 @@ gh release edit v1.3.1 --notes-file /path/to/notes.md
 ### Data Flow
 
 ```
-Claude Code: ~/.claude/projects/[project]/*.jsonl  ─┐
-Codex CLI:   ~/.codex/sessions/**/rollout-*.jsonl   ├→ Rust Backend → Tauri IPC → React Frontend → Virtual List
-OpenCode:    ~/.local/share/opencode/storage/       ─┘
+Claude Code:        ~/.claude/projects/[project]/*.jsonl                              ─┐
+Codex CLI:          ~/.codex/sessions/**/rollout-*.jsonl                               │
+OpenCode:           ~/.local/share/opencode/storage/                                   │
+Copilot CLI:        ~/.copilot/session-state/<id>/events.jsonl   (workspace.yaml:      ├→ Rust Backend → Tauri IPC → React Frontend → Virtual List
+Copilot Desktop:    ~/.copilot/session-state/<id>/events.jsonl    client_name routes)  │
+VS Code Copilot:    <UserData>/workspaceStorage/<hash>/chatSessions/*.jsonl            ─┘
 ```
 
 ### Frontend (React + TypeScript)
@@ -479,6 +482,7 @@ Assistant messages contain additional metadata within the `message` object:
 
 - `--serve [--port N] [--host H] [--dist D] [--token T | --no-auth]` — WebUI headless mode (requires `webui-server` feature build). Parsed in `src-tauri/src/lib.rs::run_server`.
 - `--session <uuid|uuid-prefix>` — preload a specific session at GUI startup. UUID regex accepts 8-36 hex-or-dash chars. Parsed in `src-tauri/src/cli.rs::parse_session_hint`, delivered to the frontend via the `get_startup_session_hint` Tauri command, resolved in `src/lib/preloadSession.ts`. A race guard inside `preloadSessionFromCli` respects user navigation made mid-scan.
+- `--export <session-id|/abs/path.jsonl> [--format html|json] [--output <file>]` — **headless** session export (no GUI/webview); writes to `--output` or stdout, then exits. Dispatched first in `src-tauri/src/lib.rs::run`. Session ids resolve under `~/.claude/projects` (id prefix accepted when unambiguous). HTML rendering lives in `src-tauri/src/export.rs`, a Rust port of `src/services/export/{contentExtractor,htmlExporter}.ts` (markdown via `comrak`); keep the two in sync when adding content types.
 - **Shared argv helper**: `src-tauri/src/cli_args.rs::extract_flag_value` is the canonical `--flag=value` / `--flag value` parser used by both the desktop and `webui-server` code paths.
 
 ## Important Patterns

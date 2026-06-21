@@ -1568,6 +1568,36 @@
     line-height: calc(0.8125rem * var(--app-font-scale));
   }
 
+  /* === Fixed pixel text sizes, made reactive to --app-font-scale (issue #408) ===
+     These replace arbitrary `text-[Npx]` classes, which compile to a literal
+     font-size and so ignore the app font-size setting. They set font-size only —
+     matching the original arbitrary-value behavior — so appearance is unchanged
+     except that they now scale with the user's font-size preference. */
+  .text-px6 {
+    font-size: calc(0.375rem * var(--app-font-scale));
+  }
+  .text-px8 {
+    font-size: calc(0.5rem * var(--app-font-scale));
+  }
+  .text-px9 {
+    font-size: calc(0.5625rem * var(--app-font-scale));
+  }
+  .text-px10 {
+    font-size: calc(0.625rem * var(--app-font-scale));
+  }
+  .text-px11 {
+    font-size: calc(0.6875rem * var(--app-font-scale));
+  }
+  .text-px12 {
+    font-size: calc(0.75rem * var(--app-font-scale));
+  }
+  .text-px13 {
+    font-size: calc(0.8125rem * var(--app-font-scale));
+  }
+  .text-px14 {
+    font-size: calc(0.875rem * var(--app-font-scale));
+  }
+
   /* === Text Wrapping === */
   .text-balance {
     text-wrap: balance;

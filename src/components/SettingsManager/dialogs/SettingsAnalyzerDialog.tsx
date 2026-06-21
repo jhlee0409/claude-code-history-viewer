@@ -107,7 +107,7 @@ const FileCard = React.memo<{
             <code className="text-xs text-muted-foreground/60 font-mono break-all">
               {analysis.path}
             </code>
-            <p className="text-[10px] text-muted-foreground/40 mt-1">
+            <p className="text-px10 text-muted-foreground/40 mt-1">
               {t("settingsManager.analyzer.fileNotFound")}
             </p>
           </div>
@@ -127,7 +127,7 @@ const FileCard = React.memo<{
       {/* Scope Badge */}
       <Badge
         variant="outline"
-        className={`absolute -top-2 right-3 text-[9px] px-1.5 py-0 ${SCOPE_COLORS[analysis.scope]}`}
+        className={`absolute -top-2 right-3 text-px9 px-1.5 py-0 ${SCOPE_COLORS[analysis.scope]}`}
       >
         {t(`settingsManager.analyzer.scope.${analysis.scope}`)}
       </Badge>
@@ -142,29 +142,29 @@ const FileCard = React.memo<{
           {/* Content Summary */}
           <div className="flex flex-wrap gap-1.5 mt-2">
             {analysis.settingsCount > 0 && (
-              <Badge variant="secondary" className="text-[10px] h-5">
+              <Badge variant="secondary" className="text-px10 h-5">
                 {analysis.settingsCount} {t("settingsManager.analyzer.settings")}
               </Badge>
             )}
             {analysis.mcpCount > 0 && (
-              <Badge variant="secondary" className="text-[10px] h-5">
+              <Badge variant="secondary" className="text-px10 h-5">
                 <Server aria-hidden className="w-2.5 h-2.5 mr-1" />
                 {analysis.mcpCount} MCP
               </Badge>
             )}
             {analysis.model && (
-              <Badge variant="outline" className="text-[10px] h-5 font-mono">
+              <Badge variant="outline" className="text-px10 h-5 font-mono">
                 {analysis.model}
               </Badge>
             )}
             {analysis.hasPermissions && (
-              <Badge variant="secondary" className="text-[10px] h-5">
+              <Badge variant="secondary" className="text-px10 h-5">
                 <Shield aria-hidden className="w-2.5 h-2.5 mr-1" />
                 {t("settingsManager.analyzer.permissions")}
               </Badge>
             )}
             {analysis.hasHooks && (
-              <Badge variant="secondary" className="text-[10px] h-5">
+              <Badge variant="secondary" className="text-px10 h-5">
                 <Zap aria-hidden className="w-2.5 h-2.5 mr-1" />
                 {t("settingsManager.analyzer.hooks")}
               </Badge>
@@ -210,13 +210,13 @@ const IssueCard = React.memo<{ issue: SettingsIssue }>(({ issue }) => {
               <Badge
                 key={scope}
                 variant="outline"
-                className={`text-[9px] px-1.5 py-0 ${SCOPE_COLORS[scope] ?? ""}`}
+                className={`text-px9 px-1.5 py-0 ${SCOPE_COLORS[scope] ?? ""}`}
               >
                 {t(`settingsManager.analyzer.scope.${scope}`)}
               </Badge>
             ))}
           </div>
-          <p className="text-[11px] italic text-muted-foreground/70">
+          <p className="text-px11 italic text-muted-foreground/70">
             {t(issue.recommendationKey)}
           </p>
         </div>
@@ -564,7 +564,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                   <span>{saveResult.message}</span>
                 </div>
               )}
-              <p className="text-[10px] text-muted-foreground text-center">
+              <p className="text-px10 text-muted-foreground text-center">
                 {t("settingsManager.analyzer.backupHint")}
               </p>
             </div>
@@ -606,13 +606,13 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                 <div className="pl-4 flex items-center gap-2">
                   <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
                   <span>settings.json</span>
-                  <Badge variant="outline" className="text-[9px] h-4">
+                  <Badge variant="outline" className="text-px9 h-4">
                     {t("settingsManager.analyzer.recommended.globalSettings")}
                   </Badge>
                 </div>
                 <div className="text-muted-foreground mt-3">
                   <span className="text-emerald-500">~/.claude.json</span>
-                  <Badge variant="outline" className="text-[9px] h-4 ml-2">
+                  <Badge variant="outline" className="text-px9 h-4 ml-2">
                     {t("settingsManager.analyzer.recommended.globalMcp")}
                   </Badge>
                 </div>
@@ -622,21 +622,21 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                 <div className="pl-4 flex items-center gap-2">
                   <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
                   <span>.mcp.json</span>
-                  <Badge variant="outline" className="text-[9px] h-4">
+                  <Badge variant="outline" className="text-px9 h-4">
                     {t("settingsManager.analyzer.recommended.projectMcp")}
                   </Badge>
                 </div>
                 <div className="pl-4 flex items-center gap-2">
                   <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
                   <span>.claude/settings.json</span>
-                  <Badge variant="outline" className="text-[9px] h-4">
+                  <Badge variant="outline" className="text-px9 h-4">
                     {t("settingsManager.analyzer.recommended.teamSettings")}
                   </Badge>
                 </div>
                 <div className="pl-4 flex items-center gap-2 text-muted-foreground/60">
                   <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/30" />
                   <span>.claude/settings.local.json</span>
-                  <Badge variant="outline" className="text-[9px] h-4 opacity-50">
+                  <Badge variant="outline" className="text-px9 h-4 opacity-50">
                     gitignore
                   </Badge>
                 </div>

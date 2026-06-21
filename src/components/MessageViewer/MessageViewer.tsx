@@ -76,7 +76,7 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
         <ChevronIcon className="w-3 h-3 text-muted-foreground" />
         <Bot className="w-3.5 h-3.5 text-muted-foreground" />
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <span className="text-[10px] text-muted-foreground/70 bg-muted rounded-full px-1.5">
+        <span className="text-px10 text-muted-foreground/70 bg-muted rounded-full px-1.5">
           {subagentSessions.length}
         </span>
       </button>
@@ -97,7 +97,7 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
               <span className="max-w-[200px] truncate">
                 {sa.summary ?? sa.agent_id}
               </span>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-px10 text-muted-foreground">
                 {t("renderers.agentTool.messages", { count: sa.message_count, defaultValue: "{{count}} messages" })}
               </span>
             </button>
@@ -967,13 +967,18 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         >
         {/* 디버깅 정보 */}
         {import.meta.env.DEV && (
-          <div className="bg-warning/10 p-2 text-xs text-warning-foreground border-b border-warning/20 space-y-1">
+          <div className="bg-muted/60 p-2 text-xs text-foreground border-b border-border space-y-1">
             <div>
               {t("messageViewer.debugInfo.messages", {
                 current: displayMessages.length,
                 total: messages.length,
               })}{" "}
-              | 검색: {sessionSearch.query || "(없음)"}
+              |{" "}
+              {t("messageViewer.debugInfo.search", {
+                query:
+                  sessionSearch.query ||
+                  t("messageViewer.debugInfo.noSearch", { defaultValue: "(none)" }),
+              })}
             </div>
             <div>
               {t("messageViewer.debugInfo.session", {
@@ -982,16 +987,34 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               |{" "}
               {t("messageViewer.debugInfo.file", {
                 fileName: selectedSession?.file_path
-                  ?.split("/")
+                  ?.split(/[\\/]/)
                   .pop()
                   ?.slice(0, 20),
               })}
             </div>
             <div>
-              Virtual: flat={flattenedMessages.length} | rows={virtualRows.length} | size={totalSize}px | ready={scrollElementReady ? "Y" : "N"}
+              {t("messageViewer.debugInfo.virtual", {
+                flat: flattenedMessages.length,
+                rows: virtualRows.length,
+                size: totalSize,
+                ready: scrollElementReady
+                  ? t("messageViewer.debugInfo.yes", { defaultValue: "Y" })
+                  : t("messageViewer.debugInfo.no", { defaultValue: "N" }),
+              })}
             </div>
             <div>
-              Overlay: scrollReady={scrollReadyForSessionId?.slice(-8) ?? "null"} | current={selectedSession?.session_id?.slice(-8) ?? "null"} | show={selectedSession?.session_id && scrollReadyForSessionId !== selectedSession?.session_id ? "Y" : "N"}
+              {t("messageViewer.debugInfo.overlay", {
+                scrollReady:
+                  scrollReadyForSessionId?.slice(-8) ??
+                  t("messageViewer.debugInfo.null", { defaultValue: "null" }),
+                current:
+                  selectedSession?.session_id?.slice(-8) ??
+                  t("messageViewer.debugInfo.null", { defaultValue: "null" }),
+                show:
+                  selectedSession?.session_id && scrollReadyForSessionId !== selectedSession?.session_id
+                    ? t("messageViewer.debugInfo.yes", { defaultValue: "Y" })
+                    : t("messageViewer.debugInfo.no", { defaultValue: "N" }),
+              })}
             </div>
           </div>
         )}

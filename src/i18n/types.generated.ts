@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-06-21T07:32:14.521Z
- * 총 키 개수: 1802
+ * 생성 시간: 2026-06-21T08:26:34.511Z
+ * 총 키 개수: 1811
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (165개)
+ * common namespace의 번역 키 (166개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -113,6 +113,7 @@ export type CommonKeys =
   | 'common.provider.cline'
   | 'common.provider.codebuddy'
   | 'common.provider.codex'
+  | 'common.provider.copilot'
   | 'common.provider.cursor'
   | 'common.provider.cursorAgent'
   | 'common.provider.detectError'
@@ -1276,7 +1277,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (94개)
+ * message namespace의 번역 키 (101개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1327,8 +1328,15 @@ export type MessageKeys =
   | 'messageViewer.debugInfo.lastMessage'
   | 'messageViewer.debugInfo.loading'
   | 'messageViewer.debugInfo.messages'
+  | 'messageViewer.debugInfo.no'
+  | 'messageViewer.debugInfo.noSearch'
+  | 'messageViewer.debugInfo.null'
   | 'messageViewer.debugInfo.offset'
+  | 'messageViewer.debugInfo.overlay'
+  | 'messageViewer.debugInfo.search'
   | 'messageViewer.debugInfo.session'
+  | 'messageViewer.debugInfo.virtual'
+  | 'messageViewer.debugInfo.yes'
   | 'messageViewer.filterContent'
   | 'messageViewer.filterToolId'
   | 'messageViewer.filterType'
@@ -1376,7 +1384,7 @@ export type MessageKeys =
   | 'navigator.userOnly';
 
 /**
- * renderers namespace의 번역 키 (383개)
+ * renderers namespace의 번역 키 (384개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1686,6 +1694,7 @@ export type RenderersKeys =
   | 'systemMessageRenderer.subtypes.localCommand'
   | 'systemMessageRenderer.subtypes.microcompactBoundary'
   | 'systemMessageRenderer.subtypes.stopHook'
+  | 'systemMessageRenderer.subtypes.systemPrompt'
   | 'systemMessageRenderer.subtypes.turnDuration'
   | 'systemMessageRenderer.title'
   | 'systemMessageRenderer.trigger'
@@ -2283,6 +2292,7 @@ export type TranslationKey =
   | 'common.provider.cline'
   | 'common.provider.codebuddy'
   | 'common.provider.codex'
+  | 'common.provider.copilot'
   | 'common.provider.cursor'
   | 'common.provider.cursorAgent'
   | 'common.provider.detectError'
@@ -2597,8 +2607,15 @@ export type TranslationKey =
   | 'messageViewer.debugInfo.lastMessage'
   | 'messageViewer.debugInfo.loading'
   | 'messageViewer.debugInfo.messages'
+  | 'messageViewer.debugInfo.no'
+  | 'messageViewer.debugInfo.noSearch'
+  | 'messageViewer.debugInfo.null'
   | 'messageViewer.debugInfo.offset'
+  | 'messageViewer.debugInfo.overlay'
+  | 'messageViewer.debugInfo.search'
   | 'messageViewer.debugInfo.session'
+  | 'messageViewer.debugInfo.virtual'
+  | 'messageViewer.debugInfo.yes'
   | 'messageViewer.filterContent'
   | 'messageViewer.filterToolId'
   | 'messageViewer.filterType'
@@ -3513,6 +3530,7 @@ export type TranslationKey =
   | 'systemMessageRenderer.subtypes.localCommand'
   | 'systemMessageRenderer.subtypes.microcompactBoundary'
   | 'systemMessageRenderer.subtypes.stopHook'
+  | 'systemMessageRenderer.subtypes.systemPrompt'
   | 'systemMessageRenderer.subtypes.turnDuration'
   | 'systemMessageRenderer.title'
   | 'systemMessageRenderer.trigger'

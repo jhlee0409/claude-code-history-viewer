@@ -226,7 +226,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 <h3 className="text-sm font-semibold text-foreground">
                   {t("analytics.projectStats", { count: totalCount })}
                 </h3>
-                <p className="text-[12px] text-muted-foreground">
+                <p className="text-px12 text-muted-foreground">
                   {t("analytics.projectOverallAnalysis")}
                 </p>
               </div>
@@ -257,7 +257,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                       >
                         {formatNumber(metric.value)}
                       </div>
-                      <div className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mt-1">
+                      <div className="text-px12 font-medium text-muted-foreground uppercase tracking-wider mt-1">
                         {metric.label}
                       </div>
                     </div>
@@ -286,7 +286,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               <div className="w-1.5 h-5 rounded-full bg-accent" />
               {t("analytics.sessionStatsDetail")}
             </h4>
-            <span className="text-[11px] text-muted-foreground font-mono">
+            <span className="text-px11 text-muted-foreground font-mono">
               {projectStats.length} / {totalCount}
             </span>
           </div>
@@ -320,7 +320,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                 disabled={isLoadingMore}
                 aria-label={t("analytics.showMoreSessions", { count: Math.min(pagination?.limit ?? 20, remainingCount) })}
                 className={cn(
-                  "w-full py-4 rounded-xl text-[13px] font-medium",
+                  "w-full py-4 rounded-xl text-px13 font-medium",
                   "bg-muted/30 hover:bg-muted/50",
                   "border border-border/50 hover:border-border",
                   "text-muted-foreground hover:text-foreground",
@@ -366,7 +366,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
         <p className="text-sm font-medium text-foreground mb-1">
           {t("analytics.noTokenData")}
         </p>
-        <p className="text-[12px] text-muted-foreground">
+        <p className="text-px12 text-muted-foreground">
           {t("analytics.selectSessionOrLoad")}
         </p>
       </div>

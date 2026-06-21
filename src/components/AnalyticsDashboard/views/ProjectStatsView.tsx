@@ -109,7 +109,7 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
           {projectSummary.daily_stats.length > 0 ? (
             <ActivityHeatmapComponent data={projectSummary.daily_stats} />
           ) : (
-            <div className="text-center py-8 text-muted-foreground text-[12px]">
+            <div className="text-center py-8 text-muted-foreground text-px12">
               {t("analytics.No activity data available")}
             </div>
           )}

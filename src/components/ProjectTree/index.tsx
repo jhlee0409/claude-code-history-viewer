@@ -107,6 +107,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       cline: 0,
       codebuddy: 0,
       codex: 0,
+      "copilot": 0,
       cursor: 0,
       "cursor-agent": 0,
       forgecode: 0,
@@ -801,7 +802,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   <span>{tab.label}</span>
                   <span
                     className={cn(
-                      "px-1 py-0.5 rounded text-[10px] font-mono leading-none",
+                      "px-1 py-0.5 rounded text-px10 font-mono leading-none",
                       isActive ? "bg-accent/20 text-accent" : "bg-muted text-muted-foreground"
                     )}
                   >

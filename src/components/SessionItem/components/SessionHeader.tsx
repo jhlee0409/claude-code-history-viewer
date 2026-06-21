@@ -34,7 +34,7 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <p className="font-medium">{t("session.item.archived", "Archived session")}</p>
-          <p className="text-[11px] text-primary-foreground/80 mt-1 leading-relaxed">
+          <p className="text-px11 text-primary-foreground/80 mt-1 leading-relaxed">
             {t("session.item.archivedDescription", "Stored under Codex archived_sessions.")}
           </p>
         </TooltipContent>

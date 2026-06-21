@@ -117,7 +117,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 aria-selected={activeTab === "project"}
                 onClick={() => setActiveTab("project")}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-[11px] font-medium rounded-md transition-all duration-200",
+                  "flex items-center gap-2 px-4 py-2 text-px11 font-medium rounded-md transition-all duration-200",
                   activeTab === "project"
                     ? "bg-card text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -136,7 +136,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 aria-selected={activeTab === "session"}
                 onClick={() => setActiveTab("session")}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-[11px] font-medium rounded-md transition-all duration-200",
+                  "flex items-center gap-2 px-4 py-2 text-px11 font-medium rounded-md transition-all duration-200",
                   activeTab === "session"
                     ? "bg-card text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"

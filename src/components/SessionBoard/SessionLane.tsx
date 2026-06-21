@@ -253,10 +253,10 @@ export const SessionLane = ({
                         <div className="flex gap-1">
                             {stats?.commitCount > 0 && <span title={t("session.board.gitCommits")}><GitCommit className="w-2.5 h-2.5 text-indigo-500" /></span>}
                         </div>
-                        <div className="text-[10px] font-bold text-muted-foreground">
+                        <div className="text-px10 font-bold text-muted-foreground">
                             {new Date(session.last_modified).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
                         </div>
-                        <div className="mt-auto text-[8px] font-mono text-muted-foreground">
+                        <div className="mt-auto text-px8 font-mono text-muted-foreground">
                             {Math.round((stats?.totalTokens || 0) / 1000)}k
                         </div>
                     </div>
@@ -264,7 +264,7 @@ export const SessionLane = ({
                     <div className="flex flex-col h-full gap-2">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5 overflow-hidden">
-                                <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
+                                <span className="text-px10 font-mono text-muted-foreground/70 shrink-0">
                                     {new Date(session.last_modified).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}  •  {new Date(session.last_modified).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                 </span>
                             </div>
@@ -274,20 +274,20 @@ export const SessionLane = ({
                                 {stats.commitCount > 0 && (
                                     <div className="flex items-center gap-1 text-indigo-500" title={t("session.board.gitCommits")}>
                                         <GitCommit className="w-3 h-3" />
-                                        <span className="text-[10px] font-bold">{stats.commitCount}</span>
+                                        <span className="text-px10 font-bold">{stats.commitCount}</span>
                                     </div>
                                 )}
 
                                 <div className="flex items-center gap-1 text-emerald-500" title={t("analytics.inputTokens")}>
                                     <TrendingUp className="w-3 h-3" />
-                                    <span className="text-[10px] font-mono">{formatNumber(stats.inputTokens || 0)}</span>
-                                    <span className="text-[9px] opacity-60">{t("analytics.in", "in")}</span>
+                                    <span className="text-px10 font-mono">{formatNumber(stats.inputTokens || 0)}</span>
+                                    <span className="text-px9 opacity-60">{t("analytics.in", "in")}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1 text-purple-500" title={t("analytics.outputTokens")}>
                                     <Zap className="w-3 h-3" />
-                                    <span className="text-[10px] font-mono">{formatNumber(stats.outputTokens || 0)}</span>
-                                    <span className="text-[9px] opacity-60">{t("analytics.out", "out")}</span>
+                                    <span className="text-px10 font-mono">{formatNumber(stats.outputTokens || 0)}</span>
+                                    <span className="text-px9 opacity-60">{t("analytics.out", "out")}</span>
                                 </div>
 
 
@@ -297,9 +297,9 @@ export const SessionLane = ({
                         <div className="flex items-baseline gap-2 pb-1 border-b border-border/20">
                             <div className="text-xl font-bold font-mono text-foreground">
                                 {formatNumber(stats.totalTokens)}
-                                <span className="text-[10px] text-muted-foreground font-normal ml-1">{t("analytics.tokens")}</span>
+                                <span className="text-px10 text-muted-foreground font-normal ml-1">{t("analytics.tokens")}</span>
                             </div>
-                            <div className="ml-auto text-[10px] text-muted-foreground flex items-center gap-3">
+                            <div className="ml-auto text-px10 text-muted-foreground flex items-center gap-3">
                                 {matchStats && (
                                     <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-accent/10 text-accent rounded-sm border border-accent/20 animate-in fade-in slide-in-from-right-1">
                                         <span className="font-bold">{matchStats.matched}/{matchStats.total}</span>
@@ -343,7 +343,7 @@ export const SessionLane = ({
                                         }}
                                     >
                                         <Terminal className="w-3 h-3" />
-                                        <span className="text-[10px] font-bold font-mono">{stats.shellCount}</span>
+                                        <span className="text-px10 font-bold font-mono">{stats.shellCount}</span>
                                     </button>
                                 )}
 
@@ -372,7 +372,7 @@ export const SessionLane = ({
                                                 }}
                                             >
                                                 <FilePlus className="w-3 h-3" />
-                                                <span className="text-[10px] font-bold font-mono">{createdCount}</span>
+                                                <span className="text-px10 font-bold font-mono">{createdCount}</span>
                                             </button>
                                         );
                                     } else if (stats.fileToolCount > 0) {
@@ -394,7 +394,7 @@ export const SessionLane = ({
                                                 }}
                                             >
                                                 <FilePlus className="w-3 h-3" />
-                                                <span className="text-[10px] font-bold font-mono">{stats.fileToolCount}</span>
+                                                <span className="text-px10 font-bold font-mono">{stats.fileToolCount}</span>
                                             </button>
                                         );
                                     }
@@ -420,7 +420,7 @@ export const SessionLane = ({
                                         }}
                                     >
                                         <Search className="w-3 h-3" />
-                                        <span className="text-[10px] font-bold font-mono">{stats.searchCount}</span>
+                                        <span className="text-px10 font-bold font-mono">{stats.searchCount}</span>
                                     </button>
                                 )}
 
@@ -443,7 +443,7 @@ export const SessionLane = ({
                                         }}
                                     >
                                         <Globe className="w-3 h-3" />
-                                        <span className="text-[10px] font-bold font-mono">{stats.webCount}</span>
+                                        <span className="text-px10 font-bold font-mono">{stats.webCount}</span>
                                     </button>
                                 )}
 
@@ -466,7 +466,7 @@ export const SessionLane = ({
                                         }}
                                     >
                                         <Plug className="w-3 h-3" />
-                                        <span className="text-[10px] font-bold font-mono">{stats.mcpCount}</span>
+                                        <span className="text-px10 font-bold font-mono">{stats.mcpCount}</span>
                                     </button>
                                 )}
 
@@ -489,7 +489,7 @@ export const SessionLane = ({
                                         }}
                                     >
                                         <GitCommit className="w-3 h-3" />
-                                        <span className="text-[10px] font-bold font-mono">{stats.gitToolCount}</span>
+                                        <span className="text-px10 font-bold font-mono">{stats.gitToolCount}</span>
                                     </button>
                                 )}
 
@@ -512,7 +512,7 @@ export const SessionLane = ({
                                         }}
                                     >
                                         <Book className="w-3 h-3" />
-                                        <span className="text-[10px] font-bold font-mono">{stats.markdownEditCount}</span>
+                                        <span className="text-px10 font-bold font-mono">{stats.markdownEditCount}</span>
                                     </button>
                                 )}
 
@@ -535,7 +535,7 @@ export const SessionLane = ({
                                         }}
                                     >
                                         <FileText className="w-3 h-3" />
-                                        <span className="text-[10px] font-bold font-mono">{stats.fileEditCount}</span>
+                                        <span className="text-px10 font-bold font-mono">{stats.fileEditCount}</span>
                                     </button>
                                 )}
 
@@ -558,7 +558,7 @@ export const SessionLane = ({
                                         }}
                                     >
                                         <Eye className="w-3 h-3" />
-                                        <span className="text-[10px] font-bold font-mono">{stats.codeReadCount}</span>
+                                        <span className="text-px10 font-bold font-mono">{stats.codeReadCount}</span>
                                     </button>
                                 )}
                             </div>
@@ -566,16 +566,16 @@ export const SessionLane = ({
                             {/* Actual Git History (Ground Truth) */}
                             {data.gitCommits && data.gitCommits.length > 0 && (
                                 <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1 pt-1 border-t border-border/10">
-                                    <div className="text-[8px] uppercase font-bold text-blue-500/70 tracking-tighter w-full">{t("session.board.gitCommits")}</div>
+                                    <div className="text-px8 uppercase font-bold text-blue-500/70 tracking-tighter w-full">{t("session.board.gitCommits")}</div>
                                     {data.gitCommits.slice(0, 2).map(commit => (
-                                        <div key={commit.hash} className="flex items-center gap-1.5 text-[9px] text-blue-600/80 font-mono bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/10 max-w-full overflow-hidden" title={commit.message}>
+                                        <div key={commit.hash} className="flex items-center gap-1.5 text-px9 text-blue-600/80 font-mono bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/10 max-w-full overflow-hidden" title={commit.message}>
                                             <GitCommit className="w-2.5 h-2.5 shrink-0" />
                                             <span className="truncate">{commit.message}</span>
-                                            <code className="text-[8px] opacity-40 shrink-0">{commit.hash.substring(0, 7)}</code>
+                                            <code className="text-px8 opacity-40 shrink-0">{commit.hash.substring(0, 7)}</code>
                                         </div>
                                     ))}
                                     {data.gitCommits.length > 2 && (
-                                        <span className="text-[9px] text-muted-foreground/40 self-center">{t("session.board.moreItems", { count: data.gitCommits.length - 2 })}</span>
+                                        <span className="text-px9 text-muted-foreground/40 self-center">{t("session.board.moreItems", { count: data.gitCommits.length - 2 })}</span>
                                     )}
                                 </div>
                             )}

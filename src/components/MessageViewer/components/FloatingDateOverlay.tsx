@@ -108,7 +108,7 @@ export const FloatingDateOverlay: React.FC<FloatingDateOverlayProps> = React.mem
           "px-3 py-1 rounded-full",
           "bg-popover/90 backdrop-blur-sm",
           "border border-border/50 shadow-sm",
-          "text-[11px] font-medium text-muted-foreground",
+          "text-px11 font-medium text-muted-foreground",
           "transition-opacity duration-300",
           "pointer-events-none select-none",
           isVisible ? "opacity-100" : "opacity-0",

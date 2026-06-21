@@ -160,12 +160,12 @@ export function SimpleUpdateModal({
           {/* Version info */}
           <div className="flex items-center justify-between p-2.5 bg-info/10 border border-info/20 rounded-md">
             <div className="text-center">
-              <div className="text-[11px] text-muted-foreground">{t('simpleUpdateModal.currentVersion')}</div>
+              <div className="text-px11 text-muted-foreground">{t('simpleUpdateModal.currentVersion')}</div>
               <div className="text-xs font-medium text-foreground">{currentVersion}</div>
             </div>
             <div className="text-lg text-muted-foreground">→</div>
             <div className="text-center">
-              <div className="text-[11px] text-muted-foreground">{t('simpleUpdateModal.newVersion')}</div>
+              <div className="text-px11 text-muted-foreground">{t('simpleUpdateModal.newVersion')}</div>
               <div className="text-xs font-medium text-info">{newVersion}</div>
             </div>
           </div>
@@ -173,14 +173,14 @@ export function SimpleUpdateModal({
           {(releaseName || releaseNotes) && (
             <div className="space-y-1.5 p-2.5 bg-muted/40 border border-border/60 rounded-md">
               {releaseName && (
-                <p className="text-[11px] text-muted-foreground" data-testid="update-release-name">
+                <p className="text-px11 text-muted-foreground" data-testid="update-release-name">
                   <span className="font-medium">{t('simpleUpdateModal.releaseName')}</span>{' '}
                   {releaseName}
                 </p>
               )}
               {releaseNotes && (
                 <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-muted-foreground">
+                  <p className="text-px11 font-medium text-muted-foreground">
                     {t('simpleUpdateModal.changes')}
                   </p>
                   <p
@@ -203,7 +203,7 @@ export function SimpleUpdateModal({
                   {t('simpleUpdateModal.restarting')}
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-px11 text-muted-foreground">
                 {t('simpleUpdateModal.restartingDescription')}
               </p>
             </div>
@@ -247,7 +247,7 @@ export function SimpleUpdateModal({
                 <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
                 <span>{t('common.error.updateDownloadCompleteRestart')}</span>
               </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground ml-5.5">
+              <p className="mt-1.5 text-px11 text-muted-foreground ml-5.5">
                 {t('common.error.updateDownloadCompleteRestartHint')}
               </p>
             </div>
@@ -260,7 +260,7 @@ export function SimpleUpdateModal({
                 <AlertTriangle className="w-3.5 h-3.5" />
                 <span>{t('simpleUpdateModal.errorOccurred', { error: localizedError })}</span>
               </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">
+              <p className="mt-2 text-px11 text-muted-foreground">
                 {t('simpleUpdateModal.failureGuide')}
               </p>
               <Button

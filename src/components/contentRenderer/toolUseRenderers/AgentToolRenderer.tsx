@@ -53,7 +53,7 @@ export const AgentToolRenderer = memo(function AgentToolRenderer({
             {input.subagent_type && (
               <span
                 className={cn(
-                  "inline-flex items-center gap-1 px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide",
+                  "inline-flex items-center gap-1 px-2 py-0.5 font-mono text-px11 uppercase tracking-wide",
                   layout.rounded,
                   style.bg,
                   style.text,

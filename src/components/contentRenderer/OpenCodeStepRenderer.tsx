@@ -32,7 +32,7 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
               {t("renderers.opencodeStep.title")}
             </span>
             {snapshot && (
-              <code className="text-[10px] px-1.5 py-0.5 bg-background rounded border border-border font-mono text-muted-foreground">
+              <code className="text-px10 px-1.5 py-0.5 bg-background rounded border border-border font-mono text-muted-foreground">
                 <Hash size={10} className="inline mr-0.5" />
                 {snapshot}
               </code>
@@ -75,7 +75,7 @@ OpenCodeStepRenderer.displayName = "OpenCodeStepRenderer";
 function TokenBadge({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; value: number }) {
   if (value === 0) return null;
   return (
-    <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-0.5">
+    <span className="text-px10 text-muted-foreground font-mono flex items-center gap-0.5">
       <Icon size={10} />
       {label}: {value.toLocaleString()}
     </span>
