@@ -494,10 +494,12 @@ pub fn render_session_html(messages: &[Value], session_name: &str) -> String {
         let is_user = type_is(msg, "user");
         let role = if is_user { "user" } else { "assistant" };
         let role_label = if is_user { "User" } else { "Assistant" };
+        // Escape: format_timestamp returns the raw string on parse failure, so a
+        // crafted timestamp could otherwise inject markup.
         let time = msg
             .get("timestamp")
             .and_then(|v| v.as_str())
-            .map(|ts| format_timestamp(ts).1)
+            .map(|ts| escape_html(&format_timestamp(ts).1))
             .unwrap_or_default();
 
         let inner = msg.get("message");
@@ -615,8 +617,17 @@ fn resolve_session_path(value: &str) -> Result<PathBuf, String> {
         if as_path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
             return Err("Session path must point to a .jsonl file".to_string());
         }
-        if !as_path.is_file() {
-            return Err(format!("Session file not found: {value}"));
+        // Reject symlinks (`is_file` follows them, so a `.jsonl` symlink could
+        // point the reader at an arbitrary file).
+        match fs::symlink_metadata(as_path) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err("Session path cannot be a symlink".to_string());
+            }
+            Ok(meta) if !meta.is_file() => {
+                return Err(format!("Session path is not a regular file: {value}"));
+            }
+            Ok(_) => {}
+            Err(_) => return Err(format!("Session file not found: {value}")),
         }
         return Ok(as_path.to_path_buf());
     }
@@ -742,7 +753,16 @@ pub fn run_export(args: &[String]) -> i32 {
 
     match output {
         Some(out) => {
-            if let Err(e) = fs::write(&out, rendered.as_bytes()) {
+            // Atomic write: stage to a temp file in the same directory, then
+            // rename, so an interrupted run can't leave a truncated report.
+            let out_path = Path::new(&out);
+            let tmp_path = out_path.with_extension(format!("tmp.{}", uuid::Uuid::new_v4()));
+            if let Err(e) = fs::write(&tmp_path, rendered.as_bytes()) {
+                eprintln!("Failed to write {out}: {e}");
+                return 1;
+            }
+            if let Err(e) = crate::commands::fs_utils::atomic_rename(&tmp_path, out_path) {
+                let _ = fs::remove_file(&tmp_path);
                 eprintln!("Failed to write {out}: {e}");
                 return 1;
             }
@@ -954,5 +974,19 @@ mod tests {
     fn resolve_rejects_invalid_session_id() {
         assert!(resolve_session_path("bad id!").is_err());
         assert!(resolve_session_path("../etc/passwd").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_rejects_symlinked_jsonl() {
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::TempDir::new().unwrap();
+        let real = dir.path().join("real.jsonl");
+        std::fs::write(&real, "{}\n").unwrap();
+        let link = dir.path().join("link.jsonl");
+        symlink(&real, &link).unwrap();
+
+        let err = resolve_session_path(&link.to_string_lossy()).unwrap_err();
+        assert!(err.contains("symlink"));
     }
 }
