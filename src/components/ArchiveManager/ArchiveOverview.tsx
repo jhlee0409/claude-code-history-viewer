@@ -263,10 +263,11 @@ export const ArchiveOverview: React.FC = () => {
     let okSessions = 0;
     const failed: string[] = [];
 
-    setBackupProgress({ current: 0, total: claudeProjects.length });
+    setBackupProgress({ current: 1, total: claudeProjects.length });
     try {
       for (const [i, project] of claudeProjects.entries()) {
-        setBackupProgress({ current: i, total: claudeProjects.length });
+        // 1-based: "backing up project (i+1) of N"
+        setBackupProgress({ current: i + 1, total: claudeProjects.length });
         try {
           const sessions = await api<ClaudeSession[]>('load_project_sessions', {
             projectPath: project.path,
