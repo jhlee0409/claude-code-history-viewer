@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
 
 // Mock Tauri APIs for testing environment
 interface TauriMock {
@@ -22,6 +22,63 @@ global.window = global.window || {};
     emit: vi.fn(),
   },
 };
+
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear: vi.fn(() => {
+      store.clear();
+    }),
+    getItem: vi.fn((key: string) => store.get(key) ?? null),
+    key: vi.fn((index: number) => Array.from(store.keys())[index] ?? null),
+    removeItem: vi.fn((key: string) => {
+      store.delete(key);
+    }),
+    setItem: vi.fn((key: string, value: string) => {
+      store.set(key, String(value));
+    }),
+  };
+}
+
+let testStorage: Storage | undefined;
+let needsMemoryStorage = false;
+
+function installMemoryStorage(): Storage {
+  const storage = createMemoryStorage();
+  testStorage = storage;
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    writable: true,
+    value: storage,
+  });
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: storage,
+  });
+  return storage;
+}
+
+try {
+  testStorage = globalThis.localStorage;
+  needsMemoryStorage = typeof testStorage?.clear !== 'function';
+} catch {
+  needsMemoryStorage = true;
+}
+
+if (needsMemoryStorage) {
+  installMemoryStorage();
+}
+
+beforeEach(() => {
+  try {
+    testStorage?.clear();
+  } catch {
+    installMemoryStorage().clear();
+  }
+});
 
 // Mock matchMedia for components that use media queries
 Object.defineProperty(window, 'matchMedia', {
@@ -62,4 +119,3 @@ global.ResizeObserver = class ResizeObserver {
   new (): ResizeObserver;
   prototype: ResizeObserver;
 };
-

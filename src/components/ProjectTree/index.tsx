@@ -107,6 +107,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       cline: 0,
       codebuddy: 0,
       codex: 0,
+      "copilot": 0,
       cursor: 0,
       "cursor-agent": 0,
       forgecode: 0,

@@ -163,5 +163,6 @@
   "time.start": "開始：",
   "time.secondShort": "秒",
   "time.today": "今天",
-  "time.yesterday": "昨天"
+  "time.yesterday": "昨天",
+  "common.provider.copilot": "Copilot"
 }

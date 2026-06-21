@@ -23,10 +23,13 @@ export function normalizeEntrypoint(
 ): EntrypointCategory | null {
   switch (raw) {
     case "cli":
+    case "copilot-cli":
       return "cli";
     case "claude-vscode":
+    case "copilot-vscode":
       return "vscode";
     case "claude-desktop":
+    case "copilot-desktop":
       return "desktop";
     default:
       return null;

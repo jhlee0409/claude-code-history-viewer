@@ -277,6 +277,7 @@
   "systemMessageRenderer.subtypes.localCommand": "로컬 명령",
   "systemMessageRenderer.subtypes.microcompactBoundary": "컨텍스트 마이크로 압축됨",
   "systemMessageRenderer.subtypes.stopHook": "중지 Hook",
+  "systemMessageRenderer.subtypes.systemPrompt": "시스템 프롬프트",
   "systemMessageRenderer.subtypes.turnDuration": "턴 소요 시간",
   "systemMessageRenderer.title": "시스템",
   "systemMessageRenderer.trigger": "트리거",
