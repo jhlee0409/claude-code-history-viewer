@@ -27,6 +27,7 @@ enum StatsProvider {
     OpenCode,
     Kimi,
     Antigravity,
+    Copilot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +65,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::OpenCode => "opencode",
         StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
+        StatsProvider::Copilot => "copilot",
     }
 }
 
@@ -219,6 +221,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::OpenCode,
         StatsProvider::Kimi,
         StatsProvider::Antigravity,
+        StatsProvider::Copilot,
     ]
     .into_iter()
     .collect()
@@ -241,6 +244,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "opencode" => Some(StatsProvider::OpenCode),
             "kimi" => Some(StatsProvider::Kimi),
             "antigravity" => Some(StatsProvider::Antigravity),
+            "copilot" => Some(StatsProvider::Copilot),
             _ => {
                 unknown.push(provider);
                 None
@@ -272,6 +276,12 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Antigravity
     } else if is_codebuddy_path(project_path) {
         StatsProvider::Codebuddy
+    } else if project_path.starts_with("copilot://")
+        || project_path.starts_with("copilot-cli://")
+        || project_path.starts_with("copilot-desktop://")
+        || project_path.starts_with("vscode://")
+    {
+        StatsProvider::Copilot
     } else {
         StatsProvider::Claude
     }
@@ -293,6 +303,21 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
 
     if session_path.starts_with("forgecode://") || session_path.starts_with("forgecode-db://") {
         return StatsProvider::ForgeCode;
+    }
+    if is_copilot_cli_session_path(session_path)
+        || session_path.contains("/.copilot/session-state/")
+        || session_path.contains("\\.copilot\\session-state\\")
+    {
+        return StatsProvider::Copilot;
+    }
+    if (session_path.contains("/workspaceStorage/")
+        || session_path.contains("\\workspaceStorage\\"))
+        && (session_path.contains("/chatSessions/") || session_path.contains("\\chatSessions\\"))
+        && PathBuf::from(session_path)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("jsonl"))
+    {
+        return StatsProvider::Copilot;
     }
 
     // CodeBuddy: path is anchored under ~/.codebuddy/projects (not just substring
@@ -316,6 +341,26 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     } else {
         StatsProvider::Claude
     }
+}
+
+fn is_copilot_cli_session_path(session_path: &str) -> bool {
+    if !Path::new(session_path)
+        .file_name()
+        .is_some_and(|name| name == "events.jsonl")
+    {
+        return false;
+    }
+    let Some(base) = providers::copilot_cli::get_base_path() else {
+        return false;
+    };
+    let root = Path::new(&base).join("session-state");
+    let Ok(root) = root.canonicalize() else {
+        return false;
+    };
+    let Ok(path) = Path::new(session_path).canonicalize() else {
+        return false;
+    };
+    path.starts_with(root)
 }
 
 fn is_antigravity_path(path: &str) -> bool {
@@ -1017,6 +1062,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
         StatsProvider::Kimi => providers::kimi::scan_projects().unwrap_or_default(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
+        StatsProvider::Copilot => providers::copilot::scan_projects().unwrap_or_default(),
         StatsProvider::Claude => Vec::new(),
     };
 
@@ -1027,6 +1073,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::OpenCode => "opencode",
         StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
+        StatsProvider::Copilot => "copilot",
         StatsProvider::Claude => "claude",
     };
 
@@ -1046,6 +1093,7 @@ fn collect_provider_global_file_stats(
             StatsProvider::Antigravity => {
                 providers::antigravity::load_sessions(&project.path, false)
             }
+            StatsProvider::Copilot => providers::copilot::load_sessions(&project.path, false),
             StatsProvider::Claude => Ok(Vec::new()),
         }
         .unwrap_or_default();
@@ -1066,6 +1114,7 @@ fn collect_provider_global_file_stats(
                 StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
                 StatsProvider::Kimi => providers::kimi::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
+                StatsProvider::Copilot => providers::copilot::load_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
             }
             .unwrap_or_default();
@@ -1700,6 +1749,15 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
             }
             "Antigravity".to_string()
         }
+        StatsProvider::Copilot => providers::copilot::scan_projects()
+            .ok()
+            .and_then(|projects| {
+                projects
+                    .into_iter()
+                    .find(|project| project.path == project_path)
+                    .map(|project| project.name)
+            })
+            .unwrap_or_else(|| "Copilot".to_string()),
     }
 }
 
@@ -1759,6 +1817,18 @@ fn resolve_provider_project_name_from_session(
             "kimi".to_string()
         }
         StatsProvider::Antigravity => "Antigravity".to_string(),
+        StatsProvider::Copilot => {
+            if let Ok(projects) = providers::copilot::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::copilot::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "Copilot".to_string()
+        }
         StatsProvider::Claude => "unknown".to_string(),
     }
 }
@@ -1775,6 +1845,7 @@ fn load_provider_sessions_for_stats(
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
         StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
+        StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
         StatsProvider::Claude => {
             Err("Claude sessions are handled by legacy stats path".to_string())
         }
@@ -1793,6 +1864,7 @@ fn load_provider_messages_for_stats(
         StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
         StatsProvider::Kimi => providers::kimi::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
+        StatsProvider::Copilot => providers::copilot::load_messages(&session.file_path),
         StatsProvider::Claude => {
             Err("Claude messages are handled by legacy stats path".to_string())
         }
@@ -2539,6 +2611,7 @@ pub async fn get_session_token_stats(
             StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
             StatsProvider::Kimi => providers::kimi::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
+            StatsProvider::Copilot => providers::copilot::load_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
         };
 
@@ -3680,10 +3753,34 @@ mod tests {
     use super::*;
     use serde_json::json;
     use serial_test::serial;
+    use std::ffi::OsString;
     use std::fs;
     use std::fs::File;
     use std::io::Write;
     use tempfile::TempDir;
+
+    struct EnvVarGuard {
+        key: &'static str,
+        original: Option<OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: &std::path::Path) -> Self {
+            let original = std::env::var_os(key);
+            std::env::set_var(key, value);
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(value) = self.original.as_ref() {
+                std::env::set_var(self.key, value);
+            } else {
+                std::env::remove_var(self.key);
+            }
+        }
+    }
 
     fn make_test_message(
         provider: Option<&str>,
@@ -4250,6 +4347,24 @@ mod tests {
             StatsProvider::Kimi
         );
         assert_eq!(
+            detect_project_provider("copilot-cli:///Users/jack/workspace"),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_project_provider("copilot-desktop:///Users/jack/workspace"),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_project_provider("copilot:///Users/jack/workspace"),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_project_provider(
+                "vscode:///Users/jack/Library/Application Support/Code/User/workspaceStorage/hash"
+            ),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
             detect_project_provider("/Users/jack/.claude/projects/my-project"),
             StatsProvider::Claude
         );
@@ -4292,6 +4407,16 @@ mod tests {
             assert_eq!(detect_session_provider(&kimi_session), StatsProvider::Kimi);
         }
         assert_eq!(
+            detect_session_provider("/Users/jack/.copilot/session-state/abcd-1234/events.jsonl"),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_session_provider(
+                r"C:\Users\jack\AppData\Roaming\Code\User\workspaceStorage\hash\chatSessions\session.jsonl"
+            ),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
             detect_session_provider(
                 "/Users/jack/.codex/sessions/2026/02/20/rollout-2026-02-20T11-04-52-1234.jsonl"
             ),
@@ -4319,6 +4444,25 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn detect_session_provider_uses_copilot_cli_home_env() {
+        let tmp = TempDir::new().unwrap();
+        let events_path = tmp
+            .path()
+            .join("session-state")
+            .join("abcd-1234")
+            .join("events.jsonl");
+        fs::create_dir_all(events_path.parent().unwrap()).unwrap();
+        fs::write(&events_path, "").unwrap();
+        let _env_guard = EnvVarGuard::set("COPILOT_CLI_HOME", tmp.path());
+
+        assert_eq!(
+            detect_session_provider(&events_path.to_string_lossy()),
+            StatsProvider::Copilot
+        );
+    }
+
+    #[test]
     /// Verify parse active stats providers defaults to all.
     fn test_parse_active_stats_providers_defaults_to_all() {
         let providers = parse_active_stats_providers(None);
@@ -4328,6 +4472,7 @@ mod tests {
         assert!(providers.contains(&StatsProvider::OpenCode));
         assert!(providers.contains(&StatsProvider::Kimi));
         assert!(providers.contains(&StatsProvider::Antigravity));
+        assert!(providers.contains(&StatsProvider::Copilot));
     }
 
     #[test]
@@ -4367,6 +4512,14 @@ mod tests {
         let providers = parse_active_stats_providers(Some(vec!["kimi".to_string()]));
         assert_eq!(providers.len(), 1);
         assert!(providers.contains(&StatsProvider::Kimi));
+    }
+
+    #[test]
+    /// Verify parse active stats providers supports Copilot.
+    fn test_parse_active_stats_providers_supports_copilot() {
+        let providers = parse_active_stats_providers(Some(vec!["copilot".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Copilot));
     }
 
     #[test]

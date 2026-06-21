@@ -163,5 +163,6 @@
   "time.start": "Start:",
   "time.secondShort": "s",
   "time.today": "Today",
-  "time.yesterday": "Yesterday"
+  "time.yesterday": "Yesterday",
+  "common.provider.copilot": "Copilot"
 }

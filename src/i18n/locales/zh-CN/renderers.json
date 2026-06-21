@@ -277,6 +277,7 @@
   "systemMessageRenderer.subtypes.localCommand": "本地命令",
   "systemMessageRenderer.subtypes.microcompactBoundary": "上下文微压缩",
   "systemMessageRenderer.subtypes.stopHook": "停止钩子",
+  "systemMessageRenderer.subtypes.systemPrompt": "系统提示词",
   "systemMessageRenderer.subtypes.turnDuration": "轮次耗时",
   "systemMessageRenderer.title": "系统",
   "systemMessageRenderer.trigger": "触发器",

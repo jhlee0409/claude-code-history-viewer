@@ -45,6 +45,7 @@ describe("providers utils", () => {
       "cline",
       "codebuddy",
       "codex",
+      "copilot",
       "cursor",
       "cursor-agent",
       "forgecode",
@@ -86,6 +87,23 @@ describe("providers utils", () => {
     expect(getResumeCommand("kimi", "abc-123")).toBe("kimi -r abc-123");
   });
 
+  it("returns the Copilot CLI resume flag for copilot sessions with cli entrypoint", () => {
+    expect(
+      getResumeCommand("copilot", "abc-123", undefined, "copilot-cli")
+    ).toBe("copilot --resume=abc-123");
+  });
+
+  it("returns null for copilot sessions that aren't from the CLI surface", () => {
+    expect(
+      getResumeCommand("copilot", "abc-123", undefined, "copilot-desktop")
+    ).toBeNull();
+    expect(
+      getResumeCommand("copilot", "abc-123", undefined, "copilot-vscode")
+    ).toBeNull();
+    // Missing entrypoint also fails closed.
+    expect(getResumeCommand("copilot", "abc-123")).toBeNull();
+  });
+
   it("getResumeCommand fails closed for unknown provider strings", () => {
     expect(getResumeCommand("not-a-real-provider", "abc")).toBeNull();
     expect(getResumeCommand(undefined, "abc")).toBeNull();
@@ -101,6 +119,9 @@ describe("providers utils", () => {
     expect(getResumeCommand("codex", "abc", "/Users/foo/proj")).toBe(
       "cd '/Users/foo/proj' && codex resume abc"
     );
+    expect(
+      getResumeCommand("copilot", "abc", "/Users/foo/proj", "copilot-cli")
+    ).toBe("cd '/Users/foo/proj' && copilot --resume=abc");
     expect(getResumeCommand("forgecode", "abc", "/Users/foo/proj")).toBe(
       "cd '/Users/foo/proj' && forge conversation resume abc"
     );

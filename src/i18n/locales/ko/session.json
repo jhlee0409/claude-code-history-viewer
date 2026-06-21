@@ -102,7 +102,7 @@
   "session.copyFilePath": "파일 경로 복사",
   "session.showJsonlFile": "JSONL 파일 보기",
   "session.revealError": "파일을 열 수 없습니다",
-  "session.deleteConfirm": "세션 파일과 관련된 모든 데이터(서브에이전트, 도구 결과)가 휴지통으로 이동됩니다.",
+  "session.deleteConfirm": "세션 파일과 관련된 모든 데이터(서브에이전트, 도구 결과)가 삭제됩니다. 가능하면 휴지통으로 이동되며, 그렇지 않으면 영구 삭제됩니다.",
   "session.deleteError": "세션 삭제에 실패했습니다",
   "session.selectError": "세션을 열 수 없습니다",
   "session.deleteSession": "세션 삭제",

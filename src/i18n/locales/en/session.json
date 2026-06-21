@@ -102,7 +102,7 @@
   "session.copyFilePath": "Copy File Path",
   "session.showJsonlFile": "Show JSONL File",
   "session.revealError": "Could not reveal file",
-  "session.deleteConfirm": "This will move the session file and all associated data (subagents, tool results) to the trash.",
+  "session.deleteConfirm": "This will delete the session file and all associated data (subagents, tool results). The file is moved to the trash when possible, otherwise it is permanently deleted.",
   "session.deleteError": "Failed to delete session",
   "session.selectError": "Failed to open session",
   "session.deleteSession": "Delete Session",
