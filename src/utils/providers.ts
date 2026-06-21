@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "openinterpreter", "pearai", "qwen", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "openhands", "openinterpreter", "pearai", "qwen", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -26,6 +26,7 @@ const PROVIDER_TRANSLATIONS: Record<
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
   llm: { key: "common.provider.llm", fallback: "llm" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
+  openhands: { key: "common.provider.openhands", fallback: "OpenHands" },
   openinterpreter: { key: "common.provider.openinterpreter", fallback: "Open Interpreter" },
   pearai: { key: "common.provider.pearai", fallback: "PearAI" },
   qwen: { key: "common.provider.qwen", fallback: "Qwen Code" },
@@ -179,6 +180,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  openhands: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   openinterpreter: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -241,6 +249,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "kiro":
     case "llm":
     case "opencode":
+    case "openhands":
     case "openinterpreter":
     case "pearai":
     case "qwen":
@@ -399,6 +408,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   llm: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   openinterpreter: "bg-stone-500/15 text-stone-600 dark:text-stone-400",
+  openhands: "bg-gray-500/15 text-gray-600 dark:text-gray-300",
   pearai: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300",
   qwen: "bg-violet-600/15 text-violet-700 dark:text-violet-300",
   zed: "bg-neutral-500/15 text-neutral-600 dark:text-neutral-400",

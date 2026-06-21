@@ -54,6 +54,7 @@ pub async fn scan_all_projects(
             "kiro".to_string(),
             "llm".to_string(),
             "zed".to_string(),
+            "openhands".to_string(),
         ]
     });
 
@@ -210,6 +211,16 @@ pub async fn scan_all_projects(
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("Zed scan failed: {e}");
+            }
+        }
+    }
+
+    // OpenHands (classic ~/.openhands/sessions event store)
+    if providers_to_scan.iter().any(|p| p == "openhands") {
+        match providers::openhands::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("OpenHands scan failed: {e}");
             }
         }
     }
@@ -488,6 +499,7 @@ pub async fn load_provider_sessions(
         "kiro" => providers::kiro::load_sessions(&project_path, exclude),
         "llm" => providers::llm::load_sessions(&project_path, exclude),
         "zed" => providers::zed::load_sessions(&project_path, exclude),
+        "openhands" => providers::openhands::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -531,6 +543,7 @@ pub async fn load_provider_messages(
         "kiro" => providers::kiro::load_messages(&session_path)?,
         "llm" => providers::llm::load_messages(&session_path)?,
         "zed" => providers::zed::load_messages(&session_path)?,
+        "openhands" => providers::openhands::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -580,6 +593,7 @@ pub async fn search_all_providers(
             "kiro".to_string(),
             "llm".to_string(),
             "zed".to_string(),
+            "openhands".to_string(),
         ]
     });
 
@@ -847,6 +861,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Zed search failed: {e}");
+            }
+        }
+    }
+
+    // OpenHands
+    if providers_to_search.iter().any(|p| p == "openhands") {
+        match providers::openhands::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("OpenHands search failed: {e}");
             }
         }
     }

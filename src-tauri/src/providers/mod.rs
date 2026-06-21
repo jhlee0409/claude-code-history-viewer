@@ -20,6 +20,7 @@ pub mod kimi;
 pub mod kiro;
 pub mod llm;
 pub mod opencode;
+pub mod openhands;
 pub mod openinterpreter;
 pub mod pearai;
 /// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
@@ -63,6 +64,8 @@ pub enum ProviderId {
     OpenCode,
     /// Open Interpreter (Rust v1.0) — Codex-format rollouts under `~/.openinterpreter`.
     OpenInterpreter,
+    /// `OpenHands` (classic 0.x) — `~/.openhands/sessions/<id>/events/*.json`.
+    OpenHands,
     /// Qwen Code (Gemini-CLI fork) — JSONL transcripts under `~/.qwen/projects`.
     Qwen,
     Antigravity,
@@ -93,6 +96,7 @@ impl ProviderId {
             Self::Llm => "llm",
             Self::OpenCode => "opencode",
             Self::OpenInterpreter => "openinterpreter",
+            Self::OpenHands => "openhands",
             Self::Qwen => "qwen",
             Self::Antigravity => "antigravity",
             Self::Zed => "zed",
@@ -121,6 +125,7 @@ impl ProviderId {
             "llm" => Some(Self::Llm),
             "opencode" => Some(Self::OpenCode),
             "openinterpreter" => Some(Self::OpenInterpreter),
+            "openhands" => Some(Self::OpenHands),
             "qwen" => Some(Self::Qwen),
             "antigravity" => Some(Self::Antigravity),
             "zed" => Some(Self::Zed),
@@ -150,6 +155,7 @@ impl ProviderId {
             Self::Llm => "llm",
             Self::OpenCode => "OpenCode",
             Self::OpenInterpreter => "Open Interpreter",
+            Self::OpenHands => "OpenHands",
             Self::Qwen => "Qwen Code",
             Self::Antigravity => "Antigravity",
             Self::Zed => "Zed",
@@ -198,6 +204,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = openinterpreter::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = openhands::detect() {
         providers.push(info);
     }
     if let Some(info) = qwen::detect() {

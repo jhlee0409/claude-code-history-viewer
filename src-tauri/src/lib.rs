@@ -1118,6 +1118,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(oh_base) = providers::openhands::get_base_path() {
+        let oh_dir = PathBuf::from(oh_base);
+        if oh_dir.is_dir() {
+            paths.push(oh_dir);
+        }
+    }
+
     if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
         let session_state = PathBuf::from(copilot_base).join("session-state");
         if session_state.is_dir() {
