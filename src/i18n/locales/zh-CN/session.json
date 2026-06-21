@@ -102,7 +102,7 @@
   "session.copyFilePath": "复制文件路径",
   "session.showJsonlFile": "显示 JSONL 文件",
   "session.revealError": "无法显示文件",
-  "session.deleteConfirm": "这将把会话文件及所有相关数据（子代理、工具结果）移至回收站。",
+  "session.deleteConfirm": "这将删除会话文件及所有相关数据（子代理、工具结果）。如果可能，文件将移至回收站，否则将永久删除。",
   "session.deleteError": "删除会话失败",
   "session.selectError": "打开会话失败",
   "session.deleteSession": "删除会话",

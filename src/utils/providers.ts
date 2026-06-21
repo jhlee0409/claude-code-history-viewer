@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "cursor", "cursor-agent", "forgecode", "gemini", "kimi", "kiro", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "copilot", "cursor", "cursor-agent", "forgecode", "gemini", "kimi", "kiro", "opencode"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -13,6 +13,7 @@ const PROVIDER_TRANSLATIONS: Record<
   cline: { key: "common.provider.cline", fallback: "Cline" },
   codebuddy: { key: "common.provider.codebuddy", fallback: "CodeBuddy Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
+  copilot: { key: "common.provider.copilot", fallback: "Copilot" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
   "cursor-agent": { key: "common.provider.cursorAgent", fallback: "Cursor Agent" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
@@ -73,6 +74,16 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsNativeRename: true,
     supportsResumeCommand: true,
     supportsSessionDeletion: true,
+    supportsArchiveCreation: false,
+  },
+  copilot: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    // Resume capability is entrypoint-dependent (CLI yes, Desktop/VS Code no).
+    // The provider-level capability is the optimistic union; per-session
+    // gating is done by `supportsResumeCommandForSession` below.
+    supportsResumeCommand: true,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   cursor: {
@@ -145,6 +156,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "cline":
     case "codebuddy":
     case "codex":
+    case "copilot":
     case "cursor":
     case "cursor-agent":
     case "gemini":
@@ -211,7 +223,8 @@ function shellQuotePath(p: string): string {
 export function getResumeCommand(
   provider: ProviderId | string | undefined,
   sessionId: string,
-  cwd?: string
+  cwd?: string,
+  entrypoint?: string
 ): string | null {
   if (!sessionId) {
     return null;
@@ -237,6 +250,14 @@ export function getResumeCommand(
     case "codex":
       resume = `codex resume ${sessionId}`;
       break;
+    case "copilot":
+      // Only the CLI surface has a resume command; Desktop/VS Code resume by
+      // reopening the app.
+      resume =
+        entrypoint === "copilot-cli"
+          ? `copilot --resume=${sessionId}`
+          : null;
+      break;
     case "forgecode":
       resume = `forge conversation resume ${sessionId}`;
       break;
@@ -249,6 +270,19 @@ export function getResumeCommand(
 
   if (resume == null) return null;
   return cwd ? `cd ${shellQuotePath(cwd)} && ${resume}` : resume;
+}
+
+/**
+ * Per-session variant of supportsResumeCommand. Matches `getResumeCommand`'s
+ * gating exactly (Copilot resume requires entrypoint === "copilot-cli").
+ */
+export function supportsResumeCommandForSession(
+  provider: ProviderId | string | undefined,
+  entrypoint: string | undefined
+): boolean {
+  if (!supportsResumeCommand(provider)) return false;
+  if (provider === "copilot") return entrypoint === "copilot-cli";
+  return true;
 }
 
 export function supportsSessionDeletion(provider?: ProviderId | string): boolean {
@@ -270,6 +304,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   claude: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   codebuddy: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
+  copilot: "bg-[#8250df]/15 text-[#6639ba] dark:text-[#d2a8ff]",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   "cursor-agent": "bg-violet-500/15 text-violet-600 dark:text-violet-400",

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, HardDrive, Clock, Archive, Info, Settings2, Loader2 } from 'lucide-react';
+import { AlertTriangle, HardDrive, Clock, Archive, Info, Settings2, Loader2, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -25,6 +26,8 @@ import {
 import { useAppStore } from '@/store/useAppStore';
 import { formatBytes } from '@/utils/formatters';
 import { api } from '@/services/api';
+import { archiveApi } from '@/services/archiveApi';
+import type { ClaudeSession } from '@/types';
 import { toast } from 'sonner';
 
 export const ArchiveOverview: React.FC = () => {
@@ -42,9 +45,22 @@ export const ArchiveOverview: React.FC = () => {
 
   const selectId = React.useId();
   const settingsId = React.useId();
+  const backupSubagentsId = React.useId();
 
   // Local project selection for expiring sessions
   const [selectedProjectPath, setSelectedProjectPath] = useState<string>('');
+
+  // Full backup (issue #326): back up every session of all Claude projects at once
+  const [includeBackupSubagents, setIncludeBackupSubagents] = useState(true);
+  const [isBackupConfirmOpen, setIsBackupConfirmOpen] = useState(false);
+  const [backupProgress, setBackupProgress] = useState<{ current: number; total: number } | null>(null);
+  const isBackingUp = backupProgress !== null;
+
+  // Only Claude projects have on-disk JSONL sessions subject to auto-cleanup
+  const claudeProjects = useMemo(
+    () => projects.filter((p) => !p.provider || p.provider === 'claude'),
+    [projects]
+  );
 
   // thresholdDays: app-only setting, persisted in localStorage
   const [thresholdDays, setThresholdDays] = useState(() => {
@@ -231,6 +247,81 @@ export const ArchiveOverview: React.FC = () => {
     }
   };
 
+  // Full backup: iterate every Claude project, archiving all of its sessions.
+  // One archive per project (matches the existing per-project archive model),
+  // continuing past per-project failures and reporting an aggregate summary.
+  const handleBackupAll = useCallback(async () => {
+    setIsBackupConfirmOpen(false);
+    if (useAppStore.getState().isServerReadOnly) {
+      toast.error(t('archive.overview.fullBackup.failed'));
+      return;
+    }
+    if (claudeProjects.length === 0) return;
+
+    const date = new Date().toLocaleDateString();
+    let okProjects = 0;
+    let okSessions = 0;
+    const failed: string[] = [];
+
+    setBackupProgress({ current: 1, total: claudeProjects.length });
+    try {
+      for (const [i, project] of claudeProjects.entries()) {
+        // 1-based: "backing up project (i+1) of N"
+        setBackupProgress({ current: i + 1, total: claudeProjects.length });
+        try {
+          const sessions = await api<ClaudeSession[]>('load_project_sessions', {
+            projectPath: project.path,
+            excludeSidechain: false,
+          });
+          const paths = Array.from(
+            new Set(
+              sessions
+                .map((s) => s.file_path)
+                .filter((p): p is string => !!p && p.endsWith('.jsonl'))
+            )
+          );
+          if (paths.length === 0) continue; // nothing to back up — not a failure
+          await archiveApi.createArchive({
+            name: t('archive.create.fullBackupName', { project: project.name, date }),
+            sessionFilePaths: paths,
+            sourceProvider: project.provider ?? 'claude',
+            sourceProjectPath: project.actual_path,
+            sourceProjectName: project.name,
+            includeSubagents: includeBackupSubagents,
+          });
+          okProjects += 1;
+          okSessions += paths.length;
+        } catch (error) {
+          console.error('[full backup] project failed:', project.name, error);
+          failed.push(project.name);
+        }
+      }
+
+      if (okProjects === 0 && failed.length === 0) {
+        toast.info(t('archive.overview.fullBackup.emptySummary'));
+      } else if (failed.length > 0) {
+        toast.warning(
+          t('archive.overview.fullBackup.partialSummary', {
+            projects: okProjects,
+            failed: failed.length,
+          })
+        );
+      } else {
+        toast.success(
+          t('archive.overview.fullBackup.successSummary', {
+            sessions: okSessions,
+            projects: okProjects,
+          })
+        );
+      }
+
+      await loadArchives();
+      await loadDiskUsage();
+    } finally {
+      setBackupProgress(null);
+    }
+  }, [claudeProjects, includeBackupSubagents, t, loadArchives, loadDiskUsage]);
+
   return (
     <div className="space-y-4">
       {/* Error display */}
@@ -265,6 +356,58 @@ export const ArchiveOverview: React.FC = () => {
           </p>
         </AlertDescription>
       </Alert>
+
+      {/* Full Backup (issue #326) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4" />
+            {t('archive.overview.fullBackup.title')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            {t('archive.overview.fullBackup.description')}
+          </p>
+          {backupProgress ? (
+            <div className="flex items-center gap-2 py-1">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">
+                {t('archive.overview.fullBackup.progress', {
+                  current: backupProgress.current,
+                  total: backupProgress.total,
+                })}
+              </p>
+            </div>
+          ) : claudeProjects.length === 0 ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+              <Info className="w-4 h-4" />
+              {t('archive.overview.fullBackup.noProjects')}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id={backupSubagentsId}
+                  checked={includeBackupSubagents}
+                  onCheckedChange={setIncludeBackupSubagents}
+                />
+                <Label htmlFor={backupSubagentsId} className="text-xs cursor-pointer">
+                  {t('archive.overview.fullBackup.includeSubagents')}
+                </Label>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setIsBackupConfirmOpen(true)}
+                disabled={archive.isCreatingArchive}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
+                {t('archive.overview.fullBackup.button')}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Disk Usage */}
       <Card>
@@ -331,7 +474,7 @@ export const ArchiveOverview: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => handleArchiveAll(false)}
-                disabled={archive.isCreatingArchive || !selectedProject || archive.expiringSessions.length === 0}
+                disabled={archive.isCreatingArchive || !selectedProject || archive.expiringSessions.length === 0 || isBackingUp}
               >
                 {archive.isCreatingArchive ? (
                   <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
@@ -344,7 +487,7 @@ export const ArchiveOverview: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => handleArchiveAll(true)}
-                disabled={archive.isCreatingArchive || !selectedProject || archive.expiringSessions.length === 0 || subagentExpiring.length === 0}
+                disabled={archive.isCreatingArchive || !selectedProject || archive.expiringSessions.length === 0 || subagentExpiring.length === 0 || isBackingUp}
               >
                 {archive.isCreatingArchive ? (
                   <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
@@ -448,7 +591,7 @@ export const ArchiveOverview: React.FC = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleArchiveSession(expiring, false)}
-                          disabled={archive.isCreatingArchive || !selectedProject}
+                          disabled={archive.isCreatingArchive || !selectedProject || isBackingUp}
                         >
                           <Archive className="w-3.5 h-3.5 mr-1" />
                           {t('archive.overview.expiring.archiveButton')}
@@ -495,7 +638,7 @@ export const ArchiveOverview: React.FC = () => {
                             size="sm"
                             className="h-7 text-xs"
                             onClick={() => handleArchiveSession(expiring, false)}
-                            disabled={archive.isCreatingArchive || !selectedProject}
+                            disabled={archive.isCreatingArchive || !selectedProject || isBackingUp}
                           >
                             <Archive className="w-3 h-3 mr-1" />
                             {t('archive.overview.expiring.archiveMainOnly')}
@@ -505,7 +648,7 @@ export const ArchiveOverview: React.FC = () => {
                             size="sm"
                             className="h-7 text-xs"
                             onClick={() => handleArchiveSession(expiring, true)}
-                            disabled={archive.isCreatingArchive || !selectedProject}
+                            disabled={archive.isCreatingArchive || !selectedProject || isBackingUp}
                           >
                             <Archive className="w-3 h-3 mr-1" />
                             {t('archive.overview.expiring.archiveWithSubagents')}
@@ -611,6 +754,32 @@ export const ArchiveOverview: React.FC = () => {
             </Button>
             <Button onClick={handleSaveSettings} disabled={!canSave}>
               {t('archive.overview.settings.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Full Backup confirmation */}
+      <Dialog open={isBackupConfirmOpen} onOpenChange={setIsBackupConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4" />
+              {t('archive.overview.fullBackup.confirmTitle')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('archive.overview.fullBackup.confirmDescription', {
+                count: claudeProjects.length,
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBackupConfirmOpen(false)}>
+              {t('archive.overview.settings.cancel')}
+            </Button>
+            <Button onClick={handleBackupAll} disabled={isBackingUp}>
+              <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
+              {t('archive.overview.fullBackup.confirmButton')}
             </Button>
           </DialogFooter>
         </DialogContent>

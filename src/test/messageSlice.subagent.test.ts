@@ -518,6 +518,7 @@ describe("messageSlice.loadSubagents — map building from pre-filter messages",
       expect.stringContaining("fetch failed"),
     );
   });
+
 });
 
 describe("messageSlice — navigate guards & error branches", () => {

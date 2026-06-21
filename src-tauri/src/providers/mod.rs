@@ -6,6 +6,8 @@ pub mod claude;
 pub mod cline;
 pub mod codebuddy;
 pub mod codex;
+pub mod copilot;
+pub mod copilot_cli;
 pub mod cursor;
 pub mod cursor_agent;
 pub mod forgecode;
@@ -13,6 +15,7 @@ pub mod gemini;
 pub mod kimi;
 pub mod kiro;
 pub mod opencode;
+pub mod vscode;
 
 /// Provider identifier
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -23,6 +26,10 @@ pub enum ProviderId {
     Cline,
     Codebuddy,
     Codex,
+    /// Unified GitHub Copilot provider covering CLI, Desktop, and the VS Code
+    /// Copilot Chat extension. Per-session disambiguation lives in the
+    /// `entrypoint` field (`copilot-cli` / `copilot-desktop` / `copilot-vscode`).
+    Copilot,
     Cursor,
     #[serde(rename = "cursor-agent")]
     CursorAgent,
@@ -42,6 +49,7 @@ impl ProviderId {
             Self::Cline => "cline",
             Self::Codebuddy => "codebuddy",
             Self::Codex => "codex",
+            Self::Copilot => "copilot",
             Self::Cursor => "cursor",
             Self::CursorAgent => "cursor-agent",
             Self::Gemini => "gemini",
@@ -60,6 +68,7 @@ impl ProviderId {
             "cline" => Some(Self::Cline),
             "codebuddy" => Some(Self::Codebuddy),
             "codex" => Some(Self::Codex),
+            "copilot" => Some(Self::Copilot),
             "cursor" => Some(Self::Cursor),
             "cursor-agent" => Some(Self::CursorAgent),
             "gemini" => Some(Self::Gemini),
@@ -79,6 +88,7 @@ impl ProviderId {
             Self::Cline => "Cline",
             Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
+            Self::Copilot => "Copilot",
             Self::Cursor => "Cursor",
             Self::CursorAgent => "Cursor Agent",
             Self::Gemini => "Gemini CLI",
@@ -141,6 +151,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = kiro::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = copilot::detect() {
         providers.push(info);
     }
 

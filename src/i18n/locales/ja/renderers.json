@@ -277,6 +277,7 @@
   "systemMessageRenderer.subtypes.localCommand": "ローカルコマンド",
   "systemMessageRenderer.subtypes.microcompactBoundary": "コンテキスト マイクロ圧縮",
   "systemMessageRenderer.subtypes.stopHook": "停止フック",
+  "systemMessageRenderer.subtypes.systemPrompt": "システムプロンプト",
   "systemMessageRenderer.subtypes.turnDuration": "ターン所要時間",
   "systemMessageRenderer.title": "システム",
   "systemMessageRenderer.trigger": "トリガー",
