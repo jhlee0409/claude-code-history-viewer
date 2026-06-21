@@ -71,6 +71,10 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
     if let Some(amazon_q_base) = crate::providers::amazon_q::get_base_path() {
         allowed.push(PathBuf::from(amazon_q_base));
     }
+    if let Some(oi_base) = crate::providers::openinterpreter::get_base_path() {
+        allowed.push(PathBuf::from(&oi_base).join("sessions"));
+        allowed.push(PathBuf::from(&oi_base).join("archived_sessions"));
+    }
 
     // Canonicalize each allowlist entry so the comparison below is like-for-like
     // with the canonicalized candidate. Without this, a symlinked provider root

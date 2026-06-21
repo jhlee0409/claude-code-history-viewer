@@ -41,6 +41,7 @@ pub async fn scan_all_projects(
             "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
+            "openinterpreter".to_string(),
             "cline".to_string(),
             "crush".to_string(),
             "cursor".to_string(),
@@ -177,6 +178,16 @@ pub async fn scan_all_projects(
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("OpenCode scan failed: {e}");
+            }
+        }
+    }
+
+    // Open Interpreter (Codex-format rollouts under ~/.openinterpreter)
+    if providers_to_scan.iter().any(|p| p == "openinterpreter") {
+        match providers::openinterpreter::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Open Interpreter scan failed: {e}");
             }
         }
     }
@@ -442,6 +453,7 @@ pub async fn load_provider_sessions(
         "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
+        "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
         "crush" => providers::crush::load_sessions(&project_path, exclude),
         "cursor" => providers::cursor::load_sessions(&project_path, exclude),
@@ -482,6 +494,7 @@ pub async fn load_provider_messages(
         "kimi" => providers::kimi::load_messages(&session_path)?,
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
+        "openinterpreter" => providers::openinterpreter::load_messages(&session_path)?,
         "cline" => providers::cline::load_messages(&session_path)?,
         "crush" => providers::crush::load_messages(&session_path)?,
         "cursor" => providers::cursor::load_messages(&session_path)?,
@@ -528,6 +541,7 @@ pub async fn search_all_providers(
             "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
+            "openinterpreter".to_string(),
             "cline".to_string(),
             "crush".to_string(),
             "cursor".to_string(),
@@ -676,6 +690,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("OpenCode search failed: {e}");
+            }
+        }
+    }
+
+    // Open Interpreter
+    if providers_to_search.iter().any(|p| p == "openinterpreter") {
+        match providers::openinterpreter::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Open Interpreter search failed: {e}");
             }
         }
     }

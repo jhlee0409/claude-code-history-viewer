@@ -74,7 +74,7 @@ fn get_existing_session_dirs() -> Result<Vec<PathBuf>, String> {
         .collect())
 }
 
-fn is_rollout_jsonl(path: &Path) -> bool {
+pub(crate) fn is_rollout_jsonl(path: &Path) -> bool {
     path.file_name()
         .map(|name| name.to_string_lossy().starts_with("rollout-"))
         .unwrap_or(false)
@@ -123,26 +123,28 @@ fn validate_session_path(session_path: &Path, raw_session_path: &str) -> Result<
     Ok(canonical_session)
 }
 
-/// Session metadata extracted from rollout files
-struct SessionInfo {
-    session_id: String,
-    cwd: Option<String>,
+/// Session metadata extracted from rollout files. `pub(crate)` so providers
+/// that share the Codex rollout format (e.g. Open Interpreter) can reuse the
+/// extractors below.
+pub(crate) struct SessionInfo {
+    pub(crate) session_id: String,
+    pub(crate) cwd: Option<String>,
     #[allow(dead_code)]
-    model: Option<String>,
-    message_count: usize,
-    first_message_time: String,
-    last_message_time: String,
-    last_modified: String,
-    file_path: String,
-    has_tool_use: bool,
-    summary: Option<String>,
+    pub(crate) model: Option<String>,
+    pub(crate) message_count: usize,
+    pub(crate) first_message_time: String,
+    pub(crate) last_message_time: String,
+    pub(crate) last_modified: String,
+    pub(crate) file_path: String,
+    pub(crate) has_tool_use: bool,
+    pub(crate) summary: Option<String>,
 }
 
 /// Lightweight metadata used by project-level scans.
-struct ProjectScanInfo {
-    cwd: Option<String>,
-    message_count: usize,
-    last_modified: String,
+pub(crate) struct ProjectScanInfo {
+    pub(crate) cwd: Option<String>,
+    pub(crate) message_count: usize,
+    pub(crate) last_modified: String,
 }
 
 /// Scan Codex projects from a specific base path.
@@ -300,15 +302,22 @@ pub fn load_sessions(
 }
 
 /// Load all messages from a Codex rollout file
-#[allow(unsafe_code)] // Required for mmap performance optimization
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let path = Path::new(session_path);
     if !path.exists() {
         return Err(format!("Session file not found: {session_path}"));
     }
     let canonical_path = validate_session_path(path, session_path)?;
+    parse_rollout_file(&canonical_path)
+}
 
-    let file = File::open(&canonical_path).map_err(|e| e.to_string())?;
+/// Parse an already-validated Codex rollout JSONL file into messages. Pure of
+/// base-path/scheme concerns so providers sharing the identical rollout format
+/// (e.g. Open Interpreter) can validate against their own root, call this, and
+/// re-tag the provider on the result.
+#[allow(unsafe_code)] // Required for mmap performance optimization
+pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMessage>, String> {
+    let file = File::open(canonical_path).map_err(|e| e.to_string())?;
     // SAFETY: File is read-only and we only read from the mapping
     let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
     let ranges = find_line_ranges(&mmap);
@@ -704,7 +713,7 @@ fn estimate_rollout_message_count(path: &Path) -> usize {
 }
 
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn extract_session_cwd(rollout_path: &Path) -> Result<Option<String>, String> {
+pub(crate) fn extract_session_cwd(rollout_path: &Path) -> Result<Option<String>, String> {
     let file = File::open(rollout_path).map_err(|e| e.to_string())?;
     // SAFETY: File is read-only and we only read from the mapping
     let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
@@ -721,7 +730,7 @@ fn extract_session_cwd(rollout_path: &Path) -> Result<Option<String>, String> {
     Ok(cwd)
 }
 
-fn extract_project_scan_info(rollout_path: &Path) -> Result<ProjectScanInfo, String> {
+pub(crate) fn extract_project_scan_info(rollout_path: &Path) -> Result<ProjectScanInfo, String> {
     Ok(ProjectScanInfo {
         cwd: extract_session_cwd(rollout_path)?,
         // Project list scans stay lightweight; session-level message counts
@@ -793,7 +802,7 @@ fn load_native_title_index(base_path: &str) -> HashMap<String, String> {
 }
 
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
+pub(crate) fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
     let file = File::open(rollout_path).map_err(|e| e.to_string())?;
     // SAFETY: File is read-only and we only read from the mapping
     let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;

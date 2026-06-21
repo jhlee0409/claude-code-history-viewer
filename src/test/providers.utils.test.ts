@@ -58,6 +58,7 @@ describe("providers utils", () => {
       "kiro",
       "llm",
       "opencode",
+      "openinterpreter",
       "pearai",
     ]);
   });

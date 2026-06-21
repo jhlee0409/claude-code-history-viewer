@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "pearai"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "openinterpreter", "pearai"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -26,6 +26,7 @@ const PROVIDER_TRANSLATIONS: Record<
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
   llm: { key: "common.provider.llm", fallback: "llm" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
+  openinterpreter: { key: "common.provider.openinterpreter", fallback: "Open Interpreter" },
   pearai: { key: "common.provider.pearai", fallback: "PearAI" },
 };
 
@@ -176,6 +177,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  openinterpreter: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   pearai: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -217,6 +225,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "kiro":
     case "llm":
     case "opencode":
+    case "openinterpreter":
     case "pearai":
     case "claude":
       return provider;
@@ -371,6 +380,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   kiro: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
   llm: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  openinterpreter: "bg-stone-500/15 text-stone-600 dark:text-stone-400",
   pearai: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   amazonq: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",

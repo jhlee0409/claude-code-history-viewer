@@ -20,6 +20,7 @@ pub mod kimi;
 pub mod kiro;
 pub mod llm;
 pub mod opencode;
+pub mod openinterpreter;
 pub mod pearai;
 /// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
 pub mod q_conversation;
@@ -58,6 +59,8 @@ pub enum ProviderId {
     /// Simon Willison's `llm` CLI (`~/.../io.datasette.llm/logs.db`).
     Llm,
     OpenCode,
+    /// Open Interpreter (Rust v1.0) — Codex-format rollouts under `~/.openinterpreter`.
+    OpenInterpreter,
     Antigravity,
 }
 
@@ -83,6 +86,7 @@ impl ProviderId {
             Self::Kiro => "kiro",
             Self::Llm => "llm",
             Self::OpenCode => "opencode",
+            Self::OpenInterpreter => "openinterpreter",
             Self::Antigravity => "antigravity",
         }
     }
@@ -108,6 +112,7 @@ impl ProviderId {
             "kiro" => Some(Self::Kiro),
             "llm" => Some(Self::Llm),
             "opencode" => Some(Self::OpenCode),
+            "openinterpreter" => Some(Self::OpenInterpreter),
             "antigravity" => Some(Self::Antigravity),
             _ => None,
         }
@@ -134,6 +139,7 @@ impl ProviderId {
             Self::Kiro => "Kiro CLI",
             Self::Llm => "llm",
             Self::OpenCode => "OpenCode",
+            Self::OpenInterpreter => "Open Interpreter",
             Self::Antigravity => "Antigravity",
         }
     }
@@ -177,6 +183,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = opencode::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = openinterpreter::detect() {
         providers.push(info);
     }
     if let Some(info) = cline::detect() {
