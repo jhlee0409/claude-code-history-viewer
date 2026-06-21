@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "openinterpreter", "pearai"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "openinterpreter", "pearai", "qwen"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -28,6 +28,7 @@ const PROVIDER_TRANSLATIONS: Record<
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
   openinterpreter: { key: "common.provider.openinterpreter", fallback: "Open Interpreter" },
   pearai: { key: "common.provider.pearai", fallback: "PearAI" },
+  qwen: { key: "common.provider.qwen", fallback: "Qwen Code" },
 };
 
 type TranslateFn = (key: string, defaultValue: string) => string;
@@ -191,6 +192,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  qwen: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
 };
 
 export interface ProviderTokenStatsLike {
@@ -227,6 +235,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "opencode":
     case "openinterpreter":
     case "pearai":
+    case "qwen":
     case "claude":
       return provider;
     default:
@@ -382,6 +391,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   openinterpreter: "bg-stone-500/15 text-stone-600 dark:text-stone-400",
   pearai: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300",
+  qwen: "bg-violet-600/15 text-violet-700 dark:text-violet-300",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   amazonq: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
   antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",

@@ -122,6 +122,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       opencode: 0,
       openinterpreter: 0,
       pearai: 0,
+      qwen: 0,
     };
 
     for (const project of projects) {

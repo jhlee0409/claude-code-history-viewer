@@ -138,6 +138,7 @@
   "common.provider.opencode": "OpenCode",
   "common.provider.openinterpreter": "Open Interpreter",
   "common.provider.pearai": "PearAI",
+  "common.provider.qwen": "Qwen Code",
   "common.view": "View",
   "common.watcher.autoRefresh": "Auto-refresh",
   "common.watcher.disabled": "Auto-refresh disabled",

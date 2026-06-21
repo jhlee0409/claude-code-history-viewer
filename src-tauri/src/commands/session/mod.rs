@@ -75,6 +75,9 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
         allowed.push(PathBuf::from(&oi_base).join("sessions"));
         allowed.push(PathBuf::from(&oi_base).join("archived_sessions"));
     }
+    if let Some(qwen_base) = crate::providers::qwen::get_base_path() {
+        allowed.push(PathBuf::from(qwen_base));
+    }
 
     // Canonicalize each allowlist entry so the comparison below is like-for-like
     // with the canonicalized candidate. Without this, a symlinked provider root

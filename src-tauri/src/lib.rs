@@ -1104,6 +1104,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(qwen_base) = providers::qwen::get_base_path() {
+        let qwen_projects = PathBuf::from(qwen_base);
+        if qwen_projects.is_dir() {
+            paths.push(qwen_projects);
+        }
+    }
+
     if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
         let session_state = PathBuf::from(copilot_base).join("session-state");
         if session_state.is_dir() {

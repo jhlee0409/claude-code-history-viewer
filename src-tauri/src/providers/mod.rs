@@ -24,6 +24,7 @@ pub mod openinterpreter;
 pub mod pearai;
 /// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
 pub mod q_conversation;
+pub mod qwen;
 pub mod vscode;
 
 /// Provider identifier
@@ -61,6 +62,8 @@ pub enum ProviderId {
     OpenCode,
     /// Open Interpreter (Rust v1.0) — Codex-format rollouts under `~/.openinterpreter`.
     OpenInterpreter,
+    /// Qwen Code (Gemini-CLI fork) — JSONL transcripts under `~/.qwen/projects`.
+    Qwen,
     Antigravity,
 }
 
@@ -87,6 +90,7 @@ impl ProviderId {
             Self::Llm => "llm",
             Self::OpenCode => "opencode",
             Self::OpenInterpreter => "openinterpreter",
+            Self::Qwen => "qwen",
             Self::Antigravity => "antigravity",
         }
     }
@@ -113,6 +117,7 @@ impl ProviderId {
             "llm" => Some(Self::Llm),
             "opencode" => Some(Self::OpenCode),
             "openinterpreter" => Some(Self::OpenInterpreter),
+            "qwen" => Some(Self::Qwen),
             "antigravity" => Some(Self::Antigravity),
             _ => None,
         }
@@ -140,6 +145,7 @@ impl ProviderId {
             Self::Llm => "llm",
             Self::OpenCode => "OpenCode",
             Self::OpenInterpreter => "Open Interpreter",
+            Self::Qwen => "Qwen Code",
             Self::Antigravity => "Antigravity",
         }
     }
@@ -186,6 +192,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = openinterpreter::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = qwen::detect() {
         providers.push(info);
     }
     if let Some(info) = cline::detect() {

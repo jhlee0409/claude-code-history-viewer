@@ -42,6 +42,7 @@ pub async fn scan_all_projects(
             "forgecode".to_string(),
             "opencode".to_string(),
             "openinterpreter".to_string(),
+            "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
             "cursor".to_string(),
@@ -188,6 +189,16 @@ pub async fn scan_all_projects(
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("Open Interpreter scan failed: {e}");
+            }
+        }
+    }
+
+    // Qwen Code (JSONL transcripts under ~/.qwen/projects)
+    if providers_to_scan.iter().any(|p| p == "qwen") {
+        match providers::qwen::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Qwen scan failed: {e}");
             }
         }
     }
@@ -454,6 +465,7 @@ pub async fn load_provider_sessions(
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
         "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
+        "qwen" => providers::qwen::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
         "crush" => providers::crush::load_sessions(&project_path, exclude),
         "cursor" => providers::cursor::load_sessions(&project_path, exclude),
@@ -495,6 +507,7 @@ pub async fn load_provider_messages(
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
         "openinterpreter" => providers::openinterpreter::load_messages(&session_path)?,
+        "qwen" => providers::qwen::load_messages(&session_path)?,
         "cline" => providers::cline::load_messages(&session_path)?,
         "crush" => providers::crush::load_messages(&session_path)?,
         "cursor" => providers::cursor::load_messages(&session_path)?,
@@ -542,6 +555,7 @@ pub async fn search_all_providers(
             "forgecode".to_string(),
             "opencode".to_string(),
             "openinterpreter".to_string(),
+            "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
             "cursor".to_string(),
@@ -700,6 +714,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Open Interpreter search failed: {e}");
+            }
+        }
+    }
+
+    // Qwen Code
+    if providers_to_search.iter().any(|p| p == "qwen") {
+        match providers::qwen::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Qwen search failed: {e}");
             }
         }
     }

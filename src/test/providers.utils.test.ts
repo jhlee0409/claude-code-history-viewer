@@ -60,6 +60,7 @@ describe("providers utils", () => {
       "opencode",
       "openinterpreter",
       "pearai",
+      "qwen",
     ]);
   });
 
