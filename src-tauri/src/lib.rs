@@ -1125,6 +1125,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(trae_base) = providers::trae::get_base_path() {
+        let trae_dir = PathBuf::from(trae_base);
+        if trae_dir.is_dir() {
+            paths.push(trae_dir);
+        }
+    }
+
     if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
         let session_state = PathBuf::from(copilot_base).join("session-state");
         if session_state.is_dir() {

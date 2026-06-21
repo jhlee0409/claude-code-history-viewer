@@ -26,6 +26,7 @@ pub mod pearai;
 /// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
 pub mod q_conversation;
 pub mod qwen;
+pub mod trae;
 pub mod vscode;
 pub mod zed;
 
@@ -71,6 +72,8 @@ pub enum ProviderId {
     Antigravity,
     /// Zed Agent Panel threads (`SQLite` + Zstd JSON at `…/Zed/threads/threads.db`).
     Zed,
+    /// Trae IDE chat (reverse-engineered icube JSON in per-workspace `state.vscdb`).
+    Trae,
 }
 
 impl ProviderId {
@@ -100,6 +103,7 @@ impl ProviderId {
             Self::Qwen => "qwen",
             Self::Antigravity => "antigravity",
             Self::Zed => "zed",
+            Self::Trae => "trae",
         }
     }
 
@@ -129,6 +133,7 @@ impl ProviderId {
             "qwen" => Some(Self::Qwen),
             "antigravity" => Some(Self::Antigravity),
             "zed" => Some(Self::Zed),
+            "trae" => Some(Self::Trae),
             _ => None,
         }
     }
@@ -159,6 +164,7 @@ impl ProviderId {
             Self::Qwen => "Qwen Code",
             Self::Antigravity => "Antigravity",
             Self::Zed => "Zed",
+            Self::Trae => "Trae",
         }
     }
 }
@@ -213,6 +219,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = zed::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = trae::detect() {
         providers.push(info);
     }
     if let Some(info) = cline::detect() {

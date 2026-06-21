@@ -55,6 +55,7 @@ pub async fn scan_all_projects(
             "llm".to_string(),
             "zed".to_string(),
             "openhands".to_string(),
+            "trae".to_string(),
         ]
     });
 
@@ -221,6 +222,16 @@ pub async fn scan_all_projects(
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("OpenHands scan failed: {e}");
+            }
+        }
+    }
+
+    // Trae IDE (reverse-engineered icube chat in per-workspace state.vscdb)
+    if providers_to_scan.iter().any(|p| p == "trae") {
+        match providers::trae::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Trae scan failed: {e}");
             }
         }
     }
@@ -500,6 +511,7 @@ pub async fn load_provider_sessions(
         "llm" => providers::llm::load_sessions(&project_path, exclude),
         "zed" => providers::zed::load_sessions(&project_path, exclude),
         "openhands" => providers::openhands::load_sessions(&project_path, exclude),
+        "trae" => providers::trae::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -544,6 +556,7 @@ pub async fn load_provider_messages(
         "llm" => providers::llm::load_messages(&session_path)?,
         "zed" => providers::zed::load_messages(&session_path)?,
         "openhands" => providers::openhands::load_messages(&session_path)?,
+        "trae" => providers::trae::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -594,6 +607,7 @@ pub async fn search_all_providers(
             "llm".to_string(),
             "zed".to_string(),
             "openhands".to_string(),
+            "trae".to_string(),
         ]
     });
 
@@ -871,6 +885,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("OpenHands search failed: {e}");
+            }
+        }
+    }
+
+    // Trae IDE
+    if providers_to_search.iter().any(|p| p == "trae") {
+        match providers::trae::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Trae search failed: {e}");
             }
         }
     }

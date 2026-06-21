@@ -140,6 +140,7 @@
   "common.provider.openinterpreter": "Open Interpreter",
   "common.provider.pearai": "PearAI",
   "common.provider.qwen": "Qwen Code",
+  "common.provider.trae": "Trae",
   "common.provider.zed": "Zed",
   "common.view": "View",
   "common.watcher.autoRefresh": "Auto-refresh",
