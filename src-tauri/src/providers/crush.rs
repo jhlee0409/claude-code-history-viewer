@@ -240,11 +240,11 @@ fn search_one_db(
     };
     let Ok(rows) = stmt.query_map([pattern], |row| {
         let id: String = row.get(0)?;
-        let _session_id: String = row.get(1)?;
+        let session_id: String = row.get(1)?;
         let role: String = row.get(2)?;
         let parts: String = row.get(3)?;
         let created: Option<i64> = row.get(4)?;
-        Ok((id, role, parts, created))
+        Ok((id, session_id, role, parts, created))
     }) else {
         return;
     };
@@ -252,8 +252,10 @@ fn search_one_db(
         if results.len() >= limit {
             return;
         }
-        let (id, role, parts, created) = row;
-        let Some(mut msg) = build_message(project_name, &id, &role, &parts, created.unwrap_or(0))
+        // Use the real session id (matching load_messages) so a search hit
+        // resolves back to its session; project_name is set separately below.
+        let (id, session_id, role, parts, created) = row;
+        let Some(mut msg) = build_message(&session_id, &id, &role, &parts, created.unwrap_or(0))
         else {
             continue;
         };
@@ -595,6 +597,8 @@ mod tests {
         search_one_db(&conn, "%LOGIN%", "login", "proj", 10, &mut results);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].project_name.as_deref(), Some("proj"));
+        // session id is the real session (matches load_messages), not the project name.
+        assert_eq!(results[0].session_id, "sess1");
     }
 
     #[test]

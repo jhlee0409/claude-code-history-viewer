@@ -66,6 +66,23 @@ fn open_db() -> Result<Connection, String> {
     Ok(conn)
 }
 
+/// `datetime_utc` is a UTC value stored without a timezone designator (e.g.
+/// `2026-06-20T10:00:00`). Mark it explicitly UTC so downstream date parsing
+/// doesn't treat it as local time. Values that already carry a tz, or have no
+/// time component, are returned unchanged.
+fn normalize_utc_ts(ts: &str) -> String {
+    let t = ts.trim().replace(' ', "T");
+    if t.is_empty() || t.ends_with('Z') {
+        return t;
+    }
+    match t.split_once('T') {
+        // A time component with an explicit offset (+hh:mm / -hh:mm) is left as-is.
+        Some((_, time)) if time.contains('+') || time.contains('-') => t,
+        Some((_, _)) => format!("{t}Z"),
+        None => t, // date-only / unparseable: don't fabricate a time zone
+    }
+}
+
 /// One synthetic project containing every `llm` conversation.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     scan_in_conn(&open_db()?)
@@ -115,7 +132,11 @@ fn project_stats(conn: &Connection) -> Result<(usize, usize, String), String> {
         .query_row("SELECT MAX(datetime_utc) FROM responses", [], |r| r.get(0))
         .unwrap_or(None);
     let session_count = convs + usize::from(orphans > 0);
-    Ok((session_count, responses * 2, last.unwrap_or_default()))
+    Ok((
+        session_count,
+        responses * 2,
+        normalize_utc_ts(&last.unwrap_or_default()),
+    ))
 }
 
 /// Load the sessions (conversations) for the synthetic `llm` project.
@@ -157,8 +178,8 @@ fn load_sessions_conn(conn: &Connection) -> Result<Vec<ClaudeSession>, String> {
                 name.filter(|n| !n.trim().is_empty())
                     .or_else(|| Some(id.clone()))
             };
-            let first = first.unwrap_or_default();
-            let last = last.unwrap_or_default();
+            let first = normalize_utc_ts(&first.unwrap_or_default());
+            let last = normalize_utc_ts(&last.unwrap_or_default());
             ClaudeSession {
                 session_id: format!("{SCHEME}{id}"),
                 actual_session_id: id.clone(),
@@ -221,7 +242,7 @@ fn load_messages_conn(conn: &Connection, conv_id: &str) -> Result<Vec<ClaudeMess
     let mut messages = Vec::new();
     for row in rows.flatten() {
         let (id, prompt, response, model, dt, input_tokens, output_tokens) = row;
-        let ts = dt.unwrap_or_default();
+        let ts = normalize_utc_ts(&dt.unwrap_or_default());
         if let Some(p) = prompt.filter(|p| !p.is_empty()) {
             messages.push(build_provider_message(
                 PROVIDER,
@@ -300,7 +321,7 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
         }
         let (id, conv_id, prompt, response, model, dt) = row;
         let conv = conv_id.unwrap_or_else(|| NO_CONVERSATION.to_string());
-        let ts = dt.unwrap_or_default();
+        let ts = normalize_utc_ts(&dt.unwrap_or_default());
         // Emit whichever side matches the query.
         for (suffix, role, text, model) in [
             ("user", "user", prompt, None),
@@ -442,5 +463,32 @@ mod tests {
         let resp = search_conn(&conn, "one-shot answer", 10).unwrap();
         assert_eq!(resp.len(), 1);
         assert_eq!(resp[0].role.as_deref(), Some("assistant"));
+    }
+
+    #[test]
+    fn timestamps_are_normalized_to_utc() {
+        assert_eq!(
+            normalize_utc_ts("2026-06-20T10:00:00"),
+            "2026-06-20T10:00:00Z"
+        );
+        assert_eq!(
+            normalize_utc_ts("2026-06-20 10:00:00"),
+            "2026-06-20T10:00:00Z"
+        );
+        // Already-zoned values pass through unchanged.
+        assert_eq!(
+            normalize_utc_ts("2026-06-20T10:00:00Z"),
+            "2026-06-20T10:00:00Z"
+        );
+        assert_eq!(
+            normalize_utc_ts("2026-06-20T10:00:00+09:00"),
+            "2026-06-20T10:00:00+09:00"
+        );
+        assert_eq!(normalize_utc_ts(""), "");
+
+        // The fixture's bare datetimes surface with a Z on real messages.
+        let conn = fixture_db();
+        let msgs = load_messages_conn(&conn, "c1").unwrap();
+        assert!(msgs[0].timestamp.ends_with('Z'));
     }
 }

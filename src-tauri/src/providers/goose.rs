@@ -98,10 +98,11 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 fn scan_in_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT s.working_dir, COUNT(DISTINCT s.id) AS sess_cnt, \
+            "SELECT COALESCE(NULLIF(s.working_dir, ''), 'unknown') AS working_dir, \
+                    COUNT(DISTINCT s.id) AS sess_cnt, \
                     COUNT(m.id) AS msg_cnt, MAX(s.updated_at) AS last_upd \
              FROM sessions s LEFT JOIN messages m ON m.session_id = s.id \
-             GROUP BY s.working_dir ORDER BY last_upd DESC",
+             GROUP BY COALESCE(NULLIF(s.working_dir, ''), 'unknown') ORDER BY last_upd DESC",
         )
         .map_err(|e| e.to_string())?;
 
@@ -156,7 +157,9 @@ fn load_sessions_conn(conn: &Connection, working_dir: &str) -> Result<Vec<Claude
         .prepare(
             "SELECT s.id, s.name, s.description, s.created_at, s.updated_at, \
                     (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id) AS msg_cnt \
-             FROM sessions s WHERE s.working_dir = ?1 ORDER BY s.updated_at DESC",
+             FROM sessions s \
+             WHERE COALESCE(NULLIF(s.working_dir, ''), 'unknown') = ?1 \
+             ORDER BY s.updated_at DESC",
         )
         .map_err(|e| e.to_string())?;
 
@@ -216,26 +219,33 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 fn load_messages_conn(conn: &Connection, session_id: &str) -> Result<Vec<ClaudeMessage>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT role, content_json, created_timestamp, message_id \
+            "SELECT id, role, content_json, created_timestamp, message_id \
              FROM messages WHERE session_id = ?1 ORDER BY id",
         )
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
         .query_map([session_id], |row| {
-            let role: String = row.get(0)?;
-            let content_json: String = row.get(1)?;
-            let created: i64 = row.get(2)?;
-            let message_id: Option<String> = row.get(3)?;
-            Ok((role, content_json, created, message_id))
+            let row_id: i64 = row.get(0)?;
+            let role: String = row.get(1)?;
+            let content_json: String = row.get(2)?;
+            let created: i64 = row.get(3)?;
+            let message_id: Option<String> = row.get(4)?;
+            Ok((row_id, role, content_json, created, message_id))
         })
         .map_err(|e| e.to_string())?;
 
     let mut messages = Vec::new();
-    for (idx, row) in rows.flatten().enumerate() {
-        let (role, content_json, created, message_id) = row;
-        if let Some(msg) = build_message(session_id, idx, &role, &content_json, created, message_id)
-        {
+    for row in rows.flatten() {
+        let (row_id, role, content_json, created, message_id) = row;
+        if let Some(msg) = build_message(
+            session_id,
+            row_id,
+            &role,
+            &content_json,
+            created,
+            message_id,
+        ) {
             messages.push(msg);
         }
     }
@@ -256,7 +266,7 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
 
     let mut stmt = conn
         .prepare(
-            "SELECT s.working_dir, m.session_id, m.role, m.content_json, \
+            "SELECT s.working_dir, m.id, m.session_id, m.role, m.content_json, \
                     m.created_timestamp, m.message_id \
              FROM messages m JOIN sessions s ON s.id = m.session_id \
              WHERE m.content_json LIKE ?1",
@@ -266,13 +276,15 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
     let rows = stmt
         .query_map([&pattern], |row| {
             let working_dir: Option<String> = row.get(0)?;
-            let session_id: String = row.get(1)?;
-            let role: String = row.get(2)?;
-            let content_json: String = row.get(3)?;
-            let created: i64 = row.get(4)?;
-            let message_id: Option<String> = row.get(5)?;
+            let row_id: i64 = row.get(1)?;
+            let session_id: String = row.get(2)?;
+            let role: String = row.get(3)?;
+            let content_json: String = row.get(4)?;
+            let created: i64 = row.get(5)?;
+            let message_id: Option<String> = row.get(6)?;
             Ok((
                 working_dir,
+                row_id,
                 session_id,
                 role,
                 content_json,
@@ -283,11 +295,16 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
         .map_err(|e| e.to_string())?;
 
     let mut results = Vec::new();
-    for (idx, row) in rows.flatten().enumerate() {
-        let (working_dir, session_id, role, content_json, created, message_id) = row;
-        let Some(mut msg) =
-            build_message(&session_id, idx, &role, &content_json, created, message_id)
-        else {
+    for row in rows.flatten() {
+        let (working_dir, row_id, session_id, role, content_json, created, message_id) = row;
+        let Some(mut msg) = build_message(
+            &session_id,
+            row_id,
+            &role,
+            &content_json,
+            created,
+            message_id,
+        ) else {
             continue;
         };
         let matched = msg
@@ -324,7 +341,7 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
 /// no renderable content.
 fn build_message(
     session_id: &str,
-    idx: usize,
+    row_id: i64,
     role: &str,
     content_json: &str,
     created: i64,
@@ -337,9 +354,11 @@ fn build_message(
     if blocks.is_empty() {
         return None;
     }
+    // Fall back to the stable DB row id (not an enumeration index) so a message's
+    // UUID is identical whether produced by load_messages or search.
     let uuid = message_id
         .filter(|m| !m.is_empty())
-        .unwrap_or_else(|| format!("{session_id}-{idx}"));
+        .unwrap_or_else(|| format!("{session_id}-{row_id}"));
     Some(build_provider_message(
         PROVIDER,
         uuid,
@@ -597,5 +616,80 @@ mod tests {
         // epoch seconds -> iso (non-empty)
         assert!(!epoch_to_iso(1750500000).is_empty());
         assert_eq!(epoch_to_iso(0), "");
+    }
+
+    /// An empty `working_dir` must round-trip: it's grouped under "unknown" in
+    /// scan and resolvable by `load_sessions("unknown")`.
+    #[test]
+    fn empty_working_dir_rounds_trips_as_unknown() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE sessions (id TEXT PRIMARY KEY, name TEXT, description TEXT, \
+                 working_dir TEXT NOT NULL, created_at TEXT, updated_at TEXT);
+             CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, message_id TEXT, \
+                 session_id TEXT NOT NULL, role TEXT NOT NULL, content_json TEXT NOT NULL, \
+                 created_timestamp INTEGER NOT NULL);",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sessions VALUES ('s1',NULL,NULL,'','2026-06-20 09:00:00','2026-06-20 09:30:00')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO messages (message_id,session_id,role,content_json,created_timestamp) VALUES ('m1','s1','user',?1,1750500000)",
+            [r#"[{"type":"text","text":"hi"}]"#],
+        )
+        .unwrap();
+
+        let projects = scan_in_conn(&conn).unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].actual_path, "unknown");
+        assert_eq!(projects[0].path, "goose://unknown");
+
+        // The key the project advertises must resolve back to its sessions.
+        let sessions = load_sessions_conn(&conn, "unknown").unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].actual_session_id, "s1");
+    }
+
+    /// A NULL `message_id` must get the same UUID from load and search (stable
+    /// DB row id), not divergent enumeration indices.
+    #[test]
+    fn null_message_id_uuid_is_stable_across_load_and_search() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE sessions (id TEXT PRIMARY KEY, name TEXT, description TEXT, \
+                 working_dir TEXT NOT NULL, created_at TEXT, updated_at TEXT);
+             CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, message_id TEXT, \
+                 session_id TEXT NOT NULL, role TEXT NOT NULL, content_json TEXT NOT NULL, \
+                 created_timestamp INTEGER NOT NULL);",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sessions VALUES ('s1',NULL,NULL,'/p','2026-06-20 09:00:00','2026-06-20 09:30:00')",
+            [],
+        )
+        .unwrap();
+        // A decoy message first so the search-filtered index differs from the
+        // session index, then the NULL-message_id message we assert on.
+        conn.execute(
+            "INSERT INTO messages (message_id,session_id,role,content_json,created_timestamp) VALUES ('keep','s1','user',?1,1750500000)",
+            [r#"[{"type":"text","text":"decoy"}]"#],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO messages (message_id,session_id,role,content_json,created_timestamp) VALUES (NULL,'s1','assistant',?1,1750500001)",
+            [r#"[{"type":"text","text":"NEEDLE here"}]"#],
+        )
+        .unwrap();
+
+        let loaded = load_messages_conn(&conn, "s1").unwrap();
+        let loaded_uuid = &loaded[1].uuid; // the NULL-message_id row
+        assert!(loaded_uuid.starts_with("s1-"));
+
+        let found = search_conn(&conn, "NEEDLE", 10).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(&found[0].uuid, loaded_uuid, "load and search must agree");
     }
 }
