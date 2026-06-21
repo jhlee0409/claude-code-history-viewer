@@ -1060,6 +1060,34 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(continue_base) = providers::continue_dev::get_base_path() {
+        let continue_sessions = PathBuf::from(continue_base);
+        if continue_sessions.is_dir() {
+            paths.push(continue_sessions);
+        }
+    }
+
+    if let Some(pearai_base) = providers::pearai::get_base_path() {
+        let pearai_sessions = PathBuf::from(pearai_base);
+        if pearai_sessions.is_dir() {
+            paths.push(pearai_sessions);
+        }
+    }
+
+    if let Some(goose_base) = providers::goose::get_base_path() {
+        let goose_sessions = PathBuf::from(goose_base);
+        if goose_sessions.is_dir() {
+            paths.push(goose_sessions);
+        }
+    }
+
+    if let Some(llm_base) = providers::llm::get_base_path() {
+        let llm_dir = PathBuf::from(llm_base);
+        if llm_dir.is_dir() {
+            paths.push(llm_dir);
+        }
+    }
+
     if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
         let session_state = PathBuf::from(copilot_base).join("session-state");
         if session_state.is_dir() {

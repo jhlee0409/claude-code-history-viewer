@@ -54,6 +54,20 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
     if let Some(kimi_base) = crate::providers::kimi::get_base_path() {
         allowed.push(PathBuf::from(kimi_base).join("sessions"));
     }
+    // Continue stores sessions under ~/.continue/sessions (CONTINUE_GLOBAL_DIR
+    // overridable); get_base_path() already resolves to that directory.
+    if let Some(continue_base) = crate::providers::continue_dev::get_base_path() {
+        allowed.push(PathBuf::from(continue_base));
+    }
+    if let Some(pearai_base) = crate::providers::pearai::get_base_path() {
+        allowed.push(PathBuf::from(pearai_base));
+    }
+    if let Some(goose_base) = crate::providers::goose::get_base_path() {
+        allowed.push(PathBuf::from(goose_base));
+    }
+    if let Some(llm_base) = crate::providers::llm::get_base_path() {
+        allowed.push(PathBuf::from(llm_base));
+    }
 
     // Canonicalize each allowlist entry so the comparison below is like-for-like
     // with the canonicalized candidate. Without this, a symlinked provider root

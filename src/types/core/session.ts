@@ -8,7 +8,7 @@
 // Provider Types
 // ============================================================================
 
-export type ProviderId = "aider" | "antigravity" | "claude" | "cline" | "codebuddy" | "codex" | "copilot" | "cursor" | "cursor-agent" | "forgecode" | "gemini" | "kimi" | "kiro" | "opencode";
+export type ProviderId = "aider" | "antigravity" | "claude" | "cline" | "codebuddy" | "codex" | "continue" | "copilot" | "crush" | "cursor" | "cursor-agent" | "forgecode" | "gemini" | "goose" | "kimi" | "kiro" | "llm" | "opencode" | "pearai";
 
 export interface ProviderInfo {
   id: ProviderId;

@@ -33,18 +33,23 @@ pub async fn scan_all_projects(
         vec![
             "claude".to_string(),
             "codex".to_string(),
+            "continue".to_string(),
+            "pearai".to_string(),
             "copilot".to_string(),
             "gemini".to_string(),
+            "goose".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
             "cline".to_string(),
+            "crush".to_string(),
             "cursor".to_string(),
             "cursor-agent".to_string(),
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
             "kiro".to_string(),
+            "llm".to_string(),
         ]
     });
 
@@ -105,12 +110,42 @@ pub async fn scan_all_projects(
         }
     }
 
+    // Continue.dev
+    if providers_to_scan.iter().any(|p| p == "continue") {
+        match providers::continue_dev::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Continue scan failed: {e}");
+            }
+        }
+    }
+
+    // PearAI (Continue fork under ~/.pearai)
+    if providers_to_scan.iter().any(|p| p == "pearai") {
+        match providers::pearai::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("PearAI scan failed: {e}");
+            }
+        }
+    }
+
     // Gemini
     if providers_to_scan.iter().any(|p| p == "gemini") {
         match providers::gemini::scan_projects() {
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("Gemini scan failed: {e}");
+            }
+        }
+    }
+
+    // Goose (Block) — SQLite sessions.db
+    if providers_to_scan.iter().any(|p| p == "goose") {
+        match providers::goose::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Goose scan failed: {e}");
             }
         }
     }
@@ -165,6 +200,16 @@ pub async fn scan_all_projects(
         }
     }
 
+    // Crush (Charmbracelet) — per-project ./.crush/crush.db
+    if providers_to_scan.iter().any(|p| p == "crush") {
+        match providers::crush::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Crush scan failed: {e}");
+            }
+        }
+    }
+
     // Cursor Agent (CLI transcripts under ~/.cursor/projects/*/agent-transcripts)
     if providers_to_scan.iter().any(|p| p == "cursor-agent") {
         match providers::cursor_agent::scan_projects() {
@@ -210,6 +255,16 @@ pub async fn scan_all_projects(
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("Kiro scan failed: {e}");
+            }
+        }
+    }
+
+    // llm (Simon Willison) — SQLite logs.db
+    if providers_to_scan.iter().any(|p| p == "llm") {
+        match providers::llm::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("llm scan failed: {e}");
             }
         }
     }
@@ -368,18 +423,23 @@ pub async fn load_provider_sessions(
             Ok(sessions)
         }
         "codex" => providers::codex::load_sessions(&project_path, exclude),
+        "continue" => providers::continue_dev::load_sessions(&project_path, exclude),
+        "pearai" => providers::pearai::load_sessions(&project_path, exclude),
         "copilot" => providers::copilot::load_sessions(&project_path, exclude),
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
+        "goose" => providers::goose::load_sessions(&project_path, exclude),
         "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
+        "crush" => providers::crush::load_sessions(&project_path, exclude),
         "cursor" => providers::cursor::load_sessions(&project_path, exclude),
         "cursor-agent" => providers::cursor_agent::load_sessions(&project_path, exclude),
         "aider" => providers::aider::load_sessions(&project_path, exclude),
         "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
         "codebuddy" => providers::codebuddy::load_sessions(&project_path, exclude),
         "kiro" => providers::kiro::load_sessions(&project_path, exclude),
+        "llm" => providers::llm::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -402,18 +462,23 @@ pub async fn load_provider_messages(
             messages
         }
         "codex" => providers::codex::load_messages(&session_path)?,
+        "continue" => providers::continue_dev::load_messages(&session_path)?,
+        "pearai" => providers::pearai::load_messages(&session_path)?,
         "copilot" => providers::copilot::load_messages(&session_path)?,
         "gemini" => providers::gemini::load_messages(&session_path)?,
+        "goose" => providers::goose::load_messages(&session_path)?,
         "kimi" => providers::kimi::load_messages(&session_path)?,
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
         "cline" => providers::cline::load_messages(&session_path)?,
+        "crush" => providers::crush::load_messages(&session_path)?,
         "cursor" => providers::cursor::load_messages(&session_path)?,
         "cursor-agent" => providers::cursor_agent::load_messages(&session_path)?,
         "aider" => providers::aider::load_messages(&session_path)?,
         "antigravity" => providers::antigravity::load_messages(&session_path)?,
         "codebuddy" => providers::codebuddy::load_messages(&session_path)?,
         "kiro" => providers::kiro::load_messages(&session_path)?,
+        "llm" => providers::llm::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -442,18 +507,23 @@ pub async fn search_all_providers(
         vec![
             "claude".to_string(),
             "codex".to_string(),
+            "continue".to_string(),
+            "pearai".to_string(),
             "copilot".to_string(),
             "gemini".to_string(),
+            "goose".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
             "cline".to_string(),
+            "crush".to_string(),
             "cursor".to_string(),
             "cursor-agent".to_string(),
             "aider".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
             "kiro".to_string(),
+            "llm".to_string(),
         ]
     });
 
@@ -526,12 +596,42 @@ pub async fn search_all_providers(
         }
     }
 
+    // Continue.dev
+    if providers_to_search.iter().any(|p| p == "continue") {
+        match providers::continue_dev::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Continue search failed: {e}");
+            }
+        }
+    }
+
+    // PearAI
+    if providers_to_search.iter().any(|p| p == "pearai") {
+        match providers::pearai::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("PearAI search failed: {e}");
+            }
+        }
+    }
+
     // Gemini
     if providers_to_search.iter().any(|p| p == "gemini") {
         match providers::gemini::search(&query, max_results) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Gemini search failed: {e}");
+            }
+        }
+    }
+
+    // Goose
+    if providers_to_search.iter().any(|p| p == "goose") {
+        match providers::goose::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Goose search failed: {e}");
             }
         }
     }
@@ -572,6 +672,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Cline search failed: {e}");
+            }
+        }
+    }
+
+    // Crush
+    if providers_to_search.iter().any(|p| p == "crush") {
+        match providers::crush::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Crush search failed: {e}");
             }
         }
     }
@@ -631,6 +741,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Kiro search failed: {e}");
+            }
+        }
+    }
+
+    // llm (Simon Willison)
+    if providers_to_search.iter().any(|p| p == "llm") {
+        match providers::llm::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("llm search failed: {e}");
             }
         }
     }

@@ -12,6 +12,11 @@ use std::path::{Path, PathBuf};
 const EXTENSIONS: &[(&str, &str)] = &[
     ("saoudrizwan.claude-dev", "Cline"),
     ("rooveterinaryinc.roo-cline", "Roo Code"),
+    // Kilo Code is a Cline/Roo fork: per-task files (api_conversation_history.json,
+    // ui_messages.json, task_metadata.json) are byte-identical, and load_task_history
+    // already handles both the Cline (state/taskHistory.json) and Roo (tasks/_index.json)
+    // index layouts, so it just needs its globalStorage extension id registered.
+    ("kilocode.kilo-code", "Kilo Code"),
 ];
 
 /// Detect Cline/Roo Code installations

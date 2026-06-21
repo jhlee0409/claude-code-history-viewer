@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "copilot", "cursor", "cursor-agent", "forgecode", "gemini", "kimi", "kiro", "opencode"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "pearai"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -13,14 +13,19 @@ const PROVIDER_TRANSLATIONS: Record<
   cline: { key: "common.provider.cline", fallback: "Cline" },
   codebuddy: { key: "common.provider.codebuddy", fallback: "CodeBuddy Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
+  continue: { key: "common.provider.continue", fallback: "Continue" },
   copilot: { key: "common.provider.copilot", fallback: "Copilot" },
+  crush: { key: "common.provider.crush", fallback: "Crush" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
   "cursor-agent": { key: "common.provider.cursorAgent", fallback: "Cursor Agent" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
+  goose: { key: "common.provider.goose", fallback: "Goose" },
   kimi: { key: "common.provider.kimi", fallback: "Kimi CLI" },
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
+  llm: { key: "common.provider.llm", fallback: "llm" },
   opencode: { key: "common.provider.opencode", fallback: "OpenCode" },
+  pearai: { key: "common.provider.pearai", fallback: "PearAI" },
 };
 
 type TranslateFn = (key: string, defaultValue: string) => string;
@@ -76,6 +81,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: true,
     supportsArchiveCreation: false,
   },
+  continue: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   copilot: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -83,6 +95,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     // The provider-level capability is the optimistic union; per-session
     // gating is done by `supportsResumeCommandForSession` below.
     supportsResumeCommand: true,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  crush: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
@@ -114,6 +133,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  goose: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   kimi: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -128,9 +154,23 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  llm: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   opencode: {
     supportsConversationBreakdown: false,
     supportsNativeRename: true,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  pearai: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
     supportsResumeCommand: false,
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
@@ -156,14 +196,19 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "cline":
     case "codebuddy":
     case "codex":
+    case "continue":
     case "copilot":
+    case "crush":
     case "cursor":
     case "cursor-agent":
     case "gemini":
+    case "goose":
     case "kimi":
     case "forgecode":
     case "kiro":
+    case "llm":
     case "opencode":
+    case "pearai":
     case "claude":
       return provider;
     default:
@@ -304,15 +349,20 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   claude: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   codebuddy: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
   codex: "bg-green-500/15 text-green-600 dark:text-green-400",
+  continue: "bg-lime-500/15 text-lime-700 dark:text-lime-300",
   copilot: "bg-[#8250df]/15 text-[#6639ba] dark:text-[#d2a8ff]",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
+  crush: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
   cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   "cursor-agent": "bg-violet-500/15 text-violet-600 dark:text-violet-400",
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+  goose: "bg-red-500/15 text-red-600 dark:text-red-400",
   kimi: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300",
   kiro: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  llm: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  pearai: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
 };

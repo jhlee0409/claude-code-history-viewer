@@ -45,14 +45,19 @@ describe("providers utils", () => {
       "cline",
       "codebuddy",
       "codex",
+      "continue",
       "copilot",
+      "crush",
       "cursor",
       "cursor-agent",
       "forgecode",
       "gemini",
+      "goose",
       "kimi",
       "kiro",
+      "llm",
       "opencode",
+      "pearai",
     ]);
   });
 

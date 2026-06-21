@@ -107,14 +107,19 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       cline: 0,
       codebuddy: 0,
       codex: 0,
+      continue: 0,
       "copilot": 0,
+      crush: 0,
       cursor: 0,
       "cursor-agent": 0,
       forgecode: 0,
       gemini: 0,
+      goose: 0,
       kimi: 0,
       kiro: 0,
+      llm: 0,
       opencode: 0,
+      pearai: 0,
     };
 
     for (const project of projects) {
