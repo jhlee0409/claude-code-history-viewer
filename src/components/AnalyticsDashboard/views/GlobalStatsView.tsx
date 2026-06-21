@@ -15,6 +15,8 @@ import {
   Layers,
   BarChart3,
   Server,
+  Sparkles,
+  Bot,
 } from "lucide-react";
 import type { GlobalStatsSummary } from "../../../types";
 import { formatDuration } from "../../../utils/time";
@@ -233,6 +235,23 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           <ToolUsageChart tools={globalSummary.most_used_tools} />
         </SectionCard>
       </div>
+
+      {/* Skill / Subagent usage (#321) — only shown when there is data */}
+      {(globalSummary.most_used_skills.length > 0 ||
+        globalSummary.most_used_subagents.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {globalSummary.most_used_skills.length > 0 && (
+            <SectionCard title={t("analytics.mostUsedSkillsTitle")} icon={Sparkles} colorVariant="pink">
+              <ToolUsageChart tools={globalSummary.most_used_skills} />
+            </SectionCard>
+          )}
+          {globalSummary.most_used_subagents.length > 0 && (
+            <SectionCard title={t("analytics.mostUsedSubagentsTitle")} icon={Bot} colorVariant="teal">
+              <ToolUsageChart tools={globalSummary.most_used_subagents} />
+            </SectionCard>
+          )}
+        </div>
+      )}
 
       {/* Heatmap & Top Projects */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

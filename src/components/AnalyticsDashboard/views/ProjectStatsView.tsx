@@ -6,7 +6,7 @@
 
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageCircle, Activity, Clock, Wrench, Layers, Cpu, TrendingUp, Database } from "lucide-react";
+import { MessageCircle, Activity, Clock, Wrench, Layers, Cpu, TrendingUp, Database, Sparkles, Bot } from "lucide-react";
 import { LoadingState } from "@/components/ui/loading";
 import type { ProjectStatsSummary, ProviderId } from "../../../types";
 import { formatDuration } from "../../../utils/time";
@@ -119,6 +119,23 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
           <ToolUsageChart tools={projectSummary.most_used_tools} />
         </SectionCard>
       </div>
+
+      {/* Skill / Subagent usage (#321) — only shown for Claude projects with data */}
+      {(projectSummary.most_used_skills.length > 0 ||
+        projectSummary.most_used_subagents.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {projectSummary.most_used_skills.length > 0 && (
+            <SectionCard title={t("analytics.mostUsedSkillsTitle")} icon={Sparkles} colorVariant="pink">
+              <ToolUsageChart tools={projectSummary.most_used_skills} />
+            </SectionCard>
+          )}
+          {projectSummary.most_used_subagents.length > 0 && (
+            <SectionCard title={t("analytics.mostUsedSubagentsTitle")} icon={Bot} colorVariant="teal">
+              <ToolUsageChart tools={projectSummary.most_used_subagents} />
+            </SectionCard>
+          )}
+        </div>
+      )}
 
       {/* Daily Trend Chart */}
       {projectSummary.daily_stats.length > 0 && (

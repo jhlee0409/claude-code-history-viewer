@@ -551,6 +551,8 @@ struct SessionFileStats {
     total_tokens: u64,
     token_distribution: TokenDistribution,
     tool_usage: HashMap<String, (u32, u32)>, // (usage_count, success_count)
+    skill_usage: HashMap<String, (u32, u32)>, // Skill tool, keyed by input.skill (#321)
+    subagent_usage: HashMap<String, (u32, u32)>, // Agent tool, keyed by input.subagent_type (#321)
     daily_stats: HashMap<String, DailyStats>,
     activity_data: HashMap<(u8, u8), (u32, u64)>, // (hour, day) -> (count, tokens)
     model_usage: HashMap<String, ModelUsageAggregate>, // model -> (msg_count, total, input, output, cache_create, cache_read, reasoning)
@@ -653,6 +655,11 @@ fn process_session_file_for_global_stats(
 
         let Some(timestamp) = parsed_timestamp else {
             track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
+            track_skill_and_subagent_usage_from_global_entry(
+                &entry,
+                &mut stats.skill_usage,
+                &mut stats.subagent_usage,
+            );
             continue;
         };
 
@@ -696,6 +703,11 @@ fn process_session_file_for_global_stats(
 
         // Track tool usage
         track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
+        track_skill_and_subagent_usage_from_global_entry(
+            &entry,
+            &mut stats.skill_usage,
+            &mut stats.subagent_usage,
+        );
     }
 
     // Calculate session duration
@@ -835,6 +847,7 @@ fn build_global_session_file_stats_from_messages(
 
         // Track tool usage
         track_tool_usage(message, &mut stats.tool_usage);
+        track_skill_and_subagent_usage(message, &mut stats.skill_usage, &mut stats.subagent_usage);
     }
 
     // Calculate session duration
@@ -1090,6 +1103,8 @@ struct ProjectSessionFileStats {
     total_messages: u32,
     token_distribution: TokenDistribution,
     tool_usage: HashMap<String, (u32, u32)>,
+    skill_usage: HashMap<String, (u32, u32)>, // Skill tool, keyed by input.skill (#321)
+    subagent_usage: HashMap<String, (u32, u32)>, // Agent tool, keyed by input.subagent_type (#321)
     daily_stats: HashMap<String, DailyStats>,
     activity_data: HashMap<(u8, u8), (u32, u64)>,
     session_duration_minutes: u32,
@@ -1181,6 +1196,7 @@ fn process_session_file_for_project_stats(
 
         // Track tool usage
         track_tool_usage(&message, &mut stats.tool_usage);
+        track_skill_and_subagent_usage(&message, &mut stats.skill_usage, &mut stats.subagent_usage);
     }
 
     if stats.total_messages == 0 {
@@ -1262,6 +1278,84 @@ fn track_tool_usage(message: &ClaudeMessage, tool_usage: &mut HashMap<String, (u
                 if !is_error {
                     tool_entry.1 += 1;
                 }
+            }
+        }
+    }
+}
+
+/// Record one usage of a tool keyed by a value inside its `input` — e.g. the
+/// `Skill` tool keyed by `input.skill`, or the `Agent` tool keyed by
+/// `input.subagent_type` (issue #321). `item` is a single `tool_use` value.
+fn record_input_value_usage(
+    item: &serde_json::Value,
+    usage: &mut HashMap<String, (u32, u32)>,
+    tool_name: &str,
+    input_key: &str,
+) {
+    if item.get("name").and_then(|v| v.as_str()) != Some(tool_name) {
+        return;
+    }
+    if let Some(key) = item
+        .get("input")
+        .and_then(|input| input.get(input_key))
+        .and_then(|v| v.as_str())
+    {
+        let entry = usage.entry(key.to_string()).or_insert((0, 0));
+        entry.0 += 1;
+        let is_error = item
+            .get("is_error")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        if !is_error {
+            entry.1 += 1;
+        }
+    }
+}
+
+/// Aggregate Skill (`input.skill`) and Agent (`input.subagent_type`) invocations
+/// from a normalized message, mirroring `track_tool_usage`'s extraction paths.
+fn track_skill_and_subagent_usage(
+    message: &ClaudeMessage,
+    skill_usage: &mut HashMap<String, (u32, u32)>,
+    subagent_usage: &mut HashMap<String, (u32, u32)>,
+) {
+    if message.message_type == "assistant" {
+        if let Some(arr) = message.content.as_ref().and_then(|c| c.as_array()) {
+            for item in arr {
+                if item.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
+                    record_input_value_usage(item, skill_usage, "Skill", "skill");
+                    record_input_value_usage(item, subagent_usage, "Agent", "subagent_type");
+                }
+            }
+        }
+    }
+    if let Some(tool_use) = &message.tool_use {
+        record_input_value_usage(tool_use, skill_usage, "Skill", "skill");
+        record_input_value_usage(tool_use, subagent_usage, "Agent", "subagent_type");
+    }
+}
+
+/// Skill/subagent variant of `track_tool_usage_from_global_entry`. Skill and
+/// Agent calls land in the assistant `content` array, which is the only path
+/// the lightweight global entry preserves as raw JSON.
+fn track_skill_and_subagent_usage_from_global_entry(
+    entry: &GlobalStatsLogEntry,
+    skill_usage: &mut HashMap<String, (u32, u32)>,
+    subagent_usage: &mut HashMap<String, (u32, u32)>,
+) {
+    if entry.message_type != "assistant" {
+        return;
+    }
+    if let Some(arr) = entry
+        .message
+        .as_ref()
+        .and_then(|m| m.content.as_ref())
+        .and_then(|c| c.as_array())
+    {
+        for item in arr {
+            if item.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
+                record_input_value_usage(item, skill_usage, "Skill", "skill");
+                record_input_value_usage(item, subagent_usage, "Agent", "subagent_type");
             }
         }
     }
@@ -2907,6 +3001,8 @@ pub async fn get_project_stats_summary(
 
     let mut session_durations: Vec<u32> = Vec::new();
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut skill_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut subagent_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
     let mut session_count_by_date: HashMap<String, usize> = HashMap::new();
@@ -2924,6 +3020,17 @@ pub async fn get_project_stats_summary(
         // Aggregate tool usage
         for (name, (usage, success)) in stats.tool_usage {
             let entry = tool_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
+        }
+        // Aggregate skill / subagent usage (#321)
+        for (name, (usage, success)) in stats.skill_usage {
+            let entry = skill_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
+        }
+        for (name, (usage, success)) in stats.subagent_usage {
+            let entry = subagent_usage_map.entry(name).or_insert((0, 0));
             entry.0 += usage;
             entry.1 += success;
         }
@@ -2988,6 +3095,8 @@ pub async fn get_project_stats_summary(
     summary
         .most_used_tools
         .sort_by_key(|tool| Reverse(tool.usage_count));
+    summary.most_used_skills = build_tool_usage_stats(skill_usage_map);
+    summary.most_used_subagents = build_tool_usage_stats(subagent_usage_map);
 
     summary.daily_stats = daily_stats_map.into_values().collect();
     summary.daily_stats.sort_by(|a, b| a.date.cmp(&b.date));
@@ -3473,6 +3582,8 @@ pub async fn get_global_stats_summary(
     summary.total_sessions = file_stats.len() as u32;
 
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut skill_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut subagent_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
     let mut model_usage_map: HashMap<String, ModelUsageAggregate> = HashMap::new();
@@ -3500,6 +3611,17 @@ pub async fn get_global_stats_summary(
         // Aggregate tool usage
         for (name, (usage, success)) in stats.tool_usage {
             let entry = tool_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
+        }
+        // Aggregate skill / subagent usage (#321)
+        for (name, (usage, success)) in stats.skill_usage {
+            let entry = skill_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
+        }
+        for (name, (usage, success)) in stats.subagent_usage {
+            let entry = subagent_usage_map.entry(name).or_insert((0, 0));
             entry.0 += usage;
             entry.1 += success;
         }
@@ -3587,6 +3709,8 @@ pub async fn get_global_stats_summary(
     summary
         .most_used_tools
         .sort_by_key(|tool| Reverse(tool.usage_count));
+    summary.most_used_skills = build_tool_usage_stats(skill_usage_map);
+    summary.most_used_subagents = build_tool_usage_stats(subagent_usage_map);
 
     summary.provider_distribution = provider_stats_map
         .into_iter()
@@ -3724,6 +3848,53 @@ mod tests {
             microcompact_metadata: None,
             provider: provider.map(std::string::ToString::to_string),
         }
+    }
+
+    #[test]
+    /// #321: Skill (`input.skill`) and Agent (`input.subagent_type`) invocations
+    /// are aggregated by their input value, not collapsed into one bucket.
+    fn test_track_skill_and_subagent_usage() {
+        let mut msg = make_test_message(None, "assistant", None);
+        msg.content = Some(json!([
+            { "type": "tool_use", "name": "Skill", "input": { "skill": "triage", "args": "x" } },
+            { "type": "tool_use", "name": "Skill", "input": { "skill": "triage" } },
+            { "type": "tool_use", "name": "Skill", "input": { "skill": "loop" } },
+            { "type": "tool_use", "name": "Agent", "input": { "subagent_type": "Explore", "prompt": "p" } },
+            { "type": "tool_use", "name": "Read", "input": { "file_path": "/a" } },
+        ]));
+
+        let mut skills: HashMap<String, (u32, u32)> = HashMap::new();
+        let mut subagents: HashMap<String, (u32, u32)> = HashMap::new();
+        track_skill_and_subagent_usage(&msg, &mut skills, &mut subagents);
+
+        assert_eq!(skills.get("triage"), Some(&(2, 2)));
+        assert_eq!(skills.get("loop"), Some(&(1, 1)));
+        assert_eq!(skills.len(), 2);
+        assert!(!skills.contains_key("Read"));
+        assert_eq!(subagents.get("Explore"), Some(&(1, 1)));
+        assert_eq!(subagents.len(), 1);
+    }
+
+    #[test]
+    /// #321: only assistant messages are scanned, and a Skill call missing the
+    /// `skill` key is skipped (no empty-named bucket).
+    fn test_skill_usage_ignores_user_and_missing_key() {
+        let mut skills: HashMap<String, (u32, u32)> = HashMap::new();
+        let mut subagents: HashMap<String, (u32, u32)> = HashMap::new();
+
+        let mut user = make_test_message(None, "user", None);
+        user.content = Some(json!([
+            { "type": "tool_use", "name": "Skill", "input": { "skill": "x" } }
+        ]));
+        track_skill_and_subagent_usage(&user, &mut skills, &mut subagents);
+        assert!(skills.is_empty());
+
+        let mut asst = make_test_message(None, "assistant", None);
+        asst.content = Some(json!([
+            { "type": "tool_use", "name": "Skill", "input": {} }
+        ]));
+        track_skill_and_subagent_usage(&asst, &mut skills, &mut subagents);
+        assert!(skills.is_empty());
     }
 
     #[test]
