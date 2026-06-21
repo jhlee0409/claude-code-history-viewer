@@ -77,6 +77,7 @@ fn session_files(projects: &Path) -> Vec<PathBuf> {
         .max_depth(1)
         .into_iter()
         .filter_map(Result::ok)
+        .filter(|e| !e.path_is_symlink())
         .filter(|e| e.file_type().is_dir())
     {
         let chats = project.path().join("chats");

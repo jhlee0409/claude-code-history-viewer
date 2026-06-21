@@ -79,6 +79,7 @@ fn workspace_dbs(storage: &Path) -> Vec<(String, PathBuf)> {
         .max_depth(1)
         .into_iter()
         .filter_map(Result::ok)
+        .filter(|e| !e.path_is_symlink())
         .filter(|e| e.file_type().is_dir())
         .filter_map(|e| {
             let db = e.path().join("state.vscdb");
@@ -89,6 +90,13 @@ fn workspace_dbs(storage: &Path) -> Vec<(String, PathBuf)> {
             }
         })
         .collect()
+}
+
+/// A workspaceStorage `<hash>` must be a single safe path component (the hash
+/// can arrive from untrusted `WebUI` input), guarding `storage.join(hash)` against
+/// traversal.
+fn valid_hash(hash: &str) -> bool {
+    !hash.is_empty() && !hash.contains('/') && !hash.contains('\\') && !hash.contains("..")
 }
 
 fn open_db(path: &Path) -> Result<Connection, String> {
@@ -185,6 +193,9 @@ pub fn load_sessions(
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     let hash = project_path.strip_prefix(SCHEME).unwrap_or(project_path);
+    if !valid_hash(hash) {
+        return Ok(vec![]);
+    }
     let Some(storage) = workspace_storage() else {
         return Ok(vec![]);
     };
@@ -236,6 +247,9 @@ pub fn load_sessions(
 /// Load messages for one Trae session (`trae://<hash>#<sessionId>`).
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let (hash, session_id) = parse_session_path(session_path)?;
+    if !valid_hash(&hash) {
+        return Ok(vec![]);
+    }
     let Some(storage) = workspace_storage() else {
         return Ok(vec![]);
     };
@@ -575,5 +589,14 @@ mod tests {
         assert_eq!(h, "abc123");
         assert_eq!(id, "sess-1");
         assert!(parse_session_path("trae://no-sep").is_err());
+    }
+
+    #[test]
+    fn valid_hash_rejects_traversal() {
+        assert!(valid_hash("3b1c9f0a2e"));
+        assert!(!valid_hash("../../etc"));
+        assert!(!valid_hash("a/b"));
+        assert!(!valid_hash("a\\b"));
+        assert!(!valid_hash(""));
     }
 }

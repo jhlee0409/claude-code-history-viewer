@@ -65,6 +65,7 @@ fn session_ids(sessions: &Path) -> Vec<String> {
         .max_depth(1)
         .into_iter()
         .filter_map(Result::ok)
+        .filter(|e| !e.path_is_symlink())
         .filter(|e| e.file_type().is_dir())
         .filter(|e| e.path().join("events").is_dir())
         .filter_map(|e| e.file_name().to_str().map(str::to_string))
@@ -215,6 +216,7 @@ fn event_files(events: &Path) -> Vec<PathBuf> {
         .max_depth(1)
         .into_iter()
         .filter_map(Result::ok)
+        .filter(|e| !e.path_is_symlink())
         .filter(|e| e.file_type().is_file())
         .filter_map(|e| {
             let p = e.path();
