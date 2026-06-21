@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "pearai"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "pearai"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -8,6 +8,7 @@ const PROVIDER_TRANSLATIONS: Record<
   { key: string; fallback: string }
 > = {
   aider: { key: "common.provider.aider", fallback: "Aider" },
+  amazonq: { key: "common.provider.amazonq", fallback: "Amazon Q CLI" },
   antigravity: { key: "common.provider.antigravity", fallback: "Antigravity" },
   claude: { key: "common.provider.claude", fallback: "Claude Code" },
   cline: { key: "common.provider.cline", fallback: "Cline" },
@@ -40,6 +41,13 @@ export interface ProviderSessionCapability {
 
 const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapability> = {
   aider: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
+  amazonq: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
     supportsResumeCommand: false,
@@ -192,6 +200,7 @@ export interface ConversationBreakdownCoverage {
 export function getProviderId(provider?: ProviderId | string): ProviderId {
   switch (provider) {
     case "aider":
+    case "amazonq":
     case "antigravity":
     case "cline":
     case "codebuddy":
@@ -364,6 +373,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   opencode: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   pearai: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+  amazonq: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
   antigravity: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
 };
 

@@ -118,6 +118,7 @@
   "common.update.skip": "Skip This Version",
   "common.update.upToDate": "You have the latest version",
   "common.provider.aider": "Aider",
+  "common.provider.amazonq": "Amazon Q CLI",
   "common.provider.claude": "Claude Code",
   "common.provider.cline": "Cline",
   "common.provider.codebuddy": "CodeBuddy Code",

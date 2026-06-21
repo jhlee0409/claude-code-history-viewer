@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod aider;
+pub mod amazon_q;
 pub mod antigravity;
 pub mod claude;
 pub mod cline;
@@ -20,6 +21,8 @@ pub mod kiro;
 pub mod llm;
 pub mod opencode;
 pub mod pearai;
+/// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
+pub mod q_conversation;
 pub mod vscode;
 
 /// Provider identifier
@@ -27,6 +30,8 @@ pub mod vscode;
 #[serde(rename_all = "lowercase")]
 pub enum ProviderId {
     Aider,
+    /// Amazon Q Developer CLI (`amazon-q/data.sqlite3`).
+    AmazonQ,
     Claude,
     Cline,
     Codebuddy,
@@ -60,6 +65,7 @@ impl ProviderId {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Aider => "aider",
+            Self::AmazonQ => "amazonq",
             Self::Claude => "claude",
             Self::Cline => "cline",
             Self::Codebuddy => "codebuddy",
@@ -84,6 +90,7 @@ impl ProviderId {
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "aider" => Some(Self::Aider),
+            "amazonq" => Some(Self::AmazonQ),
             "claude" => Some(Self::Claude),
             "cline" => Some(Self::Cline),
             "codebuddy" => Some(Self::Codebuddy),
@@ -109,6 +116,7 @@ impl ProviderId {
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Aider => "Aider",
+            Self::AmazonQ => "Amazon Q CLI",
             Self::Claude => "Claude Code",
             Self::Cline => "Cline",
             Self::Codebuddy => "CodeBuddy Code",
@@ -184,6 +192,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = aider::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = amazon_q::detect() {
         providers.push(info);
     }
     if let Some(info) = antigravity::detect() {

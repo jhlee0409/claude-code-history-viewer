@@ -40,6 +40,7 @@ describe("providers utils", () => {
   it("keeps provider id list stable for all known providers", () => {
     expect(PROVIDER_IDS).toEqual([
       "aider",
+      "amazonq",
       "antigravity",
       "claude",
       "cline",

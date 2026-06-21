@@ -118,6 +118,7 @@
   "common.update.skip": "このバージョンをスキップ",
   "common.update.upToDate": "最新バージョンです",
   "common.provider.aider": "Aider",
+  "common.provider.amazonq": "Amazon Q CLI",
   "common.provider.claude": "Claude Code",
   "common.provider.cline": "Cline",
   "common.provider.codebuddy": "CodeBuddy Code",

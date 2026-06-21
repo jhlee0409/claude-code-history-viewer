@@ -46,6 +46,7 @@ pub async fn scan_all_projects(
             "cursor".to_string(),
             "cursor-agent".to_string(),
             "aider".to_string(),
+            "amazonq".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
             "kiro".to_string(),
@@ -226,6 +227,16 @@ pub async fn scan_all_projects(
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("Aider scan failed: {e}");
+            }
+        }
+    }
+
+    // Amazon Q Developer CLI — amazon-q/data.sqlite3 (conversations table)
+    if providers_to_scan.iter().any(|p| p == "amazonq") {
+        match providers::amazon_q::scan_projects() {
+            Ok(projects) => all_projects.extend(projects),
+            Err(e) => {
+                log::warn!("Amazon Q scan failed: {e}");
             }
         }
     }
@@ -436,6 +447,7 @@ pub async fn load_provider_sessions(
         "cursor" => providers::cursor::load_sessions(&project_path, exclude),
         "cursor-agent" => providers::cursor_agent::load_sessions(&project_path, exclude),
         "aider" => providers::aider::load_sessions(&project_path, exclude),
+        "amazonq" => providers::amazon_q::load_sessions(&project_path, exclude),
         "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
         "codebuddy" => providers::codebuddy::load_sessions(&project_path, exclude),
         "kiro" => providers::kiro::load_sessions(&project_path, exclude),
@@ -475,6 +487,7 @@ pub async fn load_provider_messages(
         "cursor" => providers::cursor::load_messages(&session_path)?,
         "cursor-agent" => providers::cursor_agent::load_messages(&session_path)?,
         "aider" => providers::aider::load_messages(&session_path)?,
+        "amazonq" => providers::amazon_q::load_messages(&session_path)?,
         "antigravity" => providers::antigravity::load_messages(&session_path)?,
         "codebuddy" => providers::codebuddy::load_messages(&session_path)?,
         "kiro" => providers::kiro::load_messages(&session_path)?,
@@ -520,6 +533,7 @@ pub async fn search_all_providers(
             "cursor".to_string(),
             "cursor-agent".to_string(),
             "aider".to_string(),
+            "amazonq".to_string(),
             "antigravity".to_string(),
             "codebuddy".to_string(),
             "kiro".to_string(),
@@ -712,6 +726,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Aider search failed: {e}");
+            }
+        }
+    }
+
+    // Amazon Q Developer CLI
+    if providers_to_search.iter().any(|p| p == "amazonq") {
+        match providers::amazon_q::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Amazon Q search failed: {e}");
             }
         }
     }

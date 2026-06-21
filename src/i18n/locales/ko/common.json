@@ -118,6 +118,7 @@
   "common.update.skip": "이 버전 건너뛰기",
   "common.update.upToDate": "최신 버전입니다",
   "common.provider.aider": "Aider",
+  "common.provider.amazonq": "Amazon Q CLI",
   "common.provider.claude": "Claude Code",
   "common.provider.cline": "Cline",
   "common.provider.codebuddy": "CodeBuddy Code",

@@ -1088,6 +1088,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(amazon_q_base) = providers::amazon_q::get_base_path() {
+        let amazon_q_dir = PathBuf::from(amazon_q_base);
+        if amazon_q_dir.is_dir() {
+            paths.push(amazon_q_dir);
+        }
+    }
+
     if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
         let session_state = PathBuf::from(copilot_base).join("session-state");
         if session_state.is_dir() {

@@ -1,6 +1,7 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
+use crate::providers::q_conversation;
 use crate::providers::ProviderInfo;
-use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
+use crate::utils::{ms_to_iso, search_json_value_case_insensitive};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -19,18 +20,14 @@ pub fn detect() -> Option<ProviderInfo> {
 }
 
 fn get_db_path() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
-
-    #[cfg(target_os = "macos")]
-    let path = home.join("Library/Application Support/kiro-cli/data.sqlite3");
-
-    #[cfg(target_os = "linux")]
-    let path = home.join(".local/share/kiro-cli/data.sqlite3");
-
-    #[cfg(target_os = "windows")]
-    let path = home.join("AppData/Roaming/kiro-cli/data.sqlite3");
-
-    Some(path)
+    // data_local_dir(): macOS ~/Library/Application Support, Linux ~/.local/share,
+    // Windows %LOCALAPPDATA% — matches upstream kiro-cli (dirs::data_local_dir).
+    // (Previously hardcoded Windows to AppData/Roaming, which was wrong.)
+    Some(
+        dirs::data_local_dir()?
+            .join("kiro-cli")
+            .join("data.sqlite3"),
+    )
 }
 
 fn open_db() -> Result<Connection, String> {
@@ -173,30 +170,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         )
         .map_err(|e| format!("Conversation not found: {e}"))?;
 
-    let json: Value = serde_json::from_str(&value).map_err(|e| e.to_string())?;
-    let history = json
-        .get("history")
-        .and_then(Value::as_array)
-        .ok_or("No history found")?;
-
-    let mut messages = Vec::new();
-
-    for (i, entry) in history.iter().enumerate() {
-        // User message
-        if let Some(user) = entry.get("user") {
-            if let Some(msg) = convert_user_message(user, conv_id, i) {
-                messages.push(msg);
-            }
-        }
-        // Assistant message
-        if let Some(assistant) = entry.get("assistant") {
-            if let Some(msg) = convert_assistant_message(assistant, conv_id, i) {
-                messages.push(msg);
-            }
-        }
-    }
-
-    Ok(messages)
+    Ok(q_conversation::parse_history(PROVIDER, &value, conv_id))
 }
 
 /// Search across all Kiro conversations
@@ -240,7 +214,9 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 return Ok(results);
             }
             if let Some(user) = entry.get("user") {
-                if let Some(mut msg) = convert_user_message(user, &conv_id, i) {
+                if let Some(mut msg) =
+                    q_conversation::convert_user_message(PROVIDER, user, &conv_id, i)
+                {
                     if let Some(ref c) = msg.content {
                         if search_json_value_case_insensitive(c, &query_lower) {
                             msg.project_name = Some("Kiro CLI".to_string());
@@ -253,7 +229,9 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 return Ok(results);
             }
             if let Some(assistant) = entry.get("assistant") {
-                if let Some(mut msg) = convert_assistant_message(assistant, &conv_id, i) {
+                if let Some(mut msg) =
+                    q_conversation::convert_assistant_message(PROVIDER, assistant, &conv_id, i)
+                {
                     if let Some(ref c) = msg.content {
                         if search_json_value_case_insensitive(c, &query_lower) {
                             msg.project_name = Some("Kiro CLI".to_string());
@@ -266,207 +244,4 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     }
 
     Ok(results)
-}
-
-// ============================================================================
-// Private helpers
-// ============================================================================
-
-fn convert_user_message(user: &Value, session_id: &str, idx: usize) -> Option<ClaudeMessage> {
-    let timestamp = user
-        .get("timestamp")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-
-    let content_obj = user.get("content")?;
-    let mut blocks: Vec<Value> = Vec::new();
-
-    if let Some(prompt) = content_obj.get("Prompt") {
-        let text = prompt.get("prompt").and_then(Value::as_str).unwrap_or("");
-        if !text.is_empty() {
-            blocks.push(serde_json::json!({"type": "text", "text": text}));
-        }
-    } else if let Some(tool_results) = content_obj.get("ToolUseResults") {
-        if let Some(results) = tool_results
-            .get("tool_use_results")
-            .and_then(Value::as_array)
-        {
-            for tr in results {
-                let tool_use_id = tr.get("tool_use_id").and_then(Value::as_str).unwrap_or("");
-                let content_arr = tr.get("content").and_then(Value::as_array);
-                let text = content_arr
-                    .and_then(|arr| arr.first())
-                    .and_then(|c| c.get("Text").and_then(Value::as_str))
-                    .unwrap_or("");
-                blocks.push(serde_json::json!({
-                    "type": "tool_result",
-                    "tool_use_id": tool_use_id,
-                    "content": text
-                }));
-            }
-        }
-    }
-
-    if blocks.is_empty() {
-        return None;
-    }
-
-    Some(build_provider_message(
-        PROVIDER,
-        format!("{session_id}-user-{idx}"),
-        session_id,
-        timestamp,
-        "user",
-        Some("user"),
-        Some(Value::Array(blocks)),
-        None,
-    ))
-}
-
-fn convert_assistant_message(
-    assistant: &Value,
-    session_id: &str,
-    idx: usize,
-) -> Option<ClaudeMessage> {
-    let mut blocks: Vec<Value> = Vec::new();
-
-    if let Some(response) = assistant.get("Response") {
-        let text = response
-            .get("content")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        if !text.is_empty() {
-            blocks.push(serde_json::json!({"type": "text", "text": text}));
-        }
-    } else if let Some(tool_use) = assistant.get("ToolUse") {
-        let text = tool_use
-            .get("content")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        if !text.is_empty() {
-            blocks.push(serde_json::json!({"type": "text", "text": text}));
-        }
-        if let Some(tools) = tool_use.get("tool_uses").and_then(Value::as_array) {
-            for tool in tools {
-                let id = tool.get("id").and_then(Value::as_str).unwrap_or("");
-                let name = tool
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown");
-                let args = tool
-                    .get("args")
-                    .cloned()
-                    .unwrap_or(Value::Object(serde_json::Map::default()));
-                blocks.push(serde_json::json!({
-                    "type": "tool_use",
-                    "id": id,
-                    "name": map_tool_name(name),
-                    "input": args
-                }));
-            }
-        }
-    }
-
-    if blocks.is_empty() {
-        return None;
-    }
-
-    let msg_id = assistant
-        .get("Response")
-        .or_else(|| assistant.get("ToolUse"))
-        .and_then(|v| v.get("message_id"))
-        .and_then(Value::as_str)
-        .unwrap_or("");
-
-    Some(build_provider_message(
-        PROVIDER,
-        if msg_id.is_empty() {
-            format!("{session_id}-asst-{idx}")
-        } else {
-            msg_id.to_string()
-        },
-        session_id,
-        String::new(),
-        "assistant",
-        Some("assistant"),
-        Some(Value::Array(blocks)),
-        None,
-    ))
-}
-
-fn map_tool_name(name: &str) -> &str {
-    match name {
-        "execute_bash" => "Bash",
-        "read_file" | "file_read" => "Read",
-        "write_file" | "file_write" | "create_file" => "Write",
-        "list_directory" => "Glob",
-        "search_files" | "grep" => "Grep",
-        "web_search" => "WebSearch",
-        "web_fetch" => "WebFetch",
-        _ => name,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn test_convert_user_prompt() {
-        let user = json!({
-            "content": {"Prompt": {"prompt": "hello world"}},
-            "timestamp": "2025-10-08T10:50:49.220865-07:00"
-        });
-        let msg = convert_user_message(&user, "sess-1", 0).unwrap();
-        assert_eq!(msg.message_type, "user");
-        assert_eq!(msg.provider, Some("kiro".to_string()));
-    }
-
-    #[test]
-    fn test_convert_assistant_response() {
-        let asst = json!({"Response": {"message_id": "abc", "content": "Hello!"}});
-        let msg = convert_assistant_message(&asst, "sess-1", 0).unwrap();
-        assert_eq!(msg.message_type, "assistant");
-        let arr = msg.content.unwrap();
-        assert_eq!(arr[0]["text"], "Hello!");
-    }
-
-    #[test]
-    fn test_convert_assistant_tool_use() {
-        let asst = json!({
-            "ToolUse": {
-                "message_id": "xyz",
-                "content": "Let me run that",
-                "tool_uses": [{"id": "t1", "name": "execute_bash", "args": {"command": "ls"}, "orig_name": "", "orig_args": {}}]
-            }
-        });
-        let msg = convert_assistant_message(&asst, "sess-1", 1).unwrap();
-        let arr = msg.content.unwrap().as_array().unwrap().clone();
-        assert_eq!(arr[0]["type"], "text");
-        assert_eq!(arr[1]["type"], "tool_use");
-        assert_eq!(arr[1]["name"], "Bash");
-    }
-
-    #[test]
-    fn test_convert_user_tool_results() {
-        let user = json!({
-            "content": {"ToolUseResults": {"tool_use_results": [
-                {"tool_use_id": "t1", "content": [{"Text": "output here"}]}
-            ]}},
-            "timestamp": "2025-10-08T10:51:00-07:00"
-        });
-        let msg = convert_user_message(&user, "sess-1", 1).unwrap();
-        let arr = msg.content.unwrap().as_array().unwrap().clone();
-        assert_eq!(arr[0]["type"], "tool_result");
-        assert_eq!(arr[0]["tool_use_id"], "t1");
-    }
-
-    #[test]
-    fn test_map_tool_names() {
-        assert_eq!(map_tool_name("execute_bash"), "Bash");
-        assert_eq!(map_tool_name("read_file"), "Read");
-        assert_eq!(map_tool_name("unknown_thing"), "unknown_thing");
-    }
 }
