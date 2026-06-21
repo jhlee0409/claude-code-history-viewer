@@ -73,11 +73,11 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
         )}
 
-        <span className="text-[11px] font-medium text-foreground/80 truncate">
+        <span className="text-px11 font-medium text-foreground/80 truncate">
           {projectName ?? t("analytics.timeline.title")}
         </span>
 
-        <div className="flex items-center gap-3 ml-auto text-[10px] text-muted-foreground shrink-0">
+        <div className="flex items-center gap-3 ml-auto text-px10 text-muted-foreground shrink-0">
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" aria-hidden="true" />
             {t("analytics.timeline.activeDays")}: {t(totalActiveDays === 1 ? "analytics.timeline.day" : "analytics.timeline.days", { count: totalActiveDays })}
@@ -99,7 +99,7 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
         <div className="px-4 pb-3 space-y-2">
           {/* Stats row */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 bg-muted/40 rounded-full px-2.5 py-0.5 text-[10px]">
+            <span className="inline-flex items-center gap-1 bg-muted/40 rounded-full px-2.5 py-0.5 text-px10">
               <Flame className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
               <span className="text-muted-foreground">{t("analytics.timeline.longestStreak")}</span>
               <span className="font-medium text-foreground">
@@ -112,7 +112,7 @@ export const SessionActivityTimeline: React.FC<SessionActivityTimelineProps> = (
                   e.stopPropagation();
                   handleDateClear();
                 }}
-                className="inline-flex items-center gap-0.5 bg-primary/10 rounded-full px-2.5 py-0.5 text-[10px] text-primary/80 hover:text-primary hover:bg-primary/15 transition-colors"
+                className="inline-flex items-center gap-0.5 bg-primary/10 rounded-full px-2.5 py-0.5 text-px10 text-primary/80 hover:text-primary hover:bg-primary/15 transition-colors"
               >
                 <X className="w-3 h-3" aria-hidden="true" />
                 {t("analytics.timeline.clearFilter")}

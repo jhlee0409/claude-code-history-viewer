@@ -35,7 +35,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <Wrench className="w-10 h-10 opacity-20" />
-        <p className="text-[10px] uppercase tracking-wider mt-3">{t("analytics.noData")}</p>
+        <p className="text-px10 uppercase tracking-wider mt-3">{t("analytics.noData")}</p>
       </div>
     );
   }
@@ -58,7 +58,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
           >
             {/* Rank */}
             <div
-              className="w-5 text-[10px] font-bold tabular-nums"
+              className="w-5 text-px10 font-bold tabular-nums"
               style={{ color: index < 3 ? color : "var(--muted-foreground)" }}
             >
               {index + 1}
@@ -67,11 +67,11 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
             {/* Tool info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline justify-between mb-1">
-                <span className="text-[11px] font-medium text-foreground/90 truncate pr-2">
+                <span className="text-px11 font-medium text-foreground/90 truncate pr-2">
                   {getToolDisplayName(tool.tool_name, t)}
                 </span>
                 <span
-                  className="font-mono text-[11px] font-semibold tabular-nums shrink-0"
+                  className="font-mono text-px11 font-semibold tabular-nums shrink-0"
                   style={{ color }}
                 >
                   {tool.usage_count.toLocaleString()}
@@ -93,7 +93,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
 
             {/* Percentage */}
             <div className="w-12 text-right shrink-0">
-              <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+              <span className="font-mono text-px10 text-muted-foreground tabular-nums">
                 {percentage.toFixed(1)}%
               </span>
             </div>
@@ -103,7 +103,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
 
       {/* Total footer */}
       <div className="flex items-center justify-between pt-3 mt-2 border-t border-border/30">
-        <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+        <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
           Total Usage
         </span>
         <span className="font-mono text-sm font-semibold text-foreground tabular-nums">

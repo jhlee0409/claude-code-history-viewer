@@ -230,10 +230,10 @@ export const CommandRenderer = ({
               {/* Command args if present */}
               {commandGroup.args && (
                 <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-                  <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px]", colors.text)}>
+                  <span className={cn("text-px11 font-medium mt-0.5 min-w-[40px]", colors.text)}>
                     {t("commandRenderer.arguments")}
                   </span>
-                  <code className={cn("px-1.5 py-0.5 text-[11px]", layout.rounded, "font-mono whitespace-pre-wrap", colors.argBg)}>
+                  <code className={cn("px-1.5 py-0.5 text-px11", layout.rounded, "font-mono whitespace-pre-wrap", colors.argBg)}>
                     {searchQuery ? (
                       <HighlightedText
                         text={commandGroup.args}
@@ -251,10 +251,10 @@ export const CommandRenderer = ({
               {/* Command message/status if present */}
               {commandGroup.message && (
                 <div className={cn("flex items-start mb-1.5", layout.iconSpacing)}>
-                  <span className={cn("text-[11px] font-medium mt-0.5 min-w-[40px]", colors.text)}>
+                  <span className={cn("text-px11 font-medium mt-0.5 min-w-[40px]", colors.text)}>
                     {t("commandRenderer.status")}
                   </span>
-                  <span className={cn("text-[11px] italic", colors.text)}>
+                  <span className={cn("text-px11 italic", colors.text)}>
                     {searchQuery ? (
                       <HighlightedText
                         text={commandGroup.message}

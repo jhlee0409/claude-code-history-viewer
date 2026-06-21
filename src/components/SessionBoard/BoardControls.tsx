@@ -108,16 +108,16 @@ export const BoardControls = ({
                         value={activeBrush?.type === 'tool' ? activeBrush.value : ""}
                         onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'tool', value: v })}
                     >
-                        <SelectTrigger className="h-7 w-32 text-[10px] bg-muted/20 border-border/30 px-2">
+                        <SelectTrigger className="h-7 w-32 text-px10 bg-muted/20 border-border/30 px-2">
                             <SelectValue placeholder={t("session.board.controls.tool")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="_ALL_" className="text-[10px] font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
+                            <SelectItem value="_ALL_" className="text-px10 font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
                             {toolOptions.map(toolOption => (
                                 <SelectItem
                                     key={toolOption}
                                     value={toolOption}
-                                    className="text-[10px]"
+                                    className="text-px10"
                                     disabled={availableTools ? !availableTools.includes(toolOption) : false}
                                 >
                                     {toolOption.toUpperCase()}
@@ -132,16 +132,16 @@ export const BoardControls = ({
                             value={activeBrush?.type === 'mcp' ? activeBrush.value : ""}
                             onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'mcp', value: v })}
                         >
-                            <SelectTrigger className="h-7 w-32 text-[10px] bg-muted/20 border-border/30 px-2">
+                            <SelectTrigger className="h-7 w-32 text-px10 bg-muted/20 border-border/30 px-2">
                                 <SelectValue placeholder={t("session.board.controls.mcp")} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="_ALL_" className="text-[10px] font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
+                                <SelectItem value="_ALL_" className="text-px10 font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
                                 {mcpServerOptions.map(server => (
                                     <SelectItem
                                         key={server}
                                         value={server}
-                                        className="text-[10px]"
+                                        className="text-px10"
                                         disabled={availableMcpServers ? !availableMcpServers.includes(server) : false}
                                     >
                                         {server}
@@ -157,16 +157,16 @@ export const BoardControls = ({
                             value={activeBrush?.type === 'command' ? activeBrush.value : ""}
                             onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'command', value: v })}
                         >
-                            <SelectTrigger className="h-7 w-40 text-[10px] bg-muted/20 border-border/30 px-2">
+                            <SelectTrigger className="h-7 w-40 text-px10 bg-muted/20 border-border/30 px-2">
                                 <SelectValue placeholder={t("session.board.controls.command")} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="_ALL_" className="text-[10px] font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
+                                <SelectItem value="_ALL_" className="text-px10 font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
                                 {shellCommandOptions.map(cmd => (
                                     <SelectItem
                                         key={cmd}
                                         value={cmd}
-                                        className="text-[10px] font-mono"
+                                        className="text-px10 font-mono"
                                         disabled={availableShellCommands ? !availableShellCommands.includes(cmd) : false}
                                         title={cmd}
                                     >
@@ -181,16 +181,16 @@ export const BoardControls = ({
                         value={activeBrush?.type === 'file' ? activeBrush.value : ""}
                         onValueChange={(v) => onBrushChange(v === '_ALL_' ? null : { type: 'file', value: v })}
                     >
-                        <SelectTrigger className="h-7 w-40 text-[10px] bg-muted/20 border-border/30 px-2">
+                        <SelectTrigger className="h-7 w-40 text-px10 bg-muted/20 border-border/30 px-2">
                             <SelectValue placeholder={t("session.board.controls.file")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="_ALL_" className="text-[10px] font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
+                            <SelectItem value="_ALL_" className="text-px10 font-extrabold text-foreground uppercase tracking-wide">{t("session.board.controls.all")}</SelectItem>
                             {fileOptions.map(f => (
                                 <SelectItem
                                     key={f}
                                     value={f}
-                                    className="text-[10px]"
+                                    className="text-px10"
                                     disabled={availableFiles ? !availableFiles.includes(f) : false}
                                 >
                                     {f.split(/[\\/]/).pop() || ""}

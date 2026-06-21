@@ -291,32 +291,32 @@ export default {
     function({ addComponents }) {
       addComponents({
         '.prose-xs': {
-          fontSize: '0.75rem',
+          fontSize: 'calc(0.75rem * var(--app-font-scale))',
           lineHeight: '1.5',
           '& p': {
             marginTop: '0.375em',
             marginBottom: '0.375em',
           },
           '& h1': {
-            fontSize: '0.9375rem',
+            fontSize: 'calc(0.9375rem * var(--app-font-scale))',
             marginTop: '0',
             marginBottom: '0.375em',
             lineHeight: '1.3',
           },
           '& h2': {
-            fontSize: '0.875rem',
+            fontSize: 'calc(0.875rem * var(--app-font-scale))',
             marginTop: '0.75em',
             marginBottom: '0.375em',
             lineHeight: '1.3',
           },
           '& h3': {
-            fontSize: '0.8125rem',
+            fontSize: 'calc(0.8125rem * var(--app-font-scale))',
             marginTop: '0.75em',
             marginBottom: '0.375em',
             lineHeight: '1.4',
           },
           '& h4, & h5, & h6': {
-            fontSize: '0.75rem',
+            fontSize: 'calc(0.75rem * var(--app-font-scale))',
             marginTop: '0.75em',
             marginBottom: '0.375em',
           },
@@ -347,7 +347,7 @@ export default {
             color: 'var(--muted-foreground)',
           },
           '& pre': {
-            fontSize: '0.6875rem',
+            fontSize: 'calc(0.6875rem * var(--app-font-scale))',
             lineHeight: '1.4',
             marginTop: '0.5em',
             marginBottom: '0.5em',
@@ -355,7 +355,7 @@ export default {
             borderRadius: '0.25rem',
           },
           '& code': {
-            fontSize: '0.6875rem',
+            fontSize: 'calc(0.6875rem * var(--app-font-scale))',
             padding: '0.0625em 0.1875em',
             borderRadius: '0.1875rem',
           },
@@ -370,7 +370,7 @@ export default {
             marginBottom: '0.75em',
           },
           '& table': {
-            fontSize: '0.6875rem',
+            fontSize: 'calc(0.6875rem * var(--app-font-scale))',
             marginTop: '0.75em',
             marginBottom: '0.75em',
             width: '100%',
@@ -437,7 +437,7 @@ export default {
             borderRadius: '0.125rem',
           },
           '& kbd': {
-            fontSize: '0.625rem',
+            fontSize: 'calc(0.625rem * var(--app-font-scale))',
             fontFamily: 'var(--font-mono, ui-monospace, monospace)',
             backgroundColor: 'var(--muted)',
             border: '1px solid var(--border)',

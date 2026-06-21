@@ -76,7 +76,7 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
         <ChevronIcon className="w-3 h-3 text-muted-foreground" />
         <Bot className="w-3.5 h-3.5 text-muted-foreground" />
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <span className="text-[10px] text-muted-foreground/70 bg-muted rounded-full px-1.5">
+        <span className="text-px10 text-muted-foreground/70 bg-muted rounded-full px-1.5">
           {subagentSessions.length}
         </span>
       </button>
@@ -97,7 +97,7 @@ const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
               <span className="max-w-[200px] truncate">
                 {sa.summary ?? sa.agent_id}
               </span>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-px10 text-muted-foreground">
                 {t("renderers.agentTool.messages", { count: sa.message_count, defaultValue: "{{count}} messages" })}
               </span>
             </button>

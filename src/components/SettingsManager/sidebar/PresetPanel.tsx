@@ -188,12 +188,12 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
           {(summary.model || summary.mcpServerCount > 0) && (
             <div className="px-3 flex items-center gap-1.5">
               {summary.model && (
-                <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-mono font-medium text-indigo-400 whitespace-nowrap">
+                <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-px10 font-mono font-medium text-indigo-400 whitespace-nowrap">
                   {summary.model}
                 </span>
               )}
               {summary.mcpServerCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-px10 font-medium text-emerald-400 whitespace-nowrap">
                   <Server className="w-2.5 h-2.5 shrink-0" />
                   {t("settingsManager.presets.badge.mcpCount", { count: summary.mcpServerCount })}
                 </span>
@@ -204,7 +204,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
           {/* Row 3: description */}
           {preset.description && (
             <div className="px-3 py-2.5">
-              <span className="text-[10px] text-muted-foreground/60 truncate block">
+              <span className="text-px10 text-muted-foreground/60 truncate block">
                 {preset.description}
               </span>
             </div>

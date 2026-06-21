@@ -42,7 +42,7 @@ export const SectionCard: React.FC<SectionCardProps> = ({
               <Icon className="w-4 h-4" style={{ color: colorVar }} />
             </div>
           )}
-          <h3 className="text-[11px] font-bold text-foreground/90 uppercase tracking-[0.12em] truncate flex-1">
+          <h3 className="text-px11 font-bold text-foreground/90 uppercase tracking-[0.12em] truncate flex-1">
             {title}
           </h3>
         </div>

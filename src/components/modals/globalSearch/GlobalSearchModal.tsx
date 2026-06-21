@@ -637,7 +637,7 @@ export const GlobalSearchModal = ({
                             </span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono text-[10px]">
+                            <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono text-px10">
                                 esc
                             </kbd>
                             <span className="ml-1">

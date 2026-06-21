@@ -144,7 +144,7 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
       <div className="rounded-lg border-2 border-accent/40 bg-card/50 p-3 space-y-2.5">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium w-28 truncate">{server.name}</span>
-          <Badge variant="outline" className={`text-[10px] ${scopeColors[server.scope]}`}>
+          <Badge variant="outline" className={`text-px10 ${scopeColors[server.scope]}`}>
             {scopeLabel[server.scope]}
           </Badge>
         </div>
@@ -178,7 +178,7 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
       <div className="flex items-center gap-2">
         <Server className="w-3.5 h-3.5 text-emerald-500/70 shrink-0" />
         <span className="text-xs font-semibold truncate flex-1">{server.name}</span>
-        <Badge variant="outline" className={`text-[10px] shrink-0 ${scopeColors[server.scope]}`}>
+        <Badge variant="outline" className={`text-px10 shrink-0 ${scopeColors[server.scope]}`}>
           {scopeLabel[server.scope]}
         </Badge>
         {!readOnly && (
@@ -202,7 +202,7 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
       </div>
       {/* Bottom row: command in monospace */}
       <div className="mt-1.5 pl-5.5">
-        <code className="text-[11px] text-muted-foreground/70 font-mono break-all whitespace-normal md:truncate md:whitespace-nowrap block">
+        <code className="text-px11 text-muted-foreground/70 font-mono break-all whitespace-normal md:truncate md:whitespace-nowrap block">
           {server.config.command} {server.config.args?.join(" ")}
         </code>
       </div>
