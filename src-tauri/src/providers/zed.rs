@@ -320,7 +320,7 @@ fn convert_message(
                     let is_error = res.get("is_error").and_then(Value::as_bool).unwrap_or(false);
                     let content = res
                         .get("content")
-                        .map(stringify)
+                        .map(tool_result_content)
                         .unwrap_or_default();
                     json!({ "type": "tool_result", "tool_use_id": tool_use_id, "content": content, "is_error": is_error })
                 })
@@ -453,11 +453,44 @@ fn make_msg(
     )
 }
 
-fn stringify(v: &Value) -> String {
+/// Extract human-readable text from a Zed tool-result `content`. Zed serializes
+/// this as `Vec<LanguageModelToolResultContent>` — a JSON array of externally
+/// tagged items `{"Text": "..."}` / `{"Image": {...}}`. The wire format also
+/// tolerates a bare string or a single item, so handle all three rather than
+/// JSON-encoding the value verbatim (which would leak the enum tags into the
+/// rendered result, e.g. `[{"Text":"auth.rs:42"}]`).
+fn tool_result_content(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),
+        Value::Array(items) => items
+            .iter()
+            .map(tool_result_content_part)
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n"),
+        Value::Object(_) => tool_result_content_part(v),
         other => other.to_string(),
     }
+}
+
+/// One `LanguageModelToolResultContent` item -> text. `{"Text": "..."}` yields the
+/// text (Zed matches the key case-insensitively); `{"Image": ...}` becomes a
+/// placeholder; a bare string passes through; anything else falls back to JSON.
+fn tool_result_content_part(item: &Value) -> String {
+    if let Value::String(s) = item {
+        return s.clone();
+    }
+    if let Some(text) = item
+        .get("Text")
+        .or_else(|| item.get("text"))
+        .and_then(Value::as_str)
+    {
+        return text.to_string();
+    }
+    if item.get("Image").is_some() || item.get("image").is_some() {
+        return "[image]".to_string();
+    }
+    item.to_string()
 }
 
 #[cfg(test)]
@@ -475,7 +508,7 @@ mod tests {
                         { "Thinking": { "text": "reasoning", "signature": "sig" } },
                         { "ToolUse": { "id": "t1", "name": "grep", "input": { "q": "login" } } }
                     ],
-                    "tool_results": { "t1": { "content": "auth.rs:42", "is_error": false } }
+                    "tool_results": { "t1": { "content": [{ "Text": "auth.rs:42" }], "is_error": false } }
                 } },
                 "Resume"
             ]
@@ -506,6 +539,30 @@ mod tests {
         assert_eq!(tr[0]["type"], "tool_result");
         assert_eq!(tr[0]["tool_use_id"], "t1");
         assert_eq!(tr[0]["content"], "auth.rs:42");
+    }
+
+    #[test]
+    fn tool_result_content_extracts_text_from_all_shapes() {
+        // Legacy bare string passes through.
+        assert_eq!(tool_result_content(&json!("auth.rs:42")), "auth.rs:42");
+        // Modern Vec<LanguageModelToolResultContent>: array of externally-tagged items.
+        assert_eq!(
+            tool_result_content(&json!([{ "Text": "auth.rs:42" }])),
+            "auth.rs:42"
+        );
+        // Multiple parts incl. an image placeholder, joined by newline.
+        assert_eq!(
+            tool_result_content(&json!([
+                { "Text": "line 1" },
+                { "Image": { "source": "data:...", "size": { "width": 1, "height": 1 } } },
+                { "Text": "line 2" }
+            ])),
+            "line 1\n[image]\nline 2"
+        );
+        // A single item that wasn't wrapped in an array.
+        assert_eq!(tool_result_content(&json!({ "Text": "single" })), "single");
+        // The old behaviour would have leaked the enum tag; ensure it does not.
+        assert!(!tool_result_content(&json!([{ "Text": "x" }])).contains("Text"));
     }
 
     #[test]
