@@ -119,7 +119,7 @@ pub fn load_sessions(
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_string();
-            let model = item.get("modelId").and_then(Value::as_str);
+            let label = task_label(item);
 
             let ui_messages_path = base_path.join("tasks").join(id).join("ui_messages.json");
             // Use token counts as a proxy for message count to avoid reading full JSON
@@ -144,13 +144,7 @@ pub fn load_sessions(
                 last_modified: timestamp,
                 has_tool_use: true, // Cline is heavily tool-based
                 has_errors: false,
-                summary: if task.len() > 100 {
-                    Some(format!("{}...", &task[..100]))
-                } else if task.is_empty() {
-                    model.map(String::from)
-                } else {
-                    Some(task)
-                },
+                summary: session_summary(&task, label),
                 is_renamed: false,
                 provider: Some("cline".to_string()),
                 storage_type: Some("json".to_string()),
@@ -305,6 +299,36 @@ fn task_cwd(item: &Value) -> Option<&str> {
     item.get("cwdOnTaskInitialization")
         .and_then(Value::as_str)
         .or_else(|| item.get("workspace").and_then(Value::as_str))
+}
+
+/// A short model/profile label for a task, used as the session summary when the
+/// task text is empty. Cline stores `modelId`; the Roo/Kilo lineage uses
+/// `apiConfigName` (or `mode`) instead.
+fn task_label(item: &Value) -> Option<String> {
+    ["modelId", "apiConfigName", "mode"]
+        .iter()
+        .find_map(|k| item.get(*k).and_then(Value::as_str))
+        .map(str::to_string)
+}
+
+/// Session summary: the task text (truncated), or a model/profile label when the
+/// task is empty.
+fn session_summary(task: &str, label: Option<String>) -> Option<String> {
+    if task.is_empty() {
+        label
+    } else {
+        Some(truncate_chars(task, 100, "..."))
+    }
+}
+
+/// Truncate `text` to at most `max_chars` **characters** (not bytes), appending
+/// `suffix` only when truncation occurs. Char-safe: never panics by splitting a
+/// multibyte UTF-8 character — Cline/Roo summaries and tool results are often CJK.
+fn truncate_chars(text: &str, max_chars: usize, suffix: &str) -> String {
+    match text.char_indices().nth(max_chars) {
+        Some((idx, _)) => format!("{}{}", &text[..idx], suffix),
+        None => text.to_string(),
+    }
 }
 
 fn load_task_history(base_path: &Path) -> Vec<Value> {
@@ -501,11 +525,7 @@ fn convert_say_message(
                 blocks.push(serde_json::json!({
                     "type": "tool_result",
                     "tool_use_id": format!("cline_tool_{uuid}"),
-                    "content": if result_text.len() > 2000 {
-                        format!("{}...(truncated)", &result_text[..2000])
-                    } else {
-                        result_text.to_string()
-                    }
+                    "content": truncate_chars(result_text, 2000, "...(truncated)")
                 }));
             }
 
@@ -885,5 +905,59 @@ mod tests {
         fs::create_dir_all(&ext_dir).unwrap();
         // Neither a disk index nor a state.vscdb → empty, no panic.
         assert!(load_task_history(&ext_dir).is_empty());
+    }
+
+    #[test]
+    fn test_truncate_chars_is_utf8_safe() {
+        // Regression: `&task[..100]` byte-slicing panicked on multibyte text
+        // (byte 100 falls mid-character for 3-byte CJK). Char-based never does.
+        let cjk = "한".repeat(150);
+        let out = truncate_chars(&cjk, 100, "...");
+        assert_eq!(out.chars().count(), 103); // 100 chars + "..."
+        assert!(out.ends_with("..."));
+        // Shorter-than-limit text is returned unchanged (no suffix).
+        assert_eq!(truncate_chars("hi", 100, "..."), "hi");
+        // Exactly the limit is not truncated.
+        let exact = "a".repeat(100);
+        assert_eq!(truncate_chars(&exact, 100, "..."), exact);
+        // Custom suffix.
+        assert_eq!(
+            truncate_chars(&"x".repeat(2001), 2000, "...(truncated)"),
+            format!("{}...(truncated)", "x".repeat(2000))
+        );
+    }
+
+    #[test]
+    fn test_task_label_field_fallback() {
+        assert_eq!(
+            task_label(&json!({ "modelId": "claude" })).as_deref(),
+            Some("claude")
+        );
+        // Roo/Kilo have no modelId; they use apiConfigName / mode.
+        assert_eq!(
+            task_label(&json!({ "apiConfigName": "default" })).as_deref(),
+            Some("default")
+        );
+        assert_eq!(
+            task_label(&json!({ "mode": "code" })).as_deref(),
+            Some("code")
+        );
+        assert_eq!(task_label(&json!({ "other": "x" })), None);
+    }
+
+    #[test]
+    fn test_session_summary() {
+        // Non-empty task -> truncated task (char-safe), label ignored.
+        assert_eq!(
+            session_summary("hello", Some("claude".into())).as_deref(),
+            Some("hello")
+        );
+        // Empty task -> falls back to the label.
+        assert_eq!(
+            session_summary("", Some("default".into())).as_deref(),
+            Some("default")
+        );
+        // Empty task, no label -> None.
+        assert_eq!(session_summary("", None), None);
     }
 }
