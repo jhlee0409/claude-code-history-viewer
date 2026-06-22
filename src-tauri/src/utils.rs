@@ -241,7 +241,13 @@ pub fn decode_project_path_verified(session_storage_path: &str) -> Option<String
             if let Some(original) = parsed.get("originalPath").and_then(|v| v.as_str()) {
                 let original = original.trim();
                 let candidate = Path::new(original);
-                if candidate.is_absolute() && candidate.is_dir() {
+                // Use symlink_metadata (not is_dir, which follows symlinks) so a
+                // symlinked directory is rejected here too, matching the
+                // symlink-blocking policy in decode_with_filesystem_check.
+                let is_real_dir = std::fs::symlink_metadata(candidate)
+                    .map(|m| m.file_type().is_dir())
+                    .unwrap_or(false);
+                if candidate.is_absolute() && is_real_dir {
                     return Some(original.to_string());
                 }
             }
