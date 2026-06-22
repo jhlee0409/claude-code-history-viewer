@@ -211,6 +211,7 @@
   "globalSearch.tips.filters": "Use filters to narrow results by message type or project",
   "globalSearch.tips.navigate": "Use ↑↓ to navigate results, Enter to select",
   "globalSearch.unknownProject": "Unknown Project",
+  "globalSearch.conversationId": "Conversation {{id}}",
   "imageRenderer.cannotLoadImage": "Cannot load image",
   "imageRenderer.close": "Close",
   "imageRenderer.downloadImage": "Download image",

@@ -211,6 +211,7 @@
   "globalSearch.tips.filters": "필터를 사용하여 메시지 유형이나 프로젝트별로 검색 범위를 좁힐 수 있습니다",
   "globalSearch.tips.navigate": "↑↓로 결과를 탐색하고, Enter로 선택할 수 있습니다",
   "globalSearch.unknownProject": "알 수 없는 프로젝트",
+  "globalSearch.conversationId": "대화 {{id}}",
   "imageRenderer.cannotLoadImage": "이미지를 로드할 수 없습니다",
   "imageRenderer.close": "닫기",
   "imageRenderer.downloadImage": "이미지 다운로드",

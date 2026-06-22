@@ -211,6 +211,7 @@
   "globalSearch.tips.filters": "使用筛选器按消息类型或项目缩小搜索范围",
   "globalSearch.tips.navigate": "使用 ↑↓ 浏览结果，Enter 选择",
   "globalSearch.unknownProject": "未知项目",
+  "globalSearch.conversationId": "会话 {{id}}",
   "imageRenderer.cannotLoadImage": "无法加载图像",
   "imageRenderer.close": "关闭",
   "imageRenderer.downloadImage": "下载图像",

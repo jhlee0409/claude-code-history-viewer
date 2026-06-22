@@ -86,9 +86,13 @@ export const GlobalSearchModal = ({
 
     // Get session display name for a search result
     const getSessionName = useCallback((result: GlobalSearchResult): string | undefined => {
-        if (!result.sessionId) return undefined;
-        return getSessionDisplayName(result.sessionId);
-    }, [getSessionDisplayName]);
+        if (!result.sessionId || result.sessionId === "unknown-session") return undefined;
+        const name = getSessionDisplayName(result.sessionId);
+        if (name) return name;
+        // No custom/known name: show a short, stable conversation handle so results
+        // from different conversations are still distinguishable (#420).
+        return t("globalSearch.conversationId", { id: result.sessionId.slice(0, 8) });
+    }, [getSessionDisplayName, t]);
 
     // Debounced search
     const performSearch = useCallback(
@@ -594,8 +598,9 @@ export const GlobalSearchModal = ({
                                                             {(() => {
                                                                 const sessionName = getSessionName(result);
                                                                 return sessionName ? (
-                                                                    <p className="text-xs text-muted-foreground/70 truncate mb-0.5">
-                                                                        {sessionName}
+                                                                    <p className="flex items-center gap-1 text-xs text-muted-foreground/70 mb-0.5">
+                                                                        <MessageSquare className="w-3 h-3 shrink-0" />
+                                                                        <span className="truncate">{sessionName}</span>
                                                                     </p>
                                                                 ) : null;
                                                             })()}

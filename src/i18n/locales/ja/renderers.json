@@ -211,6 +211,7 @@
   "globalSearch.tips.filters": "フィルターでメッセージの種類やプロジェクトを絞り込めます",
   "globalSearch.tips.navigate": "↑↓で結果を選択、Enterで確定",
   "globalSearch.unknownProject": "不明なプロジェクト",
+  "globalSearch.conversationId": "会話 {{id}}",
   "imageRenderer.cannotLoadImage": "画像を読み込めません",
   "imageRenderer.close": "閉じる",
   "imageRenderer.downloadImage": "画像をダウンロード",
