@@ -1,11 +1,14 @@
 //! Zed provider (Agent Panel thread history).
 //!
-//! Zed stores agent threads in a single `SQLite` DB at
-//! `dirs::data_dir()/Zed/threads/threads.db` (macOS
-//! `~/Library/Application Support/Zed/...`, Linux `~/.local/share/Zed/...`,
-//! Windows `%APPDATA%\Zed\...`). The `threads` table holds metadata plus a
-//! `data` BLOB that is the serialized `DbThread` JSON — stored either plain
-//! (`data_type = "json"`) or Zstd-compressed (`data_type = "zstd"`).
+//! Zed stores agent threads in a single `SQLite` DB under its data dir, which
+//! mirrors Zed's own `paths::data_dir()`: macOS
+//! `~/Library/Application Support/Zed`, Linux/FreeBSD `$XDG_DATA_HOME/zed`
+//! (lowercase!), Windows `%LOCALAPPDATA%\Zed` — then `/threads/threads.db`.
+//! The `threads` table holds metadata plus a `data` BLOB that is the serialized
+//! `DbThread` JSON — stored either plain (`data_type = "json"`) or
+//! Zstd-compressed (`data_type = "zstd"`). The optional columns `folder_paths`
+//! and `created_at` are absent on older Zed schemas, so the SELECTs adapt via
+//! `PRAGMA table_info`.
 //!
 //! `DbThread.messages` is an array of externally-tagged `Message` values:
 //! `{"User":{content:[{Text}|{Mention}|{Image}]}}` /
@@ -24,7 +27,7 @@ use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, search_json_value_case_insensitive};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 const PROVIDER: &str = "zed";
@@ -32,12 +35,21 @@ const SCHEME: &str = "zed://";
 const UNKNOWN_WORKSPACE: &str = "unknown";
 
 fn get_db_path() -> Option<PathBuf> {
-    Some(
+    // Mirror Zed's own `paths::data_dir()`. macOS uses ~/Library/Application
+    // Support (== dirs::data_dir); Linux/FreeBSD and Windows use the *local*
+    // data dir (XDG_DATA_HOME / %LOCALAPPDATA%, == dirs::data_local_dir), NOT
+    // the roaming dir. The app folder is lowercase "zed" only on Linux/FreeBSD.
+    let base = if cfg!(target_os = "macos") {
         dirs::data_dir()?
-            .join("Zed")
-            .join("threads")
-            .join("threads.db"),
-    )
+    } else {
+        dirs::data_local_dir()?
+    };
+    let app_name = if cfg!(any(target_os = "linux", target_os = "freebsd")) {
+        "zed"
+    } else {
+        "Zed"
+    };
+    Some(base.join(app_name).join("threads").join("threads.db"))
 }
 
 /// Detect a Zed installation.
@@ -88,12 +100,41 @@ fn workspace_of(folder_paths: Option<&str>) -> String {
         .unwrap_or_else(|| UNKNOWN_WORKSPACE.to_string())
 }
 
+/// Column names present in `table` (via `PRAGMA table_info`). Lets SELECTs adapt
+/// to Zed's schema drift — older `threads` tables lack `folder_paths`/`created_at`.
+fn table_columns(conn: &Connection, table: &str) -> HashSet<String> {
+    let mut cols = HashSet::new();
+    if let Ok(mut stmt) = conn.prepare(&format!("PRAGMA table_info({table})")) {
+        if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(1)) {
+            cols.extend(rows.flatten());
+        }
+    }
+    cols
+}
+
+/// `name` when the column exists, else `NULL AS name` so the SELECT keeps the
+/// expected column positions on older schemas. `name` is always a hardcoded
+/// literal, so the interpolated SQL is safe.
+fn optional_col(cols: &HashSet<String>, name: &str) -> String {
+    if cols.contains(name) {
+        name.to_string()
+    } else {
+        format!("NULL AS {name}")
+    }
+}
+
 /// Scan Zed projects (threads grouped by first workspace folder).
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let conn = open_db()?;
-    let mut stmt = conn
-        .prepare("SELECT folder_paths, updated_at FROM threads")
-        .map_err(|e| e.to_string())?;
+    scan_projects_conn(&open_db()?)
+}
+
+fn scan_projects_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
+    let cols = table_columns(conn, "threads");
+    let sql = format!(
+        "SELECT {}, updated_at FROM threads",
+        optional_col(&cols, "folder_paths")
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
 
     struct Agg {
         session_count: usize,
@@ -153,13 +194,17 @@ pub fn load_sessions(
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     let target_ws = project_path.strip_prefix(SCHEME).unwrap_or(project_path);
-    let conn = open_db()?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, summary, folder_paths, created_at, updated_at FROM threads \
-             ORDER BY updated_at DESC",
-        )
-        .map_err(|e| e.to_string())?;
+    load_sessions_conn(&open_db()?, target_ws)
+}
+
+fn load_sessions_conn(conn: &Connection, target_ws: &str) -> Result<Vec<ClaudeSession>, String> {
+    let cols = table_columns(conn, "threads");
+    let sql = format!(
+        "SELECT id, summary, {}, {}, updated_at FROM threads ORDER BY updated_at DESC",
+        optional_col(&cols, "folder_paths"),
+        optional_col(&cols, "created_at"),
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
 
     let project_name = PathBuf::from(target_ws)
         .file_name()
@@ -538,6 +583,113 @@ mod tests {
         );
         assert_eq!(workspace_of(Some("[]")), "unknown");
         assert_eq!(workspace_of(None), "unknown");
+    }
+
+    #[test]
+    fn db_path_uses_platform_app_name() {
+        let Some(p) = get_db_path() else { return };
+        let s = p.to_string_lossy().replace('\\', "/");
+        assert!(s.ends_with("threads/threads.db"), "got {s}");
+        if cfg!(any(target_os = "linux", target_os = "freebsd")) {
+            assert!(
+                s.contains("/zed/threads"),
+                "linux must use lowercase zed: {s}"
+            );
+        } else {
+            assert!(s.contains("/Zed/threads"), "got {s}");
+        }
+    }
+
+    #[test]
+    fn table_columns_and_optional_col() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute("CREATE TABLE threads (id TEXT, summary TEXT)", [])
+            .unwrap();
+        let cols = table_columns(&conn, "threads");
+        assert!(cols.contains("id") && cols.contains("summary"));
+        assert!(!cols.contains("folder_paths"));
+        assert_eq!(optional_col(&cols, "id"), "id");
+        assert_eq!(optional_col(&cols, "folder_paths"), "NULL AS folder_paths");
+    }
+
+    fn insert_thread(conn: &Connection, cols: &str, values: &[&dyn rusqlite::ToSql]) {
+        let placeholders = (1..=values.len())
+            .map(|i| format!("?{i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        conn.execute(
+            &format!("INSERT INTO threads ({cols}) VALUES ({placeholders})"),
+            values,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn scan_and_load_tolerate_old_5col_schema() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE threads (id TEXT PRIMARY KEY, summary TEXT NOT NULL, \
+             updated_at TEXT NOT NULL, data_type TEXT NOT NULL, data BLOB NOT NULL)",
+            [],
+        )
+        .unwrap();
+        let data = serde_json::to_vec(&json!({ "messages": [] })).unwrap();
+        insert_thread(
+            &conn,
+            "id, summary, updated_at, data_type, data",
+            &[
+                &"t1",
+                &"Old thread",
+                &"2026-06-20T10:00:00Z",
+                &"json",
+                &data,
+            ],
+        );
+
+        // No folder_paths / created_at columns -> must not error.
+        let projects = scan_projects_conn(&conn).unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].actual_path, "unknown"); // no folder_paths -> grouped as unknown
+        assert_eq!(projects[0].session_count, 1);
+
+        let sessions = load_sessions_conn(&conn, "unknown").unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].actual_session_id, "t1");
+        assert_eq!(sessions[0].summary.as_deref(), Some("Old thread"));
+    }
+
+    #[test]
+    fn scan_and_load_use_new_schema_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE threads (id TEXT PRIMARY KEY, summary TEXT NOT NULL, \
+             updated_at TEXT NOT NULL, data_type TEXT NOT NULL, data BLOB NOT NULL, \
+             folder_paths TEXT, created_at TEXT)",
+            [],
+        )
+        .unwrap();
+        let data = serde_json::to_vec(&json!({ "messages": [] })).unwrap();
+        insert_thread(
+            &conn,
+            "id, summary, updated_at, data_type, data, folder_paths, created_at",
+            &[
+                &"t1",
+                &"New",
+                &"2026-06-20T10:00:00Z",
+                &"json",
+                &data,
+                &r#"["/Users/jack/proj"]"#,
+                &"2026-06-20T09:00:00Z",
+            ],
+        );
+
+        let projects = scan_projects_conn(&conn).unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].actual_path, "/Users/jack/proj");
+
+        let sessions = load_sessions_conn(&conn, "/Users/jack/proj").unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].first_message_time, "2026-06-20T09:00:00Z"); // created_at
     }
 
     #[test]
