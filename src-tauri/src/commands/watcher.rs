@@ -1,8 +1,10 @@
 use crate::utils::is_safe_storage_id;
+use lru::LruCache;
 use notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent, DebouncedEventKind, Debouncer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, UNIX_EPOCH};
@@ -17,10 +19,26 @@ pub struct FileWatchEvent {
 }
 
 type WatcherMap = Arc<Mutex<Option<Debouncer<RecommendedWatcher>>>>;
-type OpenCodeSessionCache = HashMap<String, String>;
+
+/// LRU cache for `OpenCode` session-to-project mappings, capped at 10,000 entries.
+/// Each entry is ~150 bytes, bounding memory at ~1.5MB regardless of watcher activity.
+///
+/// Motivation: the file watcher calls `remember_opencode_project_id()` on every
+/// `.jsonl` change event (debounced to 500ms). With a plain `HashMap` the cache
+/// grew without bound for long-lived sessions — observed at multiple GB after a
+/// few days of continuous use. An LRU evicts the least-recently-used keys once
+/// capacity is reached, so memory stays flat.
+type OpenCodeSessionCache = LruCache<String, String>;
 
 static OPENCODE_SESSION_PROJECT_CACHE: std::sync::OnceLock<Mutex<OpenCodeSessionCache>> =
     std::sync::OnceLock::new();
+
+/// Build the bounded `OpenCode` session-project cache (10,000-entry LRU).
+fn create_opencode_cache() -> Mutex<OpenCodeSessionCache> {
+    // 10,000 entries × ~150 bytes/entry ≈ 1.5MB peak.
+    let capacity = NonZeroUsize::new(10_000).expect("10,000 is non-zero");
+    Mutex::new(LruCache::new(capacity))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FileSignature {
@@ -487,17 +505,19 @@ fn opencode_cache_key(storage_root: &Path, session_id: &str) -> String {
 }
 
 fn get_cached_opencode_project_id(storage_root: &Path, session_id: &str) -> Option<String> {
-    let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(create_opencode_cache);
     let key = opencode_cache_key(storage_root, session_id);
-    let guard = cache.lock().ok()?;
+    // LRU `get` needs `&mut` because a hit refreshes recency ordering.
+    let mut guard = cache.lock().ok()?;
     guard.get(&key).cloned()
 }
 
 fn remember_opencode_project_id(storage_root: &Path, session_id: &str, project_id: &str) {
-    let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(create_opencode_cache);
     let key = opencode_cache_key(storage_root, session_id);
     if let Ok(mut guard) = cache.lock() {
-        guard.insert(key, project_id.to_string());
+        // `put` evicts the least-recently-used entry once at capacity.
+        guard.put(key, project_id.to_string());
     }
 }
 
@@ -746,5 +766,28 @@ mod tests {
 
         assert_eq!(result.0, "opencode://project_1");
         assert_eq!(result.1, "opencode://project_1/session_1");
+    }
+
+    /// Regression test for the unbounded-cache memory leak: the `OpenCode`
+    /// session-project cache must evict entries once it reaches its capacity
+    /// so that long-running watcher activity cannot grow it without bound.
+    /// Before the LRU fix this used a plain `HashMap`, so `len()` would equal
+    /// the full insert count (10,100) and this assertion would fail.
+    #[test]
+    #[serial]
+    fn test_opencode_cache_is_bounded() {
+        let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(create_opencode_cache);
+        let mut guard = cache.lock().unwrap();
+        guard.clear();
+
+        for i in 0..10_100 {
+            guard.put(format!("key_{i}"), format!("value_{i}"));
+        }
+
+        assert!(
+            guard.len() <= 10_000,
+            "OpenCode cache must stay bounded at 10,000 entries, got {}",
+            guard.len()
+        );
     }
 }
