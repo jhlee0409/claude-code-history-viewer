@@ -132,6 +132,53 @@ describe("linearSearchMessages", () => {
   });
 });
 
+describe("tool_use input indexing (#429)", () => {
+  it("finds text inside tool_use.input (file_path, command, etc.)", () => {
+    const msg = createMessage({
+      uuid: "tu-1",
+      type: "assistant",
+      content: [
+        { type: "tool_use", id: "t1", name: "Read", input: { file_path: "/src/reflectance.ts" } },
+      ],
+    });
+    // Searching for the tool name still works...
+    expect(linearSearchMessages([msg], "Read").length).toBe(1);
+    // ...and now the input value is searchable too (previously missed).
+    const byInput = linearSearchMessages([msg], "reflectance");
+    expect(byInput.length).toBe(1);
+    expect(byInput[0].messageUuid).toBe("tu-1");
+  });
+
+  it("finds nested string values in tool_use.input", () => {
+    const msg = createMessage({
+      uuid: "tu-2",
+      type: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "t2",
+          name: "AskUserQuestion",
+          input: { questions: [{ question: "What reflectance model should we use?" }] },
+        },
+      ],
+    });
+    const results = linearSearchMessages([msg], "reflectance model");
+    expect(results.length).toBe(1);
+    expect(results[0].messageUuid).toBe("tu-2");
+  });
+
+  it("indexes mcp_tool_use input values", () => {
+    const msg = createMessage({
+      uuid: "tu-3",
+      type: "assistant",
+      content: [
+        { type: "mcp_tool_use", server_name: "fs", tool_name: "grep", input: { pattern: "needle-token" } },
+      ],
+    });
+    expect(linearSearchMessages([msg], "needle-token").length).toBe(1);
+  });
+});
+
 describe("isSearchIndexReady / clearSearchIndex", () => {
   beforeEach(() => {
     clearSearchIndex();
