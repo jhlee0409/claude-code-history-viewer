@@ -65,6 +65,23 @@ describe("markdownExporter", () => {
     expect(result).not.toContain("hidden");
   });
 
+  it("should include sidechain messages when includeSidechain is set (subagent export, issue #433)", () => {
+    // A subagent session: every message is a sidechain message.
+    const messages = [
+      makeMessage({ type: "user", content: "subagent question", isSidechain: true }),
+      makeMessage({ type: "assistant", content: "subagent answer", isSidechain: true }),
+    ];
+
+    const withoutOption = exportToMarkdown(messages, "test");
+    expect(withoutOption).toContain("0 user / 0 assistant");
+    expect(withoutOption).not.toContain("subagent question");
+
+    const withOption = exportToMarkdown(messages, "test", undefined, { includeSidechain: true });
+    expect(withOption).toContain("1 user / 1 assistant");
+    expect(withOption).toContain("subagent question");
+    expect(withOption).toContain("subagent answer");
+  });
+
   it("should exclude system and summary messages", () => {
     const messages = [
       makeMessage({ type: "user", content: "visible" }),

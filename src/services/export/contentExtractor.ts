@@ -217,9 +217,19 @@ export function extractBlocks(content: string | ContentItem[] | Record<string, u
 
 /**
  * Filter messages to only exportable types (shared across all exporters).
+ *
+ * Sidechain (subagent) messages are excluded by default so they don't bleed
+ * into a parent session export. When the user has navigated *into* a subagent
+ * session and exports it directly, every message carries `isSidechain: true`,
+ * so callers pass `{ includeSidechain: true }` to keep them. See issue #433.
  */
-export function isExportable(m: ClaudeMessage): boolean {
-  return !m.isSidechain
+export type ExportOptions = {
+  /** Keep sidechain (subagent) messages — set when exporting a subagent session directly. */
+  includeSidechain?: boolean;
+};
+
+export function isExportable(m: ClaudeMessage, options?: ExportOptions): boolean {
+  return (options?.includeSidechain === true || !m.isSidechain)
     && m.type !== "system"
     && m.type !== "summary"
     && m.type !== "progress"

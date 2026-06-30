@@ -208,6 +208,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const { isExporting, exportConversation } = useExport(
     displayMessages,
     selectedSession?.project_name ?? selectedSession?.session_id ?? "conversation",
+    { includeSidechain: isInSubagent },
   );
   const handleExport = useCallback((format: ExportFormat) => {
     if (isExporting || displayMessages.length === 0) return;

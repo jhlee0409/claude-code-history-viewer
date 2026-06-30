@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { extractBlocks, blocksToPlainText } from "@/services/export/contentExtractor";
+import { extractBlocks, blocksToPlainText, isExportable } from "@/services/export/contentExtractor";
+import type { ClaudeMessage } from "@/types";
+
+function msg(overrides: Partial<ClaudeMessage> & { type: ClaudeMessage["type"] }): ClaudeMessage {
+  return { uuid: "u", sessionId: "s", timestamp: "2026-03-13T10:30:15.000Z", content: "", ...overrides } as ClaudeMessage;
+}
 
 describe("contentExtractor", () => {
   it("should return empty array for null/undefined", () => {
@@ -201,5 +206,23 @@ describe("contentExtractor", () => {
     ];
     const text = blocksToPlainText(blocks);
     expect(text).toBe("Hello\n\nRead(file: test.ts)");
+  });
+});
+
+describe("isExportable", () => {
+  it("excludes sidechain messages by default", () => {
+    expect(isExportable(msg({ type: "user", isSidechain: true }))).toBe(false);
+    expect(isExportable(msg({ type: "user", isSidechain: false }))).toBe(true);
+  });
+
+  it("keeps sidechain messages when includeSidechain is set (issue #433)", () => {
+    expect(isExportable(msg({ type: "user", isSidechain: true }), { includeSidechain: true })).toBe(true);
+    expect(isExportable(msg({ type: "assistant", isSidechain: true }), { includeSidechain: true })).toBe(true);
+  });
+
+  it("still excludes non-message types even when includeSidechain is set", () => {
+    for (const type of ["system", "summary", "progress", "queue-operation", "file-history-snapshot"] as const) {
+      expect(isExportable(msg({ type, isSidechain: true }), { includeSidechain: true })).toBe(false);
+    }
   });
 });

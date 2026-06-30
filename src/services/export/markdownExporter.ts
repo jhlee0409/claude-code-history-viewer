@@ -5,7 +5,7 @@
  */
 
 import type { ClaudeMessage } from "@/types";
-import { extractBlocks, filterBlocksByContentType, isExportable, type ExtractedBlock } from "./contentExtractor";
+import { extractBlocks, filterBlocksByContentType, isExportable, type ExtractedBlock, type ExportOptions } from "./contentExtractor";
 import type { MessageFilterContentTypes } from "@/store/slices/filterSlice";
 
 function formatTimestamp(timestamp: string): { date: string; time: string } {
@@ -39,8 +39,8 @@ function blockToMarkdown(block: ExtractedBlock): string {
   }
 }
 
-export function exportToMarkdown(messages: ClaudeMessage[], sessionName: string, contentTypeFilter?: MessageFilterContentTypes): string {
-  const filtered = messages.filter(isExportable);
+export function exportToMarkdown(messages: ClaudeMessage[], sessionName: string, contentTypeFilter?: MessageFilterContentTypes, options?: ExportOptions): string {
+  const filtered = messages.filter((m) => isExportable(m, options));
 
   const firstTimestamp = filtered[0]?.timestamp;
   const lastTimestamp = filtered[filtered.length - 1]?.timestamp;
