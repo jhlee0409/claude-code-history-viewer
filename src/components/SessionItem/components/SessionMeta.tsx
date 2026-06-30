@@ -23,10 +23,10 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
     : null;
 
   return (
-    <div className="flex items-center gap-3 ml-7 text-2xs">
+    <div className="flex min-w-0 items-center gap-2 ml-7 text-2xs">
       <span
         className={cn(
-          "flex items-center gap-1 font-mono",
+          "flex shrink-0 items-center gap-1 whitespace-nowrap font-mono",
           isSelected ? "text-accent/80" : "text-muted-foreground"
         )}
       >
@@ -37,7 +37,7 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
       </span>
       <span
         className={cn(
-          "flex items-center gap-1 font-mono",
+          "flex shrink-0 items-center gap-1 whitespace-nowrap font-mono",
           isSelected ? "text-accent/80" : "text-muted-foreground"
         )}
       >
@@ -49,7 +49,7 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
       {session.storage_type && (
         <span
           className={cn(
-            "px-1 py-0.5 rounded font-medium uppercase",
+            "shrink-0 whitespace-nowrap px-1 py-0.5 rounded font-medium uppercase",
             isSelected
               ? "text-accent/80 bg-accent/10"
               : "text-muted-foreground bg-muted/50"
@@ -61,7 +61,7 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
       {entrypointMeta && (
         <span
           className={cn(
-            "px-1 py-0.5 rounded font-medium",
+            "shrink-0 whitespace-nowrap px-1 py-0.5 rounded font-medium",
             isSelected ? "text-accent/80 bg-accent/10" : entrypointMeta.badgeClass
           )}
           title={t(entrypointMeta.i18nKey)}
