@@ -106,242 +106,61 @@ pub async fn scan_all_projects(
         }
     }
 
-    // Codex
-    if providers_to_scan.iter().any(|p| p == "codex") {
-        match providers::codex::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Codex scan failed: {e}");
-            }
-        }
-    }
+    // Synchronous, self-contained provider scanners — all share the signature
+    // `fn() -> Result<Vec<ClaudeProject>, String>` and read independent data
+    // sources. They previously ran sequentially, which made startup scale with
+    // the (now ~25) provider count: several open SQLite databases with a 5s
+    // busy_timeout, so a single locked DB (its tool running concurrently) stalled
+    // the whole scan, and multiple locked DBs stacked into tens of seconds (#434).
+    // Running them concurrently on the blocking pool turns that worst case from a
+    // sum into a single overlapped wait. The `("name", fn)` label here is the
+    // provider id matched against `providers_to_scan`, not the display name.
+    type SyncScanner = fn() -> Result<Vec<ClaudeProject>, String>;
+    let sync_scanners: &[(&str, SyncScanner)] = &[
+        ("codex", providers::codex::scan_projects),
+        ("continue", providers::continue_dev::scan_projects),
+        ("pearai", providers::pearai::scan_projects),
+        ("gemini", providers::gemini::scan_projects),
+        ("goose", providers::goose::scan_projects),
+        ("kimi", providers::kimi::scan_projects),
+        ("forgecode", providers::forgecode::scan_projects),
+        ("opencode", providers::opencode::scan_projects),
+        ("openinterpreter", providers::openinterpreter::scan_projects),
+        ("qwen", providers::qwen::scan_projects),
+        ("zed", providers::zed::scan_projects),
+        ("openhands", providers::openhands::scan_projects),
+        ("trae", providers::trae::scan_projects),
+        ("cline", providers::cline::scan_projects),
+        ("cursor", providers::cursor::scan_projects),
+        ("crush", providers::crush::scan_projects),
+        ("cursor-agent", providers::cursor_agent::scan_projects),
+        ("aider", providers::aider::scan_projects),
+        ("amazonq", providers::amazon_q::scan_projects),
+        ("antigravity", providers::antigravity::scan_projects),
+        ("codebuddy", providers::codebuddy::scan_projects),
+        ("kiro", providers::kiro::scan_projects),
+        ("llm", providers::llm::scan_projects),
+        ("copilot", providers::copilot::scan_projects),
+    ];
 
-    // Continue.dev
-    if providers_to_scan.iter().any(|p| p == "continue") {
-        match providers::continue_dev::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Continue scan failed: {e}");
-            }
-        }
-    }
+    // Spawn every enabled scanner up front so they run concurrently on the
+    // blocking pool; awaiting the handles afterwards collects them in spawn
+    // order without serializing the work.
+    let scan_handles: Vec<_> = sync_scanners
+        .iter()
+        .filter(|(name, _)| providers_to_scan.iter().any(|p| p == name))
+        .map(|(name, scan)| {
+            let name = *name;
+            let scan = *scan;
+            tauri::async_runtime::spawn_blocking(move || (name, scan()))
+        })
+        .collect();
 
-    // PearAI (Continue fork under ~/.pearai)
-    if providers_to_scan.iter().any(|p| p == "pearai") {
-        match providers::pearai::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("PearAI scan failed: {e}");
-            }
-        }
-    }
-
-    // Gemini
-    if providers_to_scan.iter().any(|p| p == "gemini") {
-        match providers::gemini::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Gemini scan failed: {e}");
-            }
-        }
-    }
-
-    // Goose (Block) — SQLite sessions.db
-    if providers_to_scan.iter().any(|p| p == "goose") {
-        match providers::goose::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Goose scan failed: {e}");
-            }
-        }
-    }
-
-    // Kimi
-    if providers_to_scan.iter().any(|p| p == "kimi") {
-        match providers::kimi::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Kimi scan failed: {e}");
-            }
-        }
-    }
-
-    // ForgeCode
-    if providers_to_scan.iter().any(|p| p == "forgecode") {
-        match providers::forgecode::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("ForgeCode scan failed: {e}");
-            }
-        }
-    }
-
-    // OpenCode
-    if providers_to_scan.iter().any(|p| p == "opencode") {
-        match providers::opencode::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("OpenCode scan failed: {e}");
-            }
-        }
-    }
-
-    // Open Interpreter (Codex-format rollouts under ~/.openinterpreter)
-    if providers_to_scan.iter().any(|p| p == "openinterpreter") {
-        match providers::openinterpreter::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Open Interpreter scan failed: {e}");
-            }
-        }
-    }
-
-    // Qwen Code (JSONL transcripts under ~/.qwen/projects)
-    if providers_to_scan.iter().any(|p| p == "qwen") {
-        match providers::qwen::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Qwen scan failed: {e}");
-            }
-        }
-    }
-
-    // Zed (Agent Panel threads — SQLite + Zstd JSON)
-    if providers_to_scan.iter().any(|p| p == "zed") {
-        match providers::zed::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Zed scan failed: {e}");
-            }
-        }
-    }
-
-    // OpenHands (classic ~/.openhands/sessions event store)
-    if providers_to_scan.iter().any(|p| p == "openhands") {
-        match providers::openhands::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("OpenHands scan failed: {e}");
-            }
-        }
-    }
-
-    // Trae IDE (reverse-engineered icube chat in per-workspace state.vscdb)
-    if providers_to_scan.iter().any(|p| p == "trae") {
-        match providers::trae::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Trae scan failed: {e}");
-            }
-        }
-    }
-
-    // Cline
-    if providers_to_scan.iter().any(|p| p == "cline") {
-        match providers::cline::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Cline scan failed: {e}");
-            }
-        }
-    }
-
-    // Cursor
-    if providers_to_scan.iter().any(|p| p == "cursor") {
-        match providers::cursor::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Cursor scan failed: {e}");
-            }
-        }
-    }
-
-    // Crush (Charmbracelet) — per-project ./.crush/crush.db
-    if providers_to_scan.iter().any(|p| p == "crush") {
-        match providers::crush::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Crush scan failed: {e}");
-            }
-        }
-    }
-
-    // Cursor Agent (CLI transcripts under ~/.cursor/projects/*/agent-transcripts)
-    if providers_to_scan.iter().any(|p| p == "cursor-agent") {
-        match providers::cursor_agent::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Cursor Agent scan failed: {e}");
-            }
-        }
-    }
-
-    // Aider
-    if providers_to_scan.iter().any(|p| p == "aider") {
-        match providers::aider::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Aider scan failed: {e}");
-            }
-        }
-    }
-
-    // Amazon Q Developer CLI — amazon-q/data.sqlite3 (conversations table)
-    if providers_to_scan.iter().any(|p| p == "amazonq") {
-        match providers::amazon_q::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Amazon Q scan failed: {e}");
-            }
-        }
-    }
-
-    // Antigravity
-    if providers_to_scan.iter().any(|p| p == "antigravity") {
-        match providers::antigravity::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Antigravity scan failed: {e}");
-            }
-        }
-    }
-
-    // CodeBuddy
-    if providers_to_scan.iter().any(|p| p == "codebuddy") {
-        match providers::codebuddy::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("CodeBuddy scan failed: {e}");
-            }
-        }
-    }
-    // Kiro
-    if providers_to_scan.iter().any(|p| p == "kiro") {
-        match providers::kiro::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Kiro scan failed: {e}");
-            }
-        }
-    }
-
-    // llm (Simon Willison) — SQLite logs.db
-    if providers_to_scan.iter().any(|p| p == "llm") {
-        match providers::llm::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("llm scan failed: {e}");
-            }
-        }
-    }
-
-    // Unified GitHub Copilot provider (CLI + Desktop + VS Code Copilot Chat).
-    if providers_to_scan.iter().any(|p| p == "copilot") {
-        match providers::copilot::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Copilot scan failed: {e}");
-            }
+    for handle in scan_handles {
+        match handle.await {
+            Ok((_, Ok(projects))) => all_projects.extend(projects),
+            Ok((name, Err(e))) => log::warn!("{name} scan failed: {e}"),
+            Err(join_err) => log::warn!("Provider scan task failed to join: {join_err}"),
         }
     }
 
