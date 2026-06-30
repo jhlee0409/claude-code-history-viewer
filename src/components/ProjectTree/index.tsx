@@ -860,11 +860,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     "hover:bg-accent/8 hover:text-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
                   )}
                   title={providerFilterSummary}
-                  aria-label={
-                    areProviderFiltersOpen
-                      ? t("common.collapse", "Collapse")
-                      : t("common.expand", "Expand")
-                  }
+                  aria-label={`${areProviderFiltersOpen
+                    ? t("common.collapse", "Collapse")
+                    : t("common.expand", "Expand")}: ${providerFilterSummary} (${providerFilterCount})`}
                 >
                   {areProviderFiltersOpen ? (
                     <ChevronDown className="h-3 w-3 shrink-0" />
