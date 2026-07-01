@@ -141,6 +141,7 @@
   "common.provider.pearai": "PearAI",
   "common.provider.qwen": "Qwen Code",
   "common.provider.trae": "Trae",
+  "common.provider.vibe": "Mistral Vibe",
   "common.provider.zed": "Zed",
   "common.view": "查看",
   "common.watcher.autoRefresh": "自动刷新",

@@ -1132,6 +1132,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(vibe_base) = providers::vibe::get_base_path() {
+        let vibe_sessions = PathBuf::from(vibe_base).join("logs/session");
+        if vibe_sessions.is_dir() {
+            paths.push(vibe_sessions);
+        }
+    }
+
     if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
         let session_state = PathBuf::from(copilot_base).join("session-state");
         if session_state.is_dir() {

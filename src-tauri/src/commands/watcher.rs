@@ -268,6 +268,9 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
     match ext {
         // Claude + Codex rollout logs
         "jsonl" => {
+            if let Some(paths) = extract_vibe_paths(path) {
+                return Some(paths);
+            }
             if let Some(paths) = extract_kimi_paths(path) {
                 return Some(paths);
             }
@@ -280,7 +283,9 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             extract_codex_paths(path)
         }
         // Kimi state files and OpenCode storage files
-        "json" => extract_kimi_paths(path).or_else(|| extract_opencode_paths(path)),
+        "json" => extract_vibe_paths(path)
+            .or_else(|| extract_kimi_paths(path))
+            .or_else(|| extract_opencode_paths(path)),
         // OpenCode SQLite database change — emit broad refresh for all OpenCode projects
         "db" | "db-wal" => extract_opencode_db_event(path),
         _ => None,
@@ -356,6 +361,55 @@ fn extract_codex_paths(path: &Path) -> Option<(String, String)> {
     Some((
         "codex://watch".to_string(),
         path.to_string_lossy().to_string(),
+    ))
+}
+
+/// Extract Mistral Vibe session identifiers from files under
+/// `~/.vibe/logs/session/{session_dir}/`.
+fn extract_vibe_paths(path: &Path) -> Option<(String, String)> {
+    let filename = path.file_name()?.to_str()?;
+    if !matches!(filename, "messages.jsonl" | "meta.json") {
+        return None;
+    }
+
+    let sessions_root = crate::providers::vibe::get_base_path()
+        .map(PathBuf::from)
+        .map(|base| base.join("logs/session"))?;
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let session_dir = canonical_path.parent()?;
+    let relative = session_dir
+        .strip_prefix(
+            sessions_root
+                .canonicalize()
+                .unwrap_or(sessions_root.clone()),
+        )
+        .ok()?;
+
+    if relative.components().count() != 1 {
+        return None;
+    }
+
+    let metadata_path = session_dir.join("meta.json");
+    if std::fs::symlink_metadata(&metadata_path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return None;
+    }
+    let cwd = std::fs::read_to_string(&metadata_path)
+        .ok()
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
+        .and_then(|metadata| {
+            metadata
+                .get("environment")
+                .and_then(|env| env.get("working_directory"))
+                .and_then(|cwd| cwd.as_str())
+                .map(ToOwned::to_owned)
+        })?;
+
+    Some((
+        format!("vibe://{cwd}"),
+        session_dir.to_string_lossy().to_string(),
     ))
 }
 

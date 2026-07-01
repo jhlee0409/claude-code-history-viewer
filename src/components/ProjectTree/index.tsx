@@ -156,6 +156,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       pearai: 0,
       qwen: 0,
       trae: 0,
+      vibe: 0,
       zed: 0,
     };
 

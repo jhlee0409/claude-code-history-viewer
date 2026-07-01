@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "openhands", "openinterpreter", "pearai", "qwen", "trae", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "opencode", "openhands", "openinterpreter", "pearai", "qwen", "trae", "vibe", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -31,6 +31,7 @@ const PROVIDER_TRANSLATIONS: Record<
   pearai: { key: "common.provider.pearai", fallback: "PearAI" },
   qwen: { key: "common.provider.qwen", fallback: "Qwen Code" },
   trae: { key: "common.provider.trae", fallback: "Trae" },
+  vibe: { key: "common.provider.vibe", fallback: "Mistral Vibe" },
   zed: { key: "common.provider.zed", fallback: "Zed" },
 };
 
@@ -216,6 +217,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  vibe: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: true,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   zed: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -262,6 +270,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "pearai":
     case "qwen":
     case "trae":
+    case "vibe":
     case "zed":
     case "claude":
       return provider;
@@ -363,6 +372,9 @@ export function getResumeCommand(
     case "kimi":
       resume = `kimi -r ${sessionId}`;
       break;
+    case "vibe":
+      resume = `vibe --resume ${sessionId}`;
+      break;
     default:
       resume = null;
   }
@@ -421,6 +433,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   pearai: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300",
   qwen: "bg-violet-600/15 text-violet-700 dark:text-violet-300",
   trae: "bg-blue-600/15 text-blue-700 dark:text-blue-300",
+  vibe: "bg-orange-600/15 text-orange-700 dark:text-orange-300",
   zed: "bg-neutral-500/15 text-neutral-600 dark:text-neutral-400",
   aider: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
   amazonq: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
