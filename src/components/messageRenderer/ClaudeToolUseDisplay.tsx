@@ -25,7 +25,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
           toolName={toolName as string}
           className="text-muted-foreground"
         />
-        <span className="font-medium text-foreground">
+        <span className={cn(layout.titleText, "text-foreground")}>
           {String(toolName)}{" "}
           {typeof toolUse.description === "string" &&
             `- ${toolUse.description}`}
