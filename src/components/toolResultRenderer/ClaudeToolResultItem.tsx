@@ -194,7 +194,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
                 <pre
                   className={className}
                   style={getPreStyles(isDarkMode, style, {
-                    fontSize: "0.9375rem",
+                    fontSize: "calc(0.9375rem * var(--app-font-scale))",
                     lineHeight: codeTheme.lineHeight,
                     maxHeight: "32rem",
                     overflow: "auto",

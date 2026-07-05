@@ -41,7 +41,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
             <pre
               className={className}
               style={getPreStyles(isDarkMode, style, {
-                fontSize: "0.8125rem",
+                fontSize: "calc(0.8125rem * var(--app-font-scale))",
                 padding: "0.5rem",
                 overflowX: "auto",
               })}
