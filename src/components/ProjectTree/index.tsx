@@ -153,6 +153,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       opencode: 0,
       openhands: 0,
       openinterpreter: 0,
+      ompi: 0,
+      pi: 0,
       pearai: 0,
       qwen: 0,
       trae: 0,

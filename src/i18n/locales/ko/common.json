@@ -138,6 +138,8 @@
   "common.provider.opencode": "OpenCode",
   "common.provider.openhands": "OpenHands",
   "common.provider.openinterpreter": "Open Interpreter",
+  "common.provider.pi": "Pi",
+  "common.provider.ompi": "oh-my-pi",
   "common.provider.pearai": "PearAI",
   "common.provider.qwen": "Qwen Code",
   "common.provider.trae": "Trae",
