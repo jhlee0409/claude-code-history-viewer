@@ -1669,44 +1669,6 @@
     line-height: 1.15;
   }
 
-  /* Meta/Label text: uppercase with wide tracking */
-  .text-label {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .text-label-sm {
-    font-size: 0.625rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
-
-  /* Caption text */
-  .text-caption {
-    font-size: 0.75rem;
-    line-height: 1.4;
-    color: var(--muted-foreground);
-  }
-
-  /* Monospace data display */
-  .text-data {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.8125rem;
-    font-feature-settings: 'tnum' on, 'zero' on;
-    letter-spacing: -0.01em;
-  }
-
-  .text-data-lg {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 1.3125rem;
-    font-weight: 500;
-    font-feature-settings: 'tnum' on, 'zero' on;
-    letter-spacing: -0.02em;
-  }
-
   /* === Text Gradients === */
   .text-gradient {
     background: var(--gradient-accent);
