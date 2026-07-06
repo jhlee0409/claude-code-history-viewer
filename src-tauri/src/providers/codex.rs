@@ -1875,6 +1875,52 @@ mod tests {
     }
 
     #[test]
+    fn convert_parallel_agent_function_calls_preserves_protocol_fields() {
+        let fixtures = [
+            (
+                json!({
+                    "type": "function_call",
+                    "name": "spawn_agent",
+                    "call_id": "call_spawn_1",
+                    "arguments": "{\"message\":\"Check the API\"}"
+                }),
+                "spawn_agent",
+            ),
+            (
+                json!({
+                    "type": "function_call",
+                    "name": "wait_agent",
+                    "call_id": "call_wait_1",
+                    "arguments": "{\"targets\":[\"agent-1\",\"agent-2\"]}"
+                }),
+                "wait_agent",
+            ),
+        ];
+        let mut counter = 0u64;
+
+        for (item, expected_name) in fixtures {
+            let msg = convert_codex_item(
+                &item,
+                "session-1",
+                None,
+                "2026-07-07T00:00:00Z",
+                &mut counter,
+            )
+            .expect("collaboration function call should be converted");
+            let block = msg
+                .content
+                .as_ref()
+                .and_then(Value::as_array)
+                .and_then(|blocks| blocks.first())
+                .expect("tool use block should exist");
+
+            assert_eq!(block["type"], "tool_use");
+            assert_eq!(block["name"], expected_name);
+            assert!(block["input"].is_object());
+        }
+    }
+
+    #[test]
     fn convert_custom_tool_call_output_to_tool_result() {
         let mut counter = 0u64;
         let msg = convert_codex_item(
