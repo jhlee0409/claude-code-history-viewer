@@ -1589,6 +1589,46 @@ mod tests {
     }
 
     #[test]
+    fn process_parts_preserves_parallel_task_calls() {
+        let parts = json!([
+            {
+                "type": "tool",
+                "tool": "task",
+                "callID": "task-1",
+                "state": {
+                    "status": "completed",
+                    "input": { "description": "Check API", "prompt": "Review API" },
+                    "output": "API OK"
+                }
+            },
+            {
+                "type": "tool",
+                "tool": "call_omo_agent",
+                "callID": "task-2",
+                "state": {
+                    "status": "completed",
+                    "input": { "description": "Check UI", "prompt": "Review UI" },
+                    "output": "UI OK"
+                }
+            }
+        ]);
+
+        let (content, _, _) = process_parts(parts.as_array().unwrap());
+        let blocks = content.unwrap();
+        let blocks = blocks.as_array().unwrap();
+
+        assert_eq!(blocks.len(), 4);
+        assert_eq!(blocks[0]["type"], "tool_use");
+        assert_eq!(blocks[0]["name"], "Task");
+        assert_eq!(blocks[0]["id"], "task-1");
+        assert_eq!(blocks[1]["tool_use_id"], "task-1");
+        assert_eq!(blocks[2]["type"], "tool_use");
+        assert_eq!(blocks[2]["name"], "Task");
+        assert_eq!(blocks[2]["id"], "task-2");
+        assert_eq!(blocks[3]["tool_use_id"], "task-2");
+    }
+
+    #[test]
     fn keeps_github_search_tools_as_is() {
         assert_eq!(
             normalize_opencode_tool_name("github_search_repositories"),

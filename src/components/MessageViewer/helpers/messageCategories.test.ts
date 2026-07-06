@@ -197,6 +197,54 @@ describe("parallel-task message category", () => {
     )).toEqual(new Set(["qwen-agents", "qwen-agent-results"]));
   });
 
+  it("categorizes an OpenCode message with multiple normalized Task calls", () => {
+    const parallelTasks = makeMessage("opencode-tasks", {
+      provider: "opencode",
+      type: "assistant",
+      role: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "task-call-1",
+          name: "Task",
+          input: { description: "Check API", prompt: "Review the API" },
+        },
+        {
+          type: "tool_result",
+          tool_use_id: "task-call-1",
+          content: "API OK",
+        },
+        {
+          type: "tool_use",
+          id: "task-call-2",
+          name: "Task",
+          input: { description: "Check UI", prompt: "Review the UI" },
+        },
+        {
+          type: "tool_result",
+          tool_use_id: "task-call-2",
+          content: "UI OK",
+        },
+      ],
+    });
+    const singleTask = makeMessage("opencode-single-task", {
+      provider: "opencode",
+      type: "assistant",
+      role: "assistant",
+      content: [{
+        type: "tool_use",
+        id: "task-call-3",
+        name: "Task",
+        input: { description: "One check", prompt: "Review one thing" },
+      }],
+    });
+
+    expect(getMessageUuidsByCategory(
+      [parallelTasks, singleTask],
+      "parallel-task",
+    )).toEqual(new Set(["opencode-tasks"]));
+  });
+
   it("categorizes and removes standalone task-notification cards", () => {
     const notification = makeMessage("notification", {
       content: "<task-notification><task-id>agent-1</task-id></task-notification>",

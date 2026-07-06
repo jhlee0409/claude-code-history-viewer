@@ -14,6 +14,7 @@ const CODEX_COLLABORATION_TOOLS = new Set([
 ]);
 const CODEX_SPAWN_TOOLS = new Set(["spawn_agent"]);
 const QWEN_AGENT_TOOLS = new Set(["agent", "task"]);
+const OPENCODE_AGENT_TOOLS = new Set(["Task"]);
 
 function getContentBlocks(message: ClaudeMessage): ContentBlock[] {
   if (!Array.isArray(message.content)) return [];
@@ -165,11 +166,15 @@ const collectGeminiParallelTaskUuids: CategoryCollector = (messages) => {
 const collectQwenParallelTaskUuids: CategoryCollector = (messages) =>
   collectParallelToolCallUuids(messages, "qwen", QWEN_AGENT_TOOLS);
 
+const collectOpenCodeParallelTaskUuids: CategoryCollector = (messages) =>
+  collectParallelToolCallUuids(messages, "opencode", OPENCODE_AGENT_TOOLS);
+
 const collectParallelTaskUuids: CategoryCollector = (messages) => {
   const uuids = collectClaudeParallelTaskUuids(messages);
   for (const uuid of collectCodexParallelTaskUuids(messages)) uuids.add(uuid);
   for (const uuid of collectGeminiParallelTaskUuids(messages)) uuids.add(uuid);
   for (const uuid of collectQwenParallelTaskUuids(messages)) uuids.add(uuid);
+  for (const uuid of collectOpenCodeParallelTaskUuids(messages)) uuids.add(uuid);
   return uuids;
 };
 
