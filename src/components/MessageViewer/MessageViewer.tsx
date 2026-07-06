@@ -28,6 +28,7 @@ import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
 import {
   groupAgentTasks,
   filterMessagesByCategory,
+  getMessageUuidsByCategory,
   groupAgentProgressMessages,
   groupTaskOperations,
 } from "./helpers";
@@ -166,6 +167,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   } = useAppStore();
 
   const isInSubagent = parentSessionStack.length > 0;
+  const hasParallelTasks = useMemo(
+    () => getMessageUuidsByCategory(messages, "parallel-task").size > 0,
+    [messages],
+  );
 
   // Apply role + content type filters
   const displayMessages = useMemo(() => {
@@ -906,7 +911,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
       {/* Filter Toolbar */}
       {!isCaptureMode && messages.length > 0 && (
-        <FilterToolbar totalCount={messages.length} filteredCount={displayMessages.length} />
+        <FilterToolbar
+          totalCount={messages.length}
+          filteredCount={displayMessages.length}
+          hasParallelTasks={hasParallelTasks}
+        />
       )}
 
       {/* Capture Mode Toolbar */}

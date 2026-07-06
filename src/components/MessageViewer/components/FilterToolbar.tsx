@@ -33,9 +33,10 @@ function FilterToggle({ active, onClick, label, icon }: FilterToggleProps) {
 interface FilterToolbarProps {
   totalCount: number;
   filteredCount: number;
+  hasParallelTasks: boolean;
 }
 
-export function FilterToolbar({ totalCount, filteredCount }: FilterToolbarProps) {
+export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: FilterToolbarProps) {
   const { t } = useTranslation();
   const {
     messageFilter,
@@ -110,12 +111,14 @@ export function FilterToolbar({ totalCount, filteredCount }: FilterToolbarProps)
           label={t("filter.content.commands")}
           icon={<Terminal className="w-3 h-3" />}
         />
-        <FilterToggle
-          active={messageFilter.contentTypes.parallelTasks}
-          onClick={() => toggleContentType("parallelTasks")}
-          label={t("filter.content.parallelTasks")}
-          icon={<Zap className="w-3 h-3" />}
-        />
+        {hasParallelTasks && (
+          <FilterToggle
+            active={messageFilter.contentTypes.parallelTasks}
+            onClick={() => toggleContentType("parallelTasks")}
+            label={t("filter.content.parallelTasks")}
+            icon={<Zap className="w-3 h-3" />}
+          />
+        )}
       </div>
 
       {/* Reset button */}

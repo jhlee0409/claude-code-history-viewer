@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MessageNavigator } from "@/components/MessageNavigator";
 
@@ -52,6 +52,11 @@ vi.mock("@tanstack/react-virtual", () => ({
 }));
 
 describe("MessageNavigator accessibility", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    storeState.showParallelTasksInNavigator = true;
+  });
+
   it("supports roving focus and keyboard activation", () => {
     render(
       <MessageNavigator
@@ -74,6 +79,9 @@ describe("MessageNavigator accessibility", () => {
       "aria-describedby",
       "message-navigator-keyboard-help"
     );
+    expect(screen.queryByRole("button", {
+      name: "navigator.showParallelTasks",
+    })).not.toBeInTheDocument();
 
     act(() => {
       currentEntry.focus();
@@ -131,7 +139,5 @@ describe("MessageNavigator accessibility", () => {
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(toggle);
     expect(toggleShowParallelTasksMock).toHaveBeenCalledOnce();
-
-    storeState.showParallelTasksInNavigator = true;
   });
 });
