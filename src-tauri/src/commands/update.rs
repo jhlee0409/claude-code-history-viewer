@@ -61,9 +61,7 @@ pub fn force_quit_and_relaunch(app: AppHandle) -> Result<(), String> {
         let ps_cmd = format!(
             "Wait-Process -Id {ppid} -ErrorAction SilentlyContinue -Timeout 30; \
              Start-Sleep -Milliseconds 300; \
-             Start-Process -FilePath '{exe}'",
-            ppid = ppid,
-            exe = exe_ps
+             Start-Process -FilePath '{exe_ps}'"
         );
         log::info!("[updater] spawning Windows relaunch helper");
         std::process::Command::new("powershell")
