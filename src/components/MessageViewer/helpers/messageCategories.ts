@@ -19,7 +19,7 @@ const OPENCODE_AGENT_TOOLS = new Set(["Task"]);
 
 function getContentBlocks(message: ClaudeMessage): ContentBlock[] {
   if (!Array.isArray(message.content)) return [];
-  return message.content.filter(
+  return (message.content as unknown[]).filter(
     (item): item is ContentBlock => item !== null && typeof item === "object",
   );
 }
