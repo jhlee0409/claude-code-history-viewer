@@ -5,7 +5,7 @@ import { ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "luc
 import { cn } from "@/lib/utils";
 import type { ClaudeMessage } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
-import { filterParallelTaskMessages } from "../MessageViewer/helpers";
+import { filterMessagesByCategory } from "../MessageViewer/helpers";
 import { NavigatorEntry } from "./NavigatorEntry";
 import { useNavigatorEntries } from "./useNavigatorEntries";
 
@@ -51,7 +51,11 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
 
   // Transform messages to navigator entries
   const navigatorMessages = useMemo(
-    () => filterParallelTaskMessages(messages, showParallelTasksInNavigator),
+    () => filterMessagesByCategory(
+      messages,
+      "parallel-task",
+      showParallelTasksInNavigator,
+    ),
     [messages, showParallelTasksInNavigator],
   );
   const allEntries = useNavigatorEntries(navigatorMessages);

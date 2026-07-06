@@ -27,7 +27,7 @@ import { useCapturePreview } from "../../hooks/useCapturePreview";
 import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
 import {
   groupAgentTasks,
-  filterParallelTaskMessages,
+  filterMessagesByCategory,
   groupAgentProgressMessages,
   groupTaskOperations,
 } from "./helpers";
@@ -172,8 +172,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     const { roles, contentTypes } = messageFilter;
     const allRoles = roles.user && roles.assistant;
     const allContent = contentTypes.text && contentTypes.thinking && contentTypes.toolCalls && contentTypes.commands;
-    const parallelTaskFilteredMessages = filterParallelTaskMessages(
+    const parallelTaskFilteredMessages = filterMessagesByCategory(
       messages,
+      "parallel-task",
       contentTypes.parallelTasks,
     );
     if (allRoles && allContent) return parallelTaskFilteredMessages;

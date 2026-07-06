@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ClaudeMessage } from "../../../types";
-import { filterParallelTaskMessages } from "./agentTaskHelpers";
+import {
+  filterMessagesByCategory,
+  getMessageUuidsByCategory,
+} from "./messageCategories";
 
 const makeMessage = (
   uuid: string,
@@ -14,20 +17,24 @@ const makeMessage = (
   ...overrides,
 } as unknown as ClaudeMessage);
 
-describe("filterParallelTaskMessages", () => {
-  it("returns the original messages when Parallel Tasks are enabled", () => {
+describe("parallel-task message category", () => {
+  it("returns the original messages when the category is included", () => {
     const messages = [makeMessage("normal", { content: "hello" })];
 
-    expect(filterParallelTaskMessages(messages, true)).toBe(messages);
+    expect(filterMessagesByCategory(messages, "parallel-task", true)).toBe(messages);
   });
 
-  it("removes standalone task-notification cards", () => {
+  it("categorizes and removes standalone task-notification cards", () => {
     const notification = makeMessage("notification", {
       content: "<task-notification><task-id>agent-1</task-id></task-notification>",
     });
     const normal = makeMessage("normal", { content: "keep me" });
+    const messages = [notification, normal];
 
-    expect(filterParallelTaskMessages([notification, normal], false)).toEqual([normal]);
+    expect(getMessageUuidsByCategory(messages, "parallel-task")).toEqual(
+      new Set(["notification"]),
+    );
+    expect(filterMessagesByCategory(messages, "parallel-task", false)).toEqual([normal]);
   });
 
   it("keeps a single-agent task because its card is labelled Agent", () => {
@@ -39,10 +46,10 @@ describe("filterParallelTaskMessages", () => {
       },
     });
 
-    expect(filterParallelTaskMessages([launch], false)).toEqual([launch]);
+    expect(getMessageUuidsByCategory([launch], "parallel-task")).toEqual(new Set());
   });
 
-  it("removes launches and completions belonging to a multi-agent task group", () => {
+  it("categorizes launches and completions in a multi-agent task group", () => {
     const firstLaunch = makeMessage("launch-1", {
       toolUseResult: {
         isAsync: true,
@@ -66,10 +73,11 @@ describe("filterParallelTaskMessages", () => {
       },
     });
     const normal = makeMessage("normal", { content: "keep me" });
+    const messages = [firstLaunch, secondLaunch, normal, completion];
 
-    expect(filterParallelTaskMessages(
-      [firstLaunch, secondLaunch, normal, completion],
-      false,
-    )).toEqual([normal]);
+    expect(getMessageUuidsByCategory(messages, "parallel-task")).toEqual(
+      new Set(["launch-1", "launch-2", "completion"]),
+    );
+    expect(filterMessagesByCategory(messages, "parallel-task", false)).toEqual([normal]);
   });
 });

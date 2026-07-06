@@ -208,31 +208,3 @@ export const groupAgentTasks = (
 
   return groups;
 };
-
-/**
- * Remove every message rendered as a Parallel Tasks card.
- *
- * Parallel Tasks can come from either a multi-agent task group or a standalone
- * <task-notification> payload. Single-agent groups are labelled Agent in the UI
- * and intentionally remain visible.
- */
-export const filterParallelTaskMessages = (
-  messages: ClaudeMessage[],
-  includeParallelTasks: boolean,
-): ClaudeMessage[] => {
-  if (includeParallelTasks || messages.length === 0) return messages;
-
-  const groupedMessageUuids = new Set<string>();
-  for (const group of groupAgentTasks(messages).values()) {
-    if (group.tasks.length < 2) continue;
-    for (const uuid of group.messageUuids) {
-      groupedMessageUuids.add(uuid);
-    }
-  }
-
-  return messages.filter((message) => {
-    if (groupedMessageUuids.has(message.uuid)) return false;
-    const content = extractClaudeMessageContent(message);
-    return !content?.includes("<task-notification>");
-  });
-};
