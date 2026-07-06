@@ -12,6 +12,7 @@ export interface MessageFilterContentTypes {
     thinking: boolean;
     toolCalls: boolean;
     commands: boolean;
+    parallelTasks: boolean;
 }
 
 export interface MessageFilter {
@@ -23,7 +24,13 @@ const MESSAGE_FILTER_STORAGE_KEY = "message-filter";
 
 const defaultMessageFilter = (): MessageFilter => ({
     roles: { user: true, assistant: true },
-    contentTypes: { text: true, thinking: true, toolCalls: true, commands: true },
+    contentTypes: {
+        text: true,
+        thinking: true,
+        toolCalls: true,
+        commands: true,
+        parallelTasks: true,
+    },
 });
 
 const isBool = (value: unknown): value is boolean => typeof value === "boolean";
@@ -62,6 +69,9 @@ const loadPersistedMessageFilter = (): MessageFilter => {
                 commands: isBool(contentTypes.commands)
                     ? contentTypes.commands
                     : fallback.contentTypes.commands,
+                parallelTasks: isBool(contentTypes.parallelTasks)
+                    ? contentTypes.parallelTasks
+                    : fallback.contentTypes.parallelTasks,
             },
         };
     } catch {
@@ -165,6 +175,7 @@ export const createFilterSlice: StateCreator<
         const { roles, contentTypes } = messageFilter;
         return !roles.user || !roles.assistant
             || !contentTypes.text || !contentTypes.thinking
-            || !contentTypes.toolCalls || !contentTypes.commands;
+            || !contentTypes.toolCalls || !contentTypes.commands
+            || !contentTypes.parallelTasks;
     },
 });

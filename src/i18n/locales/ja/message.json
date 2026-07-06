@@ -98,6 +98,7 @@
   "filter.content.thinking": "思考プロセス",
   "filter.content.toolCalls": "ツール呼び出し",
   "filter.content.commands": "コマンド",
+  "filter.content.parallelTasks": "並列タスク",
   "filter.reset": "フィルターをリセット",
   "filter.active": "フィルター有効",
   "filter.showing": "{{filtered}} / {{total}}"

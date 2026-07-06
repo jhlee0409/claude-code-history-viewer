@@ -99,6 +99,7 @@
   "filter.content.thinking": "Thinking",
   "filter.content.toolCalls": "Tool Calls",
   "filter.content.commands": "Commands",
+  "filter.content.parallelTasks": "Parallel Tasks",
   "filter.reset": "Reset Filters",
   "filter.active": "Filters active",
   "filter.showing": "{{filtered}} / {{total}}"

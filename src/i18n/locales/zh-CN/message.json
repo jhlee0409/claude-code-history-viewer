@@ -98,6 +98,7 @@
   "filter.content.thinking": "思考过程",
   "filter.content.toolCalls": "工具调用",
   "filter.content.commands": "命令",
+  "filter.content.parallelTasks": "并行任务",
   "filter.reset": "重置筛选",
   "filter.active": "筛选已启用",
   "filter.showing": "{{filtered}} / {{total}}"

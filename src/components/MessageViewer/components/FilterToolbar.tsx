@@ -1,4 +1,4 @@
-import { Filter, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, Terminal } from "lucide-react";
+import { Filter, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, Terminal, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "../../../store/useAppStore";
@@ -109,6 +109,12 @@ export function FilterToolbar({ totalCount, filteredCount }: FilterToolbarProps)
           onClick={() => toggleContentType("commands")}
           label={t("filter.content.commands")}
           icon={<Terminal className="w-3 h-3" />}
+        />
+        <FilterToggle
+          active={messageFilter.contentTypes.parallelTasks}
+          onClick={() => toggleContentType("parallelTasks")}
+          label={t("filter.content.parallelTasks")}
+          icon={<Zap className="w-3 h-3" />}
         />
       </div>
 

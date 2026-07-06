@@ -98,6 +98,7 @@
   "filter.content.thinking": "사고 과정",
   "filter.content.toolCalls": "도구 호출",
   "filter.content.commands": "명령어",
+  "filter.content.parallelTasks": "병렬 작업",
   "filter.reset": "필터 초기화",
   "filter.active": "필터 활성",
   "filter.showing": "{{filtered}} / {{total}}"
