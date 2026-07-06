@@ -111,6 +111,47 @@ describe("parallel-task message category", () => {
     ]);
   });
 
+  it("categorizes a Gemini message with multiple recorded subagent calls", () => {
+    const parallelAgents = makeMessage("gemini-agents", {
+      provider: "gemini",
+      type: "assistant",
+      role: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "agent-call-1",
+          name: "agent",
+          agentId: "agent-1",
+          input: { agent_name: "codebase_investigator", prompt: "Check API" },
+        },
+        {
+          type: "tool_use",
+          id: "agent-call-2",
+          name: "agent",
+          agentId: "agent-2",
+          input: { agent_name: "codebase_investigator", prompt: "Check UI" },
+        },
+      ],
+    });
+    const singleAgent = makeMessage("gemini-single-agent", {
+      provider: "gemini",
+      type: "assistant",
+      role: "assistant",
+      content: [{
+        type: "tool_use",
+        id: "agent-call-3",
+        name: "agent",
+        agentId: "agent-3",
+        input: { agent_name: "generalist", prompt: "Check one thing" },
+      }],
+    });
+
+    expect(getMessageUuidsByCategory(
+      [parallelAgents, singleAgent],
+      "parallel-task",
+    )).toEqual(new Set(["gemini-agents"]));
+  });
+
   it("categorizes and removes standalone task-notification cards", () => {
     const notification = makeMessage("notification", {
       content: "<task-notification><task-id>agent-1</task-id></task-notification>",

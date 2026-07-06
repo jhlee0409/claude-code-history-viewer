@@ -110,9 +110,27 @@ const collectCodexParallelTaskUuids: CategoryCollector = (messages) => {
   return uuids;
 };
 
+/** Collect Gemini messages containing multiple recorded subagent invocations. */
+const collectGeminiParallelTaskUuids: CategoryCollector = (messages) => {
+  const uuids = new Set<string>();
+
+  for (const message of messages) {
+    if (message.provider !== "gemini") continue;
+    const subagentCalls = getContentBlocks(message).filter(
+      (block) => block.type === "tool_use"
+        && typeof block.agentId === "string"
+        && block.agentId.length > 0,
+    );
+    if (subagentCalls.length >= 2) uuids.add(message.uuid);
+  }
+
+  return uuids;
+};
+
 const collectParallelTaskUuids: CategoryCollector = (messages) => {
   const uuids = collectClaudeParallelTaskUuids(messages);
   for (const uuid of collectCodexParallelTaskUuids(messages)) uuids.add(uuid);
+  for (const uuid of collectGeminiParallelTaskUuids(messages)) uuids.add(uuid);
   return uuids;
 };
 
