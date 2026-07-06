@@ -152,6 +152,51 @@ describe("parallel-task message category", () => {
     )).toEqual(new Set(["gemini-agents"]));
   });
 
+  it("categorizes Qwen parallel Agent calls and their result message", () => {
+    const parallelAgents = makeMessage("qwen-agents", {
+      provider: "qwen",
+      type: "assistant",
+      role: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "agent-call-1",
+          name: "agent",
+          input: { description: "Check API", prompt: "Review the API" },
+        },
+        {
+          type: "tool_use",
+          id: "agent-call-2",
+          name: "task",
+          input: { description: "Check UI", prompt: "Review the UI" },
+        },
+      ],
+    });
+    const results = makeMessage("qwen-agent-results", {
+      provider: "qwen",
+      content: [
+        { type: "tool_result", tool_use_id: "agent-call-1", content: "API OK" },
+        { type: "tool_result", tool_use_id: "agent-call-2", content: "UI OK" },
+      ],
+    });
+    const singleAgent = makeMessage("qwen-single-agent", {
+      provider: "qwen",
+      type: "assistant",
+      role: "assistant",
+      content: [{
+        type: "tool_use",
+        id: "agent-call-3",
+        name: "agent",
+        input: { description: "One check", prompt: "Review one thing" },
+      }],
+    });
+
+    expect(getMessageUuidsByCategory(
+      [parallelAgents, results, singleAgent],
+      "parallel-task",
+    )).toEqual(new Set(["qwen-agents", "qwen-agent-results"]));
+  });
+
   it("categorizes and removes standalone task-notification cards", () => {
     const notification = makeMessage("notification", {
       content: "<task-notification><task-id>agent-1</task-id></task-notification>",

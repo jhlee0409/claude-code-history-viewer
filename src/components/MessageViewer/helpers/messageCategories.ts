@@ -13,6 +13,7 @@ const CODEX_COLLABORATION_TOOLS = new Set([
   "close_agent",
 ]);
 const CODEX_SPAWN_TOOLS = new Set(["spawn_agent"]);
+const QWEN_AGENT_TOOLS = new Set(["agent", "task"]);
 
 function getContentBlocks(message: ClaudeMessage): ContentBlock[] {
   if (!Array.isArray(message.content)) return [];
@@ -33,6 +34,40 @@ function startsUserTurn(message: ClaudeMessage): boolean {
   return getContentBlocks(message).some(
     (block) => block.type === "text" && typeof block.text === "string",
   );
+}
+
+function collectParallelToolCallUuids(
+  messages: ClaudeMessage[],
+  provider: string,
+  toolNames: ReadonlySet<string>,
+): Set<string> {
+  const uuids = new Set<string>();
+  const parallelCallIds = new Set<string>();
+
+  for (const message of messages) {
+    if (message.provider !== provider) continue;
+    const toolCalls = getContentBlocks(message).filter(
+      (block) => isToolUse(block, toolNames),
+    );
+    if (toolCalls.length < 2) continue;
+
+    uuids.add(message.uuid);
+    for (const toolCall of toolCalls) {
+      if (typeof toolCall.id === "string") parallelCallIds.add(toolCall.id);
+    }
+  }
+
+  for (const message of messages) {
+    if (message.provider !== provider) continue;
+    const hasParallelResult = getContentBlocks(message).some(
+      (block) => block.type === "tool_result"
+        && typeof block.tool_use_id === "string"
+        && parallelCallIds.has(block.tool_use_id),
+    );
+    if (hasParallelResult) uuids.add(message.uuid);
+  }
+
+  return uuids;
 }
 
 /**
@@ -127,10 +162,14 @@ const collectGeminiParallelTaskUuids: CategoryCollector = (messages) => {
   return uuids;
 };
 
+const collectQwenParallelTaskUuids: CategoryCollector = (messages) =>
+  collectParallelToolCallUuids(messages, "qwen", QWEN_AGENT_TOOLS);
+
 const collectParallelTaskUuids: CategoryCollector = (messages) => {
   const uuids = collectClaudeParallelTaskUuids(messages);
   for (const uuid of collectCodexParallelTaskUuids(messages)) uuids.add(uuid);
   for (const uuid of collectGeminiParallelTaskUuids(messages)) uuids.add(uuid);
+  for (const uuid of collectQwenParallelTaskUuids(messages)) uuids.add(uuid);
   return uuids;
 };
 
