@@ -24,6 +24,93 @@ describe("parallel-task message category", () => {
     expect(filterMessagesByCategory(messages, "parallel-task", true)).toBe(messages);
   });
 
+  it("categorizes Codex collaboration tools only when a turn spawns multiple agents", () => {
+    const prompt = makeMessage("prompt", {
+      provider: "codex",
+      content: [{ type: "text", text: "Run independent checks" }],
+    });
+    const firstSpawn = makeMessage("spawn-1", {
+      provider: "codex",
+      type: "assistant",
+      role: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "call-spawn-1",
+          name: "spawn_agent",
+          input: { message: "Check the API" },
+        },
+        {
+          type: "tool_result",
+          tool_use_id: "call-spawn-1",
+          content: '{"agent_id":"agent-1"}',
+        },
+      ],
+    });
+    const secondSpawn = makeMessage("spawn-2", {
+      provider: "codex",
+      type: "assistant",
+      role: "assistant",
+      content: [{
+        type: "tool_use",
+        id: "call-spawn-2",
+        name: "spawn_agent",
+        input: { message: "Check the UI" },
+      }],
+    });
+    const wait = makeMessage("wait", {
+      provider: "codex",
+      type: "assistant",
+      role: "assistant",
+      content: [{
+        type: "tool_use",
+        id: "call-wait",
+        name: "wait_agent",
+        input: {},
+      }],
+    });
+    const answer = makeMessage("answer", {
+      provider: "codex",
+      type: "assistant",
+      role: "assistant",
+      content: [{ type: "text", text: "Both checks passed" }],
+    });
+    const nextPrompt = makeMessage("next-prompt", {
+      provider: "codex",
+      content: [{ type: "text", text: "Run one more check" }],
+    });
+    const singleSpawn = makeMessage("single-spawn", {
+      provider: "codex",
+      type: "assistant",
+      role: "assistant",
+      content: [{
+        type: "tool_use",
+        id: "call-spawn-3",
+        name: "spawn_agent",
+        input: { message: "Check one thing" },
+      }],
+    });
+    const messages = [
+      prompt,
+      firstSpawn,
+      secondSpawn,
+      wait,
+      answer,
+      nextPrompt,
+      singleSpawn,
+    ];
+
+    expect(getMessageUuidsByCategory(messages, "parallel-task")).toEqual(
+      new Set(["spawn-1", "spawn-2", "wait"]),
+    );
+    expect(filterMessagesByCategory(messages, "parallel-task", false)).toEqual([
+      prompt,
+      answer,
+      nextPrompt,
+      singleSpawn,
+    ]);
+  });
+
   it("categorizes and removes standalone task-notification cards", () => {
     const notification = makeMessage("notification", {
       content: "<task-notification><task-id>agent-1</task-id></task-notification>",
