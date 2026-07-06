@@ -13,6 +13,7 @@ const CODEX_COLLABORATION_TOOLS = new Set([
   "close_agent",
 ]);
 const CODEX_SPAWN_TOOLS = new Set(["spawn_agent"]);
+const GEMINI_AGENT_TOOLS = new Set(["agent"]);
 const QWEN_AGENT_TOOLS = new Set(["agent", "task"]);
 const OPENCODE_AGENT_TOOLS = new Set(["Task"]);
 
@@ -154,8 +155,10 @@ const collectGeminiParallelTaskUuids: CategoryCollector = (messages) => {
     if (message.provider !== "gemini") continue;
     const subagentCalls = getContentBlocks(message).filter(
       (block) => block.type === "tool_use"
-        && typeof block.agentId === "string"
-        && block.agentId.length > 0,
+        && (
+          (typeof block.agentId === "string" && block.agentId.length > 0)
+          || isToolUse(block, GEMINI_AGENT_TOOLS)
+        ),
     );
     if (subagentCalls.length >= 2) uuids.add(message.uuid);
   }

@@ -145,11 +145,30 @@ describe("parallel-task message category", () => {
         input: { agent_name: "generalist", prompt: "Check one thing" },
       }],
     });
+    const pendingParallelAgents = makeMessage("gemini-pending-agents", {
+      provider: "gemini",
+      type: "assistant",
+      role: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "agent-call-4",
+          name: "agent",
+          input: { agent_name: "codebase_investigator", prompt: "Check API" },
+        },
+        {
+          type: "tool_use",
+          id: "agent-call-5",
+          name: "agent",
+          input: { agent_name: "generalist", prompt: "Check UI" },
+        },
+      ],
+    });
 
     expect(getMessageUuidsByCategory(
-      [parallelAgents, singleAgent],
+      [parallelAgents, singleAgent, pendingParallelAgents],
       "parallel-task",
-    )).toEqual(new Set(["gemini-agents"]));
+    )).toEqual(new Set(["gemini-agents", "gemini-pending-agents"]));
   });
 
   it("categorizes Qwen parallel Agent calls and their result message", () => {
