@@ -86,6 +86,7 @@
   "navigator.role.summary": "Summary",
 
   "navigator.userOnly": "Show user messages only",
+  "navigator.showParallelTasks": "Show Parallel Tasks",
   "navigator.noMessages": "No messages in this session",
   "navigator.close": "Close navigator",
   "navigator.messageCount": "{{count}} messages",

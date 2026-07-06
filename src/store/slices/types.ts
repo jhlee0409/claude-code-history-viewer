@@ -173,6 +173,7 @@ export interface AppStoreState {
 
   // Filter state
   userOnlyFilter: boolean;
+  showParallelTasksInNavigator: boolean;
   messageFilter: import('./filterSlice').MessageFilter;
 
   // Navigation state
@@ -341,6 +342,8 @@ export interface AppStoreActions {
   // Filter actions
   setUserOnlyFilter: (enabled: boolean) => void;
   toggleUserOnlyFilter: () => void;
+  setShowParallelTasksInNavigator: (enabled: boolean) => void;
+  toggleShowParallelTasksInNavigator: () => void;
   toggleRole: (role: keyof import('./filterSlice').MessageFilterRoles) => void;
   toggleContentType: (contentType: keyof import('./filterSlice').MessageFilterContentTypes) => void;
   resetMessageFilter: () => void;

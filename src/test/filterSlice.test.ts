@@ -46,6 +46,15 @@ describe("filterSlice message-filter persistence", () => {
     expect(restored.getState().isMessageFilterActive()).toBe(true);
   });
 
+  it("toggles Parallel Tasks visibility for the message navigator", () => {
+    const store = makeStore();
+    expect(store.getState().showParallelTasksInNavigator).toBe(true);
+
+    store.getState().toggleShowParallelTasksInNavigator();
+
+    expect(store.getState().showParallelTasksInNavigator).toBe(false);
+  });
+
   it("enables Parallel Tasks when loading filters saved by an older version", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       roles: { user: true, assistant: true },

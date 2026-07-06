@@ -90,6 +90,7 @@ const persistMessageFilter = (filter: MessageFilter): void => {
 export interface FilterSliceState {
     dateFilter: DateFilter;
     userOnlyFilter: boolean;
+    showParallelTasksInNavigator: boolean;
     messageFilter: MessageFilter;
 }
 
@@ -98,6 +99,8 @@ export interface FilterSliceActions {
     clearDateFilter: () => void;
     setUserOnlyFilter: (enabled: boolean) => void;
     toggleUserOnlyFilter: () => void;
+    setShowParallelTasksInNavigator: (enabled: boolean) => void;
+    toggleShowParallelTasksInNavigator: () => void;
     toggleRole: (role: keyof MessageFilterRoles) => void;
     toggleContentType: (contentType: keyof MessageFilterContentTypes) => void;
     resetMessageFilter: () => void;
@@ -113,6 +116,7 @@ const getInitialDateFilter = () => ({ start: null, end: null });
 const initialFilterState = (): FilterSliceState => ({
     dateFilter: getInitialDateFilter(),
     userOnlyFilter: false,
+    showParallelTasksInNavigator: true,
     // Seed from localStorage so the user's filter survives session switches and restarts.
     messageFilter: loadPersistedMessageFilter(),
 });
@@ -139,6 +143,16 @@ export const createFilterSlice: StateCreator<
 
     toggleUserOnlyFilter: () => {
         set((state) => ({ userOnlyFilter: !state.userOnlyFilter }));
+    },
+
+    setShowParallelTasksInNavigator: (enabled) => {
+        set({ showParallelTasksInNavigator: enabled });
+    },
+
+    toggleShowParallelTasksInNavigator: () => {
+        set((state) => ({
+            showParallelTasksInNavigator: !state.showParallelTasksInNavigator,
+        }));
     },
 
     toggleRole: (role) => {
