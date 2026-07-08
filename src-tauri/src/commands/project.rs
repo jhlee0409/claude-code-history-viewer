@@ -715,7 +715,8 @@ mod tests {
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].actual_path, parent_cwd);
         assert_eq!(projects[0].name, "cym");
-        assert_eq!(projects[0].session_count, 2);
+        // Only top-level jsonl counts; subagent files are excluded
+        assert_eq!(projects[0].session_count, 1);
     }
 
     #[tokio::test]
@@ -787,8 +788,8 @@ mod tests {
 
         let projects = result.unwrap();
         assert_eq!(projects.len(), 1);
-        // WalkDir should find sessions in subdirectories too
-        assert_eq!(projects[0].session_count, 2);
+        // Only top-level sessions count; nested session2.jsonl is excluded
+        assert_eq!(projects[0].session_count, 1);
     }
 
     #[tokio::test]
