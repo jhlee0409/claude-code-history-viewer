@@ -142,6 +142,7 @@
   "common.provider.qwen": "Qwen Code",
   "common.provider.trae": "Trae",
   "common.provider.zed": "Zed",
+  "common.provider.zcode": "ZCode",
   "common.view": "View",
   "common.watcher.autoRefresh": "Auto-refresh",
   "common.watcher.disabled": "Auto-refresh disabled",

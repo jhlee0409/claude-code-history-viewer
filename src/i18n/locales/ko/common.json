@@ -142,6 +142,7 @@
   "common.provider.qwen": "Qwen Code",
   "common.provider.trae": "Trae",
   "common.provider.zed": "Zed",
+  "common.provider.zcode": "ZCode",
   "common.view": "보기",
   "common.watcher.autoRefresh": "자동 새로고침",
   "common.watcher.disabled": "자동 새로고침 비활성화됨",
