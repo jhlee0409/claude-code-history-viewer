@@ -214,7 +214,17 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
             .filter_map(std::result::Result::ok)
             .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         {
-            session_count += 1;
+            // Only top-level jsonl are main sessions; sidechain/subagent jsonl
+            // live in subdirectories (see utils::find_subagent_files). Counting
+            // them here inflates the project tree's session count relative to
+            // load_project_sessions, which filters them out via exclude_sidechain.
+            let is_direct_session = jsonl_entry
+                .path()
+                .strip_prefix(entry.path())
+                .is_ok_and(|relative| relative.components().count() == 1);
+            if is_direct_session {
+                session_count += 1;
+            }
 
             if let Ok(metadata) = jsonl_entry.metadata() {
                 let modified = metadata.modified().ok();
@@ -225,13 +235,11 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
                 }
 
                 // Estimate message count from file size - much faster
+                // lazy: still includes sidechain files; message_count口径与
+                // session_count 不同步是已知项,留待后续统一。
                 let estimated_messages = estimate_message_count_from_size(metadata.len());
                 message_count += estimated_messages;
 
-                let is_direct_session = jsonl_entry
-                    .path()
-                    .strip_prefix(entry.path())
-                    .is_ok_and(|relative| relative.components().count() == 1);
                 let cwd_candidate = if is_direct_session {
                     &mut direct_cwd_candidate
                 } else {
