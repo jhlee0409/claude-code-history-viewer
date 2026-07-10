@@ -40,6 +40,7 @@ pub async fn scan_all_projects(
             "goose".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
+            "mistral".to_string(),
             "opencode".to_string(),
             "openinterpreter".to_string(),
             "qwen".to_string(),
@@ -124,6 +125,7 @@ pub async fn scan_all_projects(
         ("goose", providers::goose::scan_projects),
         ("kimi", providers::kimi::scan_projects),
         ("forgecode", providers::forgecode::scan_projects),
+        ("mistral", providers::mistral::scan_projects),
         ("opencode", providers::opencode::scan_projects),
         ("openinterpreter", providers::openinterpreter::scan_projects),
         ("qwen", providers::qwen::scan_projects),
@@ -315,6 +317,7 @@ pub async fn load_provider_sessions(
         "goose" => providers::goose::load_sessions(&project_path, exclude),
         "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
+        "mistral" => providers::mistral::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
         "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
         "qwen" => providers::qwen::load_sessions(&project_path, exclude),
@@ -360,6 +363,7 @@ pub async fn load_provider_messages(
         "goose" => providers::goose::load_messages(&session_path)?,
         "kimi" => providers::kimi::load_messages(&session_path)?,
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
+        "mistral" => providers::mistral::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
         "openinterpreter" => providers::openinterpreter::load_messages(&session_path)?,
         "qwen" => providers::qwen::load_messages(&session_path)?,
@@ -411,6 +415,7 @@ pub async fn search_all_providers(
             "goose".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
+            "mistral".to_string(),
             "opencode".to_string(),
             "openinterpreter".to_string(),
             "qwen".to_string(),
@@ -555,6 +560,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("ForgeCode search failed: {e}");
+            }
+        }
+    }
+
+    // Mistral Le Chat
+    if providers_to_search.iter().any(|p| p == "mistral") {
+        match providers::mistral::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Mistral search failed: {e}");
             }
         }
     }

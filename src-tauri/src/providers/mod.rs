@@ -19,6 +19,7 @@ pub mod goose;
 pub mod kimi;
 pub mod kiro;
 pub mod llm;
+pub mod mistral;
 pub mod opencode;
 pub mod openhands;
 pub mod openinterpreter;
@@ -62,6 +63,8 @@ pub enum ProviderId {
     Kiro,
     /// Simon Willison's `llm` CLI (`~/.../io.datasette.llm/logs.db`).
     Llm,
+    /// Mistral Le Chat desktop agent (`~/.mistral/projects/…/sessions/…/messages.jsonl`).
+    Mistral,
     OpenCode,
     /// Open Interpreter (Rust v1.0) — Codex-format rollouts under `~/.openinterpreter`.
     OpenInterpreter,
@@ -97,6 +100,7 @@ impl ProviderId {
             Self::ForgeCode => "forgecode",
             Self::Kiro => "kiro",
             Self::Llm => "llm",
+            Self::Mistral => "mistral",
             Self::OpenCode => "opencode",
             Self::OpenInterpreter => "openinterpreter",
             Self::OpenHands => "openhands",
@@ -127,6 +131,7 @@ impl ProviderId {
             "forgecode" => Some(Self::ForgeCode),
             "kiro" => Some(Self::Kiro),
             "llm" => Some(Self::Llm),
+            "mistral" => Some(Self::Mistral),
             "opencode" => Some(Self::OpenCode),
             "openinterpreter" => Some(Self::OpenInterpreter),
             "openhands" => Some(Self::OpenHands),
@@ -158,6 +163,7 @@ impl ProviderId {
             Self::ForgeCode => "ForgeCode",
             Self::Kiro => "Kiro CLI",
             Self::Llm => "llm",
+            Self::Mistral => "Mistral Le Chat",
             Self::OpenCode => "OpenCode",
             Self::OpenInterpreter => "Open Interpreter",
             Self::OpenHands => "OpenHands",
@@ -204,6 +210,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = forgecode::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = mistral::detect() {
         providers.push(info);
     }
     if let Some(info) = opencode::detect() {
