@@ -415,6 +415,9 @@ export const createProjectSlice: StateCreator<
   },
 
   selectProject: async (project: ClaudeProject) => {
+    // Selection is scoped to a single project's session list; switching
+    // projects abandons any in-progress multi-selection.
+    get().exitSessionSelectionMode();
     set({
       selectedProject: project,
       sessions: [],
@@ -472,6 +475,7 @@ export const createProjectSlice: StateCreator<
     get().clearBoard();
     get().setDateFilter({ start: null, end: null });
     get().clearTargetMessage();
+    get().exitSessionSelectionMode();
   },
 
   setClaudePath: async (path: string) => {

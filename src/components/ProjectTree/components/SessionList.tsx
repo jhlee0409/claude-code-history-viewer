@@ -1,8 +1,8 @@
 // src/components/ProjectTree/components/SessionList.tsx
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FixedSizeList as List } from "react-window";
-import { Search, X, SortDesc, SortAsc } from "lucide-react";
+import { Search, X, SortDesc, SortAsc, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   ENTRYPOINT_FILTER_LABEL_KEYS,
 } from "@/utils/entrypoint";
 import { SessionItem } from "../../SessionItem";
+import { SessionSelectionBar } from "../../SessionItem/components/SessionSelectionBar";
 import { useAppStore } from "@/store/useAppStore";
 import type { SessionListProps } from "../types";
 import type { ClaudeSession } from "../../../types";
@@ -29,20 +30,34 @@ const VIRTUALIZATION_THRESHOLD = 20;
 // Virtual list의 최대 표시 높이
 const MAX_LIST_HEIGHT = 400;
 
+interface SessionRowData {
+  sessions: ClaudeSession[];
+  selectedSession: ClaudeSession | null;
+  onSessionSelect: (session: ClaudeSession) => void;
+  onSessionHover?: (session: ClaudeSession) => void;
+  formatTimeAgo: (date: string) => string;
+  isSelectionMode: boolean;
+  selectedIds: Set<string>;
+  onSessionCheck: (session: ClaudeSession, e: React.MouseEvent) => void;
+}
+
 interface SessionRowProps {
   index: number;
   style: React.CSSProperties;
-  data: {
-    sessions: ClaudeSession[];
-    selectedSession: ClaudeSession | null;
-    onSessionSelect: (session: ClaudeSession) => void;
-    onSessionHover?: (session: ClaudeSession) => void;
-    formatTimeAgo: (date: string) => string;
-  };
+  data: SessionRowData;
 }
 
 const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
-  const { sessions, selectedSession, onSessionSelect, onSessionHover, formatTimeAgo } = data;
+  const {
+    sessions,
+    selectedSession,
+    onSessionSelect,
+    onSessionHover,
+    formatTimeAgo,
+    isSelectionMode,
+    selectedIds,
+    onSessionCheck,
+  } = data;
   const session = sessions[index];
 
   if (!session) {
@@ -57,6 +72,9 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
         onSelect={() => onSessionSelect(session)}
         onHover={() => onSessionHover?.(session)}
         formatTimeAgo={formatTimeAgo}
+        isSelectionMode={isSelectionMode}
+        isChecked={selectedIds.has(session.session_id)}
+        onToggleSelect={(e) => onSessionCheck(session, e)}
       />
     </div>
   );
@@ -69,6 +87,8 @@ interface SessionListControlsProps {
   onToggleSortOrder: () => void;
   sessionEntrypointFilter: SessionEntrypointFilter;
   onEntrypointFilterChange: (filter: SessionEntrypointFilter) => void;
+  isSelectionMode: boolean;
+  onToggleSelectionMode: () => void;
 }
 
 /**
@@ -83,6 +103,8 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
   onToggleSortOrder,
   sessionEntrypointFilter,
   onEntrypointFilterChange,
+  isSelectionMode,
+  onToggleSelectionMode,
 }) => {
   const { t } = useTranslation();
 
@@ -108,6 +130,28 @@ const SessionListControls: React.FC<SessionListControlsProps> = ({
             </button>
           )}
         </div>
+        <button
+          onClick={onToggleSelectionMode}
+          aria-pressed={isSelectionMode}
+          className={cn(
+            "p-1.5 rounded transition-colors",
+            isSelectionMode
+              ? "bg-accent/15 text-accent"
+              : "hover:bg-muted/50 text-muted-foreground"
+          )}
+          aria-label={
+            isSelectionMode
+              ? t("session.selection.exit", "Exit selection")
+              : t("session.selection.enter", "Select sessions")
+          }
+          title={
+            isSelectionMode
+              ? t("session.selection.exit", "Exit selection")
+              : t("session.selection.enter", "Select sessions")
+          }
+        >
+          <ListChecks className="w-3.5 h-3.5" />
+        </button>
         <button
           onClick={onToggleSortOrder}
           className="p-1.5 rounded hover:bg-muted/50 transition-colors"
@@ -182,6 +226,10 @@ export const SessionList: React.FC<SessionListProps> = ({
     setSessionEntrypointFilter,
     getSessionDisplayName,
   } = useAppStore();
+  const isSelectionMode = useAppStore((s) => s.isSessionSelectionMode);
+  const sessionSelectionIds = useAppStore((s) => s.sessionSelectionIds);
+  const toggleSessionSelectionMode = useAppStore((s) => s.toggleSessionSelectionMode);
+  const handleSessionSelectionClick = useAppStore((s) => s.handleSessionSelectionClick);
 
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
@@ -230,8 +278,29 @@ export const SessionList: React.FC<SessionListProps> = ({
   // Show controls only if we have enough sessions
   const showControls = sessions.length >= 3;
 
+  // Ordered IDs of the currently visible (filtered + sorted) sessions — the
+  // basis for Shift range selection and "Select all".
+  const orderedIds = useMemo(
+    () => filteredAndSortedSessions.map((s) => s.session_id),
+    [filteredAndSortedSessions]
+  );
+  const selectedIdSet = useMemo(
+    () => new Set(sessionSelectionIds),
+    [sessionSelectionIds]
+  );
+
   const handleToggleSortOrder = () =>
     setSessionSortOrder(sessionSortOrder === 'newest' ? 'oldest' : 'newest');
+
+  const handleSessionCheck = useCallback(
+    (session: ClaudeSession, e: React.MouseEvent) => {
+      handleSessionSelectionClick(session.session_id, orderedIds, {
+        shift: e.shiftKey,
+        cmdOrCtrl: e.metaKey || e.ctrlKey,
+      });
+    },
+    [handleSessionSelectionClick, orderedIds]
+  );
 
   const controls = showControls ? (
     <SessionListControls
@@ -241,19 +310,44 @@ export const SessionList: React.FC<SessionListProps> = ({
       onToggleSortOrder={handleToggleSortOrder}
       sessionEntrypointFilter={sessionEntrypointFilter}
       onEntrypointFilterChange={setSessionEntrypointFilter}
+      isSelectionMode={isSelectionMode}
+      onToggleSelectionMode={toggleSessionSelectionMode}
+    />
+  ) : null;
+
+  // Action bar shown while multi-select mode is active. `sessions` (all loaded
+  // for the project) is used for id→session mapping so a session hidden by the
+  // current search filter is still deleted; `filteredAndSortedSessions` drives
+  // "Select all" (only the currently visible rows).
+  const selectionBar = isSelectionMode ? (
+    <SessionSelectionBar
+      allSessions={sessions}
+      visibleSessions={filteredAndSortedSessions}
     />
   ) : null;
 
   // Virtual list에 전달할 데이터 memoize
-  const itemData = useMemo(
+  const itemData = useMemo<SessionRowData>(
     () => ({
       sessions: filteredAndSortedSessions,
       selectedSession,
       onSessionSelect,
       onSessionHover,
       formatTimeAgo,
+      isSelectionMode,
+      selectedIds: selectedIdSet,
+      onSessionCheck: handleSessionCheck,
     }),
-    [filteredAndSortedSessions, selectedSession, onSessionSelect, onSessionHover, formatTimeAgo]
+    [
+      filteredAndSortedSessions,
+      selectedSession,
+      onSessionSelect,
+      onSessionHover,
+      formatTimeAgo,
+      isSelectionMode,
+      selectedIdSet,
+      handleSessionCheck,
+    ]
   );
 
   // 리스트 높이 계산
@@ -294,6 +388,7 @@ export const SessionList: React.FC<SessionListProps> = ({
     return (
       <div className={cn(containerClass, borderClass, (isWorktree || isMain) && "py-1.5")}>
         {controls}
+        {selectionBar}
 
         {/* Session List */}
         <div className="space-y-1 py-2">
@@ -310,6 +405,9 @@ export const SessionList: React.FC<SessionListProps> = ({
                 onSelect={() => onSessionSelect(session)}
                 onHover={() => onSessionHover?.(session)}
                 formatTimeAgo={formatTimeAgo}
+                isSelectionMode={isSelectionMode}
+                isChecked={selectedIdSet.has(session.session_id)}
+                onToggleSelect={(e) => handleSessionCheck(session, e)}
               />
             ))
           )}
@@ -322,6 +420,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   return (
     <div className={cn(containerClass, borderClass, (isWorktree || isMain) && "py-1.5")}>
       {controls}
+      {selectionBar}
 
       {/* Virtual Scroll List */}
       <div className="py-2">

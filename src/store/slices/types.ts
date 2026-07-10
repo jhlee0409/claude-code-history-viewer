@@ -202,6 +202,11 @@ export interface AppStoreState {
   // WebUI server state
   isServerReadOnly: boolean;
   isServerConfigLoaded: boolean;
+
+  // Session selection (multi-select mode) state
+  isSessionSelectionMode: boolean;
+  sessionSelectionIds: string[];
+  sessionSelectionAnchor: string | null;
 }
 
 export interface AppStoreActions {
@@ -392,6 +397,18 @@ export interface AppStoreActions {
 
   // WebUI server actions
   loadServerConfig: () => Promise<void>;
+
+  // Session selection (multi-select mode) actions
+  enterSessionSelectionMode: () => void;
+  exitSessionSelectionMode: () => void;
+  toggleSessionSelectionMode: () => void;
+  handleSessionSelectionClick: (
+    sessionId: string,
+    orderedIds: string[],
+    modifiers: { shift: boolean; cmdOrCtrl: boolean }
+  ) => void;
+  setSessionSelectionIds: (ids: string[]) => void;
+  clearSessionSelection: () => void;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;
