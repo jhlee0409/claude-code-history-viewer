@@ -175,5 +175,6 @@
   "time.secondShort": "秒",
   "time.today": "今日",
   "time.yesterday": "昨日",
-  "common.provider.copilot": "Copilot"
+  "common.provider.copilot": "Copilot",
+  "common.provider.vscode": "VS Code Copilot Chat"
 }

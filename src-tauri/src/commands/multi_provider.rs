@@ -56,6 +56,7 @@ pub async fn scan_all_projects(
             "zed".to_string(),
             "openhands".to_string(),
             "trae".to_string(),
+            "vscode".to_string(),
         ]
     });
 
@@ -141,6 +142,7 @@ pub async fn scan_all_projects(
         ("kiro", providers::kiro::scan_projects),
         ("llm", providers::llm::scan_projects),
         ("copilot", providers::copilot::scan_projects),
+        ("vscode", providers::vscode::scan_projects),
     ];
 
     // Spawn every enabled scanner up front so they run concurrently on the
@@ -331,6 +333,7 @@ pub async fn load_provider_sessions(
         "zed" => providers::zed::load_sessions(&project_path, exclude),
         "openhands" => providers::openhands::load_sessions(&project_path, exclude),
         "trae" => providers::trae::load_sessions(&project_path, exclude),
+        "vscode" => providers::vscode::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -376,6 +379,7 @@ pub async fn load_provider_messages(
         "zed" => providers::zed::load_messages(&session_path)?,
         "openhands" => providers::openhands::load_messages(&session_path)?,
         "trae" => providers::trae::load_messages(&session_path)?,
+        "vscode" => providers::vscode::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -427,6 +431,7 @@ pub async fn search_all_providers(
             "zed".to_string(),
             "openhands".to_string(),
             "trae".to_string(),
+            "vscode".to_string(),
         ]
     });
 
@@ -714,6 +719,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Trae search failed: {e}");
+            }
+        }
+    }
+
+    // VS Code Copilot Chat
+    if providers_to_search.iter().any(|p| p == "vscode") {
+        match providers::vscode::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("VS Code Copilot Chat search failed: {e}");
             }
         }
     }

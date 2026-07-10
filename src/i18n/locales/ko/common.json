@@ -175,5 +175,6 @@
   "time.secondShort": "초",
   "time.today": "오늘",
   "time.yesterday": "어제",
-  "common.provider.copilot": "Copilot"
+  "common.provider.copilot": "Copilot",
+  "common.provider.vscode": "VS Code Copilot Chat"
 }

@@ -257,6 +257,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
     if let Some(info) = copilot::detect() {
         providers.push(info);
     }
+    if let Some(info) = vscode::detect() {
+        providers.push(info);
+    }
 
     providers
 }
