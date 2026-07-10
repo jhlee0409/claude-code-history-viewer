@@ -65,7 +65,7 @@ export const SessionMultiDeleteDialog: React.FC<SessionMultiDeleteDialogProps> =
           </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
+        <div className="min-w-0 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2">
           <p className="text-xs font-medium text-destructive">
             {t("session.selection.deleteTargets", {
               count,
@@ -76,7 +76,7 @@ export const SessionMultiDeleteDialog: React.FC<SessionMultiDeleteDialogProps> =
             {previewNames.map((name, i) => (
               <li
                 key={`${name}-${i}`}
-                className="truncate text-xs text-muted-foreground"
+                className="min-w-0 truncate text-xs text-muted-foreground"
               >
                 {name}
               </li>
