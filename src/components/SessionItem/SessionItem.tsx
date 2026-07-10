@@ -23,6 +23,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
   isSelectionMode = false,
   isChecked = false,
   onToggleSelect,
+  onModifierSelect,
 }) => {
   const { t } = useTranslation();
   const editing = useSessionEditing(session);
@@ -30,15 +31,33 @@ export const SessionItem: React.FC<SessionItemProps> = ({
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
+      if (editing.isEditing) return;
       if (isSelectionMode) {
         onToggleSelect?.(e);
         return;
       }
-      if (!editing.isEditing && !isSelected) {
+      // Finder-style multi-select from normal mode: Cmd/Ctrl+click or
+      // Shift+click starts/extends a selection (and enters selection mode).
+      if (e.shiftKey || e.metaKey || e.ctrlKey) {
+        onModifierSelect?.(e);
+        return;
+      }
+      if (!isSelected) {
         onSelect();
       }
     },
-    [isSelectionMode, onToggleSelect, editing.isEditing, isSelected, onSelect]
+    [editing.isEditing, isSelectionMode, onToggleSelect, onModifierSelect, isSelected, onSelect]
+  );
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Suppress the browser's text selection when Shift/Cmd/Ctrl-clicking to
+      // start a multi-selection (selection begins on mousedown, not click).
+      if (!isSelectionMode && (e.shiftKey || e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+      }
+    },
+    [isSelectionMode]
   );
 
   const handleContextMenu = useCallback(
@@ -74,6 +93,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
       )}
       style={{ width: "calc(100% - 8px)" }}
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}
       onMouseEnter={() => {
         if (!editing.isEditing && onHover) {

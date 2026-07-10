@@ -85,6 +85,7 @@ interface MockStore {
   isSessionSelectionMode: boolean;
   sessionSelectionIds: string[];
   toggleSessionSelectionMode: () => void;
+  enterSessionSelectionMode: () => void;
   handleSessionSelectionClick: (
     sessionId: string,
     orderedIds: string[],
@@ -101,6 +102,7 @@ const useTestStore = create<MockStore>((set) => ({
   isSessionSelectionMode: false,
   sessionSelectionIds: [],
   toggleSessionSelectionMode: () => set({ isSessionSelectionMode: false }),
+  enterSessionSelectionMode: () => set({ isSessionSelectionMode: true }),
   handleSessionSelectionClick: () => {},
 }));
 

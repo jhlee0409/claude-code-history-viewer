@@ -15,6 +15,11 @@ export interface SessionItemProps {
    * read modifier keys (Shift = range, Cmd/Ctrl = individual toggle).
    */
   onToggleSelect?: (e: React.MouseEvent) => void;
+  /**
+   * Start/extend a selection from normal mode via a modifier click
+   * (Cmd/Ctrl+click or Shift+click). Enters selection mode.
+   */
+  onModifierSelect?: (e: React.MouseEvent) => void;
 }
 
 export interface SessionHeaderProps {

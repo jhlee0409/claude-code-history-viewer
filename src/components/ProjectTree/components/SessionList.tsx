@@ -39,6 +39,7 @@ interface SessionRowData {
   isSelectionMode: boolean;
   selectedIds: Set<string>;
   onSessionCheck: (session: ClaudeSession, e: React.MouseEvent) => void;
+  onSessionModifierSelect: (session: ClaudeSession, e: React.MouseEvent) => void;
 }
 
 interface SessionRowProps {
@@ -57,6 +58,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
     isSelectionMode,
     selectedIds,
     onSessionCheck,
+    onSessionModifierSelect,
   } = data;
   const session = sessions[index];
 
@@ -75,6 +77,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
         isSelectionMode={isSelectionMode}
         isChecked={selectedIds.has(session.session_id)}
         onToggleSelect={(e) => onSessionCheck(session, e)}
+        onModifierSelect={(e) => onSessionModifierSelect(session, e)}
       />
     </div>
   );
@@ -229,6 +232,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   const isSelectionMode = useAppStore((s) => s.isSessionSelectionMode);
   const sessionSelectionIds = useAppStore((s) => s.sessionSelectionIds);
   const toggleSessionSelectionMode = useAppStore((s) => s.toggleSessionSelectionMode);
+  const enterSessionSelectionMode = useAppStore((s) => s.enterSessionSelectionMode);
   const handleSessionSelectionClick = useAppStore((s) => s.handleSessionSelectionClick);
 
   const isWorktree = variant === "worktree";
@@ -302,6 +306,41 @@ export const SessionList: React.FC<SessionListProps> = ({
     [handleSessionSelectionClick, orderedIds]
   );
 
+  // Finder-style multi-select from normal mode: a Cmd/Ctrl or Shift click
+  // enters selection mode and seeds the anchor from the currently open session
+  // so the first Shift range / Cmd toggle extends from what's already open.
+  const handleModifierSelect = useCallback(
+    (session: ClaudeSession, e: React.MouseEvent) => {
+      const modifiers = {
+        shift: e.shiftKey,
+        cmdOrCtrl: e.metaKey || e.ctrlKey,
+      };
+      if (!isSelectionMode) {
+        enterSessionSelectionMode();
+        const seedId =
+          selectedSession &&
+          selectedSession.session_id !== session.session_id &&
+          orderedIds.includes(selectedSession.session_id)
+            ? selectedSession.session_id
+            : null;
+        if (seedId) {
+          handleSessionSelectionClick(seedId, orderedIds, {
+            shift: false,
+            cmdOrCtrl: false,
+          });
+        }
+      }
+      handleSessionSelectionClick(session.session_id, orderedIds, modifiers);
+    },
+    [
+      isSelectionMode,
+      enterSessionSelectionMode,
+      selectedSession,
+      orderedIds,
+      handleSessionSelectionClick,
+    ]
+  );
+
   const controls = showControls ? (
     <SessionListControls
       searchQuery={searchQuery}
@@ -337,6 +376,7 @@ export const SessionList: React.FC<SessionListProps> = ({
       isSelectionMode,
       selectedIds: selectedIdSet,
       onSessionCheck: handleSessionCheck,
+      onSessionModifierSelect: handleModifierSelect,
     }),
     [
       filteredAndSortedSessions,
@@ -347,6 +387,7 @@ export const SessionList: React.FC<SessionListProps> = ({
       isSelectionMode,
       selectedIdSet,
       handleSessionCheck,
+      handleModifierSelect,
     ]
   );
 
@@ -408,6 +449,7 @@ export const SessionList: React.FC<SessionListProps> = ({
                 isSelectionMode={isSelectionMode}
                 isChecked={selectedIdSet.has(session.session_id)}
                 onToggleSelect={(e) => handleSessionCheck(session, e)}
+                onModifierSelect={(e) => handleModifierSelect(session, e)}
               />
             ))
           )}
