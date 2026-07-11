@@ -20,7 +20,7 @@ mod session_count_tests {
 
     /// Build a `.claude/projects/test-proj` dir with `top_level` main sessions
     /// plus `sidechain` sidechain/subagent jsonl nested one level down, then
-    /// return the session_count that scan_projects reports for that project.
+    /// return the `session_count` that `scan_projects` reports for that project.
     async fn counted_sessions(top_level: usize, sidechain: usize) -> usize {
         let temp = TempDir::new().expect("temp dir");
         let project_dir = temp
