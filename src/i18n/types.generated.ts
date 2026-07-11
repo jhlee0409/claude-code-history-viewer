@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-07-11T18:51:55.577Z
- * 총 키 개수: 1830
+ * 생성 시간: 2026-07-11T19:07:38.125Z
+ * 총 키 개수: 1833
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (179개)
+ * common namespace의 번역 키 (180개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -134,6 +134,7 @@ export type CommonKeys =
   | 'common.provider.pi'
   | 'common.provider.qwen'
   | 'common.provider.trae'
+  | 'common.provider.zcode'
   | 'common.provider.zed'
   | 'common.refresh'
   | 'common.remove'
@@ -1291,12 +1292,13 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (101개)
+ * message namespace의 번역 키 (103개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
   | 'filter.active'
   | 'filter.content.commands'
+  | 'filter.content.parallelTasks'
   | 'filter.content.text'
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
@@ -1393,6 +1395,7 @@ export type MessageKeys =
   | 'navigator.role.summary'
   | 'navigator.role.system'
   | 'navigator.role.user'
+  | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'navigator.userOnly';
@@ -2332,6 +2335,7 @@ export type TranslationKey =
   | 'common.provider.pi'
   | 'common.provider.qwen'
   | 'common.provider.trae'
+  | 'common.provider.zcode'
   | 'common.provider.zed'
   | 'common.refresh'
   | 'common.remove'
@@ -2533,6 +2537,7 @@ export type TranslationKey =
   | 'fileListRenderer.fileList'
   | 'filter.active'
   | 'filter.content.commands'
+  | 'filter.content.parallelTasks'
   | 'filter.content.text'
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
@@ -2691,6 +2696,7 @@ export type TranslationKey =
   | 'navigator.role.summary'
   | 'navigator.role.system'
   | 'navigator.role.user'
+  | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'navigator.userOnly'

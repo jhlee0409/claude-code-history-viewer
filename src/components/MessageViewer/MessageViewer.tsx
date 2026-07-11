@@ -27,6 +27,8 @@ import { useCapturePreview } from "../../hooks/useCapturePreview";
 import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
 import {
   groupAgentTasks,
+  filterMessagesByCategory,
+  getMessageUuidsByCategory,
   groupAgentProgressMessages,
   groupTaskOperations,
 } from "./helpers";
@@ -165,15 +167,24 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   } = useAppStore();
 
   const isInSubagent = parentSessionStack.length > 0;
+  const hasParallelTasks = useMemo(
+    () => getMessageUuidsByCategory(messages, "parallel-task").size > 0,
+    [messages],
+  );
 
   // Apply role + content type filters
   const displayMessages = useMemo(() => {
     const { roles, contentTypes } = messageFilter;
     const allRoles = roles.user && roles.assistant;
     const allContent = contentTypes.text && contentTypes.thinking && contentTypes.toolCalls && contentTypes.commands;
-    if (allRoles && allContent) return messages;
+    const parallelTaskFilteredMessages = filterMessagesByCategory(
+      messages,
+      "parallel-task",
+      contentTypes.parallelTasks,
+    );
+    if (allRoles && allContent) return parallelTaskFilteredMessages;
 
-    return messages.filter((msg) => {
+    return parallelTaskFilteredMessages.filter((msg) => {
       // Role filter
       if (msg.type === "user") return roles.user;
       if (msg.type === "assistant") {
@@ -900,7 +911,11 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
       {/* Filter Toolbar */}
       {!isCaptureMode && messages.length > 0 && (
-        <FilterToolbar totalCount={messages.length} filteredCount={displayMessages.length} />
+        <FilterToolbar
+          totalCount={messages.length}
+          filteredCount={displayMessages.length}
+          hasParallelTasks={hasParallelTasks}
+        />
       )}
 
       {/* Capture Mode Toolbar */}

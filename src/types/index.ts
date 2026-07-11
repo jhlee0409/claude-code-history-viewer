@@ -23,6 +23,7 @@ export type {
   QueueOperationType,
   QueueOperationMessage,
   MessagePayload,
+  MessageCategory,
   RawClaudeMessage,
   ClaudeMessage,
   ClaudeAssistantMessage,
