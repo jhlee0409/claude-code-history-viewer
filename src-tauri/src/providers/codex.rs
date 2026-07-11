@@ -346,7 +346,9 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
         let line_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
         match line_type {
-            "session_meta" => {
+            // First session_meta only — later ones are history replayed by
+            // `codex fork` and must not re-tag messages with the source's id.
+            "session_meta" if session_id.is_empty() => {
                 if let Some(payload) = val.get("payload") {
                     session_id = payload
                         .get("id")
@@ -828,7 +830,12 @@ pub(crate) fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, S
         let line_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
         match line_type {
-            "session_meta" => {
+            // Only the FIRST session_meta identifies the file. `codex fork`
+            // replays the source rollout verbatim into the new file, so a
+            // forked rollout contains the source's session_meta as history
+            // after its own — taking the last one misfiles the session under
+            // the source cwd (issue #451).
+            "session_meta" if session_id.is_empty() => {
                 if let Some(payload) = val.get("payload") {
                     session_id = payload
                         .get("id")
@@ -3125,5 +3132,63 @@ mod tests {
         );
         // The wrapper still counts as a message — only the summary is gated.
         assert_eq!(info.message_count, 1);
+    }
+
+    fn session_meta_line_with(timestamp: &str, id: &str, cwd: &str) -> Value {
+        json!({
+            "timestamp": timestamp,
+            "type": "session_meta",
+            "payload": { "id": id, "cwd": cwd }
+        })
+    }
+
+    #[test]
+    /// `codex fork` creates the new rollout with its own `session_meta` first,
+    /// then replays the source rollout verbatim — including the source's
+    /// `session_meta` line. The first meta is the file's identity; later metas
+    /// are replayed history and must not override it (issue #451: forked
+    /// sessions vanished because the session filter used the last meta's cwd
+    /// while project scanning used the first).
+    fn extract_session_info_keeps_first_session_meta_on_forked_rollout() {
+        let info = run_extract_session_info_on_lines(vec![
+            session_meta_line_with("2026-05-13T08:00:00Z", "sess-fork-new", "/tmp/proj-b"),
+            session_meta_line_with("2026-05-12T08:00:00Z", "sess-orig", "/tmp/proj-a"),
+            user_message_line("2026-05-13T08:00:01Z", "continue from the forked session"),
+        ]);
+
+        assert_eq!(info.session_id, "sess-fork-new");
+        assert_eq!(info.cwd.as_deref(), Some("/tmp/proj-b"));
+    }
+
+    #[test]
+    /// Messages replayed after the source's `session_meta` line in a forked
+    /// rollout must carry the forked file's own session id, not the source's.
+    fn parse_rollout_file_keeps_first_session_meta_id_on_forked_rollout() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let rollout_path = tmp.path().join("rollout-2026-05-13.jsonl");
+        let lines = [
+            session_meta_line_with("2026-05-13T08:00:00Z", "sess-fork-new", "/tmp/proj-b"),
+            session_meta_line_with("2026-05-12T08:00:00Z", "sess-orig", "/tmp/proj-a"),
+            user_message_line("2026-05-13T08:00:01Z", "continue from the forked session"),
+        ];
+        let body = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{body}\n")).expect("rollout fixture should be written");
+
+        let messages =
+            parse_rollout_file(&rollout_path).expect("parse_rollout_file should succeed");
+
+        assert!(!messages.is_empty());
+        assert!(
+            messages.iter().all(|m| m.session_id == "sess-fork-new"),
+            "all messages should carry the forked file's own session id; got {:?}",
+            messages
+                .iter()
+                .map(|m| m.session_id.clone())
+                .collect::<Vec<_>>()
+        );
     }
 }

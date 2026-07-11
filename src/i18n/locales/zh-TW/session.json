@@ -191,6 +191,7 @@
   "session.nativeRename.warningForgeCode": "此操作會更新 Forge 資料庫中儲存的 ForgeCode 對話標題。",
   "session.nativeRename.warningOpenCode": "此操作會修改 OpenCode 會話中繼資料檔案。變更可以復原。",
   "session.refresh": "重新整理會話",
+  "session.refreshAllConversations": "重新整理所有對話",
   "session.rename": "重新命名會話",
   "session.renameAction": "重新命名會話",
   "session.renameHint": "雙擊重新命名",

@@ -539,7 +539,7 @@
 
   /* Prose typography overrides for compact display */
   .prose {
-    font-size: 0.75rem !important;
+    font-size: calc(0.75rem * var(--app-font-scale)) !important;
     line-height: 1.5 !important;
   }
 
@@ -549,19 +549,19 @@
   }
 
   .prose h1 {
-    font-size: 0.9375rem !important;
+    font-size: calc(0.9375rem * var(--app-font-scale)) !important;
     margin-top: 0 !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h2 {
-    font-size: 0.875rem !important;
+    font-size: calc(0.875rem * var(--app-font-scale)) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h3 {
-    font-size: 0.8125rem !important;
+    font-size: calc(0.8125rem * var(--app-font-scale)) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
@@ -569,7 +569,7 @@
   .prose h4,
   .prose h5,
   .prose h6 {
-    font-size: 0.75rem !important;
+    font-size: calc(0.75rem * var(--app-font-scale)) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
@@ -607,7 +607,7 @@
   }
 
   .prose pre {
-    font-size: 0.6875rem !important;
+    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
     line-height: 1.4 !important;
     margin-top: 0.5em !important;
     margin-bottom: 0.5em !important;
@@ -615,7 +615,7 @@
   }
 
   .prose code {
-    font-size: 0.6875rem !important;
+    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
     padding: 0.0625em 0.1875em !important;
   }
 
@@ -626,7 +626,7 @@
   }
 
   .prose table {
-    font-size: 0.6875rem !important;
+    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.75em !important;
     width: 100% !important;
@@ -722,7 +722,7 @@
   }
 
   .prose kbd {
-    font-size: 0.625rem !important;
+    font-size: calc(0.625rem * var(--app-font-scale)) !important;
     font-family: var(--font-mono, ui-monospace, monospace) !important;
     background-color: var(--muted) !important;
     border: 1px solid var(--border) !important;
@@ -1667,44 +1667,6 @@
     font-weight: 300;
     letter-spacing: -0.02em;
     line-height: 1.15;
-  }
-
-  /* Meta/Label text: uppercase with wide tracking */
-  .text-label {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .text-label-sm {
-    font-size: 0.625rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
-
-  /* Caption text */
-  .text-caption {
-    font-size: 0.75rem;
-    line-height: 1.4;
-    color: var(--muted-foreground);
-  }
-
-  /* Monospace data display */
-  .text-data {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.8125rem;
-    font-feature-settings: 'tnum' on, 'zero' on;
-    letter-spacing: -0.01em;
-  }
-
-  .text-data-lg {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 1.3125rem;
-    font-weight: 500;
-    font-feature-settings: 'tnum' on, 'zero' on;
-    letter-spacing: -0.02em;
   }
 
   /* === Text Gradients === */

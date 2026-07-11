@@ -43,12 +43,21 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
   const {
     selectedProject,
     selectedSession,
+    isLoadingProjects,
+    isLoadingSessions,
     isLoadingMessages,
+    isRefreshingAllConversations,
+    refreshAllConversations,
     refreshCurrentSession,
   } = useAppStore();
 
   const computed = analyticsComputed;
   const isClaudeProject = (selectedProject?.provider ?? "claude") === "claude";
+  const isRefreshingConversations =
+    isRefreshingAllConversations ||
+    isLoadingProjects ||
+    isLoadingSessions ||
+    isLoadingMessages;
 
   const handleLoadTokenStats = async () => {
     if (!selectedProject) return;
@@ -172,6 +181,27 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
         >
           <Search className="w-5 h-5" />
         </button>
+
+        {/* Global refresh */}
+        <TooltipButton
+          onClick={() => {
+            void refreshAllConversations();
+          }}
+          disabled={isRefreshingConversations}
+          className={cn(
+            "p-2 rounded-md transition-colors",
+            "text-muted-foreground hover:text-foreground hover:bg-muted",
+            isRefreshingConversations && "opacity-70 cursor-not-allowed"
+          )}
+          content={t(
+            "session.refreshAllConversations",
+            "Refresh all conversations"
+          )}
+        >
+          <RefreshCw
+            className={cn("w-4 h-4", isRefreshingConversations && "animate-spin")}
+          />
+        </TooltipButton>
 
         {/* Desktop nav buttons */}
         <div className="hidden md:flex items-center gap-1">
