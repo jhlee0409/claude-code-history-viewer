@@ -42,6 +42,8 @@ pub async fn scan_all_projects(
             "forgecode".to_string(),
             "opencode".to_string(),
             "openinterpreter".to_string(),
+            "pi".to_string(),
+            "ompi".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
@@ -126,6 +128,8 @@ pub async fn scan_all_projects(
         ("forgecode", providers::forgecode::scan_projects),
         ("opencode", providers::opencode::scan_projects),
         ("openinterpreter", providers::openinterpreter::scan_projects),
+        ("pi", providers::pi::scan_projects),
+        ("ompi", providers::ompi::scan_projects),
         ("qwen", providers::qwen::scan_projects),
         ("zed", providers::zed::scan_projects),
         ("openhands", providers::openhands::scan_projects),
@@ -317,6 +321,8 @@ pub async fn load_provider_sessions(
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
         "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
+        "pi" => providers::pi::load_sessions(&project_path, exclude),
+        "ompi" => providers::ompi::load_sessions(&project_path, exclude),
         "qwen" => providers::qwen::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
         "crush" => providers::crush::load_sessions(&project_path, exclude),
@@ -362,6 +368,8 @@ pub async fn load_provider_messages(
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
         "openinterpreter" => providers::openinterpreter::load_messages(&session_path)?,
+        "pi" => providers::pi::load_messages(&session_path)?,
+        "ompi" => providers::ompi::load_messages(&session_path)?,
         "qwen" => providers::qwen::load_messages(&session_path)?,
         "cline" => providers::cline::load_messages(&session_path)?,
         "crush" => providers::crush::load_messages(&session_path)?,
@@ -413,6 +421,8 @@ pub async fn search_all_providers(
             "forgecode".to_string(),
             "opencode".to_string(),
             "openinterpreter".to_string(),
+            "pi".to_string(),
+            "ompi".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
@@ -575,6 +585,26 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Open Interpreter search failed: {e}");
+            }
+        }
+    }
+
+    // Pi
+    if providers_to_search.iter().any(|p| p == "pi") {
+        match providers::pi::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Pi search failed: {e}");
+            }
+        }
+    }
+
+    // oh-my-pi
+    if providers_to_search.iter().any(|p| p == "ompi") {
+        match providers::ompi::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("oh-my-pi search failed: {e}");
             }
         }
     }

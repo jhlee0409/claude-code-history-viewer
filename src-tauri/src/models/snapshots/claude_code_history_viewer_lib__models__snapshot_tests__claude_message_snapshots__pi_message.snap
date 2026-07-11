@@ -1,0 +1,40 @@
+---
+source: src/models/snapshot_tests.rs
+expression: message
+---
+{
+  "uuid": "a1",
+  "parentUuid": "u1",
+  "sessionId": "0197a288-41fb-4cce-8b2d-a027c391b4da",
+  "timestamp": "2026-06-08T20:32:10.000Z",
+  "type": "assistant",
+  "content": [
+    {
+      "signature": "sig-1",
+      "thinking": "let me check",
+      "type": "thinking"
+    },
+    {
+      "id": "call_1",
+      "input": {
+        "command": "grep -r login"
+      },
+      "name": "bash",
+      "type": "tool_use"
+    }
+  ],
+  "toolUse": null,
+  "toolUseResult": null,
+  "isSidechain": null,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 34,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5,
+    "service_tier": null
+  },
+  "role": "assistant",
+  "model": "claude-opus-4-8",
+  "stop_reason": "tool_use",
+  "provider": "pi"
+}

@@ -1,0 +1,13 @@
+---
+source: src/models/snapshot_tests.rs
+expression: project
+---
+{
+  "name": "herdr",
+  "path": "/Users/ac/.pi/agent/sessions/--Users-ac-dev-herdr--",
+  "actual_path": "/Users/ac/dev/herdr",
+  "session_count": 2,
+  "message_count": 42,
+  "last_modified": "2026-06-08T20:32:11.000Z",
+  "provider": "pi"
+}
