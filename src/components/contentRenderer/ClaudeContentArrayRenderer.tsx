@@ -161,7 +161,7 @@ export const ClaudeContentArrayRenderer = memo(({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 text-px12">
       {normalizedContent.map((entry) => {
         if (entry.kind === "toolExecution") {
           if (skipToolCalls) return null;
