@@ -85,6 +85,7 @@
   "navigator.role.system": "システム",
   "navigator.role.summary": "要約",
   "navigator.userOnly": "ユーザーメッセージのみ表示",
+  "navigator.showParallelTasks": "並列タスクを表示",
   "navigator.noMessages": "このセッションにメッセージはありません",
   "navigator.close": "ナビゲーターを閉じる",
   "navigator.messageCount": "{{count}}件のメッセージ",
@@ -98,6 +99,7 @@
   "filter.content.thinking": "思考プロセス",
   "filter.content.toolCalls": "ツール呼び出し",
   "filter.content.commands": "コマンド",
+  "filter.content.parallelTasks": "並列タスク",
   "filter.reset": "フィルターをリセット",
   "filter.active": "フィルター有効",
   "filter.showing": "{{filtered}} / {{total}}"

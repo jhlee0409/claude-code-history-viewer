@@ -636,12 +636,16 @@ fn convert_gemini_response(
 
             let mapped_name = map_gemini_tool_name(tool_name);
 
-            content_blocks.push(serde_json::json!({
+            let mut tool_use = serde_json::json!({
                 "type": "tool_use",
                 "id": tool_id,
                 "name": mapped_name,
                 "input": args
-            }));
+            });
+            if let Some(agent_id) = tc.get("agentId").and_then(Value::as_str) {
+                tool_use["agentId"] = Value::String(agent_id.to_string());
+            }
+            content_blocks.push(tool_use);
 
             // If tool has result, add tool_result block
             if let Some(result) = tc.get("result") {
@@ -1227,6 +1231,42 @@ mod tests {
         assert_eq!(arr[2]["type"], "tool_result");
         assert_eq!(arr[2]["content"], "file content here");
         assert_eq!(arr[2]["is_error"], false);
+    }
+
+    #[test]
+    fn test_convert_gemini_response_preserves_subagent_ids() {
+        let msg = json!({
+            "id": "gemini-agents",
+            "timestamp": "2026-07-07T00:00:00Z",
+            "type": "gemini",
+            "content": "",
+            "toolCalls": [
+                {
+                    "id": "agent-call-1",
+                    "name": "agent",
+                    "args": { "agent_name": "codebase_investigator", "prompt": "Check API" },
+                    "agentId": "agent-1",
+                    "status": "success",
+                    "timestamp": "2026-07-07T00:00:01Z"
+                },
+                {
+                    "id": "agent-call-2",
+                    "name": "agent",
+                    "args": { "agent_name": "codebase_investigator", "prompt": "Check UI" },
+                    "agentId": "agent-2",
+                    "status": "success",
+                    "timestamp": "2026-07-07T00:00:01Z"
+                }
+            ]
+        });
+
+        let result = convert_gemini_message(&msg, "session-1").unwrap();
+        let content = result.content.unwrap();
+        let arr = content.as_array().unwrap();
+
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["agentId"], "agent-1");
+        assert_eq!(arr[1]["agentId"], "agent-2");
     }
 
     #[test]

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-07-11T18:13:35.006Z
- * 총 키 개수: 1828
+ * 생성 시간: 2026-07-11T18:53:37.775Z
+ * 총 키 개수: 1830
  * Namespace 수: 11
  */
 
@@ -1289,12 +1289,13 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (101개)
+ * message namespace의 번역 키 (103개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
   | 'filter.active'
   | 'filter.content.commands'
+  | 'filter.content.parallelTasks'
   | 'filter.content.text'
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
@@ -1391,6 +1392,7 @@ export type MessageKeys =
   | 'navigator.role.summary'
   | 'navigator.role.system'
   | 'navigator.role.user'
+  | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'navigator.userOnly';
@@ -2529,6 +2531,7 @@ export type TranslationKey =
   | 'fileListRenderer.fileList'
   | 'filter.active'
   | 'filter.content.commands'
+  | 'filter.content.parallelTasks'
   | 'filter.content.text'
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
@@ -2687,6 +2690,7 @@ export type TranslationKey =
   | 'navigator.role.summary'
   | 'navigator.role.system'
   | 'navigator.role.user'
+  | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'navigator.userOnly'
