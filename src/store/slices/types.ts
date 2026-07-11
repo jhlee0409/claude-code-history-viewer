@@ -103,6 +103,7 @@ export interface AppStoreState {
   isLoading: boolean;
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
+  isRefreshingAllConversations: boolean;
   error: AppError | null;
 
   // Message state
@@ -212,6 +213,7 @@ export interface AppStoreActions {
   // Project actions
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
+  refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
   clearProjectSelection: () => void;
   setClaudePath: (path: string) => Promise<void>;

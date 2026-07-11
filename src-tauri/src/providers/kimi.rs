@@ -502,13 +502,13 @@ fn extract_content_summary(value: &Value) -> Option<String> {
     let content = value.get("content")?;
     let text = if let Some(text) = content.as_str() {
         text.to_string()
-    } else if let Some(arr) = content.as_array() {
-        arr.iter()
+    } else {
+        content
+            .as_array()?
+            .iter()
             .find_map(|item| item.get("text").and_then(Value::as_str))
             .unwrap_or("")
             .to_string()
-    } else {
-        return None;
     };
 
     let trimmed = text.trim();

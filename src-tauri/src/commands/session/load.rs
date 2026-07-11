@@ -1498,6 +1498,24 @@ pub struct SubagentSession {
     /// `agent-<id>.meta.json` (newer Claude Code format). `None` for older sessions
     /// that have no meta file; the frontend then falls back to progress messages.
     pub tool_use_id: Option<String>,
+    /// Workflow run this agent belongs to (`wf_…`, the directory name under
+    /// `subagents/workflows/`). `None` for regular flat subagents. Workflow
+    /// agents have no `toolUseId` in their meta.json; the frontend anchors
+    /// them to the spawning `Workflow` tool call via this run id instead
+    /// (the `tool_result` text contains the run's transcript dir) — #449.
+    pub workflow_run_id: Option<String>,
+}
+
+/// Derive the workflow run id (`wf_…`) for a subagent transcript path.
+/// Returns `Some` only for the `…/subagents/workflows/<run>/agent-*.jsonl`
+/// layout; flat subagents return `None`.
+fn workflow_run_id_for(sa_path: &Path) -> Option<String> {
+    let run_dir = sa_path.parent()?;
+    let workflows_dir = run_dir.parent()?;
+    if workflows_dir.file_name().and_then(|n| n.to_str()) != Some("workflows") {
+        return None;
+    }
+    run_dir.file_name().map(|n| n.to_string_lossy().to_string())
 }
 
 /// Returns subagent sessions for a given parent session file.
@@ -1539,6 +1557,7 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
         // to the right file (#288); older sessions have no meta file -> None.
         let meta_path = sa_path.with_file_name(format!("{file_name}.meta.json"));
         let tool_use_id = read_subagent_tool_use_id(&meta_path);
+        let workflow_run_id = workflow_run_id_for(&sa_path);
 
         sessions.push(SubagentSession {
             agent_id,
@@ -1549,6 +1568,7 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
             last_message_time: last_time,
             summary,
             tool_use_id,
+            workflow_run_id,
         });
     }
 
@@ -2981,6 +3001,21 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].summary, Some("AppendedBranchTitle".to_string()));
         assert_eq!(result[0].message_count, 5);
+    }
+
+    #[test]
+    fn workflow_run_id_for_detects_workflow_layout_only() {
+        assert_eq!(
+            workflow_run_id_for(Path::new(
+                "/p/abc/subagents/workflows/wf_1a198a78-3be/agent-x.jsonl"
+            )),
+            Some("wf_1a198a78-3be".to_string())
+        );
+        // Flat subagents are not workflow-scoped.
+        assert_eq!(
+            workflow_run_id_for(Path::new("/p/abc/subagents/agent-x.jsonl")),
+            None
+        );
     }
 
     #[test]

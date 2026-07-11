@@ -25,7 +25,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
           toolName={toolName as string}
           className="text-muted-foreground"
         />
-        <span className="font-medium text-foreground">
+        <span className={cn(layout.titleText, "text-foreground")}>
           {String(toolName)}{" "}
           {typeof toolUse.description === "string" &&
             `- ${toolUse.description}`}
@@ -41,7 +41,7 @@ export const ClaudeToolUseDisplay: React.FC<ClaudeToolUseDisplayProps> = ({
             <pre
               className={className}
               style={getPreStyles(isDarkMode, style, {
-                fontSize: "0.8125rem",
+                fontSize: "calc(0.8125rem * var(--app-font-scale))",
                 padding: "0.5rem",
                 overflowX: "auto",
               })}
