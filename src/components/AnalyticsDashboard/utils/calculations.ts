@@ -33,10 +33,13 @@ interface ModelPricing {
 
 const MODEL_PRICING: Record<string, ModelPricing> = {
   // Claude models
+  'claude-fable-5': { input: 10, output: 50, cacheWrite: 12.50, cacheRead: 1.00 },
+  'claude-opus-4-8': { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.50 },
   'claude-opus-4-7': { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.50 },
   'claude-opus-4-6': { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.50 },
   'claude-opus-4-5': { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.50 },
   'claude-opus-4': { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.50 },
+  'claude-sonnet-5': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
   'claude-sonnet-4-6': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
   'claude-sonnet-4-5': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
   'claude-sonnet-4': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
@@ -47,6 +50,9 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   // OpenAI models (Codex CLI) - specific keys must precede prefix matches
   // cacheWrite is 0 (OpenAI does not charge for cache writes)
   // cacheRead is input_rate * 0.1 (90% discount on cached input)
+  'gpt-5.6-sol': { input: 5, output: 30, cacheWrite: 6.25, cacheRead: 0.50 },
+  'gpt-5.6-terra': { input: 2.5, output: 15, cacheWrite: 3.125, cacheRead: 0.25 },
+  'gpt-5.6-luna': { input: 1, output: 6, cacheWrite: 1.25, cacheRead: 0.10 },
   'gpt-5.5': { input: 5, output: 30, cacheWrite: 0, cacheRead: 0.50 },
   'gpt-5.4': { input: 2.5, output: 15, cacheWrite: 0, cacheRead: 0.25 },
   'gpt-4.1-mini': { input: 0.4, output: 1.6, cacheWrite: 0, cacheRead: 0.04 },
