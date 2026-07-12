@@ -47,6 +47,9 @@ export const GlobalSearchModal = ({
     const inputRef = useRef<HTMLInputElement>(null);
     const resultsContainerRef = useRef<HTMLDivElement>(null);
     const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Bumped on every result click and on close — cancels an in-flight
+    // session-resolution sweep so it stops issuing project requests.
+    const resolveTokenRef = useRef(0);
 
     const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage, setAnalyticsCurrentView, userMetadata } =
         useAppStore();
@@ -159,7 +162,7 @@ export const GlobalSearchModal = ({
     const handleSelectResult = useCallback(
         async (result: GlobalSearchResult) => {
             try {
-                let targetSession = sessions.find(
+                const targetSession = sessions.find(
                     (s) =>
                         s.session_id === result.sessionId ||
                         s.actual_session_id === result.sessionId,
@@ -181,7 +184,32 @@ export const GlobalSearchModal = ({
                 // setting is user-configurable; taking a snapshot is intentional
                 // so a mid-scan toggle does not change half the requests.
                 const { excludeSidechain } = useAppStore.getState();
-                for (const project of projects) {
+                const token = ++resolveTokenRef.current;
+
+                // The search result carries the project name and provider —
+                // rank matching projects first so the common case resolves in
+                // ONE request instead of sweeping every project. The rest are
+                // still tried (defensively) but in parallel batches with an
+                // early exit, not one serial await per project.
+                const resultProvider = result.provider ?? "claude";
+                const rank = (project: (typeof projects)[number]): number => {
+                    const projectProvider = project.provider ?? "claude";
+                    if (projectProvider !== resultProvider) return 3;
+                    if (result.projectName && project.name === result.projectName) return 0;
+                    if (
+                        result.projectName &&
+                        (project.name.includes(result.projectName) ||
+                            project.actual_path?.endsWith(result.projectName))
+                    ) {
+                        return 1;
+                    }
+                    return 2;
+                };
+                const candidates = [...projects].sort((a, b) => rank(a) - rank(b));
+
+                const findInProject = async (
+                    project: (typeof projects)[number],
+                ): Promise<{ project: typeof project; session: ClaudeSession } | null> => {
                     try {
                         const projectProvider = project.provider ?? "claude";
                         const projectSessions = await api<ClaudeSession[]>(
@@ -190,26 +218,36 @@ export const GlobalSearchModal = ({
                                 ? { provider: projectProvider, projectPath: project.path, excludeSidechain }
                                 : { projectPath: project.path, excludeSidechain },
                         );
-
-                        targetSession = projectSessions.find(
+                        const session = projectSessions.find(
                             (s) =>
                                 s.session_id === result.sessionId ||
                                 s.actual_session_id === result.sessionId,
                         );
-
-                        if (targetSession) {
-                            setAnalyticsCurrentView("messages");
-                            if (result.uuid) navigateToMessage(result.uuid);
-                            await selectProject(project);
-                            await selectSession(targetSession);
-                            onClose();
-                            return;
-                        }
+                        return session ? { project, session } : null;
                     } catch (error) {
                         console.error(
                             `Failed to load sessions for project ${project.name}:`,
                             error,
                         );
+                        return null;
+                    }
+                };
+
+                const BATCH_SIZE = 4;
+                for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+                    if (token !== resolveTokenRef.current) return; // cancelled
+                    const batch = candidates.slice(i, i + BATCH_SIZE);
+                    const found = (await Promise.all(batch.map(findInProject))).find(
+                        (hit): hit is NonNullable<typeof hit> => hit !== null,
+                    );
+                    if (token !== resolveTokenRef.current) return; // cancelled
+                    if (found) {
+                        setAnalyticsCurrentView("messages");
+                        if (result.uuid) navigateToMessage(result.uuid);
+                        await selectProject(found.project);
+                        await selectSession(found.session);
+                        onClose();
+                        return;
                     }
                 }
 
@@ -275,6 +313,8 @@ export const GlobalSearchModal = ({
         if (isOpen) {
             setTimeout(() => inputRef.current?.focus(), 0);
         } else {
+            // Cancel any in-flight result-resolution sweep.
+            resolveTokenRef.current++;
             setQuery("");
             setResults([]);
             setSelectedIndex(0);
