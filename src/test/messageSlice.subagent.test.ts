@@ -156,6 +156,7 @@ const makeSubagent = (
   last_message_time: null,
   summary: null,
   tool_use_id,
+  workflow_run_id: null,
 });
 
 const makeProgress = (

@@ -444,11 +444,20 @@ mod tests {
 
     #[test]
     fn parses_file_url_as_path_hint() {
-        let hint =
-            parse_session_hint_from_url(&url("file:///Users/jack/.claude/projects/demo/abc.jsonl"))
-                .expect("hint");
+        #[cfg(target_os = "windows")]
+        let (file_url, expected_path) = (
+            "file:///C:/Users/jack/.claude/projects/demo/abc.jsonl",
+            r"C:\Users\jack\.claude\projects\demo\abc.jsonl",
+        );
+        #[cfg(not(target_os = "windows"))]
+        let (file_url, expected_path) = (
+            "file:///Users/jack/.claude/projects/demo/abc.jsonl",
+            "/Users/jack/.claude/projects/demo/abc.jsonl",
+        );
+
+        let hint = parse_session_hint_from_url(&url(file_url)).expect("hint");
         assert_eq!(hint.kind, SessionHintKind::Path);
-        assert_eq!(hint.value, "/Users/jack/.claude/projects/demo/abc.jsonl");
+        assert_eq!(hint.value, expected_path);
     }
 
     #[test]

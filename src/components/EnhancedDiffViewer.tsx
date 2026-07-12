@@ -242,7 +242,7 @@ export const EnhancedDiffViewer = ({
             renderContent={language !== "text" ? highlightSyntax : undefined}
             styles={{
               contentText: {
-                fontSize: "13px",
+                fontSize: "calc(13px * var(--app-font-scale))",
               },
             }}
           />

@@ -287,7 +287,7 @@ export const FileContent = ({
                     <pre
                       className={className}
                       style={getPreStyles(isDarkMode, style, {
-                        fontSize: "0.6875rem",
+                        fontSize: "calc(0.6875rem * var(--app-font-scale))",
                         lineHeight: "1.2rem",
                         maxHeight: "24rem",
                         overflow: "auto",

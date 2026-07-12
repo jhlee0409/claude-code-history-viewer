@@ -299,7 +299,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
                   <pre
                     className={className}
                     style={getPreStyles(isDarkMode, style, {
-                      fontSize: "0.8125rem",
+                      fontSize: "calc(0.8125rem * var(--app-font-scale))",
                       lineHeight: "1.25rem",
                       padding: "0.75rem",
                     })}

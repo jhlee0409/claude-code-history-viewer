@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.0] - 2026-07-12
+
+Feature release: two new providers (now 27 supported assistants), Claude Code Workflow rendering, and a cross-provider parallel-task filter.
+
+### Added
+- **Pi and oh-my-pi provider support** — sessions from `~/.pi/agent/sessions` and `~/.omp/agent/sessions`, parsed by one shared store-parameterized core. (#445, closes #359, #279)
+- **Claude Code Workflow rendering** — `Workflow` tool calls now render a dedicated card (workflow name, status, run id, collapsible script and result) with the run's agent transcripts listed and navigable in the center panel; workflow sub-agents also appear in the SubAgent panel. (#449)
+- **Parallel Tasks filter** — provider-neutral classification of multi-agent history (Claude task groups, Codex `spawn_agent` collaboration, Gemini CLI / Qwen Code agents, OpenCode) with a filter-toolbar toggle and a right-side navigator control. (#446)
+- **Global conversation refresh** button in the header — rescans all projects, reloads the current selection when still present, and clears stale selections. (#439)
+
+### Fixed
+- **Project tree session counts match the opened session list** — `scan_projects` counts only top-level session files, excluding sidechain/subagent transcripts nested under the session directory. (#450)
+- **Forked Codex sessions (`codex fork`) now list under the right project** — the first `session_meta` identifies the file; the source session's replayed meta no longer misfiles the session or re-tags its messages. (#451)
+- **Font-size setting now applies to AI tool/thinking boxes and assistant markdown** — the `!important` prose override and hardcoded code-block sizes are scale-aware. (#440, #441, #443)
+- **In-session search matches tool arguments** — `tool_use.input` is now indexed. (#437)
+- **Vite dev server no longer crashes on Windows** trying to watch locked binaries under `src-tauri/target/`. (#442)
+
+### Changed
+- Translated READMEs (한국어, 日本語, 简体中文, 繁體中文) synced to the current English README after five stale releases.
+
 ## [1.18.0] - 2026-06-30
 
 Feature and fix release: search/sidebar usability improvements plus a significant startup-performance fix.

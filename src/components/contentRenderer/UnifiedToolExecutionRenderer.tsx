@@ -25,6 +25,7 @@ import {
   WebSearchCard,
   WebFetchCard,
   AgentCard,
+  WorkflowCard,
   DefaultCard,
 } from "./unifiedCards";
 import type { Props } from "./unifiedCards";
@@ -51,6 +52,7 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
     case "WebFetch":  return <WebFetchCard toolUse={toolUse} toolResults={toolResults} />;
     case "Agent":
     case "Task":      return <AgentCard toolUse={toolUse} toolResults={toolResults} onViewSubagent={onViewSubagent} />;
+    case "Workflow":  return <WorkflowCard toolUse={toolUse} toolResults={toolResults} />;
     default:          return <DefaultCard toolUse={toolUse} toolResults={toolResults} />;
   }
 });

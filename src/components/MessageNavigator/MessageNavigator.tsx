@@ -1,10 +1,14 @@
 import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { ListTree, Search, X, PanelRightClose, PanelRight, User } from "lucide-react";
+import { ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeMessage } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
+import {
+  filterMessagesByCategory,
+  getMessageUuidsByCategory,
+} from "../MessageViewer/helpers";
 import { NavigatorEntry } from "./NavigatorEntry";
 import { useNavigatorEntries } from "./useNavigatorEntries";
 
@@ -39,10 +43,29 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   const [filterText, setFilterText] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(0);
 
-  const { navigateToMessage, targetMessageUuid, userOnlyFilter, toggleUserOnlyFilter } = useAppStore();
+  const {
+    navigateToMessage,
+    targetMessageUuid,
+    userOnlyFilter,
+    toggleUserOnlyFilter,
+    showParallelTasksInNavigator,
+    toggleShowParallelTasksInNavigator,
+  } = useAppStore();
+  const hasParallelTasks = useMemo(
+    () => getMessageUuidsByCategory(messages, "parallel-task").size > 0,
+    [messages],
+  );
 
   // Transform messages to navigator entries
-  const allEntries = useNavigatorEntries(messages);
+  const navigatorMessages = useMemo(
+    () => filterMessagesByCategory(
+      messages,
+      "parallel-task",
+      showParallelTasksInNavigator,
+    ),
+    [messages, showParallelTasksInNavigator],
+  );
+  const allEntries = useNavigatorEntries(navigatorMessages);
 
   // Apply local filter (role + text)
   const entries = useMemo(() => {
@@ -244,6 +267,22 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
         >
           <User className="w-3.5 h-3.5" />
         </button>
+        {hasParallelTasks && (
+          <button
+            onClick={toggleShowParallelTasksInNavigator}
+            className={cn(
+              "p-0.5 rounded transition-colors",
+              showParallelTasksInNavigator
+                ? "bg-tool-task/20 text-tool-task"
+                : "hover:bg-accent/10 text-muted-foreground hover:text-foreground"
+            )}
+            aria-label={t("navigator.showParallelTasks")}
+            aria-pressed={showParallelTasksInNavigator}
+            title={t("navigator.showParallelTasks")}
+          >
+            <Zap className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           onClick={onToggleCollapse}
           className="p-0.5 rounded hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors"

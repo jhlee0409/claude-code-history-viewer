@@ -492,6 +492,11 @@ pub fn build_provider_message(
 /// 1. `{parent}/{stem}/subagents/`  — Claude Code native layout
 /// 2. `{parent}/subagents/{stem}/`  — archive layout (backward compat)
 ///
+/// Workflow sub-agents live one level deeper — `subagents/workflows/wf_*/
+/// agent-*.jsonl` (issue #449) — and are included too. Only `agent-*.jsonl`
+/// counts there: each run directory also holds a `journal.jsonl` that is
+/// orchestration metadata, not a conversation.
+///
 /// Symlinks are rejected for security.
 pub fn find_subagent_files(session_file_path: &Path) -> Vec<std::path::PathBuf> {
     let parent = match session_file_path.parent() {
@@ -524,6 +529,15 @@ pub fn find_subagent_files(session_file_path: &Path) -> Vec<std::path::PathBuf> 
                     if meta.file_type().is_symlink() {
                         continue;
                     }
+                    // Workflow runs nest one level deeper; other directories
+                    // intentionally fall through to the extension check so a
+                    // directory masquerading as `*.jsonl` still surfaces and
+                    // fails loudly downstream instead of being skipped.
+                    if meta.is_dir() && p.file_name().and_then(|n| n.to_str()) == Some("workflows")
+                    {
+                        collect_workflow_agent_files(&p, &mut files);
+                        continue;
+                    }
                 }
                 if p.extension().and_then(|e| e.to_str()) == Some("jsonl") {
                     files.push(p);
@@ -534,6 +548,44 @@ pub fn find_subagent_files(session_file_path: &Path) -> Vec<std::path::PathBuf> 
     files.sort();
     files.dedup();
     files
+}
+
+/// Collects `agent-*.jsonl` transcripts from `subagents/workflows/<run>/`
+/// directories. Symlinks are rejected at every level, mirroring
+/// [`find_subagent_files`].
+fn collect_workflow_agent_files(workflows_dir: &Path, files: &mut Vec<std::path::PathBuf>) {
+    let Ok(runs) = fs::read_dir(workflows_dir) else {
+        return;
+    };
+    for run_entry in runs.flatten() {
+        let run_dir = run_entry.path();
+        let Ok(run_meta) = fs::symlink_metadata(&run_dir) else {
+            continue;
+        };
+        if run_meta.file_type().is_symlink() || !run_meta.is_dir() {
+            continue;
+        }
+        let Ok(agents) = fs::read_dir(&run_dir) else {
+            continue;
+        };
+        for agent_entry in agents.flatten() {
+            let p = agent_entry.path();
+            let Ok(meta) = fs::symlink_metadata(&p) else {
+                continue;
+            };
+            if meta.file_type().is_symlink() || !meta.is_file() {
+                continue;
+            }
+            let is_agent_transcript = p
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("agent-"))
+                && p.extension().and_then(|e| e.to_str()) == Some("jsonl");
+            if is_agent_transcript {
+                files.push(p);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -879,5 +931,41 @@ mod tests {
             info.main_project_path,
             Some("/Users/jack/main-project".to_string())
         );
+    }
+
+    /// Claude Code Workflows store their sub-agent transcripts one level
+    /// deeper than regular subagents: `{uuid}/subagents/workflows/wf_*/agent-*.jsonl`
+    /// (issue #449). Only `agent-*.jsonl` counts — each run also has a
+    /// `journal.jsonl` that is orchestration metadata, not a conversation.
+    #[test]
+    fn test_find_subagent_files_includes_workflow_agents() {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new().unwrap();
+        let session_path = temp_dir.path().join("abc123.jsonl");
+        fs::write(&session_path, "{}\n").unwrap();
+
+        let subagents = temp_dir.path().join("abc123").join("subagents");
+        fs::create_dir_all(&subagents).unwrap();
+        fs::write(subagents.join("agent-flat1.jsonl"), "{}\n").unwrap();
+
+        let run_dir = subagents.join("workflows").join("wf_1a198a78-3be");
+        fs::create_dir_all(&run_dir).unwrap();
+        fs::write(run_dir.join("agent-nested1.jsonl"), "{}\n").unwrap();
+        fs::write(run_dir.join("agent-nested1.meta.json"), "{}").unwrap();
+        fs::write(run_dir.join("journal.jsonl"), "{}\n").unwrap();
+
+        let files = find_subagent_files(&session_path);
+        let names: Vec<String> = files
+            .iter()
+            .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+            .collect();
+
+        assert!(names.contains(&"agent-flat1.jsonl".to_string()));
+        assert!(names.contains(&"agent-nested1.jsonl".to_string()));
+        assert!(
+            !names.contains(&"journal.jsonl".to_string()),
+            "journal.jsonl is workflow metadata, not a subagent transcript"
+        );
+        assert_eq!(files.len(), 2);
     }
 }

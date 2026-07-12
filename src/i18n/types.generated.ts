@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-07-01T10:31:31.945Z
- * 총 키 개수: 1824
+ * 생성 시간: 2026-07-12T03:53:00.794Z
+ * 총 키 개수: 1834
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (178개)
+ * common namespace의 번역 키 (181개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -126,13 +126,16 @@ export type CommonKeys =
   | 'common.provider.kimi'
   | 'common.provider.kiro'
   | 'common.provider.llm'
+  | 'common.provider.ompi'
   | 'common.provider.opencode'
   | 'common.provider.openhands'
   | 'common.provider.openinterpreter'
   | 'common.provider.pearai'
+  | 'common.provider.pi'
   | 'common.provider.qwen'
   | 'common.provider.trae'
   | 'common.provider.vibe'
+  | 'common.provider.zcode'
   | 'common.provider.zed'
   | 'common.refresh'
   | 'common.remove'
@@ -412,7 +415,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (217개)
+ * session namespace의 번역 키 (218개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -612,6 +615,7 @@ export type SessionKeys =
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
   | 'session.refresh'
+  | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'
   | 'session.renameHint'
@@ -1289,12 +1293,13 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (101개)
+ * message namespace의 번역 키 (103개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
   | 'filter.active'
   | 'filter.content.commands'
+  | 'filter.content.parallelTasks'
   | 'filter.content.text'
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
@@ -1391,12 +1396,13 @@ export type MessageKeys =
   | 'navigator.role.summary'
   | 'navigator.role.system'
   | 'navigator.role.user'
+  | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'navigator.userOnly';
 
 /**
- * renderers namespace의 번역 키 (385개)
+ * renderers namespace의 번역 키 (389개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1688,6 +1694,10 @@ export type RenderersKeys =
   | 'renderers.webSearchToolRenderer.allow'
   | 'renderers.webSearchToolRenderer.block'
   | 'renderers.webSearchToolRenderer.query'
+  | 'renderers.workflowTool.agents'
+  | 'renderers.workflowTool.script'
+  | 'renderers.workflowTool.title'
+  | 'renderers.workflowTool.toggleScript'
   | 'searchResultRenderer.title'
   | 'serverToolUseRenderer.query'
   | 'serverToolUseRenderer.serverTool'
@@ -2318,13 +2328,16 @@ export type TranslationKey =
   | 'common.provider.kimi'
   | 'common.provider.kiro'
   | 'common.provider.llm'
+  | 'common.provider.ompi'
   | 'common.provider.opencode'
   | 'common.provider.openhands'
   | 'common.provider.openinterpreter'
   | 'common.provider.pearai'
+  | 'common.provider.pi'
   | 'common.provider.qwen'
   | 'common.provider.trae'
   | 'common.provider.vibe'
+  | 'common.provider.zcode'
   | 'common.provider.zed'
   | 'common.refresh'
   | 'common.remove'
@@ -2526,6 +2539,7 @@ export type TranslationKey =
   | 'fileListRenderer.fileList'
   | 'filter.active'
   | 'filter.content.commands'
+  | 'filter.content.parallelTasks'
   | 'filter.content.text'
   | 'filter.content.thinking'
   | 'filter.content.toolCalls'
@@ -2684,6 +2698,7 @@ export type TranslationKey =
   | 'navigator.role.summary'
   | 'navigator.role.system'
   | 'navigator.role.user'
+  | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'navigator.userOnly'
@@ -2809,6 +2824,10 @@ export type TranslationKey =
   | 'renderers.webSearchToolRenderer.allow'
   | 'renderers.webSearchToolRenderer.block'
   | 'renderers.webSearchToolRenderer.query'
+  | 'renderers.workflowTool.agents'
+  | 'renderers.workflowTool.script'
+  | 'renderers.workflowTool.title'
+  | 'renderers.workflowTool.toggleScript'
   | 'searchResultRenderer.title'
   | 'serverToolUseRenderer.query'
   | 'serverToolUseRenderer.serverTool'
@@ -2976,6 +2995,7 @@ export type TranslationKey =
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
   | 'session.refresh'
+  | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'
   | 'session.renameHint'
