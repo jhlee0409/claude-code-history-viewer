@@ -202,6 +202,9 @@ fn validate_session_path_in(
     if !is_chat_session_file(&path) {
         return Err("VS Code session path must be a .json or .jsonl file".to_string());
     }
+    if is_symlink(&path) {
+        return Err("VS Code session path must not be a symlink".to_string());
+    }
     if path
         .parent()
         .and_then(Path::file_name)
@@ -266,8 +269,13 @@ fn dedup_prefer_jsonl(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
 }
 
 /// Collect the chat-session files of one `chatSessions` dir (both formats,
-/// deduped), skipping symlinks and non-files.
+/// deduped), skipping symlinks and non-files. A symlinked `chatSessions`
+/// directory itself is refused — following it would let a crafted workspace
+/// read files outside workspaceStorage as sessions.
 fn chat_session_files(chat_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    if is_symlink(chat_dir) {
+        return Ok(Vec::new());
+    }
     let mut paths: Vec<PathBuf> = fs::read_dir(chat_dir)
         .map_err(|e| e.to_string())?
         .flatten()
