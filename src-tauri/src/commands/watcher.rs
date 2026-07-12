@@ -300,7 +300,9 @@ fn handle_file_event(app_handle: &AppHandle, event: &DebouncedEvent) {
         return;
     };
 
-    super::session::invalidate_search_cache();
+    // No search-cache invalidation here: the search cache validates each
+    // file's (size, mtime) at serve time, so results built from unchanged
+    // files stay valid while one session file is being appended to.
 
     if let Err(e) = app_handle.emit(&watch_event.event_type, &watch_event) {
         log::error!("Failed to emit file watch event: {e}");

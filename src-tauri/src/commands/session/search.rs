@@ -8,12 +8,13 @@ use lru::LruCache;
 use memmap2::Mmap;
 use rayon::prelude::*;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
@@ -23,34 +24,63 @@ const PARSE_BUFFER_INITIAL_CAPACITY: usize = 4096;
 /// Initial capacity for search results (most searches find few matches)
 const SEARCH_RESULTS_INITIAL_CAPACITY: usize = 8;
 
-/// LRU cache capacity
+/// LRU cache capacity — distinct (`claude_path`, query) pairs.
 const SEARCH_CACHE_CAPACITY: usize = 64;
+
+/// Upper bound on cached raw matches per query entry; a query matching huge
+/// portions of the corpus is computed but not stored, keeping worst-case
+/// memory bounded.
+const MAX_CACHED_MATCHES_PER_QUERY: usize = 10_000;
 
 lazy_static::lazy_static! {
     static ref ERROR_MATCHER: AhoCorasick = build_matcher("error");
-    static ref SEARCH_CACHE: Mutex<LruCache<u64, CachedSearchResult>> =
+    static ref SEARCH_CACHE: Mutex<LruCache<u64, CachedQuerySearch>> =
         Mutex::new(LruCache::new(NonZeroUsize::new(SEARCH_CACHE_CAPACITY).expect("non-zero")));
 }
 
-/// Generation counter — incremented on any file change to invalidate cache
-static CACHE_GENERATION: AtomicU64 = AtomicU64::new(0);
-
-struct CachedSearchResult {
-    generation: u64,
-    results: Vec<ClaudeMessage>,
+/// (size, mtime) identity of a session file, captured BEFORE scanning so a
+/// concurrent append can never be cached under a newer signature (worst
+/// case: an unnecessary re-scan on the next call). Same validation scheme as
+/// `stats::cache`, kept separate on purpose — the two caches must not couple.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct FileSignature {
+    size: u64,
+    mtime: Option<SystemTime>,
 }
 
-/// Called by the file watcher when session files change.
-pub fn invalidate_search_cache() {
-    CACHE_GENERATION.fetch_add(1, Ordering::Release);
+impl FileSignature {
+    fn of(path: &Path) -> Option<Self> {
+        let metadata = fs::metadata(path).ok()?;
+        Some(Self {
+            size: metadata.len(),
+            mtime: metadata.modified().ok(),
+        })
+    }
 }
 
-fn cache_key(claude_path: &str, query: &str, filters: &serde_json::Value, limit: usize) -> u64 {
+/// Raw (unfiltered, untruncated) matches of one query in one file, valid
+/// while the file's signature is unchanged.
+#[derive(Clone)]
+struct FileMatches {
+    signature: FileSignature,
+    matches: Arc<Vec<ClaudeMessage>>,
+}
+
+/// Per-file match sets for one (`claude_path`, query) pair. Filters and limit
+/// are applied at serve time, so one entry answers every filter/limit
+/// combination for its query.
+struct CachedQuerySearch {
+    files: HashMap<PathBuf, FileMatches>,
+}
+
+/// Serve-time state of one walked file: its captured signature (if the file
+/// could be stat'ed) and its matches, filled from cache or by scanning.
+type FileSlot = (Option<FileSignature>, Option<Arc<Vec<ClaudeMessage>>>);
+
+fn cache_key(claude_path: &str, query: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     claude_path.hash(&mut hasher);
     query.to_lowercase().hash(&mut hasher);
-    filters.to_string().hash(&mut hasher);
-    limit.hash(&mut hasher);
     hasher.finish()
 }
 
@@ -415,18 +445,6 @@ pub async fn search_messages(
     let max_results = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
     validate_search_filters(&filters)?;
 
-    let key = cache_key(&claude_path, &query, &filters, max_results);
-    let current_gen = CACHE_GENERATION.load(Ordering::Acquire);
-    if let Ok(mut cache) = SEARCH_CACHE.lock() {
-        if let Some(cached) = cache.get(&key) {
-            if cached.generation == current_gen {
-                #[cfg(debug_assertions)]
-                eprintln!("📊 search_messages: cache hit");
-                return Ok(cached.results.clone());
-            }
-        }
-    }
-
     let projects_path = PathBuf::from(&claude_path).join("projects");
     if !projects_path.exists() {
         return Ok(vec![]);
@@ -439,17 +457,69 @@ pub async fn search_messages(
         .map(|e| e.path().to_path_buf())
         .collect();
 
+    let key = cache_key(&claude_path, &query);
+    let cached_files: HashMap<PathBuf, FileMatches> = SEARCH_CACHE
+        .lock()
+        .ok()
+        .and_then(|mut cache| cache.get(&key).map(|entry| entry.files.clone()))
+        .unwrap_or_default();
+
+    // Per-file resolution: reuse cached matches when the file's (size, mtime)
+    // signature is unchanged; anything else (changed, new, or unstat-able)
+    // is re-scanned. Files missing from the current walk drop out because the
+    // stored map is rebuilt from `file_paths` below.
+    let mut per_file: Vec<FileSlot> = file_paths
+        .iter()
+        .map(|path| {
+            let signature = FileSignature::of(path);
+            let cached = signature.and_then(|sig| {
+                cached_files
+                    .get(path)
+                    .and_then(|entry| (entry.signature == sig).then(|| Arc::clone(&entry.matches)))
+            });
+            (signature, cached)
+        })
+        .collect();
+
+    let scan_indices: Vec<usize> = per_file
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, cached))| cached.is_none())
+        .map(|(idx, _)| idx)
+        .collect();
+
     #[cfg(debug_assertions)]
-    eprintln!("🔍 search_messages: searching {} files", file_paths.len());
+    eprintln!(
+        "🔍 search_messages: {} files ({} cached, {} scanned)",
+        file_paths.len(),
+        file_paths.len() - scan_indices.len(),
+        scan_indices.len()
+    );
 
     let matcher = build_matcher(&query);
 
-    let mut filtered: Vec<ClaudeMessage> = file_paths
-        .par_iter()
-        .flat_map(|path| search_in_file(path, &matcher))
+    let scanned: Vec<(usize, Arc<Vec<ClaudeMessage>>)> = scan_indices
+        .into_par_iter()
+        .map(|idx| {
+            #[cfg(test)]
+            note_scan(&file_paths[idx]);
+            (idx, Arc::new(search_in_file(&file_paths[idx], &matcher)))
+        })
+        .collect();
+    for (idx, matches) in scanned {
+        per_file[idx].1 = Some(matches);
+    }
+
+    // Merge in walk order — identical concatenation order to a cold scan, so
+    // the selection below sees the same input either way.
+    let raw: Vec<ClaudeMessage> = per_file
+        .iter()
+        .filter_map(|(_, matches)| matches.as_deref())
+        .flat_map(|matches| matches.iter().cloned())
         .collect();
 
-    filtered = apply_search_filters(filtered, &filters);
+    let total_matches = raw.len();
+    let mut filtered = apply_search_filters(raw, &filters);
 
     if filtered.len() > max_results {
         filtered.select_nth_unstable_by(max_results, |a, b| b.timestamp.cmp(&a.timestamp));
@@ -457,14 +527,25 @@ pub async fn search_messages(
     }
     filtered.sort_unstable_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-    if let Ok(mut cache) = SEARCH_CACHE.lock() {
-        cache.put(
-            key,
-            CachedSearchResult {
-                generation: current_gen,
-                results: filtered.clone(),
-            },
-        );
+    // Store the rebuilt per-file map; files whose signature could not be
+    // captured are computed without caching (re-scanned next call).
+    if total_matches <= MAX_CACHED_MATCHES_PER_QUERY {
+        let files: HashMap<PathBuf, FileMatches> = file_paths
+            .into_iter()
+            .zip(per_file)
+            .filter_map(|(path, (signature, matches))| {
+                Some((
+                    path,
+                    FileMatches {
+                        signature: signature?,
+                        matches: matches?,
+                    },
+                ))
+            })
+            .collect();
+        if let Ok(mut cache) = SEARCH_CACHE.lock() {
+            cache.put(key, CachedQuerySearch { files });
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -479,6 +560,38 @@ pub async fn search_messages(
     }
 
     Ok(filtered)
+}
+
+/// Number of `search_in_file` scans recorded for `path`. Test-only cache-hit
+/// observability, mirroring `stats::cache::test_build_count`.
+#[cfg(test)]
+fn note_scan(path: &std::path::Path) {
+    if let Ok(mut counts) = scan_counts().lock() {
+        *counts.entry(path.to_path_buf()).or_insert(0) += 1;
+    }
+}
+
+#[cfg(test)]
+fn test_scan_count(path: &std::path::Path) -> u64 {
+    scan_counts()
+        .lock()
+        .map(|counts| counts.get(path).copied().unwrap_or(0))
+        .unwrap_or(0)
+}
+
+#[cfg(test)]
+fn scan_counts() -> &'static Mutex<std::collections::HashMap<PathBuf, u64>> {
+    static SCAN_COUNTS: std::sync::OnceLock<Mutex<std::collections::HashMap<PathBuf, u64>>> =
+        std::sync::OnceLock::new();
+    SCAN_COUNTS.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+
+/// Drop every cached entry so the next search is a cold scan (test-only).
+#[cfg(test)]
+fn clear_search_cache_for_test() {
+    if let Ok(mut cache) = SEARCH_CACHE.lock() {
+        cache.clear();
+    }
 }
 
 #[cfg(test)]
@@ -677,5 +790,241 @@ mod tests {
             .err()
             .unwrap_or_default()
             .contains("Invalid dateRange start"));
+    }
+
+    /// Two-file fixture: both files match `query_marker`, each with one
+    /// message. Returns (`temp_dir`, `file_a`, `file_b`).
+    fn two_file_fixture(query_marker: &str) -> (TempDir, PathBuf, PathBuf) {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let file_a = project_dir.join("session-a.jsonl");
+        let mut writer = File::create(&file_a).unwrap();
+        writeln!(
+            writer,
+            "{}",
+            create_sample_user_message("uuid-a1", "session-a", &format!("{query_marker} in a"))
+        )
+        .unwrap();
+
+        let file_b = project_dir.join("session-b.jsonl");
+        let mut writer = File::create(&file_b).unwrap();
+        writeln!(
+            writer,
+            "{}",
+            create_sample_user_message("uuid-b1", "session-b", &format!("{query_marker} in b"))
+        )
+        .unwrap();
+
+        (temp_dir, file_a, file_b)
+    }
+
+    async fn run_search(temp_dir: &TempDir, query: &str) -> Vec<ClaudeMessage> {
+        search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            query.to_string(),
+            serde_json::json!({}),
+            None,
+        )
+        .await
+        .expect("search must succeed")
+    }
+
+    fn uuids(messages: &[ClaudeMessage]) -> Vec<&str> {
+        let mut out: Vec<&str> = messages.iter().map(|m| m.uuid.as_str()).collect();
+        out.sort_unstable();
+        out
+    }
+
+    #[tokio::test]
+    /// Core invalidation behavior: an unchanged file is served from cache
+    /// (no re-scan), an appended file is re-scanned, and the merged result
+    /// after the append equals a cold scan.
+    async fn test_search_cache_rescans_only_appended_file() {
+        let (temp_dir, file_a, file_b) = two_file_fixture("cacheProbe42");
+
+        let first = run_search(&temp_dir, "cacheProbe42").await;
+        assert_eq!(uuids(&first), ["uuid-a1", "uuid-b1"]);
+        assert_eq!(test_scan_count(&file_a), 1);
+        assert_eq!(test_scan_count(&file_b), 1);
+
+        // Unchanged corpus: served entirely from cache.
+        let second = run_search(&temp_dir, "cacheProbe42").await;
+        assert_eq!(uuids(&second), ["uuid-a1", "uuid-b1"]);
+        assert_eq!(
+            test_scan_count(&file_a),
+            1,
+            "unchanged file a must not re-scan"
+        );
+        assert_eq!(
+            test_scan_count(&file_b),
+            1,
+            "unchanged file b must not re-scan"
+        );
+
+        // Append a matching message to file a only.
+        let mut appender = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file_a)
+            .unwrap();
+        writeln!(
+            appender,
+            "{}",
+            create_sample_user_message("uuid-a2", "session-a", "cacheProbe42 appended")
+        )
+        .unwrap();
+        drop(appender);
+
+        let third = run_search(&temp_dir, "cacheProbe42").await;
+        assert_eq!(
+            uuids(&third),
+            ["uuid-a1", "uuid-a2", "uuid-b1"],
+            "results must reflect a's new content and keep b's cached contribution"
+        );
+        assert_eq!(test_scan_count(&file_a), 2, "appended file a must re-scan");
+        assert_eq!(
+            test_scan_count(&file_b),
+            1,
+            "a change to file a must not evict file b's cached matches"
+        );
+
+        // Warm result must equal a cold scan of the same corpus.
+        clear_search_cache_for_test();
+        let cold = run_search(&temp_dir, "cacheProbe42").await;
+        assert_eq!(
+            serde_json::to_value(&third).unwrap(),
+            serde_json::to_value(&cold).unwrap(),
+            "warm search must equal a cold scan"
+        );
+    }
+
+    #[tokio::test]
+    /// A change to an unrelated file evicts nothing: only the changed file
+    /// is re-scanned, even when it never matched the query.
+    async fn test_search_unrelated_file_change_does_not_evict() {
+        let (temp_dir, file_a, file_b) = two_file_fixture("evictProbe7");
+
+        // Third file that does NOT match the query.
+        let file_c = file_a.parent().unwrap().join("session-c.jsonl");
+        let mut writer = File::create(&file_c).unwrap();
+        writeln!(
+            writer,
+            "{}",
+            create_sample_user_message("uuid-c1", "session-c", "nothing to see")
+        )
+        .unwrap();
+        drop(writer);
+
+        let first = run_search(&temp_dir, "evictProbe7").await;
+        assert_eq!(uuids(&first), ["uuid-a1", "uuid-b1"]);
+        assert_eq!(test_scan_count(&file_a), 1);
+        assert_eq!(test_scan_count(&file_b), 1);
+        assert_eq!(test_scan_count(&file_c), 1);
+
+        // Append to the unrelated file only.
+        let mut appender = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file_c)
+            .unwrap();
+        writeln!(
+            appender,
+            "{}",
+            create_sample_user_message("uuid-c2", "session-c", "still unrelated")
+        )
+        .unwrap();
+        drop(appender);
+
+        let second = run_search(&temp_dir, "evictProbe7").await;
+        assert_eq!(uuids(&second), ["uuid-a1", "uuid-b1"]);
+        assert_eq!(
+            test_scan_count(&file_a),
+            1,
+            "unrelated change must not re-scan file a"
+        );
+        assert_eq!(
+            test_scan_count(&file_b),
+            1,
+            "unrelated change must not re-scan file b"
+        );
+        assert_eq!(test_scan_count(&file_c), 2, "changed file c must re-scan");
+    }
+
+    #[tokio::test]
+    /// Filters and limit are applied at serve time over cached raw matches:
+    /// changing them must not trigger any re-scan.
+    async fn test_search_filter_and_limit_changes_reuse_cached_matches() {
+        let (temp_dir, file_a, file_b) = two_file_fixture("filterProbe9");
+
+        let unfiltered = run_search(&temp_dir, "filterProbe9").await;
+        assert_eq!(uuids(&unfiltered), ["uuid-a1", "uuid-b1"]);
+        assert_eq!(test_scan_count(&file_a), 1);
+        assert_eq!(test_scan_count(&file_b), 1);
+
+        // Same query with a filter and a limit: served from cached matches.
+        let limited = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "filterProbe9".to_string(),
+            serde_json::json!({ "messageType": "user" }),
+            Some(1),
+        )
+        .await
+        .expect("filtered search must succeed");
+        assert_eq!(limited.len(), 1);
+        assert_eq!(
+            test_scan_count(&file_a),
+            1,
+            "filter/limit change must not re-scan file a"
+        );
+        assert_eq!(
+            test_scan_count(&file_b),
+            1,
+            "filter/limit change must not re-scan file b"
+        );
+
+        // Cold-scan equivalence for the filtered call.
+        clear_search_cache_for_test();
+        let cold = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "filterProbe9".to_string(),
+            serde_json::json!({ "messageType": "user" }),
+            Some(1),
+        )
+        .await
+        .expect("cold filtered search must succeed");
+        assert_eq!(
+            serde_json::to_value(&limited).unwrap(),
+            serde_json::to_value(&cold).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    /// Deleted files drop out of the merged result and new files are picked
+    /// up, while untouched files stay cached.
+    async fn test_search_detects_deleted_and_new_files() {
+        let (temp_dir, file_a, file_b) = two_file_fixture("lifecycleProbe3");
+
+        let first = run_search(&temp_dir, "lifecycleProbe3").await;
+        assert_eq!(uuids(&first), ["uuid-a1", "uuid-b1"]);
+
+        std::fs::remove_file(&file_b).unwrap();
+        let file_c = file_a.parent().unwrap().join("session-c.jsonl");
+        let mut writer = File::create(&file_c).unwrap();
+        writeln!(
+            writer,
+            "{}",
+            create_sample_user_message("uuid-c1", "session-c", "lifecycleProbe3 in c")
+        )
+        .unwrap();
+        drop(writer);
+
+        let second = run_search(&temp_dir, "lifecycleProbe3").await;
+        assert_eq!(
+            uuids(&second),
+            ["uuid-a1", "uuid-c1"],
+            "deleted file b must drop out; new file c must be picked up"
+        );
+        assert_eq!(test_scan_count(&file_a), 1, "untouched file a stays cached");
+        assert_eq!(test_scan_count(&file_c), 1);
     }
 }

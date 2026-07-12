@@ -941,7 +941,8 @@ fn start_server_file_watcher(
                 for event in events {
                     if let Some(watch_event) = crate::commands::watcher::to_file_watch_event(&event)
                     {
-                        crate::commands::session::invalidate_search_cache();
+                        // The search cache self-validates per file (size, mtime)
+                        // at serve time; no push invalidation needed here.
                         // Ignore send errors (no active subscribers yet)
                         let _ = tx.send(watch_event);
                     }
