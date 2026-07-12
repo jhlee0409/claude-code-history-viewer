@@ -17,6 +17,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+mod cache;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 enum StatsProvider {
     #[default]
@@ -608,11 +610,46 @@ struct SessionFileStats {
     provider: StatsProvider,
 }
 
+/// Project display name for a Claude session file (parent directory name).
+fn claude_session_project_name(session_path: &Path) -> String {
+    session_path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown")
+        .to_string()
+}
+
+/// Process a session file into the lightweight global stats representation.
+/// Served from the per-file daily-aggregate cache when the file is unchanged
+/// and the date filter composes from daily buckets; otherwise falls back to
+/// the full scan (see the `cache` module design note).
+fn process_session_file_for_global_stats(
+    session_path: &PathBuf,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<SessionFileStats> {
+    if let Some(aggregate) = cache::global_stats_cache().get_or_build(session_path, mode, || {
+        cache::build_global_file_aggregate(session_path, mode)
+    }) {
+        if let cache::Composed::Ready(stats) = cache::compose_global(
+            &aggregate,
+            claude_session_project_name(session_path),
+            s_limit,
+            e_limit,
+        ) {
+            return Some(stats);
+        }
+    }
+    scan_session_file_for_global_stats(session_path, mode, s_limit, e_limit)
+}
+
 /// Process a single session file using lightweight deserialization for global stats.
 /// Only parses fields needed for stats (timestamp, usage, model, tool names).
 #[allow(unsafe_code)] // Required for mmap performance optimization
-/// Process a session file into the lightweight global stats representation.
-fn process_session_file_for_global_stats(
+/// Full-scan path for global stats (cache miss / non-composable date filter).
+fn scan_session_file_for_global_stats(
     session_path: &PathBuf,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
@@ -624,15 +661,8 @@ fn process_session_file_for_global_stats(
     // for the duration of the mmap's lifetime. Session files are append-only.
     let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
-    let project_name = session_path
-        .parent()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .unwrap_or("Unknown")
-        .to_string();
-
     let mut stats = SessionFileStats {
-        project_name,
+        project_name: claude_session_project_name(session_path),
         provider: StatsProvider::Claude,
         ..Default::default()
     };
@@ -1161,10 +1191,30 @@ struct ProjectSessionFileStats {
     timestamps: Vec<DateTime<Utc>>,
 }
 
+/// Process a session file into project-level stats.
+/// Served from the per-file daily-aggregate cache when possible; falls back
+/// to the full scan (see the `cache` module design note).
+fn process_session_file_for_project_stats(
+    session_path: &PathBuf,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<ProjectSessionFileStats> {
+    if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
+        cache::build_message_file_aggregate(session_path, mode)
+    }) {
+        if let cache::Composed::Ready(stats) = cache::compose_project(&aggregate, s_limit, e_limit)
+        {
+            return stats;
+        }
+    }
+    scan_session_file_for_project_stats(session_path, mode, s_limit, e_limit)
+}
+
 /// Process a single session file for project stats
 #[allow(unsafe_code)] // Required for mmap performance optimization
-/// Process a session file into project-level stats.
-fn process_session_file_for_project_stats(
+/// Full-scan path for project stats (cache miss / non-composable date filter).
+fn scan_session_file_for_project_stats(
     session_path: &PathBuf,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
@@ -1504,15 +1554,24 @@ fn dedup_token_totals(
     uuid: &str,
     usage: &TokenUsage,
 ) -> (u64, u64, u64, u64, u64) {
-    let key = match message_id.filter(|s| !s.is_empty()) {
-        Some(mid) => format!("{session_id}|m:{mid}"),
-        None if !uuid.is_empty() => format!("{session_id}|u:{uuid}"),
-        None => return token_usage_totals(usage),
+    let Some(key) = dedup_usage_key(session_id, message_id, uuid) else {
+        return token_usage_totals(usage);
     };
     if seen.insert(key) {
         token_usage_totals(usage)
     } else {
         (0, 0, 0, 0, 0)
+    }
+}
+
+/// Build the dedup identity key for a row (#283), or `None` when the row has
+/// no identity to dedup by and must always count.
+#[inline]
+fn dedup_usage_key(session_id: &str, message_id: Option<&str>, uuid: &str) -> Option<String> {
+    match message_id.filter(|s| !s.is_empty()) {
+        Some(mid) => Some(format!("{session_id}|m:{mid}")),
+        None if !uuid.is_empty() => Some(format!("{session_id}|u:{uuid}")),
+        None => None,
     }
 }
 
@@ -2770,10 +2829,34 @@ pub struct PaginatedTokenStats {
     pub has_more: bool,
 }
 
+/// Extract session token stats from a Claude session file synchronously.
+/// Served from the per-file daily-aggregate cache when possible; falls back
+/// to the full scan (see the `cache` module design note).
+fn extract_session_token_stats_sync(
+    session_path: &PathBuf,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<SessionTokenStats> {
+    if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
+        cache::build_message_file_aggregate(session_path, mode)
+    }) {
+        if let cache::Composed::Ready(stats) = cache::compose_session_token(
+            &aggregate,
+            claude_session_project_name(session_path),
+            s_limit,
+            e_limit,
+        ) {
+            return stats;
+        }
+    }
+    scan_session_token_stats(session_path, mode, s_limit, e_limit)
+}
+
 /// Synchronous version of session token stats extraction for parallel processing
 #[allow(unsafe_code)] // Required for mmap performance optimization
-/// Extract session token stats from a Claude session file synchronously.
-fn extract_session_token_stats_sync(
+/// Full-scan path for session token stats (cache miss / non-composable filter).
+fn scan_session_token_stats(
     session_path: &PathBuf,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
@@ -2785,12 +2868,7 @@ fn extract_session_token_stats_sync(
     // for the duration of the mmap's lifetime. Session files are append-only.
     let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
-    let project_name = session_path
-        .parent()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .unwrap_or("Unknown")
-        .to_string();
+    let project_name = claude_session_project_name(session_path);
 
     let mut session_id: Option<String> = None;
     let mut total_input_tokens = 0u64;
@@ -3223,10 +3301,31 @@ struct SessionComparisonStats {
     duration_seconds: i64,
 }
 
+/// Process a session file into lightweight comparison stats.
+/// Served from the per-file daily-aggregate cache when possible; falls back
+/// to the full scan (see the `cache` module design note).
+fn process_session_file_for_comparison(
+    session_path: &PathBuf,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<SessionComparisonStats> {
+    if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
+        cache::build_message_file_aggregate(session_path, mode)
+    }) {
+        if let cache::Composed::Ready(stats) =
+            cache::compose_comparison(&aggregate, s_limit, e_limit)
+        {
+            return stats;
+        }
+    }
+    scan_session_file_for_comparison(session_path, mode, s_limit, e_limit)
+}
+
 /// Process a single session file for comparison stats (lightweight)
 #[allow(unsafe_code)] // Required for mmap performance optimization
-/// Process a session file into lightweight comparison stats.
-fn process_session_file_for_comparison(
+/// Full-scan path for comparison stats (cache miss / non-composable filter).
+fn scan_session_file_for_comparison(
     session_path: &PathBuf,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
@@ -4909,6 +5008,97 @@ mod tests {
             &usage_message,
             StatsMode::BillingTotal
         ));
+    }
+
+    #[tokio::test]
+    /// End-to-end through the command: repeat `get_global_stats_summary`
+    /// calls (including a date-filtered one) are served from the per-file
+    /// cache, and a file append is detected and re-parsed.
+    async fn test_global_stats_summary_serves_cache_and_detects_file_changes() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let claude_path = temp_dir.path();
+        let project_dir = claude_path.join("projects").join("cache-project");
+        fs::create_dir_all(&project_dir).expect("failed to create project dir");
+        let session_path = project_dir.join("session-cache.jsonl");
+
+        let mut file = File::create(&session_path).expect("failed to create session file");
+        let day1 = r#"{"uuid":"u1","sessionId":"s1","timestamp":"2025-01-01T10:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"day1"}],"id":"m1","model":"claude-sonnet-4","usage":{"input_tokens":100,"output_tokens":10}},"isSidechain":false}"#;
+        let day2 = r#"{"uuid":"u2","sessionId":"s1","timestamp":"2025-01-02T10:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"day2"}],"id":"m2","model":"claude-sonnet-4","usage":{"input_tokens":20,"output_tokens":2}},"isSidechain":false}"#;
+        writeln!(file, "{day1}").expect("failed to write day1");
+        writeln!(file, "{day2}").expect("failed to write day2");
+        drop(file);
+
+        let claude_path_str = claude_path.to_string_lossy().to_string();
+        let first = get_global_stats_summary(
+            claude_path_str.clone(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("first global summary");
+        assert_eq!(first.total_tokens, 132);
+        assert_eq!(cache::test_build_count(&session_path), 1);
+
+        // Unchanged file: the repeat call and a day-filtered call both
+        // compose from the cached daily buckets without re-parsing.
+        let second = get_global_stats_summary(
+            claude_path_str.clone(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("second global summary");
+        assert_eq!(second.total_tokens, first.total_tokens);
+        let filtered = get_global_stats_summary(
+            claude_path_str.clone(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            Some("2025-01-02T00:00:00Z".to_string()),
+            Some("2025-01-02T23:59:59.999Z".to_string()),
+            None,
+        )
+        .await
+        .expect("filtered global summary");
+        assert_eq!(filtered.total_tokens, 22);
+        assert_eq!(filtered.total_messages, 1);
+        assert_eq!(
+            cache::test_build_count(&session_path),
+            1,
+            "unchanged file must be served from cache"
+        );
+
+        // Append a new message: (size, mtime) changes force a re-parse.
+        let mut appender = fs::OpenOptions::new()
+            .append(true)
+            .open(&session_path)
+            .expect("failed to open session for append");
+        let day3 = r#"{"uuid":"u3","sessionId":"s1","timestamp":"2025-01-03T10:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"day3"}],"id":"m3","model":"claude-sonnet-4","usage":{"input_tokens":5,"output_tokens":3}},"isSidechain":false}"#;
+        writeln!(appender, "{day3}").expect("failed to append day3");
+        drop(appender);
+
+        let third = get_global_stats_summary(
+            claude_path_str,
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("third global summary");
+        assert_eq!(third.total_tokens, 140);
+        assert_eq!(third.total_messages, 3);
+        assert_eq!(
+            cache::test_build_count(&session_path),
+            2,
+            "appended file must be re-parsed exactly once"
+        );
     }
 
     #[tokio::test]
