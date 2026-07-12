@@ -43,74 +43,85 @@ pub fn get_base_path() -> Option<PathBuf> {
 /// Scan Cursor projects by reading workspace directories
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Cursor not found")?;
-    let ws_dir = base.join("workspaceStorage");
+    scan_projects_in(&base.join("workspaceStorage"))
+}
 
+fn scan_projects_in(ws_dir: &Path) -> Result<Vec<ClaudeProject>, String> {
     if !ws_dir.is_dir() {
         return Ok(Vec::new());
     }
 
-    let mut projects = Vec::new();
+    let ws_paths: Vec<PathBuf> = fs::read_dir(ws_dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .map(|entry| entry.path())
+        .collect();
 
-    for entry in fs::read_dir(&ws_dir).map_err(|e| e.to_string())?.flatten() {
-        let ws_path = entry.path();
-        if crate::utils::is_symlink(&ws_path) || !ws_path.is_dir() {
-            continue;
-        }
-
-        // Read workspace.json to get project folder
-        let workspace_json = ws_path.join("workspace.json");
-        let project_folder = match read_workspace_folder(&workspace_json) {
-            Some(f) => f,
-            None => continue,
-        };
-
-        // Read composer list from workspace state DB
-        let ws_db_path = ws_path.join("state.vscdb");
-        let composers = match read_workspace_composers(&ws_db_path) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-
-        if composers.is_empty() {
-            continue;
-        }
-
-        let project_name = PathBuf::from(&project_folder)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-
-        let active_composers: Vec<&Value> = composers
-            .iter()
-            .filter(|c| {
-                !c.get("isArchived")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false)
-            })
+    // Each workspace visit opens its own state.vscdb (5s busy_timeout when
+    // locked), so with many workspaces the sequential loop dominated startup.
+    // Bounded parallel map; a broken workspace still just yields None.
+    let mut projects: Vec<ClaudeProject> =
+        crate::utils::par_map_bounded(ws_paths, |ws_path| scan_workspace(&ws_path))
+            .into_iter()
+            .flatten()
             .collect();
-        let session_count = active_composers.len();
-        let last_modified = active_composers
-            .iter()
-            .filter_map(|c| c.get("lastUpdatedAt").and_then(Value::as_f64))
-            .fold(0.0f64, f64::max);
-
-        projects.push(ClaudeProject {
-            name: project_name,
-            path: format!("cursor://{}", ws_path.to_string_lossy()),
-            actual_path: project_folder,
-            session_count,
-            message_count: 0, // Loaded on demand
-            last_modified: ms_to_iso(last_modified as u64),
-            git_info: None,
-            provider: Some("cursor".to_string()),
-            storage_type: Some("sqlite".to_string()),
-            custom_directory_label: None,
-        });
-    }
 
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
+}
+
+/// One workspace dir → one project, or `None` when the workspace has no
+/// (readable) composer data. All failure modes skip the workspace, never the
+/// whole scan.
+fn scan_workspace(ws_path: &Path) -> Option<ClaudeProject> {
+    if crate::utils::is_symlink(ws_path) || !ws_path.is_dir() {
+        return None;
+    }
+
+    // Read workspace.json to get project folder
+    let workspace_json = ws_path.join("workspace.json");
+    let project_folder = read_workspace_folder(&workspace_json)?;
+
+    // Read composer list from workspace state DB
+    let ws_db_path = ws_path.join("state.vscdb");
+    let composers = read_workspace_composers(&ws_db_path).ok()?;
+
+    if composers.is_empty() {
+        return None;
+    }
+
+    let project_name = PathBuf::from(&project_folder)
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    let active_composers: Vec<&Value> = composers
+        .iter()
+        .filter(|c| {
+            !c.get("isArchived")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        })
+        .collect();
+    let session_count = active_composers.len();
+    let last_modified = active_composers
+        .iter()
+        .filter_map(|c| c.get("lastUpdatedAt").and_then(Value::as_f64))
+        .fold(0.0f64, f64::max);
+
+    Some(ClaudeProject {
+        name: project_name,
+        path: format!("cursor://{}", ws_path.to_string_lossy()),
+        actual_path: project_folder,
+        session_count,
+        message_count: 0, // Loaded on demand
+        last_modified: ms_to_iso(last_modified as u64),
+        git_info: None,
+        provider: Some("cursor".to_string()),
+        storage_type: Some("sqlite".to_string()),
+        custom_directory_label: None,
+    })
 }
 
 /// Load sessions (composers) for a Cursor project
@@ -774,5 +785,74 @@ mod tests {
     fn test_empty_bubble() {
         let bubble = json!({"type": 2, "bubbleId": "empty", "text": ""});
         assert!(convert_cursor_bubble(&bubble, 2, "session-1").is_none());
+    }
+
+    /// Write a minimal valid Cursor workspace: `workspace.json` + a `state.vscdb`
+    /// with one active composer.
+    fn write_valid_workspace(ws_path: &Path, folder: &str, last_updated: u64) {
+        fs::create_dir_all(ws_path).unwrap();
+        fs::write(
+            ws_path.join("workspace.json"),
+            format!(r#"{{"folder":"file://{folder}"}}"#),
+        )
+        .unwrap();
+        let conn = Connection::open(ws_path.join("state.vscdb")).unwrap();
+        conn.execute(
+            "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+            [],
+        )
+        .unwrap();
+        let value = json!({
+            "allComposers": [{
+                "composerId": "comp-1",
+                "name": "chat",
+                "createdAt": last_updated,
+                "lastUpdatedAt": last_updated,
+                "isArchived": false
+            }]
+        })
+        .to_string();
+        conn.execute(
+            "INSERT INTO ItemTable (key, value) VALUES ('composer.composerData', ?1)",
+            [&value],
+        )
+        .unwrap();
+    }
+
+    /// One corrupt workspace DB must not fail (or block) the whole scan — the
+    /// valid workspaces still come back, sorted by `last_modified` desc.
+    #[test]
+    fn test_scan_projects_in_tolerates_corrupt_workspace_db() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let ws_dir = tmp.path().join("workspaceStorage");
+
+        write_valid_workspace(
+            &ws_dir.join("hash-old"),
+            "/Users/me/old-proj",
+            1_700_000_000_000,
+        );
+        write_valid_workspace(
+            &ws_dir.join("hash-new"),
+            "/Users/me/new-proj",
+            1_800_000_000_000,
+        );
+
+        // Corrupt workspace: workspace.json is fine but state.vscdb is garbage.
+        let broken = ws_dir.join("hash-broken");
+        fs::create_dir_all(&broken).unwrap();
+        fs::write(
+            broken.join("workspace.json"),
+            r#"{"folder":"file:///Users/me/broken-proj"}"#,
+        )
+        .unwrap();
+        fs::write(broken.join("state.vscdb"), b"this is not a sqlite database").unwrap();
+
+        let projects = scan_projects_in(&ws_dir).unwrap();
+        let names: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["new-proj", "old-proj"],
+            "valid workspaces survive a corrupt sibling, newest first: {names:?}"
+        );
     }
 }

@@ -435,6 +435,49 @@ pub fn ms_to_iso(ms: u64) -> String {
         .unwrap_or_default()
 }
 
+/// Max threads a single provider scanner may use for its per-workspace work.
+/// ~27 scanners already run concurrently on the blocking pool (#434), so each
+/// one stays modest instead of grabbing every core.
+const MAX_SCAN_THREADS: usize = 8;
+
+/// Map `f` over `items` in parallel on a small dedicated rayon pool,
+/// preserving input order in the returned `Vec`.
+///
+/// Built for provider scanners that visit one `SQLite` DB (or session dir) per
+/// workspace: each visit can park up to `busy_timeout` on a locked DB, so
+/// running them sequentially makes startup scale with the workspace count
+/// (dozens of workspaces × 5s worst case). A *dedicated* pool — not rayon's
+/// global one — keeps those parked waits from starving other scanners'
+/// `par_iter` work, and is capped at `min(MAX_SCAN_THREADS, cores)`.
+///
+/// Falls back to a plain sequential map when there is at most one item or the
+/// pool cannot be built, so callers never gain a new failure mode.
+pub fn par_map_bounded<T, R, F>(items: Vec<T>, f: F) -> Vec<R>
+where
+    T: Send,
+    R: Send,
+    F: Fn(T) -> R + Sync + Send,
+{
+    let threads = std::thread::available_parallelism()
+        .map(std::num::NonZeroUsize::get)
+        .unwrap_or(1)
+        .min(MAX_SCAN_THREADS);
+
+    if items.len() <= 1 || threads <= 1 {
+        return items.into_iter().map(f).collect();
+    }
+
+    match rayon::ThreadPoolBuilder::new().num_threads(threads).build() {
+        Ok(pool) => {
+            use rayon::prelude::*;
+            // `into_par_iter` on a Vec is indexed, so `collect` preserves the
+            // input order — callers keep their pre-parallel ordering semantics.
+            pool.install(|| items.into_par_iter().map(f).collect())
+        }
+        Err(_) => items.into_iter().map(f).collect(),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 /// Build a `ClaudeMessage` with common defaults for provider implementations.
 ///
@@ -591,6 +634,21 @@ fn collect_workflow_agent_files(workflows_dir: &Path, files: &mut Vec<std::path:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ===== par_map_bounded Tests =====
+
+    #[test]
+    fn test_par_map_bounded_preserves_input_order() {
+        let items: Vec<usize> = (0..100).collect();
+        let out = par_map_bounded(items, |i| i * 2);
+        assert_eq!(out, (0..100).map(|i| i * 2).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_par_map_bounded_handles_empty_and_single() {
+        assert!(par_map_bounded(Vec::<u8>::new(), |i| i).is_empty());
+        assert_eq!(par_map_bounded(vec![7u8], |i| i + 1), vec![8]);
+    }
 
     // ===== Line Utils Tests =====
 

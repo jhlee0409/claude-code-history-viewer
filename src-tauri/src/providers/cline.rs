@@ -40,58 +40,70 @@ pub fn detect() -> Option<ProviderInfo> {
 
 /// Scan all Cline/Roo Code projects
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let mut projects = Vec::new();
-
-    for (base_path, label) in get_all_base_paths() {
-        let task_history = load_task_history(&base_path);
-        if task_history.is_empty() {
-            continue;
-        }
-
-        // Group tasks by cwd
-        let mut by_cwd: HashMap<String, Vec<&Value>> = HashMap::new();
-        for item in &task_history {
-            let cwd = task_cwd(item).unwrap_or("unknown");
-            by_cwd.entry(cwd.to_string()).or_default().push(item);
-        }
-
-        for (cwd, tasks) in &by_cwd {
-            let project_name = PathBuf::from(cwd)
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
-
-            let session_count = tasks.len();
-            let message_count: usize = tasks
-                .iter()
-                .filter_map(|t| t.get("tokensIn").and_then(Value::as_u64))
-                .count()
-                * 2; // rough estimate
-
-            let last_modified = tasks
-                .iter()
-                .filter_map(|t| t.get("ts").and_then(Value::as_f64))
-                .fold(0.0f64, f64::max);
-
-            let last_modified_str = ms_to_iso(last_modified as u64);
-
-            projects.push(ClaudeProject {
-                name: project_name,
-                path: format!("cline://{}:{}", base_path.to_string_lossy(), cwd),
-                actual_path: cwd.clone(),
-                session_count,
-                message_count,
-                last_modified: last_modified_str,
-                git_info: None,
-                provider: Some("cline".to_string()),
-                storage_type: Some("json".to_string()),
-                custom_directory_label: Some(label.clone()),
-            });
-        }
-    }
+    // Each base path may fall back to opening its editor's global state.vscdb
+    // (5s busy_timeout when the editor holds a lock), so the base paths are
+    // scanned on a bounded pool instead of stacking those waits sequentially.
+    let projects = crate::utils::par_map_bounded(get_all_base_paths(), |(base_path, label)| {
+        scan_base_path(&base_path, &label)
+    })
+    .into_iter()
+    .flatten()
+    .collect();
 
     Ok(projects)
+}
+
+/// All projects found under one extension base path (empty when it has no
+/// readable task history).
+fn scan_base_path(base_path: &Path, label: &str) -> Vec<ClaudeProject> {
+    let task_history = load_task_history(base_path);
+    if task_history.is_empty() {
+        return Vec::new();
+    }
+
+    // Group tasks by cwd
+    let mut by_cwd: HashMap<String, Vec<&Value>> = HashMap::new();
+    for item in &task_history {
+        let cwd = task_cwd(item).unwrap_or("unknown");
+        by_cwd.entry(cwd.to_string()).or_default().push(item);
+    }
+
+    let mut projects = Vec::new();
+    for (cwd, tasks) in &by_cwd {
+        let project_name = PathBuf::from(cwd)
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        let session_count = tasks.len();
+        let message_count: usize = tasks
+            .iter()
+            .filter_map(|t| t.get("tokensIn").and_then(Value::as_u64))
+            .count()
+            * 2; // rough estimate
+
+        let last_modified = tasks
+            .iter()
+            .filter_map(|t| t.get("ts").and_then(Value::as_f64))
+            .fold(0.0f64, f64::max);
+
+        let last_modified_str = ms_to_iso(last_modified as u64);
+
+        projects.push(ClaudeProject {
+            name: project_name,
+            path: format!("cline://{}:{}", base_path.to_string_lossy(), cwd),
+            actual_path: cwd.clone(),
+            session_count,
+            message_count,
+            last_modified: last_modified_str,
+            git_info: None,
+            provider: Some("cline".to_string()),
+            storage_type: Some("json".to_string()),
+            custom_directory_label: Some(label.to_string()),
+        });
+    }
+    projects
 }
 
 /// Load sessions for a Cline project

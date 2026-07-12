@@ -57,39 +57,43 @@ pub fn get_base_path() -> Option<String> {
 
 /// Scan Crush projects — one per discovered `<project>/.crush/crush.db`.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let mut projects = Vec::new();
-    for db_path in discover_dbs(MAX_DBS) {
-        let Some(project_dir) = project_dir_of(&db_path) else {
-            continue;
-        };
-        let Ok(conn) = open_db(&db_path) else {
-            continue;
-        };
-        if let Ok((session_count, message_count, last_modified)) = project_stats(&conn) {
-            if session_count == 0 {
-                continue;
-            }
-            let name = Path::new(&project_dir)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| project_dir.clone());
-            projects.push(ClaudeProject {
-                name,
-                path: format!("{SCHEME}{project_dir}"),
-                actual_path: project_dir,
-                session_count,
-                message_count,
-                last_modified,
-                git_info: None,
-                provider: Some(PROVIDER.to_string()),
-                storage_type: Some("sqlite".to_string()),
-                custom_directory_label: None,
-            });
-        }
-    }
+    // Up to MAX_DBS per-project DBs, each open parking up to 5s on a locked
+    // DB — scanned on a bounded pool instead of stacking those waits
+    // sequentially. A broken DB just yields None.
+    let mut projects: Vec<ClaudeProject> =
+        crate::utils::par_map_bounded(discover_dbs(MAX_DBS), |db_path| scan_db(&db_path))
+            .into_iter()
+            .flatten()
+            .collect();
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
+}
+
+/// One `crush.db` → one project, or `None` when the DB is unreadable or empty.
+fn scan_db(db_path: &Path) -> Option<ClaudeProject> {
+    let project_dir = project_dir_of(db_path)?;
+    let conn = open_db(db_path).ok()?;
+    let (session_count, message_count, last_modified) = project_stats(&conn).ok()?;
+    if session_count == 0 {
+        return None;
+    }
+    let name = Path::new(&project_dir)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| project_dir.clone());
+    Some(ClaudeProject {
+        name,
+        path: format!("{SCHEME}{project_dir}"),
+        actual_path: project_dir,
+        session_count,
+        message_count,
+        last_modified,
+        git_info: None,
+        provider: Some(PROVIDER.to_string()),
+        storage_type: Some("sqlite".to_string()),
+        custom_directory_label: None,
+    })
 }
 
 /// Load the sessions for one Crush project (`crush://<project_dir>`).

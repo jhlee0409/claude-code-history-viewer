@@ -264,87 +264,110 @@ fn scan_projects_in(
         return Ok(Vec::new());
     }
 
+    let ws_paths: Vec<PathBuf> = fs::read_dir(ws_root)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .map(|entry| entry.path())
+        .collect();
+
+    // Probing every chatSessions/*.jsonl per workspace is I/O-heavy, so the
+    // per-workspace work runs on a bounded pool. Order-preserving, and the
+    // sequential loop's error semantics are kept: an unreadable chatSessions
+    // dir still fails the scan (first error in input order), while workspaces
+    // without usable sessions are skipped.
+    let results = crate::utils::par_map_bounded(ws_paths, |ws_path| {
+        scan_workspace(&ws_path, custom_directory_label)
+    });
+
     let mut projects = Vec::new();
-
-    for entry in fs::read_dir(ws_root).map_err(|e| e.to_string())?.flatten() {
-        let ws_path = entry.path();
-        if is_symlink(&ws_path) || !ws_path.is_dir() {
-            continue;
+    for result in results {
+        if let Some(project) = result? {
+            projects.push(project);
         }
-
-        let folder = match read_workspace_folder(&ws_path.join("workspace.json")) {
-            Some(f) => f,
-            None => continue,
-        };
-
-        let chat_dir = ws_path.join("chatSessions");
-        if !chat_dir.is_dir() {
-            continue;
-        }
-
-        let mut session_count = 0usize;
-        let mut last_modified_ms: u64 = 0;
-        let mut message_count = 0usize;
-
-        for chat_entry in fs::read_dir(&chat_dir)
-            .map_err(|e| e.to_string())?
-            .flatten()
-        {
-            let session_path = chat_entry.path();
-            if is_symlink(&session_path) || !session_path.is_file() {
-                continue;
-            }
-            if session_path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(str::to_ascii_lowercase)
-                .as_deref()
-                != Some("jsonl")
-            {
-                continue;
-            }
-
-            let info = match probe_session_metadata(&session_path) {
-                Some(i) => i,
-                None => continue,
-            };
-            // Empty chat panels (kind:0 with requests:[]) should not be
-            // counted as sessions or contribute to the project's tally.
-            if info.message_count == 0 {
-                continue;
-            }
-            session_count += 1;
-            message_count += info.message_count;
-            if info.last_modified_ms > last_modified_ms {
-                last_modified_ms = info.last_modified_ms;
-            }
-        }
-
-        if session_count == 0 {
-            continue;
-        }
-
-        let name = PathBuf::from(&folder)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| folder.clone());
-
-        projects.push(ClaudeProject {
-            name,
-            path: format!("vscode://{}", ws_path.to_string_lossy()),
-            actual_path: folder,
-            session_count,
-            message_count,
-            last_modified: ms_to_iso(last_modified_ms),
-            git_info: None,
-            provider: Some(PROVIDER_ID.to_string()),
-            storage_type: None,
-            custom_directory_label: custom_directory_label.map(ToString::to_string),
-        });
     }
 
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
+}
+
+/// One workspace dir → one project (`Ok(None)` = no usable chat sessions,
+/// `Err` = the chatSessions dir exists but cannot be read).
+fn scan_workspace(
+    ws_path: &Path,
+    custom_directory_label: Option<&str>,
+) -> Result<Option<ClaudeProject>, String> {
+    if is_symlink(ws_path) || !ws_path.is_dir() {
+        return Ok(None);
+    }
+
+    let Some(folder) = read_workspace_folder(&ws_path.join("workspace.json")) else {
+        return Ok(None);
+    };
+
+    let chat_dir = ws_path.join("chatSessions");
+    if !chat_dir.is_dir() {
+        return Ok(None);
+    }
+
+    let mut session_count = 0usize;
+    let mut last_modified_ms: u64 = 0;
+    let mut message_count = 0usize;
+
+    for chat_entry in fs::read_dir(&chat_dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+    {
+        let session_path = chat_entry.path();
+        if is_symlink(&session_path) || !session_path.is_file() {
+            continue;
+        }
+        if session_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref()
+            != Some("jsonl")
+        {
+            continue;
+        }
+
+        let info = match probe_session_metadata(&session_path) {
+            Some(i) => i,
+            None => continue,
+        };
+        // Empty chat panels (kind:0 with requests:[]) should not be
+        // counted as sessions or contribute to the project's tally.
+        if info.message_count == 0 {
+            continue;
+        }
+        session_count += 1;
+        message_count += info.message_count;
+        if info.last_modified_ms > last_modified_ms {
+            last_modified_ms = info.last_modified_ms;
+        }
+    }
+
+    if session_count == 0 {
+        return Ok(None);
+    }
+
+    let name = PathBuf::from(&folder)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| folder.clone());
+
+    Ok(Some(ClaudeProject {
+        name,
+        path: format!("vscode://{}", ws_path.to_string_lossy()),
+        actual_path: folder,
+        session_count,
+        message_count,
+        last_modified: ms_to_iso(last_modified_ms),
+        git_info: None,
+        provider: Some(PROVIDER_ID.to_string()),
+        storage_type: None,
+        custom_directory_label: custom_directory_label.map(ToString::to_string),
+    }))
 }
 
 /// Sessions for a single workspace.

@@ -152,39 +152,49 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let Some(storage) = workspace_storage() else {
         return Ok(vec![]);
     };
-    let mut projects = Vec::new();
-    for (hash, db_path) in workspace_dbs(&storage) {
-        let Ok(conn) = open_db(&db_path) else {
-            continue;
-        };
-        let Some(value) = read_icube_value(&conn) else {
-            continue;
-        };
-        let sessions = extract_sessions(&value);
-        if sessions.is_empty() {
-            continue;
-        }
-        let folder = workspace_folder(&db_path).unwrap_or_else(|| hash.clone());
-        let name = Path::new(&folder)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| folder.clone());
-        let message_count: usize = sessions.iter().map(|s| s.messages.len()).sum();
-        projects.push(ClaudeProject {
-            name,
-            path: format!("{SCHEME}{hash}"),
-            actual_path: folder,
-            session_count: sessions.len(),
-            message_count,
-            last_modified: String::new(),
-            git_info: None,
-            provider: Some(PROVIDER.to_string()),
-            storage_type: Some("sqlite".to_string()),
-            custom_directory_label: None,
-        });
+    Ok(scan_projects_in(&storage))
+}
+
+fn scan_projects_in(storage: &Path) -> Vec<ClaudeProject> {
+    // One state.vscdb open per workspace (5s busy_timeout when locked) — with
+    // many workspaces the sequential loop dominated startup. Bounded parallel
+    // map, input order preserved; a broken workspace DB just yields None.
+    crate::utils::par_map_bounded(workspace_dbs(storage), |(hash, db_path)| {
+        scan_workspace(&hash, &db_path)
+    })
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
+/// One workspace `(hash, state.vscdb)` → one project, or `None` when the DB is
+/// unreadable or has no parseable chat sessions.
+fn scan_workspace(hash: &str, db_path: &Path) -> Option<ClaudeProject> {
+    let conn = open_db(db_path).ok()?;
+    let value = read_icube_value(&conn)?;
+    let sessions = extract_sessions(&value);
+    if sessions.is_empty() {
+        return None;
     }
-    Ok(projects)
+    let folder = workspace_folder(db_path).unwrap_or_else(|| hash.to_string());
+    let name = Path::new(&folder)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| folder.clone());
+    let message_count: usize = sessions.iter().map(|s| s.messages.len()).sum();
+    Some(ClaudeProject {
+        name,
+        path: format!("{SCHEME}{hash}"),
+        actual_path: folder,
+        session_count: sessions.len(),
+        message_count,
+        last_modified: String::new(),
+        git_info: None,
+        provider: Some(PROVIDER.to_string()),
+        storage_type: Some("sqlite".to_string()),
+        custom_directory_label: None,
+    })
 }
 
 /// Load the chat sessions for one Trae workspace (`trae://<hash>`).
@@ -598,5 +608,52 @@ mod tests {
         assert!(!valid_hash("a/b"));
         assert!(!valid_hash("a\\b"));
         assert!(!valid_hash(""));
+    }
+
+    /// A corrupt workspace state.vscdb must not fail the whole scan — valid
+    /// sibling workspaces still come back.
+    #[test]
+    fn scan_projects_in_tolerates_corrupt_workspace_db() {
+        let tmp = tempfile::TempDir::new().unwrap();
+
+        // Valid workspace: real SQLite ItemTable with an icube session list.
+        let ok_ws = tmp.path().join("hash-ok");
+        std::fs::create_dir_all(&ok_ws).unwrap();
+        {
+            let conn = Connection::open(ok_ws.join("state.vscdb")).unwrap();
+            conn.execute(
+                "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+                [],
+            )
+            .unwrap();
+            let value = json!({
+                "list": [{
+                    "id": "sess-1",
+                    "title": "Fix bug",
+                    "messages": [{ "role": "user", "content": "hello" }]
+                }]
+            })
+            .to_string();
+            conn.execute(
+                "INSERT INTO ItemTable (key, value) VALUES ('memento/icube-ai-agent-storage', ?1)",
+                [&value],
+            )
+            .unwrap();
+        }
+        std::fs::write(
+            ok_ws.join("workspace.json"),
+            r#"{"folder":"file:///Users/me/ok-proj"}"#,
+        )
+        .unwrap();
+
+        // Corrupt workspace: state.vscdb is not a SQLite file at all.
+        let bad_ws = tmp.path().join("hash-bad");
+        std::fs::create_dir_all(&bad_ws).unwrap();
+        std::fs::write(bad_ws.join("state.vscdb"), b"this is not a sqlite database").unwrap();
+
+        let projects = scan_projects_in(tmp.path());
+        assert_eq!(projects.len(), 1, "only the valid workspace: {projects:?}");
+        assert_eq!(projects[0].name, "ok-proj");
+        assert_eq!(projects[0].session_count, 1);
     }
 }
