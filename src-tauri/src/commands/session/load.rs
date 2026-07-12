@@ -2062,6 +2062,33 @@ fn extract_subagent_metadata(
     (line_count, first_time, last_time, summary)
 }
 
+/// Shared viewer-visibility rules for a classified JSONL line.
+/// Must stay in sync with the filtering in `load_session_messages`.
+fn is_viewer_visible_line(
+    message_type: &str,
+    subtype: Option<&str>,
+    is_sidechain: Option<bool>,
+    is_meta: Option<bool>,
+    exclude_sidechain: bool,
+) -> bool {
+    if message_type == "summary" {
+        return false;
+    }
+    if is_system_message_type(message_type) {
+        return false;
+    }
+    if message_type == "system" && is_hidden_system_subtype(subtype) {
+        return false;
+    }
+    if is_meta.unwrap_or(false) {
+        return false;
+    }
+    if exclude_sidechain && is_sidechain.unwrap_or(false) {
+        return false;
+    }
+    true
+}
+
 /// Fast line classifier for simd-json (mutable slice)
 fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
     if line
@@ -2074,26 +2101,90 @@ fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
     // Try fast simd-json parsing with minimal struct
     let mut line_copy = line.to_vec();
     if let Ok(classifier) = simd_json::serde::from_slice::<LineClassifier>(&mut line_copy) {
-        if classifier.message_type == "summary" {
-            return false;
-        }
-        if is_system_message_type(&classifier.message_type) {
-            return false;
-        }
-        if classifier.message_type == "system"
-            && is_hidden_system_subtype(classifier.subtype.as_deref())
-        {
-            return false;
-        }
-        if classifier.is_meta.unwrap_or(false) {
-            return false;
-        }
-        if exclude_sidechain && classifier.is_sidechain.unwrap_or(false) {
-            return false;
-        }
-        return true;
+        return is_viewer_visible_line(
+            &classifier.message_type,
+            classifier.subtype.as_deref(),
+            classifier.is_sidechain,
+            classifier.is_meta,
+            exclude_sidechain,
+        );
     }
     false
+}
+
+/// Minimal classifier that also captures the message uuid.
+/// Used only by `get_session_message_offset` — keeping it separate from
+/// `LineClassifier` avoids a per-line String allocation on the hot
+/// classification path of the paginated loader.
+#[derive(serde::Deserialize)]
+struct LineUuidClassifier {
+    #[serde(rename = "type")]
+    message_type: String,
+    subtype: Option<String>,
+    #[serde(rename = "isSidechain")]
+    is_sidechain: Option<bool>,
+    #[serde(rename = "isMeta")]
+    is_meta: Option<bool>,
+    uuid: Option<String>,
+}
+
+/// Find how far from the NEWEST viewer-visible message a uuid sits.
+/// Returns `Some(0)` for the newest visible message, `Some(n)` when `n`
+/// visible messages are newer than it, and `None` when the uuid is absent.
+/// Loading a chat-style window with `offset = 0, limit = n + 1` therefore
+/// guarantees the message is inside the window.
+///
+/// Iterates newest → oldest so deep links to recent messages exit early.
+#[allow(unsafe_code)] // Required for mmap performance optimization
+pub fn get_session_message_offset(
+    session_path: String,
+    message_uuid: String,
+    exclude_sidechain: Option<bool>,
+) -> Result<Option<usize>, String> {
+    let file =
+        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+
+    // SAFETY: We're only reading the file, and the file handle is kept open
+    // for the duration of the mmap's lifetime. No concurrent modifications expected
+    // as session files are append-only by Claude.
+    let mmap = unsafe { Mmap::map(&file) }
+        .map_err(|e| format!("Failed to memory-map session file: {e}"))?;
+
+    let exclude = exclude_sidechain.unwrap_or(false);
+    let line_ranges = find_line_ranges(&mmap);
+
+    let mut newer_visible = 0usize;
+    for &(start, end) in line_ranges.iter().rev() {
+        let line = &mmap[start..end];
+        if line
+            .iter()
+            .all(|&b| b == b' ' || b == b'\t' || b == b'\n' || b == b'\r')
+        {
+            continue;
+        }
+
+        let mut line_copy = line.to_vec();
+        let Ok(classifier) = simd_json::serde::from_slice::<LineUuidClassifier>(&mut line_copy)
+        else {
+            continue;
+        };
+        if !is_viewer_visible_line(
+            &classifier.message_type,
+            classifier.subtype.as_deref(),
+            classifier.is_sidechain,
+            classifier.is_meta,
+            exclude,
+        ) {
+            continue;
+        }
+
+        if classifier.uuid.as_deref() == Some(message_uuid.as_str()) {
+            return Ok(Some(newer_visible));
+        }
+        newer_visible += 1;
+    }
+
+    Ok(None)
 }
 
 #[tauri::command]
@@ -2504,6 +2595,72 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(count_filtered, 2);
+    }
+
+    #[tokio::test]
+    async fn test_get_session_message_offset_basic() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let mut content = String::new();
+        for i in 1..=5 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(
+                    &format!("uuid-{i}"),
+                    "session-1",
+                    &format!("Message {i}")
+                )
+            ));
+        }
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+        let path = file_path.to_string_lossy().to_string();
+
+        // Newest message → offset 0
+        let newest = get_session_message_offset(path.clone(), "uuid-5".to_string(), None).unwrap();
+        assert_eq!(newest, Some(0));
+
+        // Oldest message → offset 4 (4 visible messages are newer)
+        let oldest = get_session_message_offset(path.clone(), "uuid-1".to_string(), None).unwrap();
+        assert_eq!(oldest, Some(4));
+
+        // Loading offset=0, limit=offset+1 must include the target uuid.
+        let needed = oldest.unwrap() + 1;
+        let page = load_session_messages_paginated(path.clone(), 0, needed, None)
+            .await
+            .unwrap();
+        assert!(page.messages.iter().any(|m| m.uuid == "uuid-1"));
+
+        // Unknown uuid → None
+        let missing = get_session_message_offset(path, "no-such-uuid".to_string(), None).unwrap();
+        assert_eq!(missing, None);
+    }
+
+    #[tokio::test]
+    async fn test_get_session_message_offset_skips_invisible_lines() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // sidechain + summary lines must not shift the offset when excluded
+        let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"Hello"},"isSidechain":false}
+{"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","message":{"role":"user","content":"Sidechain"},"isSidechain":true}
+{"type":"summary","summary":"A summary","leafUuid":"uuid-3"}
+{"uuid":"uuid-4","sessionId":"session-1","timestamp":"2025-06-26T10:02:00Z","type":"user","message":{"role":"user","content":"World"},"isSidechain":false}
+"#;
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", content);
+        let path = file_path.to_string_lossy().to_string();
+
+        // With sidechain excluded: visible = [uuid-1, uuid-4]
+        let offset =
+            get_session_message_offset(path.clone(), "uuid-1".to_string(), Some(true)).unwrap();
+        assert_eq!(offset, Some(1));
+
+        // Without exclusion: visible = [uuid-1, uuid-2, uuid-4]
+        let offset_all =
+            get_session_message_offset(path.clone(), "uuid-1".to_string(), None).unwrap();
+        assert_eq!(offset_all, Some(2));
+
+        // Sidechain uuid itself is findable when not excluded
+        let sidechain = get_session_message_offset(path, "uuid-2".to_string(), None).unwrap();
+        assert_eq!(sidechain, Some(1));
     }
 
     #[tokio::test]

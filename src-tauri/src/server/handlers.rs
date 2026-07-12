@@ -347,6 +347,29 @@ pub struct ProviderMessagesParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProviderMessagesPaginatedParams {
+    pub provider: String,
+    pub session_path: String,
+    #[serde(default)]
+    pub offset: Option<usize>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+    #[serde(default)]
+    pub exclude_sidechain: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderMessageOffsetParams {
+    pub provider: String,
+    pub session_path: String,
+    pub message_uuid: String,
+    #[serde(default)]
+    pub exclude_sidechain: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchAllProvidersParams {
     #[serde(default)]
     pub claude_path: Option<String>,
@@ -865,6 +888,35 @@ handler_json!(
     ProviderMessagesParams,
     |p: ProviderMessagesParams| async move {
         commands::multi_provider::load_provider_messages(p.provider, p.session_path).await
+    }
+);
+
+handler_json!(
+    load_provider_messages_paginated,
+    ProviderMessagesPaginatedParams,
+    |p: ProviderMessagesPaginatedParams| async move {
+        commands::multi_provider::load_provider_messages_paginated(
+            p.provider,
+            p.session_path,
+            p.offset,
+            p.limit,
+            p.exclude_sidechain,
+        )
+        .await
+    }
+);
+
+handler_json!(
+    get_provider_message_offset,
+    ProviderMessageOffsetParams,
+    |p: ProviderMessageOffsetParams| async move {
+        commands::multi_provider::get_provider_message_offset(
+            p.provider,
+            p.session_path,
+            p.message_uuid,
+            p.exclude_sidechain,
+        )
+        .await
     }
 );
 

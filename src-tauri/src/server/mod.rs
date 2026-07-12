@@ -66,6 +66,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/get_preset",
     "/get_project_stats_summary",
     "/get_project_token_stats",
+    "/get_provider_message_offset",
     "/get_recent_edits",
     "/get_server_config",
     "/get_session_comparison",
@@ -84,6 +85,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/load_project_sessions",
     "/load_project_sessions_page",
     "/load_provider_messages",
+    "/load_provider_messages_paginated",
     "/load_provider_sessions",
     "/load_provider_sessions_page",
     "/load_session_messages",
@@ -298,6 +300,14 @@ pub fn build_router(
             post(h::load_provider_sessions_page),
         )
         .route("/load_provider_messages", post(h::load_provider_messages))
+        .route(
+            "/load_provider_messages_paginated",
+            post(h::load_provider_messages_paginated),
+        )
+        .route(
+            "/get_provider_message_offset",
+            post(h::get_provider_message_offset),
+        )
         .route("/search_all_providers", post(h::search_all_providers))
         // Archive commands
         .route("/get_archive_base_path", post(h::get_archive_base_path))
