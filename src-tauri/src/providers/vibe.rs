@@ -709,4 +709,55 @@ mod tests {
             vibe_home.canonicalize().unwrap_or(vibe_home)
         );
     }
+
+    #[test]
+    /// A corrupt line in messages.jsonl must be skipped, not fail the load —
+    /// crashed Vibe sessions can leave a truncated final line.
+    fn load_messages_skips_malformed_jsonl_lines() {
+        let temp = TempDir::new().expect("temp dir");
+        let (_cwd, session_dir) = write_fixture(temp.path());
+        let base = temp.path().to_string_lossy().to_string();
+
+        let messages_path = Path::new(&session_dir).join(MESSAGES_FILE);
+        let mut content = fs::read_to_string(&messages_path).expect("read messages");
+        content.push('\n'); // fixture jsonl has no trailing newline
+        content.push_str("{ this is not json\n");
+        content.push_str(
+            "{\"role\":\"user\",\"content\":\"after corrupt line\",\"message_id\":\"msg-4\"}\n",
+        );
+        fs::write(&messages_path, content).expect("write messages");
+
+        let messages = load_messages_from_base_path(&base, &session_dir).expect("load messages");
+        assert_eq!(
+            messages.len(),
+            4,
+            "corrupt line skipped, valid lines before and after kept"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    /// A symlinked session directory must be rejected by the path guard.
+    fn load_messages_rejects_symlinked_session_dir() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().expect("temp dir");
+        let (_cwd, session_dir) = write_fixture(temp.path());
+        let base = temp.path().to_string_lossy().to_string();
+
+        // Symlink target is itself a VALID session dir in a foreign root, so a
+        // rejection can only come from the path guard, not from missing files.
+        let outside = TempDir::new().expect("outside dir");
+        let (_ocwd, outside_session) = write_fixture(outside.path());
+        let link = temp
+            .path()
+            .join("logs/session/session_20260202_130000_link");
+        unix_fs::symlink(Path::new(&outside_session), &link).expect("create symlink");
+
+        load_messages_from_base_path(&base, &link.to_string_lossy())
+            .expect_err("symlinked session dir must be rejected");
+
+        // The real session still loads fine alongside the rejected link.
+        assert!(load_messages_from_base_path(&base, &session_dir).is_ok());
+    }
 }
