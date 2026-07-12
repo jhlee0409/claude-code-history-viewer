@@ -199,14 +199,8 @@ fn validate_session_path_in(
     if !path.is_absolute() {
         return Err("VS Code session path must be absolute".to_string());
     }
-    if path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-        != Some("jsonl")
-    {
-        return Err("VS Code session path must be a JSONL file".to_string());
+    if !is_chat_session_file(&path) {
+        return Err("VS Code session path must be a .json or .jsonl file".to_string());
     }
     if path
         .parent()
@@ -233,6 +227,66 @@ fn validate_session_path_in(
 fn validate_session_path(session_path: &str) -> Result<PathBuf, String> {
     let roots = get_workspace_storage_roots().unwrap_or_default();
     validate_session_path_in(session_path, &roots)
+}
+
+/// Chat sessions come in two formats: VS Code < 1.109 wrote one full-JSON
+/// document per session (`<uuid>.json`); v1.109+ writes an append-only patch
+/// log (`<uuid>.jsonl`). Old files are never migrated, so both must be read
+/// (issue #444).
+fn session_file_extension(path: &Path) -> Option<String> {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+}
+
+fn is_chat_session_file(path: &Path) -> bool {
+    matches!(
+        session_file_extension(path).as_deref(),
+        Some("json" | "jsonl")
+    )
+}
+
+/// When both `<uuid>.json` and `<uuid>.jsonl` exist for one session, VS Code
+/// itself reads the `.jsonl` — mirror that priority so the session doesn't
+/// appear twice.
+fn dedup_prefer_jsonl(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    let jsonl_stems: std::collections::HashSet<std::ffi::OsString> = paths
+        .iter()
+        .filter(|p| session_file_extension(p).as_deref() == Some("jsonl"))
+        .filter_map(|p| p.file_stem().map(std::ffi::OsStr::to_os_string))
+        .collect();
+    paths.retain(|p| {
+        session_file_extension(p).as_deref() != Some("json")
+            || !p
+                .file_stem()
+                .map(|stem| jsonl_stems.contains(stem))
+                .unwrap_or(false)
+    });
+    paths
+}
+
+/// Collect the chat-session files of one `chatSessions` dir (both formats,
+/// deduped), skipping symlinks and non-files.
+fn chat_session_files(chat_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut paths: Vec<PathBuf> = fs::read_dir(chat_dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|p| !is_symlink(p) && p.is_file() && is_chat_session_file(p))
+        .collect();
+    paths.sort();
+    Ok(dedup_prefer_jsonl(paths))
+}
+
+/// Resolved final state of a chat session file, whichever format it uses.
+fn read_session_state(path: &Path) -> Result<Value, String> {
+    let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    if session_file_extension(path).as_deref() == Some("json") {
+        // Legacy format: the document IS the final state (same shape as the
+        // patch log's kind:0 snapshot `v`).
+        return serde_json::from_str(&raw).map_err(|e| format!("Invalid VS Code session: {e}"));
+    }
+    replay_session(&raw)
 }
 
 /// One workspace folder → one project.
@@ -313,24 +367,7 @@ fn scan_workspace(
     let mut last_modified_ms: u64 = 0;
     let mut message_count = 0usize;
 
-    for chat_entry in fs::read_dir(&chat_dir)
-        .map_err(|e| e.to_string())?
-        .flatten()
-    {
-        let session_path = chat_entry.path();
-        if is_symlink(&session_path) || !session_path.is_file() {
-            continue;
-        }
-        if session_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(str::to_ascii_lowercase)
-            .as_deref()
-            != Some("jsonl")
-        {
-            continue;
-        }
-
+    for session_path in chat_session_files(&chat_dir)? {
         let info = match probe_session_metadata(&session_path) {
             Some(i) => i,
             None => continue,
@@ -401,24 +438,7 @@ fn load_sessions_in(
         .unwrap_or_else(|| "VS Code".to_string());
 
     let mut sessions = Vec::new();
-    for entry in fs::read_dir(&chat_dir)
-        .map_err(|e| e.to_string())?
-        .flatten()
-    {
-        let session_path = entry.path();
-        if is_symlink(&session_path) || !session_path.is_file() {
-            continue;
-        }
-        if session_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(str::to_ascii_lowercase)
-            .as_deref()
-            != Some("jsonl")
-        {
-            continue;
-        }
-
+    for session_path in chat_session_files(&chat_dir)? {
         let info = match probe_session_metadata(&session_path) {
             Some(i) => i,
             None => continue,
@@ -452,11 +472,11 @@ fn load_sessions_in(
     Ok(sessions)
 }
 
-/// Replay the patch log, then convert each request into messages.
+/// Resolve the session state (patch-log replay or legacy full-JSON), then
+/// convert each request into messages.
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let path = validate_session_path(session_path)?;
-    let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let state = replay_session(&raw)?;
+    let state = read_session_state(&path)?;
     Ok(messages_from_state(&state))
 }
 
@@ -514,24 +534,7 @@ fn search_workspace_storage(
             continue;
         }
 
-        for entry in fs::read_dir(&chat_dir)
-            .map_err(|e| e.to_string())?
-            .flatten()
-        {
-            let session_path = entry.path();
-            if is_symlink(&session_path) || !session_path.is_file() {
-                continue;
-            }
-            if session_path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(str::to_ascii_lowercase)
-                .as_deref()
-                != Some("jsonl")
-            {
-                continue;
-            }
-
+        for session_path in chat_session_files(&chat_dir)? {
             if let Ok(messages) = load_messages(&session_path.to_string_lossy()) {
                 for msg in messages {
                     if results.len() >= limit {
@@ -579,21 +582,24 @@ fn replay_session(raw: &str) -> Result<Value, String> {
         };
 
         let kind = entry.get("kind").and_then(Value::as_u64).unwrap_or(0);
-        let path = entry.get("k").and_then(Value::as_array).cloned();
-        let value = entry.get("v").cloned();
-        let (path, value) = match (path, value) {
-            (Some(p), Some(v)) => (p, v),
-            _ => continue,
+        let Some(path) = entry.get("k").and_then(Value::as_array).cloned() else {
+            continue;
         };
 
         match kind {
             1 => {
-                let _ = set_at_path(&mut state, &path, value);
+                if let Some(value) = entry.get("v").cloned() {
+                    let _ = set_at_path(&mut state, &path, value);
+                }
             }
             2 => {
-                if let Some(items) = value.as_array() {
+                if let Some(items) = entry.get("v").and_then(Value::as_array) {
                     let _ = append_at_path(&mut state, &path, items);
                 }
+            }
+            // kind 3: delete the value at `k` (carries no `v`).
+            3 => {
+                let _ = delete_at_path(&mut state, &path);
             }
             _ => {}
         }
@@ -629,6 +635,26 @@ fn set_at_path(state: &mut Value, path: &[Value], value: Value) -> Result<(), ()
                 arr.push(Value::Null);
             }
             arr[idx] = value;
+            Ok(())
+        }
+        _ => Err(()),
+    }
+}
+
+/// Remove the value at `path` (object key removal / array element removal).
+fn delete_at_path(state: &mut Value, path: &[Value]) -> Result<(), ()> {
+    let (last, parents) = path.split_last().ok_or(())?;
+    let parent = traverse_mut(state, parents)?;
+    match (parent, last) {
+        (Value::Object(map), Value::String(key)) => {
+            map.remove(key);
+            Ok(())
+        }
+        (Value::Array(arr), Value::Number(n)) => {
+            let idx = n.as_u64().ok_or(())? as usize;
+            if idx < arr.len() {
+                arr.remove(idx);
+            }
             Ok(())
         }
         _ => Err(()),
@@ -909,7 +935,13 @@ fn build_assistant_message(
 fn read_workspace_folder(workspace_json_path: &Path) -> Option<String> {
     let data = fs::read_to_string(workspace_json_path).ok()?;
     let json: Value = serde_json::from_str(&data).ok()?;
-    let folder = json.get("folder").and_then(Value::as_str)?;
+    // Single-folder windows store `folder`; multi-root windows store
+    // `workspace` (the `.code-workspace` file URI) instead — without the
+    // fallback those workspaces were skipped entirely (issue #444).
+    let folder = json
+        .get("folder")
+        .and_then(Value::as_str)
+        .or_else(|| json.get("workspace").and_then(Value::as_str))?;
     folder.strip_prefix("file://").map(|s| {
         let path = if s.len() > 2 && s.as_bytes()[2] == b':' {
             // Windows drive letter (file:///C:/…)
@@ -950,8 +982,7 @@ struct SessionMetadata {
 
 /// Cheap metadata probe — replays the patch log and walks the final state once.
 fn probe_session_metadata(session_path: &Path) -> Option<SessionMetadata> {
-    let raw = fs::read_to_string(session_path).ok()?;
-    let state = replay_session(&raw).ok()?;
+    let state = read_session_state(session_path).ok()?;
 
     let session_id = state
         .get("sessionId")
@@ -1386,5 +1417,156 @@ mod tests {
         assert!(validate_session_path_in(&session_path.to_string_lossy(), &roots).is_ok());
         assert!(validate_workspace_path_in(&outside_workspace.to_string_lossy(), &roots).is_err());
         assert!(validate_session_path_in(&outside_session.to_string_lossy(), &roots).is_err());
+    }
+
+    /// Legacy (< VS Code 1.109) sessions are single full-JSON documents, never
+    /// migrated to the newer patch-log format — they must still surface (#444).
+    #[test]
+    fn legacy_json_sessions_are_discovered_and_loaded() {
+        let ws_root = tempfile::TempDir::new().unwrap();
+        let ws = ws_root.path().join("hash-legacy");
+        let chat = ws.join("chatSessions");
+        fs::create_dir_all(&chat).unwrap();
+        fs::write(
+            ws.join("workspace.json"),
+            r#"{"folder":"file:///Users/me/legacy-repo"}"#,
+        )
+        .unwrap();
+        let session_path = chat.join("legacy-1111-1111-1111-111111111111.json");
+        fs::write(
+            &session_path,
+            json!({
+                "version": 3,
+                "sessionId": "legacy-1111-1111-1111-111111111111",
+                "creationDate": 1751700000000u64,
+                "lastMessageDate": 1751700005000u64,
+                "requests": [{
+                    "requestId": "req-1",
+                    "timestamp": 1751700005000u64,
+                    "message": {"text": "hello from 2025"},
+                    "response": [{"value": "hi!"}]
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let projects = scan_projects_in(ws_root.path(), None).unwrap();
+        assert_eq!(projects.len(), 1, "legacy .json workspace must surface");
+        assert_eq!(projects[0].name, "legacy-repo");
+        assert_eq!(projects[0].session_count, 1);
+
+        let roots = vec![ws_root.path().to_path_buf()];
+        let sessions = load_sessions_in(&ws.to_string_lossy(), &roots).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(
+            sessions[0].actual_session_id,
+            "legacy-1111-1111-1111-111111111111"
+        );
+
+        assert!(validate_session_path_in(&session_path.to_string_lossy(), &roots).is_ok());
+        let state = read_session_state(&session_path).unwrap();
+        let msgs = messages_from_state(&state);
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].message_type, "user");
+        assert_eq!(msgs[1].message_type, "assistant");
+    }
+
+    /// When the same session id exists in both formats, VS Code reads the
+    /// `.jsonl` — mirror that priority so the session doesn't list twice.
+    #[test]
+    fn same_stem_json_and_jsonl_dedups_to_jsonl() {
+        let ws_root = tempfile::TempDir::new().unwrap();
+        let ws = ws_root.path().join("hash-dual");
+        let chat = ws.join("chatSessions");
+        fs::create_dir_all(&chat).unwrap();
+        fs::write(
+            ws.join("workspace.json"),
+            r#"{"folder":"file:///Users/me/dual-repo"}"#,
+        )
+        .unwrap();
+        let stem = "dual-1111-1111-1111-111111111111";
+        fs::write(
+            chat.join(format!("{stem}.json")),
+            json!({
+                "sessionId": stem,
+                "creationDate": 1u64,
+                "requests": [{"message": {"text": "OLD json copy"}, "response": []}]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            chat.join(format!("{stem}.jsonl")),
+            json!({"kind": 0, "v": {
+                "sessionId": stem,
+                "creationDate": 2u64,
+                "requests": [
+                    {"message": {"text": "new jsonl copy"}, "response": []},
+                    {"message": {"text": "second"}, "response": []}
+                ]
+            }})
+            .to_string(),
+        )
+        .unwrap();
+
+        let roots = vec![ws_root.path().to_path_buf()];
+        let sessions = load_sessions_in(&ws.to_string_lossy(), &roots).unwrap();
+        assert_eq!(sessions.len(), 1, "dual-format session must list once");
+        assert_eq!(
+            sessions[0].message_count, 2,
+            "the .jsonl copy must win over the legacy .json copy"
+        );
+    }
+
+    /// Multi-root windows record a `workspace` (.code-workspace URI) instead
+    /// of `folder` — those workspaces were previously skipped entirely.
+    #[test]
+    fn multi_root_workspace_key_is_mapped() {
+        let ws_root = tempfile::TempDir::new().unwrap();
+        let ws = ws_root.path().join("hash-multiroot");
+        let chat = ws.join("chatSessions");
+        fs::create_dir_all(&chat).unwrap();
+        fs::write(
+            ws.join("workspace.json"),
+            r#"{"workspace":"file:///Users/me/monorepo/all.code-workspace"}"#,
+        )
+        .unwrap();
+        fs::write(
+            chat.join("mr-1111-1111-1111-111111111111.jsonl"),
+            json!({"kind": 0, "v": {
+                "sessionId": "mr-1111-1111-1111-111111111111",
+                "creationDate": 1u64,
+                "requests": [{"message": {"text": "hello"}, "response": []}]
+            }})
+            .to_string(),
+        )
+        .unwrap();
+
+        let projects = scan_projects_in(ws_root.path(), None).unwrap();
+        assert_eq!(projects.len(), 1, "multi-root workspace must surface");
+        assert_eq!(
+            projects[0].actual_path,
+            "/Users/me/monorepo/all.code-workspace"
+        );
+    }
+
+    #[test]
+    fn replay_applies_delete_patches() {
+        let log = build_log(
+            json!({"sessionId": "abc", "customTitle": "temp", "requests": [
+                {"message": {"text": "a"}, "response": []},
+                {"message": {"text": "b"}, "response": []}
+            ]}),
+            &[
+                json!({"kind": 3, "k": ["customTitle"]}),
+                json!({"kind": 3, "k": ["requests", 0]}),
+            ],
+        );
+        let state = replay_session(&log).unwrap();
+        assert!(state.get("customTitle").is_none());
+        let requests = state["requests"].as_array().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0]["message"]["text"], "b");
     }
 }
