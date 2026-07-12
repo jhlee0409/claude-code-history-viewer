@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-07-12T10:31:10.249Z
- * 총 키 개수: 1855
+ * 생성 시간: 2026-07-12T10:46:56.888Z
+ * 총 키 개수: 1858
  * Namespace 수: 11
  */
 
@@ -1423,7 +1423,7 @@ export type MessageKeys =
   | 'navigator.userOnly';
 
 /**
- * renderers namespace의 번역 키 (389개)
+ * renderers namespace의 번역 키 (392개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1724,6 +1724,9 @@ export type RenderersKeys =
   | 'serverToolUseRenderer.serverTool'
   | 'serverToolUseRenderer.showInput'
   | 'serverToolUseRenderer.webSearch'
+  | 'sizeGuard.highlightDisabled'
+  | 'sizeGuard.showAll'
+  | 'sizeGuard.truncated'
   | 'structuredPatch.areasChanged'
   | 'structuredPatch.changeStats'
   | 'structuredPatch.fileChanges'
@@ -3596,6 +3599,9 @@ export type TranslationKey =
   | 'simpleUpdateModal.showDetails'
   | 'simpleUpdateModal.skipVersion'
   | 'simpleUpdateModal.viewOnGitHub'
+  | 'sizeGuard.highlightDisabled'
+  | 'sizeGuard.showAll'
+  | 'sizeGuard.truncated'
   | 'status.checking'
   | 'status.initializing'
   | 'status.loadingMessages'
@@ -3879,6 +3885,7 @@ export type TranslationPrefix =
   | 'settings'
   | 'settingsManager'
   | 'simpleUpdateModal'
+  | 'sizeGuard'
   | 'status'
   | 'structuredPatch'
   | 'summaryMessageRenderer'

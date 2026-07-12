@@ -9,6 +9,7 @@ import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import { HighlightedText } from "../common/HighlightedText";
 import { safeStringify } from "@/utils/jsonUtils";
+import { TruncatedPre } from "@/components/common/TruncatedPre";
 
 type Props = {
   searchData: Record<string, unknown>;
@@ -133,9 +134,10 @@ export const WebSearchRenderer = ({
                                     </ReactMarkdown>
                                   </div>
                                 ) : (
-                                  <pre className={`${layout.monoText} overflow-x-auto p-2 rounded bg-muted text-foreground/80`}>
-                                    {safeStringify(item, 2)}
-                                  </pre>
+                                  <TruncatedPre
+                                    content={safeStringify(item, 2)}
+                                    className={`${layout.monoText} overflow-x-auto p-2 rounded bg-muted text-foreground/80`}
+                                  />
                                 )}
                               </div>
                             ))}

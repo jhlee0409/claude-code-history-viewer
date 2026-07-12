@@ -37,6 +37,7 @@ import { HighlightedText } from "../common/HighlightedText";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
+import { TruncatedPre } from "../common/TruncatedPre";
 import type { SearchFilterType } from "../../store/useAppStore";
 import {
   isServerToolUseContent,
@@ -540,9 +541,10 @@ export const ClaudeContentArrayRenderer = memo(({
                   {t("claudeContentArrayRenderer.unknownContentType", {contentType: itemType,
                   })}
                 </div>
-                <pre className={cn("overflow-auto", layout.smallText, warningStyles.accent)}>
-                  {JSON.stringify(item, null, 2)}
-                </pre>
+                <TruncatedPre
+                  content={JSON.stringify(item, null, 2)}
+                  className={cn("overflow-auto", layout.smallText, warningStyles.accent)}
+                />
               </div>
             );
           }

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { safeStringify } from "../../utils/jsonUtils";
+import { TruncatedPre } from "../common/TruncatedPre";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { ToolUseCard } from "./toolUseRenderers/ToolUseCard";
 
@@ -51,9 +52,10 @@ export const MCPToolUseRenderer = memo(function MCPToolUseRenderer({
             {t("mcpToolUseRenderer.showInput")}
           </button>
           {showInput && (
-            <pre className={cn("mt-2 text-foreground bg-muted p-2 overflow-x-auto", layout.monoText, layout.rounded)}>
-              {safeStringify(input)}
-            </pre>
+            <TruncatedPre
+              content={safeStringify(input)}
+              className={cn("mt-2 text-foreground bg-muted p-2 overflow-x-auto", layout.monoText, layout.rounded)}
+            />
           )}
         </div>
       )}

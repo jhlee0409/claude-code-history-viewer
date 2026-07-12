@@ -11,6 +11,8 @@ import { useTranslation } from "react-i18next";
 import { Renderer } from "../shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
+import { TruncatedPre } from "@/components/common/TruncatedPre";
+import { isTooLargeToHighlight, formatCharSize } from "@/utils/contentSizeGuard";
 import {
   getPreStyles,
   getLineStyles,
@@ -264,6 +266,24 @@ export const FileContent = ({
                   <pre className={`${layout.monoText} whitespace-pre-wrap text-foreground`}>
                     {displayContent}
                   </pre>
+                </div>
+              ) : isTooLargeToHighlight(displayContent) ? (
+                // Tokenizing huge files creates tens of thousands of DOM
+                // nodes; fall back to a plain, truncation-guarded block
+                // (line numbers are dropped in this fallback).
+                <div className="bg-tool-file/5">
+                  <div className="px-4 pt-2 text-xs text-muted-foreground">
+                    {t("sizeGuard.highlightDisabled", {
+                      size: formatCharSize(displayContent.length),
+                      defaultValue:
+                        "Syntax highlighting disabled for large content ({{size}})",
+                    })}
+                  </div>
+                  <TruncatedPre
+                    content={displayContent}
+                    className={`${layout.monoText} whitespace-pre-wrap text-foreground`}
+                    style={{ padding: "0.75rem", maxHeight: "24rem", overflow: "auto" }}
+                  />
                 </div>
               ) : (
                 <Highlight

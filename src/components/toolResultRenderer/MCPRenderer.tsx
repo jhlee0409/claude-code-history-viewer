@@ -8,6 +8,7 @@ import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { HighlightedText } from "../common/HighlightedText";
 import { safeStringify } from "@/utils/jsonUtils";
+import { TruncatedPre } from "@/components/common/TruncatedPre";
 
 type Props = {
   mcpData: Record<string, unknown>;
@@ -60,9 +61,10 @@ export const MCPRenderer = ({
               <span>{t('mcpRenderer.parameters')}</span>
             </button>
             {showParams && (
-              <pre className={`mt-1 p-2 rounded ${layout.monoText} overflow-auto bg-tool-mcp/20 text-foreground`}>
-                {safeStringify(params, 2)}
-              </pre>
+              <TruncatedPre
+                content={safeStringify(params, 2)}
+                className={`mt-1 p-2 rounded ${layout.monoText} overflow-auto bg-tool-mcp/20 text-foreground`}
+              />
             )}
           </div>
 
@@ -96,9 +98,10 @@ export const MCPRenderer = ({
                 <span>{t('mcpRenderer.executionResult')}</span>
               </button>
               {showResult && (
-                <pre className={`mt-1 p-2 rounded ${layout.monoText} overflow-auto bg-muted text-foreground`}>
-                  {safeStringify(result, 2)}
-                </pre>
+                <TruncatedPre
+                  content={safeStringify(result, 2)}
+                  className={`mt-1 p-2 rounded ${layout.monoText} overflow-auto bg-muted text-foreground`}
+                />
               )}
             </div>
           )}

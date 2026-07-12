@@ -2,6 +2,7 @@ import { memo } from "react";
 import { ChevronRight, Globe, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { safeStringify } from "../../utils/jsonUtils";
+import { TruncatedPre } from "../common/TruncatedPre";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
@@ -69,9 +70,10 @@ export const ServerToolUseRenderer = memo(function ServerToolUseRenderer({
               {t("serverToolUseRenderer.showInput")}
             </button>
             {showInput && (
-              <pre className={cn(layout.monoText, "mt-2 text-foreground bg-muted rounded p-2 overflow-x-auto")}>
-                {safeStringify(input)}
-              </pre>
+              <TruncatedPre
+                content={safeStringify(input)}
+                className={cn(layout.monoText, "mt-2 text-foreground bg-muted rounded p-2 overflow-x-auto")}
+              />
             )}
           </div>
         )}

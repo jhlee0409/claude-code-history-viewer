@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Server, CheckCircle, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { safeStringify } from "../../utils/jsonUtils";
+import { TruncatedPre } from "../common/TruncatedPre";
 import type { MCPToolResultData } from "../../types";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
@@ -88,9 +89,10 @@ export const MCPToolResultRenderer = memo(function MCPToolResultRenderer({
       }
 
       return (
-        <pre className={cn(layout.bodyText, "text-foreground bg-muted p-2 overflow-x-auto", layout.rounded)}>
-          {safeStringify(content)}
-        </pre>
+        <TruncatedPre
+          content={safeStringify(content)}
+          className={cn(layout.bodyText, "text-foreground bg-muted p-2 overflow-x-auto", layout.rounded)}
+        />
       );
     }
 

@@ -12,7 +12,7 @@ import { memo } from "react";
  * - Default: Generic tool input display
  */
 
-import { Highlight, themes } from "prism-react-renderer";
+import { CodeHighlight } from "../common/CodeHighlight";
 import { useTranslation } from "react-i18next";
 import {
   FileText,
@@ -36,7 +36,6 @@ import {
   codeTheme,
   layout,
 } from "../renderers";
-import { getPreStyles, getLineStyles, getTokenStyles } from "@/utils/prismStyles";
 import {
   ReadToolRenderer,
   BashToolRenderer,
@@ -226,45 +225,15 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
               <span>{t("toolUseRenderer.createdContent")}</span>
             </div>
             <div className={cn(layout.rounded, "overflow-auto", layout.contentMaxHeight)}>
-              <Highlight
-                theme={isDarkMode ? themes.vsDark : themes.vsLight}
+              <CodeHighlight
                 code={content}
                 language={language}
-              >
-                {({
-                  className,
-                  style,
-                  tokens,
-                  getLineProps,
-                  getTokenProps,
-                }) => (
-                  <pre
-                    className={className}
-                    style={getPreStyles(isDarkMode, style, {
-                      fontSize: codeTheme.fontSize,
-                      padding: codeTheme.padding,
-                    })}
-                  >
-                    {tokens.map((line, i) => {
-                      const lineProps = getLineProps({ line });
-                      return (
-                        <div key={i} {...lineProps} style={getLineStyles(lineProps.style)}>
-                          {line.map((token, j) => {
-                            const tokenProps = getTokenProps({ token });
-                            return (
-                              <span
-                                key={j}
-                                {...tokenProps}
-                                style={getTokenStyles(isDarkMode, tokenProps.style)}
-                              />
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </pre>
-                )}
-              </Highlight>
+                isDarkMode={isDarkMode}
+                preOverrides={{
+                  fontSize: codeTheme.fontSize,
+                  padding: codeTheme.padding,
+                }}
+              />
             </div>
           </div>
         </Renderer.Content>
@@ -379,39 +348,15 @@ export const ToolUseRenderer = memo(function ToolUseRenderer({
           {t("toolUseRenderer.toolInputParameters")}
         </div>
         <div className={cn(layout.rounded, "overflow-auto", layout.contentMaxHeight)}>
-          <Highlight
-            theme={isDarkMode ? themes.vsDark : themes.vsLight}
+          <CodeHighlight
             code={JSON.stringify(toolInput, null, 2)}
             language="json"
-          >
-            {({ className, style, tokens, getLineProps, getTokenProps }) => (
-              <pre
-                className={className}
-                style={getPreStyles(isDarkMode, style, {
-                  fontSize: codeTheme.fontSize,
-                  padding: codeTheme.padding,
-                })}
-              >
-                {tokens.map((line, i) => {
-                  const lineProps = getLineProps({ line });
-                  return (
-                    <div key={i} {...lineProps} style={getLineStyles(lineProps.style)}>
-                      {line.map((token, j) => {
-                        const tokenProps = getTokenProps({ token });
-                        return (
-                          <span
-                            key={j}
-                            {...tokenProps}
-                            style={getTokenStyles(isDarkMode, tokenProps.style)}
-                          />
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </pre>
-            )}
-          </Highlight>
+            isDarkMode={isDarkMode}
+            preOverrides={{
+              fontSize: codeTheme.fontSize,
+              padding: codeTheme.padding,
+            }}
+          />
         </div>
       </Renderer.Content>
     </Renderer>
