@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 pub mod aider;
 pub mod amazon_q;
 pub mod antigravity;
+/// Antigravity CLI (`~/.gemini/antigravity-cli`) layout — surfaced through the
+/// `antigravity` provider, not a separate provider id.
+pub mod antigravity_cli;
 pub mod claude;
 pub mod cline;
 pub mod codebuddy;

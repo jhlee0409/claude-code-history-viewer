@@ -36,7 +36,7 @@ pub fn detect() -> Option<ProviderInfo> {
     let root = resolve_antigravity_root()?;
     let state = load_antigravity_state_impl(&root).ok();
     let rpc_cache_root = get_antigravity_rpc_cache_root(&root);
-    let is_available = state
+    let desktop_available = state
         .as_ref()
         .map(|state| !state.sessions.is_empty())
         .unwrap_or(false)
@@ -44,12 +44,23 @@ pub fn detect() -> Option<ProviderInfo> {
         || root.join("brain").exists()
         || root.join("conversations").exists()
         || root.join("monitor-state.json").exists();
+    // The antigravity-cli store (`~/.gemini/antigravity-cli`) is surfaced
+    // through this same provider; a CLI-only install still counts.
+    let cli_available = super::antigravity_cli::is_available();
+    let base_path = if !desktop_available && cli_available {
+        super::antigravity_cli::default_root()
+            .unwrap_or_else(|| root.clone())
+            .to_string_lossy()
+            .to_string()
+    } else {
+        root.to_string_lossy().to_string()
+    };
 
     Some(ProviderInfo {
         id: "antigravity".to_string(),
         display_name: "Antigravity".to_string(),
-        base_path: root.to_string_lossy().to_string(),
-        is_available,
+        base_path,
+        is_available: desktop_available || cli_available,
     })
 }
 
@@ -134,7 +145,8 @@ pub fn summarize_usage_file(path: &std::path::Path) -> UsageSummary {
 }
 
 /// Converts a Unix timestamp in milliseconds to an RFC3339 string.
-fn ms_to_rfc3339(ms: u64) -> String {
+/// `pub(crate)` so the antigravity-cli layout module can reuse it.
+pub(crate) fn ms_to_rfc3339(ms: u64) -> String {
     if ms == 0 {
         return "1970-01-01T00:00:00Z".to_string();
     }
@@ -149,8 +161,27 @@ fn ms_to_rfc3339(ms: u64) -> String {
 // Provider interface
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Return a single "Antigravity" project representing all rpc-cache sessions.
+/// Desktop projects plus any antigravity-cli workspace projects — both
+/// layouts may coexist on one machine. A desktop scan failure degrades to
+/// the CLI projects (and vice versa, the CLI side is tolerant by design)
+/// rather than hiding one layout behind the other's error.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    let cli_projects = super::antigravity_cli::scan_projects();
+    match scan_desktop_projects() {
+        Ok(mut projects) => {
+            projects.extend(cli_projects);
+            Ok(projects)
+        }
+        Err(err) if cli_projects.is_empty() => Err(err),
+        Err(err) => {
+            log::warn!("Antigravity desktop scan failed; returning CLI projects only: {err}");
+            Ok(cli_projects)
+        }
+    }
+}
+
+/// Return a single "Antigravity" project representing all rpc-cache sessions.
+fn scan_desktop_projects() -> Result<Vec<ClaudeProject>, String> {
     let Some(root) = resolve_antigravity_root() else {
         return Ok(vec![]);
     };
@@ -365,7 +396,14 @@ fn merge_tool_names_into_messages(
 }
 
 /// Map each rpc-cache session directory to a `ClaudeSession`.
+///
+/// CLI project paths carry the `antigravity-cli://<workspace>` scheme and
+/// route to the transcript-based loader; everything else is the desktop
+/// rpc-cache layout.
 pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeSession>, String> {
+    if let Some(workspace) = path.strip_prefix(super::antigravity_cli::SCHEME) {
+        return super::antigravity_cli::load_sessions(workspace);
+    }
     let root = match marker_rooted_path(path) {
         Some(root) => root,
         None => return Ok(vec![]),
@@ -482,7 +520,13 @@ pub(crate) fn resolve_usage_jsonl_path(session_path: &str) -> Option<PathBuf> {
 }
 
 /// Map each usage record in a session's `usage.jsonl` to a pair of `ClaudeMessages`.
+///
+/// Session paths under the antigravity-cli store (`<cli-root>/brain/<uuid>`)
+/// route to the transcript parser instead.
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
+    if super::antigravity_cli::owns_session_path(session_path) {
+        return super::antigravity_cli::load_messages(session_path);
+    }
     let session_id = PathBuf::from(session_path)
         .file_name()
         .map(|f| f.to_string_lossy().to_string())
@@ -703,14 +747,155 @@ pub fn search(query: &str, max_results: usize) -> Result<Vec<ClaudeMessage>, Str
 
     results.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
     results.truncate(max_results);
+
+    // CLI transcripts carry real conversation content — search them too.
+    if results.len() < max_results {
+        results.extend(super::antigravity_cli::search(
+            query,
+            max_results - results.len(),
+        ));
+    }
+
     Ok(results)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::io::Write;
     use tempfile::TempDir;
+
+    /// Saves/restores `HOME` around a test so both the desktop root and the
+    /// CLI root resolve under a fresh `TempDir` rather than the real user
+    /// home. `HOME` is process-global; combined with `#[serial]` so these
+    /// tests don't race other HOME-touching tests.
+    struct HomeGuard {
+        original: Option<String>,
+    }
+    impl HomeGuard {
+        fn set(path: &std::path::Path) -> Self {
+            let original = std::env::var("HOME").ok();
+            std::env::set_var("HOME", path);
+            Self { original }
+        }
+    }
+    impl Drop for HomeGuard {
+        fn drop(&mut self) {
+            match self.original.as_ref() {
+                Some(v) => std::env::set_var("HOME", v),
+                None => std::env::remove_var("HOME"),
+            }
+        }
+    }
+
+    /// Writes a minimal antigravity-cli fixture (index + one transcript)
+    /// under `<home>/.gemini/antigravity-cli` and returns the session dir.
+    fn write_cli_fixture(home: &std::path::Path) -> std::path::PathBuf {
+        let cli_root = home.join(".gemini").join("antigravity-cli");
+        std::fs::create_dir_all(&cli_root).expect("create cli root");
+        std::fs::write(
+            cli_root.join("history.jsonl"),
+            concat!(
+                "{\"display\": \"Wire the CLI layout\", \"timestamp\": 1750500000000, ",
+                "\"workspace\": \"/tmp/cli-proj\", \"conversationId\": \"conv-cli\"}\n",
+            ),
+        )
+        .expect("write history.jsonl");
+
+        let session_dir = cli_root.join("brain").join("conv-cli");
+        let logs = session_dir.join(".system_generated").join("logs");
+        std::fs::create_dir_all(&logs).expect("create transcript dir");
+        std::fs::write(
+            logs.join("transcript_full.jsonl"),
+            concat!(
+                "{\"step_index\": 0, \"source\": \"USER_EXPLICIT\", \"type\": \"USER_INPUT\", ",
+                "\"status\": \"DONE\", \"content\": \"Wire the CLI layout\", ",
+                "\"created_at\": \"2026-06-21T10:00:00Z\"}\n",
+                "{\"step_index\": 1, \"source\": \"MODEL\", \"type\": \"PLANNER_RESPONSE\", ",
+                "\"status\": \"DONE\", \"content\": \"Done.\", ",
+                "\"created_at\": \"2026-06-21T10:00:05Z\"}\n",
+            ),
+        )
+        .expect("write transcript");
+        session_dir
+    }
+
+    #[test]
+    #[serial]
+    /// A user may have the desktop Antigravity app AND the antigravity-cli
+    /// store: `scan_projects` must surface both layouts, without id
+    /// collisions between their sessions.
+    fn scan_projects_merges_desktop_and_cli_layouts() {
+        let temp = TempDir::new().expect("temp dir");
+        let _guard = HomeGuard::set(temp.path());
+
+        // Desktop layout: one rpc-cache session with a usage record.
+        let desktop_session = temp
+            .path()
+            .join(".gemini")
+            .join("antigravity")
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("session-desktop");
+        std::fs::create_dir_all(&desktop_session).expect("create desktop session");
+        make_usage_file(&desktop_session, "session-desktop", "claude-opus-4-5");
+
+        // CLI layout next to it.
+        write_cli_fixture(temp.path());
+
+        let projects = scan_projects().expect("scan projects");
+        assert!(
+            projects.iter().any(|p| p.name == "Antigravity"),
+            "desktop project missing from {projects:?}"
+        );
+        assert!(
+            projects
+                .iter()
+                .any(|p| p.path == "antigravity-cli:///tmp/cli-proj"),
+            "cli project missing from {projects:?}"
+        );
+
+        let cli_sessions =
+            load_sessions("antigravity-cli:///tmp/cli-proj", false).expect("cli sessions");
+        assert_eq!(cli_sessions.len(), 1);
+        assert_eq!(cli_sessions[0].session_id, "conv-cli");
+        assert_eq!(cli_sessions[0].provider.as_deref(), Some("antigravity"));
+    }
+
+    #[test]
+    #[serial]
+    /// `load_messages` must route CLI session paths (under
+    /// `~/.gemini/antigravity-cli/brain/`) to the transcript parser instead
+    /// of the desktop usage.jsonl reader.
+    fn load_messages_routes_cli_session_paths() {
+        let temp = TempDir::new().expect("temp dir");
+        let _guard = HomeGuard::set(temp.path());
+        let session_dir = write_cli_fixture(temp.path());
+
+        let messages = load_messages(&session_dir.to_string_lossy()).expect("load cli messages");
+
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].uuid, "conv-cli-step-0");
+        assert_eq!(messages[0].message_type, "user");
+        assert_eq!(messages[1].uuid, "conv-cli-step-1");
+        assert_eq!(messages[1].message_type, "assistant");
+    }
+
+    #[test]
+    #[serial]
+    /// Content search must cover CLI transcripts too — the desktop layout
+    /// only matches session metadata.
+    fn search_covers_cli_transcript_content() {
+        let temp = TempDir::new().expect("temp dir");
+        let _guard = HomeGuard::set(temp.path());
+        write_cli_fixture(temp.path());
+
+        let results = search("wire the cli", 10).expect("search");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].session_id, "conv-cli");
+    }
 
     fn make_usage_file(dir: &std::path::Path, _session_id: &str, model: &str) {
         let usage_path = dir.join("usage.jsonl");
