@@ -1,4 +1,4 @@
-import { Filter, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, Terminal } from "lucide-react";
+import { Filter, RotateCcw, User, Bot, MessageSquareText, Brain, Wrench, Terminal, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "../../../store/useAppStore";
@@ -33,9 +33,10 @@ function FilterToggle({ active, onClick, label, icon }: FilterToggleProps) {
 interface FilterToolbarProps {
   totalCount: number;
   filteredCount: number;
+  hasParallelTasks: boolean;
 }
 
-export function FilterToolbar({ totalCount, filteredCount }: FilterToolbarProps) {
+export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: FilterToolbarProps) {
   const { t } = useTranslation();
   const {
     messageFilter,
@@ -110,6 +111,14 @@ export function FilterToolbar({ totalCount, filteredCount }: FilterToolbarProps)
           label={t("filter.content.commands")}
           icon={<Terminal className="w-3 h-3" />}
         />
+        {hasParallelTasks && (
+          <FilterToggle
+            active={messageFilter.contentTypes.parallelTasks}
+            onClick={() => toggleContentType("parallelTasks")}
+            label={t("filter.content.parallelTasks")}
+            icon={<Zap className="w-3 h-3" />}
+          />
+        )}
       </div>
 
       {/* Reset button */}

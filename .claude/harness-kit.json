@@ -1,0 +1,7 @@
+{
+  "verify_command": "pnpm tsc --build . && pnpm exec vitest run",
+  "blocking": false,
+  "protected_branches": ["main", "develop"],
+  "worktree_workflow": false,
+  "pr_workflow": { "host": "github", "ci": "github-actions", "merge_gate": null }
+}

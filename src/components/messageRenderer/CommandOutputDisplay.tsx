@@ -83,7 +83,7 @@ export const CommandOutputDisplay: React.FC<CommandOutputDisplayProps> = ({
               <pre
                 className={className}
                 style={getPreStyles(isDarkMode, style, {
-                  fontSize: "0.6875rem",
+                  fontSize: "calc(0.6875rem * var(--app-font-scale))",
                   padding: "0.75rem",
                 })}
               >

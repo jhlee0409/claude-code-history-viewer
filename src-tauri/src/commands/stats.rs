@@ -2724,16 +2724,12 @@ pub async fn get_session_token_stats(
             s_limit.as_ref(),
             e_limit.as_ref(),
         )
-        .and_then(|stats| {
-            if is_within_date_limits(
+        .filter(|stats| {
+            is_within_date_limits(
                 parse_timestamp_utc(&stats.last_message_time),
                 s_limit.as_ref(),
                 e_limit.as_ref(),
-            ) {
-                Some(stats)
-            } else {
-                None
-            }
+            )
         })
         .ok_or_else(|| "No valid messages found in session".to_string());
     }

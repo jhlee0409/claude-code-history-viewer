@@ -189,7 +189,7 @@ fn write_jsonl_lines(file_path: &str, lines: &[String]) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         if std::path::Path::new(&file_path).exists() {
-            fs::remove_file(&file_path)
+            fs::remove_file(file_path)
                 .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
         }
     }

@@ -303,7 +303,7 @@ export const commonStyles = {
  * Prism theme configuration (shared across all code renderers)
  */
 export const codeTheme = {
-  fontSize: "0.8125rem",
+  fontSize: "calc(0.8125rem * var(--app-font-scale))",
   lineHeight: "1.25rem",
   padding: "0.5rem",
 } as const;

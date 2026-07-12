@@ -151,6 +151,9 @@ export interface RawClaudeMessage {
 // Processed Message (for UI)
 // ============================================================================
 
+/** Provider-neutral categories derived from normalized session messages. */
+export type MessageCategory = "parallel-task";
+
 export interface BaseClaudeMessage {
   uuid: string;
   parentUuid?: string;
