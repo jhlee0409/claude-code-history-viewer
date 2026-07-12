@@ -23,12 +23,21 @@ function sanitizeFilename(name: string): string {
 export function useExport(
   messages: ClaudeMessage[],
   sessionName: string,
-  options?: { includeSidechain?: boolean },
+  options?: {
+    includeSidechain?: boolean;
+    /**
+     * Resolves the messages to export. Used when the store only holds a
+     * paginated window of the session — export must cover the COMPLETE
+     * conversation, not just what has been scrolled into memory.
+     */
+    resolveMessages?: () => Promise<ClaudeMessage[]>;
+  },
 ) {
   const { t } = useTranslation();
   const [isExporting, setIsExporting] = useState(false);
   const { messageFilter, isMessageFilterActive } = useAppStore();
   const includeSidechain = options?.includeSidechain === true;
+  const resolveMessages = options?.resolveMessages;
 
   const exportConversation = useCallback(
     async (format: ExportFormat) => {
@@ -36,6 +45,10 @@ export function useExport(
       setIsExporting(true);
 
       try {
+        const exportMessages = resolveMessages
+          ? await resolveMessages()
+          : messages;
+        if (exportMessages.length === 0) return;
         const safeName = sanitizeFilename(sessionName);
         let content: string;
         let defaultPath: string;
@@ -50,21 +63,21 @@ export function useExport(
         switch (format) {
           case "markdown": {
             const { exportToMarkdown } = await import("@/services/export/markdownExporter");
-            content = exportToMarkdown(messages, sessionName, ctFilter, exportOptions);
+            content = exportToMarkdown(exportMessages, sessionName, ctFilter, exportOptions);
             defaultPath = `${safeName}.md`;
             mimeType = "text/markdown";
             break;
           }
           case "json": {
             const { exportToJson } = await import("@/services/export/jsonExporter");
-            content = exportToJson(messages, sessionName, ctFilter, exportOptions);
+            content = exportToJson(exportMessages, sessionName, ctFilter, exportOptions);
             defaultPath = `${safeName}.json`;
             mimeType = "application/json";
             break;
           }
           case "html": {
             const { exportToHtml } = await import("@/services/export/htmlExporter");
-            content = exportToHtml(messages, sessionName, ctFilter, exportOptions);
+            content = exportToHtml(exportMessages, sessionName, ctFilter, exportOptions);
             defaultPath = `${safeName}.html`;
             mimeType = "text/html";
             break;
@@ -88,7 +101,7 @@ export function useExport(
         setIsExporting(false);
       }
     },
-    [messages, sessionName, t, messageFilter, isMessageFilterActive, includeSidechain],
+    [messages, sessionName, t, messageFilter, isMessageFilterActive, includeSidechain, resolveMessages],
   );
 
   return { isExporting, exportConversation };

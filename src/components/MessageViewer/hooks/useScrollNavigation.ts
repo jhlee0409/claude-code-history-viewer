@@ -36,6 +36,12 @@ interface UseScrollNavigationOptions {
   targetMessageUuid?: string | null;
   /** Reports whether the message viewport is close enough to live-follow new writes. */
   onNearBottomChange?: (nearBottom: boolean) => void;
+  /**
+   * Key of the FIRST list item. When the list grows while this key changes,
+   * older messages were PREPENDED (chat-style pagination) — auto-scroll to
+   * bottom must not fire in that case.
+   */
+  firstItemKey?: string | null;
 }
 
 interface UseScrollNavigationReturn {
@@ -60,6 +66,7 @@ export const useScrollNavigation = ({
   scrollElementReady = false,
   targetMessageUuid,
   onNearBottomChange,
+  firstItemKey = null,
 }: UseScrollNavigationOptions): UseScrollNavigationReturn => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -70,6 +77,7 @@ export const useScrollNavigation = ({
   const isNearBottomRef = useRef(true);
   const lastReportedNearBottomRef = useRef<boolean | null>(null);
   const prevMessagesLengthRef = useRef(0);
+  const prevFirstItemKeyRef = useRef<string | null>(null);
 
   // Helper to get the scroll viewport element
   const getScrollViewport = useCallback(() => {
@@ -330,6 +338,7 @@ export const useScrollNavigation = ({
   // Reset prevMessagesLength on session switch
   useEffect(() => {
     prevMessagesLengthRef.current = 0;
+    prevFirstItemKeyRef.current = null;
     lastReportedNearBottomRef.current = null;
     reportNearBottom(true);
   }, [selectedSessionId, reportNearBottom]);
@@ -339,9 +348,17 @@ export const useScrollNavigation = ({
     const prevLength = prevMessagesLengthRef.current;
     prevMessagesLengthRef.current = messagesLength;
 
+    // Growth with a changed head = older page PREPENDED — keep the viewport
+    // where it is (the prepend anchor in MessageViewer handles compensation).
+    const prevFirstKey = prevFirstItemKeyRef.current;
+    prevFirstItemKeyRef.current = firstItemKey;
+    const isPrepend =
+      prevLength > 0 && messagesLength > prevLength && prevFirstKey !== firstItemKey;
+
     if (
       prevLength > 0 &&
       messagesLength > prevLength &&
+      !isPrepend &&
       isNearBottomRef.current &&
       !targetMessageUuid &&
       scrollReadyForSessionId === selectedSessionId
@@ -351,7 +368,7 @@ export const useScrollNavigation = ({
       });
       return () => cancelAnimationFrame(rafId);
     }
-  }, [messagesLength, scrollToBottom, scrollReadyForSessionId, selectedSessionId, targetMessageUuid]);
+  }, [messagesLength, firstItemKey, scrollToBottom, scrollReadyForSessionId, selectedSessionId, targetMessageUuid]);
 
   return {
     showScrollToTop,

@@ -1,4 +1,4 @@
-use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
+use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, MessagePage};
 use crate::providers;
 use crate::utils::parse_rfc3339_utc;
 use serde::{Deserialize, Serialize};
@@ -413,54 +413,170 @@ pub async fn load_provider_sessions_page(
     })
 }
 
+/// Default / maximum page size for `load_provider_messages_paginated`.
+const DEFAULT_MESSAGE_PAGE_SIZE: usize = 200;
+const MAX_MESSAGE_PAGE_LIMIT: usize = 500;
+
+/// Load raw (pre-merge) messages for a non-Claude provider.
+/// Single source of truth for the provider dispatch — used by both the full
+/// and the paginated entry points so they cannot drift.
+fn load_non_claude_messages(
+    provider: &str,
+    session_path: &str,
+) -> Result<Vec<ClaudeMessage>, String> {
+    match provider {
+        "codex" => providers::codex::load_messages(session_path),
+        "continue" => providers::continue_dev::load_messages(session_path),
+        "pearai" => providers::pearai::load_messages(session_path),
+        "copilot" => providers::copilot::load_messages(session_path),
+        "gemini" => providers::gemini::load_messages(session_path),
+        "goose" => providers::goose::load_messages(session_path),
+        "kimi" => providers::kimi::load_messages(session_path),
+        "forgecode" => providers::forgecode::load_messages(session_path),
+        "opencode" => providers::opencode::load_messages(session_path),
+        "openinterpreter" => providers::openinterpreter::load_messages(session_path),
+        "pi" => providers::pi::load_messages(session_path),
+        "ompi" => providers::ompi::load_messages(session_path),
+        "qwen" => providers::qwen::load_messages(session_path),
+        "cline" => providers::cline::load_messages(session_path),
+        "crush" => providers::crush::load_messages(session_path),
+        "cursor" => providers::cursor::load_messages(session_path),
+        "cursor-agent" => providers::cursor_agent::load_messages(session_path),
+        "aider" => providers::aider::load_messages(session_path),
+        "amazonq" => providers::amazon_q::load_messages(session_path),
+        "antigravity" => providers::antigravity::load_messages(session_path),
+        "codebuddy" => providers::codebuddy::load_messages(session_path),
+        "kiro" => providers::kiro::load_messages(session_path),
+        "llm" => providers::llm::load_messages(session_path),
+        "zed" => providers::zed::load_messages(session_path),
+        "openhands" => providers::openhands::load_messages(session_path),
+        "trae" => providers::trae::load_messages(session_path),
+        "vibe" => providers::vibe::load_messages(session_path),
+        _ => Err(format!("Unknown provider: {provider}")),
+    }
+}
+
 /// Load messages from a specific provider's session
 #[tauri::command]
 pub async fn load_provider_messages(
     provider: String,
     session_path: String,
 ) -> Result<Vec<ClaudeMessage>, String> {
-    let messages = match provider.as_str() {
-        "claude" => {
-            let mut messages =
-                crate::commands::session::load_session_messages(session_path).await?;
-            for m in &mut messages {
-                if m.provider.is_none() {
-                    m.provider = Some("claude".to_string());
-                }
+    let messages = if provider == "claude" {
+        let mut messages = crate::commands::session::load_session_messages(session_path).await?;
+        for m in &mut messages {
+            if m.provider.is_none() {
+                m.provider = Some("claude".to_string());
             }
-            messages
         }
-        "codex" => providers::codex::load_messages(&session_path)?,
-        "continue" => providers::continue_dev::load_messages(&session_path)?,
-        "pearai" => providers::pearai::load_messages(&session_path)?,
-        "copilot" => providers::copilot::load_messages(&session_path)?,
-        "gemini" => providers::gemini::load_messages(&session_path)?,
-        "goose" => providers::goose::load_messages(&session_path)?,
-        "kimi" => providers::kimi::load_messages(&session_path)?,
-        "forgecode" => providers::forgecode::load_messages(&session_path)?,
-        "opencode" => providers::opencode::load_messages(&session_path)?,
-        "openinterpreter" => providers::openinterpreter::load_messages(&session_path)?,
-        "pi" => providers::pi::load_messages(&session_path)?,
-        "ompi" => providers::ompi::load_messages(&session_path)?,
-        "qwen" => providers::qwen::load_messages(&session_path)?,
-        "cline" => providers::cline::load_messages(&session_path)?,
-        "crush" => providers::crush::load_messages(&session_path)?,
-        "cursor" => providers::cursor::load_messages(&session_path)?,
-        "cursor-agent" => providers::cursor_agent::load_messages(&session_path)?,
-        "aider" => providers::aider::load_messages(&session_path)?,
-        "amazonq" => providers::amazon_q::load_messages(&session_path)?,
-        "antigravity" => providers::antigravity::load_messages(&session_path)?,
-        "codebuddy" => providers::codebuddy::load_messages(&session_path)?,
-        "kiro" => providers::kiro::load_messages(&session_path)?,
-        "llm" => providers::llm::load_messages(&session_path)?,
-        "zed" => providers::zed::load_messages(&session_path)?,
-        "openhands" => providers::openhands::load_messages(&session_path)?,
-        "trae" => providers::trae::load_messages(&session_path)?,
-        "vibe" => providers::vibe::load_messages(&session_path)?,
-        _ => return Err(format!("Unknown provider: {provider}")),
+        messages
+    } else {
+        load_non_claude_messages(&provider, &session_path)?
     };
 
     Ok(merge_tool_execution_messages(messages))
+}
+
+/// Chat-style slice over an already-materialized, chronologically ordered
+/// message list: `offset` counts messages already loaded from the NEWEST end,
+/// so offset 0 returns the newest `limit` messages and increasing offsets walk
+/// toward the beginning of the session.
+fn paginate_messages_chat_style(
+    mut messages: Vec<ClaudeMessage>,
+    offset: usize,
+    limit: usize,
+) -> MessagePage {
+    let total_count = messages.len();
+    let remaining = total_count.saturating_sub(offset);
+    let to_load = limit.min(remaining);
+    let start = remaining - to_load;
+    let page: Vec<ClaudeMessage> = messages.drain(start..remaining).collect();
+
+    MessagePage {
+        messages: page,
+        total_count,
+        has_more: start > 0,
+        next_offset: offset + to_load,
+    }
+}
+
+/// Paginated variant of `load_provider_messages` (chat-style: offset 0 = newest).
+///
+/// - `claude` uses the mmap fast path (`load_session_messages_paginated`):
+///   offsets are in PRE-merge index space (stable across pages, consistent with
+///   `get_session_message_count`), and tool-result merging is applied WITHIN
+///   the returned window. A `tool_result` whose matching `tool_use` lives in an
+///   older, unloaded page stays unmerged and renders via the standalone
+///   `tool_result` renderers — a boundary-only artifact.
+/// - Other providers materialize the full session server-side (as they always
+///   have), merge, then slice — bounding the IPC payload and frontend memory.
+#[tauri::command]
+pub async fn load_provider_messages_paginated(
+    provider: String,
+    session_path: String,
+    offset: Option<usize>,
+    limit: Option<usize>,
+    exclude_sidechain: Option<bool>,
+) -> Result<MessagePage, String> {
+    let offset = offset.unwrap_or(0);
+    let limit = limit
+        .unwrap_or(DEFAULT_MESSAGE_PAGE_SIZE)
+        .clamp(1, MAX_MESSAGE_PAGE_LIMIT);
+
+    if provider == "claude" {
+        let mut page = crate::commands::session::load_session_messages_paginated(
+            session_path,
+            offset,
+            limit,
+            exclude_sidechain,
+        )
+        .await?;
+        for m in &mut page.messages {
+            if m.provider.is_none() {
+                m.provider = Some("claude".to_string());
+            }
+        }
+        page.messages = merge_tool_execution_messages(page.messages);
+        return Ok(page);
+    }
+
+    let messages = load_non_claude_messages(&provider, &session_path)?;
+    let mut merged = merge_tool_execution_messages(messages);
+    if exclude_sidechain.unwrap_or(false) {
+        merged.retain(|m| !m.is_sidechain.unwrap_or(false));
+    }
+    Ok(paginate_messages_chat_style(merged, offset, limit))
+}
+
+/// Find how far from the NEWEST visible message a uuid sits (0 = newest).
+/// Returns `None` when the uuid is not present. Loading a chat-style window
+/// with `offset = 0, limit = result + 1` guarantees the message is included —
+/// this powers deep links (global search jumps) into unloaded regions without
+/// falling back to a full-session load.
+///
+/// Offsets are in the same index space as `load_provider_messages_paginated`
+/// for the given provider (pre-merge for claude, post-merge otherwise).
+#[tauri::command]
+pub async fn get_provider_message_offset(
+    provider: String,
+    session_path: String,
+    message_uuid: String,
+    exclude_sidechain: Option<bool>,
+) -> Result<Option<usize>, String> {
+    if provider == "claude" {
+        return crate::commands::session::get_session_message_offset(
+            session_path,
+            message_uuid,
+            exclude_sidechain,
+        );
+    }
+
+    let messages = load_non_claude_messages(&provider, &session_path)?;
+    let mut merged = merge_tool_execution_messages(messages);
+    if exclude_sidechain.unwrap_or(false) {
+        merged.retain(|m| !m.is_sidechain.unwrap_or(false));
+    }
+    Ok(merged.iter().rev().position(|m| m.uuid == message_uuid))
 }
 
 /// Search across all (or selected) providers
@@ -1115,6 +1231,164 @@ mod tests {
             microcompact_metadata: None,
             provider: Some("claude".to_string()),
         }
+    }
+
+    fn make_message_with_uuid(uuid: &str, message_type: &str, content: Value) -> ClaudeMessage {
+        let mut msg = make_message(message_type, content);
+        msg.uuid = uuid.to_string();
+        msg
+    }
+
+    #[test]
+    fn paginate_chat_style_returns_newest_window_first() {
+        let messages: Vec<ClaudeMessage> = (1..=5)
+            .map(|i| {
+                make_message_with_uuid(
+                    &format!("uuid-{i}"),
+                    "user",
+                    serde_json::json!(format!("Message {i}")),
+                )
+            })
+            .collect();
+
+        // offset 0 → newest two, chronological order preserved
+        let page = paginate_messages_chat_style(messages.clone(), 0, 2);
+        assert_eq!(page.total_count, 5);
+        assert_eq!(
+            page.messages
+                .iter()
+                .map(|m| m.uuid.as_str())
+                .collect::<Vec<_>>(),
+            vec!["uuid-4", "uuid-5"]
+        );
+        assert!(page.has_more);
+        assert_eq!(page.next_offset, 2);
+
+        // walking backwards with next_offset
+        let page2 = paginate_messages_chat_style(messages.clone(), page.next_offset, 2);
+        assert_eq!(
+            page2
+                .messages
+                .iter()
+                .map(|m| m.uuid.as_str())
+                .collect::<Vec<_>>(),
+            vec!["uuid-2", "uuid-3"]
+        );
+        assert!(page2.has_more);
+
+        // final partial page
+        let page3 = paginate_messages_chat_style(messages.clone(), page2.next_offset, 2);
+        assert_eq!(
+            page3
+                .messages
+                .iter()
+                .map(|m| m.uuid.as_str())
+                .collect::<Vec<_>>(),
+            vec!["uuid-1"]
+        );
+        assert!(!page3.has_more);
+        assert_eq!(page3.next_offset, 5);
+
+        // offset beyond the end → empty, no more
+        let past_end = paginate_messages_chat_style(messages, 10, 2);
+        assert!(past_end.messages.is_empty());
+        assert!(!past_end.has_more);
+        assert_eq!(past_end.total_count, 5);
+    }
+
+    #[test]
+    fn paginate_chat_style_empty_input() {
+        let page = paginate_messages_chat_style(vec![], 0, 100);
+        assert!(page.messages.is_empty());
+        assert_eq!(page.total_count, 0);
+        assert!(!page.has_more);
+        assert_eq!(page.next_offset, 0);
+    }
+
+    #[tokio::test]
+    async fn load_provider_messages_paginated_claude_merges_within_window() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session.jsonl");
+        let content = concat!(
+            r#"{"uuid":"uuid-a","sessionId":"s1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"Bash","input":{"command":"pwd"}}]}}"#,
+            "\n",
+            r#"{"uuid":"uuid-b","sessionId":"s1","timestamp":"2025-06-26T10:00:01Z","type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"ok"}]}}"#,
+            "\n",
+            r#"{"uuid":"uuid-c","sessionId":"s1","timestamp":"2025-06-26T10:00:02Z","type":"user","message":{"role":"user","content":"trailing question"}}"#,
+            "\n",
+        );
+        std::fs::write(&file_path, content).unwrap();
+        let path = file_path.to_string_lossy().to_string();
+
+        // Full window: tool_result folds into the assistant message.
+        let full =
+            load_provider_messages_paginated("claude".into(), path.clone(), None, None, None)
+                .await
+                .unwrap();
+        assert_eq!(full.total_count, 3); // pre-merge space
+        assert_eq!(full.messages.len(), 2); // merged for display
+        assert_eq!(full.messages[0].uuid, "uuid-a");
+        assert!(full.messages[0]
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .is_some_and(|arr| arr
+                .iter()
+                .any(|b| b.get("type").and_then(Value::as_str) == Some("tool_result"))));
+        assert!(full
+            .messages
+            .iter()
+            .all(|m| m.provider.as_deref() == Some("claude")));
+
+        // Window that cuts between tool_use and tool_result: the orphan
+        // tool_result stays a standalone message (boundary artifact).
+        let window =
+            load_provider_messages_paginated("claude".into(), path, Some(0), Some(2), None)
+                .await
+                .unwrap();
+        assert_eq!(window.total_count, 3);
+        assert_eq!(window.messages.len(), 2);
+        assert_eq!(window.messages[0].uuid, "uuid-b");
+        assert!(window.has_more);
+        assert_eq!(window.next_offset, 2);
+    }
+
+    #[tokio::test]
+    async fn get_provider_message_offset_claude_matches_pagination_space() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session.jsonl");
+        let mut content = String::new();
+        for i in 1..=4 {
+            content.push_str(&format!(
+                r#"{{"uuid":"uuid-{i}","sessionId":"s1","timestamp":"2025-06-26T10:00:0{i}Z","type":"user","message":{{"role":"user","content":"m{i}"}}}}{}"#,
+                "\n"
+            ));
+        }
+        std::fs::write(&file_path, &content).unwrap();
+        let path = file_path.to_string_lossy().to_string();
+
+        let offset =
+            get_provider_message_offset("claude".into(), path.clone(), "uuid-2".into(), None)
+                .await
+                .unwrap();
+        assert_eq!(offset, Some(2));
+
+        // limit = offset + 1 loads a window containing the target
+        let page = load_provider_messages_paginated(
+            "claude".into(),
+            path.clone(),
+            Some(0),
+            Some(offset.unwrap() + 1),
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(page.messages.iter().any(|m| m.uuid == "uuid-2"));
+
+        let missing = get_provider_message_offset("claude".into(), path, "nope".into(), None)
+            .await
+            .unwrap();
+        assert_eq!(missing, None);
     }
 
     #[test]
