@@ -74,6 +74,35 @@ const hasStringProperty = (obj: Record<string, unknown>, key: string): boolean =
 };
 
 const MAX_TEXT_LENGTH = 10000;
+const MAX_INPUT_LENGTH = 5000;
+
+// tool_use.input 값 인덱싱 — 키가 아닌 값만 수집, budget으로 길이 제한 (#429)
+// (main thread searchIndex.ts의 collectInputValues와 동일 로직)
+const collectInputValues = (
+  value: unknown,
+  parts: string[],
+  budget: { remaining: number },
+): void => {
+  if (budget.remaining <= 0) return;
+  if (typeof value === "string") {
+    const s = value.slice(0, budget.remaining);
+    parts.push(s);
+    budget.remaining -= s.length;
+  } else if (typeof value === "number" || typeof value === "boolean") {
+    parts.push(String(value));
+    budget.remaining -= String(value).length;
+  } else if (Array.isArray(value)) {
+    for (const v of value) {
+      if (budget.remaining <= 0) break;
+      collectInputValues(v, parts, budget);
+    }
+  } else if (isRecord(value)) {
+    for (const v of Object.values(value)) {
+      if (budget.remaining <= 0) break;
+      collectInputValues(v, parts, budget);
+    }
+  }
+};
 
 const extractSearchableText = (message: ClaudeMessageMinimal): string => {
   const parts: string[] = [];
@@ -89,9 +118,15 @@ const extractSearchableText = (message: ClaudeMessageMinimal): string => {
             if (item.type === "image") continue;
             if (hasStringProperty(item, "text")) parts.push((item.text as string).slice(0, MAX_TEXT_LENGTH));
             if (hasStringProperty(item, "thinking")) parts.push((item.thinking as string).slice(0, MAX_TEXT_LENGTH));
-            if (item.type === "tool_use" && hasStringProperty(item, "name")) parts.push(item.name as string);
+            if (item.type === "tool_use") {
+              if (hasStringProperty(item, "name")) parts.push(item.name as string);
+              if (isRecord(item.input)) collectInputValues(item.input, parts, { remaining: MAX_INPUT_LENGTH });
+            }
             if (item.type === "tool_result" && hasStringProperty(item, "content")) parts.push(item.content as string);
-            if (item.type === "server_tool_use" && hasStringProperty(item, "name")) parts.push(item.name as string);
+            if (item.type === "server_tool_use") {
+              if (hasStringProperty(item, "name")) parts.push(item.name as string);
+              if (isRecord(item.input)) collectInputValues(item.input, parts, { remaining: MAX_INPUT_LENGTH });
+            }
             // Keep coverage in sync with src/utils/searchIndex.ts (#352): the
             // worker must index the same content types as the main path, or
             // search silently misses them.
@@ -128,6 +163,7 @@ const extractSearchableText = (message: ClaudeMessageMinimal): string => {
             if (itemType === "mcp_tool_use") {
               if (hasStringProperty(item, "server_name")) parts.push(item.server_name as string);
               if (hasStringProperty(item, "tool_name")) parts.push(item.tool_name as string);
+              if (isRecord(item.input)) collectInputValues(item.input, parts, { remaining: MAX_INPUT_LENGTH });
             }
             if (itemType === "mcp_tool_result") {
               const c = item.content;

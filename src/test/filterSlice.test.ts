@@ -33,9 +33,10 @@ describe("filterSlice message-filter persistence", () => {
 
   it("persists a content-type toggle", () => {
     const store = makeStore();
-    store.getState().toggleContentType("thinking");
-    expect(store.getState().messageFilter.contentTypes.thinking).toBe(false);
-    expect(readSaved().contentTypes.thinking).toBe(false);
+    store.getState().toggleContentType("parallelTasks");
+    expect(store.getState().messageFilter.contentTypes.parallelTasks).toBe(false);
+    expect(readSaved().contentTypes.parallelTasks).toBe(false);
+    expect(store.getState().isMessageFilterActive()).toBe(true);
   });
 
   it("loads the persisted filter as initial state on a fresh slice (survives restart/switch)", () => {
@@ -43,6 +44,29 @@ describe("filterSlice message-filter persistence", () => {
     const restored = makeStore();
     expect(restored.getState().messageFilter.roles.assistant).toBe(false);
     expect(restored.getState().isMessageFilterActive()).toBe(true);
+  });
+
+  it("toggles Parallel Tasks visibility for the message navigator", () => {
+    const store = makeStore();
+    expect(store.getState().showParallelTasksInNavigator).toBe(true);
+
+    store.getState().toggleShowParallelTasksInNavigator();
+
+    expect(store.getState().showParallelTasksInNavigator).toBe(false);
+  });
+
+  it("enables Parallel Tasks when loading filters saved by an older version", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      roles: { user: true, assistant: true },
+      contentTypes: {
+        text: true,
+        thinking: true,
+        toolCalls: true,
+        commands: true,
+      },
+    }));
+
+    expect(makeStore().getState().messageFilter.contentTypes.parallelTasks).toBe(true);
   });
 
   it("resetMessageFilter restores defaults and persists them", () => {
@@ -58,7 +82,13 @@ describe("filterSlice message-filter persistence", () => {
     localStorage.setItem(STORAGE_KEY, "not json");
     expect(makeStore().getState().messageFilter).toEqual({
       roles: { user: true, assistant: true },
-      contentTypes: { text: true, thinking: true, toolCalls: true, commands: true },
+      contentTypes: {
+        text: true,
+        thinking: true,
+        toolCalls: true,
+        commands: true,
+        parallelTasks: true,
+      },
     });
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ roles: { user: "nope" } }));
     expect(makeStore().getState().messageFilter.roles.user).toBe(true);

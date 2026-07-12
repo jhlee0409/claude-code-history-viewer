@@ -206,6 +206,7 @@
   "session.nativeRename.warningForgeCode": "この操作はForgeデータベースに保存されたForgeCode会話タイトルを更新します。",
   "session.nativeRename.warningOpenCode": "この操作はOpenCodeセッションのメタデータファイルを変更します。変更は元に戻せます。",
   "session.refresh": "セッションを更新",
+  "session.refreshAllConversations": "すべての会話を更新",
   "session.rename": "セッション名を変更",
   "session.renameAction": "セッション名を変更",
   "session.renameHint": "ダブルクリックで名前変更",

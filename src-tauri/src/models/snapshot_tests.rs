@@ -167,6 +167,63 @@ mod claude_message_snapshots {
         assert_json_snapshot!("forgecode_message", message);
     }
 
+    /// Pi assistant turn as produced by `providers::pi::parse_messages`:
+    /// `thinking` + `tool_use` blocks, epoch-millis-derived timestamp, usage from
+    /// `usage:{input,output,cacheRead,cacheWrite}`.
+    #[test]
+    fn snapshot_pi_message() {
+        let message = ClaudeMessage {
+            uuid: "a1".to_string(),
+            parent_uuid: Some("u1".to_string()),
+            session_id: "0197a288-41fb-4cce-8b2d-a027c391b4da".to_string(),
+            timestamp: "2026-06-08T20:32:10.000Z".to_string(),
+            message_type: "assistant".to_string(),
+            content: Some(json!([
+                {"type": "thinking", "thinking": "let me check", "signature": "sig-1"},
+                {
+                    "type": "tool_use",
+                    "id": "call_1",
+                    "name": "bash",
+                    "input": {"command": "grep -r login"}
+                }
+            ])),
+            project_name: None,
+            tool_use: None,
+            tool_use_result: None,
+            is_sidechain: None,
+            usage: Some(TokenUsage {
+                input_tokens: Some(12),
+                output_tokens: Some(34),
+                cache_creation_input_tokens: Some(0),
+                cache_read_input_tokens: Some(5),
+                service_tier: None,
+            }),
+            role: Some("assistant".to_string()),
+            model: Some("claude-opus-4-8".to_string()),
+            stop_reason: Some("tool_use".to_string()),
+            cost_usd: None,
+            duration_ms: None,
+            message_id: None,
+            snapshot: None,
+            is_snapshot_update: None,
+            data: None,
+            tool_use_id: None,
+            parent_tool_use_id: None,
+            operation: None,
+            subtype: None,
+            level: None,
+            hook_count: None,
+            hook_infos: None,
+            stop_reason_system: None,
+            prevented_continuation: None,
+            compact_metadata: None,
+            microcompact_metadata: None,
+            provider: Some("pi".to_string()),
+        };
+
+        assert_json_snapshot!("pi_message", message);
+    }
+
     #[test]
     fn snapshot_message_with_tool_use() {
         let message = ClaudeMessage {
@@ -296,6 +353,26 @@ mod project_snapshots {
 
         assert_json_snapshot!("forgecode_project", project);
     }
+
+    /// Pi project: `path` is the escaped store directory (opaque handle),
+    /// `actual_path` comes from the session header `cwd`.
+    #[test]
+    fn snapshot_pi_project() {
+        let project = ClaudeProject {
+            name: "herdr".to_string(),
+            path: "/Users/ac/.pi/agent/sessions/--Users-ac-dev-herdr--".to_string(),
+            actual_path: "/Users/ac/dev/herdr".to_string(),
+            session_count: 2,
+            message_count: 42,
+            last_modified: "2026-06-08T20:32:11.000Z".to_string(),
+            git_info: None,
+            provider: Some("pi".to_string()),
+            storage_type: None,
+            custom_directory_label: None,
+        };
+
+        assert_json_snapshot!("pi_project", project);
+    }
 }
 
 /// Snapshot tests for `ClaudeSession`
@@ -346,6 +423,31 @@ mod session_snapshots {
         };
 
         assert_json_snapshot!("forgecode_session", session);
+    }
+
+    /// Pi session: ids/paths are the session file; summary is the first user
+    /// text (whitespace-collapsed, 80-char cap).
+    #[test]
+    fn snapshot_pi_session() {
+        let session = ClaudeSession {
+            session_id: "/Users/ac/.pi/agent/sessions/--Users-ac-dev-herdr--/2026-06-08T20-31-45-261Z_0197a288.jsonl".to_string(),
+            actual_session_id: "0197a288-41fb-4cce-8b2d-a027c391b4da".to_string(),
+            file_path: "/Users/ac/.pi/agent/sessions/--Users-ac-dev-herdr--/2026-06-08T20-31-45-261Z_0197a288.jsonl".to_string(),
+            project_name: "herdr".to_string(),
+            message_count: 3,
+            first_message_time: "2026-06-08T20:31:50.000Z".to_string(),
+            last_message_time: "2026-06-08T20:32:11.000Z".to_string(),
+            last_modified: "2026-06-08T20:32:11.000Z".to_string(),
+            has_tool_use: true,
+            has_errors: false,
+            summary: Some("why does LOGIN fail?".to_string()),
+            is_renamed: false,
+            provider: Some("pi".to_string()),
+            storage_type: None,
+            entrypoint: None,
+        };
+
+        assert_json_snapshot!("pi_session", session);
     }
 }
 

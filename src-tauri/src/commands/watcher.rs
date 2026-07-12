@@ -268,7 +268,13 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
     match ext {
         // Claude + Codex rollout logs
         "jsonl" => {
+            if let Some(paths) = extract_vibe_paths(path) {
+                return Some(paths);
+            }
             if let Some(paths) = extract_kimi_paths(path) {
+                return Some(paths);
+            }
+            if let Some(paths) = extract_pi_family_paths(path) {
                 return Some(paths);
             }
             if let Some((project_path, session_path)) = extract_paths(path) {
@@ -280,7 +286,9 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             extract_codex_paths(path)
         }
         // Kimi state files and OpenCode storage files
-        "json" => extract_kimi_paths(path).or_else(|| extract_opencode_paths(path)),
+        "json" => extract_vibe_paths(path)
+            .or_else(|| extract_kimi_paths(path))
+            .or_else(|| extract_opencode_paths(path)),
         // OpenCode SQLite database change — emit broad refresh for all OpenCode projects
         "db" | "db-wal" => extract_opencode_db_event(path),
         _ => None,
@@ -356,6 +364,103 @@ fn extract_codex_paths(path: &Path) -> Option<(String, String)> {
     Some((
         "codex://watch".to_string(),
         path.to_string_lossy().to_string(),
+    ))
+}
+
+/// Extract Mistral Vibe session identifiers from files under
+/// `~/.vibe/logs/session/{session_dir}/`.
+fn extract_vibe_paths(path: &Path) -> Option<(String, String)> {
+    let filename = path.file_name()?.to_str()?;
+    if !matches!(filename, "messages.jsonl" | "meta.json") {
+        return None;
+    }
+
+    let sessions_root = crate::providers::vibe::get_base_path()
+        .map(PathBuf::from)
+        .map(|base| base.join("logs/session"))?;
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let session_dir = canonical_path.parent()?;
+    let relative = session_dir
+        .strip_prefix(
+            sessions_root
+                .canonicalize()
+                .unwrap_or(sessions_root.clone()),
+        )
+        .ok()?;
+
+    if relative.components().count() != 1 {
+        return None;
+    }
+
+    let metadata_path = session_dir.join("meta.json");
+    if std::fs::symlink_metadata(&metadata_path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return None;
+    }
+    let cwd = std::fs::read_to_string(&metadata_path)
+        .ok()
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
+        .and_then(|metadata| {
+            metadata
+                .get("environment")
+                .and_then(|env| env.get("working_directory"))
+                .and_then(|cwd| cwd.as_str())
+                .map(ToOwned::to_owned)
+        })?;
+
+    Some((
+        format!("vibe://{cwd}"),
+        session_dir.to_string_lossy().to_string(),
+    ))
+}
+
+/// Extract Pi / oh-my-pi session identifiers from `.jsonl` files under
+/// `~/.pi/agent/sessions/<project_dir>/` (and the `~/.omp` twin).
+///
+/// The project identifier is the store project directory path itself,
+/// matching the `ClaudeProject.path` that `providers::pi::scan_store`
+/// reports (Pi projects carry no URI scheme).
+fn extract_pi_family_paths(path: &Path) -> Option<(String, String)> {
+    let roots = [
+        crate::providers::pi::get_base_path(),
+        crate::providers::ompi::get_base_path(),
+    ];
+    for root in roots.into_iter().flatten() {
+        if let Some(paths) = extract_pi_store_paths(Path::new(&root), path) {
+            return Some(paths);
+        }
+    }
+    None
+}
+
+/// [`extract_pi_family_paths`] parameterized by the sessions root, so tests
+/// can point it at a fixture store.
+fn extract_pi_store_paths(sessions_root: &Path, path: &Path) -> Option<(String, String)> {
+    // The store root must exist to canonicalize; a missing store can't
+    // produce events anyway.
+    let canonical_root = sessions_root.canonicalize().ok()?;
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let relative = canonical_path.strip_prefix(&canonical_root).ok()?;
+
+    // Exactly `<project_dir>/<session>.jsonl` — deeper or shallower paths
+    // are not Pi session transcripts.
+    if relative.components().count() != 2 {
+        return None;
+    }
+
+    let project_dir = canonical_path.parent()?;
+    if std::fs::symlink_metadata(project_dir)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return None;
+    }
+
+    Some((
+        project_dir.to_string_lossy().to_string(),
+        canonical_path.to_string_lossy().to_string(),
     ))
 }
 
@@ -604,6 +709,55 @@ mod tests {
 
     #[test]
     #[serial]
+    fn test_extract_pi_store_paths_matches_direct_session_files_only() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("agent").join("sessions");
+        let project = root.join("--Users-jack-my-proj");
+        std::fs::create_dir_all(&project).unwrap();
+        let file = project.join("2026-07-12T10-00-00_abc.jsonl");
+        std::fs::write(&file, "{}\n").unwrap();
+
+        let (project_path, session_path) = extract_pi_store_paths(&root, &file).unwrap();
+        assert_eq!(
+            project_path,
+            project.canonicalize().unwrap().to_string_lossy()
+        );
+        assert_eq!(session_path, file.canonicalize().unwrap().to_string_lossy());
+
+        // Nested deeper than <project>/<file>.jsonl is not a Pi transcript.
+        let nested = project.join("sub").join("x.jsonl");
+        std::fs::create_dir_all(nested.parent().unwrap()).unwrap();
+        std::fs::write(&nested, "{}\n").unwrap();
+        assert!(extract_pi_store_paths(&root, &nested).is_none());
+
+        // A file directly in the root (no project dir) is rejected too.
+        let shallow = root.join("stray.jsonl");
+        std::fs::write(&shallow, "{}\n").unwrap();
+        assert!(extract_pi_store_paths(&root, &shallow).is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_extract_pi_store_paths_rejects_symlinked_project_dir() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("agent").join("sessions");
+        std::fs::create_dir_all(&root).unwrap();
+
+        let outside = TempDir::new().unwrap();
+        let real_project = outside.path().join("proj");
+        std::fs::create_dir_all(&real_project).unwrap();
+        let file = real_project.join("s.jsonl");
+        std::fs::write(&file, "{}\n").unwrap();
+
+        let link = root.join("linked-proj");
+        unix_fs::symlink(&real_project, &link).unwrap();
+
+        assert!(extract_pi_store_paths(&root, &link.join("s.jsonl")).is_none());
+    }
+
+    #[test]
     fn test_extract_kimi_context_paths() {
         let temp = TempDir::new().unwrap();
         let old_kimi_home = std::env::var_os("KIMI_HOME");

@@ -54,6 +54,9 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
     if let Some(kimi_base) = crate::providers::kimi::get_base_path() {
         allowed.push(PathBuf::from(kimi_base).join("sessions"));
     }
+    if let Some(vibe_base) = crate::providers::vibe::get_base_path() {
+        allowed.push(PathBuf::from(vibe_base).join("logs/session"));
+    }
     // Continue stores sessions under ~/.continue/sessions (CONTINUE_GLOBAL_DIR
     // overridable); get_base_path() already resolves to that directory.
     if let Some(continue_base) = crate::providers::continue_dev::get_base_path() {

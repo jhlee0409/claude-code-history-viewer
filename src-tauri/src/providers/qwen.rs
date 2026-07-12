@@ -610,6 +610,31 @@ mod tests {
     }
 
     #[test]
+    fn parse_messages_preserves_parallel_agent_calls_and_results() {
+        let session = concat!(
+            r#"{"uuid":"a1","sessionId":"sess-agents","timestamp":"2026-07-07T00:00:00Z","type":"assistant","message":{"role":"model","parts":[{"functionCall":{"id":"c1","name":"agent","args":{"description":"Check API","prompt":"Review API"}}},{"functionCall":{"id":"c2","name":"task","args":{"description":"Check UI","prompt":"Review UI"}}}]}}"#,
+            "\n",
+            r#"{"uuid":"r1","sessionId":"sess-agents","timestamp":"2026-07-07T00:00:01Z","type":"tool_result","message":{"role":"user","parts":[{"functionResponse":{"id":"c1","name":"agent","response":{"output":"API OK"}}},{"functionResponse":{"id":"c2","name":"task","response":{"output":"UI OK"}}}]}}"#,
+            "\n",
+        );
+
+        let messages = parse_messages(session);
+        assert_eq!(messages.len(), 2);
+
+        let calls = messages[0].content.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0]["name"], "agent");
+        assert_eq!(calls[0]["id"], "c1");
+        assert_eq!(calls[1]["name"], "task");
+        assert_eq!(calls[1]["id"], "c2");
+
+        let results = messages[1].content.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0]["tool_use_id"], "c1");
+        assert_eq!(results[1]["tool_use_id"], "c2");
+    }
+
+    #[test]
     fn convert_part_kinds() {
         assert!(convert_part(&json!({"text":""})).is_none());
         assert_eq!(convert_part(&json!({"text":"hi"})).unwrap()["type"], "text");

@@ -19,14 +19,17 @@ pub mod goose;
 pub mod kimi;
 pub mod kiro;
 pub mod llm;
+pub mod ompi;
 pub mod opencode;
 pub mod openhands;
 pub mod openinterpreter;
 pub mod pearai;
+pub mod pi;
 /// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
 pub mod q_conversation;
 pub mod qwen;
 pub mod trae;
+pub mod vibe;
 pub mod vscode;
 pub mod zed;
 
@@ -67,6 +70,10 @@ pub enum ProviderId {
     OpenInterpreter,
     /// `OpenHands` (classic 0.x) — `~/.openhands/sessions/<id>/events/*.json`.
     OpenHands,
+    /// Pi coding agent (badlogic's `pi`) — JSONL sessions under `~/.pi/agent/sessions`.
+    Pi,
+    /// oh-my-pi (`omp`) — a `pi` fork with the same session format under `~/.omp`.
+    Ompi,
     /// Qwen Code (Gemini-CLI fork) — JSONL transcripts under `~/.qwen/projects`.
     Qwen,
     Antigravity,
@@ -74,6 +81,8 @@ pub enum ProviderId {
     Zed,
     /// Trae IDE chat (reverse-engineered icube JSON in per-workspace `state.vscdb`).
     Trae,
+    /// Mistral Vibe CLI (`~/.vibe/logs/session/<session>/`).
+    Vibe,
 }
 
 impl ProviderId {
@@ -100,10 +109,13 @@ impl ProviderId {
             Self::OpenCode => "opencode",
             Self::OpenInterpreter => "openinterpreter",
             Self::OpenHands => "openhands",
+            Self::Pi => "pi",
+            Self::Ompi => "ompi",
             Self::Qwen => "qwen",
             Self::Antigravity => "antigravity",
             Self::Zed => "zed",
             Self::Trae => "trae",
+            Self::Vibe => "vibe",
         }
     }
 
@@ -130,10 +142,13 @@ impl ProviderId {
             "opencode" => Some(Self::OpenCode),
             "openinterpreter" => Some(Self::OpenInterpreter),
             "openhands" => Some(Self::OpenHands),
+            "pi" => Some(Self::Pi),
+            "ompi" => Some(Self::Ompi),
             "qwen" => Some(Self::Qwen),
             "antigravity" => Some(Self::Antigravity),
             "zed" => Some(Self::Zed),
             "trae" => Some(Self::Trae),
+            "vibe" => Some(Self::Vibe),
             _ => None,
         }
     }
@@ -161,10 +176,13 @@ impl ProviderId {
             Self::OpenCode => "OpenCode",
             Self::OpenInterpreter => "Open Interpreter",
             Self::OpenHands => "OpenHands",
+            Self::Pi => "Pi",
+            Self::Ompi => "oh-my-pi",
             Self::Qwen => "Qwen Code",
             Self::Antigravity => "Antigravity",
             Self::Zed => "Zed",
             Self::Trae => "Trae",
+            Self::Vibe => "Mistral Vibe",
         }
     }
 }
@@ -212,6 +230,12 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
     if let Some(info) = openinterpreter::detect() {
         providers.push(info);
     }
+    if let Some(info) = pi::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = ompi::detect() {
+        providers.push(info);
+    }
     if let Some(info) = openhands::detect() {
         providers.push(info);
     }
@@ -255,6 +279,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = copilot::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = vibe::detect() {
         providers.push(info);
     }
 

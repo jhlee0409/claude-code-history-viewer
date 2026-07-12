@@ -18,6 +18,36 @@ const hasStringProperty = (obj: Record<string, unknown>, key: string): boolean =
 
 // 검색 가능한 텍스트 추출 (content 검색용)
 const MAX_TEXT_LENGTH = 10000; // 최대 10KB만 인덱싱 (텍스트용)
+const MAX_INPUT_LENGTH = 5000; // tool_use.input 값 인덱싱 상한 (도구당)
+
+// tool_use.input(객체)의 문자열/숫자 값을 재귀적으로 수집한다.
+// 키가 아니라 값만 인덱싱해 글로벌(rust) 검색과 동작을 맞추고,
+// budget으로 총 길이를 제한해 거대한 input이 인덱스를 부풀리지 않게 한다. (#429)
+const collectInputValues = (
+  value: unknown,
+  parts: string[],
+  budget: { remaining: number },
+): void => {
+  if (budget.remaining <= 0) return;
+  if (typeof value === "string") {
+    const s = value.slice(0, budget.remaining);
+    parts.push(s);
+    budget.remaining -= s.length;
+  } else if (typeof value === "number" || typeof value === "boolean") {
+    parts.push(String(value));
+    budget.remaining -= String(value).length;
+  } else if (Array.isArray(value)) {
+    for (const v of value) {
+      if (budget.remaining <= 0) break;
+      collectInputValues(v, parts, budget);
+    }
+  } else if (isRecord(value)) {
+    for (const v of Object.values(value)) {
+      if (budget.remaining <= 0) break;
+      collectInputValues(v, parts, budget);
+    }
+  }
+};
 
 const extractSearchableText = (message: ClaudeMessage): string => {
   const parts: string[] = [];
@@ -47,17 +77,19 @@ const extractSearchableText = (message: ClaudeMessage): string => {
             if (hasStringProperty(item, "thinking")) {
               parts.push((item.thinking as string).slice(0, MAX_TEXT_LENGTH));
             }
-            // tool_use: name
-            if (itemType === "tool_use" && hasStringProperty(item, "name")) {
-              parts.push(item.name as string);
+            // tool_use: name + input values (file_path, command, query 등) (#429)
+            if (itemType === "tool_use") {
+              if (hasStringProperty(item, "name")) parts.push(item.name as string);
+              if (isRecord(item.input)) collectInputValues(item.input, parts, { remaining: MAX_INPUT_LENGTH });
             }
             // tool_result: content
             if (itemType === "tool_result" && hasStringProperty(item, "content")) {
               parts.push(item.content as string);
             }
-            // server_tool_use: name
-            if (itemType === "server_tool_use" && hasStringProperty(item, "name")) {
-              parts.push(item.name as string);
+            // server_tool_use: name + input values (#429)
+            if (itemType === "server_tool_use") {
+              if (hasStringProperty(item, "name")) parts.push(item.name as string);
+              if (isRecord(item.input)) collectInputValues(item.input, parts, { remaining: MAX_INPUT_LENGTH });
             }
             // web_search_tool_result: titles and urls
             if (itemType === "web_search_tool_result" && isRecord(item.content)) {
@@ -92,10 +124,11 @@ const extractSearchableText = (message: ClaudeMessage): string => {
                 }
               }
             }
-            // mcp_tool_use: server_name, tool_name
+            // mcp_tool_use: server_name, tool_name + input values (#429)
             if (itemType === "mcp_tool_use") {
               if (hasStringProperty(item, "server_name")) parts.push(item.server_name as string);
               if (hasStringProperty(item, "tool_name")) parts.push(item.tool_name as string);
+              if (isRecord(item.input)) collectInputValues(item.input, parts, { remaining: MAX_INPUT_LENGTH });
             }
             // mcp_tool_result: text content
             if (itemType === "mcp_tool_result") {

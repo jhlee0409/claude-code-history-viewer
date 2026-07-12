@@ -9,6 +9,7 @@ import { storageAdapter } from "@/services/storage";
 import type { ClaudeProject, ClaudeSession, AppError, ProviderId, UserSettings } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
+import { toast } from "sonner";
 import type { FullAppStore } from "./types";
 import {
   detectWorktreeGroupsHybrid,
@@ -34,12 +35,14 @@ export interface ProjectSliceState {
   isLoading: boolean;
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
+  isRefreshingAllConversations: boolean;
   error: AppError | null;
 }
 
 export interface ProjectSliceActions {
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
+  refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
   clearProjectSelection: () => void;
   setClaudePath: (path: string) => Promise<void>;
@@ -66,6 +69,7 @@ const initialProjectState: ProjectSliceState = {
   isLoading: false,
   isLoadingProjects: false,
   isLoadingSessions: false,
+  isRefreshingAllConversations: false,
   error: null,
 };
 
@@ -110,6 +114,21 @@ const withProvider = (
     ...project,
     provider: project.provider ?? provider,
   }));
+
+const isSameProject = (
+  project: ClaudeProject,
+  selectedProject: ClaudeProject,
+): boolean =>
+  project.path === selectedProject.path &&
+  getProviderId(project.provider) === getProviderId(selectedProject.provider);
+
+const isSameSession = (
+  session: ClaudeSession,
+  selectedSession: ClaudeSession,
+): boolean =>
+  session.file_path === selectedSession.file_path ||
+  session.session_id === selectedSession.session_id ||
+  session.actual_session_id === selectedSession.actual_session_id;
 
 const scanProviderProjects = async ({
   provider,
@@ -411,6 +430,110 @@ export const createProjectSlice: StateCreator<
       if (requestId === getRequestId("scanProjects")) {
         set({ isLoadingProjects: false });
       }
+    }
+  },
+
+  refreshAllConversations: async () => {
+    if (get().isRefreshingAllConversations) {
+      return;
+    }
+
+    const previouslySelectedProject = get().selectedProject;
+    const previouslySelectedSession = get().selectedSession;
+
+    set({ isRefreshingAllConversations: true, error: null });
+
+    try {
+      await get().scanProjects();
+
+      const stateAfterScan = get();
+      if (!previouslySelectedProject) {
+        if (stateAfterScan.analytics.currentView === "analytics") {
+          await stateAfterScan.loadGlobalStats();
+        }
+        return;
+      }
+
+      const refreshedProject = stateAfterScan.projects.find((project) =>
+        isSameProject(project, previouslySelectedProject)
+      );
+
+      if (!refreshedProject) {
+        get().clearProjectSelection();
+        return;
+      }
+
+      await get().selectProject(refreshedProject);
+
+      let refreshedSession: ClaudeSession | null = null;
+      if (previouslySelectedSession) {
+        refreshedSession = get().sessions.find((session) =>
+          isSameSession(session, previouslySelectedSession)
+        ) ?? null;
+
+        if (refreshedSession) {
+          await get().selectSession(refreshedSession);
+        } else {
+          set({
+            selectedSession: null,
+            messages: [],
+            pagination: { ...INITIAL_PAGINATION },
+            isLoadingMessages: false,
+            subagentSessions: [],
+            parentSessionStack: [],
+          });
+          get().clearSessionSearch();
+          get().clearTokenStats();
+          get().clearTargetMessage();
+        }
+      }
+
+      const refreshedState = get();
+      if (refreshedState.analytics.currentView === "tokenStats") {
+        await refreshedState.loadProjectTokenStats(refreshedProject.path);
+        if (refreshedSession) {
+          await refreshedState.loadSessionTokenStats(refreshedSession.file_path);
+        }
+      } else if (refreshedState.analytics.currentView === "analytics") {
+        const projectSummary = await refreshedState.loadProjectStatsSummary(
+          refreshedProject.path
+        );
+        refreshedState.setAnalyticsProjectSummary(projectSummary);
+        if (refreshedSession) {
+          const sessionComparison = await refreshedState.loadSessionComparison(
+            refreshedSession.actual_session_id,
+            refreshedProject.path
+          );
+          refreshedState.setAnalyticsSessionComparison(sessionComparison);
+        } else {
+          refreshedState.setAnalyticsSessionComparison(null);
+        }
+      } else if (refreshedState.analytics.currentView === "recentEdits") {
+        const recentEdits = await refreshedState.loadRecentEdits(
+          refreshedProject.path
+        );
+        refreshedState.setAnalyticsRecentEdits({
+          files: recentEdits.files,
+          total_edits_count: recentEdits.total_edits_count,
+          unique_files_count: recentEdits.unique_files_count,
+          project_cwd: recentEdits.project_cwd,
+        });
+      } else if (refreshedState.analytics.currentView === "board") {
+        refreshedState.clearBoard();
+        await refreshedState.loadBoardSessions(get().sessions);
+      } else if (refreshedState.analytics.currentView === "archive") {
+        await refreshedState.loadArchives();
+      }
+    } catch (error) {
+      console.error("Failed to refresh all conversations:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to refresh conversations: ${message}`);
+      get().setError({
+        type: AppErrorType.UNKNOWN,
+        message,
+      });
+    } finally {
+      set({ isRefreshingAllConversations: false });
     }
   },
 

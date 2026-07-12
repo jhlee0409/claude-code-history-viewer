@@ -42,6 +42,8 @@ pub async fn scan_all_projects(
             "forgecode".to_string(),
             "opencode".to_string(),
             "openinterpreter".to_string(),
+            "pi".to_string(),
+            "ompi".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
@@ -56,6 +58,7 @@ pub async fn scan_all_projects(
             "zed".to_string(),
             "openhands".to_string(),
             "trae".to_string(),
+            "vibe".to_string(),
         ]
     });
 
@@ -126,10 +129,13 @@ pub async fn scan_all_projects(
         ("forgecode", providers::forgecode::scan_projects),
         ("opencode", providers::opencode::scan_projects),
         ("openinterpreter", providers::openinterpreter::scan_projects),
+        ("pi", providers::pi::scan_projects),
+        ("ompi", providers::ompi::scan_projects),
         ("qwen", providers::qwen::scan_projects),
         ("zed", providers::zed::scan_projects),
         ("openhands", providers::openhands::scan_projects),
         ("trae", providers::trae::scan_projects),
+        ("vibe", providers::vibe::scan_projects),
         ("cline", providers::cline::scan_projects),
         ("cursor", providers::cursor::scan_projects),
         ("crush", providers::crush::scan_projects),
@@ -317,6 +323,8 @@ pub async fn load_provider_sessions(
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
         "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
+        "pi" => providers::pi::load_sessions(&project_path, exclude),
+        "ompi" => providers::ompi::load_sessions(&project_path, exclude),
         "qwen" => providers::qwen::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
         "crush" => providers::crush::load_sessions(&project_path, exclude),
@@ -331,6 +339,7 @@ pub async fn load_provider_sessions(
         "zed" => providers::zed::load_sessions(&project_path, exclude),
         "openhands" => providers::openhands::load_sessions(&project_path, exclude),
         "trae" => providers::trae::load_sessions(&project_path, exclude),
+        "vibe" => providers::vibe::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -362,6 +371,8 @@ pub async fn load_provider_messages(
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
         "openinterpreter" => providers::openinterpreter::load_messages(&session_path)?,
+        "pi" => providers::pi::load_messages(&session_path)?,
+        "ompi" => providers::ompi::load_messages(&session_path)?,
         "qwen" => providers::qwen::load_messages(&session_path)?,
         "cline" => providers::cline::load_messages(&session_path)?,
         "crush" => providers::crush::load_messages(&session_path)?,
@@ -376,6 +387,7 @@ pub async fn load_provider_messages(
         "zed" => providers::zed::load_messages(&session_path)?,
         "openhands" => providers::openhands::load_messages(&session_path)?,
         "trae" => providers::trae::load_messages(&session_path)?,
+        "vibe" => providers::vibe::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -413,6 +425,8 @@ pub async fn search_all_providers(
             "forgecode".to_string(),
             "opencode".to_string(),
             "openinterpreter".to_string(),
+            "pi".to_string(),
+            "ompi".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
@@ -427,6 +441,7 @@ pub async fn search_all_providers(
             "zed".to_string(),
             "openhands".to_string(),
             "trae".to_string(),
+            "vibe".to_string(),
         ]
     });
 
@@ -549,6 +564,16 @@ pub async fn search_all_providers(
         }
     }
 
+    // Mistral Vibe
+    if providers_to_search.iter().any(|p| p == "vibe") {
+        match providers::vibe::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Vibe search failed: {e}");
+            }
+        }
+    }
+
     // ForgeCode
     if providers_to_search.iter().any(|p| p == "forgecode") {
         match providers::forgecode::search(&query, max_results) {
@@ -575,6 +600,26 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Open Interpreter search failed: {e}");
+            }
+        }
+    }
+
+    // Pi
+    if providers_to_search.iter().any(|p| p == "pi") {
+        match providers::pi::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Pi search failed: {e}");
+            }
+        }
+    }
+
+    // oh-my-pi
+    if providers_to_search.iter().any(|p| p == "ompi") {
+        match providers::ompi::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("oh-my-pi search failed: {e}");
             }
         }
     }

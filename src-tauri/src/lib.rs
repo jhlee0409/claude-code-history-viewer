@@ -1028,6 +1028,21 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    // Pi / oh-my-pi: get_base_path() is already the sessions root.
+    if let Some(pi_base) = providers::pi::get_base_path() {
+        let sessions = PathBuf::from(pi_base);
+        if sessions.is_dir() {
+            paths.push(sessions);
+        }
+    }
+
+    if let Some(ompi_base) = providers::ompi::get_base_path() {
+        let sessions = PathBuf::from(ompi_base);
+        if sessions.is_dir() {
+            paths.push(sessions);
+        }
+    }
+
     if let Some(opencode_base) = providers::opencode::get_base_path() {
         let base = PathBuf::from(&opencode_base);
         let storage = base.join("storage");
@@ -1129,6 +1144,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         let trae_dir = PathBuf::from(trae_base);
         if trae_dir.is_dir() {
             paths.push(trae_dir);
+        }
+    }
+
+    if let Some(vibe_base) = providers::vibe::get_base_path() {
+        let vibe_sessions = PathBuf::from(vibe_base).join("logs/session");
+        if vibe_sessions.is_dir() {
+            paths.push(vibe_sessions);
         }
     }
 

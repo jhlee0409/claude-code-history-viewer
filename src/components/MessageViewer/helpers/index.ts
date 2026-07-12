@@ -7,4 +7,5 @@
 
 export { groupAgentTasks } from "./agentTaskHelpers";
 export { groupAgentProgressMessages } from "./agentProgressHelpers";
+export { filterMessagesByCategory, getMessageUuidsByCategory } from "./messageCategories";
 export { groupTaskOperations } from "./taskOperationHelpers";
