@@ -423,6 +423,10 @@ handler_no_params!(
     get_claude_folder_path,
     commands::project::get_claude_folder_path
 );
+handler_no_params!(
+    detect_claude_config_dir,
+    commands::project::detect_claude_config_dir
+);
 handler_no_params!(get_system_info, commands::feedback::get_system_info);
 handler_no_params!(detect_providers, commands::multi_provider::detect_providers);
 handler_no_params!(load_presets, commands::settings::load_presets);

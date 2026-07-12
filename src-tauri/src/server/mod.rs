@@ -48,6 +48,7 @@ use self::state::AppState;
 /// This list must stay in sync with the POST routes registered on `protected_api`
 /// in `build_router`; the `read_only_*` tests below pin the current classification.
 const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
+    "/detect_claude_config_dir",
     "/detect_providers",
     "/export_session",
     "/get_all_mcp_servers",
@@ -191,6 +192,10 @@ pub fn build_router(
         .route("/get_server_config", post(h::get_server_config))
         // Project commands
         .route("/get_claude_folder_path", post(h::get_claude_folder_path))
+        .route(
+            "/detect_claude_config_dir",
+            post(h::detect_claude_config_dir),
+        )
         .route("/validate_claude_folder", post(h::validate_claude_folder))
         .route(
             "/validate_custom_claude_dir",
