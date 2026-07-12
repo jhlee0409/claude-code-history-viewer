@@ -197,6 +197,11 @@ fn write_jsonl_lines(file_path: &str, lines: &[String]) -> Result<(), String> {
     fs::rename(&temp_path, file_path)
         .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
 
+    // This rewrite can land with the SAME byte size within mtime resolution,
+    // which the search cache's (size, mtime) signature cannot distinguish —
+    // evict the file explicitly so the next search re-scans it.
+    super::evict_file_from_search_cache(std::path::Path::new(file_path));
+
     Ok(())
 }
 

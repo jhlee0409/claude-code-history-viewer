@@ -77,6 +77,28 @@ struct CachedQuerySearch {
 /// could be stat'ed) and its matches, filled from cache or by scanning.
 type FileSlot = (Option<FileSignature>, Option<Arc<Vec<ClaudeMessage>>>);
 
+/// Drop one file's cached matches from every cached query.
+///
+/// Needed for the session-rename commands, which REWRITE a session file via
+/// temp+rename: a rewrite can produce the same byte size within the mtime
+/// resolution window, which the `(size, mtime)` signature cannot distinguish
+/// (append-only growth always changes the size, so the watcher path needs no
+/// such hook). Hashing content instead would cost a full read per file per
+/// search — defeating the cache — so targeted eviction at the rewrite site is
+/// the cheap, precise fix.
+pub fn evict_file_from_search_cache(path: &Path) {
+    let Ok(mut cache) = SEARCH_CACHE.lock() else {
+        return;
+    };
+    let canonical = path.canonicalize().ok();
+    for (_, entry) in cache.iter_mut() {
+        entry.files.remove(path);
+        if let Some(ref canonical) = canonical {
+            entry.files.remove(canonical);
+        }
+    }
+}
+
 fn cache_key(claude_path: &str, query: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     claude_path.hash(&mut hasher);
@@ -948,6 +970,26 @@ mod tests {
             "unrelated change must not re-scan file b"
         );
         assert_eq!(test_scan_count(&file_c), 2, "changed file c must re-scan");
+    }
+
+    #[tokio::test]
+    /// A temp+rename rewrite can keep the same (size, mtime) signature —
+    /// explicit eviction must force a re-scan of that file only.
+    async fn test_evict_file_forces_rescan_without_signature_change() {
+        let (temp_dir, file_a, file_b) = two_file_fixture("evictExplicit3");
+
+        let first = run_search(&temp_dir, "evictExplicit3").await;
+        assert_eq!(uuids(&first), ["uuid-a1", "uuid-b1"]);
+        assert_eq!(test_scan_count(&file_a), 1);
+        assert_eq!(test_scan_count(&file_b), 1);
+
+        // No file change at all — eviction alone must invalidate file a.
+        evict_file_from_search_cache(&file_a);
+
+        let second = run_search(&temp_dir, "evictExplicit3").await;
+        assert_eq!(uuids(&second), ["uuid-a1", "uuid-b1"]);
+        assert_eq!(test_scan_count(&file_a), 2, "evicted file must re-scan");
+        assert_eq!(test_scan_count(&file_b), 1, "other files must stay cached");
     }
 
     #[tokio::test]
