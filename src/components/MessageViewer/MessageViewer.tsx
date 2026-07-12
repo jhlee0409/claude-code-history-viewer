@@ -582,21 +582,39 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // ─── Load-earlier (chat-style message pagination) ──────────────────────
   // The store holds only a window of the session; older pages are prepended
-  // on demand. The anchor keeps the currently visible rows stationary by
-  // compensating scrollTop for the height added above them.
-  const prependAnchorRef = useRef<{ totalSize: number; scrollTop: number } | null>(null);
+  // on demand. The anchor pins the first visible MESSAGE row: its uuid and
+  // its on-screen offset are recorded before the load, and after the prepend
+  // the viewport is scrolled so the same row sits at the same place. This is
+  // robust against the virtualizer's estimate-vs-measured drift, which makes
+  // a naive totalSize-delta compensation land far off.
+  const prependAnchorRef = useRef<{ uuid: string; screenOffset: number } | null>(null);
+  // True while a prepend restore is converging — suppresses the near-top
+  // autoload so restore-induced scroll events cannot cascade page loads.
+  const anchorRestoringRef = useRef(false);
   // uuid currently being ensured into the window (deep link / search match)
   const ensureInFlightRef = useRef<string | null>(null);
 
   const handleLoadEarlier = useCallback(() => {
     if (pagination.isLoadingMore || !pagination.hasMore) return;
     const viewport = getScrollElement();
-    prependAnchorRef.current = {
-      totalSize: virtualizer.getTotalSize(),
-      scrollTop: viewport?.scrollTop ?? 0,
-    };
+    const scrollTop = viewport?.scrollTop ?? 0;
+    const firstVisible = virtualizer
+      .getVirtualItems()
+      .find(
+        (row) =>
+          row.start + row.size > scrollTop &&
+          flattenedMessages[row.index]?.type === "message",
+      );
+    const item = firstVisible ? flattenedMessages[firstVisible.index] : undefined;
+    prependAnchorRef.current =
+      firstVisible && item?.type === "message"
+        ? {
+            uuid: item.message.uuid,
+            screenOffset: firstVisible.start - scrollTop,
+          }
+        : null;
     void loadMoreMessages();
-  }, [pagination.isLoadingMore, pagination.hasMore, getScrollElement, virtualizer, loadMoreMessages]);
+  }, [pagination.isLoadingMore, pagination.hasMore, getScrollElement, virtualizer, flattenedMessages, loadMoreMessages]);
 
   useLayoutEffect(() => {
     const anchor = prependAnchorRef.current;
@@ -604,11 +622,34 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     prependAnchorRef.current = null;
     const viewport = getScrollElement();
     if (!viewport) return;
-    const delta = virtualizer.getTotalSize() - anchor.totalSize;
-    if (delta > 0) {
-      viewport.scrollTop = anchor.scrollTop + delta;
-    }
-  }, [flattenedMessages, pagination.isLoadingMore, getScrollElement, virtualizer]);
+
+    // Multi-pass restore (same technique as the deep-link scroll): the rows
+    // prepended above the anchor render with estimated heights first, so a
+    // single-pass restore lands off once they measure. Re-anchoring after
+    // each render pass converges on the true offset.
+    const restore = () => {
+      const newIndex = uuidToIndexMap.get(anchor.uuid);
+      if (newIndex === undefined) return;
+      const [newStart] = virtualizer.getOffsetForIndex(newIndex, "start") ?? [];
+      if (typeof newStart !== "number") return;
+      viewport.scrollTop = newStart - anchor.screenOffset;
+    };
+
+    anchorRestoringRef.current = true;
+    restore();
+    const passes = [
+      setTimeout(restore, 50),
+      setTimeout(restore, 200),
+      setTimeout(() => {
+        restore();
+        anchorRestoringRef.current = false;
+      }, 450),
+    ];
+    return () => {
+      passes.forEach(clearTimeout);
+      anchorRestoringRef.current = false;
+    };
+  }, [flattenedMessages, uuidToIndexMap, pagination.isLoadingMore, getScrollElement, virtualizer]);
 
   // Auto-load the previous page when the user scrolls near the top.
   // Guarded on scrollReadyForSessionId so the initial scroll-to-bottom pass
@@ -621,6 +662,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
     const NEAR_TOP_AUTOLOAD_PX = 300;
     const handleScroll = () => {
+      if (anchorRestoringRef.current) return;
       if (viewport.scrollTop >= NEAR_TOP_AUTOLOAD_PX) return;
       const { pagination: p } = useAppStore.getState();
       if (!p.hasMore || p.isLoadingMore) return;
