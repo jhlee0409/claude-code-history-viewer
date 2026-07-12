@@ -68,6 +68,13 @@ const { useAppStoreMock } = vi.hoisted(() => {
     setSelectedSession: vi.fn(),
     fontScale: 100,
     highContrast: false,
+    pagination: {
+      currentOffset: 0,
+      pageSize: 0,
+      totalCount: 0,
+      hasMore: false,
+      isLoadingMore: false,
+    },
   };
 
   type StoreMock = {

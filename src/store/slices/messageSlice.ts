@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import type {
   ClaudeMessage,
   ClaudeSession,
+  MessagePage,
   PaginationState,
   SessionTokenStats,
   ProjectStatsSummary,
@@ -64,6 +65,21 @@ export interface MessageSliceState {
 
 export interface MessageSliceActions {
   selectSession: (session: ClaudeSession) => Promise<void>;
+  /** Load the next (older) page of the current session and prepend it. */
+  loadMoreMessages: () => Promise<void>;
+  /**
+   * Make sure the message with `uuid` is inside the loaded window, extending
+   * it backwards if needed. Resolves to whether the message is now present.
+   */
+  ensureMessageLoaded: (uuid: string) => Promise<boolean>;
+  /**
+   * Fetch the COMPLETE message list of the current session (same sidechain /
+   * system-message filtering as the loaded window). Used by consumers that
+   * must operate on the full session (export, in-session search) while the
+   * store only holds a window. Result is cached per session until the next
+   * selectSession call.
+   */
+  fetchFullSessionMessages: () => Promise<ClaudeMessage[]>;
   refreshCurrentSession: () => Promise<void>;
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
@@ -89,6 +105,16 @@ export type MessageSlice = MessageSliceState & MessageSliceActions;
 // ============================================================================
 
 const TOKENS_STATS_PAGE_SIZE = 20;
+
+/** Messages fetched per page (backend clamps individual requests at 500). */
+export const MESSAGE_PAGE_SIZE = 200;
+
+/** Message types hidden by the "show system messages" toggle (client-side). */
+const SYSTEM_MESSAGE_TYPES = [
+  "queue-operation",
+  "progress",
+  "file-history-snapshot",
+] as const;
 
 /** Initial pagination state — shared with `clearProjectSelection` to avoid duplication. */
 export const INITIAL_PAGINATION = {
@@ -196,6 +222,153 @@ export const createMessageSlice: StateCreator<
     return supportsConversationBreakdown(provider);
   };
 
+  // ============================================================================
+  // Pagination internals
+  // ============================================================================
+
+  // Full-session fetch cache for export / in-session search. Keyed so a
+  // filter-relevant state change misses the cache; cleared on selectSession.
+  let fullSessionCache: {
+    key: string;
+    promise: Promise<ClaudeMessage[]>;
+  } | null = null;
+
+  // Serializes older-page loads (button, near-top autoload, ensureMessageLoaded)
+  // so concurrent callers can't fetch the same offset twice.
+  let loadOlderChain: Promise<void> = Promise.resolve();
+
+  const applySystemMessageFilter = (
+    messages: ClaudeMessage[]
+  ): ClaudeMessage[] => {
+    if (get().showSystemMessages) return messages;
+    return messages.filter(
+      (m) =>
+        !(SYSTEM_MESSAGE_TYPES as readonly string[]).includes(m.type)
+    );
+  };
+
+  /** Whether sidechain messages should be excluded server-side right now. */
+  const shouldExcludeSidechain = (treatAsSubagent: boolean): boolean =>
+    get().excludeSidechain && !treatAsSubagent;
+
+  const fetchMessagePage = (
+    provider: string,
+    sessionPath: string,
+    offset: number,
+    limit: number,
+    excludeSidechain: boolean
+  ): Promise<MessagePage> =>
+    api<MessagePage>("load_provider_messages_paginated", {
+      provider,
+      sessionPath,
+      offset,
+      limit,
+      excludeSidechain,
+    });
+
+  /**
+   * Fetch a window of at least `span` messages from the newest end, issuing
+   * as many page requests as needed (the backend clamps a single request at
+   * 500). Returns messages in chronological order.
+   */
+  const fetchWindow = async (
+    provider: string,
+    sessionPath: string,
+    span: number,
+    excludeSidechain: boolean
+  ): Promise<{ messages: ClaudeMessage[]; page: Omit<MessagePage, "messages"> }> => {
+    const accumulated: ClaudeMessage[] = [];
+    let offset = 0;
+    let totalCount = 0;
+    let hasMore = false;
+
+    for (;;) {
+      const remaining = span - offset;
+      if (remaining <= 0) break;
+      const page = await fetchMessagePage(
+        provider,
+        sessionPath,
+        offset,
+        Math.min(remaining, 500),
+        excludeSidechain
+      );
+      accumulated.unshift(...page.messages);
+      totalCount = page.total_count;
+      hasMore = page.has_more;
+      if (!page.has_more || page.next_offset === offset) {
+        offset = page.next_offset;
+        break;
+      }
+      offset = page.next_offset;
+    }
+
+    return {
+      messages: accumulated,
+      page: { total_count: totalCount, has_more: hasMore, next_offset: offset },
+    };
+  };
+
+  /**
+   * Load one older page (chat-style prepend) for the current session.
+   * Serialized through `loadOlderChain`; stale responses are dropped when the
+   * user navigated away mid-flight. Duplicate uuids (window overlap after the
+   * live session file grew) are dropped on prepend.
+   */
+  const loadOlderPage = (limit: number): Promise<void> => {
+    const run = async (): Promise<void> => {
+      const session = get().selectedSession;
+      const { pagination } = get();
+      if (!session || !pagination.hasMore || pagination.isLoadingMore) return;
+
+      const sessionPath = session.file_path;
+      const provider = session.provider ?? "claude";
+      const inSubagent = get().parentSessionStack.length > 0;
+
+      set({ pagination: { ...pagination, isLoadingMore: true } });
+      try {
+        const page = await fetchMessagePage(
+          provider,
+          sessionPath,
+          pagination.currentOffset,
+          limit,
+          shouldExcludeSidechain(inSubagent)
+        );
+
+        // Stale guard: user switched sessions while this page was in flight.
+        if (get().selectedSession?.file_path !== sessionPath) return;
+
+        const existing = get().messages;
+        const known = new Set(existing.map((m) => m.uuid));
+        const fresh = applySystemMessageFilter(
+          page.messages.filter((m) => !known.has(m.uuid))
+        );
+
+        set({
+          messages: fresh.length > 0 ? [...fresh, ...existing] : existing,
+          pagination: {
+            currentOffset: page.next_offset,
+            pageSize: MESSAGE_PAGE_SIZE,
+            totalCount: page.total_count,
+            hasMore: page.has_more,
+            isLoadingMore: false,
+          },
+        });
+      } catch (error) {
+        if (get().selectedSession?.file_path !== sessionPath) return;
+        console.error("Failed to load earlier messages:", error);
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to load earlier messages: ${message}`);
+        set({
+          pagination: { ...get().pagination, isLoadingMore: false },
+        });
+      }
+    };
+
+    const next = loadOlderChain.then(run, run);
+    loadOlderChain = next.catch(() => undefined);
+    return next;
+  };
+
   return {
     ...initialMessageState,
 
@@ -234,67 +407,69 @@ export const createMessageSlice: StateCreator<
     get().setSelectedSession(session);
     // Note: sessionSearch state reset is handled by searchSlice
 
+    // The session file may have changed (or the session did) — the cached
+    // full-session fetch is no longer trustworthy either way.
+    fullSessionCache = null;
+
     try {
       const sessionPath = session.file_path;
       const start = performance.now();
 
       const provider = session.provider ?? "claude";
-      const allMessages = await api<ClaudeMessage[]>("load_provider_messages", {
+
+      // Window span: initial open loads the newest page; an in-place reload
+      // (filter toggle, watcher refresh) preserves the window the user has
+      // already paged in so their scroll position's content doesn't vanish.
+      const span = isInPlaceReload
+        ? Math.max(MESSAGE_PAGE_SIZE, get().pagination.currentOffset)
+        : MESSAGE_PAGE_SIZE;
+
+      // Sidechain filtering happens server-side at classification stage —
+      // subagent 세션은 모든 메시지가 isSidechain=true이므로 필터 우회.
+      const { messages: windowMessages, page } = await fetchWindow(
         provider,
         sessionPath,
-      });
+        span,
+        shouldExcludeSidechain(shouldTreatAsSubagent)
+      );
 
       // Stale response guard: await 중 다른 세션으로 이동했으면 중단.
       // (in-place reload는 selectedSession이 동일하므로 여기서 걸리지 않음)
       if (get().selectedSession?.file_path !== session.file_path) return;
 
-      // Apply sidechain filter — shouldTreatAsSubagent(pre-await 캡처값)를 사용.
-      // subagent 세션은 모든 메시지가 isSidechain=true이므로 필터 우회.
-      let filteredMessages =
-        get().excludeSidechain && !shouldTreatAsSubagent
-          ? allMessages.filter((m) => !m.isSidechain)
-          : allMessages;
-
-      // Apply system message filter
-      const systemMessageTypes = [
-        "queue-operation",
-        "progress",
-        "file-history-snapshot",
-      ];
-      if (!get().showSystemMessages) {
-        filteredMessages = filteredMessages.filter(
-          (m) => !systemMessageTypes.includes(m.type)
-        );
-      }
+      // Apply system message filter (client-side; window-local)
+      const filteredMessages = applySystemMessageFilter(windowMessages);
 
       const duration = performance.now() - start;
       if (import.meta.env.DEV) {
         console.log(
-          `[Frontend] selectSession: ${filteredMessages.length}개 메시지 로드, ${duration.toFixed(1)}ms`
+          `[Frontend] selectSession: ${filteredMessages.length}/${page.total_count}개 메시지 로드 (window), ${duration.toFixed(1)}ms`
         );
       }
 
+      const nextPagination: PaginationState = {
+        currentOffset: page.next_offset,
+        pageSize: MESSAGE_PAGE_SIZE,
+        totalCount: page.total_count,
+        hasMore: page.has_more,
+        isLoadingMore: false,
+      };
+
       if (isInPlaceReload && areMessagesEquivalent(get().messages, filteredMessages)) {
-        set({ isLoadingMessages: false });
+        set({ isLoadingMessages: false, pagination: nextPagination });
         return;
       }
 
       // Update state first to allow UI to render immediately
       set({
         messages: filteredMessages,
-        pagination: {
-          currentOffset: filteredMessages.length,
-          pageSize: filteredMessages.length,
-          totalCount: filteredMessages.length,
-          hasMore: false,
-          isLoadingMore: false,
-        },
+        pagination: nextPagination,
         isLoadingMessages: false,
       });
 
-      // Load subagent sessions (non-blocking). allMessages는 시스템 메시지 필터 적용 전이므로
-      // progress 메시지를 통한 parentToolUseID ↔ subagent 매핑이 성립.
-      void get().loadSubagents(sessionPath, allMessages);
+      // Load subagent sessions (non-blocking). windowMessages는 시스템 메시지 필터
+      // 적용 전 — meta.json 기반 매핑(주 경로)은 window와 무관하게 동작.
+      void get().loadSubagents(sessionPath, windowMessages);
 
       // Search index is built lazily on first search to avoid blocking UI
       // when loading large sessions (47k+ messages with tokenize:"full" is expensive).
@@ -314,6 +489,102 @@ export const createMessageSlice: StateCreator<
       }
       set({ isLoadingMessages: false });
     }
+  },
+
+  loadMoreMessages: async () => {
+    await loadOlderPage(MESSAGE_PAGE_SIZE);
+  },
+
+  ensureMessageLoaded: async (uuid: string) => {
+    const isLoaded = () => get().messages.some((m) => m.uuid === uuid);
+    if (isLoaded()) return true;
+
+    const session = get().selectedSession;
+    if (!session || !get().pagination.hasMore) return false;
+
+    const sessionPath = session.file_path;
+    const provider = session.provider ?? "claude";
+    const inSubagent = get().parentSessionStack.length > 0;
+
+    let offset: number | null;
+    try {
+      offset = await api<number | null>("get_provider_message_offset", {
+        provider,
+        sessionPath,
+        messageUuid: uuid,
+        excludeSidechain: shouldExcludeSidechain(inSubagent),
+      });
+    } catch (error) {
+      console.error("Failed to locate message offset:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to locate message: ${message}`);
+      return false;
+    }
+    if (offset == null) return false;
+    if (get().selectedSession?.file_path !== sessionPath) return false;
+
+    // Extend the window until it covers offset (+1 because offset is 0-based
+    // from the newest end). Pages are serialized through loadOlderChain.
+    const needed = offset + 1;
+    while (
+      get().selectedSession?.file_path === sessionPath &&
+      get().pagination.hasMore &&
+      get().pagination.currentOffset < needed
+    ) {
+      const before = get().pagination.currentOffset;
+      await loadOlderPage(
+        Math.min(needed - get().pagination.currentOffset, 500)
+      );
+      // No forward progress (error path) — bail out instead of spinning.
+      if (get().pagination.currentOffset === before) break;
+    }
+
+    // The uuid may still be absent even when covered (e.g. a claude
+    // tool_result that merged into its assistant message) — report honestly.
+    return isLoaded();
+  },
+
+  fetchFullSessionMessages: async () => {
+    const session = get().selectedSession;
+    if (!session) return [];
+
+    // Loaded window already covers the whole session — reuse it.
+    if (!get().pagination.hasMore) return get().messages;
+
+    const inSubagent = get().parentSessionStack.length > 0;
+    const excludeSidechain = shouldExcludeSidechain(inSubagent);
+    const showSystem = get().showSystemMessages;
+    const key = `${session.file_path}|${excludeSidechain}|${showSystem}`;
+
+    if (fullSessionCache?.key === key) {
+      return fullSessionCache.promise;
+    }
+
+    const provider = session.provider ?? "claude";
+    const promise = (async () => {
+      const all = await api<ClaudeMessage[]>("load_provider_messages", {
+        provider,
+        sessionPath: session.file_path,
+      });
+      const sidechainFiltered = excludeSidechain
+        ? all.filter((m) => !m.isSidechain)
+        : all;
+      return showSystem
+        ? sidechainFiltered
+        : sidechainFiltered.filter(
+            (m) =>
+              !(SYSTEM_MESSAGE_TYPES as readonly string[]).includes(m.type)
+          );
+    })();
+
+    fullSessionCache = { key, promise };
+    // A failed fetch must not poison the cache.
+    promise.catch(() => {
+      if (fullSessionCache?.promise === promise) {
+        fullSessionCache = null;
+      }
+    });
+    return promise;
   },
 
   refreshCurrentSession: async () => {

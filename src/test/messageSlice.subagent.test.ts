@@ -200,6 +200,39 @@ const defer = <T,>(): Deferred<T> => {
   return { promise, resolve };
 };
 
+/**
+ * Emulates the backend `load_provider_messages_paginated` contract over a raw
+ * message list: server-side sidechain filtering + chat-style slicing
+ * (offset 0 = newest).
+ */
+const asPage = (
+  rawMessages: ClaudeMessage[],
+  args?: { offset?: number; limit?: number; excludeSidechain?: boolean },
+) => {
+  const filtered = args?.excludeSidechain
+    ? rawMessages.filter((m) => !m.isSidechain)
+    : rawMessages;
+  const offset = args?.offset ?? 0;
+  const limit = args?.limit ?? filtered.length;
+  const total = filtered.length;
+  const remaining = Math.max(total - offset, 0);
+  const toLoad = Math.min(limit, remaining);
+  const start = remaining - toLoad;
+  return {
+    messages: filtered.slice(start, remaining),
+    total_count: total,
+    has_more: start > 0,
+    next_offset: offset + toLoad,
+  };
+};
+
+type PaginatedArgs = {
+  sessionPath: string;
+  offset?: number;
+  limit?: number;
+  excludeSidechain?: boolean;
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -226,11 +259,13 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
     const deferredA = defer<ClaudeMessage[]>();
     const deferredB = defer<ClaudeMessage[]>();
 
-    mockApi.mockImplementation((cmd: string, args: { sessionPath: string }) => {
-      if (cmd === "load_provider_messages") {
-        return args.sessionPath === "/tmp/A.jsonl"
-          ? deferredA.promise
-          : deferredB.promise;
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (cmd === "load_provider_messages_paginated") {
+        const source =
+          args.sessionPath === "/tmp/A.jsonl"
+            ? deferredA.promise
+            : deferredB.promise;
+        return source.then((msgs) => asPage(msgs, args));
       }
       if (cmd === "get_session_subagents") return Promise.resolve([]);
       return Promise.reject(new Error(`unexpected: ${cmd}`));
@@ -272,9 +307,9 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
       makeUserMessage("s1", true),
       makeUserMessage("s2", true),
     ];
-    mockApi.mockImplementation((cmd: string) => {
-      if (cmd === "load_provider_messages")
-        return Promise.resolve(subagentMessages);
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (cmd === "load_provider_messages_paginated")
+        return Promise.resolve(asPage(subagentMessages, args));
       if (cmd === "get_session_subagents") return Promise.resolve([]);
       return Promise.reject(new Error(`unexpected: ${cmd}`));
     });
@@ -299,8 +334,9 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
       isLoadingMessages: false,
     });
 
-    mockApi.mockImplementation((cmd: string) => {
-      if (cmd === "load_provider_messages") return refresh.promise;
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (cmd === "load_provider_messages_paginated")
+        return refresh.promise.then((msgs) => asPage(msgs, args));
       if (cmd === "get_session_subagents") return Promise.resolve([]);
       return Promise.reject(new Error(`unexpected: ${cmd}`));
     });
@@ -335,8 +371,9 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
       isLoadingMessages: false,
     });
 
-    mockApi.mockImplementation((cmd: string) => {
-      if (cmd === "load_provider_messages") return Promise.resolve([sameMessage]);
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (cmd === "load_provider_messages_paginated")
+        return Promise.resolve(asPage([sameMessage], args));
       return Promise.reject(new Error(`unexpected: ${cmd}`));
     });
 
@@ -356,8 +393,9 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
       selectedSession: makeSession({ file_path: "/tmp/other.jsonl" }),
       parentSessionStack: [makeSession({ file_path: "/tmp/ghost.jsonl" })],
     });
-    mockApi.mockImplementation((cmd: string) => {
-      if (cmd === "load_provider_messages") return Promise.resolve([]);
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (cmd === "load_provider_messages_paginated")
+        return Promise.resolve(asPage([], args));
       if (cmd === "get_session_subagents") return Promise.resolve([]);
       return Promise.reject(new Error(`unexpected: ${cmd}`));
     });
@@ -544,13 +582,21 @@ describe("messageSlice — navigate guards & error branches", () => {
     });
 
     // Top-level messages mix regular + sidechain — filter must strip sidechain
-    mockApi.mockImplementation((cmd: string, args: { sessionPath: string }) => {
-      if (cmd === "load_provider_messages" && args.sessionPath === "/tmp/top.jsonl") {
-        return Promise.resolve([
-          makeUserMessage("regular-1", false),
-          makeUserMessage("sidechain-1", true),
-          makeUserMessage("regular-2", false),
-        ]);
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (
+        cmd === "load_provider_messages_paginated" &&
+        args.sessionPath === "/tmp/top.jsonl"
+      ) {
+        return Promise.resolve(
+          asPage(
+            [
+              makeUserMessage("regular-1", false),
+              makeUserMessage("sidechain-1", true),
+              makeUserMessage("regular-2", false),
+            ],
+            args,
+          ),
+        );
       }
       if (cmd === "get_session_subagents") return Promise.resolve([]);
       return Promise.reject(new Error(`unexpected: ${cmd}`));
@@ -572,8 +618,9 @@ describe("messageSlice — navigate guards & error branches", () => {
     store.setState({ selectedSession: parent });
 
     const deferred = defer<ClaudeMessage[]>();
-    mockApi.mockImplementation((cmd: string) => {
-      if (cmd === "load_provider_messages") return deferred.promise;
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (cmd === "load_provider_messages_paginated")
+        return deferred.promise.then((msgs) => asPage(msgs, args));
       if (cmd === "get_session_subagents") return Promise.resolve([]);
       return Promise.reject(new Error(`unexpected: ${cmd}`));
     });
@@ -606,11 +653,11 @@ describe("messageSlice — navigate guards & error branches", () => {
     const rejectPromiseA = new Promise<ClaudeMessage[]>((_, reject) => {
       rejectA = reject;
     });
-    mockApi.mockImplementation((cmd: string, args: { sessionPath: string }) => {
-      if (cmd === "load_provider_messages") {
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (cmd === "load_provider_messages_paginated") {
         return args.sessionPath === "/tmp/A.jsonl"
           ? rejectPromiseA
-          : Promise.resolve([]);
+          : Promise.resolve(asPage([], args));
       }
       if (cmd === "get_session_subagents") return Promise.resolve([]);
       return Promise.reject(new Error(`unexpected: ${cmd}`));
@@ -633,7 +680,7 @@ describe("messageSlice — navigate guards & error branches", () => {
     const store = createTestStore();
     const topSession = makeSession({ file_path: "/tmp/top.jsonl" });
     mockApi.mockImplementation((cmd: string) => {
-      if (cmd === "load_provider_messages")
+      if (cmd === "load_provider_messages_paginated")
         return Promise.reject(new Error("boom"));
       return Promise.reject(new Error(`unexpected: ${cmd}`));
     });
@@ -657,7 +704,7 @@ describe("messageSlice — navigate guards & error branches", () => {
       selectedSession: subSession,
     });
     mockApi.mockImplementation((cmd: string) => {
-      if (cmd === "load_provider_messages")
+      if (cmd === "load_provider_messages_paginated")
         return Promise.reject(new Error("boom"));
       return Promise.reject(new Error(`unexpected: ${cmd}`));
     });

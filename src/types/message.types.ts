@@ -282,8 +282,13 @@ export interface MessagePage {
 }
 
 /**
- * @deprecated Pagination is no longer used as we load all messages at once.
- * Kept for backward compatibility.
+ * Chat-style message pagination state.
+ *
+ * `currentOffset` counts messages already consumed from the NEWEST end of the
+ * session in the backend's index space (`load_provider_messages_paginated`
+ * `next_offset`) — for Claude this is pre-merge, so it can exceed the number
+ * of displayed (merged) messages. `totalCount` is the session total in the
+ * same space.
  */
 export interface PaginationState {
   currentOffset: number;

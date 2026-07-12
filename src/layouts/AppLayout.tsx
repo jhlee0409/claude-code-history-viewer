@@ -12,6 +12,7 @@ import {
   Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/useAppStore";
 import { LoadingSpinner } from "@/components/ui/loading";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -139,6 +140,9 @@ export interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const { t } = useTranslation();
+  // Loaded window may be partial under message pagination — used to render
+  // the "+" suffix on the message count.
+  const hasMoreMessages = useAppStore((s) => s.pagination.hasMore);
   const {
     projects,
     sessions,
@@ -641,6 +645,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 <span className="text-border">&bull;</span>
                 <span>
                   {t("message.count", { count: messages.length })}
+                  {hasMoreMessages ? "+" : ""}
                 </span>
               </>
             )}

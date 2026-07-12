@@ -5,7 +5,7 @@
  * Uses @tanstack/react-virtual for efficient rendering of large message lists.
  */
 
-import { useRef, useCallback, useMemo, useState, useEffect, memo } from "react";
+import { useRef, useCallback, useMemo, useState, useEffect, useLayoutEffect, memo } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -27,13 +27,12 @@ import { useCapturePreview } from "../../hooks/useCapturePreview";
 import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
 import {
   groupAgentTasks,
-  filterMessagesByCategory,
   getMessageUuidsByCategory,
   groupAgentProgressMessages,
   groupTaskOperations,
+  applyMessageDisplayFilter,
 } from "./helpers";
 import { useAppStore } from "../../store/useAppStore";
-import { extractClaudeMessageContent } from "../../utils/messageUtils";
 import { useExpandRegistry } from "../../store/expandRegistryStore";
 import { useExport } from "../../hooks/useExport";
 import {
@@ -173,53 +172,30 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   );
 
   // Apply role + content type filters
-  const displayMessages = useMemo(() => {
-    const { roles, contentTypes } = messageFilter;
-    const allRoles = roles.user && roles.assistant;
-    const allContent = contentTypes.text && contentTypes.thinking && contentTypes.toolCalls && contentTypes.commands;
-    const parallelTaskFilteredMessages = filterMessagesByCategory(
-      messages,
-      "parallel-task",
-      contentTypes.parallelTasks,
-    );
-    if (allRoles && allContent) return parallelTaskFilteredMessages;
+  const displayMessages = useMemo(
+    () => applyMessageDisplayFilter(messages, messageFilter),
+    [messages, messageFilter],
+  );
 
-    return parallelTaskFilteredMessages.filter((msg) => {
-      // Role filter
-      if (msg.type === "user") return roles.user;
-      if (msg.type === "assistant") {
-        if (!roles.assistant) return false;
-        // Content type filter — check if assistant message has any visible content left
-        if (!allContent) {
-          const hasText = contentTypes.text && !!extractClaudeMessageContent(msg);
-          const hasContentArray = Array.isArray(msg.content) && msg.content.some((item: unknown) => {
-            if (!item || typeof item !== "object") return false;
-            const typed = item as Record<string, unknown>;
-            const t = typed.type as string;
-            if (t === "text") return contentTypes.text;
-            if (t === "thinking" || t === "redacted_thinking") return contentTypes.thinking;
-            if (t === "tool_use" || t === "tool_result" || t === "server_tool_use"
-              || t === "web_search_tool_result" || t === "mcp_tool_use" || t === "mcp_tool_result"
-              || t === "web_fetch_tool_result" || t === "code_execution_tool_result"
-              || t === "bash_code_execution_tool_result" || t === "text_editor_code_execution_tool_result"
-              || t === "tool_search_tool_result") return contentTypes.toolCalls;
-            if (t === "command") return contentTypes.commands;
-            return true; // image, document, search_result — always show
-          });
-          const hasLegacyTool = contentTypes.toolCalls && !!(msg.toolUse || msg.toolUseResult);
-          if (!hasText && !hasContentArray && !hasLegacyTool) return false;
-        }
-        return true;
-      }
-      return true; // system/summary/other
-    });
-  }, [messages, messageFilter]);
+  // Message pagination state + actions (store holds a chat-style window)
+  const pagination = useAppStore((s) => s.pagination);
+  const loadMoreMessages = useAppStore((s) => s.loadMoreMessages);
+  const ensureMessageLoaded = useAppStore((s) => s.ensureMessageLoaded);
+  const fetchFullSessionMessages = useAppStore((s) => s.fetchFullSessionMessages);
+
+  // Export must cover the COMPLETE session even when only a window is
+  // loaded — fetch the full message list and apply the same display filter.
+  const resolveExportMessages = useCallback(async () => {
+    if (!useAppStore.getState().pagination.hasMore) return displayMessages;
+    const fullMessages = await fetchFullSessionMessages();
+    return applyMessageDisplayFilter(fullMessages, messageFilter);
+  }, [displayMessages, fetchFullSessionMessages, messageFilter]);
 
   // Export hook — uses role-filtered displayMessages
   const { isExporting, exportConversation } = useExport(
     displayMessages,
     selectedSession?.project_name ?? selectedSession?.session_id ?? "conversation",
-    { includeSidechain: isInSubagent },
+    { includeSidechain: isInSubagent, resolveMessages: resolveExportMessages },
   );
   const handleExport = useCallback((format: ExportFormat) => {
     if (isExporting || displayMessages.length === 0) return;
@@ -407,6 +383,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const {
     virtualizer,
     flattenedMessages,
+    uuidToIndexMap,
     virtualRows,
     totalSize,
     getScrollIndex,
@@ -600,7 +577,71 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     scrollElementReady,
     targetMessageUuid,
     onNearBottomChange: setActiveSessionNearBottom,
+    firstItemKey: messages[0]?.uuid ?? null,
   });
+
+  // ─── Load-earlier (chat-style message pagination) ──────────────────────
+  // The store holds only a window of the session; older pages are prepended
+  // on demand. The anchor keeps the currently visible rows stationary by
+  // compensating scrollTop for the height added above them.
+  const prependAnchorRef = useRef<{ totalSize: number; scrollTop: number } | null>(null);
+  // uuid currently being ensured into the window (deep link / search match)
+  const ensureInFlightRef = useRef<string | null>(null);
+
+  const handleLoadEarlier = useCallback(() => {
+    if (pagination.isLoadingMore || !pagination.hasMore) return;
+    const viewport = getScrollElement();
+    prependAnchorRef.current = {
+      totalSize: virtualizer.getTotalSize(),
+      scrollTop: viewport?.scrollTop ?? 0,
+    };
+    void loadMoreMessages();
+  }, [pagination.isLoadingMore, pagination.hasMore, getScrollElement, virtualizer, loadMoreMessages]);
+
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    if (!anchor || pagination.isLoadingMore) return;
+    prependAnchorRef.current = null;
+    const viewport = getScrollElement();
+    if (!viewport) return;
+    const delta = virtualizer.getTotalSize() - anchor.totalSize;
+    if (delta > 0) {
+      viewport.scrollTop = anchor.scrollTop + delta;
+    }
+  }, [flattenedMessages, pagination.isLoadingMore, getScrollElement, virtualizer]);
+
+  // Auto-load the previous page when the user scrolls near the top.
+  // Guarded on scrollReadyForSessionId so the initial scroll-to-bottom pass
+  // of a freshly opened session cannot trigger a spurious page load.
+  useEffect(() => {
+    if (!scrollElementReady) return;
+    if (scrollReadyForSessionId !== selectedSession?.session_id) return;
+    const viewport = getScrollElement();
+    if (!viewport) return;
+
+    const NEAR_TOP_AUTOLOAD_PX = 300;
+    const handleScroll = () => {
+      if (viewport.scrollTop >= NEAR_TOP_AUTOLOAD_PX) return;
+      const { pagination: p } = useAppStore.getState();
+      if (!p.hasMore || p.isLoadingMore) return;
+      handleLoadEarlier();
+    };
+    viewport.addEventListener("scroll", handleScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", handleScroll);
+  }, [scrollElementReady, scrollReadyForSessionId, selectedSession?.session_id, getScrollElement, handleLoadEarlier]);
+
+  // Search-match navigation into an unloaded region: extend the window until
+  // the match is present (scrollToHighlight re-fires via getScrollIndex once
+  // the uuid map includes it).
+  useEffect(() => {
+    if (!currentMatchUuid || uuidToIndexMap.has(currentMatchUuid)) return;
+    const p = useAppStore.getState().pagination;
+    if (!p.hasMore || ensureInFlightRef.current) return;
+    ensureInFlightRef.current = currentMatchUuid;
+    void ensureMessageLoaded(currentMatchUuid).finally(() => {
+      ensureInFlightRef.current = null;
+    });
+  }, [currentMatchUuid, uuidToIndexMap, ensureMessageLoaded]);
 
   // Handle Deep Linking / Scrolling to Target
   useEffect(() => {
@@ -609,6 +650,21 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       const index = flattenedMessages.findIndex(
         (item) => item.type === "message" && item.message.uuid === targetMessageUuid
       );
+
+      if (index === -1) {
+        // Target may live in an unloaded older page — extend the window.
+        // The effect re-runs when flattenedMessages grows and then scrolls.
+        const p = useAppStore.getState().pagination;
+        if (p.hasMore && !ensureInFlightRef.current) {
+          const uuid = targetMessageUuid;
+          ensureInFlightRef.current = uuid;
+          void ensureMessageLoaded(uuid).then((found) => {
+            ensureInFlightRef.current = null;
+            if (!found) clearTargetMessage();
+          });
+        }
+        return;
+      }
 
       if (index !== -1) {
         // Multi-pass scroll to correct for height-estimate inaccuracy (#269).
@@ -644,7 +700,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         };
       }
     }
-  }, [targetMessageUuid, scrollElementReady, flattenedMessages, virtualizer, clearTargetMessage]);
+  }, [targetMessageUuid, scrollElementReady, flattenedMessages, virtualizer, clearTargetMessage, ensureMessageLoaded]);
 
   // 검색어 초기화 핸들러
   const handleClearSearch = useCallback(() => {
@@ -1047,17 +1103,50 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           </div>
         )}
 
-        {/* 메시지 목록 헤더 */}
+        {/* 메시지 목록 헤더 — 이전 페이지 로드 버튼 또는 완료 안내 */}
         {hasMessageListHeader && (
           <div
             ref={virtualHeaderRef}
             className="max-w-4xl mx-auto flex items-center justify-center py-4"
           >
-            <div className="text-sm text-muted-foreground">
-              {t("messageViewer.allMessagesLoaded", {
-                count: messages.length,
-              })}
-            </div>
+            {pagination.hasMore ? (
+              <button
+                type="button"
+                onClick={handleLoadEarlier}
+                disabled={pagination.isLoadingMore}
+                className={cn(
+                  "inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md",
+                  "text-muted-foreground bg-muted/50 hover:bg-muted transition-colors",
+                  "disabled:opacity-60 disabled:cursor-default",
+                )}
+                aria-label={t("messageViewer.loadMoreMessages", {
+                  count: Math.min(
+                    pagination.pageSize || messages.length,
+                    Math.max(pagination.totalCount - pagination.currentOffset, 0),
+                  ),
+                  current: messages.length,
+                  total: pagination.totalCount,
+                })}
+              >
+                {pagination.isLoadingMore && (
+                  <LoadingSpinner size="sm" variant="muted" />
+                )}
+                {t("messageViewer.loadMoreMessages", {
+                  count: Math.min(
+                    pagination.pageSize || messages.length,
+                    Math.max(pagination.totalCount - pagination.currentOffset, 0),
+                  ),
+                  current: messages.length,
+                  total: pagination.totalCount,
+                })}
+              </button>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                {t("messageViewer.allMessagesLoaded", {
+                  count: messages.length,
+                })}
+              </div>
+            )}
           </div>
         )}
 

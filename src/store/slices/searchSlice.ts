@@ -130,8 +130,9 @@ export const createSearchSlice: StateCreator<
   // Session search (KakaoTalk-style navigation)
   setSessionSearchQuery: async (query: string) => {
     const requestId = ++sessionSearchRequestId;
-    const { messages, sessionSearch } = get();
+    const { sessionSearch } = get();
     const { filterType } = sessionSearch;
+    const sessionPath = get().selectedSession?.file_path;
 
     // Empty query clears search results
     if (!query.trim()) {
@@ -157,6 +158,20 @@ export const createSearchSlice: StateCreator<
     const isStillLatest = () => requestId === sessionSearchRequestId;
 
     try {
+      // Search over the COMPLETE session, not just the loaded window —
+      // matches in unloaded older pages must be findable. The fetch is
+      // cached per session in the message slice.
+      const searchableMessages = await get().fetchFullSessionMessages();
+
+      // Session-switch guard: the full fetch resolved for a session the
+      // user has already left.
+      if (
+        !isStillLatest() ||
+        get().selectedSession?.file_path !== sessionPath
+      ) {
+        return;
+      }
+
       // Search strategy: Worker (async) > linear fallback (sync)
       let searchResults: Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }>;
 
@@ -165,9 +180,9 @@ export const createSearchSlice: StateCreator<
         searchResults = await searchMessagesAsync(query, filterType);
       } else {
         // Index not ready — use linear search (instant, ~100-200ms for 50k messages)
-        searchResults = linearSearchMessages(messages, query, filterType);
+        searchResults = linearSearchMessages(searchableMessages, query, filterType);
         // Trigger background Worker index build for future searches
-        buildSearchIndex(messages);
+        buildSearchIndex(searchableMessages);
       }
 
       // Drop stale results: a newer search has been started while this one
@@ -180,7 +195,8 @@ export const createSearchSlice: StateCreator<
       const matches: SearchMatch[] = searchResults
         .filter(
           (result) =>
-            result.messageIndex >= 0 && result.messageIndex < messages.length
+            result.messageIndex >= 0 &&
+            result.messageIndex < searchableMessages.length
         )
         .map((result) => ({
           messageUuid: result.messageUuid,
@@ -198,7 +214,7 @@ export const createSearchSlice: StateCreator<
           isSearching: false,
           filterType: state.sessionSearch.filterType,
           results: matches
-            .map((m) => messages[m.messageIndex])
+            .map((m) => searchableMessages[m.messageIndex])
             .filter((m): m is ClaudeMessage => m !== undefined),
         },
       }));
