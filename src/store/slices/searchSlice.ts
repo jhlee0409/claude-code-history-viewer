@@ -151,11 +151,14 @@ export const createSearchSlice: StateCreator<
       },
     }));
 
-    // Helper: predicate "this request is still the latest one".
-    // When false, every set() guarded by this is dropped so a newer
-    // request's state cannot be clobbered by stale data, AND the
-    // `isSearching: false` reset is left to that newer request.
-    const isStillLatest = () => requestId === sessionSearchRequestId;
+    // Helper: predicate "this request is still the latest one AND the user
+    // is still on the session it was issued for". Re-checked after EVERY
+    // await and in the catch path — a session switch does not bump the
+    // request id, so the id alone cannot stop a stale result (or a stale
+    // error) from landing on the new session's state.
+    const isStillLatest = () =>
+      requestId === sessionSearchRequestId &&
+      get().selectedSession?.file_path === sessionPath;
 
     try {
       // Search over the COMPLETE session, not just the loaded window —
@@ -165,10 +168,7 @@ export const createSearchSlice: StateCreator<
 
       // Session-switch guard: the full fetch resolved for a session the
       // user has already left.
-      if (
-        !isStillLatest() ||
-        get().selectedSession?.file_path !== sessionPath
-      ) {
+      if (!isStillLatest()) {
         return;
       }
 

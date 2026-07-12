@@ -237,6 +237,13 @@ export const createMessageSlice: StateCreator<
   // so concurrent callers can't fetch the same offset twice.
   let loadOlderChain: Promise<void> = Promise.resolve();
 
+  // Incremented at the start of every selectSession. Guards two races the
+  // file_path check alone cannot: (a) two overlapping in-place reloads of the
+  // SAME file with different filter settings — the stale one must not land
+  // last; (b) older-page loads queued for a session the user has since left
+  // and returned to via a fresh reload.
+  let sessionLoadEpoch = 0;
+
   const applySystemMessageFilter = (
     messages: ClaudeMessage[]
   ): ClaudeMessage[] => {
@@ -315,8 +322,20 @@ export const createMessageSlice: StateCreator<
    * live session file grew) are dropped on prepend.
    */
   const loadOlderPage = (limit: number): Promise<void> => {
+    // Capture the target at QUEUE time: a run executing after the user
+    // navigated away must not silently page the newly selected session.
+    const queuedSession = get().selectedSession;
+    const queuedEpoch = sessionLoadEpoch;
+
     const run = async (): Promise<void> => {
       const session = get().selectedSession;
+      if (
+        !queuedSession ||
+        queuedEpoch !== sessionLoadEpoch ||
+        session?.file_path !== queuedSession.file_path
+      ) {
+        return;
+      }
       const { pagination } = get();
       if (!session || !pagination.hasMore || pagination.isLoadingMore) return;
 
@@ -334,8 +353,14 @@ export const createMessageSlice: StateCreator<
           shouldExcludeSidechain(inSubagent)
         );
 
-        // Stale guard: user switched sessions while this page was in flight.
-        if (get().selectedSession?.file_path !== sessionPath) return;
+        // Stale guard: user switched sessions (or reloaded in place) while
+        // this page was in flight.
+        if (
+          queuedEpoch !== sessionLoadEpoch ||
+          get().selectedSession?.file_path !== sessionPath
+        ) {
+          return;
+        }
 
         const existing = get().messages;
         const known = new Set(existing.map((m) => m.uuid));
@@ -354,7 +379,12 @@ export const createMessageSlice: StateCreator<
           },
         });
       } catch (error) {
-        if (get().selectedSession?.file_path !== sessionPath) return;
+        if (
+          queuedEpoch !== sessionLoadEpoch ||
+          get().selectedSession?.file_path !== sessionPath
+        ) {
+          return;
+        }
         console.error("Failed to load earlier messages:", error);
         const message = error instanceof Error ? error.message : String(error);
         toast.error(`Failed to load earlier messages: ${message}`);
@@ -373,6 +403,10 @@ export const createMessageSlice: StateCreator<
     ...initialMessageState,
 
   selectSession: async (session: ClaudeSession) => {
+    // In-place reloads share a file_path, so the path guard alone cannot drop
+    // a stale overlapping reload (e.g. two quick filter toggles) — the epoch
+    // does. Captured before any await.
+    const epoch = ++sessionLoadEpoch;
     // Subagent intent를 await 전에 캡처하여 async race 차단.
     // - isSubagentNav: navigateToSubagent가 세팅한 1회성 플래그
     // - isInPlaceReload: filter toggle/refreshCurrentSession에서 같은 세션을 재로드하는 경우
@@ -433,9 +467,14 @@ export const createMessageSlice: StateCreator<
         shouldExcludeSidechain(shouldTreatAsSubagent)
       );
 
-      // Stale response guard: await 중 다른 세션으로 이동했으면 중단.
-      // (in-place reload는 selectedSession이 동일하므로 여기서 걸리지 않음)
-      if (get().selectedSession?.file_path !== session.file_path) return;
+      // Stale response guard: 다른 세션으로 이동했거나(경로), 같은 세션의 더
+      // 새로운 reload가 시작되었으면(epoch) 중단.
+      if (
+        epoch !== sessionLoadEpoch ||
+        get().selectedSession?.file_path !== session.file_path
+      ) {
+        return;
+      }
 
       // Apply system message filter (client-side; window-local)
       const filteredMessages = applySystemMessageFilter(windowMessages);
@@ -474,9 +513,14 @@ export const createMessageSlice: StateCreator<
       // Search index is built lazily on first search to avoid blocking UI
       // when loading large sessions (47k+ messages with tokenize:"full" is expensive).
     } catch (error) {
-      // Stale error guard: await 중 다른 세션으로 이동했으면 abandoned request의
-      // 에러·로딩 상태를 현재 UI에 덮어쓰지 않음 (success path의 L212 guard 미러링)
-      if (get().selectedSession?.file_path !== session.file_path) return;
+      // Stale error guard: 경로·epoch 둘 중 하나라도 어긋나면 abandoned request의
+      // 에러·로딩 상태를 현재 UI에 덮어쓰지 않음 (success path guard 미러링)
+      if (
+        epoch !== sessionLoadEpoch ||
+        get().selectedSession?.file_path !== session.file_path
+      ) {
+        return;
+      }
 
       console.error("Failed to load session messages:", error);
       // 서브에이전트 로딩 실패 시 toast로 알림 (전체 페이지 에러 방지).
@@ -501,6 +545,7 @@ export const createMessageSlice: StateCreator<
 
     const session = get().selectedSession;
     if (!session || !get().pagination.hasMore) return false;
+    const epoch = sessionLoadEpoch;
 
     const sessionPath = session.file_path;
     const provider = session.provider ?? "claude";
@@ -527,6 +572,7 @@ export const createMessageSlice: StateCreator<
     // from the newest end). Pages are serialized through loadOlderChain.
     const needed = offset + 1;
     while (
+      epoch === sessionLoadEpoch &&
       get().selectedSession?.file_path === sessionPath &&
       get().pagination.hasMore &&
       get().pagination.currentOffset < needed

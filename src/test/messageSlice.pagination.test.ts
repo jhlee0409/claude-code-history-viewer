@@ -293,6 +293,48 @@ describe("messageSlice — chat-style pagination", () => {
     expect(fullLoadCalls).toHaveLength(1);
   });
 
+  it("drops a stale overlapping in-place reload (epoch guard)", async () => {
+    const store = createTestStore();
+    const session = makeSession();
+
+    // Two overlapping reloads of the SAME file: the first request resolves
+    // LAST and must not overwrite the newer reload's window.
+    let call = 0;
+    const resolvers: Array<(v: unknown) => void> = [];
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "load_provider_messages_paginated") {
+        call += 1;
+        const mine = call;
+        return new Promise((resolve) => {
+          resolvers[mine - 1] = resolve;
+        });
+      }
+      if (cmd === "get_session_subagents") return Promise.resolve([]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    const first = store.getState().selectSession(session);
+    const second = store.getState().selectSession(session);
+
+    const pageOf = (uuid: string) => ({
+      messages: [makeMessage(uuid)],
+      total_count: 1,
+      has_more: false,
+      next_offset: 1,
+    });
+
+    // Newer request resolves first...
+    resolvers[1]?.(pageOf("from-second"));
+    await second;
+    // ...then the stale one lands late.
+    resolvers[0]?.(pageOf("from-first"));
+    await first;
+
+    expect(store.getState().messages.map((m) => m.uuid)).toEqual([
+      "from-second",
+    ]);
+  });
+
   it("fetchFullSessionMessages reuses the window when everything is loaded", async () => {
     const store = createTestStore();
     const backend = makeBackend(50);
