@@ -45,6 +45,7 @@ type TestStore = ProjectSlice & {
   messages: unknown[];
   activeProviders: ProviderInfo["id"][];
   detectProviders: ReturnType<typeof vi.fn>;
+  exitSessionSelectionMode: ReturnType<typeof vi.fn>;
   selectSession: ReturnType<typeof vi.fn>;
   loadGlobalStats: ReturnType<typeof vi.fn>;
   loadProjectTokenStats: ReturnType<typeof vi.fn>;
@@ -107,6 +108,9 @@ const createTestStore = () =>
     messages: [],
     activeProviders: ["claude"],
     detectProviders: vi.fn().mockResolvedValue(undefined),
+    // Cross-slice dep added by the multi-select feature: selectProject /
+    // clearProjectSelection abandon any in-progress session selection.
+    exitSessionSelectionMode: vi.fn(),
     selectSession: vi.fn().mockImplementation(async (session: ClaudeSession) => {
       set({ selectedSession: session });
     }),
