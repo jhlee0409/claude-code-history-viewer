@@ -213,6 +213,26 @@ export interface ToolSearchError {
     | "no_results";
 }
 
+/**
+ * Result block of the server-side "advisor" tool. The matching request is a
+ * `server_tool_use` (name "advisor"); this is the result returned to the model.
+ */
+export interface AdvisorToolResultContent {
+  type: "advisor_tool_result";
+  tool_use_id: string;
+  content: AdvisorResult | AdvisorError;
+}
+
+export interface AdvisorResult {
+  type: "advisor_result";
+  text?: string;
+}
+
+export interface AdvisorError {
+  type: "advisor_tool_result_error";
+  error_code: string;
+}
+
 // ============================================================================
 // Content Item Union (all possible content types)
 // ============================================================================
@@ -241,6 +261,7 @@ export type ContentItem =
   | BashCodeExecutionToolResultContent
   | TextEditorCodeExecutionToolResultContent
   | ToolSearchToolResultContent
+  | AdvisorToolResultContent
   | ImageContent
   | DocumentContent
   | SearchResultContent

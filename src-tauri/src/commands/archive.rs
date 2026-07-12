@@ -622,7 +622,7 @@ pub async fn list_archives() -> Result<ArchiveManifest, String> {
 /// * `name` - Human-readable name for the archive
 /// * `description` - Optional description
 /// * `session_file_paths` - Absolute paths to the JSONL session files to archive
-/// * `source_provider` - Provider identifier (e.g. "claude", "codex", "opencode")
+/// * `source_provider` - Provider identifier (e.g. "claude", "codex", "opencode", "codebuddy")
 /// * `source_project_path` - Filesystem path of the originating project
 /// * `source_project_name` - Display name of the originating project
 /// * `include_subagents` - Whether to also copy subagent JSONL files

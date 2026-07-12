@@ -2,11 +2,34 @@ use std::fs;
 use std::path::Path;
 use tauri::command;
 
+/// Removes a file or directory: tries the system trash first, falls back to permanent deletion.
+///
+/// `trash::delete` can fail on Windows when the Recycle Bin is disabled, on network drives,
+/// or when the file is locked. In those cases we permanently delete rather than surfacing an
+/// opaque "delete session failed" to the user (issue #256).
+fn remove_path(path: &Path) -> Result<(), String> {
+    if let Err(trash_err) = trash::delete(path) {
+        if path.is_dir() {
+            fs::remove_dir_all(path).map_err(|e| {
+                format!("Trash failed: {trash_err}; permanent delete also failed: {e}")
+            })?;
+        } else {
+            fs::remove_file(path).map_err(|e| {
+                format!("Trash failed: {trash_err}; permanent delete also failed: {e}")
+            })?;
+        }
+    }
+    Ok(())
+}
+
 /// Moves a session's JSONL file and its associated folder (subagents, tool-results) to the system trash.
 ///
 /// For a session at `<dir>/<uuid>.jsonl`, also trashes `<dir>/<uuid>/` if it exists.
 /// Validates that the target is an absolute, plain `.jsonl` file (not a symlink) with a
 /// well-formed session ID before moving anything.
+///
+/// If the system trash is unavailable (e.g. a disabled Recycle Bin on Windows), falls back
+/// to permanent deletion so the operation does not fail outright.
 #[command]
 pub async fn delete_session(file_path: String) -> Result<(), String> {
     if file_path.starts_with("forgecode://") || file_path.starts_with("forgecode-db://") {
@@ -46,15 +69,25 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
         return Err("Session target must be a regular .jsonl file".to_string());
     }
 
-    // Trash the .jsonl first (authoritative artifact), then the associated folder
-    trash::delete(path).map_err(|e| format!("Failed to move session file to trash: {e}"))?;
+    // If this is a Codex rollout, clean up its native-rename row in
+    // `state_5.sqlite` before the transcript is trashed (the session id is read
+    // from the rollout). Best-effort — never block the delete on DB cleanup.
+    if crate::providers::codex::is_session_path(&file_path) {
+        if let Err(e) = crate::providers::codex::delete_session_title(&file_path) {
+            log::warn!("Codex thread-row cleanup failed for {file_path}: {e}");
+        }
+    }
 
-    // Best-effort trash of associated folder — don't fail if it can't be trashed
+    // Delete the .jsonl first (authoritative artifact), then the associated folder.
+    // Tries the system trash first, falls back to permanent deletion on failure.
+    remove_path(path).map_err(|e| format!("Failed to delete session file: {e}"))?;
+
+    // Best-effort removal of associated folder — don't fail if it can't be removed
     // since the primary .jsonl file is already gone
     let associated_dir = path.with_extension("");
     if let Ok(dir_meta) = fs::symlink_metadata(&associated_dir) {
         if !dir_meta.file_type().is_symlink() && dir_meta.is_dir() {
-            let _ = trash::delete(&associated_dir);
+            let _ = remove_path(&associated_dir);
         }
     }
 
@@ -147,5 +180,26 @@ mod tests {
         delete_session(file.to_string_lossy().into()).await.unwrap();
         assert!(!file.exists());
         assert!(!assoc_dir.exists());
+    }
+
+    #[test]
+    fn remove_path_deletes_file() {
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("test.txt");
+        fs::write(&file, "data").unwrap();
+
+        remove_path(&file).unwrap();
+        assert!(!file.exists());
+    }
+
+    #[test]
+    fn remove_path_deletes_directory() {
+        let dir = TempDir::new().unwrap();
+        let sub = dir.path().join("subdir");
+        fs::create_dir(&sub).unwrap();
+        fs::write(sub.join("child.txt"), "data").unwrap();
+
+        remove_path(&sub).unwrap();
+        assert!(!sub.exists());
     }
 }

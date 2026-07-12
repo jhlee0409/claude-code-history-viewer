@@ -107,6 +107,7 @@ export interface AppStoreState {
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
   isLoadingMoreSessions: boolean;
+  isRefreshingAllConversations: boolean;
   error: AppError | null;
 
   // Message state
@@ -177,6 +178,7 @@ export interface AppStoreState {
 
   // Filter state
   userOnlyFilter: boolean;
+  showParallelTasksInNavigator: boolean;
   messageFilter: import('./filterSlice').MessageFilter;
 
   // Navigation state
@@ -186,6 +188,7 @@ export interface AppStoreState {
   // Watcher state
   watcherEnabled: boolean;
   lastUpdateTime: Record<string, number>;
+  activeSessionNearBottom: boolean;
 
   // Navigator state
   isNavigatorOpen: boolean;
@@ -201,6 +204,15 @@ export interface AppStoreState {
   // Session picker state (used by CLI `--session-title` hint with multi-match)
   sessionPickerCandidates: import('./sessionPickerSlice').SessionPickerCandidate[] | null;
   sessionPickerHintValue: string | null;
+
+  // WebUI server state
+  isServerReadOnly: boolean;
+  isServerConfigLoaded: boolean;
+
+  // Session selection (multi-select mode) state
+  isSessionSelectionMode: boolean;
+  sessionSelectionIds: string[];
+  sessionSelectionAnchor: string | null;
 }
 
 export interface AppStoreActions {
@@ -211,6 +223,7 @@ export interface AppStoreActions {
   // Project actions
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
+  refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
   loadMoreSessions: () => Promise<void>;
   clearProjectSelection: () => void;
@@ -238,7 +251,7 @@ export interface AppStoreActions {
   // Search actions
   searchMessages: (query: string, filters?: SearchFilters) => Promise<void>;
   setSearchFilters: (filters: SearchFilters) => void;
-  setSessionSearchQuery: (query: string) => void;
+  setSessionSearchQuery: (query: string) => Promise<void> | void;
   setSearchFilterType: (filterType: SearchFilterType) => void;
   goToNextMatch: () => void;
   goToPrevMatch: () => void;
@@ -341,6 +354,8 @@ export interface AppStoreActions {
   // Filter actions
   setUserOnlyFilter: (enabled: boolean) => void;
   toggleUserOnlyFilter: () => void;
+  setShowParallelTasksInNavigator: (enabled: boolean) => void;
+  toggleShowParallelTasksInNavigator: () => void;
   toggleRole: (role: keyof import('./filterSlice').MessageFilterRoles) => void;
   toggleContentType: (contentType: keyof import('./filterSlice').MessageFilterContentTypes) => void;
   resetMessageFilter: () => void;
@@ -351,6 +366,7 @@ export interface AppStoreActions {
   markProjectUpdated: (projectPath: string) => void;
   triggerProjectRefresh: (projectPath: string) => Promise<void>;
   triggerSessionRefresh: (projectPath: string, sessionPath: string) => Promise<void>;
+  setActiveSessionNearBottom: (nearBottom: boolean) => void;
 
   // Navigator actions
   toggleNavigator: () => void;
@@ -388,6 +404,21 @@ export interface AppStoreActions {
     hintValue: string,
   ) => void;
   closeSessionPicker: () => void;
+
+  // WebUI server actions
+  loadServerConfig: () => Promise<void>;
+
+  // Session selection (multi-select mode) actions
+  enterSessionSelectionMode: () => void;
+  exitSessionSelectionMode: () => void;
+  toggleSessionSelectionMode: () => void;
+  handleSessionSelectionClick: (
+    sessionId: string,
+    orderedIds: string[],
+    modifiers: { shift: boolean; cmdOrCtrl: boolean }
+  ) => void;
+  setSessionSelectionIds: (ids: string[]) => void;
+  clearSessionSelection: () => void;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;

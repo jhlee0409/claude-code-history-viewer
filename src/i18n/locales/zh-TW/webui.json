@@ -1,0 +1,12 @@
+{
+  "webui.login.title": "WebUI 登入",
+  "webui.login.methodLabel": "登入方式",
+  "webui.login.account": "帳戶",
+  "webui.login.token": "權杖",
+  "webui.login.username": "使用者名稱",
+  "webui.login.password": "密碼",
+  "webui.login.accessToken": "存取權杖",
+  "webui.login.submit": "登入",
+  "webui.login.errorRateLimited": "嘗試次數過多，請稍後再試。",
+  "webui.login.errorFailed": "登入失敗，請檢查您的憑證後重試。"
+}

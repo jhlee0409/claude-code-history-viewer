@@ -70,6 +70,14 @@ import {
   type SessionPickerSlice,
   createSessionPickerSlice,
 } from "./slices/sessionPickerSlice";
+import {
+  type ServerSlice,
+  createServerSlice,
+} from "./slices/serverSlice";
+import {
+  type SessionSelectionSlice,
+  createSessionSelectionSlice,
+} from "./slices/sessionSelectionSlice";
 
 // Re-export types for backward compatibility
 export type {
@@ -97,7 +105,9 @@ export type AppStore = ProjectSlice &
   NavigatorSlice &
   ProviderSlice &
   ArchiveSlice &
-  SessionPickerSlice;
+  SessionPickerSlice &
+  ServerSlice &
+  SessionSelectionSlice;
 
 // ============================================================================
 // Store Creation
@@ -120,4 +130,6 @@ export const useAppStore = create<AppStore>()((...args) => ({
   ...createProviderSlice(...args),
   ...createArchiveSlice(...args),
   ...createSessionPickerSlice(...args),
+  ...createServerSlice(...args),
+  ...createSessionSelectionSlice(...args),
 }));

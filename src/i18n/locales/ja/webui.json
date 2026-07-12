@@ -1,0 +1,12 @@
+{
+  "webui.login.title": "WebUI サインイン",
+  "webui.login.methodLabel": "サインイン方法",
+  "webui.login.account": "アカウント",
+  "webui.login.token": "トークン",
+  "webui.login.username": "ユーザー名",
+  "webui.login.password": "パスワード",
+  "webui.login.accessToken": "アクセストークン",
+  "webui.login.submit": "サインイン",
+  "webui.login.errorRateLimited": "試行回数が多すぎます。しばらくしてからもう一度お試しください。",
+  "webui.login.errorFailed": "サインインに失敗しました。認証情報を確認して、もう一度お試しください。"
+}

@@ -65,21 +65,21 @@ export const DatePickerHeader = ({
         <div className={cn("flex items-center gap-1.5 bg-muted/30 p-0.5 rounded-lg border border-border/50", className)} >
             <div className="flex items-center gap-1.5 px-1.5 border-r border-border/50 pr-2">
                 <Calendar className="w-3 h-3 text-muted-foreground" />
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Filter</span>
+                <span className="text-px10 font-bold text-muted-foreground uppercase tracking-wide">Filter</span>
             </div>
 
             <div className="flex items-center gap-1.5">
                 <input
                     type="date"
-                    className="bg-transparent text-[10px] font-mono text-foreground outline-none border-b border-transparent focus:border-accent w-24 min-h-[36px] dark:[color-scheme:dark]"
+                    className="bg-transparent text-px10 font-mono text-foreground outline-none border-b border-transparent focus:border-accent w-24 min-h-[36px] dark:[color-scheme:dark]"
                     value={formatDateForInput(dateFilter.start)}
                     max={formatDateForInput(dateFilter.end)}
                     onChange={(e) => handleDateChange('start', e.target.value)}
                 />
-                <span className="text-muted-foreground text-[10px]">-</span>
+                <span className="text-muted-foreground text-px10">-</span>
                 <input
                     type="date"
-                    className="bg-transparent text-[10px] font-mono text-foreground outline-none border-b border-transparent focus:border-accent w-24 min-h-[36px] dark:[color-scheme:dark]"
+                    className="bg-transparent text-px10 font-mono text-foreground outline-none border-b border-transparent focus:border-accent w-24 min-h-[36px] dark:[color-scheme:dark]"
                     value={formatDateForInput(dateFilter.end)}
                     min={formatDateForInput(dateFilter.start)}
                     onChange={(e) => handleDateChange('end', e.target.value)}

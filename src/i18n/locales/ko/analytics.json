@@ -71,6 +71,8 @@
   "analytics.More": "많음",
   "analytics.mostUsedTools": "가장 많이 사용된 도구",
   "analytics.mostUsedToolsTitle": "가장 많이 사용된 도구",
+  "analytics.mostUsedSkillsTitle": "가장 많이 사용된 스킬",
+  "analytics.mostUsedSubagentsTitle": "가장 많이 사용된 서브에이전트",
   "analytics.No activity data available": "활동 데이터가 없습니다",
   "analytics.No tool usage data available": "도구 사용 데이터가 없습니다",
   "analytics.noActivity": "활동 데이터가 없습니다",

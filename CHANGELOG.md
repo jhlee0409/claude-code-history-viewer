@@ -5,6 +5,154 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-07-12
+
+Feature release: Mistral Vibe provider support (now 28 supported assistants) plus analytics and live-refresh fixes.
+
+### Added
+- **Mistral Vibe provider support** — sessions from `~/.vibe/logs/session/` (`meta.json` + `messages.jsonl`, OpenAI-style transcripts with reasoning and tool calls), honoring `$VIBE_HOME`. Implementation verified against the upstream `mistralai/mistral-vibe` source during review. (#438, closes #427)
+
+### Changed
+- **Analytics model pricing updated** for the latest Anthropic (Fable 5, Opus 4.8, Sonnet 5) and OpenAI (GPT-5.6 family) models; OpenAI entries keep zero cache-write cost per provider billing. (#457)
+- Translated READMEs list all 28 providers (they were missing the Pi/oh-my-pi rows added in 1.19.0).
+
+### Fixed
+- **Pi and oh-my-pi sessions live-refresh again** — file-change events under `~/.pi/agent/sessions` and `~/.omp/agent/sessions` were watched but never mapped to a project/session, so the UI ignored them.
+
+## [1.19.0] - 2026-07-12
+
+Feature release: two new providers (now 27 supported assistants), Claude Code Workflow rendering, and a cross-provider parallel-task filter.
+
+### Added
+- **Pi and oh-my-pi provider support** — sessions from `~/.pi/agent/sessions` and `~/.omp/agent/sessions`, parsed by one shared store-parameterized core. (#445, closes #359, #279)
+- **Claude Code Workflow rendering** — `Workflow` tool calls now render a dedicated card (workflow name, status, run id, collapsible script and result) with the run's agent transcripts listed and navigable in the center panel; workflow sub-agents also appear in the SubAgent panel. (#449)
+- **Parallel Tasks filter** — provider-neutral classification of multi-agent history (Claude task groups, Codex `spawn_agent` collaboration, Gemini CLI / Qwen Code agents, OpenCode) with a filter-toolbar toggle and a right-side navigator control. (#446)
+- **Global conversation refresh** button in the header — rescans all projects, reloads the current selection when still present, and clears stale selections. (#439)
+
+### Fixed
+- **Project tree session counts match the opened session list** — `scan_projects` counts only top-level session files, excluding sidechain/subagent transcripts nested under the session directory. (#450)
+- **Forked Codex sessions (`codex fork`) now list under the right project** — the first `session_meta` identifies the file; the source session's replayed meta no longer misfiles the session or re-tags its messages. (#451)
+- **Font-size setting now applies to AI tool/thinking boxes and assistant markdown** — the `!important` prose override and hardcoded code-block sizes are scale-aware. (#440, #441, #443)
+- **In-session search matches tool arguments** — `tool_use.input` is now indexed. (#437)
+- **Vite dev server no longer crashes on Windows** trying to watch locked binaries under `src-tauri/target/`. (#442)
+
+### Changed
+- Translated READMEs (한국어, 日本語, 简体中文, 繁體中文) synced to the current English README after five stale releases.
+
+## [1.18.0] - 2026-06-30
+
+Feature and fix release: search/sidebar usability improvements plus a significant startup-performance fix.
+
+### Added
+- **Global search results now show which conversation each match belongs to**, so you can tell apart matches that share the same text across sessions. (#426)
+- **Collapsible provider-filter panel in the sidebar**, reclaiming vertical space for the session list on narrow sidebars; the collapsed header still surfaces the active filter summary and count. (#431)
+
+### Changed
+- **Project identity prefers the verifiable on-disk folder name over a stale `cwd`** embedded in old transcripts, so projects that moved or were recorded by a subagent group correctly. Existing projects may show a corrected display name after the first scan. (#419)
+
+### Performance
+- **Startup no longer stalls for tens of seconds.** Provider scanners now run concurrently instead of sequentially, so a locked SQLite database (from a tool running alongside the viewer) no longer stacks its timeout against the others — the worst case drops from a sum of timeouts to a single overlapped wait. (#436, #434)
+
+### Fixed
+- **Exporting a subagent session now includes its messages** instead of producing an empty file. The sidechain filter is only applied to parent-session exports now. (#435, #433)
+- **OpenCode global sessions are split by directory** into separate virtual projects, and sessions with an empty `directory` value now load correctly (scan and load hash the same raw value). (#432)
+- **OpenCode session cache is bounded** (LRU, 10k entries) to prevent unbounded memory growth from the file watcher. (#428)
+- **Cline-family truncation is char-safe** and Roo/Kilo summary labels render correctly. (#425)
+
+## [1.17.1] - 2026-06-23
+
+Patch release fixing conversation loading for several assistants added in 1.17.0.
+
+### Fixed
+- **Kilo Code conversations now load.** The task index is read from VS Code's `globalState` (the global `state.vscdb`, keyed by extension id) where Kilo actually stores it — previously only the on-disk index files (`state/taskHistory.json` / `tasks/_index.json`) that Kilo never writes were checked, so Kilo always showed zero sessions. (#422)
+- **Roo Code projects now group by workspace.** Roo (and Kilo) name the working-directory field `workspace`, not Cline's `cwdOnTaskInitialization`, so every conversation previously collapsed into a single "unknown" project. (#422)
+- **Zed tool results render as readable text** instead of raw tagged JSON. Zed stores a tool result's content as `Vec<LanguageModelToolResultContent>` (e.g. `[{"Text":"…"}]`); it is now unwrapped to its text (images become an `[image]` placeholder) rather than shown verbatim. (#423)
+- **Zed is now detected on Linux and Windows.** The threads database is read from Zed's real per-OS location — lowercase `~/.local/share/zed` on Linux and `%LOCALAPPDATA%\Zed` on Windows (it was looking under `Zed` / `%APPDATA%`). macOS was already correct. (#424)
+- **Zed no longer errors on older thread databases.** Project/session queries adapt to the columns actually present (`folder_paths` / `created_at` are absent on older schemas), so threads from older Zed versions load instead of failing the whole provider. (#424)
+
+## [1.17.0] - 2026-06-22
+
+### Added
+- **Eleven new read-only providers**, expanding coverage from 14 to ~25 AI coding assistants:
+  - **Continue.dev** (`~/.continue/sessions/*.json`, grouped by `workspaceDirectory`; honors `CONTINUE_GLOBAL_DIR`) and its fork **PearAI** (`~/.pearai/sessions`), sharing a parameterized Continue-family core. (#416)
+  - **Kilo Code** — folded into the Cline-family reader (`kilocode.kilo-code` globalStorage; per-task files byte-identical to Cline/Roo). (#416)
+  - **Goose** (`<data-dir>/goose/sessions/sessions.db`, SQLite), **Crush** (per-project `./.crush/crush.db`, discovered by scanning common code roots), and **llm** (Simon Willison's `io.datasette.llm/logs.db`, with token counts). (#416)
+  - **Amazon Q Developer CLI** (`amazon-q/data.sqlite3` `conversations`), sharing `ConversationState` parsing with the Kiro CLI provider. (#417)
+  - **Open Interpreter** (`~/.openinterpreter/sessions/**` — Codex-format rollouts, reusing the Codex parser; `INTERPRETER_HOME` override). (#418)
+  - **Qwen Code** (`~/.qwen/projects/<cwd>/chats/*.jsonl`). (#418)
+  - **Zed** (Agent Panel threads in `…/Zed/threads/threads.db` — SQLite + Zstd-compressed JSON). (#418)
+  - **OpenHands** (classic `~/.openhands/sessions/<id>/events/*.json`). (#418)
+  - **Trae** (per-workspace `state.vscdb` icube chat — reverse-engineered, provisional). (#418)
+
+### Fixed
+- Kiro CLI database path on Windows now resolves via `data_local_dir()` (`%LOCALAPPDATA%`) instead of the incorrect `AppData\Roaming`. (#417)
+
+## [1.16.0] - 2026-06-21
+
+### Added
+- **GitHub Copilot providers** — read-only browsing of GitHub Copilot CLI (`~/.copilot/session-state/<id>/events.jsonl`, tool calls paired via `toolCallId`, resume via `copilot --resume=<id>`), Copilot Desktop (same on-disk format, differentiated via `workspace.yaml::client_name`), and VS Code Copilot Chat (`workspaceStorage/.../chatSessions/*.jsonl` replayed as a `kind:0` snapshot + `kind:1`/`kind:2` patch log; detects Code/Insiders/VSCodium). All three participate in WSL scanning and global search. (#415, rebase of #350)
+- **Headless session export** — new `--export <session-id|/abs/path.jsonl> [--format html|json] [--output <file>]` flag renders a report and exits without launching the GUI, for SSH/CI use. HTML output is a Rust port of the in-app exporter (markdown via `comrak`); session ids resolve under `~/.claude/projects` (unambiguous prefix accepted) and the file is written atomically. (#413)
+- **Most Used Skills / Most Used Subagents analytics** — tool-usage stats now break Claude `Skill` and `Agent` calls out into dedicated sections keyed by `input.skill` / `input.subagent_type`, at both project and global scope; sections are hidden when empty so non-Claude providers are unaffected. (#414)
+- **One-click Full Backup** — an Archive Manager "Full Backup" card copies every session from all Claude Code projects into per-project archives in a single action (with an "Include subagent transcripts" toggle), so history survives Claude Code's automatic cleanup. (#411)
+
+### Fixed
+- The font-size setting now applies to the whole app, not just the left panel: ~256 hardcoded `text-[Npx]` classes (and the `prose-xs` markdown variant) were made reactive to the setting, so the message viewer, analytics, session board, and settings dialogs scale together. Pixel-exact at the default scale. (#412)
+- Session delete now falls back to a permanent delete when the system trash is unavailable (Windows Recycle Bin disabled, network drives, locked files) instead of surfacing an opaque failure; the delete-confirmation copy reflects this across all 5 locales. (#410)
+- Codex session delete removes the orphaned `threads` row left in `state_5.sqlite` by a prior native rename — best-effort, never blocking the delete. (#409)
+
+### New Contributors
+- @theontho (#350 → #415)
+
+## [1.15.0] - 2026-06-21
+
+### Added
+- **Three new read-only providers**: **Cursor Agent** (`~/.cursor/projects/.../agent-transcripts`, distinct from the Cursor IDE source) (#304, #397), **Kimi CLI** (`~/.kimi` sessions, `kimi -r` resume) (#349), and **Kiro CLI** (SQLite-backed `kiro-cli/data.sqlite3`) (#324).
+- **Codex native rename & delete**: rename writes `threads.title` in `state_5.sqlite` (the resume-picker-visible name) while the rollout transcript stays immutable; honors `CODEX_HOME` for both `sessions` and `archived_sessions`; a new in-app delete confirmation dialog replaces the OS-native prompt. (#373)
+
+### Changed
+- Codex project-list scans now mmap + memchr-scan only the `session_meta` line instead of fully parsing every rollout, and each provider scans independently so a slow provider no longer blocks fast ones from appearing. (#370)
+- In-session search indexing moved to a Web Worker (FlexSearch) so indexing a large session no longer blocks the UI. (#352)
+- Claude project name and the `claude --resume` working directory are now resolved from session JSONL metadata instead of the lossy storage-dir encoding. `CACHE_VERSION` bumped to 10 (one-time transparent re-scan on first launch). (#369)
+
+### Fixed
+- Removed blank gaps in the virtualized message history and stopped the first rows rendering under the sticky header, while preserving the subagent-crash (#334) and sidechain (#389) handling. (#371)
+- Kimi watcher auto-refresh on macOS: canonicalize the event path before base-path matching (`/var` → `/private/var` symlink). (#407)
+- Cursor scan no longer panics on multibyte/percent workspace-folder names. (#398)
+- Claude native rename uses the correct event format and preserves the first user prompt on title reset. (#368)
+- Improved long project-path labels in the project tree. (#354)
+
+### Internal
+- Added a frontend CI gate (tsc / eslint / vitest / i18n) on pull requests. (#406)
+
+## [1.14.1] - 2026-06-20
+
+### Fixed
+- Global search now matches tool-result content, not just message text. (#394)
+- Recognize the `/branch` custom title as a session-rename source. (#395)
+- Detect and parse Gemini CLI `.jsonl` sessions. (#348)
+- Show the conversation when navigating from a global-search hit. (#390)
+- Project-list scrollbar now reaches the bottom (`min-h-0`). (#101)
+
+## [1.14.0] - 2026-06-17
+
+### Added
+- **CodeBuddy Code provider** — browse CodeBuddy conversation history alongside the other assistants. (#353)
+- **WebUI account login** for `--serve` mode: optional Argon2id account auth + server-side sessions + CSRF, a read-only mode, and base-path support for reverse-proxy hosting. (#384)
+- Render advisor tool results instead of the unknown-type fallback. (#380, #386)
+
+### Changed
+- Role and content-type message filters now persist across session switches and app restarts. (#363)
+
+### Fixed
+- Estimate full height for subagent rows to prevent the React #185 crash when opening large subagent sessions. (#334)
+- Map subagent clicks via `meta.json` `toolUseId` for multi-subagent sessions. (#288)
+- Include custom Claude directories in the global stats summary. (#362)
+- Accept sessions under a symlinked `~/.claude` allowlist root. (#355)
+- Configure ibus/fcitx IME env on Linux startup so CJK input works in the search box. (#360)
+- Stop a WebUI watcher refresh loop. (#367)
+- WSL chat history no longer ignored in project list / global search for Claude-only users. (#347)
+- Use the OverlayScrollbars `initialized` event instead of polling. (#351)
+
 ## [1.13.0] - 2026-05-25
 
 ### Added

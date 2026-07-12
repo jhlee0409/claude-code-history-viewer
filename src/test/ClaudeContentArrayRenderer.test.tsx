@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 import { ClaudeContentArrayRenderer } from "@/components/contentRenderer/ClaudeContentArrayRenderer";
+import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -113,5 +114,47 @@ describe("ClaudeContentArrayRenderer - Markdown Rendering", () => {
     );
 
     expect(container.firstChild).toBeNull();
+  });
+
+  it("renders advisor_tool_result content instead of the unknown-type fallback (#380)", () => {
+    const { container } = render(
+      <ExpandKeyProvider value="test-message">
+        <ClaudeContentArrayRenderer
+          content={[
+            {
+              type: "advisor_tool_result",
+              tool_use_id: "srvtoolu_01R8NvQ",
+              content: { type: "advisor_result", text: "Heed my advice." },
+            },
+          ]}
+        />
+      </ExpandKeyProvider>
+    );
+
+    expect(container.textContent).toContain("Heed my advice.");
+    // The generic "unknown content type" fallback must NOT fire for advisor results.
+    expect(container.textContent).not.toContain("unknownContentType");
+  });
+
+  it("renders an advisor error block", () => {
+    const { container } = render(
+      <ExpandKeyProvider value="test-message">
+        <ClaudeContentArrayRenderer
+          content={[
+            {
+              type: "advisor_tool_result",
+              tool_use_id: "srvtoolu_err",
+              content: {
+                type: "advisor_tool_result_error",
+                error_code: "unavailable",
+              },
+            },
+          ]}
+        />
+      </ExpandKeyProvider>
+    );
+
+    expect(container.textContent).toContain("advisorToolResultRenderer.error");
+    expect(container.textContent).not.toContain("unknownContentType");
   });
 });

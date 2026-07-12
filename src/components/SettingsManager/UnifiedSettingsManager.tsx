@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { RefreshCw, FolderTree, Archive, ChevronRight } from "lucide-react";
 import { useMCPServers } from "@/hooks/useMCPServers";
 import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
+import { useAppStore } from "@/store/useAppStore";
 import type {
   AllSettingsResponse,
   SettingsScope,
@@ -99,6 +100,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
 }) => {
   const { t } = useTranslation();
   const { switchToArchive } = useAnalyticsNavigation();
+  const serverReadOnly = useAppStore((state) => state.isServerReadOnly);
 
   // Settings state
   const [allSettings, setAllSettings] = React.useState<AllSettingsResponse | null>(null);
@@ -184,7 +186,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     [activeScope, projectPath, loadSettings]
   );
 
-  const isReadOnly = activeScope === "managed";
+  const isReadOnly = serverReadOnly || activeScope === "managed";
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = React.useMemo(() => {
@@ -315,6 +317,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <CustomDirectoriesSection
                 isExpanded={isCustomDirsExpanded}
                 onToggle={(open) => setIsCustomDirsExpanded(open)}
+                readOnly={serverReadOnly}
               />
             </Card>
 
@@ -323,6 +326,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <WslSection
                 isExpanded={isWslExpanded}
                 onToggle={(open) => setIsWslExpanded(open)}
+                readOnly={serverReadOnly}
               />
             </Card>
 

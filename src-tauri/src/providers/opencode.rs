@@ -8,6 +8,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+const OPENCODE_GLOBAL_PROJECT_ID: &str = "global";
+const OPENCODE_GLOBAL_DIRECTORY_PREFIX: &str = "global-dir-";
+
 /// Convert epoch milliseconds to RFC 3339 string
 fn epoch_ms_to_rfc3339(ms: u64) -> String {
     #[allow(clippy::cast_possible_wrap)]
@@ -17,6 +20,120 @@ fn epoch_ms_to_rfc3339(ms: u64) -> String {
         Some(dt) => dt.to_rfc3339(),
         None => String::new(),
     }
+}
+
+#[derive(Debug, Clone)]
+struct OpenCodeProjectRef {
+    storage_id: String,
+    global_directory_hash: Option<String>,
+}
+
+impl OpenCodeProjectRef {
+    fn parse(project_path: &str) -> Result<Self, String> {
+        let project_id = project_path
+            .strip_prefix("opencode://")
+            .unwrap_or(project_path);
+
+        if let Some(hash) = project_id.strip_prefix(OPENCODE_GLOBAL_DIRECTORY_PREFIX) {
+            if is_safe_global_directory_hash(hash) {
+                return Ok(Self {
+                    storage_id: OPENCODE_GLOBAL_PROJECT_ID.to_string(),
+                    global_directory_hash: Some(hash.to_string()),
+                });
+            }
+        }
+
+        if !is_safe_storage_id(project_id) {
+            return Err(format!("Invalid OpenCode project path: {project_path}"));
+        }
+
+        Ok(Self {
+            storage_id: project_id.to_string(),
+            global_directory_hash: None,
+        })
+    }
+
+    fn storage_id(&self) -> &str {
+        &self.storage_id
+    }
+
+    fn is_virtual_global_directory(&self) -> bool {
+        self.global_directory_hash.is_some()
+    }
+
+    fn matches_directory(&self, directory: &str) -> bool {
+        match self.global_directory_hash.as_deref() {
+            Some(hash) => hash == stable_directory_hash(directory),
+            None => true,
+        }
+    }
+}
+
+struct DbProjectRecord {
+    id: String,
+    worktree: String,
+    name: Option<String>,
+    time_created: u64,
+    time_updated: u64,
+    session_count: usize,
+}
+
+fn is_safe_global_directory_hash(hash: &str) -> bool {
+    hash.len() == 16 && hash.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn normalize_directory_for_hash(directory: &str) -> String {
+    let mut normalized = directory.trim().replace('\\', "/");
+    while normalized.len() > 1 && normalized.ends_with('/') {
+        if normalized.len() == 3 && normalized.as_bytes().get(1) == Some(&b':') {
+            break;
+        }
+        normalized.pop();
+    }
+    normalized
+}
+
+fn stable_directory_hash(directory: &str) -> String {
+    // FNV-1a keeps the virtual project id deterministic without adding a dependency.
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in normalize_directory_for_hash(directory).as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{hash:016x}")
+}
+
+fn global_directory_project_id(directory: &str) -> String {
+    format!(
+        "{}{}",
+        OPENCODE_GLOBAL_DIRECTORY_PREFIX,
+        stable_directory_hash(directory)
+    )
+}
+
+fn opencode_project_display_name(name: Option<&str>, worktree: &str) -> String {
+    if let Some(name) = name.map(str::trim).filter(|n| !n.is_empty()) {
+        return name.to_string();
+    }
+
+    let trimmed = worktree.trim().trim_end_matches(['/', '\\']);
+    if trimmed.is_empty() {
+        return OPENCODE_GLOBAL_PROJECT_ID.to_string();
+    }
+
+    Path::new(trimmed)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|n| !n.is_empty())
+        .map_or_else(|| trimmed.to_string(), str::to_string)
+}
+
+fn should_split_global_project(project: &DbProjectRecord) -> bool {
+    project.id == OPENCODE_GLOBAL_PROJECT_ID
+        && match project.name.as_deref().map(str::trim) {
+            Some(name) => name.is_empty(),
+            None => true,
+        }
 }
 
 /// Detect `OpenCode` installation
@@ -85,25 +202,25 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
     // 1. Read from SQLite (preferred, newer source)
     if let Some(db_projects) = scan_projects_from_db(base_path) {
         for mut p in db_projects {
-            let id = p
-                .path
-                .strip_prefix("opencode://")
-                .unwrap_or(&p.path)
-                .to_string();
-            if !is_safe_storage_id(&id) {
+            let project_ref = match OpenCodeProjectRef::parse(&p.path) {
+                Ok(project_ref) => project_ref,
+                Err(_) => continue,
+            };
+            if !is_safe_storage_id(project_ref.storage_id()) {
                 continue;
             }
+            let storage_id = project_ref.storage_id().to_string();
             // Supplement session count with JSON-only sessions
-            let sessions_dir = storage_path.join("session").join(&id);
-            if is_non_symlink_dir(&sessions_dir) {
-                let db_ids = db_sessions_by_project.get(&id);
+            let sessions_dir = storage_path.join("session").join(&storage_id);
+            if !project_ref.is_virtual_global_directory() && is_non_symlink_dir(&sessions_dir) {
+                let db_ids = db_sessions_by_project.get(&storage_id);
                 let json_only = count_json_sessions_excluding(
                     &sessions_dir,
                     db_ids.map(|s| s as &HashSet<String>),
                 );
                 p.session_count += json_only;
             }
-            seen_ids.insert(id);
+            seen_ids.insert(storage_id);
             projects.push(p);
         }
     }
@@ -214,18 +331,14 @@ pub fn load_sessions(
     let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
     let storage_path = Path::new(&base_path).join("storage");
 
-    let project_id = project_path
-        .strip_prefix("opencode://")
-        .unwrap_or(project_path);
-    if !is_safe_storage_id(project_id) {
-        return Err(format!("Invalid OpenCode project path: {project_path}"));
-    }
+    let project_ref = OpenCodeProjectRef::parse(project_path)?;
+    let project_id = project_ref.storage_id().to_string();
 
     let mut sessions = Vec::new();
     let mut seen_ids: HashSet<String> = HashSet::new();
 
     // 1. Read from SQLite
-    if let Some(db_sessions) = load_sessions_from_db(&base_path, project_id) {
+    if let Some(db_sessions) = load_sessions_from_db(&base_path, &project_ref) {
         for s in db_sessions {
             seen_ids.insert(s.actual_session_id.clone());
             sessions.push(s);
@@ -233,8 +346,8 @@ pub fn load_sessions(
     }
 
     // 2. Read from JSON files
-    let sessions_dir = storage_path.join("session").join(project_id);
-    if is_non_symlink_dir(&sessions_dir) {
+    let sessions_dir = storage_path.join("session").join(&project_id);
+    if !project_ref.is_virtual_global_directory() && is_non_symlink_dir(&sessions_dir) {
         for entry in fs::read_dir(&sessions_dir)
             .map_err(|e| e.to_string())?
             .flatten()
@@ -680,41 +793,50 @@ fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
         )
         .ok()?;
 
-    let rows = stmt
+    let rows: Vec<DbProjectRecord> = stmt
         .query_map([], |row| {
-            let id: String = row.get(0)?;
-            let worktree: String = row.get(1)?;
-            let name: Option<String> = row.get(2)?;
-            let time_created: u64 = row.get(3)?;
-            let time_updated: u64 = row.get(4)?;
-            let session_count: usize = row.get(5)?;
-
-            let project_name = name.filter(|n| !n.is_empty()).unwrap_or_else(|| {
-                Path::new(&worktree)
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("unknown")
-                    .to_string()
-            });
-
-            let last_modified = epoch_ms_to_rfc3339(time_updated.max(time_created));
-
-            Ok(ClaudeProject {
-                name: project_name,
-                path: format!("opencode://{id}"),
-                actual_path: worktree,
-                session_count,
-                message_count: 0,
-                last_modified,
-                git_info: None,
-                provider: Some("opencode".to_string()),
-                storage_type: Some("sqlite".to_string()),
-                custom_directory_label: None,
+            Ok(DbProjectRecord {
+                id: row.get(0)?,
+                worktree: row.get(1)?,
+                name: row.get(2)?,
+                time_created: row.get(3)?,
+                time_updated: row.get(4)?,
+                session_count: row.get(5)?,
             })
         })
-        .ok()?;
+        .ok()?
+        .filter_map(std::result::Result::ok)
+        .collect();
+    drop(stmt);
 
-    let projects: Vec<ClaudeProject> = rows.filter_map(std::result::Result::ok).collect();
+    let mut projects = Vec::new();
+    for project in rows {
+        if should_split_global_project(&project) {
+            let directory_projects = scan_global_directory_projects(&conn, &project);
+            if !directory_projects.is_empty() {
+                projects.extend(directory_projects);
+                continue;
+            }
+        }
+
+        let project_name =
+            opencode_project_display_name(project.name.as_deref(), &project.worktree);
+        let last_modified = epoch_ms_to_rfc3339(project.time_updated.max(project.time_created));
+
+        projects.push(ClaudeProject {
+            name: project_name,
+            path: format!("opencode://{}", project.id),
+            actual_path: project.worktree,
+            session_count: project.session_count,
+            message_count: 0,
+            last_modified,
+            git_info: None,
+            provider: Some("opencode".to_string()),
+            storage_type: Some("sqlite".to_string()),
+            custom_directory_label: None,
+        });
+    }
+
     if projects.is_empty() {
         None
     } else {
@@ -722,11 +844,73 @@ fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
     }
 }
 
-fn load_sessions_from_db(base_path: &str, project_id: &str) -> Option<Vec<ClaudeSession>> {
+fn scan_global_directory_projects(
+    conn: &Connection,
+    project: &DbProjectRecord,
+) -> Vec<ClaudeProject> {
+    let mut stmt = match conn.prepare(
+        "SELECT s.directory AS directory,
+                COUNT(*) AS session_count,
+                MIN(s.time_created) AS first_created,
+                MAX(s.time_updated) AS last_updated
+         FROM session s
+         WHERE s.project_id = ?1
+         GROUP BY s.directory",
+    ) {
+        Ok(stmt) => stmt,
+        Err(_) => return Vec::new(),
+    };
+
+    let rows = match stmt.query_map(rusqlite::params![&project.id], |row| {
+        let directory: String = row.get(0)?;
+        let session_count: usize = row.get(1)?;
+        let first_created: Option<u64> = row.get(2)?;
+        let last_updated: Option<u64> = row.get(3)?;
+        Ok((directory, session_count, first_created, last_updated))
+    }) {
+        Ok(rows) => rows,
+        Err(_) => return Vec::new(),
+    };
+
+    rows.filter_map(std::result::Result::ok)
+        .filter(|(_, session_count, _, _)| *session_count > 0)
+        .map(|(directory, session_count, first_created, last_updated)| {
+            let actual_path = if directory.trim().is_empty() {
+                project.worktree.clone()
+            } else {
+                directory.trim().to_string()
+            };
+            let project_id = global_directory_project_id(directory.trim());
+            let last_modified = epoch_ms_to_rfc3339(
+                last_updated
+                    .unwrap_or(project.time_updated)
+                    .max(first_created.unwrap_or(project.time_created)),
+            );
+
+            ClaudeProject {
+                name: opencode_project_display_name(None, &actual_path),
+                path: format!("opencode://{project_id}"),
+                actual_path,
+                session_count,
+                message_count: 0,
+                last_modified,
+                git_info: None,
+                provider: Some("opencode".to_string()),
+                storage_type: Some("sqlite".to_string()),
+                custom_directory_label: None,
+            }
+        })
+        .collect()
+}
+
+fn load_sessions_from_db(
+    base_path: &str,
+    project_ref: &OpenCodeProjectRef,
+) -> Option<Vec<ClaudeSession>> {
     let conn = open_db(base_path)?;
     let mut stmt = conn
         .prepare(
-            "SELECT s.id, s.title, s.time_created, s.time_updated,
+            "SELECT s.id, s.title, s.time_created, s.time_updated, s.directory,
                     (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count
              FROM session s
              WHERE s.project_id = ?1",
@@ -734,37 +918,50 @@ fn load_sessions_from_db(base_path: &str, project_id: &str) -> Option<Vec<Claude
         .ok()?;
 
     let rows = stmt
-        .query_map([project_id], |row| {
+        .query_map([project_ref.storage_id()], |row| {
             let session_id: String = row.get(0)?;
             let title: String = row.get(1)?;
             let time_created: u64 = row.get(2)?;
             let time_updated: u64 = row.get(3)?;
-            let message_count: usize = row.get(4)?;
+            let directory: String = row.get(4)?;
+            let message_count: usize = row.get(5)?;
 
             let created_at = epoch_ms_to_rfc3339(time_created);
             let updated_at = epoch_ms_to_rfc3339(time_updated);
+            let project_name = if project_ref.is_virtual_global_directory() {
+                opencode_project_display_name(None, &directory)
+            } else {
+                String::new()
+            };
 
-            Ok(ClaudeSession {
-                session_id: format!("opencode://{session_id}"),
-                actual_session_id: session_id.clone(),
-                file_path: format!("opencode://{project_id}/{session_id}"),
-                project_name: String::new(),
-                message_count,
-                first_message_time: created_at.clone(),
-                last_message_time: updated_at.clone(),
-                last_modified: updated_at,
-                has_tool_use: false,
-                has_errors: false,
-                summary: if title.is_empty() { None } else { Some(title) },
-                is_renamed: false,
-                provider: Some("opencode".to_string()),
-                storage_type: Some("sqlite".to_string()),
-                entrypoint: None,
-            })
+            Ok((
+                directory,
+                ClaudeSession {
+                    session_id: format!("opencode://{session_id}"),
+                    actual_session_id: session_id.clone(),
+                    file_path: format!("opencode://{}/{session_id}", project_ref.storage_id()),
+                    project_name,
+                    message_count,
+                    first_message_time: created_at.clone(),
+                    last_message_time: updated_at.clone(),
+                    last_modified: updated_at,
+                    has_tool_use: false,
+                    has_errors: false,
+                    summary: if title.is_empty() { None } else { Some(title) },
+                    is_renamed: false,
+                    provider: Some("opencode".to_string()),
+                    storage_type: Some("sqlite".to_string()),
+                    entrypoint: None,
+                },
+            ))
         })
         .ok()?;
 
-    let sessions: Vec<ClaudeSession> = rows.filter_map(std::result::Result::ok).collect();
+    let sessions: Vec<ClaudeSession> = rows
+        .filter_map(std::result::Result::ok)
+        .filter(|(directory, _)| project_ref.matches_directory(directory))
+        .map(|(_, session)| session)
+        .collect();
     if sessions.is_empty() {
         None
     } else {
@@ -1392,6 +1589,46 @@ mod tests {
     }
 
     #[test]
+    fn process_parts_preserves_parallel_task_calls() {
+        let parts = json!([
+            {
+                "type": "tool",
+                "tool": "task",
+                "callID": "task-1",
+                "state": {
+                    "status": "completed",
+                    "input": { "description": "Check API", "prompt": "Review API" },
+                    "output": "API OK"
+                }
+            },
+            {
+                "type": "tool",
+                "tool": "call_omo_agent",
+                "callID": "task-2",
+                "state": {
+                    "status": "completed",
+                    "input": { "description": "Check UI", "prompt": "Review UI" },
+                    "output": "UI OK"
+                }
+            }
+        ]);
+
+        let (content, _, _) = process_parts(parts.as_array().unwrap());
+        let blocks = content.unwrap();
+        let blocks = blocks.as_array().unwrap();
+
+        assert_eq!(blocks.len(), 4);
+        assert_eq!(blocks[0]["type"], "tool_use");
+        assert_eq!(blocks[0]["name"], "Task");
+        assert_eq!(blocks[0]["id"], "task-1");
+        assert_eq!(blocks[1]["tool_use_id"], "task-1");
+        assert_eq!(blocks[2]["type"], "tool_use");
+        assert_eq!(blocks[2]["name"], "Task");
+        assert_eq!(blocks[2]["id"], "task-2");
+        assert_eq!(blocks[3]["tool_use_id"], "task-2");
+    }
+
+    #[test]
     fn keeps_github_search_tools_as_is() {
         assert_eq!(
             normalize_opencode_tool_name("github_search_repositories"),
@@ -1553,6 +1790,10 @@ mod tests {
         .unwrap();
     }
 
+    fn project_ref(project_id: &str) -> OpenCodeProjectRef {
+        OpenCodeProjectRef::parse(&format!("opencode://{project_id}")).unwrap()
+    }
+
     #[test]
     fn sqlite_scan_projects_reads_from_db() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1575,7 +1816,8 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let sessions = load_sessions_from_db(&tmp.path().to_string_lossy(), "proj1").unwrap();
+        let sessions =
+            load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref("proj1")).unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "ses_001");
         assert_eq!(sessions[0].summary, Some("Test session".to_string()));
@@ -1615,7 +1857,9 @@ mod tests {
         // No opencode.db created
         assert!(open_db(&tmp.path().to_string_lossy()).is_none());
         assert!(scan_projects_from_db(&tmp.path().to_string_lossy()).is_none());
-        assert!(load_sessions_from_db(&tmp.path().to_string_lossy(), "proj1").is_none());
+        assert!(
+            load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref("proj1")).is_none()
+        );
         assert!(load_messages_from_db(&tmp.path().to_string_lossy(), "ses_001").is_none());
     }
 
@@ -1699,5 +1943,138 @@ mod tests {
         assert_eq!(map.len(), 2);
         assert!(map["proj1"].contains("ses_001"));
         assert!(map["proj2"].contains("ses_x"));
+    }
+
+    #[test]
+    fn sqlite_scan_projects_splits_global_by_session_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        seed_test_data(&conn);
+
+        conn.execute(
+            "INSERT INTO project (id, worktree, time_created, time_updated)
+             VALUES ('global', '/', 1700000000000, 1700000500000)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+             VALUES ('ses_global_a', 'global', 'Global A', '/tmp/a', 1700000100000, 1700000200000)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+             VALUES ('ses_global_b', 'global', 'Global B', '/tmp/a', 1700000200000, 1700000300000)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+             VALUES ('ses_global_c', 'global', 'Global C', '/tmp/b', 1700000300000, 1700000400000)",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        assert!(projects.iter().all(|project| project.name != "unknown"));
+
+        let project_a = projects
+            .iter()
+            .find(|project| project.actual_path == "/tmp/a")
+            .expect("global /tmp/a directory project should exist");
+        assert_eq!(project_a.name, "a");
+        assert_eq!(project_a.session_count, 2);
+        assert!(project_a.path.starts_with("opencode://global-dir-"));
+
+        let project_b = projects
+            .iter()
+            .find(|project| project.actual_path == "/tmp/b")
+            .expect("global /tmp/b directory project should exist");
+        assert_eq!(project_b.name, "b");
+        assert_eq!(project_b.session_count, 1);
+        assert!(project_b.path.starts_with("opencode://global-dir-"));
+    }
+
+    #[test]
+    fn sqlite_load_sessions_filters_global_directory_project() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        conn.execute(
+            "INSERT INTO project (id, worktree, time_created, time_updated)
+             VALUES ('global', '/', 1700000000000, 1700000500000)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+             VALUES ('ses_global_a', 'global', 'Global A', '/tmp/a', 1700000100000, 1700000200000)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+             VALUES ('ses_global_b', 'global', 'Global B', '/tmp/b', 1700000200000, 1700000300000)",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let project_a = projects
+            .iter()
+            .find(|project| project.actual_path == "/tmp/a")
+            .expect("global /tmp/a directory project should exist");
+        let project_ref = OpenCodeProjectRef::parse(&project_a.path).unwrap();
+
+        let sessions = load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].actual_session_id, "ses_global_a");
+        assert_eq!(sessions[0].file_path, "opencode://global/ses_global_a");
+        assert_eq!(sessions[0].project_name, "a");
+    }
+
+    #[test]
+    fn sqlite_load_sessions_includes_global_empty_directory_session() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        conn.execute(
+            "INSERT INTO project (id, worktree, time_created, time_updated)
+             VALUES ('global', '/', 1700000000000, 1700000500000)",
+            [],
+        )
+        .unwrap();
+        // OpenCode schema defaults `directory` to '', so this case is reachable in real data.
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+             VALUES ('ses_global_empty', 'global', 'Global Empty', '', 1700000100000, 1700000200000)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+             VALUES ('ses_global_a', 'global', 'Global A', '/tmp/a', 1700000200000, 1700000300000)",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let empty_dir_project = projects
+            .iter()
+            .find(|project| {
+                project.path.starts_with("opencode://global-dir-") && project.actual_path == "/"
+            })
+            .expect("virtual project for empty-directory sessions should exist");
+        assert_eq!(empty_dir_project.session_count, 1);
+        assert!(empty_dir_project.path.starts_with("opencode://global-dir-"));
+
+        let project_ref = OpenCodeProjectRef::parse(&empty_dir_project.path).unwrap();
+        let sessions = load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref)
+            .expect("empty-directory sessions must load, not be silently dropped");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].actual_session_id, "ses_global_empty");
+        assert_eq!(sessions[0].file_path, "opencode://global/ses_global_empty");
     }
 }

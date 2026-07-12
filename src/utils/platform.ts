@@ -9,6 +9,7 @@ declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
     __WEBUI_API_BASE__?: string;
+    __WEBUI_BASE_PATH__?: string;
   }
 }
 
@@ -31,18 +32,45 @@ export const isTauri = (): boolean =>
 /** True when running in the browser against the Axum WebUI server. */
 export const isWebUI = (): boolean => !isTauri();
 
+const normalizeWebUIBasePath = (value?: string): string => {
+  if (!value) return "";
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed === "/") return "";
+
+  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.replace(/\/+$/, "");
+};
+
+/** Path prefix where the WebUI is mounted, or an empty string for root. */
+export const getWebUIBasePath = (): string =>
+  typeof window !== "undefined"
+    ? normalizeWebUIBasePath(window.__WEBUI_BASE_PATH__)
+    : "";
+
 /**
  * Base URL for WebUI API calls.
  *
  * Defaults to the current origin (same-origin requests when the SPA is
- * served by the Axum server). Can be overridden via `window.__WEBUI_API_BASE__`
- * for development scenarios (e.g. Vite dev server proxying to a remote host).
+ * served by the Axum server). If the server injected `window.__WEBUI_BASE_PATH__`,
+ * API requests are sent below that path prefix. Can be overridden via
+ * `window.__WEBUI_API_BASE__` for development scenarios (e.g. Vite dev server
+ * proxying to a remote host).
  */
 export const getApiBase = (): string => {
   if (typeof window !== "undefined" && window.__WEBUI_API_BASE__) {
     return window.__WEBUI_API_BASE__;
   }
-  return typeof window !== "undefined" ? window.location.origin : "";
+  return typeof window !== "undefined"
+    ? `${window.location.origin}${getWebUIBasePath()}`
+    : "";
+};
+
+/** URL for public WebUI assets, respecting reverse-proxy path prefixes. */
+export const getAssetPath = (path: string): string => {
+  const normalizedPath = path.replace(/^\/+/, "");
+  const basePath = getWebUIBasePath();
+  return basePath ? `${basePath}/${normalizedPath}` : `/${normalizedPath}`;
 };
 
 // ---------------------------------------------------------------------------
@@ -50,7 +78,19 @@ export const getApiBase = (): string => {
 // ---------------------------------------------------------------------------
 
 const AUTH_TOKEN_KEY = "webui-auth-token";
+const CSRF_COOKIE_NAME = "cchv_csrf";
 export const EXTERNAL_OPEN_HELPER_ATTRIBUTE = "data-external-open-helper";
+
+export interface WebUILoginCredentials {
+  token?: string;
+  username?: string;
+  password?: string;
+}
+
+export interface WebUILoginResult {
+  ok: boolean;
+  status: number;
+}
 
 /**
  * Initialise the auth token from the URL query string.
@@ -72,36 +112,21 @@ export function initAuthToken(): void {
   }
 }
 
-/**
- * Recover from `?auth_error=1` by asking user for a token once.
- *
- * Returns true when a reload has been triggered and normal app bootstrap should stop.
- */
-export function recoverAuthFromErrorQuery(): boolean {
+/** True when the app should render the WebUI login screen. */
+export function hasAuthErrorQuery(): boolean {
   if (isTauri()) return false;
 
   const url = new URL(window.location.href);
-  if (url.searchParams.get("auth_error") !== "1") return false;
+  return url.searchParams.get("auth_error") === "1";
+}
 
-  const existing = getAuthToken();
-  if (existing && existing.trim().length > 0) {
-    url.searchParams.delete("auth_error");
-    window.history.replaceState(window.history.state, "", url.toString());
-    return false;
-  }
+/** Remove the explicit WebUI auth-error marker from the current URL. */
+export function clearAuthErrorQuery(): void {
+  if (isTauri()) return;
 
-  const input = window.prompt(
-    "Authentication required. Paste your WebUI token to continue:",
-  );
-  if (!input || input.trim().length === 0) {
-    return false;
-  }
-
-  setAuthToken(input);
+  const url = new URL(window.location.href);
   url.searchParams.delete("auth_error");
   window.history.replaceState(window.history.state, "", url.toString());
-  window.location.reload();
-  return true;
 }
 
 /** Read the saved auth token (returns `null` when unavailable). */
@@ -125,6 +150,91 @@ export function setAuthToken(token: string): void {
   } catch {
     // localStorage unavailable (e.g. private browsing quota exceeded)
   }
+}
+
+export async function loginWebUI(
+  credentials: WebUILoginCredentials,
+): Promise<WebUILoginResult> {
+  const body: WebUILoginCredentials = {};
+  if (credentials.token != null) {
+    body.token = credentials.token.trim();
+  }
+  if (credentials.username != null) {
+    body.username = credentials.username.trim();
+  }
+  if (credentials.password != null) {
+    body.password = credentials.password;
+  }
+
+  try {
+    const response = await fetch(`${getApiBase()}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) {
+      clearAuthToken();
+    }
+
+    return { ok: response.ok, status: response.status };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
+
+/**
+ * Exchange the temporary localStorage token for an HttpOnly auth cookie.
+ *
+ * This keeps the existing URL-token/Bearer flow backward-compatible while
+ * moving the browser session to a cookie that JavaScript cannot read. On
+ * failure, the localStorage token is kept so existing Bearer auth still works.
+ */
+export async function syncAuthCookieFromStoredToken(): Promise<boolean> {
+  if (isTauri()) return false;
+
+  const token = getAuthToken();
+  if (!token) return false;
+
+  const response = await loginWebUI({ token });
+  return response.ok;
+}
+
+/** Ask the WebUI server to clear its HttpOnly auth cookie. */
+export async function clearAuthCookie(): Promise<void> {
+  if (isTauri()) return;
+
+  try {
+    await fetch(`${getApiBase()}/api/auth/logout`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
+export function getCookieValue(name: string): string | null {
+  if (typeof document === "undefined") return null;
+
+  const prefix = `${name}=`;
+  const cookie = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+
+  if (!cookie) return null;
+
+  try {
+    return decodeURIComponent(cookie.slice(prefix.length));
+  } catch {
+    return cookie.slice(prefix.length);
+  }
+}
+
+export function getCsrfToken(): string | null {
+  return getCookieValue(CSRF_COOKIE_NAME);
 }
 
 /**

@@ -3,6 +3,7 @@ use crate::providers::ProviderInfo;
 use crate::utils::{
     build_provider_message, is_symlink, ms_to_iso, search_json_value_case_insensitive,
 };
+use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
@@ -12,6 +13,13 @@ use std::path::{Path, PathBuf};
 const EXTENSIONS: &[(&str, &str)] = &[
     ("saoudrizwan.claude-dev", "Cline"),
     ("rooveterinaryinc.roo-cline", "Roo Code"),
+    // Kilo Code is a Cline/Roo fork: per-task files (api_conversation_history.json,
+    // ui_messages.json, task_metadata.json) are byte-identical. But unlike Cline
+    // (disk state/taskHistory.json) and Roo (disk tasks/_index.json), Kilo keeps its
+    // task index ONLY in VS Code globalState — one row in the global state.vscdb keyed
+    // by the extension id — so load_task_history falls back to reading that. The cwd
+    // field there is `workspace`, not `cwdOnTaskInitialization` (see task_cwd).
+    ("kilocode.kilo-code", "Kilo Code"),
 ];
 
 /// Detect Cline/Roo Code installations
@@ -43,10 +51,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
         // Group tasks by cwd
         let mut by_cwd: HashMap<String, Vec<&Value>> = HashMap::new();
         for item in &task_history {
-            let cwd = item
-                .get("cwdOnTaskInitialization")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown");
+            let cwd = task_cwd(item).unwrap_or("unknown");
             by_cwd.entry(cwd.to_string()).or_default().push(item);
         }
 
@@ -105,12 +110,7 @@ pub fn load_sessions(
 
     let mut sessions: Vec<ClaudeSession> = task_history
         .iter()
-        .filter(|item| {
-            item.get("cwdOnTaskInitialization")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                == target_cwd
-        })
+        .filter(|item| task_cwd(item).unwrap_or("") == target_cwd)
         .filter_map(|item| {
             let id = item.get("id").and_then(Value::as_str)?;
             let ts = item.get("ts").and_then(Value::as_f64).unwrap_or(0.0) as u64;
@@ -119,7 +119,7 @@ pub fn load_sessions(
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_string();
-            let model = item.get("modelId").and_then(Value::as_str);
+            let label = task_label(item);
 
             let ui_messages_path = base_path.join("tasks").join(id).join("ui_messages.json");
             // Use token counts as a proxy for message count to avoid reading full JSON
@@ -144,13 +144,7 @@ pub fn load_sessions(
                 last_modified: timestamp,
                 has_tool_use: true, // Cline is heavily tool-based
                 has_errors: false,
-                summary: if task.len() > 100 {
-                    Some(format!("{}...", &task[..100]))
-                } else if task.is_empty() {
-                    model.map(String::from)
-                } else {
-                    Some(task)
-                },
+                summary: session_summary(&task, label),
                 is_renamed: false,
                 provider: Some("cline".to_string()),
                 storage_type: Some("json".to_string()),
@@ -206,9 +200,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 None => continue,
             };
 
-            let project_name = item
-                .get("cwdOnTaskInitialization")
-                .and_then(Value::as_str)
+            let project_name = task_cwd(item)
                 .and_then(|p| {
                     PathBuf::from(p)
                         .file_name()
@@ -300,30 +292,113 @@ fn get_all_base_paths() -> Vec<(PathBuf, String)> {
     paths
 }
 
+/// A task's working directory. Cline names this `cwdOnTaskInitialization`; the
+/// Roo Code / Kilo Code lineage renames it to `workspace`. Try both so projects
+/// group correctly across the whole family.
+fn task_cwd(item: &Value) -> Option<&str> {
+    item.get("cwdOnTaskInitialization")
+        .and_then(Value::as_str)
+        .or_else(|| item.get("workspace").and_then(Value::as_str))
+}
+
+/// A short model/profile label for a task, used as the session summary when the
+/// task text is empty. Cline stores `modelId`; the Roo/Kilo lineage uses
+/// `apiConfigName` (or `mode`) instead.
+fn task_label(item: &Value) -> Option<String> {
+    ["modelId", "apiConfigName", "mode"]
+        .iter()
+        .find_map(|k| item.get(*k).and_then(Value::as_str))
+        .map(str::to_string)
+}
+
+/// Session summary: the task text (truncated), or a model/profile label when the
+/// task is empty.
+fn session_summary(task: &str, label: Option<String>) -> Option<String> {
+    if task.is_empty() {
+        label
+    } else {
+        Some(truncate_chars(task, 100, "..."))
+    }
+}
+
+/// Truncate `text` to at most `max_chars` **characters** (not bytes), appending
+/// `suffix` only when truncation occurs. Char-safe: never panics by splitting a
+/// multibyte UTF-8 character — Cline/Roo summaries and tool results are often CJK.
+fn truncate_chars(text: &str, max_chars: usize, suffix: &str) -> String {
+    match text.char_indices().nth(max_chars) {
+        Some((idx, _)) => format!("{}{}", &text[..idx], suffix),
+        None => text.to_string(),
+    }
+}
+
 fn load_task_history(base_path: &Path) -> Vec<Value> {
     // Cline format: state/taskHistory.json
     let cline_path = base_path.join("state/taskHistory.json");
     if cline_path.is_file() {
         if let Ok(data) = fs::read_to_string(&cline_path) {
             if let Ok(items) = serde_json::from_str::<Vec<Value>>(&data) {
-                return items;
-            }
-        }
-    }
-
-    // Roo Code format: tasks/_index.json
-    let roo_index = base_path.join("tasks/_index.json");
-    if roo_index.is_file() {
-        if let Ok(data) = fs::read_to_string(&roo_index) {
-            if let Ok(index) = serde_json::from_str::<Value>(&data) {
-                if let Some(entries) = index.get("entries").and_then(Value::as_array) {
-                    return entries.clone();
+                if !items.is_empty() {
+                    return items;
                 }
             }
         }
     }
 
-    Vec::new()
+    // Roo Code format: tasks/_index.json (entries array)
+    let roo_index = base_path.join("tasks/_index.json");
+    if roo_index.is_file() {
+        if let Ok(data) = fs::read_to_string(&roo_index) {
+            if let Ok(index) = serde_json::from_str::<Value>(&data) {
+                if let Some(entries) = index.get("entries").and_then(Value::as_array) {
+                    if !entries.is_empty() {
+                        return entries.clone();
+                    }
+                }
+            }
+        }
+    }
+
+    // Kilo Code (and modern Cline/Roo before they flush to disk) keep the task
+    // index only in VS Code globalState. Fall back to reading it from the global
+    // state.vscdb that sits beside the extension dir.
+    load_task_history_from_global_state(base_path).unwrap_or_default()
+}
+
+/// Read the task-history index from VS Code's globalState. VS Code persists each
+/// extension's globalState as a single `ItemTable` row in the GLOBAL `state.vscdb`
+/// (the sibling of the per-extension dir), keyed by the extension id, whose value
+/// is a flat JSON object; the Cline/Roo/Kilo lineage stores its task list under
+/// `taskHistory`. This is the only place Kilo Code's history can be found.
+fn load_task_history_from_global_state(base_path: &Path) -> Option<Vec<Value>> {
+    let ext_id = base_path.file_name()?.to_str()?;
+    let db_path = base_path.parent()?.join("state.vscdb");
+    if !db_path.is_file() {
+        return None;
+    }
+
+    let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+    conn.busy_timeout(std::time::Duration::from_secs(5)).ok()?;
+    let raw: String = conn
+        .query_row(
+            "SELECT value FROM ItemTable WHERE key = ?1",
+            [ext_id],
+            |row| {
+                // VS Code stores the value as TEXT; tolerate BLOB-stored bytes too.
+                row.get::<_, String>(0).or_else(|_| {
+                    row.get::<_, Vec<u8>>(0)
+                        .map(|b| String::from_utf8_lossy(&b).into_owned())
+                })
+            },
+        )
+        .ok()?;
+
+    let value: Value = serde_json::from_str(&raw).ok()?;
+    let history = value.get("taskHistory")?.as_array()?;
+    if history.is_empty() {
+        None
+    } else {
+        Some(history.clone())
+    }
 }
 
 fn parse_project_path(project_path: &str) -> Result<(PathBuf, String), String> {
@@ -450,11 +525,7 @@ fn convert_say_message(
                 blocks.push(serde_json::json!({
                     "type": "tool_result",
                     "tool_use_id": format!("cline_tool_{uuid}"),
-                    "content": if result_text.len() > 2000 {
-                        format!("{}...(truncated)", &result_text[..2000])
-                    } else {
-                        result_text.to_string()
-                    }
+                    "content": truncate_chars(result_text, 2000, "...(truncated)")
                 }));
             }
 
@@ -760,5 +831,133 @@ mod tests {
             parse_project_path("cline:///path/to/globalStorage:/Users/jack/project").unwrap();
         assert_eq!(base, PathBuf::from("/path/to/globalStorage"));
         assert_eq!(cwd, "/Users/jack/project");
+    }
+
+    #[test]
+    fn test_task_cwd_field_fallback() {
+        // Cline uses cwdOnTaskInitialization
+        assert_eq!(
+            task_cwd(&json!({"cwdOnTaskInitialization": "/c"})),
+            Some("/c")
+        );
+        // Roo Code / Kilo Code rename it to `workspace`
+        assert_eq!(task_cwd(&json!({"workspace": "/r"})), Some("/r"));
+        // Cline name wins when both are present
+        assert_eq!(
+            task_cwd(&json!({"cwdOnTaskInitialization": "/c", "workspace": "/r"})),
+            Some("/c")
+        );
+        // Neither present
+        assert_eq!(task_cwd(&json!({"id": "x"})), None);
+    }
+
+    #[test]
+    fn test_load_task_history_from_kilo_global_state() {
+        use rusqlite::params;
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        let global_storage = tmp.path().join("globalStorage");
+        let ext_dir = global_storage.join("kilocode.kilo-code");
+        fs::create_dir_all(&ext_dir).unwrap();
+
+        // Mirror how VS Code persists globalState: one ItemTable row per
+        // extension id, value = flat JSON of that extension's state.
+        let db_path = global_storage.join("state.vscdb");
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute(
+                "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+                [],
+            )
+            .unwrap();
+            let value = json!({
+                "taskHistory": [
+                    {
+                        "id": "task-1",
+                        "ts": 1_700_000_000_000u64,
+                        "task": "Implement Kilo",
+                        "workspace": "/Users/jack/proj",
+                        "tokensIn": 10,
+                        "tokensOut": 20
+                    }
+                ],
+                "someOtherKey": 1
+            })
+            .to_string();
+            conn.execute(
+                "INSERT INTO ItemTable (key, value) VALUES (?1, ?2)",
+                params!["kilocode.kilo-code", value],
+            )
+            .unwrap();
+        }
+
+        // No disk index exists, so this exercises the globalState fallback.
+        let history = load_task_history(&ext_dir);
+        assert_eq!(history.len(), 1);
+        assert_eq!(task_cwd(&history[0]), Some("/Users/jack/proj"));
+        assert_eq!(history[0]["task"], "Implement Kilo");
+    }
+
+    #[test]
+    fn test_load_task_history_no_index_is_empty() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let ext_dir = tmp.path().join("globalStorage").join("kilocode.kilo-code");
+        fs::create_dir_all(&ext_dir).unwrap();
+        // Neither a disk index nor a state.vscdb → empty, no panic.
+        assert!(load_task_history(&ext_dir).is_empty());
+    }
+
+    #[test]
+    fn test_truncate_chars_is_utf8_safe() {
+        // Regression: `&task[..100]` byte-slicing panicked on multibyte text
+        // (byte 100 falls mid-character for 3-byte CJK). Char-based never does.
+        let cjk = "한".repeat(150);
+        let out = truncate_chars(&cjk, 100, "...");
+        assert_eq!(out.chars().count(), 103); // 100 chars + "..."
+        assert!(out.ends_with("..."));
+        // Shorter-than-limit text is returned unchanged (no suffix).
+        assert_eq!(truncate_chars("hi", 100, "..."), "hi");
+        // Exactly the limit is not truncated.
+        let exact = "a".repeat(100);
+        assert_eq!(truncate_chars(&exact, 100, "..."), exact);
+        // Custom suffix.
+        assert_eq!(
+            truncate_chars(&"x".repeat(2001), 2000, "...(truncated)"),
+            format!("{}...(truncated)", "x".repeat(2000))
+        );
+    }
+
+    #[test]
+    fn test_task_label_field_fallback() {
+        assert_eq!(
+            task_label(&json!({ "modelId": "claude" })).as_deref(),
+            Some("claude")
+        );
+        // Roo/Kilo have no modelId; they use apiConfigName / mode.
+        assert_eq!(
+            task_label(&json!({ "apiConfigName": "default" })).as_deref(),
+            Some("default")
+        );
+        assert_eq!(
+            task_label(&json!({ "mode": "code" })).as_deref(),
+            Some("code")
+        );
+        assert_eq!(task_label(&json!({ "other": "x" })), None);
+    }
+
+    #[test]
+    fn test_session_summary() {
+        // Non-empty task -> truncated task (char-safe), label ignored.
+        assert_eq!(
+            session_summary("hello", Some("claude".into())).as_deref(),
+            Some("hello")
+        );
+        // Empty task -> falls back to the label.
+        assert_eq!(
+            session_summary("", Some("default".into())).as_deref(),
+            Some("default")
+        );
+        // Empty task, no label -> None.
+        assert_eq!(session_summary("", None), None);
     }
 }

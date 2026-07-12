@@ -220,6 +220,49 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
     session_storage_path.to_string()
 }
 
+/// Resolve a session storage folder to a real on-disk project path, returning
+/// `None` when the folder name cannot be verified against the filesystem.
+///
+/// Unlike [`decode_project_path`], this never falls back to a lossy heuristic
+/// guess: it only ever returns a path that actually exists on disk. Callers can
+/// therefore treat a successful result as the folder's authoritative identity.
+///
+/// This complements the `cwd`-from-JSONL resolution introduced in #369: that
+/// handles the case where the *folder name* is lossy/unresolvable (so the real
+/// `cwd` is the better signal), while this handles the opposite case where the
+/// embedded `cwd` is stale — e.g. a session manually moved between project
+/// folders keeps its original `cwd`, but its containing folder is authoritative.
+pub fn decode_project_path_verified(session_storage_path: &str) -> Option<String> {
+    // 1. Prefer originalPath from sessions-index.json, but only if it still
+    //    points at an existing directory.
+    let index_path = Path::new(session_storage_path).join("sessions-index.json");
+    if let Ok(content) = std::fs::read_to_string(&index_path) {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(original) = parsed.get("originalPath").and_then(|v| v.as_str()) {
+                let original = original.trim();
+                let candidate = Path::new(original);
+                // Use symlink_metadata (not is_dir, which follows symlinks) so a
+                // symlinked directory is rejected here too, matching the
+                // symlink-blocking policy in decode_with_filesystem_check.
+                let is_real_dir = std::fs::symlink_metadata(candidate)
+                    .map(|m| m.file_type().is_dir())
+                    .unwrap_or(false);
+                if candidate.is_absolute() && is_real_dir {
+                    return Some(original.to_string());
+                }
+            }
+        }
+    }
+
+    // 2. Decode the encoded folder name, verifying each segment against the
+    //    filesystem. Returns `None` if the decoded path does not exist.
+    const MARKER: &str = ".claude/projects/";
+    let marker_pos = session_storage_path.find(MARKER)?;
+    let encoded = &session_storage_path[marker_pos + MARKER.len()..];
+    let stripped = encoded.strip_prefix('-')?;
+    decode_with_filesystem_check(stripped)
+}
+
 /// Decode path by checking filesystem existence at each possible split point
 ///
 /// For `-Users-jack-client-claude-code-history-viewer`:
@@ -227,7 +270,7 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
 /// 2. Check `/Users/jack` (exists? continue)
 /// 3. Check `/Users/jack/client` (exists? continue)
 /// 4. Check `/Users/jack/client/claude-code-history-viewer` (exists? ✓ return this)
-fn decode_with_filesystem_check(encoded: &str) -> Option<String> {
+pub(crate) fn decode_with_filesystem_check(encoded: &str) -> Option<String> {
     decode_recursive(encoded, "")
 }
 
@@ -449,6 +492,11 @@ pub fn build_provider_message(
 /// 1. `{parent}/{stem}/subagents/`  — Claude Code native layout
 /// 2. `{parent}/subagents/{stem}/`  — archive layout (backward compat)
 ///
+/// Workflow sub-agents live one level deeper — `subagents/workflows/wf_*/
+/// agent-*.jsonl` (issue #449) — and are included too. Only `agent-*.jsonl`
+/// counts there: each run directory also holds a `journal.jsonl` that is
+/// orchestration metadata, not a conversation.
+///
 /// Symlinks are rejected for security.
 pub fn find_subagent_files(session_file_path: &Path) -> Vec<std::path::PathBuf> {
     let parent = match session_file_path.parent() {
@@ -481,6 +529,15 @@ pub fn find_subagent_files(session_file_path: &Path) -> Vec<std::path::PathBuf> 
                     if meta.file_type().is_symlink() {
                         continue;
                     }
+                    // Workflow runs nest one level deeper; other directories
+                    // intentionally fall through to the extension check so a
+                    // directory masquerading as `*.jsonl` still surfaces and
+                    // fails loudly downstream instead of being skipped.
+                    if meta.is_dir() && p.file_name().and_then(|n| n.to_str()) == Some("workflows")
+                    {
+                        collect_workflow_agent_files(&p, &mut files);
+                        continue;
+                    }
                 }
                 if p.extension().and_then(|e| e.to_str()) == Some("jsonl") {
                     files.push(p);
@@ -491,6 +548,44 @@ pub fn find_subagent_files(session_file_path: &Path) -> Vec<std::path::PathBuf> 
     files.sort();
     files.dedup();
     files
+}
+
+/// Collects `agent-*.jsonl` transcripts from `subagents/workflows/<run>/`
+/// directories. Symlinks are rejected at every level, mirroring
+/// [`find_subagent_files`].
+fn collect_workflow_agent_files(workflows_dir: &Path, files: &mut Vec<std::path::PathBuf>) {
+    let Ok(runs) = fs::read_dir(workflows_dir) else {
+        return;
+    };
+    for run_entry in runs.flatten() {
+        let run_dir = run_entry.path();
+        let Ok(run_meta) = fs::symlink_metadata(&run_dir) else {
+            continue;
+        };
+        if run_meta.file_type().is_symlink() || !run_meta.is_dir() {
+            continue;
+        }
+        let Ok(agents) = fs::read_dir(&run_dir) else {
+            continue;
+        };
+        for agent_entry in agents.flatten() {
+            let p = agent_entry.path();
+            let Ok(meta) = fs::symlink_metadata(&p) else {
+                continue;
+            };
+            if meta.file_type().is_symlink() || !meta.is_file() {
+                continue;
+            }
+            let is_agent_transcript = p
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("agent-"))
+                && p.extension().and_then(|e| e.to_str()) == Some("jsonl");
+            if is_agent_transcript {
+                files.push(p);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -748,6 +843,34 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_project_path_verified_resolves_existing_folder() {
+        // `/usr/lib` exists on macOS and Linux and contains no dashes, so the
+        // dash-decoder can resolve it against the real filesystem.
+        assert_eq!(
+            decode_project_path_verified("/Users/whoever/.claude/projects/-usr-lib"),
+            Some("/usr/lib".to_string())
+        );
+    }
+
+    #[test]
+    fn test_decode_project_path_verified_none_for_nonexistent() {
+        // This encoded folder name does not resolve to any real directory, so
+        // there is no verified result (callers fall back to the JSONL `cwd`).
+        assert_eq!(
+            decode_project_path_verified(
+                "/Users/whoever/.claude/projects/-this-does-not-exist-anywhere-xyzzy"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn test_decode_project_path_verified_none_without_marker() {
+        // Paths outside the `.claude/projects/` layout cannot be decoded.
+        assert_eq!(decode_project_path_verified("/some/other/path"), None);
+    }
+
+    #[test]
     fn test_extract_main_git_dir_valid() {
         assert_eq!(
             extract_main_git_dir("/Users/jack/main/.git/worktrees/feature"),
@@ -808,5 +931,41 @@ mod tests {
             info.main_project_path,
             Some("/Users/jack/main-project".to_string())
         );
+    }
+
+    /// Claude Code Workflows store their sub-agent transcripts one level
+    /// deeper than regular subagents: `{uuid}/subagents/workflows/wf_*/agent-*.jsonl`
+    /// (issue #449). Only `agent-*.jsonl` counts — each run also has a
+    /// `journal.jsonl` that is orchestration metadata, not a conversation.
+    #[test]
+    fn test_find_subagent_files_includes_workflow_agents() {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new().unwrap();
+        let session_path = temp_dir.path().join("abc123.jsonl");
+        fs::write(&session_path, "{}\n").unwrap();
+
+        let subagents = temp_dir.path().join("abc123").join("subagents");
+        fs::create_dir_all(&subagents).unwrap();
+        fs::write(subagents.join("agent-flat1.jsonl"), "{}\n").unwrap();
+
+        let run_dir = subagents.join("workflows").join("wf_1a198a78-3be");
+        fs::create_dir_all(&run_dir).unwrap();
+        fs::write(run_dir.join("agent-nested1.jsonl"), "{}\n").unwrap();
+        fs::write(run_dir.join("agent-nested1.meta.json"), "{}").unwrap();
+        fs::write(run_dir.join("journal.jsonl"), "{}\n").unwrap();
+
+        let files = find_subagent_files(&session_path);
+        let names: Vec<String> = files
+            .iter()
+            .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+            .collect();
+
+        assert!(names.contains(&"agent-flat1.jsonl".to_string()));
+        assert!(names.contains(&"agent-nested1.jsonl".to_string()));
+        assert!(
+            !names.contains(&"journal.jsonl".to_string()),
+            "journal.jsonl is workflow metadata, not a subagent transcript"
+        );
+        assert_eq!(files.len(), 2);
     }
 }

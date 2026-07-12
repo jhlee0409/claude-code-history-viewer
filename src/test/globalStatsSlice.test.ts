@@ -120,10 +120,33 @@ describe("globalStatsSlice", () => {
       ["codex"],
       undefined,
       undefined,
+      undefined,
     );
     expect(useStore.getState().globalSummary).toEqual(summary);
     // No conversation breakdown for codex → conversation summary falls back to billing.
     expect(useStore.getState().globalConversationSummary).toEqual(summary);
+  });
+
+  it("forwards customClaudePaths from settings to the global stats fetch (#362)", async () => {
+    const useStore = createTestStore();
+    const summary = buildGlobalSummary();
+    const customClaudePaths = [{ path: "/extra/claude", label: "Extra" }];
+    useStore.setState({
+      activeProviders: ["codex"],
+      userMetadata: { settings: { customClaudePaths } },
+    } as unknown as Partial<TestStore>);
+    mockFetchGlobalStatsSummary.mockResolvedValue(summary);
+
+    await useStore.getState().loadGlobalStats();
+
+    expect(mockFetchGlobalStatsSummary).toHaveBeenCalledWith(
+      "/tmp/claude",
+      "billing_total",
+      ["codex"],
+      undefined,
+      undefined,
+      customClaudePaths,
+    );
   });
 
   it("keeps billing summary when conversation-only request fails", async () => {
@@ -165,6 +188,7 @@ describe("globalStatsSlice", () => {
       ["claude"],
       start.toISOString(),
       expectedEnd.toISOString(),
+      undefined,
     );
     expect(mockFetchGlobalStatsSummary).toHaveBeenNthCalledWith(
       2,
@@ -173,6 +197,7 @@ describe("globalStatsSlice", () => {
       ["claude"],
       start.toISOString(),
       expectedEnd.toISOString(),
+      undefined,
     );
   });
 });

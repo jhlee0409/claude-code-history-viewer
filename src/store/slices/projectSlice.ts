@@ -6,9 +6,10 @@
 
 import { api } from "@/services/api";
 import { storageAdapter } from "@/services/storage";
-import type { ClaudeProject, ClaudeSession, SessionPage, AppError } from "../../types";
+import type { ClaudeProject, ClaudeSession, SessionPage, AppError, ProviderId, UserSettings } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
+import { toast } from "sonner";
 import type { FullAppStore } from "./types";
 import {
   detectWorktreeGroupsHybrid,
@@ -17,7 +18,7 @@ import {
   type DirectoryGroupingResult,
 } from "../../utils/worktreeUtils";
 import type { GroupingMode } from "../../types/metadata.types";
-import { DEFAULT_PROVIDER_ID } from "../../utils/providers";
+import { DEFAULT_PROVIDER_ID, getProviderId, PROVIDER_IDS } from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 
@@ -38,12 +39,14 @@ export interface ProjectSliceState {
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
   isLoadingMoreSessions: boolean;
+  isRefreshingAllConversations: boolean;
   error: AppError | null;
 }
 
 export interface ProjectSliceActions {
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
+  refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
   loadMoreSessions: () => Promise<void>;
   clearProjectSelection: () => void;
@@ -75,6 +78,7 @@ const initialProjectState: ProjectSliceState = {
   isLoadingProjects: false,
   isLoadingSessions: false,
   isLoadingMoreSessions: false,
+  isRefreshingAllConversations: false,
   error: null,
 };
 
@@ -105,6 +109,91 @@ const isTauriAvailable = () => {
   }
 };
 
+const projectTimestamp = (project: ClaudeProject): number | null => {
+  const timestamp = Date.parse(project.last_modified);
+  return Number.isNaN(timestamp) ? null : timestamp;
+};
+
+const sortProjectsByLastModified = (projects: ClaudeProject[]): ClaudeProject[] =>
+  [...projects].sort((a, b) => {
+    const aTimestamp = projectTimestamp(a);
+    const bTimestamp = projectTimestamp(b);
+    if (aTimestamp != null && bTimestamp != null) {
+      return bTimestamp - aTimestamp;
+    }
+    if (aTimestamp != null) {
+      return -1;
+    }
+    if (bTimestamp != null) {
+      return 1;
+    }
+    return b.last_modified.localeCompare(a.last_modified);
+  });
+
+const withProvider = (
+  projects: ClaudeProject[],
+  provider: ProviderId,
+): ClaudeProject[] =>
+  projects.map((project) => ({
+    ...project,
+    provider: project.provider ?? provider,
+  }));
+
+const isSameProject = (
+  project: ClaudeProject,
+  selectedProject: ClaudeProject,
+): boolean =>
+  project.path === selectedProject.path &&
+  getProviderId(project.provider) === getProviderId(selectedProject.provider);
+
+const isSameSession = (
+  session: ClaudeSession,
+  selectedSession: ClaudeSession,
+): boolean =>
+  session.file_path === selectedSession.file_path ||
+  session.session_id === selectedSession.session_id ||
+  session.actual_session_id === selectedSession.actual_session_id;
+
+const scanProviderProjects = async ({
+  provider,
+  claudePath,
+  customClaudePaths,
+  settings,
+}: {
+  provider: ProviderId;
+  claudePath: string;
+  customClaudePaths: UserSettings["customClaudePaths"];
+  settings: UserSettings | undefined;
+}): Promise<ClaudeProject[]> => {
+  const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
+  const wslEnabled = settings?.wsl?.enabled ?? false;
+
+  if (provider === DEFAULT_PROVIDER_ID && !hasCustomPaths && !wslEnabled) {
+    if (!claudePath) {
+      return [];
+    }
+    const projects = await api<ClaudeProject[]>("scan_projects", {
+      claudePath,
+    });
+    return withProvider(projects, provider);
+  }
+
+  const projects = await api<ClaudeProject[]>("scan_all_projects", {
+    ...(claudePath && { claudePath }),
+    activeProviders: [provider],
+    ...(provider === DEFAULT_PROVIDER_ID && hasCustomPaths
+      ? { customClaudePaths }
+      : {}),
+    ...(provider === DEFAULT_PROVIDER_ID
+      ? {
+          wslEnabled,
+          wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
+        }
+      : {}),
+  });
+  return withProvider(projects, provider);
+};
+
 // ============================================================================
 // CLAUDE_CONFIG_DIR Auto-detection
 // ============================================================================
@@ -112,6 +201,8 @@ const isTauriAvailable = () => {
 /** Auto-register CLAUDE_CONFIG_DIR as a custom directory if not already present. */
 async function autoRegisterConfigDir(get: () => FullAppStore): Promise<void> {
   try {
+    if (get().isServerReadOnly) return;
+
     const detected = await api<string | null>("detect_claude_config_dir");
     if (!detected) return;
 
@@ -144,6 +235,8 @@ export const createProjectSlice: StateCreator<
   initializeApp: async () => {
     set({ isLoading: true, error: null });
     try {
+      await get().loadServerConfig();
+
       if (!isTauriAvailable()) {
         throw new Error(
           "Tauri API를 사용할 수 없습니다. 데스크톱 앱에서 실행해주세요."
@@ -233,20 +326,23 @@ export const createProjectSlice: StateCreator<
     }
   },
 
-  // NOTE: scanProjects always loads ALL available providers' projects.
-  // Filtering by activeProviders happens client-side in the ProjectTree UI.
-  // This is intentionally asymmetric with loadGlobalStats (which filters server-side)
-  // because project scanning is fast and we want instant client-side tab switching,
-  // whereas global stats aggregation is expensive and benefits from server-side filtering.
+  // NOTE: scanProjects loads ALL available providers' projects, while filtering
+  // by activeProviders happens client-side in the ProjectTree UI. Provider scans
+  // are launched independently so a slow provider does not block fast providers
+  // from appearing in the sidebar.
   scanProjects: async () => {
     const requestId = nextRequestId("scanProjects");
     const { claudePath, providers } = get();
     const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
     const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
-    const availableProviders = providers
+    const detectedAvailableProviders = providers
       .filter((provider) => provider.is_available)
       .map((provider) => provider.id);
-    const scanProviders = availableProviders.length > 0 ? availableProviders : [DEFAULT_PROVIDER_ID];
+    const providerSet = new Set<ProviderId>(detectedAvailableProviders);
+    if (claudePath || hasCustomPaths || providerSet.size === 0) {
+      providerSet.add(DEFAULT_PROVIDER_ID);
+    }
+    const scanProviders = PROVIDER_IDS.filter((provider) => providerSet.has(provider));
     const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
     // Allow scanning when at least one source is available: a saved Claude path,
     // a custom Claude path, or any non-Claude provider detected on disk (#222).
@@ -256,18 +352,57 @@ export const createProjectSlice: StateCreator<
     try {
       const start = performance.now();
       const settings = get().userMetadata?.settings;
-      const projects = (hasNonClaudeProviders || hasCustomPaths)
-        ? await api<ClaudeProject[]>("scan_all_projects", {
-            ...(claudePath && { claudePath }),
-            activeProviders: scanProviders,
-            customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
-            wslEnabled: settings?.wsl?.enabled ?? false,
-            wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
-          })
-        : await api<ClaudeProject[]>("scan_projects", {
-            claudePath,
-          });
+      const previouslyLoadedProjects = get().projects.filter((project) =>
+        scanProviders.includes(getProviderId(project.provider))
+      );
+      const loadedProviders = new Set<ProviderId>();
+      const projectsByProvider = new Map<ProviderId, ClaudeProject[]>();
+      const providerErrors: string[] = [];
+
+      const publishPartialResults = () => {
+        const pendingPreviousProjects = previouslyLoadedProjects.filter(
+          (project) => !loadedProviders.has(getProviderId(project.provider))
+        );
+        const loadedProjects = Array.from(projectsByProvider.values()).flat();
+        set({
+          projects: sortProjectsByLastModified([
+            ...pendingPreviousProjects,
+            ...loadedProjects,
+          ]),
+        });
+      };
+
+      await Promise.all(
+        scanProviders.map(async (provider) => {
+          try {
+            const providerProjects = await scanProviderProjects({
+              provider,
+              claudePath,
+              customClaudePaths,
+              settings,
+            });
+            if (requestId !== getRequestId("scanProjects")) {
+              return;
+            }
+            loadedProviders.add(provider);
+            projectsByProvider.set(provider, providerProjects);
+            publishPartialResults();
+          } catch (scanError) {
+            const message = scanError instanceof Error
+              ? scanError.message
+              : String(scanError);
+            providerErrors.push(`${provider}: ${message}`);
+            if (import.meta.env.DEV) {
+              console.warn(`[Frontend] ${provider} project scan failed:`, scanError);
+            }
+          }
+        })
+      );
+
       const duration = performance.now() - start;
+      const projects = sortProjectsByLastModified(
+        Array.from(projectsByProvider.values()).flat()
+      );
       if (import.meta.env.DEV) {
         console.log(
           `[Frontend] scanProjects: ${projects.length}개 프로젝트, ${duration.toFixed(1)}ms`
@@ -277,13 +412,21 @@ export const createProjectSlice: StateCreator<
         return;
       }
       set({ projects });
+      if (projects.length === 0 && providerErrors.length > 0) {
+        set({
+          error: {
+            type: AppErrorType.UNKNOWN,
+            message: providerErrors.join("; "),
+          },
+        });
+      }
 
       // Auto-enable worktree grouping if worktrees are detected
       // Only auto-enable if user has never explicitly set the preference
       const { userMetadata, updateUserSettings } = get();
       const worktreeGrouping = userMetadata?.settings?.worktreeGrouping ?? false;
       const userHasSet = userMetadata?.settings?.worktreeGroupingUserSet ?? false;
-      if (!worktreeGrouping && !userHasSet && projects.length > 0) {
+      if (!get().isServerReadOnly && !worktreeGrouping && !userHasSet && projects.length > 0) {
         const { groups } = detectWorktreeGroupsHybrid(projects);
         if (groups.length > 0) {
           if (requestId !== getRequestId("scanProjects")) {
@@ -314,8 +457,115 @@ export const createProjectSlice: StateCreator<
     }
   },
 
+  refreshAllConversations: async () => {
+    if (get().isRefreshingAllConversations) {
+      return;
+    }
+
+    const previouslySelectedProject = get().selectedProject;
+    const previouslySelectedSession = get().selectedSession;
+
+    set({ isRefreshingAllConversations: true, error: null });
+
+    try {
+      await get().scanProjects();
+
+      const stateAfterScan = get();
+      if (!previouslySelectedProject) {
+        if (stateAfterScan.analytics.currentView === "analytics") {
+          await stateAfterScan.loadGlobalStats();
+        }
+        return;
+      }
+
+      const refreshedProject = stateAfterScan.projects.find((project) =>
+        isSameProject(project, previouslySelectedProject)
+      );
+
+      if (!refreshedProject) {
+        get().clearProjectSelection();
+        return;
+      }
+
+      await get().selectProject(refreshedProject);
+
+      let refreshedSession: ClaudeSession | null = null;
+      if (previouslySelectedSession) {
+        refreshedSession = get().sessions.find((session) =>
+          isSameSession(session, previouslySelectedSession)
+        ) ?? null;
+
+        if (refreshedSession) {
+          await get().selectSession(refreshedSession);
+        } else {
+          set({
+            selectedSession: null,
+            messages: [],
+            pagination: { ...INITIAL_PAGINATION },
+            isLoadingMessages: false,
+            subagentSessions: [],
+            parentSessionStack: [],
+          });
+          get().clearSessionSearch();
+          get().clearTokenStats();
+          get().clearTargetMessage();
+        }
+      }
+
+      const refreshedState = get();
+      if (refreshedState.analytics.currentView === "tokenStats") {
+        await refreshedState.loadProjectTokenStats(refreshedProject.path);
+        if (refreshedSession) {
+          await refreshedState.loadSessionTokenStats(refreshedSession.file_path);
+        }
+      } else if (refreshedState.analytics.currentView === "analytics") {
+        const projectSummary = await refreshedState.loadProjectStatsSummary(
+          refreshedProject.path
+        );
+        refreshedState.setAnalyticsProjectSummary(projectSummary);
+        if (refreshedSession) {
+          const sessionComparison = await refreshedState.loadSessionComparison(
+            refreshedSession.actual_session_id,
+            refreshedProject.path
+          );
+          refreshedState.setAnalyticsSessionComparison(sessionComparison);
+        } else {
+          refreshedState.setAnalyticsSessionComparison(null);
+        }
+      } else if (refreshedState.analytics.currentView === "recentEdits") {
+        const recentEdits = await refreshedState.loadRecentEdits(
+          refreshedProject.path
+        );
+        refreshedState.setAnalyticsRecentEdits({
+          files: recentEdits.files,
+          total_edits_count: recentEdits.total_edits_count,
+          unique_files_count: recentEdits.unique_files_count,
+          project_cwd: recentEdits.project_cwd,
+        });
+      } else if (refreshedState.analytics.currentView === "board") {
+        refreshedState.clearBoard();
+        await refreshedState.loadBoardSessions(get().sessions);
+      } else if (refreshedState.analytics.currentView === "archive") {
+        await refreshedState.loadArchives();
+      }
+    } catch (error) {
+      console.error("Failed to refresh all conversations:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to refresh conversations: ${message}`);
+      get().setError({
+        type: AppErrorType.UNKNOWN,
+        message,
+      });
+    } finally {
+      set({ isRefreshingAllConversations: false });
+    }
+  },
+
   selectProject: async (project: ClaudeProject) => {
     const requestId = nextRequestId("selectProject");
+    // Selection is scoped to a single project's session list; switching
+    // projects abandons any in-progress multi-selection.
+    get().exitSessionSelectionMode();
     set({
       selectedProject: project,
       sessions: [],
@@ -448,6 +698,7 @@ export const createProjectSlice: StateCreator<
     get().clearBoard();
     get().setDateFilter({ start: null, end: null });
     get().clearTargetMessage();
+    get().exitSessionSelectionMode();
   },
 
   setClaudePath: async (path: string) => {

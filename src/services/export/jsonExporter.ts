@@ -5,7 +5,7 @@
  */
 
 import type { ClaudeMessage } from "@/types";
-import { extractBlocks, filterBlocksByContentType, blocksToPlainText, isExportable } from "./contentExtractor";
+import { extractBlocks, filterBlocksByContentType, blocksToPlainText, isExportable, type ExportOptions } from "./contentExtractor";
 import type { MessageFilterContentTypes } from "@/store/slices/filterSlice";
 
 interface ExportedMessage {
@@ -21,8 +21,8 @@ interface ExportedMessage {
 }
 
 
-export function exportToJson(messages: ClaudeMessage[], sessionName: string, contentTypeFilter?: MessageFilterContentTypes): string {
-  const filtered = messages.filter(isExportable);
+export function exportToJson(messages: ClaudeMessage[], sessionName: string, contentTypeFilter?: MessageFilterContentTypes, options?: ExportOptions): string {
+  const filtered = messages.filter((m) => isExportable(m, options));
 
   const exportedMessages: ExportedMessage[] = filtered.map((msg) => {
     const base: ExportedMessage = {

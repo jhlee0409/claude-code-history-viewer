@@ -1,0 +1,63 @@
+name: Frontend Tests
+
+# Gates the React/TypeScript frontend on every PR/push that touches it.
+# `rust-tests.yml` only covers `src-tauri/**` (cargo fmt/clippy/test), and
+# `update-flow-tests.yml` runs vitest for just the 4 update-flow files, so the
+# rest of the ~860 frontend tests (plus tsc/eslint/i18n) were previously
+# ungated — a broad frontend regression could land on develop unnoticed.
+on:
+  push:
+    branches: [main, develop]
+    paths: &frontend_paths
+      - "src/**"
+      - "scripts/**"
+      - "index.html"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - "eslint.config.js"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/frontend-tests.yml"
+  pull_request:
+    branches: [main, develop]
+    paths: *frontend_paths
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        # No `version:` — `packageManager` in package.json is the source of truth
+        # (pinning here has historically conflicted with it).
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (tsc)
+        run: pnpm tsc --build .
+
+      - name: Lint (eslint)
+        run: pnpm lint
+
+      - name: Unit tests (vitest)
+        run: pnpm -s vitest run
+
+      - name: i18n key validation
+        run: pnpm run i18n:validate

@@ -98,9 +98,19 @@ jobs:
           cache-on-failure: true
 
 
+      - name: Create dist placeholder for rust-embed
+        run: mkdir -p dist && touch dist/index.html
+
       - name: Run tests with nextest
         working-directory: src-tauri
         run: cargo nextest run --profile ci --retries 2
+
+      # webui-server gates extra command surface (incl. is_safe_session_path),
+      # which the default run does not compile. Exercise it explicitly so those
+      # paths get real test coverage (e.g. the #355 symlinked-root regression).
+      - name: Run tests with nextest (webui-server feature)
+        working-directory: src-tauri
+        run: cargo nextest run --profile ci --retries 2 --features webui-server
 
       - name: Upload test results
         if: always()

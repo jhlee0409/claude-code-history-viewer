@@ -36,6 +36,12 @@ vi.mock("../../../SessionItem", () => ({
   ),
 }));
 
+// Mock SessionSelectionBar so the multi-select action bar's heavy import chain
+// (@/components/ui barrel → i18n) isn't pulled into this isolated unit test.
+vi.mock("../../../SessionItem/components/SessionSelectionBar", () => ({
+  SessionSelectionBar: () => <div data-testid="session-selection-bar" />,
+}));
+
 // Mock react-window
 vi.mock("react-window", () => ({
   FixedSizeList: ({ children, itemData }: { children: React.ComponentType<{
@@ -76,6 +82,15 @@ interface MockStore {
   sessionEntrypointFilter: MockEntrypointFilter;
   setSessionEntrypointFilter: (filter: MockEntrypointFilter) => void;
   getSessionDisplayName: (sessionId: string, fallbackSummary?: string) => string | undefined;
+  isSessionSelectionMode: boolean;
+  sessionSelectionIds: string[];
+  toggleSessionSelectionMode: () => void;
+  enterSessionSelectionMode: () => void;
+  handleSessionSelectionClick: (
+    sessionId: string,
+    orderedIds: string[],
+    modifiers: { shift: boolean; cmdOrCtrl: boolean }
+  ) => void;
 }
 
 const useTestStore = create<MockStore>((set) => ({
@@ -84,10 +99,20 @@ const useTestStore = create<MockStore>((set) => ({
   sessionEntrypointFilter: 'all',
   setSessionEntrypointFilter: (filter) => set({ sessionEntrypointFilter: filter }),
   getSessionDisplayName: (_sessionId: string, fallbackSummary?: string) => fallbackSummary,
+  isSessionSelectionMode: false,
+  sessionSelectionIds: [],
+  toggleSessionSelectionMode: () => set({ isSessionSelectionMode: false }),
+  enterSessionSelectionMode: () => set({ isSessionSelectionMode: true }),
+  handleSessionSelectionClick: () => {},
 }));
 
+// Selector-aware mock: SessionList reads some fields via `useAppStore(selector)`
+// and others via the object form `useAppStore()`, so support both.
 vi.mock("@/store/useAppStore", () => ({
-  useAppStore: () => useTestStore(),
+  useAppStore: <T,>(selector?: (state: MockStore) => T) => {
+    const state = useTestStore();
+    return selector ? selector(state) : state;
+  },
 }));
 
 // Helper to create mock session

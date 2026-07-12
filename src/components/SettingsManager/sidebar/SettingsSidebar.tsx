@@ -56,7 +56,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
     >
       {/* Context Selector - Always visible, not collapsible */}
       <div className="space-y-1 shrink-0 w-full">
-        <h3 className="hidden md:block text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-1">
+        <h3 className="hidden md:block text-px10 font-semibold text-muted-foreground/60 uppercase tracking-wider px-1">
           {t("settingsManager.unified.sidebar.context") || "Context"}
         </h3>
         <ContextSelector availableScopes={availableScopes} />
@@ -79,7 +79,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
             ) : (
               <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
             )}
-            <h3 className="text-[11px] font-semibold text-foreground/70 uppercase tracking-wider">
+            <h3 className="text-px11 font-semibold text-foreground/70 uppercase tracking-wider">
               {t("settingsManager.unified.sidebar.presets")}
             </h3>
           </CollapsibleTrigger>
@@ -102,7 +102,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
             )}
           >
             <Settings2 className="w-3.5 h-3.5" />
-            <span className="text-[11px] font-medium flex-1 text-left">
+            <span className="text-px11 font-medium flex-1 text-left">
               {t("settingsManager.unified.sidebar.advanced") || "Advanced"}
             </span>
             {advancedExpanded ? (

@@ -8,7 +8,7 @@
 // Provider Types
 // ============================================================================
 
-export type ProviderId = "aider" | "antigravity" | "claude" | "cline" | "codex" | "cursor" | "forgecode" | "gemini" | "opencode";
+export type ProviderId = "aider" | "amazonq" | "antigravity" | "claude" | "cline" | "codebuddy" | "codex" | "continue" | "copilot" | "crush" | "cursor" | "cursor-agent" | "forgecode" | "gemini" | "goose" | "kimi" | "kiro" | "llm" | "ompi" | "opencode" | "openhands" | "openinterpreter" | "pearai" | "pi" | "qwen" | "trae" | "vibe" | "zed";
 
 export interface ProviderInfo {
   id: ProviderId;
@@ -55,8 +55,8 @@ export interface ClaudeProject {
   git_info?: GitInfo;
   /** Provider identifier (claude, codex, opencode) */
   provider?: ProviderId;
-  /** Storage type (json, sqlite) — OpenCode only */
-  storage_type?: "json" | "sqlite";
+  /** Storage type (json, jsonl, sqlite) */
+  storage_type?: "json" | "jsonl" | "sqlite";
   /** Label for custom Claude directory source (e.g., "Personal") */
   custom_directory_label?: string;
 }
@@ -78,12 +78,14 @@ export interface ClaudeSession {
   relevance?: number;
   /** Provider identifier (claude, codex, opencode) */
   provider?: ProviderId;
-  /** Storage type (json, sqlite) — OpenCode only */
-  storage_type?: "json" | "sqlite";
+  /** Storage type (json, jsonl, sqlite) */
+  storage_type?: "json" | "jsonl" | "sqlite";
   /**
-   * Originating client for Claude Code sessions: "cli" / "claude-vscode" /
-   * "claude-desktop". Raw value from the JSONL `entrypoint` field. Undefined
-   * for non-Claude providers or sessions predating the field.
+   * Originating client/surface for the session. Raw value from the JSONL
+   * `entrypoint` field. Known values:
+   *   * Claude:  "cli" / "claude-vscode" / "claude-desktop"
+   *   * Copilot: "copilot-cli" / "copilot-desktop" / "copilot-vscode"
+   * Undefined for providers that don't stamp the field, or older sessions.
    */
   entrypoint?: string;
 }

@@ -1,0 +1,12 @@
+{
+  "webui.login.title": "WebUI 로그인",
+  "webui.login.methodLabel": "로그인 방식",
+  "webui.login.account": "계정",
+  "webui.login.token": "토큰",
+  "webui.login.username": "사용자 이름",
+  "webui.login.password": "비밀번호",
+  "webui.login.accessToken": "액세스 토큰",
+  "webui.login.submit": "로그인",
+  "webui.login.errorRateLimited": "시도 횟수가 너무 많습니다. 잠시 후 다시 시도하세요.",
+  "webui.login.errorFailed": "로그인에 실패했습니다. 자격 증명을 확인하고 다시 시도하세요."
+}

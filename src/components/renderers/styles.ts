@@ -218,13 +218,13 @@ export const layout = {
   /** Small icon size (for status indicators) */
   iconSizeSmall: "w-3 h-3",
   /** Title text style */
-  titleText: "text-[12px] font-medium",
+  titleText: "text-px12 font-medium",
   /** Body text style */
-  bodyText: "text-[12px]",
+  bodyText: "text-px12",
   /** Small/meta text style */
-  smallText: "text-[12px]",
+  smallText: "text-px12",
   /** Monospace text */
-  monoText: "text-[12px] font-mono",
+  monoText: "text-px12 font-mono",
   /** Standard border radius */
   rounded: "rounded-md",
   /** Code block max height */
@@ -303,7 +303,7 @@ export const commonStyles = {
  * Prism theme configuration (shared across all code renderers)
  */
 export const codeTheme = {
-  fontSize: "0.8125rem",
+  fontSize: "calc(0.8125rem * var(--app-font-scale))",
   lineHeight: "1.25rem",
   padding: "0.5rem",
 } as const;

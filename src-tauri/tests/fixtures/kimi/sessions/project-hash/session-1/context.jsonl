@@ -1,0 +1,7 @@
+{"role":"_system_prompt","content":"You are Kimi Code CLI."}
+{"role":"_checkpoint","id":"cp-1"}
+{"role":"user","content":"Add a Kimi provider"}
+{"role":"_usage","token_count":{"input_tokens":12,"output_tokens":0}}
+{"role":"assistant","content":[{"type":"think","think":"I should inspect the provider registry first.","encrypted":null},{"type":"text","text":"I will inspect the provider registry."}],"tool_calls":[{"id":"tool_1","type":"function","function":{"name":"Shell","arguments":"{\"command\":\"rg provider\"}"}}]}
+{"role":"tool","tool_call_id":"tool_1","content":"src-tauri/src/providers/mod.rs"}
+{"role":"assistant","content":[{"type":"text","text":"The provider registry is in Rust."}]}

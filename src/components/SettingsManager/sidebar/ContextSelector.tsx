@@ -327,7 +327,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="text-[10px] font-medium opacity-60 uppercase tracking-wider">
+                  <div className="text-px10 font-medium opacity-60 uppercase tracking-wider">
                     {activeScope === "user" && t("settingsManager.scope.user")}
                     {activeScope === "project" && t("settingsManager.scope.project")}
                     {activeScope === "local" && t("settingsManager.scope.local")}
@@ -343,7 +343,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
                 {/* Scope badge */}
                 <div
                   className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide shrink-0",
+                    "px-2 py-0.5 rounded text-px10 font-bold uppercase tracking-wide shrink-0",
                     activeScope === "user" && "bg-blue-500/20 text-blue-300",
                     activeScope === "project" && "bg-green-500/20 text-green-300",
                     activeScope === "local" && "bg-amber-500/20 text-amber-300",
@@ -358,7 +358,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
               </div>
 
               {/* Description */}
-              <p className="text-[10px] leading-relaxed opacity-50 pl-9">
+              <p className="text-px10 leading-relaxed opacity-50 pl-9">
                 {activeScope === "user" && t("settings.context.userWideDesc")}
                 {activeScope === "project" && t("settingsManager.context.sharedDesc")}
                 {activeScope === "local" && t("settingsManager.context.privateDesc")}

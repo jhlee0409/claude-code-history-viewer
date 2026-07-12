@@ -4,6 +4,7 @@ use crate::utils::parse_rfc3339_utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cmp::Ordering;
+use std::path::{Path, PathBuf};
 
 /// Parameter for passing custom Claude paths from frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,13 +33,32 @@ pub async fn scan_all_projects(
         vec![
             "claude".to_string(),
             "codex".to_string(),
+            "continue".to_string(),
+            "pearai".to_string(),
+            "copilot".to_string(),
             "gemini".to_string(),
+            "goose".to_string(),
+            "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
+            "openinterpreter".to_string(),
+            "pi".to_string(),
+            "ompi".to_string(),
+            "qwen".to_string(),
             "cline".to_string(),
+            "crush".to_string(),
             "cursor".to_string(),
+            "cursor-agent".to_string(),
             "aider".to_string(),
+            "amazonq".to_string(),
             "antigravity".to_string(),
+            "codebuddy".to_string(),
+            "kiro".to_string(),
+            "llm".to_string(),
+            "zed".to_string(),
+            "openhands".to_string(),
+            "trae".to_string(),
+            "vibe".to_string(),
         ]
     });
 
@@ -89,115 +109,167 @@ pub async fn scan_all_projects(
         }
     }
 
-    // Codex
-    if providers_to_scan.iter().any(|p| p == "codex") {
-        match providers::codex::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Codex scan failed: {e}");
-            }
+    // Synchronous, self-contained provider scanners — all share the signature
+    // `fn() -> Result<Vec<ClaudeProject>, String>` and read independent data
+    // sources. They previously ran sequentially, which made startup scale with
+    // the (now ~25) provider count: several open SQLite databases with a 5s
+    // busy_timeout, so a single locked DB (its tool running concurrently) stalled
+    // the whole scan, and multiple locked DBs stacked into tens of seconds (#434).
+    // Running them concurrently on the blocking pool turns that worst case from a
+    // sum into a single overlapped wait. The `("name", fn)` label here is the
+    // provider id matched against `providers_to_scan`, not the display name.
+    type SyncScanner = fn() -> Result<Vec<ClaudeProject>, String>;
+    let sync_scanners: &[(&str, SyncScanner)] = &[
+        ("codex", providers::codex::scan_projects),
+        ("continue", providers::continue_dev::scan_projects),
+        ("pearai", providers::pearai::scan_projects),
+        ("gemini", providers::gemini::scan_projects),
+        ("goose", providers::goose::scan_projects),
+        ("kimi", providers::kimi::scan_projects),
+        ("forgecode", providers::forgecode::scan_projects),
+        ("opencode", providers::opencode::scan_projects),
+        ("openinterpreter", providers::openinterpreter::scan_projects),
+        ("pi", providers::pi::scan_projects),
+        ("ompi", providers::ompi::scan_projects),
+        ("qwen", providers::qwen::scan_projects),
+        ("zed", providers::zed::scan_projects),
+        ("openhands", providers::openhands::scan_projects),
+        ("trae", providers::trae::scan_projects),
+        ("vibe", providers::vibe::scan_projects),
+        ("cline", providers::cline::scan_projects),
+        ("cursor", providers::cursor::scan_projects),
+        ("crush", providers::crush::scan_projects),
+        ("cursor-agent", providers::cursor_agent::scan_projects),
+        ("aider", providers::aider::scan_projects),
+        ("amazonq", providers::amazon_q::scan_projects),
+        ("antigravity", providers::antigravity::scan_projects),
+        ("codebuddy", providers::codebuddy::scan_projects),
+        ("kiro", providers::kiro::scan_projects),
+        ("llm", providers::llm::scan_projects),
+        ("copilot", providers::copilot::scan_projects),
+    ];
+
+    // Spawn every enabled scanner up front so they run concurrently on the
+    // blocking pool; awaiting the handles afterwards collects them in spawn
+    // order without serializing the work.
+    let scan_handles: Vec<_> = sync_scanners
+        .iter()
+        .filter(|(name, _)| providers_to_scan.iter().any(|p| p == name))
+        .map(|(name, scan)| {
+            let name = *name;
+            let scan = *scan;
+            tauri::async_runtime::spawn_blocking(move || (name, scan()))
+        })
+        .collect();
+
+    for handle in scan_handles {
+        match handle.await {
+            Ok((_, Ok(projects))) => all_projects.extend(projects),
+            Ok((name, Err(e))) => log::warn!("{name} scan failed: {e}"),
+            Err(join_err) => log::warn!("Provider scan task failed to join: {join_err}"),
         }
     }
 
-    // Gemini
-    if providers_to_scan.iter().any(|p| p == "gemini") {
-        match providers::gemini::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Gemini scan failed: {e}");
-            }
-        }
-    }
-
-    // ForgeCode
-    if providers_to_scan.iter().any(|p| p == "forgecode") {
-        match providers::forgecode::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("ForgeCode scan failed: {e}");
-            }
-        }
-    }
-
-    // OpenCode
-    if providers_to_scan.iter().any(|p| p == "opencode") {
-        match providers::opencode::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("OpenCode scan failed: {e}");
-            }
-        }
-    }
-
-    // Cline
-    if providers_to_scan.iter().any(|p| p == "cline") {
-        match providers::cline::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Cline scan failed: {e}");
-            }
-        }
-    }
-
-    // Cursor
-    if providers_to_scan.iter().any(|p| p == "cursor") {
-        match providers::cursor::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Cursor scan failed: {e}");
-            }
-        }
-    }
-
-    // Aider
-    if providers_to_scan.iter().any(|p| p == "aider") {
-        match providers::aider::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Aider scan failed: {e}");
-            }
-        }
-    }
-
-    // Antigravity
-    if providers_to_scan.iter().any(|p| p == "antigravity") {
-        match providers::antigravity::scan_projects() {
-            Ok(projects) => all_projects.extend(projects),
-            Err(e) => {
-                log::warn!("Antigravity scan failed: {e}");
-            }
-        }
-    }
-
-    // WSL scanning (Claude only — other providers' load_sessions/load_messages
-    // use native base paths internally, so WSL projects would be visible but
-    // not loadable. Extending other providers requires base-path-aware loaders.)
-    if wsl_enabled.unwrap_or(false) && providers_to_scan.iter().any(|p| p == "claude") {
+    // WSL scanning
+    if wsl_enabled.unwrap_or(false)
+        && providers_to_scan
+            .iter()
+            .any(|p| matches!(p.as_str(), "claude" | "copilot"))
+    {
         let excluded = wsl_excluded_distros.unwrap_or_default();
 
         for (distro, home_path) in resolve_active_wsl_distros(&excluded) {
             let wsl_label = format!("WSL: {}", distro.name);
-            let claude_linux_path = home_path.join(".claude");
 
-            let unc_path =
-                match crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path) {
-                    Some(p) => p,
-                    None => continue,
-                };
-
-            let unc_str = unc_path.to_string_lossy().to_string();
-            match crate::commands::project::scan_projects(unc_str).await {
-                Ok(mut projects) => {
-                    for p in &mut projects {
-                        if p.provider.is_none() {
-                            p.provider = Some("claude".to_string());
+            if providers_to_scan.iter().any(|p| p == "claude") {
+                let claude_linux_path = home_path.join(".claude");
+                if let Some(unc_path) =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path)
+                {
+                    let unc_str = unc_path.to_string_lossy().to_string();
+                    match crate::commands::project::scan_projects(unc_str).await {
+                        Ok(mut projects) => {
+                            for p in &mut projects {
+                                if p.provider.is_none() {
+                                    p.provider = Some("claude".to_string());
+                                }
+                                p.custom_directory_label = Some(wsl_label.clone());
+                            }
+                            all_projects.extend(projects);
                         }
-                        p.custom_directory_label = Some(wsl_label.clone());
+                        Err(e) => {
+                            log::warn!("WSL: Claude scan failed for '{}': {e}", distro.name);
+                        }
                     }
-                    all_projects.extend(projects);
                 }
-                Err(e) => {
-                    log::warn!("WSL: Claude scan failed for '{}': {e}", distro.name);
+            }
+
+            if providers_to_scan.iter().any(|p| p == "copilot") {
+                // Copilot CLI/Desktop base
+                let copilot_linux_path = home_path.join(".copilot");
+                let copilot_base =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
+                        .map(|p| p.to_string_lossy().to_string());
+
+                // Iterate VS Code user-data dirs (Stable + Insiders).
+                let vscode_bases: Vec<(std::path::PathBuf, &'static str)> =
+                    wsl_vscode_user_data_paths(&home_path)
+                        .into_iter()
+                        .filter_map(|(linux_path, editor_label)| {
+                            crate::wsl::resolve_wsl_provider_path(&distro.name, &linux_path)
+                                .map(|unc| (unc, editor_label))
+                        })
+                        .collect();
+
+                // Single Copilot scan covering Copilot CLI/Desktop on this
+                // distro plus the canonical Stable VS Code user-data root when
+                // available. If only Insiders/VSCodium exists, preserve that
+                // source label instead of showing it as plain Stable.
+                let canonical_index = select_wsl_vscode_base_index(&vscode_bases);
+                let canonical_vscode = canonical_index.map(|idx| vscode_bases[idx].0.clone());
+                let canonical_label = canonical_index
+                    .map(|idx| {
+                        let editor_label = vscode_bases[idx].1;
+                        if editor_label == "VS Code Server" {
+                            wsl_label.clone()
+                        } else {
+                            format!("{wsl_label} ({editor_label})")
+                        }
+                    })
+                    .unwrap_or_else(|| wsl_label.clone());
+                if copilot_base.is_some() || canonical_vscode.is_some() {
+                    match providers::copilot::scan_projects_from_paths(
+                        copilot_base.as_deref(),
+                        canonical_vscode.as_deref(),
+                        Some(&canonical_label),
+                    ) {
+                        Ok(projects) => all_projects.extend(projects),
+                        Err(e) => {
+                            log::warn!("WSL: Copilot scan failed for '{}': {e}", distro.name);
+                        }
+                    }
+                }
+
+                // Additional VS Code-family roots (we want each shown — the
+                // aggregator scans one base at a time, so call it again).
+                for (idx, (unc_path, editor_label)) in vscode_bases.into_iter().enumerate() {
+                    if Some(idx) == canonical_index {
+                        continue;
+                    }
+                    let label = format!("{wsl_label} ({editor_label})");
+                    match providers::copilot::scan_projects_from_paths(
+                        None,
+                        Some(unc_path.as_path()),
+                        Some(&label),
+                    ) {
+                        Ok(projects) => all_projects.extend(projects),
+                        Err(e) => {
+                            log::warn!(
+                                "WSL: Copilot ({editor_label}) scan failed for '{}': {e}",
+                                distro.name
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -242,13 +314,32 @@ pub async fn load_provider_sessions(
             Ok(sessions)
         }
         "codex" => providers::codex::load_sessions(&project_path, exclude),
+        "continue" => providers::continue_dev::load_sessions(&project_path, exclude),
+        "pearai" => providers::pearai::load_sessions(&project_path, exclude),
+        "copilot" => providers::copilot::load_sessions(&project_path, exclude),
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
+        "goose" => providers::goose::load_sessions(&project_path, exclude),
+        "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
+        "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
+        "pi" => providers::pi::load_sessions(&project_path, exclude),
+        "ompi" => providers::ompi::load_sessions(&project_path, exclude),
+        "qwen" => providers::qwen::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
+        "crush" => providers::crush::load_sessions(&project_path, exclude),
         "cursor" => providers::cursor::load_sessions(&project_path, exclude),
+        "cursor-agent" => providers::cursor_agent::load_sessions(&project_path, exclude),
         "aider" => providers::aider::load_sessions(&project_path, exclude),
+        "amazonq" => providers::amazon_q::load_sessions(&project_path, exclude),
         "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
+        "codebuddy" => providers::codebuddy::load_sessions(&project_path, exclude),
+        "kiro" => providers::kiro::load_sessions(&project_path, exclude),
+        "llm" => providers::llm::load_sessions(&project_path, exclude),
+        "zed" => providers::zed::load_sessions(&project_path, exclude),
+        "openhands" => providers::openhands::load_sessions(&project_path, exclude),
+        "trae" => providers::trae::load_sessions(&project_path, exclude),
+        "vibe" => providers::vibe::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -340,13 +431,32 @@ pub async fn load_provider_messages(
             messages
         }
         "codex" => providers::codex::load_messages(&session_path)?,
+        "continue" => providers::continue_dev::load_messages(&session_path)?,
+        "pearai" => providers::pearai::load_messages(&session_path)?,
+        "copilot" => providers::copilot::load_messages(&session_path)?,
         "gemini" => providers::gemini::load_messages(&session_path)?,
+        "goose" => providers::goose::load_messages(&session_path)?,
+        "kimi" => providers::kimi::load_messages(&session_path)?,
         "forgecode" => providers::forgecode::load_messages(&session_path)?,
         "opencode" => providers::opencode::load_messages(&session_path)?,
+        "openinterpreter" => providers::openinterpreter::load_messages(&session_path)?,
+        "pi" => providers::pi::load_messages(&session_path)?,
+        "ompi" => providers::ompi::load_messages(&session_path)?,
+        "qwen" => providers::qwen::load_messages(&session_path)?,
         "cline" => providers::cline::load_messages(&session_path)?,
+        "crush" => providers::crush::load_messages(&session_path)?,
         "cursor" => providers::cursor::load_messages(&session_path)?,
+        "cursor-agent" => providers::cursor_agent::load_messages(&session_path)?,
         "aider" => providers::aider::load_messages(&session_path)?,
+        "amazonq" => providers::amazon_q::load_messages(&session_path)?,
         "antigravity" => providers::antigravity::load_messages(&session_path)?,
+        "codebuddy" => providers::codebuddy::load_messages(&session_path)?,
+        "kiro" => providers::kiro::load_messages(&session_path)?,
+        "llm" => providers::llm::load_messages(&session_path)?,
+        "zed" => providers::zed::load_messages(&session_path)?,
+        "openhands" => providers::openhands::load_messages(&session_path)?,
+        "trae" => providers::trae::load_messages(&session_path)?,
+        "vibe" => providers::vibe::load_messages(&session_path)?,
         _ => return Err(format!("Unknown provider: {provider}")),
     };
 
@@ -375,13 +485,32 @@ pub async fn search_all_providers(
         vec![
             "claude".to_string(),
             "codex".to_string(),
+            "continue".to_string(),
+            "pearai".to_string(),
+            "copilot".to_string(),
             "gemini".to_string(),
+            "goose".to_string(),
+            "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
+            "openinterpreter".to_string(),
+            "pi".to_string(),
+            "ompi".to_string(),
+            "qwen".to_string(),
             "cline".to_string(),
+            "crush".to_string(),
             "cursor".to_string(),
+            "cursor-agent".to_string(),
             "aider".to_string(),
+            "amazonq".to_string(),
             "antigravity".to_string(),
+            "codebuddy".to_string(),
+            "kiro".to_string(),
+            "llm".to_string(),
+            "zed".to_string(),
+            "openhands".to_string(),
+            "trae".to_string(),
+            "vibe".to_string(),
         ]
     });
 
@@ -454,12 +583,62 @@ pub async fn search_all_providers(
         }
     }
 
+    // Continue.dev
+    if providers_to_search.iter().any(|p| p == "continue") {
+        match providers::continue_dev::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Continue search failed: {e}");
+            }
+        }
+    }
+
+    // PearAI
+    if providers_to_search.iter().any(|p| p == "pearai") {
+        match providers::pearai::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("PearAI search failed: {e}");
+            }
+        }
+    }
+
     // Gemini
     if providers_to_search.iter().any(|p| p == "gemini") {
         match providers::gemini::search(&query, max_results) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Gemini search failed: {e}");
+            }
+        }
+    }
+
+    // Goose
+    if providers_to_search.iter().any(|p| p == "goose") {
+        match providers::goose::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Goose search failed: {e}");
+            }
+        }
+    }
+
+    // Kimi
+    if providers_to_search.iter().any(|p| p == "kimi") {
+        match providers::kimi::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Kimi search failed: {e}");
+            }
+        }
+    }
+
+    // Mistral Vibe
+    if providers_to_search.iter().any(|p| p == "vibe") {
+        match providers::vibe::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Vibe search failed: {e}");
             }
         }
     }
@@ -484,12 +663,62 @@ pub async fn search_all_providers(
         }
     }
 
+    // Open Interpreter
+    if providers_to_search.iter().any(|p| p == "openinterpreter") {
+        match providers::openinterpreter::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Open Interpreter search failed: {e}");
+            }
+        }
+    }
+
+    // Pi
+    if providers_to_search.iter().any(|p| p == "pi") {
+        match providers::pi::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Pi search failed: {e}");
+            }
+        }
+    }
+
+    // oh-my-pi
+    if providers_to_search.iter().any(|p| p == "ompi") {
+        match providers::ompi::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("oh-my-pi search failed: {e}");
+            }
+        }
+    }
+
+    // Qwen Code
+    if providers_to_search.iter().any(|p| p == "qwen") {
+        match providers::qwen::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Qwen search failed: {e}");
+            }
+        }
+    }
+
     // Cline
     if providers_to_search.iter().any(|p| p == "cline") {
         match providers::cline::search(&query, max_results) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Cline search failed: {e}");
+            }
+        }
+    }
+
+    // Crush
+    if providers_to_search.iter().any(|p| p == "crush") {
+        match providers::crush::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Crush search failed: {e}");
             }
         }
     }
@@ -504,12 +733,32 @@ pub async fn search_all_providers(
         }
     }
 
+    // Cursor Agent
+    if providers_to_search.iter().any(|p| p == "cursor-agent") {
+        match providers::cursor_agent::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Cursor Agent search failed: {e}");
+            }
+        }
+    }
+
     // Aider
     if providers_to_search.iter().any(|p| p == "aider") {
         match providers::aider::search(&query, max_results) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Aider search failed: {e}");
+            }
+        }
+    }
+
+    // Amazon Q Developer CLI
+    if providers_to_search.iter().any(|p| p == "amazonq") {
+        match providers::amazon_q::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Amazon Q search failed: {e}");
             }
         }
     }
@@ -524,34 +773,161 @@ pub async fn search_all_providers(
         }
     }
 
-    // WSL search (currently Claude only)
-    if wsl_enabled.unwrap_or(false) && providers_to_search.iter().any(|p| p == "claude") {
+    // CodeBuddy
+    if providers_to_search.iter().any(|p| p == "codebuddy") {
+        match providers::codebuddy::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("CodeBuddy search failed: {e}");
+            }
+        }
+    }
+    // Kiro
+    if providers_to_search.iter().any(|p| p == "kiro") {
+        match providers::kiro::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Kiro search failed: {e}");
+            }
+        }
+    }
+
+    // llm (Simon Willison)
+    if providers_to_search.iter().any(|p| p == "llm") {
+        match providers::llm::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("llm search failed: {e}");
+            }
+        }
+    }
+
+    // Zed
+    if providers_to_search.iter().any(|p| p == "zed") {
+        match providers::zed::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Zed search failed: {e}");
+            }
+        }
+    }
+
+    // OpenHands
+    if providers_to_search.iter().any(|p| p == "openhands") {
+        match providers::openhands::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("OpenHands search failed: {e}");
+            }
+        }
+    }
+
+    // Trae IDE
+    if providers_to_search.iter().any(|p| p == "trae") {
+        match providers::trae::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Trae search failed: {e}");
+            }
+        }
+    }
+
+    // Unified GitHub Copilot search (CLI + Desktop + VS Code Copilot Chat).
+    if providers_to_search.iter().any(|p| p == "copilot") {
+        match providers::copilot::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Copilot search failed: {e}");
+            }
+        }
+    }
+
+    // WSL search
+    if wsl_enabled.unwrap_or(false)
+        && providers_to_search
+            .iter()
+            .any(|p| matches!(p.as_str(), "claude" | "copilot"))
+    {
         let excluded = wsl_excluded_distros.unwrap_or_default();
 
         for (distro, home_path) in resolve_active_wsl_distros(&excluded) {
-            let claude_linux_path = home_path.join(".claude");
-            if let Some(unc_path) =
-                crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path)
-            {
-                let unc_str = unc_path.to_string_lossy().to_string();
-                match crate::commands::session::search_messages(
-                    unc_str,
-                    query.clone(),
-                    search_filters.clone(),
-                    Some(max_results),
-                )
-                .await
+            if providers_to_search.iter().any(|p| p == "claude") {
+                let claude_linux_path = home_path.join(".claude");
+                if let Some(unc_path) =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path)
                 {
-                    Ok(mut results) => {
-                        for m in &mut results {
-                            if m.provider.is_none() {
-                                m.provider = Some("claude".to_string());
+                    let unc_str = unc_path.to_string_lossy().to_string();
+                    match crate::commands::session::search_messages(
+                        unc_str,
+                        query.clone(),
+                        search_filters.clone(),
+                        Some(max_results),
+                    )
+                    .await
+                    {
+                        Ok(mut results) => {
+                            for m in &mut results {
+                                if m.provider.is_none() {
+                                    m.provider = Some("claude".to_string());
+                                }
                             }
+                            all_results.extend(results);
                         }
-                        all_results.extend(results);
+                        Err(e) => {
+                            log::warn!("WSL Claude search failed for '{}': {e}", distro.name);
+                        }
                     }
-                    Err(e) => {
-                        log::warn!("WSL Claude search failed for '{}': {e}", distro.name);
+                }
+            }
+
+            if providers_to_search.iter().any(|p| p == "copilot") {
+                let copilot_linux_path = home_path.join(".copilot");
+                let copilot_base =
+                    crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
+                        .map(|p| p.to_string_lossy().to_string());
+
+                let vscode_bases: Vec<(std::path::PathBuf, &'static str)> =
+                    wsl_vscode_user_data_paths(&home_path)
+                        .into_iter()
+                        .filter_map(|(linux_path, editor_label)| {
+                            crate::wsl::resolve_wsl_provider_path(&distro.name, &linux_path)
+                                .map(|unc| (unc, editor_label))
+                        })
+                        .collect();
+
+                let canonical_index = select_wsl_vscode_base_index(&vscode_bases);
+                let canonical_vscode = canonical_index.map(|idx| vscode_bases[idx].0.clone());
+                if copilot_base.is_some() || canonical_vscode.is_some() {
+                    match providers::copilot::search_from_paths(
+                        copilot_base.as_deref(),
+                        canonical_vscode.as_deref(),
+                        &query,
+                        max_results,
+                    ) {
+                        Ok(results) => all_results.extend(results),
+                        Err(e) => {
+                            log::warn!("WSL Copilot search failed for '{}': {e}", distro.name);
+                        }
+                    }
+                }
+
+                for (idx, (unc_path, editor_label)) in vscode_bases.into_iter().enumerate() {
+                    if Some(idx) == canonical_index {
+                        continue;
+                    }
+                    match providers::copilot::search_from_paths(
+                        None,
+                        Some(unc_path.as_path()),
+                        &query,
+                        max_results,
+                    ) {
+                        Ok(results) => all_results.extend(results),
+                        Err(e) => {
+                            log::warn!(
+                                "WSL Copilot ({editor_label}) search failed for '{}': {e}",
+                                distro.name
+                            );
+                        }
                     }
                 }
             }
@@ -578,15 +954,14 @@ pub async fn search_all_providers(
 }
 
 /// Resolve active (non-excluded) WSL distros with their home paths.
-fn resolve_active_wsl_distros(
-    excluded: &[String],
-) -> Vec<(crate::wsl::WslDistro, std::path::PathBuf)> {
+fn resolve_active_wsl_distros(excluded: &[String]) -> Vec<(crate::wsl::WslDistro, PathBuf)> {
     let distros = crate::wsl::detect_distros();
     let mut result = Vec::new();
     for distro in distros {
         if excluded.contains(&distro.name) {
             continue;
         }
+
         match crate::wsl::resolve_home_path(&distro.name) {
             Ok(home) => result.push((distro, home)),
             Err(e) => {
@@ -595,6 +970,27 @@ fn resolve_active_wsl_distros(
         }
     }
     result
+}
+
+fn wsl_vscode_user_data_paths(home_path: &Path) -> Vec<(PathBuf, &'static str)> {
+    vec![
+        (home_path.join(".vscode-server/data/User"), "VS Code Server"),
+        (
+            home_path.join(".vscode-server-insiders/data/User"),
+            "VS Code Insiders Server",
+        ),
+        (
+            home_path.join(".vscodium-server/data/User"),
+            "VSCodium Server",
+        ),
+    ]
+}
+
+fn select_wsl_vscode_base_index(bases: &[(PathBuf, &'static str)]) -> Option<usize> {
+    bases
+        .iter()
+        .position(|(_, label)| *label == "VS Code Server")
+        .or_else(|| (!bases.is_empty()).then_some(0))
 }
 
 /// Merge adjacent tool execution messages into display-friendly message groups.
@@ -719,6 +1115,28 @@ mod tests {
             microcompact_metadata: None,
             provider: Some("claude".to_string()),
         }
+    }
+
+    #[test]
+    fn select_wsl_vscode_base_prefers_stable_but_preserves_fallback() {
+        let insiders_only = vec![(
+            PathBuf::from(r"\\wsl.localhost\Ubuntu\home\me\.vscode-server-insiders\data\User"),
+            "VS Code Insiders Server",
+        )];
+        assert_eq!(select_wsl_vscode_base_index(&insiders_only), Some(0));
+
+        let all_roots = vec![
+            (
+                PathBuf::from(r"\\wsl.localhost\Ubuntu\home\me\.vscode-server-insiders\data\User"),
+                "VS Code Insiders Server",
+            ),
+            (
+                PathBuf::from(r"\\wsl.localhost\Ubuntu\home\me\.vscode-server\data\User"),
+                "VS Code Server",
+            ),
+        ];
+        assert_eq!(select_wsl_vscode_base_index(&all_roots), Some(1));
+        assert_eq!(select_wsl_vscode_base_index(&[]), None);
     }
 
     #[test]

@@ -23,6 +23,7 @@ export type {
   QueueOperationType,
   QueueOperationMessage,
   MessagePayload,
+  MessageCategory,
   RawClaudeMessage,
   ClaudeMessage,
   ClaudeAssistantMessage,
@@ -81,6 +82,9 @@ export type {
   ToolSearchToolResultContent,
   ToolSearchResult,
   ToolSearchError,
+  AdvisorToolResultContent,
+  AdvisorResult,
+  AdvisorError,
 } from "./core/tool";
 
 // MCP Types

@@ -6,6 +6,20 @@ export interface SessionItemProps {
   onSelect: () => void;
   onHover?: () => void;
   formatTimeAgo: (date: string) => string;
+  /** Whether the list is in multi-select mode (renders a checkbox) */
+  isSelectionMode?: boolean;
+  /** Whether this row is checked in multi-select mode */
+  isChecked?: boolean;
+  /**
+   * Toggle this row's checkbox. Receives the mouse event so the caller can
+   * read modifier keys (Shift = range, Cmd/Ctrl = individual toggle).
+   */
+  onToggleSelect?: (e: React.MouseEvent | React.KeyboardEvent) => void;
+  /**
+   * Start/extend a selection from normal mode via a modifier click
+   * (Cmd/Ctrl+click or Shift+click). Enters selection mode.
+   */
+  onModifierSelect?: (e: React.MouseEvent) => void;
 }
 
 export interface SessionHeaderProps {
@@ -22,6 +36,7 @@ export interface SessionNameEditorProps {
   isNamed: boolean;
   isSelected: boolean;
   isContextMenuOpen: boolean;
+  readOnly: boolean;
   providerId: string;
   supportsNativeRename: boolean;
   supportsResumeCommand: boolean;

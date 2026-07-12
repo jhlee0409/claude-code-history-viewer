@@ -1,9 +1,11 @@
 import FlexSearch from "flexsearch";
+import type { Document as FlexSearchDocument } from "flexsearch";
 import type { ClaudeMessage } from "../types";
 import type { SearchFilterType } from "../store/useAppStore";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type FlexSearchDocumentIndex = any;
+// FlexSearch document shape used by this module's content / toolId indexes
+type SearchDoc = { uuid: string; messageIndex: number; text: string };
+type FlexSearchDocumentIndex = FlexSearchDocument<SearchDoc>;
 
 // Type guards for safe type checking
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -16,6 +18,36 @@ const hasStringProperty = (obj: Record<string, unknown>, key: string): boolean =
 
 // 검색 가능한 텍스트 추출 (content 검색용)
 const MAX_TEXT_LENGTH = 10000; // 최대 10KB만 인덱싱 (텍스트용)
+const MAX_INPUT_LENGTH = 5000; // tool_use.input 값 인덱싱 상한 (도구당)
+
+// tool_use.input(객체)의 문자열/숫자 값을 재귀적으로 수집한다.
+// 키가 아니라 값만 인덱싱해 글로벌(rust) 검색과 동작을 맞추고,
+// budget으로 총 길이를 제한해 거대한 input이 인덱스를 부풀리지 않게 한다. (#429)
+const collectInputValues = (
+  value: unknown,
+  parts: string[],
+  budget: { remaining: number },
+): void => {
+  if (budget.remaining <= 0) return;
+  if (typeof value === "string") {
+    const s = value.slice(0, budget.remaining);
+    parts.push(s);
+    budget.remaining -= s.length;
+  } else if (typeof value === "number" || typeof value === "boolean") {
+    parts.push(String(value));
+    budget.remaining -= String(value).length;
+  } else if (Array.isArray(value)) {
+    for (const v of value) {
+      if (budget.remaining <= 0) break;
+      collectInputValues(v, parts, budget);
+    }
+  } else if (isRecord(value)) {
+    for (const v of Object.values(value)) {
+      if (budget.remaining <= 0) break;
+      collectInputValues(v, parts, budget);
+    }
+  }
+};
 
 const extractSearchableText = (message: ClaudeMessage): string => {
   const parts: string[] = [];
@@ -45,17 +77,19 @@ const extractSearchableText = (message: ClaudeMessage): string => {
             if (hasStringProperty(item, "thinking")) {
               parts.push((item.thinking as string).slice(0, MAX_TEXT_LENGTH));
             }
-            // tool_use: name
-            if (itemType === "tool_use" && hasStringProperty(item, "name")) {
-              parts.push(item.name as string);
+            // tool_use: name + input values (file_path, command, query 등) (#429)
+            if (itemType === "tool_use") {
+              if (hasStringProperty(item, "name")) parts.push(item.name as string);
+              if (isRecord(item.input)) collectInputValues(item.input, parts, { remaining: MAX_INPUT_LENGTH });
             }
             // tool_result: content
             if (itemType === "tool_result" && hasStringProperty(item, "content")) {
               parts.push(item.content as string);
             }
-            // server_tool_use: name
-            if (itemType === "server_tool_use" && hasStringProperty(item, "name")) {
-              parts.push(item.name as string);
+            // server_tool_use: name + input values (#429)
+            if (itemType === "server_tool_use") {
+              if (hasStringProperty(item, "name")) parts.push(item.name as string);
+              if (isRecord(item.input)) collectInputValues(item.input, parts, { remaining: MAX_INPUT_LENGTH });
             }
             // web_search_tool_result: titles and urls
             if (itemType === "web_search_tool_result" && isRecord(item.content)) {
@@ -90,10 +124,11 @@ const extractSearchableText = (message: ClaudeMessage): string => {
                 }
               }
             }
-            // mcp_tool_use: server_name, tool_name
+            // mcp_tool_use: server_name, tool_name + input values (#429)
             if (itemType === "mcp_tool_use") {
               if (hasStringProperty(item, "server_name")) parts.push(item.server_name as string);
               if (hasStringProperty(item, "tool_name")) parts.push(item.tool_name as string);
+              if (isRecord(item.input)) collectInputValues(item.input, parts, { remaining: MAX_INPUT_LENGTH });
             }
             // mcp_tool_result: text content
             if (itemType === "mcp_tool_result") {
@@ -256,9 +291,25 @@ const extractUuidFromResult = (item: string | EnrichedResult): string => {
 };
 
 // FlexSearch Document 인덱스 생성 헬퍼
+//
+// Tokenize mode: "forward" (prefix-only indexing).
+//
+// Why not "full":
+//   "full" creates every substring of every word (O(n²) tokens), which
+//   pegs the CPU at 100% for large sessions (47k+ messages, ~20s freeze).
+//   "forward" creates only prefix substrings (O(n) tokens), keeping index
+//   construction well under a second even for our largest sessions.
+//
+// Tradeoff — recall gap:
+//   forward tokenize only matches queries that appear at a word boundary.
+//   Searching for "bug" will NOT match "debugging" (no token starts with "bug").
+//   With "full", it would.  For chat history search this is an acceptable
+//   tradeoff — the common case (whole-word / prefix search) is fast and
+//   accurate, and the linear fallback (linearSearchMessages) provides full
+//   substring recall during the brief window before the index is ready.
 const createFlexSearchIndex = (): FlexSearchDocumentIndex => {
   return new FlexSearch.Document({
-    tokenize: "full", // 전체 substring 매칭 지원 (단어 중간도 검색)
+    tokenize: "forward",
     cache: 100, // 최근 100개 쿼리 캐시
     document: {
       id: "uuid",
@@ -281,8 +332,18 @@ class MessageSearchIndex {
     this.toolIdIndex = createFlexSearchIndex();
   }
 
+  // 인덱스가 구축 완료되었는지 확인
+  isReady(): boolean {
+    return this.isBuilt;
+  }
+
   // 인덱스 구축 (메시지 로드 시 1회 호출) - 청크 단위 비동기 처리
   build(messages: ClaudeMessage[]): void {
+    // Skip if already built with same messages or currently building
+    if (this.messages === messages && (this.isBuilt || this.messages.length > 0)) {
+      return;
+    }
+
     // 기존 인덱스 클리어
     this.clear();
 
@@ -295,13 +356,15 @@ class MessageSearchIndex {
 
   // 비동기 청크 인덱싱 (메인 스레드 차단 방지)
   private buildAsync(messages: ClaudeMessage[]): void {
-    const CHUNK_SIZE = 20; // 한 번에 처리할 메시지 수
+    const CHUNK_SIZE = 50; // 한 번에 처리할 메시지 수 (forward tokenize 기준 ~10ms/chunk)
+    const YIELD_INTERVAL_MS = 50; // chunk 간 최소 대기 시간 (UI 반응성 확보)
     let currentIndex = 0;
 
-    const processChunk = () => {
+    const processChunk = (deadline?: IdleDeadline) => {
+      const timeLimit = deadline ? () => deadline.timeRemaining() > 2 : () => true;
       const endIndex = Math.min(currentIndex + CHUNK_SIZE, messages.length);
 
-      for (let i = currentIndex; i < endIndex; i++) {
+      for (let i = currentIndex; i < endIndex && timeLimit(); i++) {
         const message = messages[i];
         if (!message) continue;
 
@@ -326,13 +389,16 @@ class MessageSearchIndex {
         }
 
         this.messageMap.set(message.uuid, i);
+        currentIndex = i + 1;
       }
 
-      currentIndex = endIndex;
-
       if (currentIndex < messages.length) {
-        // 다음 청크를 다음 프레임에 처리
-        setTimeout(processChunk, 0);
+        // 다음 청크를 idle callback으로 예약 (UI 반응성 우선)
+        if ("requestIdleCallback" in window) {
+          (window as Window & { requestIdleCallback: (cb: IdleRequestCallback, opts?: { timeout: number }) => number }).requestIdleCallback(processChunk, { timeout: 2000 });
+        } else {
+          setTimeout(processChunk, YIELD_INTERVAL_MS);
+        }
       } else {
         // 완료
         this.isBuilt = true;
@@ -342,8 +408,12 @@ class MessageSearchIndex {
       }
     };
 
-    // 첫 청크 시작
-    processChunk();
+    // 첫 청크를 idle callback으로 시작
+    if ("requestIdleCallback" in window) {
+      (window as Window & { requestIdleCallback: (cb: IdleRequestCallback, opts?: { timeout: number }) => number }).requestIdleCallback(processChunk, { timeout: 2000 });
+    } else {
+      setTimeout(processChunk, YIELD_INTERVAL_MS);
+    }
   }
 
   // 메시지 내 모든 매치 위치 찾기
@@ -381,7 +451,9 @@ class MessageSearchIndex {
 
     // 매치된 메시지 UUID 수집
     const matchedUuids = new Set<string>();
-    results.forEach((fieldResult: { field: string; result: (string | EnrichedResult)[] }) => {
+    // FlexSearch's enriched result type is complex; cast to the shape we actually consume.
+    const enrichedResults = results as unknown as Array<{ field: string; result: (string | EnrichedResult)[] }>;
+    enrichedResults.forEach((fieldResult) => {
       if (fieldResult.result) {
         fieldResult.result.forEach((item: string | EnrichedResult) => {
           const uuid = extractUuidFromResult(item);
@@ -421,12 +493,12 @@ class MessageSearchIndex {
     });
 
     // 완전 역순 정렬: 아래에서 위로 탐색 (최신 메시지의 마지막 매치부터)
-    allMatches.sort((a, b) => {
-      if (a.messageIndex !== b.messageIndex) {
-        return b.messageIndex - a.messageIndex; // 최신 메시지 우선
-      }
-      return b.matchIndex - a.matchIndex; // 메시지 내에서도 마지막 매치부터
-    });
+  allMatches.sort((a, b) => {
+    if (a.messageIndex !== b.messageIndex) {
+      return b.messageIndex - a.messageIndex; // newest messages first
+    }
+    return b.matchIndex - a.matchIndex; // last match within a message first
+  });
 
     return allMatches;
   }
@@ -441,21 +513,216 @@ class MessageSearchIndex {
   }
 }
 
-// 싱글톤 인스턴스
+// 싱글톤 인스턴스 (kept as fallback for non-worker environments)
 export const messageSearchIndex = new MessageSearchIndex();
+
+// ============================================================================
+// Web Worker-based Search Index
+// ============================================================================
+
+type SearchResult = { messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number };
+
+let worker: Worker | null = null;
+let workerReady = false;
+// In-flight build guard: prevents repeated index rebuilds when the user
+// types continuously. Same messages reference is a no-op while a build
+// is in flight or already ready.
+let workerBuildInFlight = false;
+let lastBuildMessagesRef: ClaudeMessage[] | null = null;
+const pendingSearchCallbacks = new Map<number, (results: SearchResult[]) => void>();
+const pendingSearchTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
+const SEARCH_TIMEOUT_MS = 5000;
+let searchIdCounter = 0;
+
+// Internal: clear a pending search (cancel its timeout + delete its callback).
+function resolveAndCleanupSearch(id: number, results: SearchResult[]): void {
+  const callback = pendingSearchCallbacks.get(id);
+  if (!callback) return;
+  pendingSearchCallbacks.delete(id);
+  const timer = pendingSearchTimeouts.get(id);
+  if (timer != null) {
+    clearTimeout(timer);
+    pendingSearchTimeouts.delete(id);
+  }
+  callback(results);
+}
+
+// Internal: resolve every pending search with [] - used when the worker
+// errors out or is cleared, so callbacks don't leak and the UI is unstuck.
+function resolveAllPendingSearches(): void {
+  const ids = Array.from(pendingSearchCallbacks.keys());
+  for (const id of ids) {
+    resolveAndCleanupSearch(id, []);
+  }
+}
+
+function getWorker(): Worker | null {
+  if (worker) return worker;
+  try {
+    worker = new Worker(new URL("./searchWorker.ts", import.meta.url), { type: "module" });
+    worker.onmessage = (event) => {
+      const msg = event.data;
+      if (msg.type === "build-complete") {
+        workerReady = true;
+        workerBuildInFlight = false;
+        if (import.meta.env.DEV) {
+          console.log(`[SearchIndex Worker] Index built for ${msg.count} messages`);
+        }
+      } else if (msg.type === "search-result") {
+        resolveAndCleanupSearch(msg.id, msg.results);
+      }
+    };
+    // Resolve all pending searches on worker crash/error so the UI never
+    // gets stuck in a "searching..." state.
+    worker.onerror = (event) => {
+      if (import.meta.env.DEV) {
+        console.error("[SearchIndex Worker] Worker error:", event);
+      }
+      workerReady = false;
+      workerBuildInFlight = false;
+      resolveAllPendingSearches();
+    };
+    return worker;
+  } catch {
+    // Worker creation failed (e.g., in test environment)
+    return null;
+  }
+}
 
 // 편의 함수들
 export const buildSearchIndex = (messages: ClaudeMessage[]): void => {
-  messageSearchIndex.build(messages);
+  const w = getWorker();
+  if (w) {
+    // De-dup: skip if the same messages reference is already building or built.
+    if (lastBuildMessagesRef === messages && (workerBuildInFlight || workerReady)) {
+      return;
+    }
+    workerReady = false;
+    workerBuildInFlight = true;
+    lastBuildMessagesRef = messages;
+    // Send minimal message data to worker (avoid transferring unnecessary fields)
+    const minimalMessages = messages.map(m => ({
+      uuid: m.uuid,
+      type: m.type,
+      content: m.content,
+      toolUse: (m as unknown as Record<string, unknown>).toolUse,
+      toolUseResult: (m as unknown as Record<string, unknown>).toolUseResult,
+    }));
+    w.postMessage({ type: "build", messages: minimalMessages });
+  } else {
+    // Fallback to main thread (shouldn't happen in browser)
+    messageSearchIndex.build(messages);
+  }
+};
+
+export const searchMessagesAsync = (
+  query: string,
+  filterType: SearchFilterType = "content"
+): Promise<SearchResult[]> => {
+  const w = getWorker();
+  if (w && workerReady) {
+    return new Promise((resolve) => {
+      const id = ++searchIdCounter;
+      pendingSearchCallbacks.set(id, resolve);
+      // 5s safety timeout so the promise never stays pending if the worker
+      // drops the message or the search hangs.
+      const timer = setTimeout(() => {
+        if (import.meta.env.DEV) {
+          console.warn(`[SearchIndex Worker] Search ${id} timed out after ${SEARCH_TIMEOUT_MS}ms`);
+        }
+        resolveAndCleanupSearch(id, []);
+      }, SEARCH_TIMEOUT_MS);
+      pendingSearchTimeouts.set(id, timer);
+      w.postMessage({ type: "search", id, query, filterType });
+    });
+  }
+  // Worker not ready — resolve immediately with empty (caller uses linear fallback)
+  return Promise.resolve([]);
 };
 
 export const searchMessages = (
   query: string,
   filterType: SearchFilterType = "content"
-): Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }> => {
+): SearchResult[] => {
+  // Synchronous search: only works if main-thread index is built (legacy fallback)
   return messageSearchIndex.search(query, filterType);
 };
 
 export const clearSearchIndex = (): void => {
   messageSearchIndex.clear();
+  workerReady = false;
+  workerBuildInFlight = false;
+  lastBuildMessagesRef = null;
+  // Also resolve pending searches so callbacks don't linger past the clear.
+  resolveAllPendingSearches();
+  // Only send clear to worker if it already exists — avoids eagerly
+  // spinning up the worker on every selectSession.
+  if (worker) {
+    worker.postMessage({ type: "clear" });
+  }
+};
+
+export const isSearchIndexReady = (): boolean => {
+  return workerReady || messageSearchIndex.isReady();
+};
+
+/**
+ * Linear search fallback — scans all messages with String.includes.
+ * Used when FlexSearch index is not yet built (pre-index stage).
+ *
+ * Returns results in newest-first order (descending messageIndex, then
+ * descending matchIndex), matching the FlexSearch path so navigation is
+ * consistent regardless of which code path is active.
+ *
+ * Performance: O(n) single pass, typically 50-200ms for 50k messages.
+ * Recall: substring match (indexOf) — finds queries even mid-word, which
+ * means the first search after session load may return more results than
+ * subsequent searches through the FlexSearch "forward" index.  This gap
+ * is a conscious tradeoff; see createFlexSearchIndex above.
+ */
+export const linearSearchMessages = (
+  messages: ClaudeMessage[],
+  query: string,
+  filterType: SearchFilterType = "content"
+): SearchResult[] => {
+  if (!query.trim()) return [];
+  const lowerQuery = query.toLowerCase();
+
+  const results: SearchResult[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    if (!message) continue;
+
+    const text = filterType === "toolId"
+      ? extractToolIds(message)
+      : extractSearchableText(message);
+
+    if (!text) continue;
+    const lowerText = text.toLowerCase();
+
+    // Count all occurrences
+    let count = 0;
+    let pos = 0;
+    while ((pos = lowerText.indexOf(lowerQuery, pos)) !== -1) {
+      count++;
+      pos += lowerQuery.length;
+    }
+
+    if (count > 0) {
+      for (let matchIdx = 0; matchIdx < count; matchIdx++) {
+        results.push({
+          messageUuid: message.uuid,
+          messageIndex: i,
+          matchIndex: matchIdx,
+          matchCount: count,
+        });
+      }
+    }
+  }
+
+  // Sort newest-first to match FlexSearch result order for consistent navigation
+  results.sort((a, b) => b.messageIndex - a.messageIndex || b.matchIndex - a.matchIndex);
+
+  return results;
 };

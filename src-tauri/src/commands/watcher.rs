@@ -1,11 +1,13 @@
 use crate::utils::is_safe_storage_id;
+use lru::LruCache;
 use notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent, DebouncedEventKind, Debouncer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,10 +19,34 @@ pub struct FileWatchEvent {
 }
 
 type WatcherMap = Arc<Mutex<Option<Debouncer<RecommendedWatcher>>>>;
-type OpenCodeSessionCache = HashMap<String, String>;
+
+/// LRU cache for `OpenCode` session-to-project mappings, capped at 10,000 entries.
+/// Each entry is ~150 bytes, bounding memory at ~1.5MB regardless of watcher activity.
+///
+/// Motivation: the file watcher calls `remember_opencode_project_id()` on every
+/// `.jsonl` change event (debounced to 500ms). With a plain `HashMap` the cache
+/// grew without bound for long-lived sessions — observed at multiple GB after a
+/// few days of continuous use. An LRU evicts the least-recently-used keys once
+/// capacity is reached, so memory stays flat.
+type OpenCodeSessionCache = LruCache<String, String>;
 
 static OPENCODE_SESSION_PROJECT_CACHE: std::sync::OnceLock<Mutex<OpenCodeSessionCache>> =
     std::sync::OnceLock::new();
+
+/// Build the bounded `OpenCode` session-project cache (10,000-entry LRU).
+fn create_opencode_cache() -> Mutex<OpenCodeSessionCache> {
+    // 10,000 entries × ~150 bytes/entry ≈ 1.5MB peak.
+    let capacity = NonZeroUsize::new(10_000).expect("10,000 is non-zero");
+    Mutex::new(LruCache::new(capacity))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FileSignature {
+    len: u64,
+    modified_unix_nanos: u64,
+}
+
+static WATCHED_FILE_SIGNATURES: OnceLock<Mutex<HashMap<PathBuf, FileSignature>>> = OnceLock::new();
 
 /// Start watching the Claude projects directory for file changes
 #[tauri::command]
@@ -85,6 +111,7 @@ pub async fn start_file_watcher(
         .watcher()
         .watch(&canonical_projects, RecursiveMode::Recursive)
         .map_err(|e| format!("Failed to watch directory: {e}"))?;
+    prime_watch_signatures(&canonical_projects);
 
     // Also watch custom Claude directories if provided
     if let Some(custom_paths) = custom_claude_paths {
@@ -97,6 +124,7 @@ pub async fn start_file_watcher(
                         .watch(&canonical_projects, RecursiveMode::Recursive)
                         .is_ok()
                     {
+                        prime_watch_signatures(&canonical_projects);
                         log::info!(
                             "File watcher added custom path: {}",
                             canonical_projects.display()
@@ -143,10 +171,12 @@ pub fn to_file_watch_event(event: &DebouncedEvent) -> Option<FileWatchEvent> {
     let path = &event.path;
     let (project_path, session_path) = extract_provider_paths(path)?;
 
-    // Note: `notify_debouncer_mini` only provides `Any` / `AnyContinuous` kinds —
-    // it does not distinguish create vs modify vs delete.  All events are emitted
-    // as "session-file-changed" and the frontend treats them uniformly as a
-    // signal to refresh the affected session data.
+    if !record_content_signature_change(path) {
+        return None;
+    }
+
+    // Note: `notify_debouncer_mini` only provides `Any` / `AnyContinuous` kinds,
+    // so content-change filtering is handled with the file signature cache above.
     let event_type = match event.kind {
         DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous | _ => "session-file-changed",
     };
@@ -158,12 +188,95 @@ pub fn to_file_watch_event(event: &DebouncedEvent) -> Option<FileWatchEvent> {
     })
 }
 
+/// Seed the file signature cache for a watched tree.
+///
+/// `notify_debouncer_mini` intentionally collapses raw filesystem events into
+/// ambiguous `Any` events. On Linux, simply reading a `.jsonl` can surface as an
+/// access event; without a content signature check, `WebUI` reloads the selected
+/// session, which reads the file again and creates a refresh loop.
+pub fn prime_watch_signatures(root: &Path) {
+    let Some(mut signatures) = watched_file_signatures().lock().ok() else {
+        return;
+    };
+
+    for entry in walkdir::WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        let path = entry.path();
+        if extract_provider_paths(path).is_none() {
+            continue;
+        }
+        if let Some(signature) = file_signature(path) {
+            signatures.insert(file_signature_key(path), signature);
+        }
+    }
+}
+
+fn watched_file_signatures() -> &'static Mutex<HashMap<PathBuf, FileSignature>> {
+    WATCHED_FILE_SIGNATURES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn record_content_signature_change(path: &Path) -> bool {
+    let signature = file_signature(path);
+    let signature_key = file_signature_key(path);
+    let Ok(mut signatures) = watched_file_signatures().lock() else {
+        return true;
+    };
+
+    if let Some(current) = signature {
+        match signatures.get(&signature_key) {
+            Some(previous) if *previous == current => false,
+            _ => {
+                signatures.insert(signature_key, current);
+                true
+            }
+        }
+    } else {
+        signatures.remove(&signature_key);
+        true
+    }
+}
+
+fn file_signature_key(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn file_signature(path: &Path) -> Option<FileSignature> {
+    let metadata = std::fs::metadata(path).ok()?;
+    if !metadata.is_file() {
+        return None;
+    }
+
+    let modified = metadata.modified().ok()?;
+    let modified_duration = modified.duration_since(UNIX_EPOCH).ok()?;
+    let modified_unix_nanos = modified_duration
+        .as_secs()
+        .saturating_mul(1_000_000_000)
+        .saturating_add(u64::from(modified_duration.subsec_nanos()));
+
+    Some(FileSignature {
+        len: metadata.len(),
+        modified_unix_nanos,
+    })
+}
+
 /// Extract provider-specific project/session identifiers from changed file path.
 fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
     let ext = path.extension()?.to_str()?;
     match ext {
         // Claude + Codex rollout logs
         "jsonl" => {
+            if let Some(paths) = extract_vibe_paths(path) {
+                return Some(paths);
+            }
+            if let Some(paths) = extract_kimi_paths(path) {
+                return Some(paths);
+            }
+            if let Some(paths) = extract_pi_family_paths(path) {
+                return Some(paths);
+            }
             if let Some((project_path, session_path)) = extract_paths(path) {
                 return Some((
                     project_path.to_string_lossy().to_string(),
@@ -172,8 +285,10 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             }
             extract_codex_paths(path)
         }
-        // OpenCode storage files
-        "json" => extract_opencode_paths(path),
+        // Kimi state files and OpenCode storage files
+        "json" => extract_vibe_paths(path)
+            .or_else(|| extract_kimi_paths(path))
+            .or_else(|| extract_opencode_paths(path)),
         // OpenCode SQLite database change — emit broad refresh for all OpenCode projects
         "db" | "db-wal" => extract_opencode_db_event(path),
         _ => None,
@@ -249,6 +364,136 @@ fn extract_codex_paths(path: &Path) -> Option<(String, String)> {
     Some((
         "codex://watch".to_string(),
         path.to_string_lossy().to_string(),
+    ))
+}
+
+/// Extract Mistral Vibe session identifiers from files under
+/// `~/.vibe/logs/session/{session_dir}/`.
+fn extract_vibe_paths(path: &Path) -> Option<(String, String)> {
+    let filename = path.file_name()?.to_str()?;
+    if !matches!(filename, "messages.jsonl" | "meta.json") {
+        return None;
+    }
+
+    let sessions_root = crate::providers::vibe::get_base_path()
+        .map(PathBuf::from)
+        .map(|base| base.join("logs/session"))?;
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let session_dir = canonical_path.parent()?;
+    let relative = session_dir
+        .strip_prefix(
+            sessions_root
+                .canonicalize()
+                .unwrap_or(sessions_root.clone()),
+        )
+        .ok()?;
+
+    if relative.components().count() != 1 {
+        return None;
+    }
+
+    let metadata_path = session_dir.join("meta.json");
+    if std::fs::symlink_metadata(&metadata_path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return None;
+    }
+    let cwd = std::fs::read_to_string(&metadata_path)
+        .ok()
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
+        .and_then(|metadata| {
+            metadata
+                .get("environment")
+                .and_then(|env| env.get("working_directory"))
+                .and_then(|cwd| cwd.as_str())
+                .map(ToOwned::to_owned)
+        })?;
+
+    Some((
+        format!("vibe://{cwd}"),
+        session_dir.to_string_lossy().to_string(),
+    ))
+}
+
+/// Extract Pi / oh-my-pi session identifiers from `.jsonl` files under
+/// `~/.pi/agent/sessions/<project_dir>/` (and the `~/.omp` twin).
+///
+/// The project identifier is the store project directory path itself,
+/// matching the `ClaudeProject.path` that `providers::pi::scan_store`
+/// reports (Pi projects carry no URI scheme).
+fn extract_pi_family_paths(path: &Path) -> Option<(String, String)> {
+    let roots = [
+        crate::providers::pi::get_base_path(),
+        crate::providers::ompi::get_base_path(),
+    ];
+    for root in roots.into_iter().flatten() {
+        if let Some(paths) = extract_pi_store_paths(Path::new(&root), path) {
+            return Some(paths);
+        }
+    }
+    None
+}
+
+/// [`extract_pi_family_paths`] parameterized by the sessions root, so tests
+/// can point it at a fixture store.
+fn extract_pi_store_paths(sessions_root: &Path, path: &Path) -> Option<(String, String)> {
+    // The store root must exist to canonicalize; a missing store can't
+    // produce events anyway.
+    let canonical_root = sessions_root.canonicalize().ok()?;
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let relative = canonical_path.strip_prefix(&canonical_root).ok()?;
+
+    // Exactly `<project_dir>/<session>.jsonl` — deeper or shallower paths
+    // are not Pi session transcripts.
+    if relative.components().count() != 2 {
+        return None;
+    }
+
+    let project_dir = canonical_path.parent()?;
+    if std::fs::symlink_metadata(project_dir)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return None;
+    }
+
+    Some((
+        project_dir.to_string_lossy().to_string(),
+        canonical_path.to_string_lossy().to_string(),
+    ))
+}
+
+/// Extract Kimi session identifiers from files under
+/// `~/.kimi/sessions/{project_hash}/{session_id}/`.
+fn extract_kimi_paths(path: &Path) -> Option<(String, String)> {
+    let filename = path.file_name()?.to_str()?;
+    if !matches!(filename, "context.jsonl" | "wire.jsonl" | "state.json") {
+        return None;
+    }
+
+    let sessions_root = crate::providers::kimi::get_base_path()
+        .map(PathBuf::from)
+        .map(|base| base.join("sessions"))?;
+    // `get_base_path()` canonicalizes, but the watcher event path may not be
+    // (e.g. on macOS `/var` is a symlink to `/private/var`), so a raw
+    // `strip_prefix` would miss and the Kimi change event would be silently
+    // dropped — breaking watcher auto-refresh on macOS. Canonicalize the event
+    // path so both sides are like-for-like; fall back to the original path if it
+    // no longer exists (e.g. a delete event).
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let relative = canonical_path.strip_prefix(&sessions_root).ok()?;
+    let parts: Vec<_> = relative.components().collect();
+    if parts.len() != 3 {
+        return None;
+    }
+
+    let project_path = sessions_root.join(parts[0].as_os_str());
+    let session_path = project_path.join(parts[1].as_os_str());
+
+    Some((
+        format!("kimi://{}", project_path.to_string_lossy()),
+        session_path.to_string_lossy().to_string(),
     ))
 }
 
@@ -365,23 +610,26 @@ fn opencode_cache_key(storage_root: &Path, session_id: &str) -> String {
 }
 
 fn get_cached_opencode_project_id(storage_root: &Path, session_id: &str) -> Option<String> {
-    let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(create_opencode_cache);
     let key = opencode_cache_key(storage_root, session_id);
-    let guard = cache.lock().ok()?;
+    // LRU `get` needs `&mut` because a hit refreshes recency ordering.
+    let mut guard = cache.lock().ok()?;
     guard.get(&key).cloned()
 }
 
 fn remember_opencode_project_id(storage_root: &Path, session_id: &str, project_id: &str) {
-    let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(create_opencode_cache);
     let key = opencode_cache_key(storage_root, session_id);
     if let Ok(mut guard) = cache.lock() {
-        guard.insert(key, project_id.to_string());
+        // `put` evicts the least-recently-used entry once at capacity.
+        guard.put(key, project_id.to_string());
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::TempDir;
 
     #[test]
@@ -417,12 +665,231 @@ mod tests {
     }
 
     #[test]
+    fn test_to_file_watch_event_ignores_unchanged_content_signature() {
+        let temp = TempDir::new().unwrap();
+        let project_dir = temp
+            .path()
+            .join(".claude")
+            .join("projects")
+            .join("my-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let session_path = project_dir.join("session.jsonl");
+        std::fs::write(&session_path, "{}\n").unwrap();
+        prime_watch_signatures(&project_dir);
+
+        let unchanged = DebouncedEvent {
+            path: session_path.clone(),
+            kind: DebouncedEventKind::Any,
+        };
+        assert!(to_file_watch_event(&unchanged).is_none());
+
+        std::fs::write(&session_path, "{}\n{\"type\":\"user\"}\n").unwrap();
+        let changed = DebouncedEvent {
+            path: session_path.clone(),
+            kind: DebouncedEventKind::Any,
+        };
+        assert!(to_file_watch_event(&changed).is_some());
+
+        let repeated = DebouncedEvent {
+            path: session_path,
+            kind: DebouncedEventKind::Any,
+        };
+        assert!(to_file_watch_event(&repeated).is_none());
+    }
+
+    #[test]
     fn test_extract_codex_paths() {
         let path = PathBuf::from("/Users/test/.codex/sessions/2025/10/rollout-abc.jsonl");
         let result = extract_codex_paths(&path).unwrap();
 
         assert_eq!(result.0, "codex://watch");
         assert_eq!(result.1, path.to_string_lossy());
+    }
+
+    #[test]
+    #[serial]
+    fn test_extract_pi_store_paths_matches_direct_session_files_only() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("agent").join("sessions");
+        let project = root.join("--Users-jack-my-proj");
+        std::fs::create_dir_all(&project).unwrap();
+        let file = project.join("2026-07-12T10-00-00_abc.jsonl");
+        std::fs::write(&file, "{}\n").unwrap();
+
+        let (project_path, session_path) = extract_pi_store_paths(&root, &file).unwrap();
+        assert_eq!(
+            project_path,
+            project.canonicalize().unwrap().to_string_lossy()
+        );
+        assert_eq!(session_path, file.canonicalize().unwrap().to_string_lossy());
+
+        // Nested deeper than <project>/<file>.jsonl is not a Pi transcript.
+        let nested = project.join("sub").join("x.jsonl");
+        std::fs::create_dir_all(nested.parent().unwrap()).unwrap();
+        std::fs::write(&nested, "{}\n").unwrap();
+        assert!(extract_pi_store_paths(&root, &nested).is_none());
+
+        // A file directly in the root (no project dir) is rejected too.
+        let shallow = root.join("stray.jsonl");
+        std::fs::write(&shallow, "{}\n").unwrap();
+        assert!(extract_pi_store_paths(&root, &shallow).is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_extract_pi_store_paths_rejects_symlinked_project_dir() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("agent").join("sessions");
+        std::fs::create_dir_all(&root).unwrap();
+
+        let outside = TempDir::new().unwrap();
+        let real_project = outside.path().join("proj");
+        std::fs::create_dir_all(&real_project).unwrap();
+        let file = real_project.join("s.jsonl");
+        std::fs::write(&file, "{}\n").unwrap();
+
+        let link = root.join("linked-proj");
+        unix_fs::symlink(&real_project, &link).unwrap();
+
+        assert!(extract_pi_store_paths(&root, &link.join("s.jsonl")).is_none());
+    }
+
+    #[test]
+    fn test_extract_kimi_context_paths() {
+        let temp = TempDir::new().unwrap();
+        let old_kimi_home = std::env::var_os("KIMI_HOME");
+        std::env::set_var("KIMI_HOME", temp.path());
+
+        let path = temp
+            .path()
+            .join("sessions")
+            .join("project_hash")
+            .join("session_1")
+            .join("context.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{}\n").unwrap();
+
+        let result = extract_provider_paths(&path).unwrap();
+
+        if let Some(kimi_home) = old_kimi_home {
+            std::env::set_var("KIMI_HOME", kimi_home);
+        } else {
+            std::env::remove_var("KIMI_HOME");
+        }
+
+        assert_eq!(
+            result.0,
+            format!(
+                "kimi://{}",
+                temp.path()
+                    .canonicalize()
+                    .unwrap()
+                    .join("sessions/project_hash")
+                    .display()
+            )
+        );
+        assert_eq!(
+            result.1,
+            temp.path()
+                .canonicalize()
+                .unwrap()
+                .join("sessions/project_hash/session_1")
+                .to_string_lossy()
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_extract_kimi_state_paths() {
+        let temp = TempDir::new().unwrap();
+        let old_kimi_home = std::env::var_os("KIMI_HOME");
+        std::env::set_var("KIMI_HOME", temp.path());
+
+        let path = temp
+            .path()
+            .join("sessions")
+            .join("project_hash")
+            .join("session_1")
+            .join("state.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{}\n").unwrap();
+
+        let result = extract_provider_paths(&path).unwrap();
+
+        if let Some(kimi_home) = old_kimi_home {
+            std::env::set_var("KIMI_HOME", kimi_home);
+        } else {
+            std::env::remove_var("KIMI_HOME");
+        }
+
+        assert_eq!(
+            result.0,
+            format!(
+                "kimi://{}",
+                temp.path()
+                    .canonicalize()
+                    .unwrap()
+                    .join("sessions/project_hash")
+                    .display()
+            )
+        );
+        assert_eq!(
+            result.1,
+            temp.path()
+                .canonicalize()
+                .unwrap()
+                .join("sessions/project_hash/session_1")
+                .to_string_lossy()
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_extract_kimi_paths_from_custom_home() {
+        let temp = TempDir::new().unwrap();
+        let old_kimi_home = std::env::var_os("KIMI_HOME");
+        std::env::set_var("KIMI_HOME", temp.path());
+
+        let path = temp
+            .path()
+            .join("sessions")
+            .join("project_hash")
+            .join("session_1")
+            .join("wire.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{}\n").unwrap();
+
+        let result = extract_provider_paths(&path);
+
+        if let Some(kimi_home) = old_kimi_home {
+            std::env::set_var("KIMI_HOME", kimi_home);
+        } else {
+            std::env::remove_var("KIMI_HOME");
+        }
+
+        let result = result.unwrap();
+        assert_eq!(
+            result.0,
+            format!(
+                "kimi://{}",
+                temp.path()
+                    .canonicalize()
+                    .unwrap()
+                    .join("sessions/project_hash")
+                    .display()
+            )
+        );
+        assert_eq!(
+            result.1,
+            temp.path()
+                .canonicalize()
+                .unwrap()
+                .join("sessions/project_hash/session_1")
+                .to_string_lossy()
+        );
     }
 
     #[test]
@@ -453,5 +920,28 @@ mod tests {
 
         assert_eq!(result.0, "opencode://project_1");
         assert_eq!(result.1, "opencode://project_1/session_1");
+    }
+
+    /// Regression test for the unbounded-cache memory leak: the `OpenCode`
+    /// session-project cache must evict entries once it reaches its capacity
+    /// so that long-running watcher activity cannot grow it without bound.
+    /// Before the LRU fix this used a plain `HashMap`, so `len()` would equal
+    /// the full insert count (10,100) and this assertion would fail.
+    #[test]
+    #[serial]
+    fn test_opencode_cache_is_bounded() {
+        let cache = OPENCODE_SESSION_PROJECT_CACHE.get_or_init(create_opencode_cache);
+        let mut guard = cache.lock().unwrap();
+        guard.clear();
+
+        for i in 0..10_100 {
+            guard.put(format!("key_{i}"), format!("value_{i}"));
+        }
+
+        assert!(
+            guard.len() <= 10_000,
+            "OpenCode cache must stay bounded at 10,000 entries, got {}",
+            guard.len()
+        );
     }
 }

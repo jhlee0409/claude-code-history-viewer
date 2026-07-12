@@ -28,6 +28,7 @@ import { CodeExecutionToolResultRenderer } from "./CodeExecutionToolResultRender
 import { BashCodeExecutionToolResultRenderer } from "./BashCodeExecutionToolResultRenderer";
 import { TextEditorCodeExecutionToolResultRenderer } from "./TextEditorCodeExecutionToolResultRenderer";
 import { ToolSearchToolResultRenderer } from "./ToolSearchToolResultRenderer";
+import { AdvisorToolResultRenderer } from "./AdvisorToolResultRenderer";
 import { ContainerUploadRenderer } from "./ContainerUploadRenderer";
 import { OpenCodeStepRenderer } from "./OpenCodeStepRenderer";
 import { UnifiedToolExecutionRenderer } from "./UnifiedToolExecutionRenderer";
@@ -49,6 +50,7 @@ import {
   isBashCodeExecutionToolResultContent,
   isTextEditorCodeExecutionToolResultContent,
   isToolSearchToolResultContent,
+  isAdvisorToolResultContent,
   isContainerUploadContent,
 } from "@/utils/contentTypeGuards";
 
@@ -159,7 +161,7 @@ export const ClaudeContentArrayRenderer = memo(({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 text-px12">
       {normalizedContent.map((entry) => {
         if (entry.kind === "toolExecution") {
           if (skipToolCalls) return null;
@@ -474,6 +476,20 @@ export const ClaudeContentArrayRenderer = memo(({
             }
             return (
               <ToolSearchToolResultRenderer
+                key={entry.key}
+                toolUseId={item.tool_use_id}
+                content={item.content}
+              />
+            );
+          }
+
+          case "advisor_tool_result": {
+            if (skipToolCalls) return null;
+            if (!isAdvisorToolResultContent(item)) {
+              return null;
+            }
+            return (
+              <AdvisorToolResultRenderer
                 key={entry.key}
                 toolUseId={item.tool_use_id}
                 content={item.content}

@@ -21,10 +21,13 @@ use walkdir::WalkDir;
 enum StatsProvider {
     #[default]
     Claude,
+    Codebuddy,
     Codex,
     ForgeCode,
     OpenCode,
+    Kimi,
     Antigravity,
+    Copilot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,10 +59,13 @@ fn parse_stats_mode(stats_mode: Option<String>) -> StatsMode {
 fn stats_provider_id(provider: StatsProvider) -> &'static str {
     match provider {
         StatsProvider::Claude => "claude",
+        StatsProvider::Codebuddy => "codebuddy",
         StatsProvider::Codex => "codex",
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
+        StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
+        StatsProvider::Copilot => "copilot",
     }
 }
 
@@ -209,10 +215,13 @@ fn should_include_stats_message(message: &ClaudeMessage, mode: StatsMode) -> boo
 fn all_stats_providers() -> HashSet<StatsProvider> {
     [
         StatsProvider::Claude,
+        StatsProvider::Codebuddy,
         StatsProvider::Codex,
         StatsProvider::ForgeCode,
         StatsProvider::OpenCode,
+        StatsProvider::Kimi,
         StatsProvider::Antigravity,
+        StatsProvider::Copilot,
     ]
     .into_iter()
     .collect()
@@ -229,10 +238,13 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
         .into_iter()
         .filter_map(|provider| match provider.as_str() {
             "claude" => Some(StatsProvider::Claude),
+            "codebuddy" => Some(StatsProvider::Codebuddy),
             "codex" => Some(StatsProvider::Codex),
             "forgecode" => Some(StatsProvider::ForgeCode),
             "opencode" => Some(StatsProvider::OpenCode),
+            "kimi" => Some(StatsProvider::Kimi),
             "antigravity" => Some(StatsProvider::Antigravity),
+            "copilot" => Some(StatsProvider::Copilot),
             _ => {
                 unknown.push(provider);
                 None
@@ -258,8 +270,18 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::ForgeCode
     } else if project_path.starts_with("opencode://") {
         StatsProvider::OpenCode
+    } else if project_path.starts_with("kimi://") {
+        StatsProvider::Kimi
     } else if is_antigravity_path(project_path) {
         StatsProvider::Antigravity
+    } else if is_codebuddy_path(project_path) {
+        StatsProvider::Codebuddy
+    } else if project_path.starts_with("copilot://")
+        || project_path.starts_with("copilot-cli://")
+        || project_path.starts_with("copilot-desktop://")
+        || project_path.starts_with("vscode://")
+    {
+        StatsProvider::Copilot
     } else {
         StatsProvider::Claude
     }
@@ -271,12 +293,37 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
         return StatsProvider::OpenCode;
     }
 
+    if is_kimi_path(session_path) {
+        return StatsProvider::Kimi;
+    }
+
     if is_antigravity_path(session_path) {
         return StatsProvider::Antigravity;
     }
 
     if session_path.starts_with("forgecode://") || session_path.starts_with("forgecode-db://") {
         return StatsProvider::ForgeCode;
+    }
+    if is_copilot_cli_session_path(session_path)
+        || session_path.contains("/.copilot/session-state/")
+        || session_path.contains("\\.copilot\\session-state\\")
+    {
+        return StatsProvider::Copilot;
+    }
+    if (session_path.contains("/workspaceStorage/")
+        || session_path.contains("\\workspaceStorage\\"))
+        && (session_path.contains("/chatSessions/") || session_path.contains("\\chatSessions\\"))
+        && PathBuf::from(session_path)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("jsonl"))
+    {
+        return StatsProvider::Copilot;
+    }
+
+    // CodeBuddy: path is anchored under ~/.codebuddy/projects (not just substring
+    // match, which would misclassify paths like "/work/foo.codebuddy-test").
+    if is_codebuddy_path(session_path) {
+        return StatsProvider::Codebuddy;
     }
 
     let is_rollout = PathBuf::from(session_path)
@@ -296,9 +343,52 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     }
 }
 
+fn is_copilot_cli_session_path(session_path: &str) -> bool {
+    if !Path::new(session_path)
+        .file_name()
+        .is_some_and(|name| name == "events.jsonl")
+    {
+        return false;
+    }
+    let Some(base) = providers::copilot_cli::get_base_path() else {
+        return false;
+    };
+    let root = Path::new(&base).join("session-state");
+    let Ok(root) = root.canonicalize() else {
+        return false;
+    };
+    let Ok(path) = Path::new(session_path).canonicalize() else {
+        return false;
+    };
+    path.starts_with(root)
+}
+
 fn is_antigravity_path(path: &str) -> bool {
     crate::commands::antigravity::resolve_antigravity_root()
         .map(|root| Path::new(path).starts_with(root.as_path()))
+        .unwrap_or(false)
+}
+
+/// Whether `path` lies under `~/.codebuddy/projects/`. Anchored detection avoids
+/// false positives from arbitrary substrings (e.g. `/work/foo.codebuddy-test`).
+fn is_codebuddy_path(path: &str) -> bool {
+    let Some(home) = dirs::home_dir() else {
+        return false;
+    };
+    is_codebuddy_path_under(path, &home)
+}
+
+/// Implementation of [`is_codebuddy_path`] parameterized by the home dir,
+/// so tests can drive the anchored check with a fixed home and not depend
+/// on whether the CI runner has a HOME env at all.
+fn is_codebuddy_path_under(path: &str, home: &Path) -> bool {
+    let root = home.join(".codebuddy").join("projects");
+    Path::new(path).starts_with(root)
+}
+
+fn is_kimi_path(path: &str) -> bool {
+    providers::kimi::get_base_path()
+        .map(|root| Path::new(path).starts_with(root))
         .unwrap_or(false)
 }
 
@@ -506,6 +596,8 @@ struct SessionFileStats {
     total_tokens: u64,
     token_distribution: TokenDistribution,
     tool_usage: HashMap<String, (u32, u32)>, // (usage_count, success_count)
+    skill_usage: HashMap<String, (u32, u32)>, // Skill tool, keyed by input.skill (#321)
+    subagent_usage: HashMap<String, (u32, u32)>, // Agent tool, keyed by input.subagent_type (#321)
     daily_stats: HashMap<String, DailyStats>,
     activity_data: HashMap<(u8, u8), (u32, u64)>, // (hour, day) -> (count, tokens)
     model_usage: HashMap<String, ModelUsageAggregate>, // model -> (msg_count, total, input, output, cache_create, cache_read, reasoning)
@@ -608,6 +700,11 @@ fn process_session_file_for_global_stats(
 
         let Some(timestamp) = parsed_timestamp else {
             track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
+            track_skill_and_subagent_usage_from_global_entry(
+                &entry,
+                &mut stats.skill_usage,
+                &mut stats.subagent_usage,
+            );
             continue;
         };
 
@@ -651,6 +748,11 @@ fn process_session_file_for_global_stats(
 
         // Track tool usage
         track_tool_usage_from_global_entry(&entry, &mut stats.tool_usage);
+        track_skill_and_subagent_usage_from_global_entry(
+            &entry,
+            &mut stats.skill_usage,
+            &mut stats.subagent_usage,
+        );
     }
 
     // Calculate session duration
@@ -790,6 +892,7 @@ fn build_global_session_file_stats_from_messages(
 
         // Track tool usage
         track_tool_usage(message, &mut stats.tool_usage);
+        track_skill_and_subagent_usage(message, &mut stats.skill_usage, &mut stats.subagent_usage);
     }
 
     // Calculate session duration
@@ -966,18 +1069,24 @@ fn collect_provider_global_file_stats(
     }
 
     let projects = match provider {
+        StatsProvider::Codebuddy => providers::codebuddy::scan_projects().unwrap_or_default(),
         StatsProvider::Codex => providers::codex::scan_projects().unwrap_or_default(),
         StatsProvider::ForgeCode => providers::forgecode::scan_projects().unwrap_or_default(),
         StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
+        StatsProvider::Kimi => providers::kimi::scan_projects().unwrap_or_default(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
+        StatsProvider::Copilot => providers::copilot::scan_projects().unwrap_or_default(),
         StatsProvider::Claude => Vec::new(),
     };
 
     let provider_tag = match provider {
+        StatsProvider::Codebuddy => "codebuddy",
         StatsProvider::Codex => "codex",
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
+        StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
+        StatsProvider::Copilot => "copilot",
         StatsProvider::Claude => "claude",
     };
 
@@ -989,12 +1098,15 @@ fn collect_provider_global_file_stats(
         project_keys.insert(format!("{provider_tag}:{}", project.path));
 
         let sessions = match provider {
+            StatsProvider::Codebuddy => providers::codebuddy::load_sessions(&project.path, false),
             StatsProvider::Codex => providers::codex::load_sessions(&project.path, false),
             StatsProvider::ForgeCode => providers::forgecode::load_sessions(&project.path, false),
             StatsProvider::OpenCode => providers::opencode::load_sessions(&project.path, false),
+            StatsProvider::Kimi => providers::kimi::load_sessions(&project.path, false),
             StatsProvider::Antigravity => {
                 providers::antigravity::load_sessions(&project.path, false)
             }
+            StatsProvider::Copilot => providers::copilot::load_sessions(&project.path, false),
             StatsProvider::Claude => Ok(Vec::new()),
         }
         .unwrap_or_default();
@@ -1009,10 +1121,13 @@ fn collect_provider_global_file_stats(
         .par_iter()
         .filter_map(|(project_name, file_path)| {
             let messages = match provider {
+                StatsProvider::Codebuddy => providers::codebuddy::load_messages(file_path),
                 StatsProvider::Codex => providers::codex::load_messages(file_path),
                 StatsProvider::ForgeCode => providers::forgecode::load_messages(file_path),
                 StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
+                StatsProvider::Kimi => providers::kimi::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
+                StatsProvider::Copilot => providers::copilot::load_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
             }
             .unwrap_or_default();
@@ -1037,6 +1152,8 @@ struct ProjectSessionFileStats {
     total_messages: u32,
     token_distribution: TokenDistribution,
     tool_usage: HashMap<String, (u32, u32)>,
+    skill_usage: HashMap<String, (u32, u32)>, // Skill tool, keyed by input.skill (#321)
+    subagent_usage: HashMap<String, (u32, u32)>, // Agent tool, keyed by input.subagent_type (#321)
     daily_stats: HashMap<String, DailyStats>,
     activity_data: HashMap<(u8, u8), (u32, u64)>,
     session_duration_minutes: u32,
@@ -1128,6 +1245,7 @@ fn process_session_file_for_project_stats(
 
         // Track tool usage
         track_tool_usage(&message, &mut stats.tool_usage);
+        track_skill_and_subagent_usage(&message, &mut stats.skill_usage, &mut stats.subagent_usage);
     }
 
     if stats.total_messages == 0 {
@@ -1209,6 +1327,84 @@ fn track_tool_usage(message: &ClaudeMessage, tool_usage: &mut HashMap<String, (u
                 if !is_error {
                     tool_entry.1 += 1;
                 }
+            }
+        }
+    }
+}
+
+/// Record one usage of a tool keyed by a value inside its `input` — e.g. the
+/// `Skill` tool keyed by `input.skill`, or the `Agent` tool keyed by
+/// `input.subagent_type` (issue #321). `item` is a single `tool_use` value.
+fn record_input_value_usage(
+    item: &serde_json::Value,
+    usage: &mut HashMap<String, (u32, u32)>,
+    tool_name: &str,
+    input_key: &str,
+) {
+    if item.get("name").and_then(|v| v.as_str()) != Some(tool_name) {
+        return;
+    }
+    if let Some(key) = item
+        .get("input")
+        .and_then(|input| input.get(input_key))
+        .and_then(|v| v.as_str())
+    {
+        let entry = usage.entry(key.to_string()).or_insert((0, 0));
+        entry.0 += 1;
+        let is_error = item
+            .get("is_error")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        if !is_error {
+            entry.1 += 1;
+        }
+    }
+}
+
+/// Aggregate Skill (`input.skill`) and Agent (`input.subagent_type`) invocations
+/// from a normalized message, mirroring `track_tool_usage`'s extraction paths.
+fn track_skill_and_subagent_usage(
+    message: &ClaudeMessage,
+    skill_usage: &mut HashMap<String, (u32, u32)>,
+    subagent_usage: &mut HashMap<String, (u32, u32)>,
+) {
+    if message.message_type == "assistant" {
+        if let Some(arr) = message.content.as_ref().and_then(|c| c.as_array()) {
+            for item in arr {
+                if item.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
+                    record_input_value_usage(item, skill_usage, "Skill", "skill");
+                    record_input_value_usage(item, subagent_usage, "Agent", "subagent_type");
+                }
+            }
+        }
+    }
+    if let Some(tool_use) = &message.tool_use {
+        record_input_value_usage(tool_use, skill_usage, "Skill", "skill");
+        record_input_value_usage(tool_use, subagent_usage, "Agent", "subagent_type");
+    }
+}
+
+/// Skill/subagent variant of `track_tool_usage_from_global_entry`. Skill and
+/// Agent calls land in the assistant `content` array, which is the only path
+/// the lightweight global entry preserves as raw JSON.
+fn track_skill_and_subagent_usage_from_global_entry(
+    entry: &GlobalStatsLogEntry,
+    skill_usage: &mut HashMap<String, (u32, u32)>,
+    subagent_usage: &mut HashMap<String, (u32, u32)>,
+) {
+    if entry.message_type != "assistant" {
+        return;
+    }
+    if let Some(arr) = entry
+        .message
+        .as_ref()
+        .and_then(|m| m.content.as_ref())
+        .and_then(|c| c.as_array())
+    {
+        for item in arr {
+            if item.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
+                record_input_value_usage(item, skill_usage, "Skill", "skill");
+                record_input_value_usage(item, subagent_usage, "Agent", "subagent_type");
             }
         }
     }
@@ -1580,6 +1776,18 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
             .and_then(|n| n.to_str())
             .unwrap_or("Unknown")
             .to_string(),
+        StatsProvider::Codebuddy => {
+            if let Ok(projects) = providers::codebuddy::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            PathBuf::from(project_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown")
+                .to_string()
+        }
         StatsProvider::Codex => {
             let cwd = project_path
                 .strip_prefix("codex://")
@@ -1612,6 +1820,21 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 .unwrap_or(project_path)
                 .to_string()
         }
+        StatsProvider::Kimi => {
+            if let Ok(projects) = providers::kimi::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("kimi://")
+                .and_then(|p| {
+                    PathBuf::from(p)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                })
+                .unwrap_or_else(|| project_path.to_string())
+        }
         StatsProvider::Antigravity => {
             if let Ok(projects) = providers::antigravity::scan_projects() {
                 if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
@@ -1620,6 +1843,15 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
             }
             "Antigravity".to_string()
         }
+        StatsProvider::Copilot => providers::copilot::scan_projects()
+            .ok()
+            .and_then(|projects| {
+                projects
+                    .into_iter()
+                    .find(|project| project.path == project_path)
+                    .map(|project| project.name)
+            })
+            .unwrap_or_else(|| "Copilot".to_string()),
     }
 }
 
@@ -1646,6 +1878,19 @@ fn resolve_provider_project_name_from_session(
             let project_path = format!("opencode://{project_part}");
             resolve_provider_project_name(provider, &project_path)
         }
+        StatsProvider::Codebuddy => {
+            if let Ok(projects) = providers::codebuddy::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::codebuddy::load_sessions(&project.path, false)
+                    {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "codebuddy".to_string()
+        }
         StatsProvider::Codex => {
             if let Ok(projects) = providers::codex::scan_projects() {
                 for project in projects {
@@ -1658,7 +1903,26 @@ fn resolve_provider_project_name_from_session(
             }
             "codex".to_string()
         }
+        StatsProvider::Kimi => {
+            if let Some(project_dir) = Path::new(session_path).parent() {
+                let project_path = format!("kimi://{}", project_dir.to_string_lossy());
+                return resolve_provider_project_name(provider, &project_path);
+            }
+            "kimi".to_string()
+        }
         StatsProvider::Antigravity => "Antigravity".to_string(),
+        StatsProvider::Copilot => {
+            if let Ok(projects) = providers::copilot::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::copilot::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "Copilot".to_string()
+        }
         StatsProvider::Claude => "unknown".to_string(),
     }
 }
@@ -1669,10 +1933,13 @@ fn load_provider_sessions_for_stats(
     project_path: &str,
 ) -> Result<Vec<crate::models::ClaudeSession>, String> {
     match provider {
+        StatsProvider::Codebuddy => providers::codebuddy::load_sessions(project_path, false),
         StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
         StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
+        StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
+        StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
         StatsProvider::Claude => {
             Err("Claude sessions are handled by legacy stats path".to_string())
         }
@@ -1685,10 +1952,13 @@ fn load_provider_messages_for_stats(
     session: &crate::models::ClaudeSession,
 ) -> Result<Vec<ClaudeMessage>, String> {
     match provider {
+        StatsProvider::Codebuddy => providers::codebuddy::load_messages(&session.file_path),
         StatsProvider::Codex => providers::codex::load_messages(&session.file_path),
         StatsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path),
         StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
+        StatsProvider::Kimi => providers::kimi::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
+        StatsProvider::Copilot => providers::copilot::load_messages(&session.file_path),
         StatsProvider::Claude => {
             Err("Claude messages are handled by legacy stats path".to_string())
         }
@@ -2429,10 +2699,13 @@ pub async fn get_session_token_stats(
         }
 
         let messages = match provider {
+            StatsProvider::Codebuddy => providers::codebuddy::load_messages(&session_path)?,
             StatsProvider::Codex => providers::codex::load_messages(&session_path)?,
             StatsProvider::ForgeCode => providers::forgecode::load_messages(&session_path)?,
             StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
+            StatsProvider::Kimi => providers::kimi::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
+            StatsProvider::Copilot => providers::copilot::load_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
         };
 
@@ -2451,16 +2724,12 @@ pub async fn get_session_token_stats(
             s_limit.as_ref(),
             e_limit.as_ref(),
         )
-        .and_then(|stats| {
-            if is_within_date_limits(
+        .filter(|stats| {
+            is_within_date_limits(
                 parse_timestamp_utc(&stats.last_message_time),
                 s_limit.as_ref(),
                 e_limit.as_ref(),
-            ) {
-                Some(stats)
-            } else {
-                None
-            }
+            )
         })
         .ok_or_else(|| "No valid messages found in session".to_string());
     }
@@ -2801,6 +3070,8 @@ pub async fn get_project_stats_summary(
 
     let mut session_durations: Vec<u32> = Vec::new();
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut skill_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut subagent_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
     let mut session_count_by_date: HashMap<String, usize> = HashMap::new();
@@ -2818,6 +3089,17 @@ pub async fn get_project_stats_summary(
         // Aggregate tool usage
         for (name, (usage, success)) in stats.tool_usage {
             let entry = tool_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
+        }
+        // Aggregate skill / subagent usage (#321)
+        for (name, (usage, success)) in stats.skill_usage {
+            let entry = skill_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
+        }
+        for (name, (usage, success)) in stats.subagent_usage {
+            let entry = subagent_usage_map.entry(name).or_insert((0, 0));
             entry.0 += usage;
             entry.1 += success;
         }
@@ -2882,6 +3164,8 @@ pub async fn get_project_stats_summary(
     summary
         .most_used_tools
         .sort_by_key(|tool| Reverse(tool.usage_count));
+    summary.most_used_skills = build_tool_usage_stats(skill_usage_map);
+    summary.most_used_subagents = build_tool_usage_stats(subagent_usage_map);
 
     summary.daily_stats = daily_stats_map.into_values().collect();
     summary.daily_stats.sort_by(|a, b| a.date.cmp(&b.date));
@@ -3214,18 +3498,27 @@ pub async fn get_global_stats_summary(
     stats_mode: Option<String>,
     start_date: Option<String>,
     end_date: Option<String>,
+    custom_claude_paths: Option<Vec<crate::commands::multi_provider::CustomClaudePathParam>>,
 ) -> Result<GlobalStatsSummary, String> {
     let mode = parse_stats_mode(stats_mode);
     let providers_to_include = parse_active_stats_providers(active_providers);
     let s_limit = parse_date_limit(start_date, "global start_date");
     let e_limit = parse_date_limit(end_date, "global end_date");
-    let projects_path = PathBuf::from(&claude_path).join("projects");
 
-    // Phase 1: Collect all session files and their project names
+    // Phase 1: Collect all session files and their project names from the default
+    // Claude root AND any user-configured custom Claude directories (#362). Without
+    // the custom roots the global summary undercounts everything for users who added
+    // extra Claude directories, even though the project list and search honor them.
     let mut session_files: Vec<PathBuf> = Vec::new();
     let mut project_names: HashSet<String> = HashSet::new();
-    if providers_to_include.contains(&StatsProvider::Claude) && projects_path.exists() {
-        match fs::read_dir(&projects_path) {
+
+    let collect_claude_base = |projects_path: &Path,
+                               session_files: &mut Vec<PathBuf>,
+                               project_names: &mut HashSet<String>| {
+        if !projects_path.exists() {
+            return;
+        }
+        match fs::read_dir(projects_path) {
             Ok(entries) => {
                 for project_entry in entries {
                     let project_entry = match project_entry {
@@ -3261,6 +3554,29 @@ pub async fn get_global_stats_summary(
                 log::warn!("Failed to read Claude projects directory: {e}");
             }
         }
+    };
+
+    if providers_to_include.contains(&StatsProvider::Claude) {
+        collect_claude_base(
+            &PathBuf::from(&claude_path).join("projects"),
+            &mut session_files,
+            &mut project_names,
+        );
+
+        if let Some(ref custom_paths) = custom_claude_paths {
+            for custom in custom_paths {
+                let base = PathBuf::from(&custom.path);
+                if let Err(e) = crate::utils::validate_custom_claude_path(&base) {
+                    log::warn!("Skipping invalid custom Claude path for global stats: {e}");
+                    continue;
+                }
+                collect_claude_base(
+                    &base.join("projects"),
+                    &mut session_files,
+                    &mut project_names,
+                );
+            }
+        }
     }
 
     // Phase 2: Process all session files in parallel
@@ -3270,6 +3586,13 @@ pub async fn get_global_stats_summary(
         .par_iter()
         .filter_map(|path| process_session_file_for_global_stats(path, mode, s_ref, e_ref))
         .collect();
+
+    if providers_to_include.contains(&StatsProvider::Codebuddy) {
+        let (codebuddy_stats, codebuddy_projects) =
+            collect_provider_global_file_stats(StatsProvider::Codebuddy, mode, s_ref, e_ref);
+        project_names.extend(codebuddy_projects);
+        file_stats.extend(codebuddy_stats);
+    }
 
     if providers_to_include.contains(&StatsProvider::Codex) {
         let (codex_stats, codex_projects) =
@@ -3290,6 +3613,13 @@ pub async fn get_global_stats_summary(
             collect_provider_global_file_stats(StatsProvider::OpenCode, mode, s_ref, e_ref);
         project_names.extend(opencode_projects);
         file_stats.extend(opencode_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Kimi) {
+        let (kimi_stats, kimi_projects) =
+            collect_provider_global_file_stats(StatsProvider::Kimi, mode, s_ref, e_ref);
+        project_names.extend(kimi_projects);
+        file_stats.extend(kimi_stats);
     }
 
     if providers_to_include.contains(&StatsProvider::Antigravity) {
@@ -3321,6 +3651,8 @@ pub async fn get_global_stats_summary(
     summary.total_sessions = file_stats.len() as u32;
 
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut skill_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut subagent_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
     let mut model_usage_map: HashMap<String, ModelUsageAggregate> = HashMap::new();
@@ -3348,6 +3680,17 @@ pub async fn get_global_stats_summary(
         // Aggregate tool usage
         for (name, (usage, success)) in stats.tool_usage {
             let entry = tool_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
+        }
+        // Aggregate skill / subagent usage (#321)
+        for (name, (usage, success)) in stats.skill_usage {
+            let entry = skill_usage_map.entry(name).or_insert((0, 0));
+            entry.0 += usage;
+            entry.1 += success;
+        }
+        for (name, (usage, success)) in stats.subagent_usage {
+            let entry = subagent_usage_map.entry(name).or_insert((0, 0));
             entry.0 += usage;
             entry.1 += success;
         }
@@ -3435,6 +3778,8 @@ pub async fn get_global_stats_summary(
     summary
         .most_used_tools
         .sort_by_key(|tool| Reverse(tool.usage_count));
+    summary.most_used_skills = build_tool_usage_stats(skill_usage_map);
+    summary.most_used_subagents = build_tool_usage_stats(subagent_usage_map);
 
     summary.provider_distribution = provider_stats_map
         .into_iter()
@@ -3528,10 +3873,34 @@ mod tests {
     use super::*;
     use serde_json::json;
     use serial_test::serial;
+    use std::ffi::OsString;
     use std::fs;
     use std::fs::File;
     use std::io::Write;
     use tempfile::TempDir;
+
+    struct EnvVarGuard {
+        key: &'static str,
+        original: Option<OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: &std::path::Path) -> Self {
+            let original = std::env::var_os(key);
+            std::env::set_var(key, value);
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(value) = self.original.as_ref() {
+                std::env::set_var(self.key, value);
+            } else {
+                std::env::remove_var(self.key);
+            }
+        }
+    }
 
     fn make_test_message(
         provider: Option<&str>,
@@ -3572,6 +3941,53 @@ mod tests {
             microcompact_metadata: None,
             provider: provider.map(std::string::ToString::to_string),
         }
+    }
+
+    #[test]
+    /// #321: Skill (`input.skill`) and Agent (`input.subagent_type`) invocations
+    /// are aggregated by their input value, not collapsed into one bucket.
+    fn test_track_skill_and_subagent_usage() {
+        let mut msg = make_test_message(None, "assistant", None);
+        msg.content = Some(json!([
+            { "type": "tool_use", "name": "Skill", "input": { "skill": "triage", "args": "x" } },
+            { "type": "tool_use", "name": "Skill", "input": { "skill": "triage" } },
+            { "type": "tool_use", "name": "Skill", "input": { "skill": "loop" } },
+            { "type": "tool_use", "name": "Agent", "input": { "subagent_type": "Explore", "prompt": "p" } },
+            { "type": "tool_use", "name": "Read", "input": { "file_path": "/a" } },
+        ]));
+
+        let mut skills: HashMap<String, (u32, u32)> = HashMap::new();
+        let mut subagents: HashMap<String, (u32, u32)> = HashMap::new();
+        track_skill_and_subagent_usage(&msg, &mut skills, &mut subagents);
+
+        assert_eq!(skills.get("triage"), Some(&(2, 2)));
+        assert_eq!(skills.get("loop"), Some(&(1, 1)));
+        assert_eq!(skills.len(), 2);
+        assert!(!skills.contains_key("Read"));
+        assert_eq!(subagents.get("Explore"), Some(&(1, 1)));
+        assert_eq!(subagents.len(), 1);
+    }
+
+    #[test]
+    /// #321: only assistant messages are scanned, and a Skill call missing the
+    /// `skill` key is skipped (no empty-named bucket).
+    fn test_skill_usage_ignores_user_and_missing_key() {
+        let mut skills: HashMap<String, (u32, u32)> = HashMap::new();
+        let mut subagents: HashMap<String, (u32, u32)> = HashMap::new();
+
+        let mut user = make_test_message(None, "user", None);
+        user.content = Some(json!([
+            { "type": "tool_use", "name": "Skill", "input": { "skill": "x" } }
+        ]));
+        track_skill_and_subagent_usage(&user, &mut skills, &mut subagents);
+        assert!(skills.is_empty());
+
+        let mut asst = make_test_message(None, "assistant", None);
+        asst.content = Some(json!([
+            { "type": "tool_use", "name": "Skill", "input": {} }
+        ]));
+        track_skill_and_subagent_usage(&asst, &mut skills, &mut subagents);
+        assert!(skills.is_empty());
     }
 
     #[test]
@@ -4094,6 +4510,28 @@ mod tests {
             StatsProvider::OpenCode
         );
         assert_eq!(
+            detect_project_provider("kimi:///Users/jack/.kimi/sessions/project-hash"),
+            StatsProvider::Kimi
+        );
+        assert_eq!(
+            detect_project_provider("copilot-cli:///Users/jack/workspace"),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_project_provider("copilot-desktop:///Users/jack/workspace"),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_project_provider("copilot:///Users/jack/workspace"),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_project_provider(
+                "vscode:///Users/jack/Library/Application Support/Code/User/workspaceStorage/hash"
+            ),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
             detect_project_provider("/Users/jack/.claude/projects/my-project"),
             StatsProvider::Claude
         );
@@ -4126,6 +4564,25 @@ mod tests {
             detect_session_provider("opencode://project/ses_abc"),
             StatsProvider::OpenCode
         );
+        if let Some(root) = providers::kimi::get_base_path() {
+            let kimi_session = PathBuf::from(root)
+                .join("sessions")
+                .join("project-hash")
+                .join("session-id")
+                .to_string_lossy()
+                .to_string();
+            assert_eq!(detect_session_provider(&kimi_session), StatsProvider::Kimi);
+        }
+        assert_eq!(
+            detect_session_provider("/Users/jack/.copilot/session-state/abcd-1234/events.jsonl"),
+            StatsProvider::Copilot
+        );
+        assert_eq!(
+            detect_session_provider(
+                r"C:\Users\jack\AppData\Roaming\Code\User\workspaceStorage\hash\chatSessions\session.jsonl"
+            ),
+            StatsProvider::Copilot
+        );
         assert_eq!(
             detect_session_provider(
                 "/Users/jack/.codex/sessions/2026/02/20/rollout-2026-02-20T11-04-52-1234.jsonl"
@@ -4154,6 +4611,25 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn detect_session_provider_uses_copilot_cli_home_env() {
+        let tmp = TempDir::new().unwrap();
+        let events_path = tmp
+            .path()
+            .join("session-state")
+            .join("abcd-1234")
+            .join("events.jsonl");
+        fs::create_dir_all(events_path.parent().unwrap()).unwrap();
+        fs::write(&events_path, "").unwrap();
+        let _env_guard = EnvVarGuard::set("COPILOT_CLI_HOME", tmp.path());
+
+        assert_eq!(
+            detect_session_provider(&events_path.to_string_lossy()),
+            StatsProvider::Copilot
+        );
+    }
+
+    #[test]
     /// Verify parse active stats providers defaults to all.
     fn test_parse_active_stats_providers_defaults_to_all() {
         let providers = parse_active_stats_providers(None);
@@ -4161,7 +4637,9 @@ mod tests {
         assert!(providers.contains(&StatsProvider::Codex));
         assert!(providers.contains(&StatsProvider::ForgeCode));
         assert!(providers.contains(&StatsProvider::OpenCode));
+        assert!(providers.contains(&StatsProvider::Kimi));
         assert!(providers.contains(&StatsProvider::Antigravity));
+        assert!(providers.contains(&StatsProvider::Copilot));
     }
 
     #[test]
@@ -4193,6 +4671,22 @@ mod tests {
         let providers = parse_active_stats_providers(Some(vec!["forgecode".to_string()]));
         assert_eq!(providers.len(), 1);
         assert!(providers.contains(&StatsProvider::ForgeCode));
+    }
+
+    #[test]
+    /// Verify parse active stats providers supports Kimi.
+    fn test_parse_active_stats_providers_supports_kimi() {
+        let providers = parse_active_stats_providers(Some(vec!["kimi".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Kimi));
+    }
+
+    #[test]
+    /// Verify parse active stats providers supports Copilot.
+    fn test_parse_active_stats_providers_supports_copilot() {
+        let providers = parse_active_stats_providers(Some(vec!["copilot".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Copilot));
     }
 
     #[test]
@@ -4264,6 +4758,28 @@ mod tests {
             true,
             StatsMode::ConversationOnly
         ));
+        assert!(!should_include_stats_entry(
+            "tool",
+            Some(false),
+            false,
+            StatsMode::ConversationOnly
+        ));
+        assert!(!should_include_stats_entry(
+            "tool",
+            Some(false),
+            false,
+            StatsMode::BillingTotal
+        ));
+    }
+
+    #[test]
+    fn test_kimi_project_name_resolves_from_session_parent_directory() {
+        let session_path = "/tmp/kimi/sessions/project-hash/session-1";
+
+        assert_eq!(
+            resolve_provider_project_name_from_session(StatsProvider::Kimi, session_path),
+            "project-hash"
+        );
     }
 
     #[test]
@@ -4471,6 +4987,7 @@ mod tests {
             Some("billing_total".to_string()),
             None,
             None,
+            None,
         )
         .await
         .expect("failed to get global billing stats");
@@ -4478,6 +4995,7 @@ mod tests {
             claude_path_str,
             Some(vec!["claude".to_string()]),
             Some("conversation_only".to_string()),
+            None,
             None,
             None,
         )
@@ -4943,6 +5461,7 @@ mod tests {
             Some("billing_total".to_string()),
             Some("2025-01-10T00:00:00Z".to_string()),
             Some("2025-01-10T23:59:59.999Z".to_string()),
+            None,
         )
         .await
         .expect("failed to get filtered global summary");
@@ -4950,6 +5469,91 @@ mod tests {
         assert_eq!(summary.total_projects, 1);
         assert_eq!(summary.total_sessions, 1);
         assert_eq!(summary.total_tokens, 22);
+    }
+
+    /// Write one assistant session line with the given token counts under
+    /// `<base>/projects/<project>/session.jsonl`.
+    fn write_claude_session(base: &Path, project: &str, input: u32, output: u32) {
+        let dir = base.join("projects").join(project);
+        fs::create_dir_all(&dir).expect("failed to create project dir");
+        let mut file = File::create(dir.join("session.jsonl")).expect("failed to create session");
+        let line = format!(
+            r#"{{"uuid":"u-{project}","sessionId":"s-{project}","timestamp":"2025-01-05T12:00:00Z","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"x"}}],"id":"m-{project}","model":"claude-sonnet-4","usage":{{"input_tokens":{input},"output_tokens":{output}}}}},"isSidechain":false}}"#
+        );
+        writeln!(file, "{line}").expect("failed to write session");
+    }
+
+    #[tokio::test]
+    /// Global summary must aggregate custom Claude directories, not just the default
+    /// root (#362) — and must NOT when no custom paths are supplied.
+    async fn test_global_summary_includes_custom_claude_paths() {
+        let default_dir = TempDir::new().expect("default tempdir");
+        let custom_dir = TempDir::new().expect("custom tempdir");
+        write_claude_session(default_dir.path(), "proj-default", 10, 1);
+        write_claude_session(custom_dir.path(), "proj-custom", 20, 2);
+
+        let customs = Some(vec![
+            crate::commands::multi_provider::CustomClaudePathParam {
+                path: custom_dir.path().to_string_lossy().to_string(),
+                label: Some("Personal".to_string()),
+            },
+        ]);
+
+        let with_custom = get_global_stats_summary(
+            default_dir.path().to_string_lossy().to_string(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            customs,
+        )
+        .await
+        .expect("failed to get global summary with custom paths");
+        assert_eq!(with_custom.total_projects, 2);
+        assert_eq!(with_custom.total_sessions, 2);
+        assert_eq!(with_custom.total_tokens, 11 + 22);
+
+        // Control: without custom paths, only the default root is aggregated.
+        let default_only = get_global_stats_summary(
+            default_dir.path().to_string_lossy().to_string(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("failed to get default-only global summary");
+        assert_eq!(default_only.total_projects, 1);
+        assert_eq!(default_only.total_tokens, 11);
+    }
+
+    #[tokio::test]
+    /// An invalid custom Claude path (no projects/ dir) is skipped, not fatal.
+    async fn test_global_summary_skips_invalid_custom_claude_path() {
+        let default_dir = TempDir::new().expect("default tempdir");
+        let bogus_dir = TempDir::new().expect("bogus tempdir"); // exists but has no projects/
+        write_claude_session(default_dir.path(), "proj-default", 10, 1);
+
+        let customs = Some(vec![
+            crate::commands::multi_provider::CustomClaudePathParam {
+                path: bogus_dir.path().to_string_lossy().to_string(),
+                label: None,
+            },
+        ]);
+
+        let summary = get_global_stats_summary(
+            default_dir.path().to_string_lossy().to_string(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            customs,
+        )
+        .await
+        .expect("invalid custom path must not be fatal");
+        assert_eq!(summary.total_projects, 1);
+        assert_eq!(summary.total_tokens, 11);
     }
 
     #[tokio::test]
@@ -5003,6 +5607,7 @@ mod tests {
             home.to_string_lossy().to_string(),
             Some(vec!["antigravity".to_string()]),
             Some("billing_total".to_string()),
+            None,
             None,
             None,
         )
@@ -5153,6 +5758,7 @@ mod tests {
             forge_dir.path().to_string_lossy().to_string(),
             Some(vec!["forgecode".to_string()]),
             Some("billing_total".to_string()),
+            None,
             None,
             None,
         )
@@ -5498,5 +6104,49 @@ mod tests {
         assert_eq!(stats.total_cache_creation_tokens, 28644);
         assert_eq!(stats.total_cache_read_tokens, 14732);
         assert_eq!(stats.total_tokens, 6 + 222 + 28644 + 14732);
+    }
+
+    /// `CodeBuddy` provider detection must be anchored under
+    /// `~/.codebuddy/projects`, not a substring match. Otherwise paths like
+    /// `/work/foo.codebuddy-test/...` get routed to `CodeBuddy` loaders that
+    /// then return empty / error, breaking stats for the actual provider.
+    /// Uses an injected home so the assertion is meaningful regardless of
+    /// the runner's environment.
+    #[test]
+    fn is_codebuddy_path_rejects_substring_lookalikes() {
+        let home = Path::new("/test-home/user");
+        // Substring-style matches that the OLD `path.contains(".codebuddy")`
+        // logic would have accepted — all must be rejected by the anchored
+        // version.
+        assert!(
+            !is_codebuddy_path_under("/work/foo.codebuddy-test/projects/abc.jsonl", home),
+            "name suffix lookalike must not match"
+        );
+        assert!(
+            !is_codebuddy_path_under("/Users/dev/notes/.codebuddy-clone/data.jsonl", home),
+            "hidden-dir lookalike must not match"
+        );
+        assert!(
+            !is_codebuddy_path_under("/tmp/sample.codebuddy.jsonl", home),
+            "filename containing the substring must not match"
+        );
+    }
+
+    /// Real-shaped `CodeBuddy` paths must still be detected. Mirrors the
+    /// runtime layout: `~/.codebuddy/projects/<project>/<session>.jsonl`.
+    /// Uses an injected home so the test does not silently skip on runners
+    /// without `$HOME` and does not depend on the actual user's filesystem.
+    #[test]
+    fn is_codebuddy_path_accepts_real_layout() {
+        let home = Path::new("/test-home/user");
+        let real = home
+            .join(".codebuddy")
+            .join("projects")
+            .join("my-project")
+            .join("session-1.jsonl");
+        assert!(
+            is_codebuddy_path_under(real.to_string_lossy().as_ref(), home),
+            "anchored detection must accept ~/.codebuddy/projects/.../*.jsonl"
+        );
     }
 }

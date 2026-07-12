@@ -65,11 +65,39 @@ const createTestStore = () =>
     ),
   }));
 
+const createReadOnlyTestStore = () =>
+  create<ArchiveSlice & { isServerReadOnly: boolean }>()((set, get) => ({
+    isServerReadOnly: true,
+    ...createArchiveSlice(
+      set as unknown as Parameters<typeof createArchiveSlice>[0],
+      get as unknown as Parameters<typeof createArchiveSlice>[1],
+    ),
+  }));
+
 describe("archiveSlice", () => {
   const mockGetExpiringSessions = vi.mocked(archiveApi.getExpiringSessions);
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("rejects archive mutations locally in server read-only mode", async () => {
+    const useStore = createReadOnlyTestStore();
+
+    await expect(
+      useStore.getState().createArchive({
+        name: "Snapshot",
+        sessionFilePaths: ["/tmp/session.jsonl"],
+        sourceProvider: "claude",
+        sourceProjectPath: "/tmp/project",
+        sourceProjectName: "project",
+      }),
+    ).rejects.toThrow("Server is running in read-only mode");
+
+    expect(archiveApi.createArchive).not.toHaveBeenCalled();
+    expect(useStore.getState().archive.error).toBe(
+      "Server is running in read-only mode",
+    );
   });
 
   it("ignores stale expiring-session responses when a newer request wins", async () => {

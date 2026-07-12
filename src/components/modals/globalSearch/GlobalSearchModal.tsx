@@ -48,7 +48,7 @@ export const GlobalSearchModal = ({
     const resultsContainerRef = useRef<HTMLDivElement>(null);
     const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage } =
+    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage, setAnalyticsCurrentView, userMetadata } =
         useAppStore();
     const [selectedProjectPath, setSelectedProjectPath] = useState<string>("all");
 
@@ -86,9 +86,13 @@ export const GlobalSearchModal = ({
 
     // Get session display name for a search result
     const getSessionName = useCallback((result: GlobalSearchResult): string | undefined => {
-        if (!result.sessionId) return undefined;
-        return getSessionDisplayName(result.sessionId);
-    }, [getSessionDisplayName]);
+        if (!result.sessionId || result.sessionId === "unknown-session") return undefined;
+        const name = getSessionDisplayName(result.sessionId);
+        if (name) return name;
+        // No custom/known name: show a short, stable conversation handle so results
+        // from different conversations are still distinguishable (#420).
+        return t("globalSearch.conversationId", { id: result.sessionId.slice(0, 8) });
+    }, [getSessionDisplayName, t]);
 
     // Debounced search
     const performSearch = useCallback(
@@ -113,10 +117,12 @@ export const GlobalSearchModal = ({
                     filters.messageType = messageTypeFilter;
                 }
                 const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
+                const wslEnabled = userMetadata?.settings?.wsl?.enabled ?? false;
+                const wslExcludedDistros = userMetadata?.settings?.wsl?.excludedDistros ?? [];
                 const searchResults = await api<GlobalSearchResult[]>(
-                    hasNonClaudeProviders ? "search_all_providers" : "search_messages",
-                    hasNonClaudeProviders
-                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: MAX_RESULTS }
+                    (hasNonClaudeProviders || wslEnabled) ? "search_all_providers" : "search_messages",
+                    (hasNonClaudeProviders || wslEnabled)
+                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: MAX_RESULTS, wslEnabled, wslExcludedDistros }
                         : { claudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
                 );
                 setResults(searchResults);
@@ -129,7 +135,7 @@ export const GlobalSearchModal = ({
                 setIsSearching(false);
             }
         },
-        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter],
+        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, userMetadata, t],
     );
 
     // Handle input change with debounce
@@ -160,6 +166,10 @@ export const GlobalSearchModal = ({
                 );
 
                 if (targetSession) {
+                    // Ensure the conversation pane is the active view — otherwise
+                    // a result clicked while in analytics/tokenStats/etc. loads the
+                    // session but stays hidden behind the other view (issue #390).
+                    setAnalyticsCurrentView("messages");
                     if (result.uuid) navigateToMessage(result.uuid);
                     await selectSession(targetSession);
                     onClose();
@@ -188,6 +198,7 @@ export const GlobalSearchModal = ({
                         );
 
                         if (targetSession) {
+                            setAnalyticsCurrentView("messages");
                             if (result.uuid) navigateToMessage(result.uuid);
                             await selectProject(project);
                             await selectSession(targetSession);
@@ -213,7 +224,7 @@ export const GlobalSearchModal = ({
                 onClose();
             }
         },
-        [projects, sessions, selectProject, selectSession, navigateToMessage, clearTargetMessage, onClose, t],
+        [projects, sessions, selectProject, selectSession, navigateToMessage, clearTargetMessage, setAnalyticsCurrentView, onClose, t],
     );
 
     // Keyboard navigation
@@ -587,8 +598,9 @@ export const GlobalSearchModal = ({
                                                             {(() => {
                                                                 const sessionName = getSessionName(result);
                                                                 return sessionName ? (
-                                                                    <p className="text-xs text-muted-foreground/70 truncate mb-0.5">
-                                                                        {sessionName}
+                                                                    <p className="flex items-center gap-1 text-xs text-muted-foreground/70 mb-0.5">
+                                                                        <MessageSquare className="w-3 h-3 shrink-0" />
+                                                                        <span className="truncate">{sessionName}</span>
                                                                     </p>
                                                                 ) : null;
                                                             })()}
@@ -630,7 +642,7 @@ export const GlobalSearchModal = ({
                             </span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono text-[10px]">
+                            <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono text-px10">
                                 esc
                             </kbd>
                             <span className="ml-1">

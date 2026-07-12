@@ -20,10 +20,15 @@ function sanitizeFilename(name: string): string {
   return safe.slice(0, 200) || "conversation";
 }
 
-export function useExport(messages: ClaudeMessage[], sessionName: string) {
+export function useExport(
+  messages: ClaudeMessage[],
+  sessionName: string,
+  options?: { includeSidechain?: boolean },
+) {
   const { t } = useTranslation();
   const [isExporting, setIsExporting] = useState(false);
   const { messageFilter, isMessageFilterActive } = useAppStore();
+  const includeSidechain = options?.includeSidechain === true;
 
   const exportConversation = useCallback(
     async (format: ExportFormat) => {
@@ -38,25 +43,28 @@ export function useExport(messages: ClaudeMessage[], sessionName: string) {
 
         // Pass content type filter to exporters when filters are active
         const ctFilter = isMessageFilterActive() ? messageFilter.contentTypes : undefined;
+        // When exporting a subagent session directly, its messages are all
+        // sidechain — keep them instead of filtering them out (issue #433).
+        const exportOptions = { includeSidechain };
 
         switch (format) {
           case "markdown": {
             const { exportToMarkdown } = await import("@/services/export/markdownExporter");
-            content = exportToMarkdown(messages, sessionName, ctFilter);
+            content = exportToMarkdown(messages, sessionName, ctFilter, exportOptions);
             defaultPath = `${safeName}.md`;
             mimeType = "text/markdown";
             break;
           }
           case "json": {
             const { exportToJson } = await import("@/services/export/jsonExporter");
-            content = exportToJson(messages, sessionName, ctFilter);
+            content = exportToJson(messages, sessionName, ctFilter, exportOptions);
             defaultPath = `${safeName}.json`;
             mimeType = "application/json";
             break;
           }
           case "html": {
             const { exportToHtml } = await import("@/services/export/htmlExporter");
-            content = exportToHtml(messages, sessionName, ctFilter);
+            content = exportToHtml(messages, sessionName, ctFilter, exportOptions);
             defaultPath = `${safeName}.html`;
             mimeType = "text/html";
             break;
@@ -80,7 +88,7 @@ export function useExport(messages: ClaudeMessage[], sessionName: string) {
         setIsExporting(false);
       }
     },
-    [messages, sessionName, t, messageFilter, isMessageFilterActive],
+    [messages, sessionName, t, messageFilter, isMessageFilterActive, includeSidechain],
   );
 
   return { isExporting, exportConversation };

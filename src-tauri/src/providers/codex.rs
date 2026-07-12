@@ -1,14 +1,23 @@
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
-use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
+use crate::utils::{
+    build_provider_message, estimate_message_count_from_size, find_line_ranges,
+    search_json_value_case_insensitive,
+};
 use chrono::{DateTime, Utc};
+use memchr::{memchr_iter, memmem};
 use memmap2::Mmap;
+use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::Path;
 use std::path::PathBuf;
 use walkdir::WalkDir;
+
+use crate::commands::session::NativeRenameResult;
+
+const STATE_DB_FILENAME: &str = "state_5.sqlite";
 
 /// Detect Codex CLI installation
 pub fn detect() -> Option<ProviderInfo> {
@@ -65,11 +74,82 @@ fn get_existing_session_dirs() -> Result<Vec<PathBuf>, String> {
         .collect())
 }
 
-fn is_rollout_jsonl(path: &Path) -> bool {
+// Codex generates these filenames itself, always lowercase — a
+// case-insensitive comparison would accept files Codex never writes.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
+pub(crate) fn is_rollout_jsonl(path: &Path) -> bool {
     path.file_name()
-        .map(|name| name.to_string_lossy().starts_with("rollout-"))
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            name.starts_with("rollout-")
+                && (name.ends_with(".jsonl") || name.ends_with(".jsonl.zst"))
+        })
+}
+
+/// Discovery filter for session walkers: accepts every rollout
+/// [`is_rollout_jsonl`] does, but skips a compressed `.jsonl.zst` whose plain
+/// `.jsonl` twin exists — Codex materializes the plain file for appends, so
+/// the plain one is the current version and listing both would duplicate the
+/// session.
+pub(crate) fn is_discoverable_rollout(path: &Path) -> bool {
+    if !is_rollout_jsonl(path) {
+        return false;
+    }
+    let is_compressed = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".jsonl.zst"));
+    if is_compressed {
+        // "rollout-….jsonl.zst" → "rollout-….jsonl"
+        let plain = path.with_extension("");
+        if plain.exists() {
+            return false;
+        }
+    }
+    true
+}
+
+/// Rollout file contents as a linear byte buffer: an mmap for plain `.jsonl`,
+/// a decompressed buffer for `.jsonl.zst` (Codex compresses old rollouts).
+enum RolloutBytes {
+    Mapped(Mmap),
+    Owned(Vec<u8>),
+}
+
+impl std::ops::Deref for RolloutBytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        match self {
+            RolloutBytes::Mapped(mmap) => mmap,
+            RolloutBytes::Owned(bytes) => bytes,
+        }
+    }
+}
+
+#[allow(unsafe_code)] // Required for mmap performance optimization
+fn read_rollout_bytes(path: &Path) -> Result<RolloutBytes, String> {
+    let file = File::open(path).map_err(|e| e.to_string())?;
+    let is_compressed = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".jsonl.zst"));
+    if is_compressed {
+        return zstd::decode_all(std::io::BufReader::new(file))
+            .map(RolloutBytes::Owned)
+            .map_err(|e| format!("Failed to decompress rollout: {e}"));
+    }
+    // SAFETY: File is read-only and we only read from the mapping
+    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
+    Ok(RolloutBytes::Mapped(mmap))
+}
+
+/// Return true when `session_path` is a Codex rollout JSONL inside the active
+/// or archived session roots.
+pub fn is_session_path(session_path: &str) -> bool {
+    let path = Path::new(session_path);
+    validate_session_path(path, session_path)
+        .map(|canonical_path| is_rollout_jsonl(&canonical_path))
         .unwrap_or(false)
-        && path.extension().is_some_and(|ext| ext == "jsonl")
 }
 
 fn validate_session_path(session_path: &Path, raw_session_path: &str) -> Result<PathBuf, String> {
@@ -105,19 +185,28 @@ fn validate_session_path(session_path: &Path, raw_session_path: &str) -> Result<
     Ok(canonical_session)
 }
 
-/// Session metadata extracted from rollout files
-struct SessionInfo {
-    session_id: String,
-    cwd: Option<String>,
+/// Session metadata extracted from rollout files. `pub(crate)` so providers
+/// that share the Codex rollout format (e.g. Open Interpreter) can reuse the
+/// extractors below.
+pub(crate) struct SessionInfo {
+    pub(crate) session_id: String,
+    pub(crate) cwd: Option<String>,
     #[allow(dead_code)]
-    model: Option<String>,
-    message_count: usize,
-    first_message_time: String,
-    last_message_time: String,
-    last_modified: String,
-    file_path: String,
-    has_tool_use: bool,
-    summary: Option<String>,
+    pub(crate) model: Option<String>,
+    pub(crate) message_count: usize,
+    pub(crate) first_message_time: String,
+    pub(crate) last_message_time: String,
+    pub(crate) last_modified: String,
+    pub(crate) file_path: String,
+    pub(crate) has_tool_use: bool,
+    pub(crate) summary: Option<String>,
+}
+
+/// Lightweight metadata used by project-level scans.
+pub(crate) struct ProjectScanInfo {
+    pub(crate) cwd: Option<String>,
+    pub(crate) message_count: usize,
+    pub(crate) last_modified: String,
 }
 
 /// Scan Codex projects from a specific base path.
@@ -142,7 +231,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
     }
 
     // Group sessions by cwd
-    let mut project_map: HashMap<String, Vec<SessionInfo>> = HashMap::new();
+    let mut project_map: HashMap<String, Vec<ProjectScanInfo>> = HashMap::new();
 
     for session_dir in session_dirs {
         for entry in WalkDir::new(session_dir)
@@ -150,11 +239,11 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| e.file_type().is_file())
-            .filter(|e| is_rollout_jsonl(e.path()))
+            .filter(|e| is_discoverable_rollout(e.path()))
         {
             let rollout_path = entry.path();
 
-            if let Ok(info) = extract_session_info(rollout_path) {
+            if let Ok(info) = extract_project_scan_info(rollout_path) {
                 let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
                 project_map.entry(cwd).or_default().push(info);
             }
@@ -209,6 +298,9 @@ pub fn load_sessions(
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     let session_dirs = get_existing_session_dirs()?;
+    let title_index = get_base_path()
+        .map(|base_path| load_native_title_index(&base_path))
+        .unwrap_or_default();
 
     if session_dirs.is_empty() {
         return Ok(vec![]);
@@ -227,12 +319,18 @@ pub fn load_sessions(
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| e.file_type().is_file())
-            .filter(|e| is_rollout_jsonl(e.path()))
+            .filter(|e| is_discoverable_rollout(e.path()))
         {
             let rollout_path = entry.path();
 
+            match extract_session_cwd(rollout_path) {
+                Ok(Some(session_cwd)) if session_cwd != target_cwd => continue,
+                Ok(_) | Err(_) => {}
+            }
+
             if let Ok(info) = extract_session_info(rollout_path) {
-                let session_cwd = info.cwd.as_deref().unwrap_or("");
+                let native_title = title_index.get(&info.session_id);
+                let session_cwd = info.cwd.as_deref().unwrap_or("unknown");
                 if session_cwd != target_cwd {
                     continue;
                 }
@@ -251,8 +349,8 @@ pub fn load_sessions(
                     last_modified: info.last_modified,
                     has_tool_use: info.has_tool_use,
                     has_errors: false,
-                    summary: info.summary,
-                    is_renamed: false,
+                    summary: native_title.cloned().or(info.summary),
+                    is_renamed: native_title.is_some(),
                     provider: Some("codex".to_string()),
                     storage_type: None,
                     entrypoint: None,
@@ -266,21 +364,29 @@ pub fn load_sessions(
 }
 
 /// Load all messages from a Codex rollout file
-#[allow(unsafe_code)] // Required for mmap performance optimization
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let path = Path::new(session_path);
     if !path.exists() {
         return Err(format!("Session file not found: {session_path}"));
     }
     let canonical_path = validate_session_path(path, session_path)?;
+    parse_rollout_file(&canonical_path)
+}
 
-    let file = File::open(&canonical_path).map_err(|e| e.to_string())?;
-    // SAFETY: File is read-only and we only read from the mapping
-    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
+/// Parse an already-validated Codex rollout JSONL file into messages. Pure of
+/// base-path/scheme concerns so providers sharing the identical rollout format
+/// (e.g. Open Interpreter) can validate against their own root, call this, and
+/// re-tag the provider on the result.
+#[allow(unsafe_code)] // Required for mmap performance optimization
+pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMessage>, String> {
+    let mmap = read_rollout_bytes(canonical_path)?;
     let ranges = find_line_ranges(&mmap);
 
     let mut messages = Vec::new();
-    let mut session_id = String::new();
+    // Filename-derived fallback id; the first session_meta overrides it
+    // (meta-less rollouts keep it — issue #451 follow-up).
+    let mut session_id = session_id_from_rollout_filename(canonical_path).unwrap_or_default();
+    let mut meta_seen = false;
     let mut current_model: Option<String> = None;
     let mut prev_input_tokens: u32 = 0;
     let mut prev_output_tokens: u32 = 0;
@@ -303,7 +409,10 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         let line_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
         match line_type {
-            "session_meta" => {
+            // First session_meta only — later ones are history replayed by
+            // `codex fork` and must not re-tag messages with the source's id.
+            "session_meta" if !meta_seen => {
+                meta_seen = true;
                 if let Some(payload) = val.get("payload") {
                     session_id = payload
                         .get("id")
@@ -427,7 +536,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| e.file_type().is_file())
-            .filter(|e| is_rollout_jsonl(e.path()))
+            .filter(|e| is_discoverable_rollout(e.path()))
         {
             let rollout_path = entry.path();
 
@@ -450,19 +559,365 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     Ok(results)
 }
 
+/// Rename a Codex CLI session by updating its native thread title in
+/// `state_5.sqlite`. Codex stores the authoritative, resume-picker-visible
+/// name in `threads.title`; the rollout JSONL remains the immutable transcript.
+pub fn rename_session_title(
+    session_path: &str,
+    new_title: &str,
+) -> Result<NativeRenameResult, String> {
+    let base_path = get_base_path().ok_or_else(|| "Codex not found".to_string())?;
+    rename_session_title_from_path(&base_path, session_path, new_title)
+}
+
+fn rename_session_title_from_path(
+    base_path: &str,
+    session_path: &str,
+    new_title: &str,
+) -> Result<NativeRenameResult, String> {
+    let canonical_path = validate_session_path(Path::new(session_path), session_path)?;
+    if !is_rollout_jsonl(&canonical_path) {
+        return Err(format!("Invalid Codex rollout path: {session_path}"));
+    }
+
+    let info = extract_session_info(&canonical_path)?;
+    if info.session_id.is_empty() {
+        return Err("Codex rollout is missing session metadata id".to_string());
+    }
+
+    let conn = open_state_db_read_write(base_path)?;
+    let (previous_title, first_user_message): (String, String) = conn
+        .query_row(
+            "SELECT title, first_user_message FROM threads WHERE id = ?1",
+            rusqlite::params![&info.session_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|e| {
+            if matches!(e, rusqlite::Error::QueryReturnedNoRows) {
+                format!(
+                    "Codex thread not found in state database: {}",
+                    info.session_id
+                )
+            } else {
+                format!("Failed to read Codex thread metadata: {e}")
+            }
+        })?;
+
+    let normalized_title = new_title.trim();
+    if normalized_title.chars().any(|ch| ch == '\n' || ch == '\r') {
+        return Err("Invalid title: Title cannot contain newline characters".to_string());
+    }
+
+    let reset_title = if first_user_message.trim().is_empty() {
+        info.summary.clone().unwrap_or_default()
+    } else {
+        first_user_message
+    };
+    let next_title = if normalized_title.is_empty() {
+        reset_title
+    } else {
+        normalized_title.to_string()
+    };
+
+    let affected_rows = conn
+        .execute(
+            "UPDATE threads SET title = ?1 WHERE id = ?2",
+            rusqlite::params![&next_title, &info.session_id],
+        )
+        .map_err(|e| format!("Failed to rename Codex session: {e}"))?;
+
+    if affected_rows == 0 {
+        return Err(format!(
+            "Codex thread not found in state database: {}",
+            info.session_id
+        ));
+    }
+
+    Ok(NativeRenameResult {
+        success: true,
+        previous_title,
+        new_title: next_title,
+        file_path: session_path.to_string(),
+    })
+}
+
+/// Best-effort removal of a Codex session's `threads` row from `state_5.sqlite`
+/// when the session is deleted, so a native-rename title (see
+/// `rename_session_title`) does not linger as an orphaned row after the rollout
+/// transcript is gone. Must be called BEFORE the rollout file is trashed — the
+/// session id is read from the rollout itself.
+///
+/// Returns `Ok(())` when there is nothing to clean up (no state database, or no
+/// matching row); only a genuine DB/IO failure is an `Err`.
+pub fn delete_session_title(session_path: &str) -> Result<(), String> {
+    let base_path = get_base_path().ok_or_else(|| "Codex not found".to_string())?;
+    let canonical_path = validate_session_path(Path::new(session_path), session_path)?;
+    if !is_rollout_jsonl(&canonical_path) {
+        return Err(format!("Invalid Codex rollout path: {session_path}"));
+    }
+
+    // No state database means there is no native title to clean up.
+    if !state_db_path(&base_path).is_file() {
+        return Ok(());
+    }
+
+    let info = extract_session_info(&canonical_path)?;
+    if info.session_id.is_empty() {
+        return Ok(());
+    }
+
+    let conn = open_state_db_read_write(&base_path)?;
+    conn.execute(
+        "DELETE FROM threads WHERE id = ?1",
+        rusqlite::params![&info.session_id],
+    )
+    .map_err(|e| format!("Failed to delete Codex thread row: {e}"))?;
+
+    Ok(())
+}
+
 // ============================================================================
 // Internal helpers
 // ============================================================================
 
+const JSON_TYPE_KEY: &[u8] = b"\"type\"";
+fn skip_json_ws(bytes: &[u8], mut index: usize) -> usize {
+    while bytes
+        .get(index)
+        .is_some_and(|b| matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
+    {
+        index += 1;
+    }
+    index
+}
+
+fn has_json_string_field_value(line: &[u8], key: &[u8], value: &[u8]) -> bool {
+    let mut search_offset = 0;
+    while search_offset < line.len() {
+        let Some(relative_pos) = memmem::find(&line[search_offset..], key) else {
+            return false;
+        };
+
+        let mut index = search_offset + relative_pos + key.len();
+        index = skip_json_ws(line, index);
+        if line.get(index) != Some(&b':') {
+            search_offset = index.min(line.len());
+            continue;
+        }
+
+        index = skip_json_ws(line, index + 1);
+        if line.get(index) != Some(&b'"') {
+            search_offset = index.min(line.len());
+            continue;
+        }
+
+        let value_start = index + 1;
+        let value_end = value_start + value.len();
+        if line.get(value_start..value_end) == Some(value) && line.get(value_end) == Some(&b'"') {
+            return true;
+        }
+
+        search_offset = value_end.min(line.len());
+    }
+
+    false
+}
+
+fn for_each_jsonl_line(data: &[u8], mut visit: impl FnMut(&[u8]) -> bool) {
+    let mut start = 0;
+    for end in memchr_iter(b'\n', data) {
+        let line_end = if end > start && data[end - 1] == b'\r' {
+            end - 1
+        } else {
+            end
+        };
+        if !visit(&data[start..line_end]) {
+            return;
+        }
+        start = end + 1;
+    }
+
+    if start < data.len() {
+        let line = &data[start..];
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        visit(line);
+    }
+}
+
+fn parse_session_meta_cwd(line: &[u8]) -> Option<String> {
+    if !has_json_string_field_value(line, JSON_TYPE_KEY, b"session_meta") {
+        return None;
+    }
+
+    let mut buf = line.to_vec();
+    let val: Value = simd_json::from_slice(&mut buf).ok()?;
+    if val.get("type").and_then(|t| t.as_str()) != Some("session_meta") {
+        return None;
+    }
+
+    val.get("payload")?
+        .get("cwd")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+}
+
+/// cwd from a `turn_context` line, the fallback identity source for
+/// rollouts that carry no `session_meta` at all (issue #451 follow-up).
+fn parse_turn_context_cwd(line: &[u8]) -> Option<String> {
+    if !has_json_string_field_value(line, JSON_TYPE_KEY, b"turn_context") {
+        return None;
+    }
+
+    let mut buf = line.to_vec();
+    let val: Value = simd_json::from_slice(&mut buf).ok()?;
+    if val.get("type").and_then(|t| t.as_str()) != Some("turn_context") {
+        return None;
+    }
+
+    val.get("payload")?
+        .get("cwd")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+}
+
+/// Session id derived from the rollout filename
+/// (`rollout-<timestamp>-<uuid>.jsonl` → `<uuid>`); `None` when the stem
+/// doesn't end in a UUID.
+pub(crate) fn session_id_from_rollout_filename(path: &Path) -> Option<String> {
+    let stem = path.file_stem()?.to_str()?;
+    // For "rollout-….jsonl.zst", file_stem still ends with ".jsonl".
+    let stem = stem.strip_suffix(".jsonl").unwrap_or(stem);
+    if stem.len() < 36 {
+        return None;
+    }
+    let tail = &stem[stem.len() - 36..];
+    let is_uuid = tail.bytes().enumerate().all(|(i, b)| match i {
+        8 | 13 | 18 | 23 => b == b'-',
+        _ => b.is_ascii_hexdigit(),
+    });
+    is_uuid.then(|| tail.to_string())
+}
+
+fn file_modified_rfc3339(path: &Path) -> String {
+    fs::metadata(path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .map(|t| {
+            let dt: DateTime<Utc> = t.into();
+            dt.to_rfc3339()
+        })
+        .unwrap_or_else(|| Utc::now().to_rfc3339())
+}
+
+fn estimate_rollout_message_count(path: &Path) -> usize {
+    fs::metadata(path)
+        .map(|metadata| estimate_message_count_from_size(metadata.len()))
+        .unwrap_or(0)
+}
+
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
-    let file = File::open(rollout_path).map_err(|e| e.to_string())?;
-    // SAFETY: File is read-only and we only read from the mapping
-    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
+pub(crate) fn extract_session_cwd(rollout_path: &Path) -> Result<Option<String>, String> {
+    let mmap = read_rollout_bytes(rollout_path)?;
+
+    let mut cwd = None;
+    let mut turn_context_cwd = None;
+    for_each_jsonl_line(&mmap, |line| {
+        if let Some(found) = parse_session_meta_cwd(line) {
+            cwd = Some(found);
+            return false;
+        }
+        // Fallback for rollouts without any session_meta: the LAST
+        // turn_context's cwd is where the session actually runs (a fork
+        // replays the source's turn contexts first) — issue #451 follow-up.
+        if let Some(found) = parse_turn_context_cwd(line) {
+            turn_context_cwd = Some(found);
+        }
+        true
+    });
+
+    Ok(cwd.or(turn_context_cwd))
+}
+
+pub(crate) fn extract_project_scan_info(rollout_path: &Path) -> Result<ProjectScanInfo, String> {
+    Ok(ProjectScanInfo {
+        cwd: extract_session_cwd(rollout_path)?,
+        // Project list scans stay lightweight; session-level message counts
+        // are still computed exactly when the project is opened.
+        message_count: estimate_rollout_message_count(rollout_path),
+        last_modified: file_modified_rfc3339(rollout_path),
+    })
+}
+
+fn state_db_path(base_path: &str) -> PathBuf {
+    Path::new(base_path).join(STATE_DB_FILENAME)
+}
+
+fn open_state_db(base_path: &str) -> Option<Connection> {
+    let db_path = state_db_path(base_path);
+    if !db_path.is_file() {
+        return None;
+    }
+
+    Connection::open_with_flags(
+        db_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .ok()
+}
+
+fn open_state_db_read_write(base_path: &str) -> Result<Connection, String> {
+    let db_path = state_db_path(base_path);
+    if !db_path.is_file() {
+        return Err(format!(
+            "Codex state database not found: {}",
+            db_path.display()
+        ));
+    }
+
+    Connection::open_with_flags(
+        db_path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|e| format!("Failed to open Codex state database: {e}"))
+}
+
+fn load_native_title_index(base_path: &str) -> HashMap<String, String> {
+    let Some(conn) = open_state_db(base_path) else {
+        return HashMap::new();
+    };
+    let Ok(mut stmt) = conn.prepare("SELECT id, title, first_user_message FROM threads") else {
+        return HashMap::new();
+    };
+    let Ok(rows) = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    }) else {
+        return HashMap::new();
+    };
+
+    rows.filter_map(std::result::Result::ok)
+        .filter_map(|(id, title, first_user_message)| {
+            let title = title.trim();
+            if title.is_empty() || title == first_user_message.trim() {
+                return None;
+            }
+            Some((id, title.to_string()))
+        })
+        .collect()
+}
+
+#[allow(unsafe_code)] // Required for mmap performance optimization
+pub(crate) fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
+    let mmap = read_rollout_bytes(rollout_path)?;
     let ranges = find_line_ranges(&mmap);
 
     let mut session_id = String::new();
+    let mut meta_seen = false;
     let mut cwd = None;
+    let mut turn_context_cwd = None;
     let mut model = None;
     let mut message_count = 0usize;
     let mut first_time = String::new();
@@ -481,7 +936,13 @@ fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
         let line_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
         match line_type {
-            "session_meta" => {
+            // Only the FIRST session_meta identifies the file. `codex fork`
+            // replays the source rollout verbatim into the new file, so a
+            // forked rollout contains the source's session_meta as history
+            // after its own — taking the last one misfiles the session under
+            // the source cwd (issue #451).
+            "session_meta" if !meta_seen => {
+                meta_seen = true;
                 if let Some(payload) = val.get("payload") {
                     session_id = payload
                         .get("id")
@@ -494,12 +955,19 @@ fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
                         .map(String::from);
                 }
             }
-            "turn_context" if model.is_none() => {
+            "turn_context" => {
                 if let Some(payload) = val.get("payload") {
-                    model = payload
-                        .get("model")
-                        .and_then(|v| v.as_str())
-                        .map(String::from);
+                    if model.is_none() {
+                        model = payload
+                            .get("model")
+                            .and_then(|v| v.as_str())
+                            .map(String::from);
+                    }
+                    // Last turn_context wins — the fallback cwd for
+                    // rollouts without any session_meta (issue #451).
+                    if let Some(tc_cwd) = payload.get("cwd").and_then(|v| v.as_str()) {
+                        turn_context_cwd = Some(tc_cwd.to_string());
+                    }
                 }
             }
             "response_item" => {
@@ -556,17 +1024,21 @@ fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
     }
 
     let last_modified = if last_time.is_empty() {
-        fs::metadata(rollout_path)
-            .ok()
-            .and_then(|m| m.modified().ok())
-            .map(|t| {
-                let dt: DateTime<Utc> = t.into();
-                dt.to_rfc3339()
-            })
-            .unwrap_or_else(|| Utc::now().to_rfc3339())
+        file_modified_rfc3339(rollout_path)
     } else {
         last_time.clone()
     };
+
+    // Meta-less rollout fallbacks (issue #451 follow-up): session id from
+    // the filename, cwd from the last turn_context.
+    if session_id.is_empty() {
+        if let Some(id) = session_id_from_rollout_filename(rollout_path) {
+            session_id = id;
+        }
+    }
+    if cwd.is_none() {
+        cwd = turn_context_cwd;
+    }
 
     Ok(SessionInfo {
         session_id,
@@ -1332,6 +1804,62 @@ mod tests {
         }
     }
 
+    fn write_codex_rollout(
+        sessions_dir: &Path,
+        filename: &str,
+        session_id: &str,
+        cwd: &str,
+        first_prompt: &str,
+    ) -> PathBuf {
+        let rollout_path = sessions_dir.join(filename);
+        let lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": session_id, "cwd": cwd }
+            }),
+            json!({
+                "timestamp": "2026-02-21T10:00:00Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-02-21T10:00:00Z",
+                    "content": [{ "type": "input_text", "text": first_prompt }]
+                }
+            }),
+        ];
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n"))
+            .expect("rollout fixture should be written");
+        rollout_path
+    }
+
+    fn create_codex_state_db(codex_home: &Path, rows: &[(&str, &str, &str)]) {
+        let conn = Connection::open(codex_home.join(STATE_DB_FILENAME))
+            .expect("codex state db should be created");
+        conn.execute(
+            "CREATE TABLE threads (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                first_user_message TEXT NOT NULL
+            )",
+            [],
+        )
+        .expect("threads table should be created");
+
+        for (id, title, first_user_message) in rows {
+            conn.execute(
+                "INSERT INTO threads (id, title, first_user_message) VALUES (?1, ?2, ?3)",
+                rusqlite::params![id, title, first_user_message],
+            )
+            .expect("thread row should be inserted");
+        }
+    }
+
     #[test]
     fn map_exec_command_to_bash() {
         assert_eq!(map_codex_tool_name("exec_command"), "Bash");
@@ -1476,6 +2004,52 @@ mod tests {
                 .and_then(Value::as_str),
             Some("*** Begin Patch")
         );
+    }
+
+    #[test]
+    fn convert_parallel_agent_function_calls_preserves_protocol_fields() {
+        let fixtures = [
+            (
+                json!({
+                    "type": "function_call",
+                    "name": "spawn_agent",
+                    "call_id": "call_spawn_1",
+                    "arguments": "{\"message\":\"Check the API\"}"
+                }),
+                "spawn_agent",
+            ),
+            (
+                json!({
+                    "type": "function_call",
+                    "name": "wait_agent",
+                    "call_id": "call_wait_1",
+                    "arguments": "{\"targets\":[\"agent-1\",\"agent-2\"]}"
+                }),
+                "wait_agent",
+            ),
+        ];
+        let mut counter = 0u64;
+
+        for (item, expected_name) in fixtures {
+            let msg = convert_codex_item(
+                &item,
+                "session-1",
+                None,
+                "2026-07-07T00:00:00Z",
+                &mut counter,
+            )
+            .expect("collaboration function call should be converted");
+            let block = msg
+                .content
+                .as_ref()
+                .and_then(Value::as_array)
+                .and_then(|blocks| blocks.first())
+                .expect("tool use block should exist");
+
+            assert_eq!(block["type"], "tool_use");
+            assert_eq!(block["name"], expected_name);
+            assert!(block["input"].is_object());
+        }
     }
 
     #[test]
@@ -2286,6 +2860,245 @@ mod tests {
 
     #[test]
     #[serial]
+    fn missing_cwd_sessions_load_from_unknown_project() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let rollout_path = sessions_dir.join("rollout-no-cwd.jsonl");
+        let lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": "no-cwd-session" }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-02-21T10:00:00Z",
+                    "content": [{ "type": "input_text", "text": "missing cwd" }]
+                }
+            }),
+        ];
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n")).expect("fixture should be written");
+
+        let projects = scan_projects_from_path(
+            codex_home
+                .to_str()
+                .expect("codex home path should be valid UTF-8"),
+        )
+        .expect("projects should be scanned");
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].path, "codex://unknown");
+
+        let sessions = load_sessions("codex://unknown", false).expect("sessions should be loaded");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].actual_session_id, "no-cwd-session");
+    }
+
+    #[test]
+    #[serial]
+    fn load_sessions_uses_codex_native_title_from_state_db() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let project_cwd = "/Users/jack/client/claude-code-history-viewer";
+        write_codex_rollout(
+            &sessions_dir,
+            "rollout-native-title.jsonl",
+            "native-title-session",
+            project_cwd,
+            "Original first prompt",
+        );
+        create_codex_state_db(
+            &codex_home,
+            &[(
+                "native-title-session",
+                "Pinned Codex title",
+                "Original first prompt",
+            )],
+        );
+
+        let sessions = load_sessions(&format!("codex://{project_cwd}"), false)
+            .expect("sessions should be loaded");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].summary.as_deref(), Some("Pinned Codex title"));
+        assert!(sessions[0].is_renamed);
+    }
+
+    #[test]
+    #[serial]
+    fn rename_session_title_updates_codex_state_db_and_resets_to_first_prompt() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let rollout_path = write_codex_rollout(
+            &sessions_dir,
+            "rollout-rename-title.jsonl",
+            "rename-title-session",
+            "/Users/jack/client/claude-code-history-viewer",
+            "Original first prompt",
+        );
+        create_codex_state_db(
+            &codex_home,
+            &[(
+                "rename-title-session",
+                "Original first prompt",
+                "Original first prompt",
+            )],
+        );
+
+        let result = rename_session_title(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+            "  Better Codex title  ",
+        )
+        .expect("rename should update state db");
+
+        assert_eq!(result.previous_title, "Original first prompt");
+        assert_eq!(result.new_title, "Better Codex title");
+
+        let conn = Connection::open(codex_home.join(STATE_DB_FILENAME))
+            .expect("codex state db should be readable");
+        let title: String = conn
+            .query_row(
+                "SELECT title FROM threads WHERE id = ?1",
+                rusqlite::params!["rename-title-session"],
+                |row| row.get(0),
+            )
+            .expect("renamed title should be readable");
+        assert_eq!(title, "Better Codex title");
+
+        let reset = rename_session_title(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+            "",
+        )
+        .expect("reset should update state db");
+        assert_eq!(reset.previous_title, "Better Codex title");
+        assert_eq!(reset.new_title, "Original first prompt");
+    }
+
+    #[test]
+    #[serial]
+    fn delete_session_title_removes_only_the_matching_thread_row() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let rollout_path = write_codex_rollout(
+            &sessions_dir,
+            "rollout-delete-cleanup.jsonl",
+            "delete-cleanup-session",
+            "/Users/jack/client/claude-code-history-viewer",
+            "Original first prompt",
+        );
+        create_codex_state_db(
+            &codex_home,
+            &[
+                (
+                    "delete-cleanup-session",
+                    "Pinned title",
+                    "Original first prompt",
+                ),
+                ("unrelated-session", "Keep me", "other prompt"),
+            ],
+        );
+
+        delete_session_title(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+        )
+        .expect("delete should clean the thread row");
+
+        let conn = Connection::open(codex_home.join(STATE_DB_FILENAME))
+            .expect("codex state db should be readable");
+        let removed: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM threads WHERE id = ?1",
+                rusqlite::params!["delete-cleanup-session"],
+                |row| row.get(0),
+            )
+            .expect("count query should run");
+        assert_eq!(removed, 0, "deleted session's thread row should be gone");
+
+        let kept: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM threads WHERE id = ?1",
+                rusqlite::params!["unrelated-session"],
+                |row| row.get(0),
+            )
+            .expect("count query should run");
+        assert_eq!(kept, 1, "unrelated thread rows must be untouched");
+    }
+
+    #[test]
+    #[serial]
+    fn delete_session_title_is_noop_without_state_db() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let rollout_path = write_codex_rollout(
+            &sessions_dir,
+            "rollout-no-state-db.jsonl",
+            "no-db-session",
+            "/tmp/project",
+            "hello",
+        );
+        // No state_5.sqlite exists — cleanup must be a no-op, not an error.
+        assert!(delete_session_title(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+        )
+        .is_ok());
+    }
+
+    #[test]
+    #[serial]
     fn load_messages_accepts_archived_session_path() {
         let tmp = TempDir::new().expect("temp dir should be created");
         let codex_home = tmp.path().join("codex-home");
@@ -2342,6 +3155,18 @@ mod tests {
         extract_session_info(&rollout_path).expect("extract_session_info should succeed")
     }
 
+    fn run_extract_project_scan_info_on_lines(lines: Vec<Value>) -> ProjectScanInfo {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let rollout_path = tmp.path().join("rollout-2026-05-13.jsonl");
+        let body = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{body}\n")).expect("rollout fixture should be written");
+        extract_project_scan_info(&rollout_path).expect("extract_project_scan_info should succeed")
+    }
+
     fn session_meta_line() -> Value {
         json!({
             "timestamp": "2026-05-13T08:00:00Z",
@@ -2363,6 +3188,66 @@ mod tests {
     }
 
     const ENV_CONTEXT_BLOCK: &str = "<environment_context>\n  <cwd>/tmp/proj</cwd>\n  <shell>powershell</shell>\n  <current_date>2026-05-13</current_date>\n  <timezone>Asia/Shanghai</timezone>\n</environment_context>";
+
+    #[test]
+    fn project_scan_info_uses_lightweight_metadata() {
+        let info = run_extract_project_scan_info_on_lines(vec![
+            session_meta_line(),
+            json!({
+                "timestamp": "2026-05-13T08:00:01Z",
+                "type": "event_msg",
+                "payload": { "type": "user_message", "message": "duplicate event" }
+            }),
+            json!({
+                "timestamp": "2026-05-13T08:00:02Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{ "type": "input_text", "text": "hello" }]
+                }
+            }),
+            json!({
+                "timestamp": "2026-05-13T08:00:03Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "name": "exec_command",
+                    "arguments": "{}"
+                }
+            }),
+            json!({
+                "timestamp": "2026-05-13T08:00:04Z",
+                "type": "response_item",
+                "payload": { "type": "reasoning", "summary": [] }
+            }),
+            json!({
+                "timestamp": "2026-05-13T08:00:05Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": "call-1",
+                    "output": "done"
+                }
+            }),
+        ]);
+
+        assert_eq!(info.cwd.as_deref(), Some("/tmp/proj"));
+        assert!(info.message_count > 0);
+        assert!(!info.last_modified.is_empty());
+    }
+
+    #[test]
+    fn json_field_matcher_accepts_whitespace_around_colon() {
+        let line = br#"{ "type" : "response_item", "payload": { "type" : "message" } }"#;
+
+        assert!(has_json_string_field_value(
+            line,
+            JSON_TYPE_KEY,
+            b"response_item"
+        ));
+        assert!(has_json_string_field_value(line, JSON_TYPE_KEY, b"message"));
+    }
 
     #[test]
     /// First user message is an auto-injected `<environment_context>` block;
@@ -2418,5 +3303,209 @@ mod tests {
         );
         // The wrapper still counts as a message — only the summary is gated.
         assert_eq!(info.message_count, 1);
+    }
+
+    fn session_meta_line_with(timestamp: &str, id: &str, cwd: &str) -> Value {
+        json!({
+            "timestamp": timestamp,
+            "type": "session_meta",
+            "payload": { "id": id, "cwd": cwd }
+        })
+    }
+
+    #[test]
+    /// `codex fork` creates the new rollout with its own `session_meta` first,
+    /// then replays the source rollout verbatim — including the source's
+    /// `session_meta` line. The first meta is the file's identity; later metas
+    /// are replayed history and must not override it (issue #451: forked
+    /// sessions vanished because the session filter used the last meta's cwd
+    /// while project scanning used the first).
+    fn extract_session_info_keeps_first_session_meta_on_forked_rollout() {
+        let info = run_extract_session_info_on_lines(vec![
+            session_meta_line_with("2026-05-13T08:00:00Z", "sess-fork-new", "/tmp/proj-b"),
+            session_meta_line_with("2026-05-12T08:00:00Z", "sess-orig", "/tmp/proj-a"),
+            user_message_line("2026-05-13T08:00:01Z", "continue from the forked session"),
+        ]);
+
+        assert_eq!(info.session_id, "sess-fork-new");
+        assert_eq!(info.cwd.as_deref(), Some("/tmp/proj-b"));
+    }
+
+    #[test]
+    /// Messages replayed after the source's `session_meta` line in a forked
+    /// rollout must carry the forked file's own session id, not the source's.
+    fn parse_rollout_file_keeps_first_session_meta_id_on_forked_rollout() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let rollout_path = tmp.path().join("rollout-2026-05-13.jsonl");
+        let lines = [
+            session_meta_line_with("2026-05-13T08:00:00Z", "sess-fork-new", "/tmp/proj-b"),
+            session_meta_line_with("2026-05-12T08:00:00Z", "sess-orig", "/tmp/proj-a"),
+            user_message_line("2026-05-13T08:00:01Z", "continue from the forked session"),
+        ];
+        let body = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{body}\n")).expect("rollout fixture should be written");
+
+        let messages =
+            parse_rollout_file(&rollout_path).expect("parse_rollout_file should succeed");
+
+        assert!(!messages.is_empty());
+        assert!(
+            messages.iter().all(|m| m.session_id == "sess-fork-new"),
+            "all messages should carry the forked file's own session id; got {:?}",
+            messages
+                .iter()
+                .map(|m| m.session_id.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    fn turn_context_line(timestamp: &str, cwd: &str) -> Value {
+        json!({
+            "timestamp": timestamp,
+            "type": "turn_context",
+            "payload": { "turn_id": "turn-1", "cwd": cwd, "model": "gpt-5" }
+        })
+    }
+
+    fn write_rollout_lines(dir: &Path, file_name: &str, lines: &[Value]) -> std::path::PathBuf {
+        let rollout_path = dir.join(file_name);
+        let body = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{body}\n")).expect("rollout fixture should be written");
+        rollout_path
+    }
+
+    #[test]
+    /// Newer Codex builds can leave rollouts with no `session_meta` line at
+    /// all (issue #451 follow-up). Identity must then come from fallbacks:
+    /// cwd from the LAST `turn_context` (a fork replays the source's turn
+    /// contexts first, so the last one is where the session actually runs)
+    /// and the session id from the rollout filename.
+    fn extract_session_info_falls_back_when_rollout_has_no_session_meta() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let rollout_path = write_rollout_lines(
+            tmp.path(),
+            "rollout-2026-07-09T10-00-00-019cf000-aaaa-7000-8000-f986e7b4c56a.jsonl",
+            &[
+                turn_context_line("2026-07-09T10:00:00Z", "/tmp/proj-a"),
+                user_message_line("2026-07-09T10:00:01Z", "replayed from the source session"),
+                turn_context_line("2026-07-09T10:00:02Z", "/tmp/proj-b"),
+                user_message_line("2026-07-09T10:00:03Z", "continue in the fork's folder"),
+            ],
+        );
+
+        let info = extract_session_info(&rollout_path).expect("extract_session_info");
+        assert_eq!(info.cwd.as_deref(), Some("/tmp/proj-b"));
+        assert_eq!(info.session_id, "019cf000-aaaa-7000-8000-f986e7b4c56a");
+
+        let cwd = extract_session_cwd(&rollout_path).expect("extract_session_cwd");
+        assert_eq!(cwd.as_deref(), Some("/tmp/proj-b"));
+    }
+
+    #[test]
+    /// `session_meta`, when present, still wins over any `turn_context` fallback.
+    fn extract_session_info_prefers_session_meta_over_turn_context() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let rollout_path = write_rollout_lines(
+            tmp.path(),
+            "rollout-2026-07-09T10-00-00-019cf000-bbbb-7000-8000-f986e7b4c56a.jsonl",
+            &[
+                session_meta_line_with("2026-07-09T10:00:00Z", "sess-meta", "/tmp/proj-meta"),
+                turn_context_line("2026-07-09T10:00:01Z", "/tmp/proj-turn"),
+                user_message_line("2026-07-09T10:00:02Z", "hello"),
+            ],
+        );
+
+        let info = extract_session_info(&rollout_path).expect("extract_session_info");
+        assert_eq!(info.cwd.as_deref(), Some("/tmp/proj-meta"));
+        assert_eq!(info.session_id, "sess-meta");
+        assert_eq!(
+            extract_session_cwd(&rollout_path).unwrap().as_deref(),
+            Some("/tmp/proj-meta")
+        );
+    }
+
+    #[test]
+    /// Messages in a meta-less rollout carry the filename-derived session id.
+    fn parse_rollout_file_uses_filename_session_id_without_meta() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let rollout_path = write_rollout_lines(
+            tmp.path(),
+            "rollout-2026-07-09T10-00-00-019cf000-cccc-7000-8000-f986e7b4c56a.jsonl",
+            &[
+                turn_context_line("2026-07-09T10:00:00Z", "/tmp/proj-b"),
+                user_message_line("2026-07-09T10:00:01Z", "no meta anywhere"),
+            ],
+        );
+
+        let messages = parse_rollout_file(&rollout_path).expect("parse_rollout_file");
+        assert!(!messages.is_empty());
+        assert!(messages
+            .iter()
+            .all(|m| m.session_id == "019cf000-cccc-7000-8000-f986e7b4c56a"));
+    }
+
+    #[test]
+    /// Codex compresses old rollouts to `.jsonl.zst`; they must stay
+    /// discoverable and parseable, and a compressed file whose plain twin
+    /// exists must be skipped (the plain one is the materialized, current
+    /// version).
+    fn compressed_rollouts_are_discovered_and_parsed() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+
+        let lines = [
+            session_meta_line_with("2026-07-09T10:00:00Z", "sess-zst", "/tmp/proj-z"),
+            user_message_line("2026-07-09T10:00:01Z", "hello from a compressed rollout"),
+        ];
+        let body = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let compressed = zstd::encode_all(body.as_bytes(), 3).expect("zstd encode");
+        let zst_path = tmp
+            .path()
+            .join("rollout-2026-07-09T10-00-00-019cf000-dddd-7000-8000-f986e7b4c56a.jsonl.zst");
+        fs::write(&zst_path, compressed).expect("write zst fixture");
+
+        assert!(is_rollout_jsonl(&zst_path));
+        assert!(is_discoverable_rollout(&zst_path));
+
+        let info = extract_session_info(&zst_path).expect("extract_session_info on zst");
+        assert_eq!(info.session_id, "sess-zst");
+        assert_eq!(info.cwd.as_deref(), Some("/tmp/proj-z"));
+
+        let messages = parse_rollout_file(&zst_path).expect("parse zst rollout");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].session_id, "sess-zst");
+
+        // Once the plain twin exists, the compressed copy is no longer listed.
+        let plain_path = zst_path.with_extension("");
+        fs::write(&plain_path, format!("{body}\n")).expect("write plain twin");
+        assert!(!is_discoverable_rollout(&zst_path));
+        assert!(is_discoverable_rollout(&plain_path));
+    }
+
+    #[test]
+    /// Filename-derived session ids also work for compressed rollouts, whose
+    /// `file_stem` still carries a ".jsonl" tail.
+    fn session_id_from_rollout_filename_handles_zst() {
+        assert_eq!(
+            session_id_from_rollout_filename(Path::new(
+                "rollout-2026-07-09T10-00-00-019cf000-eeee-7000-8000-f986e7b4c56a.jsonl.zst"
+            )),
+            Some("019cf000-eeee-7000-8000-f986e7b4c56a".to_string())
+        );
+        assert_eq!(
+            session_id_from_rollout_filename(Path::new("rollout-short.jsonl")),
+            None
+        );
     }
 }

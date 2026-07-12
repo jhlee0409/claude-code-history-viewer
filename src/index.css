@@ -539,7 +539,7 @@
 
   /* Prose typography overrides for compact display */
   .prose {
-    font-size: 0.75rem !important;
+    font-size: calc(0.75rem * var(--app-font-scale)) !important;
     line-height: 1.5 !important;
   }
 
@@ -549,19 +549,19 @@
   }
 
   .prose h1 {
-    font-size: 0.9375rem !important;
+    font-size: calc(0.9375rem * var(--app-font-scale)) !important;
     margin-top: 0 !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h2 {
-    font-size: 0.875rem !important;
+    font-size: calc(0.875rem * var(--app-font-scale)) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
 
   .prose h3 {
-    font-size: 0.8125rem !important;
+    font-size: calc(0.8125rem * var(--app-font-scale)) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
@@ -569,7 +569,7 @@
   .prose h4,
   .prose h5,
   .prose h6 {
-    font-size: 0.75rem !important;
+    font-size: calc(0.75rem * var(--app-font-scale)) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.375em !important;
   }
@@ -607,7 +607,7 @@
   }
 
   .prose pre {
-    font-size: 0.6875rem !important;
+    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
     line-height: 1.4 !important;
     margin-top: 0.5em !important;
     margin-bottom: 0.5em !important;
@@ -615,7 +615,7 @@
   }
 
   .prose code {
-    font-size: 0.6875rem !important;
+    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
     padding: 0.0625em 0.1875em !important;
   }
 
@@ -626,7 +626,7 @@
   }
 
   .prose table {
-    font-size: 0.6875rem !important;
+    font-size: calc(0.6875rem * var(--app-font-scale)) !important;
     margin-top: 0.75em !important;
     margin-bottom: 0.75em !important;
     width: 100% !important;
@@ -722,7 +722,7 @@
   }
 
   .prose kbd {
-    font-size: 0.625rem !important;
+    font-size: calc(0.625rem * var(--app-font-scale)) !important;
     font-family: var(--font-mono, ui-monospace, monospace) !important;
     background-color: var(--muted) !important;
     border: 1px solid var(--border) !important;
@@ -1035,7 +1035,9 @@
   }
 
   .metric-label {
-    @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground;
+    @apply font-semibold uppercase tracking-[0.1em] text-muted-foreground;
+    /* reactive 11px — respects the app font-size setting (#408/#412) */
+    font-size: calc(0.6875rem * var(--app-font-scale));
   }
 
   .metric-value {
@@ -1568,6 +1570,36 @@
     line-height: calc(0.8125rem * var(--app-font-scale));
   }
 
+  /* === Fixed pixel text sizes, made reactive to --app-font-scale (issue #408) ===
+     These replace arbitrary `text-[Npx]` classes, which compile to a literal
+     font-size and so ignore the app font-size setting. They set font-size only —
+     matching the original arbitrary-value behavior — so appearance is unchanged
+     except that they now scale with the user's font-size preference. */
+  .text-px6 {
+    font-size: calc(0.375rem * var(--app-font-scale));
+  }
+  .text-px8 {
+    font-size: calc(0.5rem * var(--app-font-scale));
+  }
+  .text-px9 {
+    font-size: calc(0.5625rem * var(--app-font-scale));
+  }
+  .text-px10 {
+    font-size: calc(0.625rem * var(--app-font-scale));
+  }
+  .text-px11 {
+    font-size: calc(0.6875rem * var(--app-font-scale));
+  }
+  .text-px12 {
+    font-size: calc(0.75rem * var(--app-font-scale));
+  }
+  .text-px13 {
+    font-size: calc(0.8125rem * var(--app-font-scale));
+  }
+  .text-px14 {
+    font-size: calc(0.875rem * var(--app-font-scale));
+  }
+
   /* === Text Wrapping === */
   .text-balance {
     text-wrap: balance;
@@ -1635,44 +1667,6 @@
     font-weight: 300;
     letter-spacing: -0.02em;
     line-height: 1.15;
-  }
-
-  /* Meta/Label text: uppercase with wide tracking */
-  .text-label {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .text-label-sm {
-    font-size: 0.625rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
-
-  /* Caption text */
-  .text-caption {
-    font-size: 0.75rem;
-    line-height: 1.4;
-    color: var(--muted-foreground);
-  }
-
-  /* Monospace data display */
-  .text-data {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.8125rem;
-    font-feature-settings: 'tnum' on, 'zero' on;
-    letter-spacing: -0.01em;
-  }
-
-  .text-data-lg {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 1.3125rem;
-    font-weight: 500;
-    font-feature-settings: 'tnum' on, 'zero' on;
-    letter-spacing: -0.02em;
   }
 
   /* === Text Gradients === */

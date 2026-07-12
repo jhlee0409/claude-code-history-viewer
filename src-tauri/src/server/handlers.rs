@@ -231,6 +231,8 @@ pub struct GlobalStatsParams {
     pub start_date: Option<String>,
     #[serde(default)]
     pub end_date: Option<String>,
+    #[serde(default)]
+    pub custom_claude_paths: Option<Vec<commands::multi_provider::CustomClaudePathParam>>,
 }
 
 #[derive(Deserialize)]
@@ -410,6 +412,14 @@ handler_no_params!(
     get_metadata_folder_path,
     commands::metadata::get_metadata_folder_path
 );
+
+pub async fn get_server_config(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Value>, ApiError> {
+    Ok(Json(serde_json::json!({
+        "readOnly": state.read_only,
+    })))
+}
 
 /// Note: scope parameter is accepted for API contract compatibility but not used
 /// by the underlying command (it always reads the global MCP config).
@@ -751,6 +761,7 @@ handler_json!(
             p.stats_mode,
             p.start_date,
             p.end_date,
+            p.custom_claude_paths,
         )
         .await
     }

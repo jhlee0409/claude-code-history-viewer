@@ -17,7 +17,7 @@ export interface AnalyticsDashboardProps {
 // ============================================================================
 
 export type MetricColorVariant = "green" | "purple" | "blue" | "amber";
-export type SectionColorVariant = "green" | "purple" | "blue" | "amber" | "accent";
+export type SectionColorVariant = "green" | "purple" | "blue" | "amber" | "pink" | "teal" | "accent";
 
 // ============================================================================
 // Component Props

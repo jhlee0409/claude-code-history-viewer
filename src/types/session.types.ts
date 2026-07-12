@@ -75,6 +75,10 @@ export interface SubagentSession {
   first_message_time: string | null;
   last_message_time: string | null;
   summary: string | null;
+  /** Task tool_use id that spawned this subagent (from agent-<id>.meta.json); null for older sessions. */
+  tool_use_id: string | null;
+  /** Workflow run this agent belongs to (wf_… dir under subagents/workflows/); null for flat subagents. */
+  workflow_run_id: string | null;
 }
 
 // ============================================================================

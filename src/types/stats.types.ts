@@ -107,6 +107,10 @@ export interface ProjectStatsSummary {
   total_session_duration: number; // in minutes
   most_active_hour: number;
   most_used_tools: ToolUsageStats[];
+  /** Claude skills (`Skill` tool) by invocation count; empty for non-Claude providers (#321). */
+  most_used_skills: ToolUsageStats[];
+  /** Claude subagents (`Agent` tool) by invocation count; empty for non-Claude providers (#321). */
+  most_used_subagents: ToolUsageStats[];
   daily_stats: DailyStats[];
   activity_heatmap: ActivityHeatmap[];
   token_distribution: {
@@ -165,6 +169,10 @@ export interface GlobalStatsSummary {
   daily_stats: DailyStats[];
   activity_heatmap: ActivityHeatmap[];
   most_used_tools: ToolUsageStats[];
+  /** Claude skills (`Skill` tool) by invocation count (#321). */
+  most_used_skills: ToolUsageStats[];
+  /** Claude subagents (`Agent` tool) by invocation count (#321). */
+  most_used_subagents: ToolUsageStats[];
   provider_distribution: ProviderUsageStats[];
   model_distribution: ModelStats[];
   top_projects: ProjectRanking[];

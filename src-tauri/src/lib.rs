@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod cli_args;
 pub mod commands;
+pub mod export;
 pub mod models;
 pub mod providers;
 pub mod utils;
@@ -8,6 +9,24 @@ pub mod wsl;
 
 #[cfg(feature = "webui-server")]
 pub mod server;
+
+#[cfg(feature = "webui-server")]
+const ALLOW_UNSAFE_NO_AUTH_FLAG: &str = "--allow-unsafe-no-auth";
+
+#[cfg(feature = "webui-server")]
+const MIN_CUSTOM_TOKEN_LENGTH: usize = 32;
+
+#[cfg(feature = "webui-server")]
+const AUTH_USER_FLAG: &str = "--auth-user";
+
+#[cfg(feature = "webui-server")]
+const AUTH_PASSWORD_HASH_FLAG: &str = "--auth-password-hash";
+
+#[cfg(feature = "webui-server")]
+const SECURE_COOKIES_FLAG: &str = "--secure-cookies";
+
+#[cfg(feature = "webui-server")]
+const PRINT_PASSWORD_HASH_FLAG: &str = "--print-password-hash";
 
 #[cfg(test)]
 pub mod test_utils;
@@ -62,6 +81,19 @@ use crate::commands::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Headless session export (issue #343): `--export <id|path> [--format html|json]
+    // [--output <file>]`. Handled before any GUI/webview so it works over SSH/CI
+    // with no display.
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if args
+            .iter()
+            .any(|a| a == "--export" || a.starts_with("--export="))
+        {
+            std::process::exit(export::run_export(&args));
+        }
+    }
+
     // Check for --serve flag (WebUI server mode)
     #[cfg(feature = "webui-server")]
     {
@@ -77,6 +109,8 @@ pub fn run() {
 
 /// Run the normal Tauri desktop application.
 fn run_tauri() {
+    configure_linux_ime_environment();
+
     // Workaround for WebKitGTK GPU process crash in AppImage environments.
     //
     // AppImage bundles Ubuntu-compiled EGL/Mesa libs, but the system's
@@ -280,10 +314,108 @@ fn run_tauri() {
         });
 }
 
+#[cfg(test)]
+mod ime_environment_tests {
+    use super::linux_ime_environment_updates;
+
+    #[test]
+    fn linux_ime_environment_sets_missing_ibus_variables_when_ibus_is_available() {
+        let updates = linux_ime_environment_updates(None, None, Some("unix:path=/tmp/ibus"));
+
+        assert_eq!(
+            updates,
+            vec![("GTK_IM_MODULE", "ibus"), ("XMODIFIERS", "@im=ibus"),]
+        );
+    }
+
+    #[test]
+    fn linux_ime_environment_preserves_existing_values() {
+        let updates =
+            linux_ime_environment_updates(Some("custom-gtk"), Some("@im=custom"), Some("ibus"));
+
+        assert!(updates.is_empty());
+    }
+
+    #[test]
+    fn linux_ime_environment_uses_existing_ibus_values_as_signal() {
+        let updates = linux_ime_environment_updates(Some("ibus"), None, None);
+
+        assert_eq!(updates, vec![("XMODIFIERS", "@im=ibus")]);
+    }
+
+    #[test]
+    fn linux_ime_environment_does_nothing_without_ibus_signal() {
+        let updates = linux_ime_environment_updates(None, None, None);
+
+        assert!(updates.is_empty());
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn configure_linux_ime_environment() {
+    // configure_linux_ime_environment runs during process startup before Tauri
+    // spawns threads, so applying linux_ime_environment_updates with
+    // std::env::set_var avoids the Rust 2024 environment mutation hazard.
+    let gtk_im_module = std::env::var("GTK_IM_MODULE").ok();
+    let xmodifiers = std::env::var("XMODIFIERS").ok();
+    let ibus_address = std::env::var("IBUS_ADDRESS").ok();
+
+    for (key, value) in linux_ime_environment_updates(
+        gtk_im_module.as_deref(),
+        xmodifiers.as_deref(),
+        ibus_address.as_deref(),
+    ) {
+        std::env::set_var(key, value);
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn configure_linux_ime_environment() {}
+
+// Pure helper used by the Linux IME setup above and exercised by unit tests;
+// gated to where it is referenced so non-Linux release builds do not see it as
+// dead code under `-D warnings`.
+#[cfg(any(target_os = "linux", test))]
+fn linux_ime_environment_updates(
+    gtk_im_module: Option<&str>,
+    xmodifiers: Option<&str>,
+    ibus_address: Option<&str>,
+) -> Vec<(&'static str, &'static str)> {
+    let has_ibus_signal = [gtk_im_module, xmodifiers, ibus_address]
+        .into_iter()
+        .flatten()
+        .any(|value| value.contains("ibus"));
+
+    if !has_ibus_signal {
+        return Vec::new();
+    }
+
+    let mut updates = Vec::new();
+
+    if gtk_im_module.map_or(true, str::is_empty) {
+        updates.push(("GTK_IM_MODULE", "ibus"));
+    }
+
+    if xmodifiers.map_or(true, str::is_empty) {
+        updates.push(("XMODIFIERS", "@im=ibus"));
+    }
+
+    updates
+}
+
 /// Run the Axum-based `WebUI` server (headless mode).
 #[cfg(feature = "webui-server")]
 fn run_server(args: &[String]) {
     use std::sync::Arc;
+
+    match maybe_print_password_hash(args) {
+        Ok(true) => return,
+        Ok(false) => {}
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(2);
+        }
+    }
 
     let port = crate::cli_args::extract_flag_value(args, "--port")
         .and_then(|v| v.parse::<u16>().ok())
@@ -291,10 +423,33 @@ fn run_server(args: &[String]) {
     let host = crate::cli_args::extract_flag_value(args, "--host")
         .unwrap_or_else(|| "0.0.0.0".to_string());
     let dist_dir = crate::cli_args::extract_flag_value(args, "--dist");
+    let read_only = args.iter().any(|a| a == "--read-only");
+    let base_path = crate::cli_args::extract_flag_value(args, "--base-path")
+        .map(|value| {
+            server::normalize_base_path(&value).unwrap_or_else(|error| {
+                eprintln!("❌ Invalid --base-path: {error}");
+                std::process::exit(2);
+            })
+        })
+        .unwrap_or_else(|| "/".to_string());
 
-    // Auth token: --token <value> | --no-auth | auto-generated uuid v4
-    let auth_token_info = resolve_auth_token(args);
-    let auth_token = auth_token_info.as_ref().map(|(token, _)| token.clone());
+    let resolved_auth = resolve_auth(args).unwrap_or_else(|message| {
+        eprintln!("{message}");
+        std::process::exit(2);
+    });
+    let allow_unsafe_no_auth = args.iter().any(|a| a == ALLOW_UNSAFE_NO_AUTH_FLAG);
+
+    if let Err(message) =
+        validate_auth_startup_options(&host, resolved_auth.auth.is_enabled(), allow_unsafe_no_auth)
+    {
+        eprintln!("{message}");
+        std::process::exit(2);
+    }
+
+    if let Err(message) = validate_account_cookie_security(&host, &resolved_auth.startup) {
+        eprintln!("{message}");
+        std::process::exit(2);
+    }
 
     let metadata = Arc::new(MetadataState::default());
     let (event_tx, _rx) =
@@ -303,7 +458,8 @@ fn run_server(args: &[String]) {
     let state = Arc::new(server::state::AppState {
         metadata,
         start_time: std::time::Instant::now(),
-        auth_token: auth_token.clone(),
+        auth: resolved_auth.auth.clone(),
+        read_only,
         event_tx,
     });
 
@@ -314,31 +470,77 @@ fn run_server(args: &[String]) {
         host.clone()
     };
     let display_addr = format!("{display_host}:{port}");
-    if let Some((token, source)) = auth_token_info {
-        let preview: String = token.chars().take(8).collect();
-        eprintln!("🔑 Auth token enabled: {preview}...");
-        eprintln!("   Open in browser: http://{display_addr}");
+    match &resolved_auth.startup {
+        AuthStartup::Token { token, source } => {
+            let preview: String = token.chars().take(8).collect();
+            eprintln!("🔑 Auth token enabled: {preview}...");
+            if is_weak_custom_token(token, *source) {
+                eprintln!(
+                    "⚠ Custom auth token is shorter than {MIN_CUSTOM_TOKEN_LENGTH} characters; use a strong random token for network access."
+                );
+            }
+            eprintln!(
+                "   Open in browser: http://{display_addr}{}",
+                server_base_href(&base_path)
+            );
 
-        match source {
-            AuthTokenSource::Generated => {
-                if let Some(path) = write_generated_token_file(&token) {
-                    eprintln!("   Generated token saved to: {}", path.to_string_lossy());
-                    eprintln!("   First login: append '?token=<token-from-file>' to the URL");
-                } else {
-                    eprintln!("⚠ Failed to persist generated token. Re-run with --token <value>.");
+            match source {
+                AuthTokenSource::Generated => {
+                    if let Some(path) = write_generated_token_file(token) {
+                        eprintln!("   Generated token saved to: {}", path.to_string_lossy());
+                        eprintln!("   First login: append '?token=<token-from-file>' to the URL");
+                    } else {
+                        eprintln!(
+                            "⚠ Failed to persist generated token. Re-run with --token <value>."
+                        );
+                    }
+                }
+                AuthTokenSource::Cli | AuthTokenSource::Env => {
+                    eprintln!("   First login: append '?token=<your-token>' to the URL");
                 }
             }
-            AuthTokenSource::Cli | AuthTokenSource::Env => {
-                eprintln!("   First login: append '?token=<your-token>' to the URL");
+        }
+        AuthStartup::Account {
+            username,
+            source,
+            secure_cookies,
+        } => {
+            eprintln!("🔐 Account auth enabled for user: {username}");
+            eprintln!(
+                "   Credentials source: {}",
+                match source {
+                    AccountAuthSource::Cli => "CLI flags",
+                    AccountAuthSource::Env => "environment variables",
+                }
+            );
+            if *secure_cookies {
+                eprintln!("   Secure cookies enabled; serve behind HTTPS.");
+            } else if !is_loopback_bind_host(&host) {
+                eprintln!(
+                    "⚠ Secure cookies are disabled. Add {SECURE_COOKIES_FLAG} when using HTTPS reverse proxy."
+                );
             }
+            eprintln!(
+                "   Open in browser: http://{display_addr}{}",
+                server_base_href(&base_path)
+            );
         }
-    } else {
-        eprintln!("🔓 Authentication disabled (--no-auth)");
-        if host == "0.0.0.0" {
-            eprintln!("⚠ WARNING: --no-auth with 0.0.0.0 exposes your data to the entire network!");
-            eprintln!("  Anyone on your network can read your conversation history without authentication.");
+        AuthStartup::Disabled => {
+            eprintln!("🔓 Authentication disabled (--no-auth)");
+            if !is_loopback_bind_host(&host) {
+                eprintln!(
+                    "⚠ WARNING: --no-auth on a non-loopback host exposes your data to the network!"
+                );
+                eprintln!("  Anyone on your network can read your conversation history without authentication.");
+            }
+            eprintln!(
+                "   Open in browser: http://{display_addr}{}",
+                server_base_href(&base_path)
+            );
         }
-        eprintln!("   Open in browser: http://{display_addr}");
+    }
+    if read_only {
+        eprintln!("🔒 Read-only mode enabled: mutating API endpoints will return 403");
     }
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
@@ -346,8 +548,17 @@ fn run_server(args: &[String]) {
         // Start background file watcher (sends events to broadcast channel)
         let _watcher_handle = start_server_file_watcher(&state);
 
-        server::start(state, &host, port, dist_dir.as_deref()).await;
+        server::start(state, &host, port, dist_dir.as_deref(), &base_path).await;
     });
+}
+
+#[cfg(feature = "webui-server")]
+fn server_base_href(base_path: &str) -> String {
+    if base_path == "/" {
+        "/".to_string()
+    } else {
+        format!("{base_path}/")
+    }
 }
 
 /// Detect the machine's LAN IP address by connecting a UDP socket to an
@@ -367,6 +578,291 @@ enum AuthTokenSource {
     Cli,
     Env,
     Generated,
+}
+
+#[cfg(feature = "webui-server")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AccountAuthSource {
+    Cli,
+    Env,
+}
+
+#[cfg(feature = "webui-server")]
+struct ResolvedAuth {
+    auth: server::auth::AuthState,
+    startup: AuthStartup,
+}
+
+#[cfg(feature = "webui-server")]
+enum AuthStartup {
+    Disabled,
+    Token {
+        token: String,
+        source: AuthTokenSource,
+    },
+    Account {
+        username: String,
+        source: AccountAuthSource,
+        secure_cookies: bool,
+    },
+}
+
+#[cfg(feature = "webui-server")]
+fn resolve_auth(args: &[String]) -> Result<ResolvedAuth, String> {
+    if args.iter().any(|a| a == "--no-auth") {
+        return Ok(ResolvedAuth {
+            auth: server::auth::AuthState::Disabled,
+            startup: AuthStartup::Disabled,
+        });
+    }
+
+    let secure_cookies = secure_cookies_enabled(args);
+    if let Some(account) = resolve_account_auth(args, secure_cookies)? {
+        return Ok(account);
+    }
+
+    let Some((token, source)) = resolve_auth_token(args) else {
+        return Ok(ResolvedAuth {
+            auth: server::auth::AuthState::Disabled,
+            startup: AuthStartup::Disabled,
+        });
+    };
+
+    Ok(ResolvedAuth {
+        auth: server::auth::AuthState::Token {
+            token: token.clone(),
+            secure_cookies,
+        },
+        startup: AuthStartup::Token { token, source },
+    })
+}
+
+#[cfg(feature = "webui-server")]
+fn resolve_account_auth(
+    args: &[String],
+    secure_cookies: bool,
+) -> Result<Option<ResolvedAuth>, String> {
+    let username_from_cli = require_non_empty_flag(args, AUTH_USER_FLAG)?;
+    let hash_from_cli = require_non_empty_flag(args, AUTH_PASSWORD_HASH_FLAG)?;
+    let username_from_env = non_empty_env("CCHV_AUTH_USERNAME");
+    let hash_from_env = non_empty_env("CCHV_AUTH_PASSWORD_HASH");
+
+    let username = username_from_cli
+        .clone()
+        .or(username_from_env)
+        .unwrap_or_default();
+    let password_hash = hash_from_cli.clone().or(hash_from_env).unwrap_or_default();
+
+    if username.is_empty() && password_hash.is_empty() {
+        return Ok(None);
+    }
+    if username.is_empty() {
+        return Err(
+            "Account auth is missing a username. Set --auth-user or CCHV_AUTH_USERNAME."
+                .to_string(),
+        );
+    }
+    if password_hash.is_empty() {
+        return Err(
+            "Account auth is missing a password hash. Set --auth-password-hash or CCHV_AUTH_PASSWORD_HASH."
+                .to_string(),
+        );
+    }
+    if !server::auth::password_hash_is_valid(&password_hash) {
+        return Err("Account auth password hash must be a valid Argon2 PHC string.".to_string());
+    }
+
+    let source = if username_from_cli.is_some() || hash_from_cli.is_some() {
+        AccountAuthSource::Cli
+    } else {
+        AccountAuthSource::Env
+    };
+
+    Ok(Some(ResolvedAuth {
+        auth: server::auth::AuthState::Account(std::sync::Arc::new(
+            server::auth::AccountAuth::new(username.clone(), password_hash, secure_cookies),
+        )),
+        startup: AuthStartup::Account {
+            username,
+            source,
+            secure_cookies,
+        },
+    }))
+}
+
+#[cfg(feature = "webui-server")]
+fn require_non_empty_flag(args: &[String], flag: &str) -> Result<Option<String>, String> {
+    if let Some(value) = crate::cli_args::extract_flag_value(args, flag) {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(format!("{flag} must not be empty"));
+        }
+        return Ok(Some(trimmed.to_string()));
+    }
+    if crate::cli_args::has_explicit_empty_flag(args, flag) {
+        return Err(format!("{flag} must not be empty"));
+    }
+    Ok(None)
+}
+
+#[cfg(feature = "webui-server")]
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+#[cfg(feature = "webui-server")]
+fn secure_cookies_enabled(args: &[String]) -> bool {
+    args.iter().any(|a| a == SECURE_COOKIES_FLAG)
+        || non_empty_env("CCHV_SECURE_COOKIES")
+            .map(|value| {
+                matches!(
+                    value.to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                )
+            })
+            .unwrap_or(false)
+}
+
+#[cfg(feature = "webui-server")]
+fn maybe_print_password_hash(args: &[String]) -> Result<bool, String> {
+    let requested = args
+        .iter()
+        .any(|arg| arg == PRINT_PASSWORD_HASH_FLAG || arg.starts_with("--print-password-hash="));
+    if !requested {
+        return Ok(false);
+    }
+
+    let cli_value = crate::cli_args::extract_flag_value(args, PRINT_PASSWORD_HASH_FLAG)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if cli_value.is_some() {
+        eprintln!(
+            "⚠ Passing the password on the command line exposes it in your shell history and process list. \
+Prefer: CCHV_AUTH_PASSWORD=<password> {PRINT_PASSWORD_HASH_FLAG}"
+        );
+    }
+
+    let password = cli_value
+        .or_else(|| non_empty_env("CCHV_AUTH_PASSWORD"))
+        .ok_or_else(|| {
+            format!(
+                "Set {PRINT_PASSWORD_HASH_FLAG} <password> or CCHV_AUTH_PASSWORD before generating a password hash."
+            )
+        })?;
+
+    let hash = server::auth::hash_password_argon2id(&password)?;
+    println!("{hash}");
+    Ok(true)
+}
+
+#[cfg(feature = "webui-server")]
+fn validate_auth_startup_options(
+    host: &str,
+    auth_enabled: bool,
+    allow_unsafe_no_auth: bool,
+) -> Result<(), String> {
+    if auth_enabled || is_loopback_bind_host(host) || allow_unsafe_no_auth {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Refusing to start with --no-auth on non-loopback host '{host}'. \
+Use --host 127.0.0.1 for local-only access, enable token auth, or add \
+{ALLOW_UNSAFE_NO_AUTH_FLAG} if you intentionally want unauthenticated network access."
+    ))
+}
+
+/// Account auth issues a multi-day session bearer cookie. On a non-loopback bind
+/// without secure cookies (i.e. plain HTTP), that cookie travels in cleartext and can
+/// be sniffed and replayed to hijack the session. Refuse to start in that case rather
+/// than only warning — mirroring the `--no-auth` guard. Loopback binds (local-only) and
+/// `--secure-cookies` (HTTPS / TLS-terminating reverse proxy) are allowed.
+#[cfg(feature = "webui-server")]
+fn validate_account_cookie_security(host: &str, startup: &AuthStartup) -> Result<(), String> {
+    if let AuthStartup::Account {
+        secure_cookies: false,
+        ..
+    } = startup
+    {
+        if !is_loopback_bind_host(host) {
+            return Err(format!(
+                "Refusing to start account auth on non-loopback host '{host}' without secure cookies. \
+The session cookie would be sent in cleartext and could be hijacked. \
+Add {SECURE_COOKIES_FLAG} when serving over HTTPS (e.g. behind a TLS reverse proxy), \
+or use --host 127.0.0.1 for local-only access."
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(all(test, feature = "webui-server"))]
+mod auth_startup_tests {
+    use super::*;
+
+    fn account(secure_cookies: bool) -> AuthStartup {
+        AuthStartup::Account {
+            username: "admin".to_string(),
+            source: AccountAuthSource::Cli,
+            secure_cookies,
+        }
+    }
+
+    #[test]
+    fn account_insecure_cookies_refused_on_non_loopback() {
+        assert!(validate_account_cookie_security("0.0.0.0", &account(false)).is_err());
+        assert!(validate_account_cookie_security("192.168.1.10", &account(false)).is_err());
+    }
+
+    #[test]
+    fn account_insecure_cookies_allowed_on_loopback() {
+        assert!(validate_account_cookie_security("127.0.0.1", &account(false)).is_ok());
+        assert!(validate_account_cookie_security("localhost", &account(false)).is_ok());
+    }
+
+    #[test]
+    fn account_secure_cookies_allowed_anywhere() {
+        assert!(validate_account_cookie_security("0.0.0.0", &account(true)).is_ok());
+    }
+
+    #[test]
+    fn non_account_modes_are_unaffected() {
+        assert!(validate_account_cookie_security("0.0.0.0", &AuthStartup::Disabled).is_ok());
+        assert!(validate_account_cookie_security(
+            "0.0.0.0",
+            &AuthStartup::Token {
+                token: "x".to_string(),
+                source: AuthTokenSource::Cli,
+            },
+        )
+        .is_ok());
+    }
+}
+
+#[cfg(feature = "webui-server")]
+fn is_loopback_bind_host(host: &str) -> bool {
+    let normalized = host
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim_end_matches('.');
+
+    if normalized.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+
+    normalized
+        .parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback())
+        .unwrap_or(false)
+}
+
+#[cfg(feature = "webui-server")]
+fn is_weak_custom_token(token: &str, source: AuthTokenSource) -> bool {
+    !matches!(source, AuthTokenSource::Generated) && token.chars().count() < MIN_CUSTOM_TOKEN_LENGTH
 }
 
 /// Resolve the authentication token from CLI arguments or environment.
@@ -459,6 +955,7 @@ fn start_server_file_watcher(
             .watch(path, notify::RecursiveMode::Recursive)
         {
             Ok(()) => {
+                crate::commands::watcher::prime_watch_signatures(path);
                 watched_count += 1;
                 eprintln!("👁 File watcher active: {}", path.display());
             }
@@ -526,6 +1023,28 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(kimi_base) = providers::kimi::get_base_path() {
+        let sessions = PathBuf::from(kimi_base).join("sessions");
+        if sessions.is_dir() {
+            paths.push(sessions);
+        }
+    }
+
+    // Pi / oh-my-pi: get_base_path() is already the sessions root.
+    if let Some(pi_base) = providers::pi::get_base_path() {
+        let sessions = PathBuf::from(pi_base);
+        if sessions.is_dir() {
+            paths.push(sessions);
+        }
+    }
+
+    if let Some(ompi_base) = providers::ompi::get_base_path() {
+        let sessions = PathBuf::from(ompi_base);
+        if sessions.is_dir() {
+            paths.push(sessions);
+        }
+    }
+
     if let Some(opencode_base) = providers::opencode::get_base_path() {
         let base = PathBuf::from(&opencode_base);
         let storage = base.join("storage");
@@ -541,6 +1060,113 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         let db_path = base.join("opencode.db");
         if db_path.is_file() {
             paths.push(base);
+        }
+    }
+
+    if let Some(codebuddy_base) = providers::codebuddy::get_base_path() {
+        let codebuddy_projects = PathBuf::from(codebuddy_base);
+        if codebuddy_projects.is_dir() {
+            paths.push(codebuddy_projects);
+        }
+    }
+
+    if let Some(cursor_agent_base) = providers::cursor_agent::get_base_path() {
+        let cursor_agent_projects = PathBuf::from(cursor_agent_base);
+        if cursor_agent_projects.is_dir() {
+            paths.push(cursor_agent_projects);
+        }
+    }
+
+    if let Some(continue_base) = providers::continue_dev::get_base_path() {
+        let continue_sessions = PathBuf::from(continue_base);
+        if continue_sessions.is_dir() {
+            paths.push(continue_sessions);
+        }
+    }
+
+    if let Some(pearai_base) = providers::pearai::get_base_path() {
+        let pearai_sessions = PathBuf::from(pearai_base);
+        if pearai_sessions.is_dir() {
+            paths.push(pearai_sessions);
+        }
+    }
+
+    if let Some(goose_base) = providers::goose::get_base_path() {
+        let goose_sessions = PathBuf::from(goose_base);
+        if goose_sessions.is_dir() {
+            paths.push(goose_sessions);
+        }
+    }
+
+    if let Some(llm_base) = providers::llm::get_base_path() {
+        let llm_dir = PathBuf::from(llm_base);
+        if llm_dir.is_dir() {
+            paths.push(llm_dir);
+        }
+    }
+
+    if let Some(amazon_q_base) = providers::amazon_q::get_base_path() {
+        let amazon_q_dir = PathBuf::from(amazon_q_base);
+        if amazon_q_dir.is_dir() {
+            paths.push(amazon_q_dir);
+        }
+    }
+
+    if let Some(oi_base) = providers::openinterpreter::get_base_path() {
+        for sub in ["sessions", "archived_sessions"] {
+            let dir = PathBuf::from(&oi_base).join(sub);
+            if dir.is_dir() {
+                paths.push(dir);
+            }
+        }
+    }
+
+    if let Some(qwen_base) = providers::qwen::get_base_path() {
+        let qwen_projects = PathBuf::from(qwen_base);
+        if qwen_projects.is_dir() {
+            paths.push(qwen_projects);
+        }
+    }
+
+    if let Some(zed_base) = providers::zed::get_base_path() {
+        let zed_dir = PathBuf::from(zed_base);
+        if zed_dir.is_dir() {
+            paths.push(zed_dir);
+        }
+    }
+
+    if let Some(oh_base) = providers::openhands::get_base_path() {
+        let oh_dir = PathBuf::from(oh_base);
+        if oh_dir.is_dir() {
+            paths.push(oh_dir);
+        }
+    }
+
+    if let Some(trae_base) = providers::trae::get_base_path() {
+        let trae_dir = PathBuf::from(trae_base);
+        if trae_dir.is_dir() {
+            paths.push(trae_dir);
+        }
+    }
+
+    if let Some(vibe_base) = providers::vibe::get_base_path() {
+        let vibe_sessions = PathBuf::from(vibe_base).join("logs/session");
+        if vibe_sessions.is_dir() {
+            paths.push(vibe_sessions);
+        }
+    }
+
+    if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
+        let session_state = PathBuf::from(copilot_base).join("session-state");
+        if session_state.is_dir() {
+            paths.push(session_state);
+        }
+    }
+
+    for vscode_base in providers::vscode::get_base_paths() {
+        let ws_storage = vscode_base.join("workspaceStorage");
+        if ws_storage.is_dir() {
+            paths.push(ws_storage);
         }
     }
 

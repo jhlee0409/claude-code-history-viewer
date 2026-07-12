@@ -38,6 +38,10 @@ interface UseMessageVirtualizationOptions {
   hiddenMessageIds?: string[];
   /** Whether capture mode is active */
   isCaptureMode?: boolean;
+  /** Whether the viewer is currently showing a subagent session. */
+  isInSubagent?: boolean;
+  /** Height before the virtual list inside the same scroll viewport. */
+  scrollMargin?: number;
 }
 
 interface UseMessageVirtualizationReturn {
@@ -50,6 +54,8 @@ interface UseMessageVirtualizationReturn {
   scrollToMessage: (uuid: string) => void;
   /** Get index for a UUID (handles group member -> leader resolution) */
   getScrollIndex: (uuid: string) => number | null;
+  /** Offset that row transforms should subtract from `virtualRow.start`. */
+  rowTranslateOffset: number;
 }
 
 export const useMessageVirtualization = ({
@@ -63,6 +69,8 @@ export const useMessageVirtualization = ({
   getScrollElement,
   hiddenMessageIds = [],
   isCaptureMode = false,
+  isInSubagent = false,
+  scrollMargin = 0,
 }: UseMessageVirtualizationOptions): UseMessageVirtualizationReturn => {
   // Only apply hidden filter when in capture mode (hybrid approach)
   const effectiveHiddenIds = useMemo(
@@ -124,7 +132,25 @@ export const useMessageVirtualization = ({
     (index: number) => {
       const item = flattenedMessages[index];
       if (!item) return MIN_ROW_HEIGHT;
-      return estimateMessageHeight(item);
+      return estimateMessageHeight(item, isInSubagent);
+    },
+    [flattenedMessages, isInSubagent]
+  );
+
+  const getItemKey = useCallback(
+    (index: number) => {
+      const item = flattenedMessages[index];
+      if (!item) return index;
+
+      if (item.type === "message") {
+        return item.message.uuid;
+      }
+
+      if (item.type === "date-divider") {
+        return `date-divider:${item.timestamp}:${index}`;
+      }
+
+      return `hidden:${item.hiddenUuids[0] ?? index}:${item.hiddenCount}`;
     },
     [flattenedMessages]
   );
@@ -134,7 +160,10 @@ export const useMessageVirtualization = ({
     count: flattenedMessages.length,
     getScrollElement,
     estimateSize,
+    getItemKey,
     overscan: VIRTUALIZER_OVERSCAN,
+    scrollMargin,
+    useAnimationFrameWithResizeObserver: true,
     // Enable dynamic measurement
     measureElement: (element) => {
       if (!element) return MIN_ROW_HEIGHT;
@@ -193,5 +222,6 @@ export const useMessageVirtualization = ({
     totalSize: virtualizer.getTotalSize(),
     scrollToMessage,
     getScrollIndex,
+    rowTranslateOffset: scrollMargin,
   };
 };

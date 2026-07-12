@@ -71,6 +71,8 @@
   "analytics.More": "多い",
   "analytics.mostUsedTools": "最も使用されたツール",
   "analytics.mostUsedToolsTitle": "最も使用されたツール",
+  "analytics.mostUsedSkillsTitle": "最も使用されたスキル",
+  "analytics.mostUsedSubagentsTitle": "最も使用されたサブエージェント",
   "analytics.No activity data available": "アクティビティデータがありません",
   "analytics.No tool usage data available": "ツール使用データがありません",
   "analytics.noActivity": "アクティビティデータがありません",

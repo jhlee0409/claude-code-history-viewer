@@ -5,6 +5,7 @@
 
 use crate::commands::metadata::MetadataState;
 use crate::commands::watcher::FileWatchEvent;
+use crate::server::auth::AuthState;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::broadcast;
@@ -16,8 +17,10 @@ pub struct AppState {
     pub metadata: Arc<MetadataState>,
     /// Server start time for uptime calculation.
     pub start_time: Instant,
-    /// Bearer token for API authentication. `None` means auth is disabled (`--no-auth`).
-    pub auth_token: Option<String>,
+    /// `WebUI` authentication mode.
+    pub auth: AuthState,
+    /// Whether mutating `WebUI` API endpoints should be rejected.
+    pub read_only: bool,
     /// Broadcast channel for file-change events (SSE consumers subscribe here).
     pub event_tx: broadcast::Sender<FileWatchEvent>,
 }

@@ -1,0 +1,19 @@
+---
+source: src/models/snapshot_tests.rs
+expression: session
+---
+{
+  "session_id": "/Users/ac/.pi/agent/sessions/--Users-ac-dev-herdr--/2026-06-08T20-31-45-261Z_0197a288.jsonl",
+  "actual_session_id": "0197a288-41fb-4cce-8b2d-a027c391b4da",
+  "file_path": "/Users/ac/.pi/agent/sessions/--Users-ac-dev-herdr--/2026-06-08T20-31-45-261Z_0197a288.jsonl",
+  "project_name": "herdr",
+  "message_count": 3,
+  "first_message_time": "2026-06-08T20:31:50.000Z",
+  "last_message_time": "2026-06-08T20:32:11.000Z",
+  "last_modified": "2026-06-08T20:32:11.000Z",
+  "has_tool_use": true,
+  "has_errors": false,
+  "summary": "why does LOGIN fail?",
+  "is_renamed": false,
+  "provider": "pi"
+}

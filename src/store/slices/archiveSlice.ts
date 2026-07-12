@@ -91,6 +91,8 @@ const initialArchiveState: ArchiveSliceState['archive'] = {
   error: null,
 };
 
+const READ_ONLY_ERROR = "Server is running in read-only mode";
+
 // ============================================================================
 // Slice Creator
 // ============================================================================
@@ -122,6 +124,10 @@ export const createArchiveSlice: StateCreator<
     },
 
     createArchive: async (params) => {
+      if (get().isServerReadOnly) {
+        set((s) => ({ archive: { ...s.archive, error: READ_ONLY_ERROR } }));
+        throw new Error(READ_ONLY_ERROR);
+      }
       set((s) => ({ archive: { ...s.archive, isCreatingArchive: true, error: null } }));
       try {
         const entry = await archiveApi.createArchive(params);
@@ -137,6 +143,10 @@ export const createArchiveSlice: StateCreator<
     },
 
     deleteArchive: async (id) => {
+      if (get().isServerReadOnly) {
+        set((s) => ({ archive: { ...s.archive, error: READ_ONLY_ERROR } }));
+        throw new Error(READ_ONLY_ERROR);
+      }
       set((s) => ({ archive: { ...s.archive, isDeletingArchive: true, error: null } }));
       try {
         await archiveApi.deleteArchive(id);
@@ -162,6 +172,10 @@ export const createArchiveSlice: StateCreator<
     },
 
     renameArchive: async (id, name) => {
+      if (get().isServerReadOnly) {
+        set((s) => ({ archive: { ...s.archive, error: READ_ONLY_ERROR } }));
+        throw new Error(READ_ONLY_ERROR);
+      }
       set((s) => ({ archive: { ...s.archive, isRenamingArchive: true, error: null } }));
       try {
         const newId = await archiveApi.renameArchive(id, name);

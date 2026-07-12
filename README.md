@@ -6,7 +6,7 @@
 
 **The unified history viewer for AI coding assistants.**
 
-Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, and **ForgeCode** — as a desktop app or headless server. 100% offline.
+Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, and **CodeBuddy Code** — as a desktop app or headless server. 100% offline.
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -63,19 +63,38 @@ See [Server Mode](#server-mode-webui) for Docker, VPS, and systemd setup.
 
 AI coding assistants generate thousands of conversation messages, but none of them provide a way to look back at your history across tools. CCHV solves this.
 
-**Nine assistants. One viewer.** Switch between Claude Code, Gemini CLI, Antigravity, Codex CLI, Cline, Cursor, Aider, OpenCode, and ForgeCode sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
+**Twenty-eight assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code & Kilo Code), Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, and Trae sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
 
 | Provider | Data Location | What You Get |
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | Full conversation history, tool use, thinking, costs |
+| **GitHub Copilot** | `~/.copilot/session-state/` (CLI & Desktop), VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI, Copilot Desktop, and VS Code Copilot Chat history (read-only, WSL-aware) |
 | **Gemini CLI** | `~/.gemini/history/` | Conversation history with tool calls |
 | **Antigravity** | `~/.gemini/antigravity/` | Conversation state under `brain/` plus token monitor data under `.token-monitor/rpc-cache/v1/` |
 | **Codex CLI** | `~/.codex/sessions/` | Session rollouts with agent responses |
-| **Cline** | `~/.cline/tasks/` | Task-based conversation history |
+| **Cline** (incl. Roo Code, Kilo Code) | VS Code `globalStorage/<ext>/tasks/` | Task-based history across the Cline family |
 | **Cursor** | `~/.cursor/` | Composer and chat conversations |
+| **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | Agent transcripts, distinct from the Cursor IDE source |
 | **Aider** | Project directories | Chat history and edit logs |
 | **OpenCode** | `~/.local/share/opencode/` | Conversation sessions and tool results |
 | **ForgeCode** | `~/.forge/.forge.db` | Conversation history from SQLite database |
+| **CodeBuddy Code** | `~/.codebuddy/projects/` | Conversation history with tool calls (Claude Code fork format) |
+| **Kimi** | `~/.kimi/` | Session history with `kimi -r` resume |
+| **Kiro** | `kiro-cli/data.sqlite3` | SQLite-backed conversation history |
+| **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` store (shares format with the Kiro CLI provider) |
+| **Continue.dev** | `~/.continue/sessions/*.json` | Per-session JSON, grouped by workspace (honors `CONTINUE_GLOBAL_DIR`) |
+| **PearAI** | `~/.pearai/sessions/` | Continue fork — same session format |
+| **Goose** | `…/goose/sessions/sessions.db` | Block's agent — SQLite sessions + messages |
+| **Crush** | per-project `./.crush/crush.db` | Charm's TUI — SQLite, discovered across common code roots |
+| **llm** | `…/io.datasette.llm/logs.db` | Simon Willison's CLI — SQLite conversations/responses with token counts |
+| **Open Interpreter** | `~/.openinterpreter/sessions/` | Codex-format rollouts (reuses the Codex parser; `INTERPRETER_HOME` override) |
+| **Pi** | `~/.pi/agent/sessions/` | Per-cwd JSONL transcripts — messages, thinking, tool calls, token usage |
+| **oh-my-pi** | `~/.omp/agent/sessions/` | Pi-format sessions from the `omp` fork (shared parser) |
+| **Mistral Vibe** | `~/.vibe/logs/session/` | OpenAI-style chat transcripts with reasoning and tool calls (`VIBE_HOME` override) |
+| **Qwen Code** | `~/.qwen/projects/.../chats/` | Per-session JSONL transcripts (tool calls, thinking, token usage) |
+| **Zed** | `…/Zed/threads/threads.db` | Agent Panel threads — SQLite + Zstd-compressed JSON |
+| **OpenHands** | `~/.openhands/sessions/` | Classic event-store conversations |
+| **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | Per-workspace chat (icube store; experimental, reverse-engineered) |
 
 No vendor lock-in. No cloud dependency. Your local conversation files, beautifully rendered.
 
@@ -101,7 +120,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Provider Support** | Unified viewer for **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, and **ForgeCode** — filter by provider, compare across tools |
+| **Multi-Provider Support** | Unified viewer for **28 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code & Kilo Code), Aider, OpenCode, ForgeCode, CodeBuddy Code, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, and Trae — filter by provider, compare across tools |
 | **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
 | **Global Search** | Search across all conversations from all providers instantly |
 | **Analytics Dashboard** | Dual-mode token stats (billing vs conversation), cost breakdown, and provider distribution charts |
@@ -116,7 +135,54 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 |---------|-------|
 | **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
 
-### New in v1.13.0
+### New in v1.18.0
+
+| Feature | Description |
+|---------|-------------|
+| **Faster startup** | Provider scanners now run concurrently instead of sequentially, so a locked SQLite database from a tool running alongside the viewer no longer stalls the whole scan — eliminating multi-second "Initializing app…" hangs |
+| **Search result context** | Global search results now show which conversation each match belongs to, so matches that share the same text across sessions are easy to tell apart |
+| **Collapsible provider filter** | The sidebar provider-filter panel can collapse to reclaim vertical space for the session list; the collapsed header still surfaces the active filter summary and count |
+| **Verifiable project names** | Project identity prefers the on-disk folder name over a stale `cwd` recorded in old transcripts, so moved or subagent-recorded projects group correctly (one-time transparent re-scan) |
+| **Fixes** | Exporting a subagent session now includes its messages instead of producing an empty file; OpenCode global sessions split by directory (and empty-directory sessions load correctly); the OpenCode session cache is bounded to prevent unbounded memory growth |
+
+### New in v1.17.0
+
+| Feature | Description |
+|---------|-------------|
+| **Eleven new providers** | Browse history from **Continue.dev** & **PearAI** (`~/.continue` / `~/.pearai` session JSON), **Goose** (SQLite), **Crush** (per-project SQLite), **llm** (Simon Willison's CLI), **Amazon Q CLI**, **Open Interpreter** (Codex-format rollouts), **Qwen Code**, **Zed** (Agent Panel threads — SQLite + Zstd), **OpenHands**, and **Trae** — plus **Kilo Code** via the Cline-family reader. Coverage grows from 14 to 25 assistants. |
+| **Kiro Windows path fix** | Kiro CLI database now resolves via `data_local_dir()` (`%LOCALAPPDATA%`) on Windows instead of the incorrect `AppData\Roaming` |
+
+### New in v1.16.0
+
+| Feature | Description |
+|---------|-------------|
+| **GitHub Copilot Provider** | Read-only history from **Copilot CLI** (`~/.copilot/session-state`), **Copilot Desktop**, and **VS Code Copilot Chat** (`workspaceStorage/.../chatSessions`) — WSL-aware, with global search |
+| **Headless Session Export** | New `--export <session-id\|/abs/path.jsonl> [--format html\|json] [--output <file>]` flag renders an HTML or JSON report and exits without launching the GUI — for SSH/CI use |
+| **One-Click Full Backup** | An Archive Manager "Full Backup" card copies every session from all Claude Code projects into archives in one action, so history survives Claude Code's automatic cleanup |
+| **Skill & Subagent Analytics** | New "Most Used Skills" / "Most Used Subagents" sections break Claude `Skill` and `Agent` calls out by name, at project and global scope |
+| **Fixes** | The font-size setting now applies to the whole app (message viewer, analytics, session board, settings), not just the left panel; session delete falls back to permanent deletion when the system trash is unavailable (e.g. Windows Recycle Bin disabled) |
+
+### New in v1.15.0
+
+| Feature | Description |
+|---------|-------------|
+| **Three New Providers** | Browse history from **Cursor Agent** (agent-transcripts, distinct from the Cursor IDE source), **Kimi** (`~/.kimi`, with `kimi -r` resume), and **Kiro** (SQLite-backed `kiro-cli`) |
+| **Codex Native Rename & Delete** | Rename Codex sessions — the title is written to `state_5.sqlite` and shows in the `codex` resume picker, while the rollout transcript stays immutable — and delete sessions through a new in-app confirmation dialog; honors `CODEX_HOME` (sessions + archived) |
+| **Faster Scans & Search** | Codex project lists scan only the session-meta line (mmap + memchr) and each provider scans independently, so a slow provider no longer blocks fast ones; in-session search indexing moved to a Web Worker so large sessions no longer freeze the UI |
+| **Accurate Claude Project Paths** | Project name and the `claude --resume` working directory are now resolved from session metadata instead of the lossy folder encoding (one-time transparent re-scan on first launch) |
+| **Fixes** | Removed blank gaps in the virtualized message history; fixed Kimi auto-refresh on macOS; fixed a Cursor scan crash on multibyte workspace-folder names |
+
+### v1.14.0
+
+| Feature | Description |
+|---------|-------------|
+| **CodeBuddy Code Provider** | Added CodeBuddy Code — browse its conversation history alongside your other AI coding assistants |
+| **WebUI Account Login** | `--serve` mode gains optional account authentication (Argon2id + server-side sessions + CSRF), a read-only mode, and base-path support for reverse-proxy hosting |
+| **Persistent Message Filters** | Role and content-type filters now persist across session switches and app restarts |
+| **Subagent Session Stability** | Fixed multi-subagent click mapping and an occasional crash when opening large subagent sessions |
+| **Linux IME Input** | Fixed ibus/fcitx input (Korean, Chinese, Japanese) in the search box on Linux |
+
+### v1.13.0
 
 | Feature | Description |
 |---------|-------------|
@@ -126,27 +192,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 | **Pricing Accuracy** | Fixed `claude-opus-4-7` 3× overcharge; added `gpt-5.4` / `gpt-5.5` pricing with Codex cached-token handling |
 | **macOS Updater Reliability** | Native OS-level relaunch fallback for the Tauri v2 macOS relaunch bug — no more "please quit and reopen" |
 
-### v1.12.0
-
-| Feature | Description |
-|---------|-------------|
-| **Two New Providers** | Added **Antigravity** and **ForgeCode** — now supports 9 AI coding assistants |
-| **External Session Launch** | New `--session <uuid>` CLI flag with single-instance enforcement and macOS Apple Events for re-invocation |
-| **Sub-agent Filter** | Toggle sub-agent messages on/off from the header dropdown |
-| **Context Menu Polish** | Right-click menus rendered in portal for cursor-precise anchoring; clamp to panel bounds; close on scroll |
-| **Custom Directory** | Custom Claude directory selection now applies instantly without restart |
-
-### v1.11.0
-
-| Feature | Description |
-|---------|-------------|
-| **Auto-refresh Sessions** | Session list auto-refreshes on file changes; auto-scroll to bottom on new messages |
-| **Project Panel Search** | Search box plus horizontal scrollbar for long project names |
-| **Session Right-click Menu** | Copy session ID, resume command, file path; delete session; show JSONL file; native rename with search integration |
-| **Sub-agent Conversation History** | View sub-agent (sidechain) conversation history |
-| **Custom Claude Config Directories** | Support directories outside `~/.claude` |
-
-> Older releases: see [CHANGELOG.md](./CHANGELOG.md) for v1.10.0 and earlier.
+> Older releases: see [CHANGELOG.md](./CHANGELOG.md) for v1.12.0 and earlier.
 
 ### More
 
@@ -334,7 +380,7 @@ GET /health
 ## Usage
 
 1. Launch the app
-2. It automatically scans for conversation data from all supported providers (Claude Code, Gemini CLI, Codex CLI, Cline, Cursor, Aider, OpenCode, ForgeCode)
+2. It automatically scans for conversation data from all 28 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
 3. Browse projects in the left sidebar — filter by provider using the tab bar
 4. Click a session to view messages
 5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board

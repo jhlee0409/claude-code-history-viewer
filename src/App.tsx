@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { useAppStore } from "./store/useAppStore";
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useUpdater } from "./hooks/useUpdater";
@@ -225,6 +226,19 @@ function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // A selected session and the project-agnostic global-stats overview are
+  // mutually exclusive — entering global stats clears the project/session
+  // (clearProjectSelection). The sidebar resets this flag explicitly on
+  // session select, but the global search modal selects sessions via store
+  // actions and can't reach this local state, so it would otherwise stay in
+  // the global-stats view and hide the navigated conversation. Guarantee the
+  // exit here whenever a session becomes selected (issue #390).
+  useEffect(() => {
+    if (selectedSession) {
+      setIsViewingGlobalStats(false);
+    }
+  }, [selectedSession]);
+
   // Sidebar resize
   const {
     width: sidebarWidth,
@@ -284,20 +298,60 @@ function App() {
         setIsViewingGlobalStats(false);
         setAnalyticsCurrentView("messages");
 
-        const currentProject = useAppStore.getState().selectedProject;
-        if (!currentProject || currentProject.name !== session.project_name) {
-          const project = projects.find((p) => p.name === session.project_name);
-          if (project) {
-            await selectProject(project);
+        // Find the project this session belongs to.
+        //
+        // Comparing `project.name === session.project_name` is unreliable
+        // across providers: each provider picks its own way to turn a raw
+        // on-disk directory (e.g. "Users-foo-Projects-bar") into a sidebar
+        // display label, and `session.project_name` is set by the loader,
+        // not by the sidebar. CodeBuddy in particular shortens
+        // `dir_name.rsplit('-').next()` for its sidebar label while the
+        // session loader keeps the encoded form — the two never match,
+        // so the previous equality check failed to switch to the right
+        // project when a session was selected.
+        //
+        // The path prefix is the one signal that's stable everywhere:
+        // a session's `file_path` always lives under its project's `path`.
+        // Match on that first, fall back to the name equality only when
+        // `file_path` is unavailable.
+        //
+        // The prefix match must respect the path-segment boundary so
+        // sibling projects sharing a parent dir don't collide — without
+        // this, `/a/proj` would also match a session under `/a/proj2`.
+        const findProjectForSession = (s: ClaudeSession) => {
+          if (s.file_path) {
+            const fp = s.file_path;
+            const byPath = projects.find((p) => {
+              if (!fp.startsWith(p.path)) return false;
+              if (fp.length === p.path.length) return true;
+              const next = fp.charAt(p.path.length);
+              return next === "/" || next === "\\";
+            });
+            if (byPath) return byPath;
           }
+          return projects.find((p) => p.name === s.project_name);
+        };
+
+        const targetProject = findProjectForSession(session);
+        const currentProject = useAppStore.getState().selectedProject;
+        if (
+          targetProject &&
+          (!currentProject || currentProject.path !== targetProject.path)
+        ) {
+          await selectProject(targetProject);
         }
 
         await selectSession(session);
       } catch (error) {
+        // Per CLAUDE.md "에러 처리": async failures need user-visible
+        // feedback (toast/alert). console.error alone leaves the user
+        // staring at a sidebar that didn't react to their click.
         console.error("Failed to select session:", error);
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`${t("session.selectError")}: ${message}`);
       }
     },
-    [projects, selectProject, selectSession, setAnalyticsCurrentView]
+    [projects, selectProject, selectSession, setAnalyticsCurrentView, t]
   );
 
   const handleTokenStatClick = useCallback(

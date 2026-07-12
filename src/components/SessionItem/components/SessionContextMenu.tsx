@@ -17,6 +17,7 @@ import { computeMenuPosition, type Boundary } from "@/utils/contextMenu";
 interface SessionContextMenuProps {
   position: { x: number; y: number; boundary?: Boundary | null };
   hasCustomName: boolean;
+  readOnly: boolean;
   supportsNativeRename: boolean;
   supportsResumeCommand: boolean;
   supportsSessionDeletion: boolean;
@@ -36,6 +37,7 @@ interface SessionContextMenuProps {
 export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   position,
   hasCustomName,
+  readOnly,
   supportsNativeRename,
   supportsResumeCommand,
   supportsSessionDeletion,
@@ -139,19 +141,21 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
       style={{ left: adjustedPosition.x, top: adjustedPosition.y }}
     >
       <div className="p-1">
-        <button type="button" role="menuitem" onClick={handleAction(onRenameClick)} className={menuItemClass}>
-          <Pencil className="w-3.5 h-3.5" />
-          <span>{t("session.renameMenuItem", "Rename")}</span>
-        </button>
+        {!readOnly && (
+          <button type="button" role="menuitem" onClick={handleAction(onRenameClick)} className={menuItemClass}>
+            <Pencil className="w-3.5 h-3.5" />
+            <span>{t("session.renameMenuItem", "Rename")}</span>
+          </button>
+        )}
 
-        {hasCustomName && (
+        {!readOnly && hasCustomName && (
           <button type="button" role="menuitem" onClick={handleAction(onResetCustomName)} className={menuItemClass}>
             <RotateCcw className="w-3.5 h-3.5" />
             <span>{t("session.resetName", "Reset name")}</span>
           </button>
         )}
 
-        {supportsNativeRename && (
+        {!readOnly && supportsNativeRename && (
           <>
             <div className="my-1 border-t border-border/50" />
             <button type="button" role="menuitem" onClick={handleAction(onNativeRenameClick)} className={menuItemClass}>
@@ -159,6 +163,8 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
               <span>
                 {providerId === "opencode"
                   ? t("session.nativeRename.menuItemOpenCode", "Rename in OpenCode")
+                  : providerId === "codex"
+                    ? t("session.nativeRename.menuItemCodex", "Rename in Codex CLI")
                   : providerId === "forgecode"
                     ? t("session.nativeRename.menuItemForgeCode", "Rename in ForgeCode")
                     : t("session.nativeRename.menuItem", "Rename in Claude Code")}
@@ -167,7 +173,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
           </>
         )}
 
-        <div className="my-1 border-t border-border/50" />
+        {!readOnly && <div className="my-1 border-t border-border/50" />}
 
         <button type="button" role="menuitem" onClick={handleAction(onCopySessionId)} className={menuItemClass}>
           <Copy className="w-3.5 h-3.5" />

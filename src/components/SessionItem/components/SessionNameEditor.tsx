@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Play,
   Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   isNamed,
   isSelected,
   isContextMenuOpen,
+  readOnly,
   providerId,
   supportsNativeRename,
   supportsResumeCommand,
@@ -60,6 +62,22 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   onContextMenuOpenChange,
 }) => {
   const { t } = useTranslation();
+  const cliSyncTitle =
+    providerId === "codex"
+      ? t("session.cliSync.titleCodex", "Session name synced with Codex CLI")
+      : providerId === "opencode"
+        ? t("session.cliSync.titleOpenCode", "Session name synced with OpenCode")
+        : providerId === "forgecode"
+          ? t("session.cliSync.titleForgeCode", "Session name synced with ForgeCode")
+          : t("session.cliSync.title", "Session name synced with CLI");
+  const cliSyncDescription =
+    providerId === "codex"
+      ? t("session.cliSync.descriptionCodex", "This session's name is also visible in Codex CLI")
+      : providerId === "opencode"
+        ? t("session.cliSync.descriptionOpenCode", "This session's name is also visible in OpenCode")
+        : providerId === "forgecode"
+          ? t("session.cliSync.descriptionForgeCode", "This session's name is also visible in ForgeCode")
+          : t("session.cliSync.description", "This session's name is also visible in Claude Code CLI");
 
   if (isEditing) {
     return (
@@ -124,10 +142,11 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
       <span
         className={cn(
           "text-xs leading-relaxed line-clamp-2 transition-colors duration-300 flex-1 cursor-pointer flex items-start gap-1",
+          readOnly && "cursor-default",
           isSelected ? "text-accent font-medium" : "text-sidebar-foreground/70"
         )}
-        onDoubleClick={onDoubleClick}
-        title={t("session.renameHint", "Double-click to rename")}
+        onDoubleClick={readOnly ? undefined : onDoubleClick}
+        title={readOnly ? displayName : t("session.renameHint", "Double-click to rename")}
       >
         {hasClaudeCodeName && (
           <Tooltip>
@@ -135,29 +154,21 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
               <button
                 type="button"
                 className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-help shrink-0"
-                aria-label={t(
-                  "session.cliSync.title",
-                  "Synced with Claude Code CLI"
-                )}
+                aria-label={cliSyncTitle}
               >
                 <Link2
                   className="w-2.5 h-2.5 text-blue-400"
                   aria-hidden="true"
                 />
-                <span className="text-[9px] font-medium text-blue-400 uppercase tracking-wide">
+                <span className="text-px9 font-medium text-blue-400 uppercase tracking-wide">
                   {t("session.cliSync.badge", "CLI")}
                 </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
-              <p className="font-medium">
-                {t("session.cliSync.title", "Synced with Claude Code CLI")}
-              </p>
+              <p className="font-medium">{cliSyncTitle}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {t(
-                  "session.cliSync.description",
-                  "This session is synchronized with your terminal"
-                )}
+                {cliSyncDescription}
               </p>
             </TooltipContent>
           </Tooltip>
@@ -181,24 +192,26 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
               "hover:bg-accent/20 text-muted-foreground hover:text-accent",
               isContextMenuOpen && "opacity-100"
             )}
-            title={t("session.renameAction", "Rename session")}
-            aria-label={t("session.renameAction", "Rename session")}
+            title={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
+            aria-label={readOnly ? t("session.actions", "Session actions") : t("session.renameAction", "Rename session")}
           >
-            <Pencil className="w-3 h-3" />
+            {readOnly ? <MoreHorizontal className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={onRenameClick}>
-            <Pencil className="w-3 h-3 mr-2" />
-            {t("session.renameMenuItem", "Rename")}
-          </DropdownMenuItem>
-          {hasCustomName && (
+          {!readOnly && (
+            <DropdownMenuItem onClick={onRenameClick}>
+              <Pencil className="w-3 h-3 mr-2" />
+              {t("session.renameMenuItem", "Rename")}
+            </DropdownMenuItem>
+          )}
+          {!readOnly && hasCustomName && (
             <DropdownMenuItem onClick={onResetCustomName}>
               <RotateCcw className="w-3 h-3 mr-2" />
               {t("session.resetName", "Reset name")}
             </DropdownMenuItem>
           )}
-          {supportsNativeRename && (
+          {!readOnly && supportsNativeRename && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onNativeRenameClick}>
@@ -208,6 +221,11 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
                       "session.nativeRename.menuItemOpenCode",
                       "Rename in OpenCode"
                     )
+                  : providerId === "codex"
+                    ? t(
+                        "session.nativeRename.menuItemCodex",
+                        "Rename in Codex CLI"
+                      )
                   : providerId === "forgecode"
                     ? t(
                         "session.nativeRename.menuItemForgeCode",
@@ -220,7 +238,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
               </DropdownMenuItem>
             </>
           )}
-          <DropdownMenuSeparator />
+          {!readOnly && <DropdownMenuSeparator />}
           <DropdownMenuItem onClick={onCopySessionId}>
             <Copy className="w-3 h-3 mr-2" />
             {t("session.copySessionId", "Copy Session ID")}

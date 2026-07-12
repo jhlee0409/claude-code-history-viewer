@@ -57,6 +57,14 @@ pub struct ProjectStatsSummary {
     pub total_session_duration: u32,
     pub most_active_hour: u8,
     pub most_used_tools: Vec<ToolUsageStats>,
+    /// Claude skills (`Skill` tool) keyed by `input.skill`. Empty for non-Claude
+    /// providers, which do not expose a skill abstraction. (issue #321)
+    #[serde(default)]
+    pub most_used_skills: Vec<ToolUsageStats>,
+    /// Claude subagents (`Agent` tool) keyed by `input.subagent_type`. Empty for
+    /// non-Claude providers. (issue #321)
+    #[serde(default)]
+    pub most_used_subagents: Vec<ToolUsageStats>,
     pub daily_stats: Vec<DailyStats>,
     pub activity_heatmap: Vec<ActivityHeatmap>,
     pub token_distribution: TokenDistribution,
@@ -131,6 +139,12 @@ pub struct GlobalStatsSummary {
     pub daily_stats: Vec<DailyStats>,
     pub activity_heatmap: Vec<ActivityHeatmap>,
     pub most_used_tools: Vec<ToolUsageStats>,
+    /// Claude skills (`Skill` tool) keyed by `input.skill`. (issue #321)
+    #[serde(default)]
+    pub most_used_skills: Vec<ToolUsageStats>,
+    /// Claude subagents (`Agent` tool) keyed by `input.subagent_type`. (issue #321)
+    #[serde(default)]
+    pub most_used_subagents: Vec<ToolUsageStats>,
     pub provider_distribution: Vec<ProviderUsageStats>,
     pub model_distribution: Vec<ModelStats>,
     pub top_projects: Vec<ProjectRanking>,

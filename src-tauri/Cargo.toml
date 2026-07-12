@@ -1,6 +1,6 @@
 [package]
 name = "claude-code-history-viewer"
-version = "1.13.0"
+version = "1.20.0"
 description = "Claude Code 대화 기록을 탐색하고 분석하는 데스크톱 애플리케이션"
 authors = ["JaeHyeok Lee"]
 license = "MIT"
@@ -16,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-webui-server = ["dep:axum", "dep:tower-http", "dep:tower", "dep:tokio", "dep:tokio-stream", "dep:rust-embed", "dep:mime_guess"]
+webui-server = ["dep:axum", "dep:tower-http", "dep:tower", "dep:tokio", "dep:tokio-stream", "dep:rust-embed", "dep:mime_guess", "dep:argon2"]
 
 [build-dependencies]
 tauri-build = { version = "2.6.2", features = [] }
@@ -55,10 +55,12 @@ regex = "1.11"
 lazy_static = "1.5"
 once_cell = "1.19"
 rusqlite = { version = "0.32", features = ["bundled"] }
+zstd = "0.13"
 notify = { version = "7.0", default-features = false, features = ["macos_fsevent"] }
 notify-debouncer-mini = "0.5"
 
 # WebUI server mode (optional)
+argon2 = { version = "0.5", optional = true }
 axum = { version = "0.8", optional = true, features = ["json", "query", "tokio"] }
 tower-http = { version = "0.6", optional = true, features = ["cors", "fs", "trace"] }
 tower = { version = "0.5", optional = true, features = ["util"] }
@@ -66,6 +68,7 @@ tokio = { version = "1.0", optional = true, features = ["rt-multi-thread", "macr
 tokio-stream = { version = "0.1", optional = true, features = ["sync"] }
 rust-embed = { version = "8", optional = true }
 mime_guess = { version = "2", optional = true }
+comrak = { version = "0.49.0", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

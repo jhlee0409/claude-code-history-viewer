@@ -114,7 +114,7 @@ const createTestStore = () => {
     showSystemMessages: false,
     setError: vi.fn(),
     setSelectedSession: (s) => set({ selectedSession: s }),
-    resetMessageFilter: () => {},
+    resetMessageFilter: vi.fn(),
     selectedProject: null,
     dateFilter: { start: null, end: null },
     ...createMessageSlice(
@@ -146,6 +146,7 @@ const makeSession = (overrides: Partial<ClaudeSession> = {}): ClaudeSession => (
 const makeSubagent = (
   agent_id: string,
   file_path: string,
+  tool_use_id: string | null = null,
 ): SubagentSession => ({
   agent_id,
   file_path,
@@ -154,6 +155,8 @@ const makeSubagent = (
   first_message_time: null,
   last_message_time: null,
   summary: null,
+  tool_use_id,
+  workflow_run_id: null,
 });
 
 const makeProgress = (
@@ -283,6 +286,68 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
     expect(store.getState().messages).toHaveLength(2);
   });
 
+  it("in-place reload keeps current messages visible while the refresh is pending", async () => {
+    const store = createTestStore();
+    const session = makeSession({ file_path: "/tmp/live.jsonl" });
+    const existingMessage = makeUserMessage("existing");
+    const refreshedMessage = makeUserMessage("refreshed");
+    const refresh = defer<ClaudeMessage[]>();
+
+    store.setState({
+      selectedSession: session,
+      messages: [existingMessage],
+      isLoadingMessages: false,
+    });
+
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "load_provider_messages") return refresh.promise;
+      if (cmd === "get_session_subagents") return Promise.resolve([]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    const pending = store.getState().selectSession(session);
+    await Promise.resolve();
+
+    expect(mockClearSearchIndex).not.toHaveBeenCalled();
+    expect(store.getState().resetMessageFilter).not.toHaveBeenCalled();
+    expect(store.getState().isLoadingMessages).toBe(false);
+    expect(store.getState().messages.map((message) => message.uuid)).toEqual([
+      "existing",
+    ]);
+
+    refresh.resolve([refreshedMessage]);
+    await pending;
+
+    expect(store.getState().messages.map((message) => message.uuid)).toEqual([
+      "refreshed",
+    ]);
+  });
+
+  it("in-place reload skips state replacement when messages are unchanged", async () => {
+    const store = createTestStore();
+    const session = makeSession({ file_path: "/tmp/live.jsonl" });
+    const existingMessage = makeUserMessage("existing");
+    const sameMessage = { ...existingMessage } as ClaudeMessage;
+
+    store.setState({
+      selectedSession: session,
+      messages: [existingMessage],
+      isLoadingMessages: false,
+    });
+
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "load_provider_messages") return Promise.resolve([sameMessage]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    await store.getState().selectSession(session);
+
+    expect(store.getState().messages).toEqual([existingMessage]);
+    expect(store.getState().messages[0]).toBe(existingMessage);
+    expect(mockBuildSearchIndex).not.toHaveBeenCalled();
+    expect(mockApi).toHaveBeenCalledTimes(1);
+  });
+
   it("top-level reselection clears parentSessionStack", async () => {
     const store = createTestStore();
     const top = makeSession({ file_path: "/tmp/top.jsonl" });
@@ -330,6 +395,51 @@ describe("messageSlice.loadSubagents — map building from pre-filter messages",
     const map = store.getState().toolUseToSubagentMap;
     expect(map.get("tool-1")).toBe("/tmp/subA.jsonl");
     expect(map.get("tool-2")).toBe("/tmp/subB.jsonl");
+  });
+
+  it("maps multiple subagents via meta.json tool_use_id with no progress messages (#288)", async () => {
+    const store = createTestStore();
+    // Newer Claude Code format: each subagent carries its spawning Task tool_use id
+    // (from agent-<id>.meta.json) and the session emits NO progress messages.
+    const subA = makeSubagent("agent-A", "/tmp/subA.jsonl", "toolu_A");
+    const subB = makeSubagent("agent-B", "/tmp/subB.jsonl", "toolu_B");
+    const session = makeSession({ file_path: "/tmp/parent.jsonl" });
+    store.setState({ selectedSession: session });
+
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "get_session_subagents")
+        return Promise.resolve([subA, subB]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    await store.getState().loadSubagents(session.file_path, []);
+
+    const map = store.getState().toolUseToSubagentMap;
+    expect(map.get("toolu_A")).toBe("/tmp/subA.jsonl");
+    expect(map.get("toolu_B")).toBe("/tmp/subB.jsonl");
+  });
+
+  it("prefers meta.json tool_use_id and falls back to progress for subagents without one", async () => {
+    const store = createTestStore();
+    const subA = makeSubagent("agent-A", "/tmp/subA.jsonl", "toolu_A"); // new format
+    const subB = makeSubagent("agent-B", "/tmp/subB.jsonl", null); // old format
+    const session = makeSession({ file_path: "/tmp/parent.jsonl" });
+    store.setState({ selectedSession: session });
+
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "get_session_subagents")
+        return Promise.resolve([subA, subB]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    const sourceMessages: ClaudeMessage[] = [
+      makeProgress("tool-2", "agent-B"), // back-compat mapping for B
+    ];
+    await store.getState().loadSubagents(session.file_path, sourceMessages);
+
+    const map = store.getState().toolUseToSubagentMap;
+    expect(map.get("toolu_A")).toBe("/tmp/subA.jsonl"); // from meta.json
+    expect(map.get("tool-2")).toBe("/tmp/subB.jsonl"); // from progress
   });
 
   it("skips progress messages missing parentToolUseID or with unknown agent_id", async () => {
@@ -409,6 +519,7 @@ describe("messageSlice.loadSubagents — map building from pre-filter messages",
       expect.stringContaining("fetch failed"),
     );
   });
+
 });
 
 describe("messageSlice — navigate guards & error branches", () => {

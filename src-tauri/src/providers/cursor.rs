@@ -398,16 +398,27 @@ fn parse_cursor_json(data: &str) -> Result<Value, String> {
     serde_json::from_str(&sanitized).map_err(|e| format!("JSON parse error: {e}"))
 }
 
-/// Decode percent-encoded URI characters (e.g., `%20` → space)
-/// Decode percent-encoded URI characters, preserving UTF-8 multibyte sequences
+/// Decode percent-encoded URI characters (e.g., `%20` → space), preserving
+/// UTF-8 multibyte sequences.
+///
+/// Operates on raw bytes — never slices the `&str` — because a literal `%`
+/// followed by a multibyte UTF-8 character (e.g. a workspace folder named
+/// `100%€done`) would make `&input[i+1..i+3]` land mid-codepoint and panic.
 fn percent_decode(input: &str) -> String {
     let mut buf = Vec::with_capacity(input.len());
     let bytes = input.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(byte) = u8::from_str_radix(&input[i + 1..i + 3], 16) {
-                buf.push(byte);
+            // Only decode when both following bytes are ASCII hex digits.
+            // `u8 as char` is the byte's Latin-1 char; `to_digit(16)` is `None`
+            // for any non-ASCII byte (multibyte lead/continuation), so a `%`
+            // before a multibyte character falls through as a literal `%`.
+            if let (Some(hi), Some(lo)) = (
+                (bytes[i + 1] as char).to_digit(16),
+                (bytes[i + 2] as char).to_digit(16),
+            ) {
+                buf.push((hi * 16 + lo) as u8);
                 i += 3;
                 continue;
             }
@@ -625,6 +636,28 @@ fn map_cursor_tool_name(name: &str) -> &str {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn test_percent_decode_basic() {
+        assert_eq!(percent_decode("a%20b"), "a b");
+        assert_eq!(percent_decode("%2F%2Fx"), "//x");
+        // Incomplete / non-hex escapes pass through literally.
+        assert_eq!(percent_decode("100%done"), "100%done");
+        assert_eq!(percent_decode("a%2"), "a%2");
+        assert_eq!(percent_decode("%zz"), "%zz");
+    }
+
+    #[test]
+    fn test_percent_decode_no_panic_on_multibyte_after_percent() {
+        // A literal `%` immediately before a multibyte UTF-8 char must not panic
+        // (the byte slice would otherwise land mid-codepoint). E.g. a workspace
+        // folder named "100%€done".
+        assert_eq!(percent_decode("/p/100%€done/x"), "/p/100%€done/x");
+        assert_eq!(percent_decode("%한글"), "%한글");
+        assert_eq!(percent_decode("a%🎉b"), "a%🎉b");
+        // Mixed: a valid escape followed later by a bare % before multibyte.
+        assert_eq!(percent_decode("%20x%€"), " x%€");
+    }
 
     #[test]
     fn test_convert_user_bubble() {

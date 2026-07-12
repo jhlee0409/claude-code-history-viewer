@@ -56,7 +56,13 @@ struct SessionMetadataCache {
 
 // Bumped 8 -> 9: ClaudeSession gained the `entrypoint` field, so stale caches
 // must be invalidated to force a reparse that populates it.
-const CACHE_VERSION: u32 = 9;
+// Bumped 9 -> 10: rename_name is now also extracted from `/branch` custom-title
+// events (not just `/rename`), AND Claude project names are derived from the
+// JSONL `cwd` when available; stale caches must be invalidated to pick both up.
+// Bumped 10 -> 11: a verifiable folder name now takes priority over the JSONL
+// `cwd` for the project name (handles sessions moved between project folders);
+// stale caches must be invalidated to recompute project_name.
+const CACHE_VERSION: u32 = 11;
 const DEFAULT_SESSION_PAGE_LIMIT: usize = 250;
 const MAX_SESSION_PAGE_LIMIT: usize = 500;
 
@@ -156,6 +162,8 @@ struct IncrementalParseState {
     rename_name: Option<String>,
     /// Originating client entrypoint (already known)
     entrypoint: Option<String>,
+    /// Project display name (already known)
+    project_name: Option<String>,
 }
 
 /// Minimal struct for fast line classification (avoids full parsing)
@@ -190,7 +198,10 @@ struct SessionMetadataEntry {
     #[serde(rename = "toolUseResult")]
     tool_use_result: Option<serde_json::Value>,
     entrypoint: Option<String>,
+    cwd: Option<String>,
     message: Option<SessionMetadataMessage>,
+    #[serde(rename = "customTitle")]
+    custom_title: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -211,6 +222,8 @@ struct QuickLineClassifier {
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
     entrypoint: Option<String>,
+    #[serde(rename = "customTitle")]
+    custom_title: Option<String>,
 }
 
 /// Fast session metadata extraction result
@@ -284,6 +297,8 @@ fn extract_session_metadata_internal(
         mut first_assistant_text,
         mut rename_name,
         mut entrypoint,
+        mut session_cwd,
+        incremental_project_name,
     ) = if let Some(ref state) = incremental_state {
         (
             state.start_offset,
@@ -300,11 +315,13 @@ fn extract_session_metadata_internal(
             state.first_assistant_text.clone(),
             state.rename_name.clone(),
             state.entrypoint.clone(),
+            None,
+            state.project_name.clone(),
         )
     } else {
         (
             0u64, 0usize, 0usize, None, None, None, None, false, false, None, None, None, None,
-            None,
+            None, None, None,
         )
     };
 
@@ -338,6 +355,15 @@ fn extract_session_metadata_internal(
         // Phase 1: Full metadata extraction for first N lines (skip if incremental)
         if !metadata_complete && lines_processed <= METADATA_PHASE_LINES {
             if let Ok(entry) = serde_json::from_str::<SessionMetadataEntry>(&line) {
+                if session_cwd.is_none() {
+                    if let Some(ref cwd) = entry.cwd {
+                        let trimmed = cwd.trim();
+                        if !trimmed.is_empty() {
+                            session_cwd = Some(trimmed.to_string());
+                        }
+                    }
+                }
+
                 // Handle summary messages
                 if entry.message_type == "summary" {
                     if session_summary.is_none() {
@@ -349,6 +375,16 @@ fn extract_session_metadata_internal(
                 // Extract rename name from system/local_command messages before skipping
                 if entry.message_type == "system" {
                     if let Some(name) = try_extract_rename(&entry) {
+                        rename_name = Some(name);
+                    }
+                    continue;
+                }
+
+                // Extract rename name from /branch custom-title events before skipping
+                if entry.message_type == "custom-title" {
+                    if let Some(name) =
+                        try_extract_custom_title(&entry.message_type, entry.custom_title.as_deref())
+                    {
                         rename_name = Some(name);
                     }
                     continue;
@@ -497,6 +533,17 @@ fn extract_session_metadata_internal(
                 continue;
             }
 
+            // Extract rename from /branch custom-title events (already parsed above)
+            if classifier.message_type == "custom-title" {
+                if let Some(name) = try_extract_custom_title(
+                    &classifier.message_type,
+                    classifier.custom_title.as_deref(),
+                ) {
+                    rename_name = Some(name);
+                }
+                continue;
+            }
+
             // Skip other system message types
             if is_system_message_type(&classifier.message_type) {
                 continue;
@@ -558,7 +605,23 @@ fn extract_session_metadata_internal(
         .unwrap_or("Unknown")
         .to_string();
 
-    let project_name = extract_project_name(&raw_project_name);
+    // A verifiable folder name is authoritative (handles sessions moved between
+    // project folders, whose embedded `cwd` is stale); otherwise fall back to
+    // the JSONL `cwd`, then the cached value, then a lossy folder-name decode.
+    let verified_project_name = file_path
+        .parent()
+        .and_then(|p| p.to_str())
+        .and_then(crate::utils::decode_project_path_verified)
+        .as_deref()
+        .and_then(project_display_name_from_path);
+    let project_name = verified_project_name
+        .or_else(|| {
+            session_cwd
+                .as_deref()
+                .and_then(project_display_name_from_path)
+        })
+        .or(incremental_project_name)
+        .unwrap_or_else(|| extract_project_name(&raw_project_name));
     // Rename name takes highest priority, then existing summary fallback chain
     let final_summary = rename_name
         .clone()
@@ -599,12 +662,15 @@ fn extract_session_metadata_internal(
 }
 
 /// Message types that should always be excluded from the viewer
-const EXCLUDED_MESSAGE_TYPES: [&str; 5] = [
+const EXCLUDED_MESSAGE_TYPES: [&str; 6] = [
     "progress",
     "queue-operation",
     "file-history-snapshot",
     "last-prompt",
     "pr-link",
+    // Emitted alongside "custom-title" by the `/branch` command; redundant with it
+    // (same name), so it's excluded from the viewer rather than used as a rename source.
+    "agent-name",
 ];
 
 /// System subtypes that are internal metadata (excluded from the viewer).
@@ -654,6 +720,32 @@ fn try_extract_rename(entry: &SessionMetadataEntry) -> Option<String> {
         return None;
     }
     entry.content.as_ref().and_then(extract_rename_from_content)
+}
+
+/// Try to extract a rename name from a top-level `custom-title` event, emitted by the
+/// `/branch` command (a newer alternative to `/rename` for naming a session).
+fn try_extract_custom_title(message_type: &str, custom_title: Option<&str>) -> Option<String> {
+    if message_type != "custom-title" {
+        return None;
+    }
+    let name = custom_title?.trim();
+    if name.is_empty() {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+/// Derive a project display name from a real working-directory path (its leaf).
+fn project_display_name_from_path(path: &str) -> Option<String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Path::new(trimmed)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 /// Fast classification of a line without full parsing
@@ -907,6 +999,62 @@ struct SessionPageCandidate {
     source: SessionPageCandidateSource,
 }
 
+/// In-memory record of candidate files that produced no valid session at all,
+/// keyed by project path, then file path -> (mtime, size) captured when the
+/// parse failed. `save_cache` is best-effort (a full disk or read-only project
+/// dir silently drops it), so later pages cannot rely on the on-disk cache
+/// alone to know how many candidates were already dropped by earlier pages.
+/// This registry keeps `SessionPage::total` cumulative across page calls
+/// within one app run; entries are ignored (and replaced) once the file's
+/// mtime or size changes.
+#[allow(clippy::type_complexity)]
+static PAGE_DROPPED_CANDIDATES: once_cell::sync::Lazy<
+    std::sync::Mutex<HashMap<String, HashMap<String, (u64, u64)>>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
+fn is_recorded_dropped_candidate(
+    project_path: &str,
+    path_str: &str,
+    mtime: Option<u64>,
+    size: u64,
+) -> bool {
+    let registry = PAGE_DROPPED_CANDIDATES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    registry
+        .get(project_path)
+        .and_then(|files| files.get(path_str))
+        .is_some_and(|&(recorded_mtime, recorded_size)| {
+            Some(recorded_mtime) == mtime && recorded_size == size
+        })
+}
+
+fn record_dropped_candidate(project_path: &str, path_str: &str, mtime: Option<u64>, size: u64) {
+    let Some(mtime) = mtime else {
+        // Without a stable mtime the record could never be validated later.
+        return;
+    };
+    let mut registry = PAGE_DROPPED_CANDIDATES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    registry
+        .entry(project_path.to_string())
+        .or_default()
+        .insert(path_str.to_string(), (mtime, size));
+}
+
+fn clear_dropped_candidate(project_path: &str, path_str: &str) {
+    let mut registry = PAGE_DROPPED_CANDIDATES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(files) = registry.get_mut(project_path) {
+        files.remove(path_str);
+        if files.is_empty() {
+            registry.remove(project_path);
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn load_project_sessions_page(
     project_path: String,
@@ -924,10 +1072,14 @@ pub async fn load_project_sessions_page(
         return Err("project_path must be an absolute path".to_string());
     }
 
+    // The canonical root is only used to reject symlinked files that escape
+    // the project directory. Cache keys and the cache file location keep the
+    // caller-provided path form so they match the entries written by
+    // `load_project_sessions` (canonicalizing here would orphan that cache,
+    // e.g. `/var` vs `/private/var` on macOS).
     let canonical_project_root = project_root
         .canonicalize()
         .map_err(|error| format!("Failed to resolve project_path: {error}"))?;
-    let project_path = canonical_project_root.to_string_lossy().to_string();
 
     let exclude = exclude_sidechain.unwrap_or(false);
     let offset = offset.unwrap_or(0);
@@ -941,7 +1093,7 @@ pub async fn load_project_sessions_page(
     let mut candidates: Vec<SessionPageCandidate> = Vec::new();
     let mut known_dropped_candidates = 0usize;
 
-    for entry in WalkDir::new(&canonical_project_root)
+    for entry in WalkDir::new(project_root)
         .follow_links(false)
         .into_iter()
         .filter_map(std::result::Result::ok)
@@ -951,13 +1103,14 @@ pub async fn load_project_sessions_page(
             continue;
         }
 
-        let Ok(path) = entry.path().canonicalize() else {
+        let Ok(canonical_path) = entry.path().canonicalize() else {
             continue;
         };
-        if !path.starts_with(&canonical_project_root) {
+        if !canonical_path.starts_with(&canonical_project_root) {
             continue;
         }
 
+        let path = entry.path().to_path_buf();
         let path_str = path.to_string_lossy().to_string();
         let (current_mtime, current_size, modified_sort_key) = metadata_sort_snapshot(&path);
 
@@ -1001,6 +1154,18 @@ pub async fn load_project_sessions_page(
                     continue;
                 }
             }
+        }
+
+        // No usable on-disk cache entry: fall back to the in-memory record of
+        // candidates an earlier page already parsed and dropped, so `total`
+        // stays cumulative even when the cache file could not be written.
+        if is_recorded_dropped_candidate(&project_path, &path_str, current_mtime, current_size) {
+            known_dropped_candidates = known_dropped_candidates.saturating_add(1);
+            candidates.push(SessionPageCandidate {
+                sort_key: modified_sort_key,
+                source: SessionPageCandidateSource::KnownDropped,
+            });
+            continue;
         }
 
         candidates.push(SessionPageCandidate {
@@ -1086,7 +1251,7 @@ pub async fn load_project_sessions_page(
                     };
 
                     cache.entries.insert(
-                        path_str,
+                        path_str.clone(),
                         CachedSessionMetadata {
                             modified_time: modified_time.unwrap_or(0),
                             file_size,
@@ -1103,22 +1268,25 @@ pub async fn load_project_sessions_page(
                     );
                     cache_updated = true;
 
-                    match result_opt {
-                        Some(result) => {
-                            if let Some(session) = session_with_sidechain_filter(
-                                result.session,
-                                result.sidechain_count,
-                                exclude,
-                            ) {
-                                sessions.push(session);
-                            } else {
-                                newly_dropped_candidates =
-                                    newly_dropped_candidates.saturating_add(1);
-                            }
-                        }
-                        None => {
+                    if let Some(result) = result_opt {
+                        clear_dropped_candidate(&project_path, &path_str);
+                        if let Some(session) = session_with_sidechain_filter(
+                            result.session,
+                            result.sidechain_count,
+                            exclude,
+                        ) {
+                            sessions.push(session);
+                        } else {
                             newly_dropped_candidates = newly_dropped_candidates.saturating_add(1);
                         }
+                    } else {
+                        record_dropped_candidate(
+                            &project_path,
+                            &path_str,
+                            modified_time,
+                            file_size,
+                        );
+                        newly_dropped_candidates = newly_dropped_candidates.saturating_add(1);
                     }
                 }
             }
@@ -1232,6 +1400,7 @@ pub async fn load_project_sessions(
                             first_assistant_text: cached.first_assistant_text.clone(),
                             rename_name: cached.rename_name.clone(),
                             entrypoint: session.entrypoint.clone(),
+                            project_name: Some(session.project_name.clone()),
                         },
                     ));
                     continue;
@@ -1718,6 +1887,28 @@ pub struct SubagentSession {
     pub first_message_time: Option<String>,
     pub last_message_time: Option<String>,
     pub summary: Option<String>,
+    /// Task `tool_use` id that spawned this subagent, read from the sibling
+    /// `agent-<id>.meta.json` (newer Claude Code format). `None` for older sessions
+    /// that have no meta file; the frontend then falls back to progress messages.
+    pub tool_use_id: Option<String>,
+    /// Workflow run this agent belongs to (`wf_…`, the directory name under
+    /// `subagents/workflows/`). `None` for regular flat subagents. Workflow
+    /// agents have no `toolUseId` in their meta.json; the frontend anchors
+    /// them to the spawning `Workflow` tool call via this run id instead
+    /// (the `tool_result` text contains the run's transcript dir) — #449.
+    pub workflow_run_id: Option<String>,
+}
+
+/// Derive the workflow run id (`wf_…`) for a subagent transcript path.
+/// Returns `Some` only for the `…/subagents/workflows/<run>/agent-*.jsonl`
+/// layout; flat subagents return `None`.
+fn workflow_run_id_for(sa_path: &Path) -> Option<String> {
+    let run_dir = sa_path.parent()?;
+    let workflows_dir = run_dir.parent()?;
+    if workflows_dir.file_name().and_then(|n| n.to_str()) != Some("workflows") {
+        return None;
+    }
+    run_dir.file_name().map(|n| n.to_string_lossy().to_string())
 }
 
 /// Returns subagent sessions for a given parent session file.
@@ -1754,6 +1945,13 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
         // Quick scan: first and last lines + line count
         let (message_count, first_time, last_time, summary) = extract_subagent_metadata(&sa_path);
 
+        // Newer Claude Code persists the spawning Task tool_use id in a sibling
+        // `agent-<id>.meta.json`. Read it so multi-subagent sessions can map a click
+        // to the right file (#288); older sessions have no meta file -> None.
+        let meta_path = sa_path.with_file_name(format!("{file_name}.meta.json"));
+        let tool_use_id = read_subagent_tool_use_id(&meta_path);
+        let workflow_run_id = workflow_run_id_for(&sa_path);
+
         sessions.push(SubagentSession {
             agent_id,
             file_path: sa_path.to_string_lossy().to_string(),
@@ -1762,6 +1960,8 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
             first_message_time: first_time,
             last_message_time: last_time,
             summary,
+            tool_use_id,
+            workflow_run_id,
         });
     }
 
@@ -1769,6 +1969,27 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
     sessions.sort_by(|a, b| a.first_message_time.cmp(&b.first_message_time));
 
     Ok(sessions)
+}
+
+/// Read the `toolUseId` from a subagent's sibling `agent-<id>.meta.json`.
+/// Returns `None` if the file is missing, a symlink, unreadable, or has no
+/// non-empty `toolUseId` — all non-fatal, so a subagent without a meta file still
+/// lists. The symlink guard mirrors the session-path hardening.
+fn read_subagent_tool_use_id(meta_path: &std::path::Path) -> Option<String> {
+    let meta = std::fs::symlink_metadata(meta_path).ok()?;
+    if meta.file_type().is_symlink() {
+        return None;
+    }
+    let content = std::fs::read_to_string(meta_path).ok()?;
+
+    #[derive(serde::Deserialize)]
+    struct SubagentMeta {
+        #[serde(rename = "toolUseId")]
+        tool_use_id: Option<String>,
+    }
+
+    let parsed: SubagentMeta = serde_json::from_str(&content).ok()?;
+    parsed.tool_use_id.filter(|s| !s.is_empty())
 }
 
 /// Metadata extraction from a subagent JSONL file.
@@ -2309,6 +2530,63 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_load_project_sessions_prefers_jsonl_cwd_for_project_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("-home-cym-claude-prompt-design");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let actual_cwd = temp_dir.path().join("claude_prompt_design");
+        std::fs::create_dir_all(&actual_cwd).unwrap();
+        let actual_cwd = actual_cwd.to_string_lossy();
+
+        let content = format!(
+            r#"{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{actual_cwd}","message":{{"role":"user","content":"Hello world"}}}}
+"#
+        );
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_project_sessions(project_dir.to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].project_name, "claude_prompt_design");
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_prefers_verified_folder_over_stale_cwd() {
+        let temp_dir = TempDir::new().unwrap();
+        // Folder name decodes to an existing directory (/usr/lib); the
+        // `.claude/projects/` marker must be present for verified decoding.
+        let project_dir = temp_dir
+            .path()
+            .join(".claude")
+            .join("projects")
+            .join("-usr-lib");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        // Stale embedded cwd simulates a session moved into this folder by hand.
+        let content = concat!(
+            r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","#,
+            r#""type":"user","cwd":"/some/stale/Dev","#,
+            r#""message":{"role":"user","content":"Hello world"}}"#,
+            "\n"
+        );
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = load_project_sessions(project_dir.to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 1);
+        // Verified folder name wins over the stale cwd.
+        assert_eq!(result[0].project_name, "lib");
+    }
+
+    #[tokio::test]
     async fn test_load_project_sessions_with_summary() {
         let temp_dir = TempDir::new().unwrap();
 
@@ -2451,7 +2729,7 @@ mod tests {
     async fn test_load_project_sessions_page_skips_invalid_candidates() {
         let temp_dir = TempDir::new().unwrap();
 
-        create_test_jsonl_file(
+        let valid_1 = create_test_jsonl_file(
             &temp_dir,
             "valid-1.jsonl",
             &format!(
@@ -2459,8 +2737,8 @@ mod tests {
                 create_sample_user_message("uuid-valid-1", "session-valid-1", "Hello")
             ),
         );
-        create_test_jsonl_file(&temp_dir, "invalid.jsonl", "{}\n");
-        create_test_jsonl_file(
+        let invalid = create_test_jsonl_file(&temp_dir, "invalid.jsonl", "{}\n");
+        let valid_2 = create_test_jsonl_file(
             &temp_dir,
             "valid-2.jsonl",
             &format!(
@@ -2468,6 +2746,16 @@ mod tests {
                 create_sample_user_message("uuid-valid-2", "session-valid-2", "World")
             ),
         );
+
+        // Pin distinct mtimes so the recency-sorted candidate order is
+        // deterministic and the invalid file falls inside the first page's
+        // scan window (valid-1 newest, invalid middle, valid-2 oldest).
+        let base = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_750_000_000);
+        for (path, age_secs) in [(&valid_1, 0u64), (&invalid, 60), (&valid_2, 120)] {
+            let file = File::options().write(true).open(path).unwrap();
+            file.set_modified(base - std::time::Duration::from_secs(age_secs))
+                .unwrap();
+        }
 
         let project_path = temp_dir.path().to_string_lossy().to_string();
         let page = load_project_sessions_page(project_path.clone(), None, Some(0), Some(2))
@@ -2488,6 +2776,57 @@ mod tests {
 
         let second_page =
             load_project_sessions_page(project_path, None, Some(page.next_offset), Some(2))
+                .await
+                .unwrap();
+        assert_eq!(second_page.total, 2);
+        assert!(second_page.sessions.is_empty());
+        assert!(!second_page.has_more);
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_page_total_stays_cumulative_without_disk_cache() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let valid_1 = create_test_jsonl_file(
+            &temp_dir,
+            "valid-1.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-valid-1", "session-valid-1", "Hello")
+            ),
+        );
+        let invalid = create_test_jsonl_file(&temp_dir, "invalid.jsonl", "{}\n");
+        let valid_2 = create_test_jsonl_file(
+            &temp_dir,
+            "valid-2.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-valid-2", "session-valid-2", "World")
+            ),
+        );
+
+        let base = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_750_000_000);
+        for (path, age_secs) in [(&valid_1, 0u64), (&invalid, 60), (&valid_2, 120)] {
+            let file = File::options().write(true).open(path).unwrap();
+            file.set_modified(base - std::time::Duration::from_secs(age_secs))
+                .unwrap();
+        }
+
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+        let first_page = load_project_sessions_page(project_path.clone(), None, Some(0), Some(2))
+            .await
+            .unwrap();
+        assert_eq!(first_page.total, 2);
+        assert_eq!(first_page.sessions.len(), 2);
+
+        // Simulate the best-effort cache write being lost (e.g. full disk or
+        // read-only project dir): later pages must still account for the
+        // candidates already dropped by earlier pages via the in-memory
+        // registry, so `total` stays consistent on every page.
+        std::fs::remove_file(temp_dir.path().join(".session_cache.json")).unwrap();
+
+        let second_page =
+            load_project_sessions_page(project_path, None, Some(first_page.next_offset), Some(2))
                 .await
                 .unwrap();
         assert_eq!(second_page.total, 2);
@@ -3104,5 +3443,250 @@ mod tests {
         assert_eq!(result[0].summary, Some("AppendedRename".to_string()));
         // System message not counted
         assert_eq!(result[0].message_count, 5);
+    }
+
+    fn create_sample_custom_title_message(name: &str) -> String {
+        format!(r#"{{"type":"custom-title","customTitle":"{name}","sessionId":"session-1"}}"#)
+    }
+
+    fn create_sample_agent_name_message(name: &str) -> String {
+        format!(r#"{{"type":"agent-name","agentName":"{name}","sessionId":"session-1"}}"#)
+    }
+
+    #[tokio::test]
+    async fn test_should_extract_rename_from_branch_custom_title() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_custom_title_message("HC1-migration"),
+            create_sample_agent_name_message("HC1-migration")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("HC1-migration".to_string()));
+        assert!(result[0].is_renamed);
+        // custom-title and agent-name lines should not be counted as messages
+        assert_eq!(result[0].message_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_should_use_last_naming_event_regardless_of_kind() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // /branch (custom-title) happens, then a later /rename overrides it
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            create_sample_custom_title_message("BranchName"),
+            create_sample_rename_message("LaterRename")
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        // Whichever naming event is chronologically last in the file wins
+        assert_eq!(result[0].summary, Some("LaterRename".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_should_ignore_empty_custom_title() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Hello world"),
+            create_sample_assistant_message("uuid-2", "session-1", "Hi there!"),
+            r#"{"type":"custom-title","customTitle":"","sessionId":"session-1"}"#
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("Hello world".to_string()));
+    }
+
+    #[test]
+    fn test_try_extract_custom_title() {
+        assert_eq!(
+            try_extract_custom_title("custom-title", Some("MyTitle")),
+            Some("MyTitle".to_string())
+        );
+        // Wrong message type
+        assert_eq!(
+            try_extract_custom_title("agent-name", Some("MyTitle")),
+            None
+        );
+        // Missing value
+        assert_eq!(try_extract_custom_title("custom-title", None), None);
+        // Empty/whitespace value
+        assert_eq!(try_extract_custom_title("custom-title", Some("   ")), None);
+    }
+
+    #[tokio::test]
+    async fn test_phase2_custom_title_beyond_metadata_lines() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Build a fixture with > METADATA_PHASE_LINES (100) to force Phase 2 parsing
+        let mut content = String::new();
+        for i in 1..=60 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(
+                    &format!("uuid-u{i}"),
+                    "session-1",
+                    &format!("User message {i}")
+                )
+            ));
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_assistant_message(
+                    &format!("uuid-a{i}"),
+                    "session-1",
+                    &format!("Assistant reply {i}")
+                )
+            ));
+        }
+        // Append custom-title after line 120 (beyond METADATA_PHASE_LINES=100)
+        content.push_str(&format!(
+            "{}\n",
+            create_sample_custom_title_message("LateBranchTitle")
+        ));
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("LateBranchTitle".to_string()));
+        assert_eq!(result[0].message_count, 120);
+    }
+
+    #[tokio::test]
+    async fn test_incremental_append_then_custom_title() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.jsonl");
+
+        let mut content = String::new();
+        for i in 1..=5 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(
+                    &format!("uuid-u{i}"),
+                    "session-1",
+                    &format!("Message {i}")
+                )
+            ));
+        }
+        std::fs::write(&file_path, &content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("Message 1".to_string()));
+        assert_eq!(result[0].message_count, 5);
+
+        // Append a /branch custom-title event — triggers incremental parsing
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&file_path)
+            .unwrap();
+        writeln!(
+            file,
+            "{}",
+            create_sample_custom_title_message("AppendedBranchTitle")
+        )
+        .unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].summary, Some("AppendedBranchTitle".to_string()));
+        assert_eq!(result[0].message_count, 5);
+    }
+
+    #[test]
+    fn workflow_run_id_for_detects_workflow_layout_only() {
+        assert_eq!(
+            workflow_run_id_for(Path::new(
+                "/p/abc/subagents/workflows/wf_1a198a78-3be/agent-x.jsonl"
+            )),
+            Some("wf_1a198a78-3be".to_string())
+        );
+        // Flat subagents are not workflow-scoped.
+        assert_eq!(
+            workflow_run_id_for(Path::new("/p/abc/subagents/agent-x.jsonl")),
+            None
+        );
+    }
+
+    #[test]
+    fn read_subagent_tool_use_id_reads_meta_json() {
+        let dir = TempDir::new().unwrap();
+        let meta = dir.path().join("agent-x.meta.json");
+        std::fs::write(
+            &meta,
+            r#"{"agentType":"task","description":"d","toolUseId":"toolu_123"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read_subagent_tool_use_id(&meta),
+            Some("toolu_123".to_string())
+        );
+    }
+
+    #[test]
+    fn read_subagent_tool_use_id_none_when_missing_invalid_or_empty() {
+        let dir = TempDir::new().unwrap();
+        // Missing file.
+        assert_eq!(
+            read_subagent_tool_use_id(&dir.path().join("nope.meta.json")),
+            None
+        );
+        // Present but no toolUseId (older meta or different shape).
+        let meta = dir.path().join("agent-y.meta.json");
+        std::fs::write(&meta, r#"{"agentType":"task"}"#).unwrap();
+        assert_eq!(read_subagent_tool_use_id(&meta), None);
+        // Empty toolUseId is treated as absent.
+        let meta_empty = dir.path().join("agent-z.meta.json");
+        std::fs::write(&meta_empty, r#"{"toolUseId":""}"#).unwrap();
+        assert_eq!(read_subagent_tool_use_id(&meta_empty), None);
+        // Invalid JSON is non-fatal.
+        let meta_bad = dir.path().join("agent-bad.meta.json");
+        std::fs::write(&meta_bad, "not json").unwrap();
+        assert_eq!(read_subagent_tool_use_id(&meta_bad), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_subagent_tool_use_id_rejects_symlink() {
+        let dir = TempDir::new().unwrap();
+        let real = dir.path().join("real.meta.json");
+        std::fs::write(&real, r#"{"toolUseId":"toolu_real"}"#).unwrap();
+        let link = dir.path().join("agent-link.meta.json");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        assert_eq!(read_subagent_tool_use_id(&link), None);
     }
 }

@@ -100,12 +100,15 @@ mod integration_tests {
         }
 
         // Test other providers if they are detected as available
-        for provider in &["codex", "gemini", "opencode", "cline", "cursor", "aider"] {
+        for provider in &[
+            "codex", "gemini", "kimi", "opencode", "cline", "cursor", "aider",
+        ] {
             let is_available = detected.iter().any(|p| p.id == *provider && p.is_available);
             if is_available {
                 let result = match *provider {
                     "codex" => providers::codex::scan_projects(),
                     "gemini" => providers::gemini::scan_projects(),
+                    "kimi" => providers::kimi::scan_projects(),
                     "opencode" => providers::opencode::scan_projects(),
                     "cline" => providers::cline::scan_projects(),
                     "cursor" => providers::cursor::scan_projects(),
@@ -348,6 +351,7 @@ mod integration_tests {
             Some("billing_total".to_string()),
             None,
             None,
+            None,
         )
         .await
         .expect("get_global_stats_summary failed");
@@ -383,6 +387,7 @@ mod integration_tests {
             Some("billing_total".to_string()),
             Some("2026-04-12T00:00:00.000Z".to_string()),
             Some("2026-04-17T23:59:59.999Z".to_string()),
+            None,
         )
         .await
         .expect("get_global_stats_summary failed");
@@ -418,6 +423,7 @@ mod integration_tests {
             Some("billing_total".to_string()),
             Some("2026-04-12T00:00:00.000Z".to_string()),
             Some("2026-04-17T23:59:59.999Z".to_string()),
+            None,
         )
         .await
         .expect("billing summary failed");
@@ -428,6 +434,7 @@ mod integration_tests {
             Some("conversation_only".to_string()),
             Some("2026-04-12T00:00:00.000Z".to_string()),
             Some("2026-04-17T23:59:59.999Z".to_string()),
+            None,
         )
         .await
         .expect("conversation summary failed");

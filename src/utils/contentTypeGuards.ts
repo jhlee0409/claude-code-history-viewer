@@ -25,6 +25,7 @@ import type {
   BashCodeExecutionToolResultContent,
   TextEditorCodeExecutionToolResultContent,
   ToolSearchToolResultContent,
+  AdvisorToolResultContent,
   MCPToolUseContent,
   MCPToolResultContent,
   Base64ImageSource,
@@ -378,6 +379,21 @@ export function isToolSearchToolResultContent(
   return (
     isContentItem(item) &&
     item.type === "tool_search_tool_result" &&
+    "tool_use_id" in item &&
+    typeof (item as Record<string, unknown>).tool_use_id === "string" &&
+    "content" in item
+  );
+}
+
+/**
+ * Type guard for advisor tool result content blocks
+ */
+export function isAdvisorToolResultContent(
+  item: unknown
+): item is AdvisorToolResultContent {
+  return (
+    isContentItem(item) &&
+    item.type === "advisor_tool_result" &&
     "tool_use_id" in item &&
     typeof (item as Record<string, unknown>).tool_use_id === "string" &&
     "content" in item
