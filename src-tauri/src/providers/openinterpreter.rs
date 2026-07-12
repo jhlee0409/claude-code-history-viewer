@@ -74,7 +74,7 @@ fn rollout_files() -> Vec<PathBuf> {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| e.file_type().is_file())
-            .filter(|e| codex::is_rollout_jsonl(e.path()))
+            .filter(|e| codex::is_discoverable_rollout(e.path()))
         {
             files.push(entry.path().to_path_buf());
         }

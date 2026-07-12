@@ -74,11 +74,73 @@ fn get_existing_session_dirs() -> Result<Vec<PathBuf>, String> {
         .collect())
 }
 
+// Codex generates these filenames itself, always lowercase — a
+// case-insensitive comparison would accept files Codex never writes.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 pub(crate) fn is_rollout_jsonl(path: &Path) -> bool {
     path.file_name()
-        .map(|name| name.to_string_lossy().starts_with("rollout-"))
-        .unwrap_or(false)
-        && path.extension().is_some_and(|ext| ext == "jsonl")
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            name.starts_with("rollout-")
+                && (name.ends_with(".jsonl") || name.ends_with(".jsonl.zst"))
+        })
+}
+
+/// Discovery filter for session walkers: accepts every rollout
+/// [`is_rollout_jsonl`] does, but skips a compressed `.jsonl.zst` whose plain
+/// `.jsonl` twin exists — Codex materializes the plain file for appends, so
+/// the plain one is the current version and listing both would duplicate the
+/// session.
+pub(crate) fn is_discoverable_rollout(path: &Path) -> bool {
+    if !is_rollout_jsonl(path) {
+        return false;
+    }
+    let is_compressed = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".jsonl.zst"));
+    if is_compressed {
+        // "rollout-….jsonl.zst" → "rollout-….jsonl"
+        let plain = path.with_extension("");
+        if plain.exists() {
+            return false;
+        }
+    }
+    true
+}
+
+/// Rollout file contents as a linear byte buffer: an mmap for plain `.jsonl`,
+/// a decompressed buffer for `.jsonl.zst` (Codex compresses old rollouts).
+enum RolloutBytes {
+    Mapped(Mmap),
+    Owned(Vec<u8>),
+}
+
+impl std::ops::Deref for RolloutBytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        match self {
+            RolloutBytes::Mapped(mmap) => mmap,
+            RolloutBytes::Owned(bytes) => bytes,
+        }
+    }
+}
+
+#[allow(unsafe_code)] // Required for mmap performance optimization
+fn read_rollout_bytes(path: &Path) -> Result<RolloutBytes, String> {
+    let file = File::open(path).map_err(|e| e.to_string())?;
+    let is_compressed = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".jsonl.zst"));
+    if is_compressed {
+        return zstd::decode_all(std::io::BufReader::new(file))
+            .map(RolloutBytes::Owned)
+            .map_err(|e| format!("Failed to decompress rollout: {e}"));
+    }
+    // SAFETY: File is read-only and we only read from the mapping
+    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
+    Ok(RolloutBytes::Mapped(mmap))
 }
 
 /// Return true when `session_path` is a Codex rollout JSONL inside the active
@@ -177,7 +239,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| e.file_type().is_file())
-            .filter(|e| is_rollout_jsonl(e.path()))
+            .filter(|e| is_discoverable_rollout(e.path()))
         {
             let rollout_path = entry.path();
 
@@ -257,7 +319,7 @@ pub fn load_sessions(
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| e.file_type().is_file())
-            .filter(|e| is_rollout_jsonl(e.path()))
+            .filter(|e| is_discoverable_rollout(e.path()))
         {
             let rollout_path = entry.path();
 
@@ -317,9 +379,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 /// re-tag the provider on the result.
 #[allow(unsafe_code)] // Required for mmap performance optimization
 pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMessage>, String> {
-    let file = File::open(canonical_path).map_err(|e| e.to_string())?;
-    // SAFETY: File is read-only and we only read from the mapping
-    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
+    let mmap = read_rollout_bytes(canonical_path)?;
     let ranges = find_line_ranges(&mmap);
 
     let mut messages = Vec::new();
@@ -476,7 +536,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| e.file_type().is_file())
-            .filter(|e| is_rollout_jsonl(e.path()))
+            .filter(|e| is_discoverable_rollout(e.path()))
         {
             let rollout_path = entry.path();
 
@@ -725,6 +785,8 @@ fn parse_turn_context_cwd(line: &[u8]) -> Option<String> {
 /// doesn't end in a UUID.
 pub(crate) fn session_id_from_rollout_filename(path: &Path) -> Option<String> {
     let stem = path.file_stem()?.to_str()?;
+    // For "rollout-….jsonl.zst", file_stem still ends with ".jsonl".
+    let stem = stem.strip_suffix(".jsonl").unwrap_or(stem);
     if stem.len() < 36 {
         return None;
     }
@@ -755,9 +817,7 @@ fn estimate_rollout_message_count(path: &Path) -> usize {
 
 #[allow(unsafe_code)] // Required for mmap performance optimization
 pub(crate) fn extract_session_cwd(rollout_path: &Path) -> Result<Option<String>, String> {
-    let file = File::open(rollout_path).map_err(|e| e.to_string())?;
-    // SAFETY: File is read-only and we only read from the mapping
-    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
+    let mmap = read_rollout_bytes(rollout_path)?;
 
     let mut cwd = None;
     let mut turn_context_cwd = None;
@@ -851,9 +911,7 @@ fn load_native_title_index(base_path: &str) -> HashMap<String, String> {
 
 #[allow(unsafe_code)] // Required for mmap performance optimization
 pub(crate) fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
-    let file = File::open(rollout_path).map_err(|e| e.to_string())?;
-    // SAFETY: File is read-only and we only read from the mapping
-    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| e.to_string())?;
+    let mmap = read_rollout_bytes(rollout_path)?;
     let ranges = find_line_ranges(&mmap);
 
     let mut session_id = String::new();
@@ -3392,5 +3450,62 @@ mod tests {
         assert!(messages
             .iter()
             .all(|m| m.session_id == "019cf000-cccc-7000-8000-f986e7b4c56a"));
+    }
+
+    #[test]
+    /// Codex compresses old rollouts to `.jsonl.zst`; they must stay
+    /// discoverable and parseable, and a compressed file whose plain twin
+    /// exists must be skipped (the plain one is the materialized, current
+    /// version).
+    fn compressed_rollouts_are_discovered_and_parsed() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+
+        let lines = [
+            session_meta_line_with("2026-07-09T10:00:00Z", "sess-zst", "/tmp/proj-z"),
+            user_message_line("2026-07-09T10:00:01Z", "hello from a compressed rollout"),
+        ];
+        let body = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let compressed = zstd::encode_all(body.as_bytes(), 3).expect("zstd encode");
+        let zst_path = tmp
+            .path()
+            .join("rollout-2026-07-09T10-00-00-019cf000-dddd-7000-8000-f986e7b4c56a.jsonl.zst");
+        fs::write(&zst_path, compressed).expect("write zst fixture");
+
+        assert!(is_rollout_jsonl(&zst_path));
+        assert!(is_discoverable_rollout(&zst_path));
+
+        let info = extract_session_info(&zst_path).expect("extract_session_info on zst");
+        assert_eq!(info.session_id, "sess-zst");
+        assert_eq!(info.cwd.as_deref(), Some("/tmp/proj-z"));
+
+        let messages = parse_rollout_file(&zst_path).expect("parse zst rollout");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].session_id, "sess-zst");
+
+        // Once the plain twin exists, the compressed copy is no longer listed.
+        let plain_path = zst_path.with_extension("");
+        fs::write(&plain_path, format!("{body}\n")).expect("write plain twin");
+        assert!(!is_discoverable_rollout(&zst_path));
+        assert!(is_discoverable_rollout(&plain_path));
+    }
+
+    #[test]
+    /// Filename-derived session ids also work for compressed rollouts, whose
+    /// `file_stem` still carries a ".jsonl" tail.
+    fn session_id_from_rollout_filename_handles_zst() {
+        assert_eq!(
+            session_id_from_rollout_filename(Path::new(
+                "rollout-2026-07-09T10-00-00-019cf000-eeee-7000-8000-f986e7b4c56a.jsonl.zst"
+            )),
+            Some("019cf000-eeee-7000-8000-f986e7b4c56a".to_string())
+        );
+        assert_eq!(
+            session_id_from_rollout_filename(Path::new("rollout-short.jsonl")),
+            None
+        );
     }
 }
