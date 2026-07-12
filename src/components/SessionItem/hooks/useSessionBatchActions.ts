@@ -127,6 +127,16 @@ export function useSessionBatchActions() {
         // Leave selection mode once the operation resolves (matches the
         // single-delete flow, which closes its dialog on completion).
         useAppStore.getState().exitSessionSelectionMode();
+      } catch (error) {
+        // Per-item failures are handled above; this catches unexpected
+        // errors from the store mutations so they surface as a toast
+        // instead of an unhandled rejection (repo error-handling rule).
+        const description =
+          error instanceof Error ? error.message : String(error);
+        console.error("[session selection] batch delete failed", error);
+        toast.error(t("session.deleteError", "Failed to delete session"), {
+          description,
+        });
       } finally {
         setIsDeleting(false);
       }

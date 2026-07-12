@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { CheckCheck, Copy, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import { supportsSessionDeletion } from "@/utils/providers";
@@ -86,8 +87,21 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
   );
 
   const handleConfirmDelete = async () => {
-    await deleteSessions(deletableSessions);
-    setIsDeleteDialogOpen(false);
+    try {
+      await deleteSessions(deletableSessions);
+    } catch (error) {
+      // deleteSessions reports its own failures; this guards anything
+      // unexpected so it surfaces instead of rejecting unhandled and
+      // leaving the dialog stuck open.
+      const description =
+        error instanceof Error ? error.message : String(error);
+      console.error("[session selection] confirm delete failed", error);
+      toast.error(t("session.deleteError", "Failed to delete session"), {
+        description,
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+    }
   };
 
   return (
