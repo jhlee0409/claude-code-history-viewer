@@ -1,5 +1,5 @@
 // src/components/ProjectTree/index.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Folder,
   Database,
@@ -316,7 +316,14 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     await applyProviderSelection(next.length > 0 ? next : [provider]);
   }, [applyProviderSelection, isAllProvidersSelected, selectableProviderIds, selectedProviderFilters]);
 
-  const normalizedSearchTerm = useMemo(() => searchTerm.trim().toLowerCase(), [searchTerm]);
+  // Defer the filtering work: the input echoes each keystroke immediately
+  // while re-filtering hundreds/thousands of projects runs as an
+  // interruptible low-priority render (no per-keystroke jank).
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+  const normalizedSearchTerm = useMemo(
+    () => deferredSearchTerm.trim().toLowerCase(),
+    [deferredSearchTerm]
+  );
 
   const matchesSearch = useCallback(
     (project: (typeof projects)[number]) => {
