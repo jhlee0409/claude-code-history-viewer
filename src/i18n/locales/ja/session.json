@@ -110,6 +110,7 @@
   "session.deleteTitle": "セッションを削除",
   "session.selection.enter": "セッションを選択",
   "session.selection.exit": "選択を終了",
+  "session.loadMore": "さらに読み込む",
   "session.selection.count": "{{count}}件選択中",
   "session.selection.selectAll": "すべて選択",
   "session.selection.clear": "選択解除",

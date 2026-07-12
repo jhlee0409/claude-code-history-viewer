@@ -110,6 +110,7 @@
   "session.deleteTitle": "Delete Session",
   "session.selection.enter": "Select sessions",
   "session.selection.exit": "Exit selection",
+  "session.loadMore": "Load more",
   "session.selection.count": "{{count}} selected",
   "session.selection.selectAll": "Select all",
   "session.selection.clear": "Clear",

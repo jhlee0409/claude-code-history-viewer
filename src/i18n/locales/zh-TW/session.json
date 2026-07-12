@@ -110,6 +110,7 @@
   "session.deleteTitle": "刪除會話",
   "session.selection.enter": "選擇會話",
   "session.selection.exit": "退出選擇",
+  "session.loadMore": "載入更多",
   "session.selection.count": "已選擇 {{count}} 個",
   "session.selection.selectAll": "全選",
   "session.selection.clear": "清除",
