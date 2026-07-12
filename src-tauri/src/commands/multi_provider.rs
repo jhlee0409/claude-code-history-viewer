@@ -344,6 +344,75 @@ pub async fn load_provider_sessions(
     }
 }
 
+fn sort_sessions_by_recency(sessions: &mut [ClaudeSession]) {
+    sessions.sort_by(|a, b| {
+        match (
+            parse_rfc3339_utc(&a.last_message_time),
+            parse_rfc3339_utc(&b.last_message_time),
+        ) {
+            (Some(a_ts), Some(b_ts)) => b_ts.cmp(&a_ts),
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => b.last_modified.cmp(&a.last_modified),
+        }
+    });
+}
+
+/// Load a page of sessions for a provider's project.
+///
+/// Claude uses a cache-aware fast path that avoids parsing every JSONL file.
+/// Other providers keep their existing loaders and only paginate the result for
+/// now, preserving behavior while giving the frontend one API shape.
+#[tauri::command]
+pub async fn load_provider_sessions_page(
+    provider: String,
+    project_path: String,
+    exclude_sidechain: Option<bool>,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<crate::commands::session::SessionPage, String> {
+    let offset = offset.unwrap_or(0);
+    let limit = limit.unwrap_or(250).clamp(1, 500);
+
+    if provider == "claude" {
+        let mut page = crate::commands::session::load_project_sessions_page(
+            project_path,
+            exclude_sidechain,
+            Some(offset),
+            Some(limit),
+        )
+        .await?;
+        for session in &mut page.sessions {
+            if session.provider.is_none() {
+                session.provider = Some("claude".to_string());
+            }
+        }
+        return Ok(page);
+    }
+
+    let mut sessions =
+        load_provider_sessions(provider.clone(), project_path, exclude_sidechain).await?;
+    for session in &mut sessions {
+        if session.provider.is_none() {
+            session.provider = Some(provider.clone());
+        }
+    }
+    sort_sessions_by_recency(&mut sessions);
+
+    let total = sessions.len();
+    let page_sessions: Vec<ClaudeSession> = sessions.into_iter().skip(offset).take(limit).collect();
+    let next_offset = offset.saturating_add(page_sessions.len());
+
+    Ok(crate::commands::session::SessionPage {
+        sessions: page_sessions,
+        total,
+        offset,
+        limit,
+        next_offset,
+        has_more: next_offset < total,
+    })
+}
+
 /// Load messages from a specific provider's session
 #[tauri::command]
 pub async fn load_provider_messages(

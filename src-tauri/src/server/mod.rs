@@ -82,8 +82,10 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/load_mcp_presets",
     "/load_presets",
     "/load_project_sessions",
+    "/load_project_sessions_page",
     "/load_provider_messages",
     "/load_provider_sessions",
+    "/load_provider_sessions_page",
     "/load_session_messages",
     "/load_session_messages_paginated",
     "/load_unified_presets",
@@ -196,6 +198,10 @@ pub fn build_router(
         .route("/get_git_log", post(h::get_git_log))
         // Session commands
         .route("/load_project_sessions", post(h::load_project_sessions))
+        .route(
+            "/load_project_sessions_page",
+            post(h::load_project_sessions_page),
+        )
         .route("/load_session_messages", post(h::load_session_messages))
         .route(
             "/load_session_messages_paginated",
@@ -287,6 +293,10 @@ pub fn build_router(
         .route("/detect_providers", post(h::detect_providers))
         .route("/scan_all_projects", post(h::scan_all_projects))
         .route("/load_provider_sessions", post(h::load_provider_sessions))
+        .route(
+            "/load_provider_sessions_page",
+            post(h::load_provider_sessions_page),
+        )
         .route("/load_provider_messages", post(h::load_provider_messages))
         .route("/search_all_providers", post(h::search_all_providers))
         // Archive commands

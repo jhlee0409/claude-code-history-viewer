@@ -110,6 +110,7 @@
   "session.deleteTitle": "세션 삭제",
   "session.selection.enter": "세션 선택",
   "session.selection.exit": "선택 종료",
+  "session.loadMore": "더 불러오기",
   "session.selection.count": "{{count}}개 선택됨",
   "session.selection.selectAll": "전체 선택",
   "session.selection.clear": "선택 해제",

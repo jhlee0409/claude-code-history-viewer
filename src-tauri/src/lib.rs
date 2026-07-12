@@ -53,8 +53,8 @@ use crate::commands::{
         MetadataState,
     },
     multi_provider::{
-        detect_providers, load_provider_messages, load_provider_sessions, scan_all_projects,
-        search_all_providers,
+        detect_providers, load_provider_messages, load_provider_sessions,
+        load_provider_sessions_page, scan_all_projects, search_all_providers,
     },
     project::{
         detect_claude_config_dir, get_claude_folder_path, get_git_log, scan_projects,
@@ -62,9 +62,9 @@ use crate::commands::{
     },
     session::{
         delete_session, get_recent_edits, get_session_message_count, get_session_subagents,
-        load_project_sessions, load_session_messages, load_session_messages_paginated,
-        rename_opencode_session_title, rename_session_native, reset_session_native_name,
-        restore_file, search_messages,
+        load_project_sessions, load_project_sessions_page, load_session_messages,
+        load_session_messages_paginated, rename_opencode_session_title, rename_session_native,
+        reset_session_native_name, restore_file, search_messages,
     },
     settings::{delete_preset, get_preset, load_presets, save_preset},
     stats::{
@@ -194,6 +194,7 @@ fn run_tauri() {
             scan_projects,
             get_git_log,
             load_project_sessions,
+            load_project_sessions_page,
             load_session_messages,
             load_session_messages_paginated,
             get_session_message_count,
@@ -257,6 +258,7 @@ fn run_tauri() {
             detect_providers,
             scan_all_projects,
             load_provider_sessions,
+            load_provider_sessions_page,
             load_provider_messages,
             search_all_providers,
             // Archive commands

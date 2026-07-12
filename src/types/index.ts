@@ -108,6 +108,7 @@ export type {
   ProviderInfo,
   ClaudeProject,
   ClaudeSession,
+  SessionPage,
   SearchFilters,
 } from "./core/session";
 

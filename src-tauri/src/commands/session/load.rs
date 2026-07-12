@@ -5,6 +5,7 @@ use crate::utils::{extract_project_name, find_line_ranges, find_line_starts};
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
 use rayon::prelude::*;
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
@@ -62,6 +63,19 @@ struct SessionMetadataCache {
 // `cwd` for the project name (handles sessions moved between project folders);
 // stale caches must be invalidated to recompute project_name.
 const CACHE_VERSION: u32 = 11;
+const DEFAULT_SESSION_PAGE_LIMIT: usize = 250;
+const MAX_SESSION_PAGE_LIMIT: usize = 500;
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPage {
+    pub sessions: Vec<ClaudeSession>,
+    pub total: usize,
+    pub offset: usize,
+    pub limit: usize,
+    pub next_offset: usize,
+    pub has_more: bool,
+}
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -799,6 +813,74 @@ fn truncate_text(text: &str, max_chars: usize) -> String {
     }
 }
 
+fn parse_timestamp_sort_key(timestamp: &str) -> Option<i64> {
+    DateTime::parse_from_rfc3339(timestamp)
+        .ok()
+        .map(|dt| dt.timestamp())
+}
+
+fn session_sort_key(session: &ClaudeSession) -> i64 {
+    parse_timestamp_sort_key(&session.last_message_time)
+        .or_else(|| parse_timestamp_sort_key(&session.last_modified))
+        .unwrap_or(0)
+}
+
+fn metadata_sort_snapshot(path: &Path) -> (Option<u64>, u64, i64) {
+    let Ok(metadata) = path.metadata() else {
+        return (None, 0, 0);
+    };
+
+    let modified_time = metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs());
+    let sort_key = modified_time
+        .and_then(|t| i64::try_from(t).ok())
+        .unwrap_or(0);
+
+    (modified_time, metadata.len(), sort_key)
+}
+
+fn session_with_sidechain_filter(
+    mut session: ClaudeSession,
+    sidechain_count: usize,
+    exclude: bool,
+) -> Option<ClaudeSession> {
+    if exclude {
+        session.message_count = session.message_count.saturating_sub(sidechain_count);
+        if session.message_count == 0 {
+            return None;
+        }
+    }
+    Some(session)
+}
+
+fn propagate_session_summaries(sessions: &mut [ClaudeSession]) {
+    let mut summary_map: HashMap<String, String> = HashMap::new();
+
+    for session in sessions.iter() {
+        if let Some(ref summary) = session.summary {
+            if !summary.is_empty() {
+                summary_map.insert(session.actual_session_id.clone(), summary.clone());
+            }
+        }
+    }
+
+    for session in sessions.iter_mut() {
+        if session.summary.is_none()
+            || session
+                .summary
+                .as_ref()
+                .is_some_and(std::string::String::is_empty)
+        {
+            if let Some(summary) = summary_map.get(&session.actual_session_id) {
+                session.summary = Some(summary.clone());
+            }
+        }
+    }
+}
+
 // Extract text from message content, filtering out system messages
 // Falls back to extracting command name + args for command messages
 fn extract_user_text(content: &serde_json::Value) -> Option<String> {
@@ -902,6 +984,338 @@ enum FileParseStrategy {
     Incremental(PathBuf, IncrementalParseState),
     /// Full reparse needed (new file or file shrunk/modified in place)
     FullParse(PathBuf),
+}
+
+#[derive(Clone)]
+enum SessionPageCandidateSource {
+    Cached(Box<ClaudeSession>, usize),
+    Parse(PathBuf),
+    KnownDropped,
+}
+
+#[derive(Clone)]
+struct SessionPageCandidate {
+    sort_key: i64,
+    source: SessionPageCandidateSource,
+}
+
+/// In-memory record of candidate files that produced no valid session at all,
+/// keyed by project path, then file path -> (mtime, size) captured when the
+/// parse failed. `save_cache` is best-effort (a full disk or read-only project
+/// dir silently drops it), so later pages cannot rely on the on-disk cache
+/// alone to know how many candidates were already dropped by earlier pages.
+/// This registry keeps `SessionPage::total` cumulative across page calls
+/// within one app run; entries are ignored (and replaced) once the file's
+/// mtime or size changes.
+#[allow(clippy::type_complexity)]
+static PAGE_DROPPED_CANDIDATES: once_cell::sync::Lazy<
+    std::sync::Mutex<HashMap<String, HashMap<String, (u64, u64)>>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
+fn is_recorded_dropped_candidate(
+    project_path: &str,
+    path_str: &str,
+    mtime: Option<u64>,
+    size: u64,
+) -> bool {
+    let registry = PAGE_DROPPED_CANDIDATES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    registry
+        .get(project_path)
+        .and_then(|files| files.get(path_str))
+        .is_some_and(|&(recorded_mtime, recorded_size)| {
+            Some(recorded_mtime) == mtime && recorded_size == size
+        })
+}
+
+fn record_dropped_candidate(project_path: &str, path_str: &str, mtime: Option<u64>, size: u64) {
+    let Some(mtime) = mtime else {
+        // Without a stable mtime the record could never be validated later.
+        return;
+    };
+    let mut registry = PAGE_DROPPED_CANDIDATES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    registry
+        .entry(project_path.to_string())
+        .or_default()
+        .insert(path_str.to_string(), (mtime, size));
+}
+
+fn clear_dropped_candidate(project_path: &str, path_str: &str) {
+    let mut registry = PAGE_DROPPED_CANDIDATES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(files) = registry.get_mut(project_path) {
+        files.remove(path_str);
+        if files.is_empty() {
+            registry.remove(project_path);
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn load_project_sessions_page(
+    project_path: String,
+    exclude_sidechain: Option<bool>,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<SessionPage, String> {
+    let project_path = project_path.trim().to_string();
+    if project_path.is_empty() {
+        return Err("project_path is required".to_string());
+    }
+
+    let project_root = Path::new(&project_path);
+    if !project_root.is_absolute() {
+        return Err("project_path must be an absolute path".to_string());
+    }
+
+    // The canonical root is only used to reject symlinked files that escape
+    // the project directory. Cache keys and the cache file location keep the
+    // caller-provided path form so they match the entries written by
+    // `load_project_sessions` (canonicalizing here would orphan that cache,
+    // e.g. `/var` vs `/private/var` on macOS).
+    let canonical_project_root = project_root
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve project_path: {error}"))?;
+
+    let exclude = exclude_sidechain.unwrap_or(false);
+    let offset = offset.unwrap_or(0);
+    let limit = limit
+        .unwrap_or(DEFAULT_SESSION_PAGE_LIMIT)
+        .clamp(1, MAX_SESSION_PAGE_LIMIT);
+
+    let mut cache = load_cache(&project_path);
+    let mut cache_updated = false;
+
+    let mut candidates: Vec<SessionPageCandidate> = Vec::new();
+    let mut known_dropped_candidates = 0usize;
+
+    for entry in WalkDir::new(project_root)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+    {
+        if entry.file_type().is_symlink() {
+            continue;
+        }
+
+        let Ok(canonical_path) = entry.path().canonicalize() else {
+            continue;
+        };
+        if !canonical_path.starts_with(&canonical_project_root) {
+            continue;
+        }
+
+        let path = entry.path().to_path_buf();
+        let path_str = path.to_string_lossy().to_string();
+        let (current_mtime, current_size, modified_sort_key) = metadata_sort_snapshot(&path);
+
+        if let Some(cached) = cache.entries.get(&path_str) {
+            if Some(cached.modified_time) == current_mtime && cached.file_size == current_size {
+                let (sort_key, source) = if let Some(session) = cached.session.clone() {
+                    let sort_key = session_sort_key(&session);
+                    if session_with_sidechain_filter(
+                        session.clone(),
+                        cached.sidechain_count,
+                        exclude,
+                    )
+                    .is_some()
+                    {
+                        (
+                            sort_key,
+                            SessionPageCandidateSource::Cached(
+                                Box::new(session),
+                                cached.sidechain_count,
+                            ),
+                        )
+                    } else {
+                        known_dropped_candidates = known_dropped_candidates.saturating_add(1);
+                        (sort_key, SessionPageCandidateSource::KnownDropped)
+                    }
+                } else {
+                    known_dropped_candidates = known_dropped_candidates.saturating_add(1);
+                    (modified_sort_key, SessionPageCandidateSource::KnownDropped)
+                };
+
+                candidates.push(SessionPageCandidate { sort_key, source });
+                continue;
+            }
+
+            if current_size > cached.file_size {
+                if let Some(session) = cached.session.as_ref() {
+                    candidates.push(SessionPageCandidate {
+                        sort_key: modified_sort_key.max(session_sort_key(session)),
+                        source: SessionPageCandidateSource::Parse(path),
+                    });
+                    continue;
+                }
+            }
+        }
+
+        // No usable on-disk cache entry: fall back to the in-memory record of
+        // candidates an earlier page already parsed and dropped, so `total`
+        // stays cumulative even when the cache file could not be written.
+        if is_recorded_dropped_candidate(&project_path, &path_str, current_mtime, current_size) {
+            known_dropped_candidates = known_dropped_candidates.saturating_add(1);
+            candidates.push(SessionPageCandidate {
+                sort_key: modified_sort_key,
+                source: SessionPageCandidateSource::KnownDropped,
+            });
+            continue;
+        }
+
+        candidates.push(SessionPageCandidate {
+            sort_key: modified_sort_key,
+            source: SessionPageCandidateSource::Parse(path),
+        });
+    }
+
+    candidates.sort_by_key(|candidate| Reverse(candidate.sort_key));
+
+    let candidate_total = candidates.len();
+    let page_start_offset = offset.min(candidate_total);
+    let mut next_offset = page_start_offset;
+    let mut newly_dropped_candidates = 0usize;
+    let mut sessions: Vec<ClaudeSession> = Vec::with_capacity(limit);
+
+    while sessions.len() < limit && next_offset < candidate_total {
+        let remaining_slots = limit - sessions.len();
+        let batch_end = next_offset
+            .saturating_add(remaining_slots)
+            .min(candidate_total);
+        let page_candidates: Vec<SessionPageCandidate> =
+            candidates[next_offset..batch_end].to_vec();
+        next_offset = batch_end;
+
+        let results: Vec<(SessionPageCandidateSource, Option<SessionExtractionResult>)> =
+            page_candidates
+                .into_par_iter()
+                .map(|candidate| match candidate.source {
+                    SessionPageCandidateSource::Cached(session, sidechain_count) => (
+                        SessionPageCandidateSource::Cached(session, sidechain_count),
+                        None,
+                    ),
+                    SessionPageCandidateSource::Parse(path) => {
+                        let result = extract_session_metadata_from_file(&path);
+                        (SessionPageCandidateSource::Parse(path), result)
+                    }
+                    SessionPageCandidateSource::KnownDropped => {
+                        (SessionPageCandidateSource::KnownDropped, None)
+                    }
+                })
+                .collect();
+
+        for (source, result_opt) in results {
+            match source {
+                SessionPageCandidateSource::Cached(session, sidechain_count) => {
+                    if let Some(session) =
+                        session_with_sidechain_filter(*session, sidechain_count, exclude)
+                    {
+                        sessions.push(session);
+                    } else {
+                        newly_dropped_candidates = newly_dropped_candidates.saturating_add(1);
+                    }
+                }
+                SessionPageCandidateSource::KnownDropped => {}
+                SessionPageCandidateSource::Parse(path) => {
+                    let path_str = path.to_string_lossy().to_string();
+                    let (modified_time, file_size, _) = metadata_sort_snapshot(&path);
+
+                    let (
+                        session_for_cache,
+                        sidechain_count,
+                        byte_offset,
+                        has_tool_use,
+                        has_errors,
+                        first_user_content,
+                        last_user_content,
+                        first_assistant_text,
+                        cached_rename_name,
+                    ) = match &result_opt {
+                        Some(result) => (
+                            Some(result.session.clone()),
+                            result.sidechain_count,
+                            result.final_byte_offset,
+                            result.has_tool_use,
+                            result.has_errors,
+                            result.first_user_content.clone(),
+                            result.last_user_content.clone(),
+                            result.first_assistant_text.clone(),
+                            result.rename_name.clone(),
+                        ),
+                        None => (None, 0, 0, false, false, None, None, None, None),
+                    };
+
+                    cache.entries.insert(
+                        path_str.clone(),
+                        CachedSessionMetadata {
+                            modified_time: modified_time.unwrap_or(0),
+                            file_size,
+                            last_byte_offset: byte_offset,
+                            session: session_for_cache,
+                            sidechain_count,
+                            has_tool_use,
+                            has_errors,
+                            first_user_content,
+                            last_user_content,
+                            first_assistant_text,
+                            rename_name: cached_rename_name,
+                        },
+                    );
+                    cache_updated = true;
+
+                    if let Some(result) = result_opt {
+                        clear_dropped_candidate(&project_path, &path_str);
+                        if let Some(session) = session_with_sidechain_filter(
+                            result.session,
+                            result.sidechain_count,
+                            exclude,
+                        ) {
+                            sessions.push(session);
+                        } else {
+                            newly_dropped_candidates = newly_dropped_candidates.saturating_add(1);
+                        }
+                    } else {
+                        record_dropped_candidate(
+                            &project_path,
+                            &path_str,
+                            modified_time,
+                            file_size,
+                        );
+                        newly_dropped_candidates = newly_dropped_candidates.saturating_add(1);
+                    }
+                }
+            }
+        }
+    }
+
+    let total = candidate_total
+        .saturating_sub(known_dropped_candidates.saturating_add(newly_dropped_candidates));
+    let has_more = candidates
+        .iter()
+        .skip(next_offset)
+        .any(|candidate| !matches!(candidate.source, SessionPageCandidateSource::KnownDropped));
+
+    sessions.sort_by_key(|session| Reverse(session_sort_key(session)));
+    propagate_session_summaries(&mut sessions);
+
+    if cache_updated {
+        cache.version = CACHE_VERSION;
+        save_cache(&project_path, &cache);
+    }
+
+    Ok(SessionPage {
+        sessions,
+        total,
+        offset,
+        limit,
+        next_offset,
+        has_more,
+    })
 }
 
 #[tauri::command]
@@ -1106,28 +1520,7 @@ pub async fn load_project_sessions(
     sessions.sort_by(|a, b| b.last_message_time.cmp(&a.last_message_time));
 
     // 8. Summary propagation
-    let mut summary_map: HashMap<String, String> = HashMap::new();
-
-    for session in &sessions {
-        if let Some(ref summary) = session.summary {
-            if !summary.is_empty() {
-                summary_map.insert(session.actual_session_id.clone(), summary.clone());
-            }
-        }
-    }
-
-    for session in &mut sessions {
-        if session.summary.is_none()
-            || session
-                .summary
-                .as_ref()
-                .is_some_and(std::string::String::is_empty)
-        {
-            if let Some(summary) = summary_map.get(&session.actual_session_id) {
-                session.summary = Some(summary.clone());
-            }
-        }
-    }
+    propagate_session_summaries(&mut sessions);
 
     // 9. Save updated cache
     if cache_updated {
@@ -1852,6 +2245,17 @@ mod tests {
         )
     }
 
+    fn create_sample_user_message_at(
+        uuid: &str,
+        session_id: &str,
+        timestamp: &str,
+        content: &str,
+    ) -> String {
+        format!(
+            r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"{timestamp}","type":"user","message":{{"role":"user","content":"{content}"}}}}"#
+        )
+    }
+
     fn create_sample_assistant_message(uuid: &str, session_id: &str, content: &str) -> String {
         format!(
             r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"{content}"}}],"id":"msg_123","model":"claude-opus-4-20250514","usage":{{"input_tokens":100,"output_tokens":50}}}}}}"#
@@ -2238,6 +2642,226 @@ mod tests {
         assert!(result.is_ok());
         let sessions = result.unwrap();
         assert_eq!(sessions.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_page_uses_cache_and_offsets() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let sessions = [
+            (
+                "old.jsonl",
+                "session-old",
+                "2025-06-26T09:00:00Z",
+                "Old session",
+            ),
+            (
+                "new.jsonl",
+                "session-new",
+                "2025-06-26T11:00:00Z",
+                "New session",
+            ),
+            (
+                "mid.jsonl",
+                "session-mid",
+                "2025-06-26T10:00:00Z",
+                "Middle session",
+            ),
+        ];
+
+        for (filename, session_id, timestamp, content) in sessions {
+            let file_path = temp_dir.path().join(filename);
+            let mut file = File::create(&file_path).unwrap();
+            let line = create_sample_user_message_at(
+                &format!("uuid-{session_id}"),
+                session_id,
+                timestamp,
+                content,
+            );
+            file.write_all(format!("{line}\n").as_bytes()).unwrap();
+        }
+
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+        let full = load_project_sessions(project_path.clone(), None)
+            .await
+            .unwrap();
+        assert_eq!(full.len(), 3);
+
+        let first_page = load_project_sessions_page(project_path.clone(), None, Some(0), Some(2))
+            .await
+            .unwrap();
+
+        assert_eq!(first_page.total, 3);
+        assert_eq!(first_page.sessions.len(), 2);
+        assert_eq!(first_page.offset, 0);
+        assert_eq!(first_page.next_offset, 2);
+        assert!(first_page.has_more);
+        assert_eq!(first_page.sessions[0].actual_session_id, "session-new");
+        assert_eq!(first_page.sessions[1].actual_session_id, "session-mid");
+
+        let second_page =
+            load_project_sessions_page(project_path, None, Some(first_page.next_offset), Some(2))
+                .await
+                .unwrap();
+
+        assert_eq!(second_page.total, 3);
+        assert_eq!(second_page.sessions.len(), 1);
+        assert_eq!(second_page.offset, 2);
+        assert_eq!(second_page.next_offset, 3);
+        assert!(!second_page.has_more);
+        assert_eq!(second_page.sessions[0].actual_session_id, "session-old");
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_page_rejects_invalid_project_path() {
+        let empty = load_project_sessions_page("  ".to_string(), None, None, None).await;
+        assert_eq!(empty.err().unwrap(), "project_path is required");
+
+        let relative =
+            load_project_sessions_page("relative/project".to_string(), None, None, None).await;
+        assert_eq!(
+            relative.err().unwrap(),
+            "project_path must be an absolute path"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_page_skips_invalid_candidates() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let valid_1 = create_test_jsonl_file(
+            &temp_dir,
+            "valid-1.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-valid-1", "session-valid-1", "Hello")
+            ),
+        );
+        let invalid = create_test_jsonl_file(&temp_dir, "invalid.jsonl", "{}\n");
+        let valid_2 = create_test_jsonl_file(
+            &temp_dir,
+            "valid-2.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-valid-2", "session-valid-2", "World")
+            ),
+        );
+
+        // Pin distinct mtimes so the recency-sorted candidate order is
+        // deterministic and the invalid file falls inside the first page's
+        // scan window (valid-1 newest, invalid middle, valid-2 oldest).
+        let base = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_750_000_000);
+        for (path, age_secs) in [(&valid_1, 0u64), (&invalid, 60), (&valid_2, 120)] {
+            let file = File::options().write(true).open(path).unwrap();
+            file.set_modified(base - std::time::Duration::from_secs(age_secs))
+                .unwrap();
+        }
+
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+        let page = load_project_sessions_page(project_path.clone(), None, Some(0), Some(2))
+            .await
+            .unwrap();
+
+        let session_ids: Vec<&str> = page
+            .sessions
+            .iter()
+            .map(|session| session.actual_session_id.as_str())
+            .collect();
+        assert_eq!(page.total, 2);
+        assert_eq!(page.sessions.len(), 2);
+        assert_eq!(page.next_offset, 3);
+        assert!(!page.has_more);
+        assert!(session_ids.contains(&"session-valid-1"));
+        assert!(session_ids.contains(&"session-valid-2"));
+
+        let second_page =
+            load_project_sessions_page(project_path, None, Some(page.next_offset), Some(2))
+                .await
+                .unwrap();
+        assert_eq!(second_page.total, 2);
+        assert!(second_page.sessions.is_empty());
+        assert!(!second_page.has_more);
+    }
+
+    #[tokio::test]
+    async fn test_load_project_sessions_page_total_stays_cumulative_without_disk_cache() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let valid_1 = create_test_jsonl_file(
+            &temp_dir,
+            "valid-1.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-valid-1", "session-valid-1", "Hello")
+            ),
+        );
+        let invalid = create_test_jsonl_file(&temp_dir, "invalid.jsonl", "{}\n");
+        let valid_2 = create_test_jsonl_file(
+            &temp_dir,
+            "valid-2.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-valid-2", "session-valid-2", "World")
+            ),
+        );
+
+        let base = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_750_000_000);
+        for (path, age_secs) in [(&valid_1, 0u64), (&invalid, 60), (&valid_2, 120)] {
+            let file = File::options().write(true).open(path).unwrap();
+            file.set_modified(base - std::time::Duration::from_secs(age_secs))
+                .unwrap();
+        }
+
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+        let first_page = load_project_sessions_page(project_path.clone(), None, Some(0), Some(2))
+            .await
+            .unwrap();
+        assert_eq!(first_page.total, 2);
+        assert_eq!(first_page.sessions.len(), 2);
+
+        // Simulate the best-effort cache write being lost (e.g. full disk or
+        // read-only project dir): later pages must still account for the
+        // candidates already dropped by earlier pages via the in-memory
+        // registry, so `total` stays consistent on every page.
+        std::fs::remove_file(temp_dir.path().join(".session_cache.json")).unwrap();
+
+        let second_page =
+            load_project_sessions_page(project_path, None, Some(first_page.next_offset), Some(2))
+                .await
+                .unwrap();
+        assert_eq!(second_page.total, 2);
+        assert!(second_page.sessions.is_empty());
+        assert!(!second_page.has_more);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_load_project_sessions_page_ignores_symlinked_jsonl_outside_project() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+        let outside_file = create_test_jsonl_file(
+            &outside_dir,
+            "outside.jsonl",
+            &format!(
+                "{}\n",
+                create_sample_user_message("uuid-outside", "session-outside", "Outside")
+            ),
+        );
+        let link_path = temp_dir.path().join("linked-outside.jsonl");
+        std::os::unix::fs::symlink(&outside_file, link_path).unwrap();
+
+        let page = load_project_sessions_page(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+            Some(0),
+            Some(2),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(page.total, 0);
+        assert!(page.sessions.is_empty());
+        assert!(!page.has_more);
     }
 
     #[tokio::test]

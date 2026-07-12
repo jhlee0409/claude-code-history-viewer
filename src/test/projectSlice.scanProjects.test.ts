@@ -312,8 +312,15 @@ describe("projectSlice scanProjects", () => {
       if (command === "scan_projects") {
         return Promise.resolve([refreshedProject]);
       }
-      if (command === "load_project_sessions") {
-        return Promise.resolve([refreshedSession]);
+      if (command === "load_provider_sessions_page") {
+        return Promise.resolve({
+          sessions: [refreshedSession],
+          total: 1,
+          offset: 0,
+          limit: 250,
+          nextOffset: 1,
+          hasMore: false,
+        });
       }
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });
@@ -390,8 +397,15 @@ describe("projectSlice scanProjects", () => {
       if (command === "scan_projects") {
         return Promise.resolve([project]);
       }
-      if (command === "load_project_sessions") {
-        return Promise.resolve([]);
+      if (command === "load_provider_sessions_page") {
+        return Promise.resolve({
+          sessions: [],
+          total: 0,
+          offset: 0,
+          limit: 250,
+          nextOffset: 0,
+          hasMore: false,
+        });
       }
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });
@@ -430,8 +444,15 @@ describe("projectSlice scanProjects", () => {
       if (command === "scan_projects") {
         return Promise.resolve([project]);
       }
-      if (command === "load_project_sessions") {
-        return Promise.resolve([]);
+      if (command === "load_provider_sessions_page") {
+        return Promise.resolve({
+          sessions: [],
+          total: 0,
+          offset: 0,
+          limit: 250,
+          nextOffset: 0,
+          hasMore: false,
+        });
       }
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });

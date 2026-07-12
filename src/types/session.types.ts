@@ -103,6 +103,9 @@ export interface AppState {
   projects: ClaudeProject[];
   selectedProject: ClaudeProject | null;
   sessions: ClaudeSession[];
+  sessionsTotal: number;
+  sessionsOffset: number;
+  hasMoreSessions: boolean;
   selectedSession: ClaudeSession | null;
   messages: ClaudeMessage[];
   pagination: PaginationState;
@@ -112,6 +115,7 @@ export interface AppState {
   isLoading: boolean; // App initialization
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
+  isLoadingMoreSessions: boolean;
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;
   error: AppError | null;

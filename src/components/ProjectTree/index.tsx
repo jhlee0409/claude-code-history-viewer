@@ -59,13 +59,17 @@ const loadProviderFiltersOpenState = () => {
 export const ProjectTree: React.FC<ProjectTreeProps> = ({
   projects,
   sessions,
+  sessionsTotal = sessions.length,
+  hasMoreSessions = false,
   selectedProject,
   selectedSession,
   onProjectSelect,
   onSessionSelect,
   onSessionHover,
+  onLoadMoreSessions = () => {},
   onGlobalStatsClick,
   isLoading,
+  isLoadingMoreSessions = false,
   isViewingGlobalStats,
   width,
   isResizing,
@@ -1060,9 +1064,12 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 ungroupedProjects={filteredUngroupedProjects}
                 showProviderBadge={showProviderBadge}
                 sessions={sessions}
+                sessionsTotal={sessionsTotal}
+                hasMoreSessions={hasMoreSessions}
                 selectedProject={selectedProject}
                 selectedSession={selectedSession}
                 isLoading={isLoading}
+                isLoadingMoreSessions={isLoadingMoreSessions}
                 expandedProjects={expandedProjects}
                 setExpandedProjects={setExpandedProjects}
                 isProjectExpanded={isProjectExpanded}
@@ -1070,6 +1077,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 handleContextMenu={handleContextMenu}
                 onSessionSelect={handleSessionSelect}
                 onSessionHover={onSessionHover}
+                onLoadMoreSessions={onLoadMoreSessions}
                 formatTimeAgo={formatTimeAgo}
               />
             </div>
