@@ -26,6 +26,7 @@ import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
+import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { FilteredDiffLines } from "./FilteredDiffLines";
 import type { FileEditItemProps, RestoreStatus, EditViewMode } from "./types";
 import { getLanguageFromPath, formatTimestamp, getRelativeTime } from "./utils";
@@ -352,16 +353,20 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
       {/* Expanded content */}
       {isExpanded && (
         <div className="border-t border-border">
-          {/* Full diff view (EnhancedDiffViewer scrolls internally) */}
+          {/* Full diff view (EnhancedDiffViewer scrolls internally).
+              ExpandKeyProvider is required by useCaptureExpandState inside
+              AdvancedTextDiff, which otherwise throws outside MessageViewer. */}
           {viewMode === "diff" && (
             <div className="p-3">
-              <EnhancedDiffViewer
-                oldText={edit.original_content ?? ""}
-                newText={edit.content_after_change}
-                filePath={edit.file_path}
-                showAdvancedDiff={true}
-                defaultMode="visual"
-              />
+              <ExpandKeyProvider value={`recent-edits:${edit.file_path}`}>
+                <EnhancedDiffViewer
+                  oldText={edit.original_content ?? ""}
+                  newText={edit.content_after_change}
+                  filePath={edit.file_path}
+                  showAdvancedDiff={true}
+                  defaultMode="visual"
+                />
+              </ExpandKeyProvider>
             </div>
           )}
 
