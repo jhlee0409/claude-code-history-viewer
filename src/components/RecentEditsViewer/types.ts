@@ -20,3 +20,9 @@ export interface FileEditItemProps {
 }
 
 export type RestoreStatus = "idle" | "loading" | "success" | "error";
+
+/**
+ * Expanded-view mode for a file edit item:
+ * whole file, only added lines, only removed lines, or full diff.
+ */
+export type EditViewMode = "content" | "added" | "removed" | "diff";

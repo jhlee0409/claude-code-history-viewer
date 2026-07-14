@@ -6,12 +6,13 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "../common";
 import { api } from "@/services/api";
 import {
   FileEdit,
+  FileDiff,
   FilePlus,
   Clock,
   Copy,
@@ -24,8 +25,12 @@ import {
 import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
-import type { FileEditItemProps, RestoreStatus } from "./types";
+import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
+import { FilteredDiffLines } from "./FilteredDiffLines";
+import type { FileEditItemProps, RestoreStatus, EditViewMode } from "./types";
 import { getLanguageFromPath, formatTimestamp, getRelativeTime } from "./utils";
+import { extractAddedLines, extractRemovedLines } from "./diffUtils";
+import type { DiffLineGroup } from "./diffUtils";
 import {
   getPreStyles,
   getLineStyles,
@@ -38,6 +43,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
   const { t } = useTranslation();
   const { t: tCommon } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<EditViewMode>("content");
   const [copied, setCopied] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<RestoreStatus>("idle");
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -46,6 +52,25 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
   const language = getLanguageFromPath(edit.file_path);
   const fileName = edit.file_path.replace(/\\/g, "/").split("/").pop() || edit.file_path;
   const lines = edit.content_after_change.split("\n");
+
+  // Clicking the active control again collapses; otherwise expand into that view
+  const toggleView = (mode: EditViewMode) => {
+    if (isExpanded && viewMode === mode) {
+      setIsExpanded(false);
+    } else {
+      setViewMode(mode);
+      setIsExpanded(true);
+    }
+  };
+
+  const filteredGroups = useMemo<DiffLineGroup[]>(() => {
+    if (!isExpanded || (viewMode !== "added" && viewMode !== "removed")) {
+      return [];
+    }
+    return viewMode === "added"
+      ? extractAddedLines(edit.original_content, edit.content_after_change)
+      : extractRemovedLines(edit.original_content, edit.content_after_change);
+  }, [isExpanded, viewMode, edit.original_content, edit.content_after_change]);
 
   const handleCopy = async () => {
     try {
@@ -100,7 +125,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
             : "bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-950/40 dark:to-indigo-950/20",
           isExpanded && "border-b border-border"
         )}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => toggleView("content")}
       >
         {/* Left accent bar */}
         <div
@@ -148,18 +173,64 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
 
         {/* Right side info */}
         <div className="flex items-center space-x-3 shrink-0 ml-2">
-          {/* Diff stats */}
+          {/* Diff stats — clickable filters for added/removed-only views */}
           <div className={`flex items-center space-x-2 ${layout.smallText} font-mono`}>
             {edit.lines_added > 0 && (
-              <span className="text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleView("added");
+                }}
+                className={cn(
+                  "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded transition-all",
+                  isExpanded && viewMode === "added"
+                    ? "ring-2 ring-green-500/70"
+                    : "hover:ring-1 hover:ring-green-500/50"
+                )}
+                title={t("recentEdits.showAddedLines")}
+                aria-label={t("recentEdits.showAddedLines")}
+                aria-pressed={isExpanded && viewMode === "added"}
+              >
                 +{edit.lines_added}
-              </span>
+              </button>
             )}
             {edit.lines_removed > 0 && (
-              <span className="text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleView("removed");
+                }}
+                className={cn(
+                  "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded transition-all",
+                  isExpanded && viewMode === "removed"
+                    ? "ring-2 ring-red-500/70"
+                    : "hover:ring-1 hover:ring-red-500/50"
+                )}
+                title={t("recentEdits.showRemovedLines")}
+                aria-label={t("recentEdits.showRemovedLines")}
+                aria-pressed={isExpanded && viewMode === "removed"}
+              >
                 -{edit.lines_removed}
-              </span>
+              </button>
             )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleView("diff");
+              }}
+              className={cn(
+                "flex items-center space-x-1 px-1.5 py-0.5 rounded transition-all",
+                isExpanded && viewMode === "diff"
+                  ? "bg-accent/20 text-accent ring-2 ring-accent/50"
+                  : "bg-muted/50 text-muted-foreground hover:text-foreground hover:ring-1 hover:ring-accent/40"
+              )}
+              title={t("recentEdits.showDiff")}
+              aria-label={t("recentEdits.showDiff")}
+              aria-pressed={isExpanded && viewMode === "diff"}
+            >
+              <FileDiff className="w-3 h-3" />
+              <span>{t("recentEdits.diff")}</span>
+            </button>
           </div>
 
           {/* Operation badge */}
@@ -281,72 +352,94 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
       {/* Expanded content */}
       {isExpanded && (
         <div className="border-t border-border">
+          {/* Full diff view (EnhancedDiffViewer scrolls internally) */}
+          {viewMode === "diff" && (
+            <div className="p-3">
+              <EnhancedDiffViewer
+                oldText={edit.original_content ?? ""}
+                newText={edit.content_after_change}
+                filePath={edit.file_path}
+                showAdvancedDiff={true}
+                defaultMode="visual"
+              />
+            </div>
+          )}
+
+          {/* Added/removed-only view */}
+          {(viewMode === "added" || viewMode === "removed") && (
+            <div className="max-h-96 overflow-auto">
+              <FilteredDiffLines groups={filteredGroups} kind={viewMode} />
+            </div>
+          )}
+
           {/* Code/Markdown content */}
-          <div className="max-h-96 overflow-auto">
-            {language === "markdown" ? (
-              <Markdown className="p-3 bg-card text-foreground">
-                {edit.content_after_change}
-              </Markdown>
-            ) : (
-              <Highlight
-                theme={isDarkMode ? themes.vsDark : themes.vsLight}
-                code={edit.content_after_change}
-                language={
-                  language === "tsx" ? "typescript" : language === "jsx" ? "javascript" : language
-                }
-              >
-                {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                  <pre
-                    className={className}
-                    style={getPreStyles(isDarkMode, style, {
-                      fontSize: "calc(0.8125rem * var(--app-font-scale))",
-                      lineHeight: "1.25rem",
-                      padding: "0.75rem",
-                    })}
-                  >
-                    {tokens.map((line, i) => {
-                      const {
-                        key: lineKey,
-                        ...lineProps
-                      } = getLineProps({ line, key: i }) as React.HTMLAttributes<HTMLDivElement> & {
-                        key?: React.Key;
-                        style?: React.CSSProperties;
-                      };
-                      return (
-                        <div
-                          key={lineKey ?? i}
-                          {...lineProps}
-                          style={getLineStyles(lineProps.style, { display: "table-row" })}
-                        >
-                          <span style={getLineNumberStyles()}>
-                            {i + 1}
-                          </span>
-                          <span style={getTokenContainerStyles()}>
-                            {line.map((token, tokenIndex) => {
-                              const {
-                                key: tokenKey,
-                                ...tokenProps
-                              } = getTokenProps({ token, key: tokenIndex }) as React.HTMLAttributes<HTMLSpanElement> & {
-                                key?: React.Key;
-                                style?: React.CSSProperties;
-                              };
-                              return (
-                                <span
-                                  key={tokenKey ?? tokenIndex}
-                                  {...tokenProps}
-                                  style={getTokenStyles(isDarkMode, tokenProps.style)}
-                                />
-                              );
-                            })}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </pre>
-                )}
-              </Highlight>
-            )}
-          </div>
+          {viewMode === "content" && (
+            <div className="max-h-96 overflow-auto">
+              {language === "markdown" ? (
+                <Markdown className="p-3 bg-card text-foreground">
+                  {edit.content_after_change}
+                </Markdown>
+              ) : (
+                <Highlight
+                  theme={isDarkMode ? themes.vsDark : themes.vsLight}
+                  code={edit.content_after_change}
+                  language={
+                    language === "tsx" ? "typescript" : language === "jsx" ? "javascript" : language
+                  }
+                >
+                  {({ className, style, tokens, getLineProps, getTokenProps }) => (
+                    <pre
+                      className={className}
+                      style={getPreStyles(isDarkMode, style, {
+                        fontSize: "calc(0.8125rem * var(--app-font-scale))",
+                        lineHeight: "1.25rem",
+                        padding: "0.75rem",
+                      })}
+                    >
+                      {tokens.map((line, i) => {
+                        const {
+                          key: lineKey,
+                          ...lineProps
+                        } = getLineProps({ line, key: i }) as React.HTMLAttributes<HTMLDivElement> & {
+                          key?: React.Key;
+                          style?: React.CSSProperties;
+                        };
+                        return (
+                          <div
+                            key={lineKey ?? i}
+                            {...lineProps}
+                            style={getLineStyles(lineProps.style, { display: "table-row" })}
+                          >
+                            <span style={getLineNumberStyles()}>
+                              {i + 1}
+                            </span>
+                            <span style={getTokenContainerStyles()}>
+                              {line.map((token, tokenIndex) => {
+                                const {
+                                  key: tokenKey,
+                                  ...tokenProps
+                                } = getTokenProps({ token, key: tokenIndex }) as React.HTMLAttributes<HTMLSpanElement> & {
+                                  key?: React.Key;
+                                  style?: React.CSSProperties;
+                                };
+                                return (
+                                  <span
+                                    key={tokenKey ?? tokenIndex}
+                                    {...tokenProps}
+                                    style={getTokenStyles(isDarkMode, tokenProps.style)}
+                                  />
+                                );
+                              })}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </pre>
+                  )}
+                </Highlight>
+              )}
+            </div>
+          )}
 
           {/* Footer with stats */}
           <div

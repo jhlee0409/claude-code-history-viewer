@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-07-12T10:46:56.888Z
- * 총 키 개수: 1858
+ * 생성 시간: 2026-07-14T16:30:38.203Z
+ * 총 키 개수: 1863
  * Namespace 수: 11
  */
 
@@ -1938,7 +1938,7 @@ export type FeedbackKeys =
   | 'feedback.types.other';
 
 /**
- * recentEdits namespace의 번역 키 (20개)
+ * recentEdits namespace의 번역 키 (25개)
  * 파일: locales/{lang}/recentEdits.json
  */
 export type RecentEditsKeys =
@@ -1949,17 +1949,22 @@ export type RecentEditsKeys =
   | 'recentEdits.copyContent'
   | 'recentEdits.created'
   | 'recentEdits.description'
+  | 'recentEdits.diff'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
   | 'recentEdits.lines'
   | 'recentEdits.loading'
   | 'recentEdits.noEdits'
   | 'recentEdits.noEditsDescription'
+  | 'recentEdits.noLinesToShow'
   | 'recentEdits.noSearchResults'
   | 'recentEdits.restoreError'
   | 'recentEdits.restoreFile'
   | 'recentEdits.searchPlaceholder'
+  | 'recentEdits.showAddedLines'
+  | 'recentEdits.showDiff'
   | 'recentEdits.showMore'
+  | 'recentEdits.showRemovedLines'
   | 'recentEdits.stats'
   | 'recentEdits.title';
 
@@ -2787,17 +2792,22 @@ export type TranslationKey =
   | 'recentEdits.copyContent'
   | 'recentEdits.created'
   | 'recentEdits.description'
+  | 'recentEdits.diff'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
   | 'recentEdits.lines'
   | 'recentEdits.loading'
   | 'recentEdits.noEdits'
   | 'recentEdits.noEditsDescription'
+  | 'recentEdits.noLinesToShow'
   | 'recentEdits.noSearchResults'
   | 'recentEdits.restoreError'
   | 'recentEdits.restoreFile'
   | 'recentEdits.searchPlaceholder'
+  | 'recentEdits.showAddedLines'
+  | 'recentEdits.showDiff'
   | 'recentEdits.showMore'
+  | 'recentEdits.showRemovedLines'
   | 'recentEdits.stats'
   | 'recentEdits.title'
   | 'redactedThinkingRenderer.description'

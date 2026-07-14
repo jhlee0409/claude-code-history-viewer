@@ -24,6 +24,7 @@ type Props = {
   newText: string;
   filePath?: string;
   showAdvancedDiff?: boolean;
+  defaultMode?: "visual" | "advanced";
 };
 
 // Enhanced Diff Viewer with multiple modes
@@ -32,9 +33,10 @@ export const EnhancedDiffViewer = ({
   newText,
   filePath = "",
   showAdvancedDiff = false,
+  defaultMode = "advanced",
 }: Props) => {
   const { t } = useTranslation();
-  const [viewMode, setViewMode] = useState<"visual" | "advanced">("advanced");
+  const [viewMode, setViewMode] = useState<"visual" | "advanced">(defaultMode);
   const [splitView, setSplitView] = useState(true);
   const { renderCopyButton } = useCopyButton();
 
