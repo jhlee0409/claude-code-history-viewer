@@ -21,9 +21,13 @@ import {
   ChevronRight,
   Loader2,
   RotateCcw,
+  FolderOpen,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
+import { isAbsolutePath } from "@/utils/pathUtils";
+import { isTauri, isMacOS, isWindows } from "@/utils/platform";
 import { layout } from "@/components/renderers";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
@@ -72,6 +76,14 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
       ? extractAddedLines(edit.original_content, edit.content_after_change)
       : extractRemovedLines(edit.original_content, edit.content_after_change);
   }, [isExpanded, viewMode, edit.original_content, edit.content_after_change]);
+  // revealItemInDir is a Tauri-only plugin API with no WebUI (Axum) fallback,
+  // so the button is hidden entirely in --serve mode rather than shown disabled.
+  const canReveal = isTauri() && isAbsolutePath(edit.file_path);
+  const revealLabel = isMacOS()
+    ? t("recentEdits.revealInFinder")
+    : isWindows()
+      ? t("recentEdits.revealInExplorer")
+      : t("recentEdits.revealInFolder");
 
   const handleCopy = async () => {
     try {
@@ -80,6 +92,16 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy:", err);
+    }
+  };
+
+  const handleReveal = async () => {
+    try {
+      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+      await revealItemInDir(edit.file_path);
+    } catch (err) {
+      console.error("Failed to reveal file:", err);
+      toast.error(t("recentEdits.revealError"));
     }
   };
 
@@ -257,6 +279,21 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
               {getRelativeTime(edit.timestamp, tCommon)}
             </span>
           </div>
+
+          {/* Reveal in folder button (desktop only) */}
+          {canReveal && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReveal();
+              }}
+              className="p-2 rounded-lg transition-all duration-200 hover:bg-muted text-muted-foreground hover:text-foreground"
+              aria-label={revealLabel}
+              title={revealLabel}
+            >
+              <FolderOpen className="w-4 h-4" />
+            </button>
+          )}
 
           {/* Copy button */}
           <button
