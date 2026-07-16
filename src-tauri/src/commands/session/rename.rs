@@ -341,9 +341,13 @@ fn allowed_claude_roots() -> Vec<PathBuf> {
 ///
 /// Security checks performed:
 /// 1. Path must be absolute
-/// 2. No symlinks allowed in any path component
-/// 3. Filename must match pattern ^[A-Za-z0-9_-]+$
-/// 4. Canonical path must live under one of the allowed Claude roots
+/// 2. Filename must match pattern ^[A-Za-z0-9_-]+$
+/// 3. Path must be lexically under an allowed root's `projects/` folder, with no
+///    `.`/`..` traversal components
+/// 4. Depth-1 symlink policy (matches `scan_projects`, #277): the project
+///    directory may be a symlink to a directory (this is how shared sessions are
+///    linked in), but `projects/` and everything below the project directory must
+///    be symlink-free, and the session path must resolve to a regular file
 fn validate_claude_path(file_path: &str) -> Result<(), String> {
     validate_claude_path_with_roots(file_path, &allowed_claude_roots())
 }
@@ -361,65 +365,104 @@ fn validate_claude_path_with_roots(
         );
     }
 
-    // 2. Block symlinks in path components
-    // Check each ancestor for symlinks before canonicalizing
-    let mut current = file_path_buf.as_path();
-    while let Some(parent) = current.parent() {
-        if parent.as_os_str().is_empty() {
-            break;
-        }
-        // Use symlink_metadata to avoid following symlinks
-        if let Ok(metadata) = fs::symlink_metadata(parent) {
-            if metadata.file_type().is_symlink() {
-                return Err(RenameError::PermissionDenied(
-                    "Symlinks are not allowed in path".to_string(),
-                )
-                .to_string());
-            }
-        }
-        current = parent;
-    }
-
-    // Also check the final file itself for symlinks
-    if let Ok(metadata) = fs::symlink_metadata(&file_path_buf) {
-        if metadata.file_type().is_symlink() {
-            return Err(
-                RenameError::PermissionDenied("File path cannot be a symlink".to_string())
-                    .to_string(),
-            );
-        }
-    }
-
-    // 3. Validate filename pattern
-    if let Some(filename) = file_path_buf.file_stem() {
-        let filename_str = filename.to_string_lossy();
-        if !FILENAME_REGEX.is_match(&filename_str) {
-            return Err(RenameError::PermissionDenied(
-                "Filename must contain only alphanumeric characters, underscores, and hyphens"
-                    .to_string(),
-            )
-            .to_string());
-        }
-    } else {
+    // 2. Validate filename pattern
+    let Some(stem) = file_path_buf.file_stem() else {
         return Err(RenameError::PermissionDenied("Invalid filename".to_string()).to_string());
-    }
-
-    // Canonicalize to resolve .. components (symlinks already blocked above)
-    let canonical_path = file_path_buf
-        .canonicalize()
-        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
-
-    // Verify the file lives under one of the allowed Claude roots (~/.claude or
-    // a custom Claude directory the user registered).
-    if !allowed_roots
-        .iter()
-        .any(|root| canonical_path.starts_with(root))
-    {
+    };
+    if !FILENAME_REGEX.is_match(&stem.to_string_lossy()) {
         return Err(RenameError::PermissionDenied(
-            "File path must be within ~/.claude or a registered custom Claude directory"
+            "Filename must contain only alphanumeric characters, underscores, and hyphens"
                 .to_string(),
         )
         .to_string());
+    }
+
+    // 3. The file must sit under an allowed root's `projects/` directory. Match
+    // lexically: the path from the root down to `projects/` is always real, so
+    // the only symlink (if any) is the project directory just below it.
+    let Some((projects_dir, relative)) = allowed_roots.iter().find_map(|root| {
+        let projects_dir = root.join("projects");
+        file_path_buf
+            .strip_prefix(&projects_dir)
+            .ok()
+            .map(|rel| (projects_dir, rel.to_path_buf()))
+    }) else {
+        return Err(RenameError::PermissionDenied(
+            "File path must be within the projects/ folder of ~/.claude or a registered custom \
+             Claude directory"
+                .to_string(),
+        )
+        .to_string());
+    };
+
+    // 4. Reject path traversal: every component under `projects/` must be a plain
+    // name (no `.` / `..` / prefixes), and there must be at least
+    // `<project>/<session>.jsonl`.
+    let components: Vec<std::path::Component> = relative.components().collect();
+    if components.len() < 2
+        || !components
+            .iter()
+            .all(|c| matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(RenameError::PermissionDenied(
+            "Invalid session path under projects/".to_string(),
+        )
+        .to_string());
+    }
+
+    // 5. `projects/` itself must be a real directory, never a symlink (mirrors
+    // validate_custom_claude_path).
+    if fs::symlink_metadata(&projects_dir)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(
+            RenameError::PermissionDenied("projects/ must not be a symlink".to_string())
+                .to_string(),
+        );
+    }
+
+    // 6. Depth-1 symlink policy (matches scan_projects, #277): the project
+    // directory (first component under `projects/`) may be a symlink that
+    // resolves to a directory — this is how shared sessions are linked in — but
+    // nothing deeper may be a symlink, and the target must be a real file.
+    let project_dir = projects_dir.join(components[0]);
+    let project_meta = fs::symlink_metadata(&project_dir)
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+    if project_meta.file_type().is_symlink() {
+        if !project_dir.is_dir() {
+            return Err(RenameError::PermissionDenied(
+                "Project directory symlink does not resolve to a directory".to_string(),
+            )
+            .to_string());
+        }
+    } else if !project_meta.is_dir() {
+        return Err(
+            RenameError::PermissionDenied("Project path is not a directory".to_string())
+                .to_string(),
+        );
+    }
+
+    // Every component below the project directory must be symlink-free, and the
+    // session path must resolve to a regular file.
+    let mut current = project_dir;
+    let deeper = &components[1..];
+    for (i, comp) in deeper.iter().enumerate() {
+        current.push(comp);
+        let meta = fs::symlink_metadata(&current)
+            .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+        if meta.file_type().is_symlink() {
+            return Err(RenameError::PermissionDenied(
+                "Symlinks are not allowed below the project directory".to_string(),
+            )
+            .to_string());
+        }
+        if i + 1 == deeper.len() && !meta.is_file() {
+            return Err(RenameError::PermissionDenied(
+                "Session path is not a regular file".to_string(),
+            )
+            .to_string());
+        }
     }
 
     Ok(())
@@ -1504,6 +1547,115 @@ mod tests {
                 "the default ~/.claude root must always be allowed"
             );
         }
+    }
+
+    #[cfg(unix)]
+    fn symlink_dir(target: &Path, link: &Path) {
+        std::os::unix::fs::symlink(target, link).unwrap();
+    }
+    #[cfg(windows)]
+    fn symlink_dir(target: &Path, link: &Path) {
+        std::os::windows::fs::symlink_dir(target, link).unwrap();
+    }
+
+    #[test]
+    fn validate_claude_path_accepts_symlinked_project_directory() {
+        // Mirrors the shared-sessions layout: a project directory under
+        // <root>/projects is a symlink into a real directory elsewhere (e.g.
+        // /Users/Shared/.claude/projects). The session file is a real file.
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        fs::create_dir_all(root.join("projects")).unwrap();
+
+        let shared = real_temp_root(&temp).join("shared").join("-Shared-proj");
+        fs::create_dir_all(&shared).unwrap();
+        let session = shared.join("session-1.jsonl");
+        fs::write(&session, "{}\n").unwrap();
+
+        // <root>/projects/-Shared-proj -> <temp>/shared/-Shared-proj
+        symlink_dir(&shared, &root.join("projects").join("-Shared-proj"));
+
+        let session_path = root
+            .join("projects")
+            .join("-Shared-proj")
+            .join("session-1.jsonl")
+            .to_string_lossy()
+            .to_string();
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&session_path, &roots).is_ok(),
+            "a session under a depth-1 symlinked project directory must be renameable"
+        );
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_symlink_below_project_directory() {
+        // A symlink deeper than the project directory is not allowed.
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        let project_dir = root.join("projects").join("-proj");
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let elsewhere = real_temp_root(&temp).join("elsewhere");
+        fs::create_dir_all(&elsewhere).unwrap();
+        fs::write(elsewhere.join("session-1.jsonl"), "{}\n").unwrap();
+
+        // <root>/projects/-proj/subdir -> <temp>/elsewhere  (symlink below depth 1)
+        symlink_dir(&elsewhere, &project_dir.join("subdir"));
+
+        let session_path = project_dir
+            .join("subdir")
+            .join("session-1.jsonl")
+            .to_string_lossy()
+            .to_string();
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&session_path, &roots).is_err(),
+            "symlinks below the project directory must stay rejected"
+        );
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_symlinked_session_file() {
+        // The session file itself must be a real file, not a symlink.
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        let project_dir = root.join("projects").join("-proj");
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let real_file = real_temp_root(&temp).join("target.jsonl");
+        fs::write(&real_file, "{}\n").unwrap();
+        let link = project_dir.join("session-1.jsonl");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real_file, &link).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&real_file, &link).unwrap();
+
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&link.to_string_lossy(), &roots).is_err(),
+            "a symlinked session file must be rejected"
+        );
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_path_traversal_under_projects() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        fs::create_dir_all(root.join("projects")).unwrap();
+
+        let traversal = root
+            .join("projects")
+            .join("..")
+            .join("evil")
+            .join("session-1.jsonl")
+            .to_string_lossy()
+            .to_string();
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&traversal, &roots).is_err(),
+            "`..` traversal under projects/ must be rejected"
+        );
     }
 
     #[test]
