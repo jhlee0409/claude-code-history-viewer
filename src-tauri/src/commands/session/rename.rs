@@ -324,10 +324,23 @@ fn resolve_claude_roots(configured: &[String]) -> Vec<PathBuf> {
 
 /// Push a root, resolved to its canonical form so it compares correctly against
 /// the canonicalized file path. Duplicates are skipped.
+/// Add an allowed Claude root. A root that is itself a symlink is rejected, so a
+/// symlinked `~/.claude` cannot smuggle its target into the allowlist and bypass
+/// the "only the project directory may be a symlink" policy.
+///
+/// The path is stored as-is (not canonicalized): `validate_claude_path_with_roots`
+/// compares it lexically against the raw request path, so both sides must use the
+/// same representation. Canonicalizing here would break that on Windows, where
+/// `canonicalize()` yields the `\\?\` verbatim form.
 fn push_root(roots: &mut Vec<PathBuf>, path: PathBuf) {
-    let resolved = path.canonicalize().unwrap_or(path);
-    if !roots.contains(&resolved) {
-        roots.push(resolved);
+    let is_symlink = fs::symlink_metadata(&path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false);
+    if is_symlink {
+        return;
+    }
+    if !roots.contains(&path) {
+        roots.push(path);
     }
 }
 
@@ -341,7 +354,7 @@ fn allowed_claude_roots() -> Vec<PathBuf> {
 ///
 /// Security checks performed:
 /// 1. Path must be absolute
-/// 2. Filename must match pattern ^[A-Za-z0-9_-]+$
+/// 2. Filename stem must match ^[A-Za-z0-9_-]+$ and the extension must be `.jsonl`
 /// 3. Path must be lexically under an allowed root's `projects/` folder, with no
 ///    `.`/`..` traversal components
 /// 4. Depth-1 symlink policy (matches `scan_projects`, #277): the project
@@ -373,6 +386,14 @@ fn validate_claude_path_with_roots(
         return Err(RenameError::PermissionDenied(
             "Filename must contain only alphanumeric characters, underscores, and hyphens"
                 .to_string(),
+        )
+        .to_string());
+    }
+    // Require a `.jsonl` extension so rename cannot rewrite non-session files
+    // (e.g. notes.txt, config.json) that happen to be valid JSON lines.
+    if file_path_buf.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+        return Err(RenameError::PermissionDenied(
+            "Session file must have a .jsonl extension".to_string(),
         )
         .to_string());
     }
@@ -1541,12 +1562,54 @@ mod tests {
         let roots = resolve_claude_roots(&[]);
         if let Some(home) = dirs::home_dir() {
             let default_root = home.join(".claude");
-            let expected = default_root.canonicalize().unwrap_or(default_root);
-            assert!(
-                roots.contains(&expected),
-                "the default ~/.claude root must always be allowed"
-            );
+            // Roots are stored as-is (not canonicalized), unless ~/.claude is a
+            // symlink (then push_root drops it).
+            let is_symlink = fs::symlink_metadata(&default_root)
+                .map(|m| m.file_type().is_symlink())
+                .unwrap_or(false);
+            if !is_symlink {
+                assert!(
+                    roots.contains(&default_root),
+                    "the default ~/.claude root must always be allowed"
+                );
+            }
         }
+    }
+
+    #[test]
+    fn push_root_rejects_symlinked_root() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let real = real_temp_root(&temp).join("real-root");
+        fs::create_dir_all(&real).unwrap();
+        let link = real_temp_root(&temp).join("linked-root");
+        symlink_dir(&real, &link);
+
+        let mut roots = Vec::new();
+        push_root(&mut roots, link.clone());
+        assert!(
+            !roots.contains(&link) && roots.is_empty(),
+            "a symlinked root must not enter the allowlist"
+        );
+
+        // A real root is still accepted, stored as-is (not canonicalized).
+        push_root(&mut roots, real.clone());
+        assert_eq!(roots, vec![real]);
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_non_jsonl_extension() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        let project_dir = root.join("projects").join("-proj");
+        fs::create_dir_all(&project_dir).unwrap();
+        let non_session = project_dir.join("config.json");
+        fs::write(&non_session, "{}\n").unwrap();
+
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&non_session.to_string_lossy(), &roots).is_err(),
+            "only .jsonl session files may be renamed"
+        );
     }
 
     #[cfg(unix)]
