@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
 use uuid::Uuid;
@@ -254,14 +254,104 @@ fn reset_claude_session_file(file_path: &str) -> Result<NativeRenameResult, Stri
     })
 }
 
-/// Validates that the file path is within the ~/.claude directory.
-/// This prevents path traversal attacks that could modify arbitrary files.
+/// Collect the Claude configuration directories the user has registered, plus
+/// `CLAUDE_CONFIG_DIR`. These are the same sources `scan_all_projects` reads, so
+/// any directory whose sessions the app displays is represented here.
+fn configured_claude_dirs() -> Vec<String> {
+    let mut dirs = Vec::new();
+
+    if let Ok(user_data_path) = crate::commands::metadata::get_user_data_path() {
+        if let Ok(content) = fs::read_to_string(user_data_path) {
+            if let Ok(metadata) = serde_json::from_str::<crate::models::UserMetadata>(&content) {
+                dirs.extend(
+                    metadata
+                        .settings
+                        .custom_claude_paths
+                        .into_iter()
+                        .map(|custom| custom.path),
+                );
+            }
+        }
+    }
+
+    if let Ok(env_dir) = std::env::var("CLAUDE_CONFIG_DIR") {
+        let trimmed = env_dir.trim();
+        if !trimmed.is_empty() {
+            dirs.push(expand_home_prefix(trimmed));
+        }
+    }
+
+    dirs
+}
+
+/// Expand a leading `~` to the home directory, mirroring `detect_claude_config_dir`.
+fn expand_home_prefix(raw: &str) -> String {
+    let Some(home) = dirs::home_dir() else {
+        return raw.to_string();
+    };
+    if raw == "~" {
+        return home.to_string_lossy().to_string();
+    }
+    match raw.strip_prefix("~/") {
+        Some(rest) => home.join(rest).to_string_lossy().to_string(),
+        None => raw.to_string(),
+    }
+}
+
+/// Resolve the Claude configuration roots a native rename may write to.
+///
+/// Always includes the default `~/.claude`. A configured directory is only added
+/// once it passes [`validate_custom_claude_path`], which requires an absolute,
+/// non-symlinked base with a real `projects/` subdirectory. The allowlist can
+/// therefore only widen to directories the user registered and that the app
+/// already scans — never to arbitrary paths.
+fn resolve_claude_roots(configured: &[String]) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    if let Some(home) = dirs::home_dir() {
+        push_root(&mut roots, home.join(".claude"));
+    }
+
+    for dir in configured {
+        let candidate = PathBuf::from(dir);
+        if crate::utils::validate_custom_claude_path(&candidate).is_ok() {
+            push_root(&mut roots, candidate);
+        }
+    }
+
+    roots
+}
+
+/// Push a root, resolved to its canonical form so it compares correctly against
+/// the canonicalized file path. Duplicates are skipped.
+fn push_root(roots: &mut Vec<PathBuf>, path: PathBuf) {
+    let resolved = path.canonicalize().unwrap_or(path);
+    if !roots.contains(&resolved) {
+        roots.push(resolved);
+    }
+}
+
+fn allowed_claude_roots() -> Vec<PathBuf> {
+    resolve_claude_roots(&configured_claude_dirs())
+}
+
+/// Validates that the file path is within `~/.claude` or a registered custom
+/// Claude directory. This prevents path traversal attacks that could modify
+/// arbitrary files.
 ///
 /// Security checks performed:
 /// 1. Path must be absolute
 /// 2. No symlinks allowed in any path component
 /// 3. Filename must match pattern ^[A-Za-z0-9_-]+$
+/// 4. Canonical path must live under one of the allowed Claude roots
 fn validate_claude_path(file_path: &str) -> Result<(), String> {
+    validate_claude_path_with_roots(file_path, &allowed_claude_roots())
+}
+
+fn validate_claude_path_with_roots(
+    file_path: &str,
+    allowed_roots: &[PathBuf],
+) -> Result<(), String> {
     let file_path_buf = std::path::PathBuf::from(file_path);
 
     // 1. Require absolute path
@@ -319,18 +409,15 @@ fn validate_claude_path(file_path: &str) -> Result<(), String> {
         .canonicalize()
         .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
 
-    // Get home directory
-    let home_dir = dirs::home_dir().ok_or_else(|| {
-        RenameError::IoError("Cannot determine home directory".to_string()).to_string()
-    })?;
-
-    // Build the allowed claude directory path
-    let claude_dir = home_dir.join(".claude");
-
-    // Verify the file is within ~/.claude
-    if !canonical_path.starts_with(&claude_dir) {
+    // Verify the file lives under one of the allowed Claude roots (~/.claude or
+    // a custom Claude directory the user registered).
+    if !allowed_roots
+        .iter()
+        .any(|root| canonical_path.starts_with(root))
+    {
         return Err(RenameError::PermissionDenied(
-            "File path must be within ~/.claude directory".to_string(),
+            "File path must be within ~/.claude or a registered custom Claude directory"
+                .to_string(),
         )
         .to_string());
     }
@@ -1323,6 +1410,100 @@ mod tests {
         // Nonexistent file should fail at canonicalize
         let result = validate_claude_path("/nonexistent/path/to/file.jsonl");
         assert!(result.is_err());
+    }
+
+    /// Canonicalize the temp root: on macOS `TempDir` sits under `/var/folders`,
+    /// and `/var` is a symlink, which `validate_claude_path` rejects outright.
+    /// Real Claude directories under `$HOME` have no symlinked ancestors.
+    fn real_temp_root(temp: &tempfile::TempDir) -> PathBuf {
+        temp.path().canonicalize().unwrap()
+    }
+
+    /// Build a Claude-shaped config dir (`<base>/projects/<project>/<name>.jsonl`)
+    /// and return the base plus the session file path.
+    fn make_claude_dir(base: &Path, session_name: &str) -> (PathBuf, String) {
+        let project_dir = base.join("projects").join("-tmp-demo");
+        fs::create_dir_all(&project_dir).unwrap();
+        let session = project_dir.join(format!("{session_name}.jsonl"));
+        fs::write(&session, "{}\n").unwrap();
+        (base.to_path_buf(), session.to_string_lossy().to_string())
+    }
+
+    #[test]
+    fn validate_claude_path_accepts_registered_custom_directory() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let custom_base = real_temp_root(&temp).join(".claude-holophonix");
+        fs::create_dir_all(&custom_base).unwrap();
+        let (base, session_path) = make_claude_dir(&custom_base, "session-1");
+
+        let roots = resolve_claude_roots(&[base.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&session_path, &roots).is_ok(),
+            "a session inside a registered custom Claude directory must be renameable"
+        );
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_directory_that_is_not_registered() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let unregistered = real_temp_root(&temp).join(".claude-other");
+        fs::create_dir_all(&unregistered).unwrap();
+        let (_base, session_path) = make_claude_dir(&unregistered, "session-1");
+
+        // Roots resolved without the directory being configured. The path itself
+        // is symlink-free, so this fails on root containment specifically.
+        let roots = resolve_claude_roots(&[]);
+        assert!(
+            validate_claude_path_with_roots(&session_path, &roots).is_err(),
+            "an unregistered directory must stay rejected"
+        );
+    }
+
+    #[test]
+    fn resolve_claude_roots_skips_directory_without_projects_subdir() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let bogus = real_temp_root(&temp).join(".claude-bogus");
+        fs::create_dir_all(&bogus).unwrap(); // no projects/ inside
+
+        let roots = resolve_claude_roots(&[bogus.to_string_lossy().to_string()]);
+        let bogus_canonical = bogus.canonicalize().unwrap();
+        assert!(
+            !roots.contains(&bogus_canonical),
+            "a directory failing validate_custom_claude_path must not widen the allowlist"
+        );
+    }
+
+    #[test]
+    fn resolve_claude_roots_skips_symlinked_custom_directory() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let real_base = real_temp_root(&temp).join("real-claude");
+        fs::create_dir_all(real_base.join("projects")).unwrap();
+        let link = real_temp_root(&temp).join("linked-claude");
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real_base, &link).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&real_base, &link).unwrap();
+
+        let roots = resolve_claude_roots(&[link.to_string_lossy().to_string()]);
+        // The symlinked base is rejected, so only the default ~/.claude root remains.
+        assert!(
+            !roots.iter().any(|r| r.starts_with(real_temp_root(&temp))),
+            "a symlinked custom base must be rejected"
+        );
+    }
+
+    #[test]
+    fn resolve_claude_roots_always_includes_default_claude_dir() {
+        let roots = resolve_claude_roots(&[]);
+        if let Some(home) = dirs::home_dir() {
+            let default_root = home.join(".claude");
+            let expected = default_root.canonicalize().unwrap_or(default_root);
+            assert!(
+                roots.contains(&expected),
+                "the default ~/.claude root must always be allowed"
+            );
+        }
     }
 
     #[test]
