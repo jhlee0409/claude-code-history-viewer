@@ -1,1 +1,211 @@
-aW1wb3J0IHsgdXNlU3RhdGUgfSBmcm9tICJyZWFjdCI7CmltcG9ydCB7IEZvbGRlciwgQWxlcnRDaXJjbGUsIEFycm93TGVmdCwgQ2hlY2tDaXJjbGUyLCBIZWxwQ2lyY2xlIH0gZnJvbSAibHVjaWRlLXJlYWN0IjsKaW1wb3J0IHsgaXNUYXVyaSB9IGZyb20gIkAvdXRpbHMvcGxhdGZvcm0iOwppbXBvcnQgeyBhcGkgfSBmcm9tICJAL3NlcnZpY2VzL2FwaSI7CmltcG9ydCB7IHVzZVRyYW5zbGF0aW9uIH0gZnJvbSAicmVhY3QtaTE4bmV4dCI7CmltcG9ydCB7CiAgRGlhbG9nLAogIERpYWxvZ0NvbnRlbnQsCiAgRGlhbG9nSGVhZGVyLAogIERpYWxvZ1RpdGxlLAogIERpYWxvZ0Rlc2NyaXB0aW9uLAp9IGZyb20gIkAvY29tcG9uZW50cy91aS9kaWFsb2ciOwppbXBvcnQgeyBCdXR0b24gfSBmcm9tICJAL2NvbXBvbmVudHMvdWkvYnV0dG9uIjsKaW1wb3J0IHsgQ2FyZCwgQ2FyZENvbnRlbnQsIENhcmRIZWFkZXIsIENhcmRUaXRsZSB9IGZyb20gIkAvY29tcG9uZW50cy91aS9jYXJkIjsKaW1wb3J0IHsgQWxlcnQsIEFsZXJ0RGVzY3JpcHRpb24gfSBmcm9tICJAL2NvbXBvbmVudHMvdWkvYWxlcnQiOwppbXBvcnQgeyBjbiB9IGZyb20gIkAvbGliL3V0aWxzIjsKCmludGVyZmFjZSBGb2xkZXJTZWxlY3RvclByb3BzIHsKICBvbkZvbGRlclNlbGVjdGVkOiAocGF0aDogc3RyaW5nKSA9PiB2b2lkOwogIG1vZGU/OiAibm90Rm91bmQiIHwgImNoYW5nZSI7CiAgb25DbG9zZT86ICgpID0+IHZvaWQ7Cn0KCmV4cG9ydCBmdW5jdGlvbiBGb2xkZXJTZWxlY3RvciggewogIG9uRm9sZGVyU2VsZWN0ZWQsCiAgbW9kZSA9ICJub3RGb3VuZCIsCiAgb25DbG9zZSwKfTogRm9sZGVyU2VsZWN0b3JQcm9wcykgewogIGNvbnN0IHsgdCB9ID0gdXNlVHJhbnNsYXRpb24oKTsKICBjb25zdCBbc2VsZWN0ZWRQYXRoLCBzZXRTZWxlY3RlZFBhdGhdID0gdXNlU3RhdGU8c3RyaW5nPigiIik7CiAgY29uc3QgW2lzVmFsaWRhdGluZywgc2V0SXNWYWxpZGF0aW5nXSA9IHVzZVN0YXRlKGZhbHNlKTsKICBjb25zdCBbdmFsaWRhdGlvbkVycm9yLCBzZXRWYWxpZGF0aW9uRXJyb3JdID0gdXNlU3RhdGU8c3RyaW5nPigiIik7CgogIGNvbnN0IGlzQ2hhbmdlTW9kZSA9IG1vZGUgPT09ICJjaGFuZ2UiOwoKICBjb25zdCBoYW5kbGVTZWxlY3RGb2xkZXIgPSBhc3luYyAoKSA9PiB7CiAgICB0cnkgewogICAgICBpZiAoaXNUYXVyaSgpKSB7CiAgICAgICAgY29uc3QgZGlhbG9nTW9kdWxlID0gYXdhaXQgaW1wb3J0KCJAdGF1cmktYXBwcy9wbHVnaW4tZGlhbG9nIik7CiAgICAgICAgY29uc3Qgc2VsZWN0ZWQgPSBhd2FpdCBkaWFsb2dNb2R1bGUub3Blbih7CiAgICAgICAgICBkaXJlY3Rvcnk6IHRydWUsCiAgICAgICAgICBtdWx0aXBsZTogZmFsc2UsCiAgICAgICAgICB0aXRsZTogdCgiZm9sZGVyUGlja2VyLnNlbGVjdEZvbGRlclRpdGxlIiksCiAgICAgICAgfSk7CgogICAgICAgIGlmIChzZWxlY3RlZCAmJiB0eXBlb2Ygc2VsZWN0ZWQgPT09ICJzdHJpbmciKSB7CiAgICAgICAgICBzZXRTZWxlY3RlZFBhdGgoc2VsZWN0ZWQpOwogICAgICAgICAgc2V0VmFsaWRhdGlvbkVycm9yKCIiKTsKICAgICAgICAgIGF3YWl0IHZhbGlkYXRlQW5kU2VsZWN0Rm9sZGVyKHNlbGVjdGVkKTsKICAgICAgICB9CiAgICAgIH0gZWxzZSB7CiAgICAgICAgLy8gV2ViIG1vZGU6IHByb21wdCBmb3IgcGF0aCB2aWEgYnJvd3NlciBwcm9tcHQKICAgICAgICBjb25zdCBpbnB1dCA9IHdpbmRvdy5wcm9tcHQodCgiZm9sZGVyUGlja2VyLnNlbGVjdEZvbGRlclRpdGxlIiksICJ+Ly5jbGF1ZGUiKTsKICAgICAgICBpZiAoaW5wdXQpIHsKICAgICAgICAgIHNldFNlbGVjdGVkUGF0aChpbnB1dCk7CiAgICAgICAgICBzZXRWYWxpZGF0aW9uRXJyb3IoIiIpOwogICAgICAgICAgYXdhaXQgdmFsaWRhdGVBbmRTZWxlY3RGb2xkZXIoaW5wdXQpOwogICAgICAgIH0KICAgICAgfQogICAgfSBjYXRjaCAoZXJyKSB7CiAgICAgIGNvbnNvbGUuZXJyb3IodCgiZm9sZGVyUGlja2VyLmZvbGRlclNlbGVjdEVycm9yIiksIGVycik7CiAgICAgIHNldFZhbGlkYXRpb25FcnJvcih0KCJmb2xkZXJQaWNrZXIuZm9sZGVyU2VsZWN0RXJyb3JEZXRhaWxzIikpOwogICAgfQogIH07CgogIGNvbnN0IHZhbGlkYXRlQW5kU2VsZWN0Rm9sZGVyID0gYXN5bmMgKHBhdGg6IHN0cmluZykgPT4gewogICAgc2V0SXNWYW1pZGF0aW5nKHRydWUpOwogICAgc2V0VmFsaWRhdGlvbkVycm9yKCIiKTsKCiAgICB0cnkgewogICAgICBjb25zdCBpc1ZhbGlkID0gYXdhaXQgYXBpPGJvb2xlYW4+KCJ2YWxpZGF0ZV9jbGF1ZGVfZm9sZGVyIiwgeyBwYXRoIH0pOwoKICAgICAgaWYgKGlzVmFsaWQpIHsKICAgICAgICAvLyBOb3JtYWxpemU6IGFsd2F5cyBwYXNzIHRoZSAuY2xhdWRlIHBhdGggc28gdGhlIGNvbnRhaW5lciBjYW4gZGlzdGluZ3Vpc2gKICAgICAgICBjb25zdCBub3JtYWxpemVkID0gcGF0aC5lbmRzV2l0aCgiLmNsYXVkZSIpID8gcGF0aCA6IGAke3BhdGh9Ly5jbGF1ZGVgOwogICAgICAgIG9uRm9sZGVyU2VsZWN0ZWQobm9ybWFsaXplZCk7CiAgICAgIH0gZWxzZSB7CiAgICAgICAgLy8gQ2hlY2sgaWYgdGhpcyBpcyBhIHZhbGlkIGN1c3RvbSBDbGF1ZGUgZGlyZWN0b3J5IChoYXMgcHJvamVjdHMvIHN1YmZvbGRlcikKICAgICAgICB0cnkgewogICAgICAgICAgY29uc3QgaXNDdXN0b21WYWxpZCA9IGF3YWl0IGFwaTxib29sZWFuPigidmFsaWRhdGVfY3VzdG9tX2NsYXVkZV9kaXIiLCB7IHBhdGggfSk7CiAgICAgICAgICBpZiAoaXNDdXN0b21WYWxpZCkgewogICAgICAgICAgICBvbkZvbGRlclNlbGVjdGVkKHBhdGgpOwogICAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgc2V0VmFsaWRhdGlvbkVycm9yKHQoImZvbGRlclBpY2tlci5pbnZhbGlkRm9sZGVyIikpOwogICAgICAgICAgfQogICAgICAgIH0gY2F0Y2ggewogICAgICAgICAgc2V0VmFsaWRhdGlvbkVycm9yKHQoImZvbGRlclBpY2tlci5pbnZhbGlkRm9sZGVyIikpOwogICAgICAgIH0KICAgICAgfQogICAgfSBjYXRjaCB7CiAgICAgIHNldFZhbGlkYXRpb25FcnJvcih0KCJmb2xkZXJQaWNrZXIudmFsaWRhdGlvbkVycm9yIikpOwogICAgfSBmaW5hbGx5IHsKICAgICAgc2V0SXNWYW1pZGF0aW5nKGZhbHNlKTsKICAgIH0KICB9OwoKICBjb25zdCBjb250ZW50ID0gKAogICAgPGRpdiBjbGFzc05hbWU9InRleHQtY2VudGVyIHNwYWNlLXktNiI+CiAgICAgIHsvKiBJY29uICovfQogICAgICA8ZGl2IGNsYXNzTmFtZT0iZmxleCBqdXN0aWZ5LWNlbnRlciI+CiAgICAgICAgPGRpdiBjbGFzc05hbWU9InJvdW5kZWQtZnVsbCBiZy1wcmltYXJ5LzEwIHA0Ij4KICAgICAgICAgIDxGb2xkZXIgY2xhc3NOYW1lPSJoLTEyIHctMTIgdGV4dC1wcmltYXJ5IiAvPgogICAgICAgIDwvZGl2PgogICAgICA8L2Rpdj4KCiAgICAgIHsvKiBUaXRsZSAmIERlc2NyaXB0aW9uICovfQogICAgICA8ZGl2IGNsYXNzTmFtZT0ic3BhY2UteTIiPgogICAgICAgIDxoMSBjbGFzc05hbWU9InRleHQtMnhsIGZvbnQtYm9sZCB0ZXh0LWZvcmVncm91bmQiPgogICAgICAgICAge2lzQ2hhbmdlTW9kZQogICAgICAgICAgICA/IHQoImZvbGRlclBpY2tlci5jaGFuZ2UiKQogICAgICAgICAgICA6IHQoImZvbGRlclBpY2tlci5ub3RGb3VuZCIpfQogICAgICAgIDwvaDE+CiAgICAgICAgPHAgY2xhc3NOYW1lPSJ0ZXh0LW11dGVkLWZvcmVncm91bmQiPgogICAgICAgICAge2lzQ2hhbmdlTW9kZQogICAgICAgICAgICA/IHQoImZvbGRlclBpY2tlci5uZXdGb2xkZXIiKQogICAgICAgICAgICA6IHQoImZvbGRlclBpY2tlci5ob21lTm90Rm91bmQiKX0KICAgICAgICA8L3A+CiAgICAgIDwvZGl2PgoKICAgICAgey8qIFNlbGVjdCBCdXR0b24gKi99CiAgICAgIDxCdXR0b24KICAgICAgICBvbkNsaWNrPXtoYW5kbGVTZWxlY3RGb2xkZXJ9CiAgICAgICAgZGlzYWJsZWQ9e2lzVmFsaWRhdGluZ30KICAgICAgICBzaXplPSJsZyIKICAgICAgICBjbGFzc05hbWU9InctZnVsbCIKICAgICAgPgogICAgICAgIDxGb2xkZXIgY2xhc3NOYW1lPSJoLTQgdy00IiAvPgogICAgICAgIHtpc1ZhbGlkYXRpbmcKICAgICAgICAgID8gdCgiZm9sZGVyUGlja2VyLnZhbGlkYXRpbmciKQogICAgICAgICAgOiB0KCJmb2xkZXJQaWNrZXIuc2VsZWN0QnV0dG9uIil9CiAgICAgIDwvQnV0dG9uPgoKICAgICAgey8qIFNlbGVjdGVkIFBhdGggKi99CiAgICAgIHtzZWxlY3RlZFBhdGggJiYgKAogICAgICAgIDxBbGVydCB2YXJpYW50PSJkZWZhdWx0IiBjbGFzc05hbWU9InRleHQtbGVmdCBvdmVyZmxvdy1oaWRkZW4iPgogICAgICAgICAgPENoZWNrQ2lyY2xlMiBjbGFzc05hbWU9Imgtd-4 dy00IiAvPgogICAgICAgICAgPEFsZXJ0RGVzY3JpcHRpb24gY2xhc3NOYW1lPSJ0cnVuY2F0ZSBtaW4tdy0wIiB0aXRsZT17c2VsZWN0ZWRQYXRofT4KICAgICAgICAgICAge3QoImZvbGRlclBpY2tlci5zZWxlY3RlZFBhdGgiKX0ge3NlbGVjdGVkUGF0aH0KICAgICAgICAgIDwvQWxlcnREZXNjcmlwdGlvbj4KICAgICAgICA8L0FsZXJ0PgogICAgICApfQoKICAgICAgey8qIFZhbGlkYXRpb24gRXJyb3IgKi99CiAgICAgIHt2YWxpZGF0aW9uRXJyb3IgJiYgKAogICAgICAgIDxBbGVydCB2YXJpYW50PSJkZXN0cnVjdGl2ZSIgY2xhc3NOYW1lPSJ0ZXh0LWxlZnQiPgogICAgICAgICAgPEFsZXJ0Q2lyY2xlIGNsYXNzTmFtZT0iaC00IHctNCIgLz4KICAgICAgICAgIDxBbGVydERlc2NyaXB0aW9uPnt2YWxpZGF0aW9uRXJyb3J9PC9BbGVydERlc2NyaXB0aW9uPgogICAgICAgIDwvQWxlcnQ+CiAgICAgICl9CgogICAgICB7LyogSGVscCBTZWN0aW9uICovfQogICAgICA8Q2FyZCB2YXJpYW50PSJvdXRsaW5lIiBjbGFzc05hbWU9InRleHQtbGVmdCI+CiAgICAgICAgPENhcmRIZWFkZXIgY2xhc3NOYW1lPSJwYi0yIj4KICAgICAgICAgIDxDYXJkVGl0bGUgY2xhc3NOYW1lPSJ0ZXh0LXNtIGZvbnQtc2VtaWJvbGQgZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTIiPgogICAgICAgICAgICA8SGVscENpcmNsZSBjbGFzc05hbWU9Imgtd-QgZy00IiAvPgogICAgICAgICAgICB7dCgiZm9sZGVyUGlja2VyLmhlbHAiKX0KICAgICAgICAgIDwvQ2FyZFRpdGxlPgogICAgICAgIDwvQ2FyZEhlYWRlcj4KICAgICAgICA8Q2FyZENvbnRlbnQgY2xhc3NOYW1lPSJwdC0wIj4KICAgICAgICAgIDxwIGNsYXNzTmFtZT0idGV4dC1zbSB0ZXh0LW11dGVkLWZvcmVncm91bmQgd2hpdGVzcGFjZS1wcmUtbGluZSI+CiAgICAgICAgICAgIHt0KCJmb2xkZXJQaWNrZXIuaGVscERldGFpbHMiKX0KICAgICAgICAgIDwvcD4KICAgICAgICA8L0NhcmRDb250ZW50PgogICAgICA8L0NhcmQ+CiAgICA8L2Rpdj4KICApOwoKICAvLyBDaGFuZ2UgbW9kZTogdXNlIERpYWxvZwogIGlmIChpc0NoYW5nZU1vZGUpIHsKICAgIHJldHVybiAoCiAgICAgIDxEaWFsb2cgb3Blbj17dHJ1ZX0gb25PcGVuQ2hhbmdlPXsob3BlbikgPT4gIW9wZW4gJiYgb25DbG9zZT8uKCl9PgogICAgICAgIDxEaWFsb2dDb250ZW50IGNsYXNzTmFtZT0ic206bWF4LXctbWQiPgogICAgICAgICAgPERpYWxvZ0hlYWRlciBjbGFzc05hbWU9InNyLW9ubHkiPgogICAgICAgICAgICA8RGlhbG9nVGl0bGU+e3QoImZvbGRlclBpY2tlci5jaGFuZ2UiKX08L0RpYWxvZ1RpdGxlPgogICAgICAgICAgICA8RGlhbG9nRGVzY3JpcHRpb24+CiAgICAgICAgICAgICAge3QoImZvbGRlclBpY2tlci5uZXdGb2xkZXIiKX0KICAgICAgICAgICAgPC9EaWFsb2dEZXNjcmlwdGlvbj4KICAgICAgICAgIDwvRGlhbG9nSGVhZGVyPgogICAgICAgICAge2NvbnRlbnR9CiAgICAgICAgPC9EaWFsb2dDb250ZW50PgogICAgICA8L0RpYWxvZz4KICAgICk7CiAgfQoKICAvLyBOb3QgZm91bmQgbW9kZTogZnVsbCBzY3JlZW4KICByZXR1cm4gKAogICAgPGRpdiBjbGFzc05hbWU9Imgtc2NyZWVuIGZsZXggaXRlbXMtY2VudGVyIGp1c3RpZnktY2VudGVyIGJnLWJhY2tncm91bmQiPgogICAgICA8Q2FyZAogICAgICAgIGNsYXNzTmFtZT17Y24oCiAgICAgICAgICAibWF4LXctbWQgdy1mdWxsIG14LTQgcmVsYXRpdmUiLAogICAgICAgICAgInNoYWRvdy1sZyBib3JkZXItYm9yZGVyIgogICAgICAgICl9CiAgICAgID4KICAgICAgICB7b25DbG9zZSAmJiAoCiAgICAgICAgICA8QnV0dG9uCiAgICAgICAgICAgIHZhcmlhbnQ9Imdob3N0IgogICAgICAgICAgICBzaXplPSJzbSIKICAgICAgICAgICAgb25DbGljaz17b25DbG9zZX0KICAgICAgICAgICAgY2xhc3NOYW1lPSJhYnNvbHV0ZSBsZWZ0LTQgdG9wLTQiCiAgICAgICAgICA+CiAgICAgICAgICAgIDxBcnJvd0xlZnQgY2xhc3NOYW1lPSJoLTQgdy00IiAvPgogICAgICAgICAgICB7dCgiZm9sZGVyUGlja2VyLmJhY2tCdXR0b24iKX0KICAgICAgICAgIDwvQnV0dG9uPgogICAgICAgICl9CiAgICAgICAgPENhcmRDb250ZW50IGNsYXNzTmFtZT0icHQtMTIgcGItOCBweC04Ij4KICAgICAgICAgIHtjb250ZW50fQogICAgICAgIDwvQ2FyZENvbnRlbnQ+CiAgICAgIDwvQ2FyZD4KICAgIDwvZGl2PgogICk7Cn0K
+import { useState } from "react";
+import { Folder, AlertCircle, ArrowLeft, CheckCircle2, HelpCircle } from "lucide-react";
+import { isTauri } from "@/utils/platform";
+import { api } from "@/services/api";
+import { useTranslation } from "react-i18next";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
+
+interface FolderSelectorProps {
+  onFolderSelected: (path: string) => void;
+  mode?: "notFound" | "change";
+  onClose?: () => void;
+}
+
+export function FolderSelector({
+  onFolderSelected,
+  mode = "notFound",
+  onClose,
+}: FolderSelectorProps) {
+  const { t } = useTranslation();
+  const [selectedPath, setSelectedPath] = useState<string>("");
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationError, setValidationError] = useState<string>("");
+
+  const isChangeMode = mode === "change";
+
+  const handleSelectFolder = async () => {
+    try {
+      if (isTauri()) {
+        const dialogModule = await import("@tauri-apps/plugin-dialog");
+        const selected = await dialogModule.open({
+          directory: true,
+          multiple: false,
+          title: t("folderPicker.selectFolderTitle"),
+        });
+
+        if (selected && typeof selected === "string") {
+          setSelectedPath(selected);
+          setValidationError("");
+          await validateAndSelectFolder(selected);
+        }
+      } else {
+        // Web mode: prompt for path via browser prompt
+        const input = window.prompt(t("folderPicker.selectFolderTitle"), "~/.claude");
+        if (input) {
+          setSelectedPath(input);
+          setValidationError("");
+          await validateAndSelectFolder(input);
+        }
+      }
+    } catch (err) {
+      console.error(t("folderPicker.folderSelectError"), err);
+      setValidationError(t("folderPicker.folderSelectErrorDetails"));
+    }
+  };
+
+  const validateAndSelectFolder = async (path: string) => {
+    setIsValidating(true);
+    setValidationError("");
+
+    try {
+      const isValid = await api<boolean>("validate_claude_folder", { path });
+
+      if (isValid) {
+        // Normalize: always pass the .claude path so the container can distinguish
+        const normalized = path.endsWith(".claude") ? path : `${path}/.claude`;
+        onFolderSelected(normalized);
+      } else {
+        // Check if this is a valid custom Claude directory (has projects/ subfolder)
+        try {
+          const isCustomValid = await api<boolean>("validate_custom_claude_dir", { path });
+          if (isCustomValid) {
+            onFolderSelected(path);
+          } else {
+            setValidationError(t("folderPicker.invalidFolder"));
+          }
+        } catch {
+          setValidationError(t("folderPicker.invalidFolder"));
+        }
+      }
+    } catch {
+      setValidationError(t("folderPicker.validationError"));
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const content = (
+    <div className="text-center space-y-6">
+      {/* Icon */}
+      <div className="flex justify-center">
+        <div className="rounded-full bg-primary/10 p-4">
+          <Folder className="h-12 w-12 text-primary" />
+        </div>
+      </div>
+
+      {/* Title & Description */}
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-foreground">
+          {isChangeMode
+            ? t("folderPicker.change")
+            : t("folderPicker.notFound")}
+        </h1>
+        <p className="text-muted-foreground">
+          {isChangeMode
+            ? t("folderPicker.newFolder")
+            : t("folderPicker.homeNotFound")}
+        </p>
+      </div>
+
+      {/* Select Button */}
+      <Button
+        onClick={handleSelectFolder}
+        disabled={isValidating}
+        size="lg"
+        className="w-full"
+      >
+        <Folder className="h-4 w-4" />
+        {isValidating
+          ? t("folderPicker.validating")
+          : t("folderPicker.selectButton")}
+      </Button>
+
+      {/* Selected Path */}
+      {selectedPath && (
+        <Alert variant="default" className="text-left overflow-hidden">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription className="truncate min-w-0" title={selectedPath}>
+            {t("folderPicker.selectedPath")} {selectedPath}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Validation Error */}
+      {validationError && (
+        <Alert variant="destructive" className="text-left">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{validationError}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Help Section */}
+      <Card variant="outline" className="text-left">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <HelpCircle className="h-4 w-4" />
+            {t("folderPicker.help")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <p className="text-sm text-muted-foreground whitespace-pre-line">
+            {t("folderPicker.helpDetails")}
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  // Change mode: use Dialog
+  if (isChangeMode) {
+    return (
+      <Dialog open={true} onOpenChange={(open) => !open && onClose?.()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="sr-only">
+            <DialogTitle>{t("folderPicker.change")}</DialogTitle>
+            <DialogDescription>
+              {t("folderPicker.newFolder")}
+            </DialogDescription>
+          </DialogHeader>
+          {content}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Not found mode: full screen
+  return (
+    <div className="h-screen flex items-center justify-center bg-background">
+      <Card
+        className={cn(
+          "max-w-md w-full mx-4 relative",
+          "shadow-lg border-border"
+        )}
+      >
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="absolute left-4 top-4"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {t("folderPicker.backButton")}
+          </Button>
+        )}
+        <CardContent className="pt-12 pb-8 px-8">
+          {content}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
