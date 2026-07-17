@@ -11,6 +11,18 @@
 //! ```
 //! There is no per-line `id`/`timestamp`/`sessionId`; the session id is the
 //! transcript file's UUID stem and times come from the file mtime.
+//!
+//! ## Content-block normalisation (issue #472)
+//!
+//! Cursor agent injects several non-prose block types that must be handled
+//! before content reaches the viewer:
+//!
+//! | Block type | Behaviour |
+//! |---|---|
+//! | `{"type":"text","text":"<user_query>…</user_query>"}` | Strip XML wrapper; drop trailing `<context>` blob |
+//! | `{"type":"redacted","data":"[REDACTED]"}` | Skip message when *all* blocks are redacted |
+//! | `{"type":"tool_result","content":[…]}` | Recurse into nested content array |
+//! | `{"type":"command_output","output":"…"}` | Surface shell stdout/stderr |
 
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
@@ -27,6 +39,10 @@ const PROVIDER_ID: &str = "cursor-agent";
 
 /// Max characters of the first user prompt used as a session title.
 const SUMMARY_MAX_CHARS: usize = 80;
+
+// ============================================================================
+// Public API
+// ============================================================================
 
 /// Detect a Cursor Agent CLI installation.
 pub fn detect() -> Option<ProviderInfo> {
@@ -51,8 +67,6 @@ pub fn get_base_path() -> Option<String> {
 }
 
 /// True if at least one `*/agent-transcripts/**/*.jsonl` exists under `base`.
-/// Keeps the provider hidden when `~/.cursor/projects` holds only non-chat data
-/// (terminals/mcps/plans).
 fn has_any_transcript(base: &Path) -> bool {
     project_dirs(base).iter().any(|p| {
         let transcripts = p.join("agent-transcripts");
@@ -66,8 +80,8 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     scan_projects_in(Path::new(&base))
 }
 
-/// Implementation of [`scan_projects`] parameterized by the projects root so
-/// tests can pass an isolated tempdir.
+/// Implementation of [`scan_projects`] parameterised by the projects root so
+/// tests can pass an isolated temp dir.
 pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
     let mut projects = Vec::new();
 
@@ -84,7 +98,6 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
         for entry in transcript_files(&transcripts_dir) {
             session_count += 1;
             if let Ok(meta) = entry.metadata() {
-                // Rough line estimate for the sidebar summary (avoids parsing).
                 message_count += (meta.len() / 400) as usize;
                 if let Ok(modified) = meta.modified() {
                     if let Ok(dur) = modified.duration_since(std::time::SystemTime::UNIX_EPOCH) {
@@ -103,10 +116,6 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
             .and_then(|n| n.to_str())
             .unwrap_or("Unknown");
 
-        // The directory encodes the real working dir with `/` replaced by `-`
-        // without escaping, so a naive split would truncate hyphenated project
-        // names. Resolve via filesystem-existence-based decoding; fall back to
-        // the raw slug.
         let (display_name, actual_path) = match decode_with_filesystem_check(dir_name) {
             Some(real_path) => {
                 let leaf = Path::new(&real_path)
@@ -192,7 +201,8 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         return Err("Session file must not be a symlink".to_string());
     }
 
-    let data = fs::read_to_string(path).map_err(|e| format!("Failed to read session file: {e}"))?;
+    let data =
+        fs::read_to_string(path).map_err(|e| format!("Failed to read session file: {e}"))?;
     let session_id = file_uuid(path);
     let timestamp = file_mtime_rfc3339(path);
 
@@ -213,6 +223,11 @@ fn parse_transcript(data: &str, session_id: &str, timestamp: &str) -> Vec<Claude
             continue;
         };
         if !is_conversation_turn(&value) {
+            continue;
+        }
+        // Skip messages that carry nothing but redacted placeholders.
+        if is_only_redacted(&value) {
+            msg_index += 1;
             continue;
         }
         if let Some(msg) = convert_message(&value, session_id, timestamp, msg_index) {
@@ -265,6 +280,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 if !is_conversation_turn(&value) {
                     continue;
                 }
+                if is_only_redacted(&value) {
+                    msg_index += 1;
+                    continue;
+                }
                 if search_json_value_case_insensitive(&value, &query_lower) {
                     if let Some(mut msg) =
                         convert_message(&value, &session_id, &timestamp, msg_index)
@@ -276,8 +295,6 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                         }
                     }
                 }
-                // Advance the index for every conversation turn so search-result
-                // UUIDs line up with `load_messages` (needed for navigation).
                 msg_index += 1;
             }
         }
@@ -287,33 +304,163 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 }
 
 // ============================================================================
-// Helpers
+// Content-block normalisation (issue #472)
 // ============================================================================
 
-/// Immediate child directories of `base`.
-fn project_dirs(base: &Path) -> Vec<std::path::PathBuf> {
-    WalkDir::new(base)
-        .min_depth(1)
-        .max_depth(1)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_dir())
-        .map(|e| e.path().to_path_buf())
-        .collect()
+/// Returns `true` when every content block in the message is a redaction
+/// placeholder, meaning there is nothing useful to show the user.
+///
+/// Cursor emits two forms of redacted blocks:
+/// - `{"type":"redacted","data":"[REDACTED]"}` — explicit redaction type
+/// - `{"type":"text","text":"[REDACTED]"}` — literal string sentinel
+fn is_only_redacted(value: &Value) -> bool {
+    let Some(blocks) = value
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(Value::as_array)
+    else {
+        return false;
+    };
+    if blocks.is_empty() {
+        return false;
+    }
+    blocks.iter().all(|b| {
+        let ty = b.get("type").and_then(Value::as_str).unwrap_or("");
+        if ty == "redacted" {
+            return true;
+        }
+        if ty == "text" {
+            let text = b.get("text").and_then(Value::as_str).unwrap_or("").trim();
+            return text == "[REDACTED]";
+        }
+        false
+    })
 }
 
-/// Non-symlinked `*.jsonl` files under an `agent-transcripts` directory
-/// (`<uuid>/<uuid>.jsonl`, depth 2).
-fn transcript_files(transcripts_dir: &Path) -> Vec<DirEntry> {
-    WalkDir::new(transcripts_dir)
-        .min_depth(2)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .filter(|e| !is_symlink(e.path()))
-        .collect()
+/// Strip Cursor's `<user_query>…</user_query>` XML envelope from a user text
+/// block and remove any trailing `<context>` or similar XML blobs.
+///
+/// If the text does not contain a `<user_query>` tag it is returned unchanged
+/// so non-wrapped assistant / tool messages are unaffected.
+///
+/// Any residual XML-style tags (`<tag>` / `</tag>`) are stripped after
+/// extraction so stray inline tags don't leak into the rendered output.
+fn clean_user_text(text: &str) -> String {
+    // Extract what is inside <user_query>…</user_query>.
+    let inner = if let Some(start) = text.find("<user_query>") {
+        let after_open = &text[start + "<user_query>".len()..];
+        // Truncate at the closing tag — this drops any <context> blob that
+        // Cursor appends after </user_query>.
+        let inner = if let Some(end) = after_open.find("</user_query>") {
+            &after_open[..end]
+        } else {
+            after_open
+        };
+        inner
+    } else {
+        // No wrapper — pass through (covers assistant messages and plain turns).
+        text
+    };
+
+    // Strip any remaining XML-style tags to clean up inline markup.
+    let cleaned = strip_xml_tags(inner);
+    cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
 }
+
+/// Remove all `<…>` and `</…>` substrings from `s`.
+fn strip_xml_tags(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_tag = false;
+    for ch in s.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => out.push(ch),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Collect displayable text from *all* content block types in a message,
+/// including tool results and command output (issue #472 — missing shell output).
+///
+/// Block types handled:
+/// - `{"type":"text","text":"…"}` — normal prose; user text is cleaned of XML
+/// - `{"type":"tool_result","content":[…]}` — recurse into nested content array
+/// - `{"type":"command_output","output":"…"}` — shell stdout/stderr
+/// - `{"type":"redacted",…}` — skipped (not useful)
+fn extract_text_all_blocks(value: &Value) -> Option<String> {
+    let role = value.get("role").and_then(Value::as_str).unwrap_or("");
+    let blocks = value
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(Value::as_array)?;
+
+    let mut parts: Vec<String> = Vec::new();
+
+    for block in blocks {
+        collect_block_text(block, role, &mut parts);
+    }
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("\n"))
+    }
+}
+
+/// Recursively collect text from a single content block into `out`.
+fn collect_block_text(block: &Value, role: &str, out: &mut Vec<String>) {
+    let ty = block.get("type").and_then(Value::as_str).unwrap_or("");
+
+    match ty {
+        "text" => {
+            let raw = block.get("text").and_then(Value::as_str).unwrap_or("");
+            // Skip bare [REDACTED] sentinels.
+            if raw.trim() == "[REDACTED]" {
+                return;
+            }
+            let cleaned = if role == "user" {
+                clean_user_text(raw)
+            } else {
+                raw.to_string()
+            };
+            if !cleaned.trim().is_empty() {
+                out.push(cleaned);
+            }
+        }
+        "tool_result" => {
+            // Cursor nests a content array inside tool_result blocks.
+            if let Some(inner) = block.get("content").and_then(Value::as_array) {
+                for inner_block in inner {
+                    collect_block_text(inner_block, role, out);
+                }
+            }
+            // Some tool_result blocks also carry a top-level "output" field.
+            if let Some(output) = block.get("output").and_then(Value::as_str) {
+                let trimmed = output.trim();
+                if !trimmed.is_empty() {
+                    out.push(format!("[tool output]\n{trimmed}"));
+                }
+            }
+        }
+        "command_output" => {
+            if let Some(output) = block.get("output").and_then(Value::as_str) {
+                let trimmed = output.trim();
+                if !trimmed.is_empty() {
+                    out.push(format!("[shell]\n{trimmed}"));
+                }
+            }
+        }
+        // Skip redacted / unknown block types.
+        _ => {}
+    }
+}
+
+// ============================================================================
+// Message conversion
+// ============================================================================
 
 /// A renderable conversation turn has a `user`/`assistant` role.
 fn is_conversation_turn(value: &Value) -> bool {
@@ -326,6 +473,9 @@ fn is_conversation_turn(value: &Value) -> bool {
 /// Convert one transcript line into a `ClaudeMessage`. `msg_index` makes the
 /// generated UUID stable/deterministic so global-search navigation can resolve
 /// it back inside `load_messages`.
+///
+/// The `content` field is rebuilt from the full block set (including tool /
+/// command-output blocks) so the rendered conversation is complete.
 fn convert_message(
     value: &Value,
     session_id: &str,
@@ -333,7 +483,15 @@ fn convert_message(
     msg_index: u64,
 ) -> Option<ClaudeMessage> {
     let role = value.get("role").and_then(Value::as_str)?;
-    let content = value.get("message").and_then(|m| m.get("content")).cloned();
+
+    // Build a normalised content array for the viewer.
+    // We reconstruct it as a JSON array of {"type":"text","text":"…"} objects
+    // so the frontend's existing text-block renderer handles it without changes.
+    let normalised_text = extract_text_all_blocks(value)?;
+    let content = serde_json::json!([
+        {"type": "text", "text": normalised_text}
+    ]);
+
     Some(build_provider_message(
         PROVIDER_ID,
         format!("{session_id}-{msg_index}"),
@@ -341,10 +499,14 @@ fn convert_message(
         timestamp.to_string(),
         role,
         Some(role),
-        content,
+        Some(content),
         None,
     ))
 }
+
+// ============================================================================
+// Session helpers
+// ============================================================================
 
 fn extract_session_info(file_path: &Path, project_name: &str) -> Option<ClaudeSession> {
     let data = fs::read_to_string(file_path).ok()?;
@@ -362,9 +524,14 @@ fn extract_session_info(file_path: &Path, project_name: &str) -> Option<ClaudeSe
         if !is_conversation_turn(&value) {
             continue;
         }
+        if is_only_redacted(&value) {
+            continue;
+        }
         message_count += 1;
         if summary.is_none() && value.get("role").and_then(Value::as_str) == Some("user") {
-            summary = extract_text(&value).map(|t| summarize(&t));
+            // Use the narrow text-only helper for the title so tool noise
+            // doesn't bleed into the session summary.
+            summary = extract_title_text(&value).map(|t| summarize(&t));
         }
     }
 
@@ -394,19 +561,25 @@ fn extract_session_info(file_path: &Path, project_name: &str) -> Option<ClaudeSe
     })
 }
 
-/// Concatenate the `text` of every content block in a message line.
-fn extract_text(value: &Value) -> Option<String> {
+/// Narrow helper: extract only `text`-type block text for use in session
+/// titles.  Tool results and command output are intentionally excluded so the
+/// title reflects the user's actual query, not the tool noise that follows.
+fn extract_title_text(value: &Value) -> Option<String> {
     let content = value
         .get("message")
         .and_then(|m| m.get("content"))
         .and_then(Value::as_array)?;
     let mut out = String::new();
     for item in content {
-        if let Some(text) = item.get("text").and_then(Value::as_str) {
-            if !out.is_empty() {
-                out.push(' ');
+        if item.get("type").and_then(Value::as_str) == Some("text") {
+            if let Some(text) = item.get("text").and_then(Value::as_str) {
+                if text.trim() != "[REDACTED]" {
+                    if !out.is_empty() {
+                        out.push(' ');
+                    }
+                    out.push_str(text);
+                }
             }
-            out.push_str(text);
         }
     }
     if out.is_empty() {
@@ -416,19 +589,45 @@ fn extract_text(value: &Value) -> Option<String> {
     }
 }
 
-/// Build a short session title from the first user prompt (Cursor stores no
-/// title), stripping the `<user_query>` wrapper Cursor injects.
+/// Build a short session title from the first user prompt, stripping the
+/// `<user_query>` wrapper Cursor injects.
 fn summarize(text: &str) -> String {
-    let cleaned = text
-        .replace("<user_query>", "")
-        .replace("</user_query>", "");
-    let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    let cleaned = clean_user_text(text);
     if cleaned.chars().count() > SUMMARY_MAX_CHARS {
         let truncated: String = cleaned.chars().take(SUMMARY_MAX_CHARS).collect();
-        format!("{truncated}…")
+        format!("{truncated}\u{2026}")
     } else {
         cleaned
     }
+}
+
+// ============================================================================
+// Filesystem helpers
+// ============================================================================
+
+/// Immediate child directories of `base`.
+fn project_dirs(base: &Path) -> Vec<std::path::PathBuf> {
+    WalkDir::new(base)
+        .min_depth(1)
+        .max_depth(1)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_dir())
+        .map(|e| e.path().to_path_buf())
+        .collect()
+}
+
+/// Non-symlinked `*.jsonl` files under an `agent-transcripts` directory
+/// (`<uuid>/<uuid>.jsonl`, depth 2).
+fn transcript_files(transcripts_dir: &Path) -> Vec<DirEntry> {
+    WalkDir::new(transcripts_dir)
+        .min_depth(2)
+        .max_depth(2)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+        .filter(|e| !is_symlink(e.path()))
+        .collect()
 }
 
 fn file_uuid(path: &Path) -> String {
@@ -444,8 +643,7 @@ fn is_symlink(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Confine `path` to the `~/.cursor/projects` root (defense-in-depth against
-/// traversal / symlink escapes). Canonicalizes both sides.
+/// Confine `path` to the `~/.cursor/projects` root.
 fn validate_under_base(path: &Path) -> Result<(), String> {
     let base = get_base_path().ok_or("Cursor projects path not found")?;
     let canon_base = Path::new(&base)
@@ -493,6 +691,10 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
+    // ---------------------------------------------------------------------------
+    // Fixtures
+    // ---------------------------------------------------------------------------
+
     const SAMPLE: &str = concat!(
         r#"{"role":"user","message":{"content":[{"type":"text","text":"<user_query>fix the LOGIN bug</user_query>"}]}}"#,
         "\n",
@@ -506,12 +708,15 @@ mod tests {
         fs::write(dir.join(format!("{uuid}.jsonl")), body).unwrap();
     }
 
+    // ---------------------------------------------------------------------------
+    // Existing tests (all must still pass)
+    // ---------------------------------------------------------------------------
+
     #[test]
     fn scan_lists_only_projects_with_transcripts() {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
         write_transcript(base, "Users-jack-client-foo", "uuid-1", SAMPLE);
-        // A project dir with only non-chat data must be skipped.
         fs::create_dir_all(base.join("Users-jack-client-bar").join("terminals")).unwrap();
 
         let projects = scan_projects_in(base).unwrap();
@@ -535,7 +740,7 @@ mod tests {
         assert_eq!(session.actual_session_id, "uuid-1");
         assert_eq!(session.message_count, 2);
         assert_eq!(session.provider.as_deref(), Some("cursor-agent"));
-        // Title is derived from the first user prompt with the wrapper stripped.
+        // Title must be the clean user query, not the raw XML wrapper.
         assert_eq!(session.summary.as_deref(), Some("fix the LOGIN bug"));
     }
 
@@ -547,13 +752,12 @@ mod tests {
         assert_eq!(messages[0].message_type, "user");
         assert_eq!(messages[0].provider.as_deref(), Some("cursor-agent"));
         assert_eq!(messages[1].role.as_deref(), Some("assistant"));
-        // Deterministic UUIDs (msg index) so global-search navigation resolves
-        // back to the same message inside load_messages.
         assert_eq!(messages[0].uuid, "uuid-1-0");
         assert_eq!(messages[1].uuid, "uuid-1-1");
-        // The assistant turn carries its content array through unchanged.
-        let content = messages[1].content.as_ref().unwrap();
-        assert!(content.to_string().contains("ZmagicToken"));
+        // User text is cleaned: XML wrapper stripped.
+        let user_content = messages[0].content.as_ref().unwrap().to_string();
+        assert!(!user_content.contains("<user_query>"), "raw XML tag leaked into user message");
+        assert!(user_content.contains("fix the LOGIN bug"), "user query text missing");
     }
 
     #[test]
@@ -563,7 +767,6 @@ mod tests {
             r#"{"role":"system","message":{"content":[]}}"#
         );
         let messages = parse_transcript(&data, "s", "");
-        // Only the user + assistant turns; blank lines and the system line drop.
         assert_eq!(messages.len(), 2);
     }
 
@@ -575,7 +778,68 @@ mod tests {
         );
         let long = "x".repeat(200);
         let s = summarize(&long);
-        assert!(s.chars().count() <= SUMMARY_MAX_CHARS + 1); // +1 for the ellipsis
-        assert!(s.ends_with('…'));
+        assert!(s.chars().count() <= SUMMARY_MAX_CHARS + 1);
+        assert!(s.ends_with('\u{2026}'));
+    }
+
+    // ---------------------------------------------------------------------------
+    // New tests for issue #472
+    // ---------------------------------------------------------------------------
+
+    /// clean_user_text strips <user_query> wrapper and drops trailing <context> blob.
+    #[test]
+    fn clean_user_text_strips_wrapper_and_context() {
+        let input = "<user_query>do something useful</user_query><context>lots of verbose context here</context>";
+        let result = clean_user_text(input);
+        assert_eq!(result, "do something useful");
+        assert!(!result.contains("context"), "context blob leaked");
+        assert!(!result.contains('<'), "XML tags leaked");
+    }
+
+    /// clean_user_text passes non-wrapped assistant text through unchanged.
+    #[test]
+    fn clean_user_text_no_wrapper_passthrough() {
+        let input = "Here is the fix for your bug.";
+        assert_eq!(clean_user_text(input), input);
+    }
+
+    /// A message consisting entirely of redacted blocks must be skipped.
+    #[test]
+    fn redacted_only_message_is_skipped() {
+        // Explicit redaction type.
+        let explicit = r#"{"role":"user","message":{"content":[{"type":"redacted","data":"[REDACTED]"}]}}"#;
+        // Literal [REDACTED] text sentinel.
+        let sentinel = r#"{"role":"user","message":{"content":[{"type":"text","text":"[REDACTED]"}]}}"#;
+        // Mixed: both forms in one message.
+        let mixed_redacted = r#"{"role":"assistant","message":{"content":[{"type":"redacted","data":"[REDACTED]"},{"type":"text","text":"[REDACTED]"}]}}"#;
+
+        let data = format!("{explicit}\n{sentinel}\n{mixed_redacted}\n");
+        let messages = parse_transcript(&data, "s", "");
+        assert_eq!(messages.len(), 0, "all-redacted messages must be dropped");
+    }
+
+    /// A message where only *some* blocks are redacted must still be shown.
+    #[test]
+    fn mixed_redacted_message_is_kept() {
+        let line = r#"{"role":"assistant","message":{"content":[{"type":"redacted","data":"[REDACTED]"},{"type":"text","text":"Here is what I found."}]}}"#;
+        let messages = parse_transcript(line, "s", "");
+        assert_eq!(messages.len(), 1, "partially-redacted message must be kept");
+        let content = messages[0].content.as_ref().unwrap().to_string();
+        assert!(content.contains("Here is what I found."));
+        assert!(!content.contains("[REDACTED]"), "redacted placeholder leaked into output");
+    }
+
+    /// tool_result and command_output blocks must appear in the rendered message.
+    #[test]
+    fn tool_result_and_command_output_extracted() {
+        let line = r#"{"role":"assistant","message":{"content":[
+            {"type":"tool_result","content":[{"type":"text","text":"file contents here"}]},
+            {"type":"command_output","output":"$ cargo build\nCompiling foo v0.1.0"}
+        ]}}"#;
+        let messages = parse_transcript(line, "s", "");
+        assert_eq!(messages.len(), 1);
+        let content = messages[0].content.as_ref().unwrap().to_string();
+        assert!(content.contains("file contents here"), "tool_result text missing");
+        assert!(content.contains("cargo build"), "command_output missing");
     }
 }
