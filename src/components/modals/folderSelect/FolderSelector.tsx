@@ -132,9 +132,9 @@ export function FolderSelector({
 
       {/* Selected Path */}
       {selectedPath && (
-        <Alert variant="default" className="text-left">
+        <Alert variant="default" className="text-left overflow-hidden">
           <CheckCircle2 className="h-4 w-4" />
-          <AlertDescription className="truncate">
+          <AlertDescription className="truncate min-w-0" title={selectedPath}>
             {t("folderPicker.selectedPath")} {selectedPath}
           </AlertDescription>
         </Alert>
