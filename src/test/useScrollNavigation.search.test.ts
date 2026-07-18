@@ -24,6 +24,22 @@ function makeVirtualizer(scrollToIndex: Mock): Virtualizer<HTMLElement, Element>
   return { scrollToIndex } as unknown as Virtualizer<HTMLElement, Element>;
 }
 
+// A message container with an active-highlight <mark> inside it, mirroring the
+// real DOM: [data-message-uuid] wraps the highlighted text.
+function makeMessageWithHighlight(uuid: string): {
+  message: HTMLElement;
+  markScrollIntoView: Mock;
+} {
+  const message = document.createElement("div");
+  message.setAttribute("data-message-uuid", uuid);
+  const mark = document.createElement("mark");
+  mark.setAttribute("data-search-highlight", "current");
+  const markScrollIntoView = vi.fn();
+  mark.scrollIntoView = markScrollIntoView;
+  message.appendChild(mark);
+  return { message, markScrollIntoView };
+}
+
 describe("useScrollNavigation — search scroll (#429)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -35,11 +51,8 @@ describe("useScrollNavigation — search scroll (#429)", () => {
 
   it("scrolls straight to the active highlight without a message-level jump when it is already rendered", () => {
     const viewport = document.createElement("div");
-    const mark = document.createElement("mark");
-    mark.setAttribute("data-search-highlight", "current");
-    const markScrollIntoView = vi.fn();
-    mark.scrollIntoView = markScrollIntoView;
-    viewport.appendChild(mark);
+    const { message, markScrollIntoView } = makeMessageWithHighlight("msg-1");
+    viewport.appendChild(message);
 
     const scrollToIndex = vi.fn();
 
@@ -86,6 +99,36 @@ describe("useScrollNavigation — search scroll (#429)", () => {
 
     vi.runAllTimers();
 
+    expect(scrollToIndex).toHaveBeenCalledWith(7, { align: "center" });
+  });
+
+  it("does not let another message's highlight hijack the scroll (scopes to matchUuid)", () => {
+    // A `current` highlight exists, but it belongs to a DIFFERENT message than
+    // the one we're navigating to (e.g. a deep-link target rendered alongside).
+    const viewport = document.createElement("div");
+    const { message: foreign, markScrollIntoView: foreignScroll } =
+      makeMessageWithHighlight("other-msg");
+    viewport.appendChild(foreign);
+
+    const scrollToIndex = vi.fn();
+
+    renderHook(() =>
+      useScrollNavigation({
+        scrollContainerRef: makeScrollRef(viewport),
+        currentMatchUuid: "msg-2", // target is NOT the message holding the mark
+        currentMatchIndex: 0,
+        messagesLength: 10,
+        isLoading: false,
+        virtualizer: makeVirtualizer(scrollToIndex),
+        getScrollIndex: () => 7,
+        scrollElementReady: false,
+      })
+    );
+
+    vi.runAllTimers();
+
+    // Must ignore the foreign highlight and use the virtualizer for the target.
+    expect(foreignScroll).not.toHaveBeenCalled();
     expect(scrollToIndex).toHaveBeenCalledWith(7, { align: "center" });
   });
 });

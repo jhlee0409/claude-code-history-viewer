@@ -1,6 +1,6 @@
 import { ChevronRight, X } from "lucide-react";
 import { useToggle } from "../hooks";
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
@@ -33,17 +33,17 @@ const ContentProvider = ({
   expandKey,
   autoExpand,
 }: ContentProviderProps) => {
-  const [isOpen, toggle, setIsOpen] = useToggle(expandKey ?? "renderer");
+  const [isOpen, toggle] = useToggle(expandKey ?? "renderer");
 
   // Reveal collapsed content when a search match is inside it, so the
-  // highlighted term is actually visible (#429). Runs only on the rising
-  // edge of autoExpand, leaving manual toggling intact afterward.
-  useEffect(() => {
-    if (autoExpand) setIsOpen(true);
-  }, [autoExpand, setIsOpen]);
-
+  // highlighted term is actually visible (#429). `autoExpand` is applied as an
+  // ephemeral override rather than written through `setIsOpen`, so it does not
+  // mutate the persisted expand registry (which the WYSIWYG capture renderer
+  // reads) and cleanly reverts once the search term clears.
   return (
-    <ContentContext.Provider value={{ isOpen, toggle, hasError, enableToggle }}>
+    <ContentContext.Provider
+      value={{ isOpen: isOpen || autoExpand === true, toggle, hasError, enableToggle }}
+    >
       {children}
     </ContentContext.Provider>
   );

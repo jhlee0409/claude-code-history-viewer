@@ -158,22 +158,26 @@ export const useScrollNavigation = ({
   const scrollToHighlight = useCallback((matchUuid: string | null) => {
     if (!matchUuid) return;
 
+    const messageSelector = `[data-message-uuid="${matchUuid}"]`;
+    // Scope the highlight lookup to the TARGET message so a `current` mark on
+    // another message (e.g. a deep-link target rendered simultaneously) can't
+    // hijack the scroll. (#429)
+    const findActiveHighlight = (root: ParentNode) =>
+      root.querySelector(`${messageSelector} [data-search-highlight="current"]`);
+
     const viewport = getScrollViewport();
 
-    // Prefer the active highlight if it is already rendered. This is the
-    // common case when moving between occurrences WITHIN one (long) message:
+    // Prefer the active highlight if the target message is already rendered:
     // scroll straight to the occurrence instead of first jumping the whole
     // message into view, which caused a visible double-scroll. (#429)
-    const activeHighlight = viewport?.querySelector(
-      '[data-search-highlight="current"]'
-    );
+    const activeHighlight = viewport ? findActiveHighlight(viewport) : null;
     if (activeHighlight) {
       activeHighlight.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
-    // Target message isn't rendered yet (virtualized off-screen) — bring it
-    // in via the virtualizer, then scroll to the highlight once it mounts.
+    // Target message isn't rendered yet (virtualized off-screen) — bring it in
+    // via the virtualizer, then scroll to its highlight once it mounts.
     if (virtualizer && getScrollIndex) {
       const index = getScrollIndex(matchUuid);
       if (index !== null) {
@@ -181,18 +185,14 @@ export const useScrollNavigation = ({
         setTimeout(() => {
           const vp = getScrollViewport();
           if (!vp) return;
-          const highlightElement = vp.querySelector(
-            '[data-search-highlight="current"]'
-          );
+          const highlightElement = findActiveHighlight(vp);
           if (highlightElement) {
             highlightElement.scrollIntoView({ behavior: "smooth", block: "center" });
             return;
           }
           // No highlight in the now-rendered message (e.g. match outside the
           // visible text window) — center the message as a fallback.
-          const messageElement = vp.querySelector(
-            `[data-message-uuid="${matchUuid}"]`
-          );
+          const messageElement = vp.querySelector(messageSelector);
           messageElement?.scrollIntoView({ behavior: "smooth", block: "center" });
         }, 100);
         return;
@@ -200,9 +200,7 @@ export const useScrollNavigation = ({
     }
 
     // DOM-only fallback (no virtualizer): center the message.
-    const messageElement = viewport?.querySelector(
-      `[data-message-uuid="${matchUuid}"]`
-    );
+    const messageElement = viewport?.querySelector(messageSelector);
     messageElement?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [getScrollViewport, virtualizer, getScrollIndex]);
 
