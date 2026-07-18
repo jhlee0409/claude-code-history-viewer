@@ -8,6 +8,7 @@ export { WebSearchCard } from "./WebSearchCard";
 export { WebFetchCard } from "./WebFetchCard";
 export { AgentCard } from "./AgentCard";
 export { WorkflowCard } from "./WorkflowCard";
+export { AskUserQuestionCard } from "./AskUserQuestionCard";
 export { DefaultCard } from "./DefaultCard";
 export { StatusBadge } from "./StatusBadge";
 export { ResultBlock } from "./ResultBlock";

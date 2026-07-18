@@ -1,6 +1,6 @@
 import { ChevronRight, X } from "lucide-react";
 import { useToggle } from "../hooks";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
@@ -22,6 +22,8 @@ type ContentProviderProps = {
   hasError?: boolean;
   enableToggle?: boolean;
   expandKey?: string;
+  /** When true, force the content open (e.g. a search match lives inside). */
+  autoExpand?: boolean;
 };
 
 const ContentProvider = ({
@@ -29,8 +31,16 @@ const ContentProvider = ({
   hasError,
   enableToggle,
   expandKey,
+  autoExpand,
 }: ContentProviderProps) => {
-  const [isOpen, toggle] = useToggle(expandKey ?? "renderer");
+  const [isOpen, toggle, setIsOpen] = useToggle(expandKey ?? "renderer");
+
+  // Reveal collapsed content when a search match is inside it, so the
+  // highlighted term is actually visible (#429). Runs only on the rising
+  // edge of autoExpand, leaving manual toggling intact afterward.
+  useEffect(() => {
+    if (autoExpand) setIsOpen(true);
+  }, [autoExpand, setIsOpen]);
 
   return (
     <ContentContext.Provider value={{ isOpen, toggle, hasError, enableToggle }}>
@@ -45,6 +55,8 @@ type RendererWrapperProps = {
   hasError?: boolean;
   enableToggle?: boolean;
   expandKey?: string;
+  /** When true, force the content open (e.g. a search match lives inside). */
+  autoExpand?: boolean;
 };
 
 const RendererWrapper = ({
@@ -53,9 +65,10 @@ const RendererWrapper = ({
   hasError = false,
   enableToggle = true,
   expandKey,
+  autoExpand,
 }: RendererWrapperProps) => {
   return (
-    <ContentProvider hasError={hasError} enableToggle={enableToggle} expandKey={expandKey}>
+    <ContentProvider hasError={hasError} enableToggle={enableToggle} expandKey={expandKey} autoExpand={autoExpand}>
       <div
         className={cn(
           "mt-1.5 border border-border overflow-hidden",

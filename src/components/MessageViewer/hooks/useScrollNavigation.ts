@@ -158,58 +158,52 @@ export const useScrollNavigation = ({
   const scrollToHighlight = useCallback((matchUuid: string | null) => {
     if (!matchUuid) return;
 
-    // Use virtualizer if available
+    const viewport = getScrollViewport();
+
+    // Prefer the active highlight if it is already rendered. This is the
+    // common case when moving between occurrences WITHIN one (long) message:
+    // scroll straight to the occurrence instead of first jumping the whole
+    // message into view, which caused a visible double-scroll. (#429)
+    const activeHighlight = viewport?.querySelector(
+      '[data-search-highlight="current"]'
+    );
+    if (activeHighlight) {
+      activeHighlight.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    // Target message isn't rendered yet (virtualized off-screen) — bring it
+    // in via the virtualizer, then scroll to the highlight once it mounts.
     if (virtualizer && getScrollIndex) {
       const index = getScrollIndex(matchUuid);
       if (index !== null) {
         virtualizer.scrollToIndex(index, { align: "center" });
-        // After virtualizer scrolls, try to find the highlight element
         setTimeout(() => {
-          const viewport = getScrollViewport();
-          if (!viewport) return;
-          const highlightElement = viewport.querySelector(
+          const vp = getScrollViewport();
+          if (!vp) return;
+          const highlightElement = vp.querySelector(
             '[data-search-highlight="current"]'
           );
           if (highlightElement) {
-            highlightElement.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-            });
+            highlightElement.scrollIntoView({ behavior: "smooth", block: "center" });
+            return;
           }
+          // No highlight in the now-rendered message (e.g. match outside the
+          // visible text window) — center the message as a fallback.
+          const messageElement = vp.querySelector(
+            `[data-message-uuid="${matchUuid}"]`
+          );
+          messageElement?.scrollIntoView({ behavior: "smooth", block: "center" });
         }, 100);
         return;
       }
     }
 
-    // Fallback to DOM-based scrolling
-    const viewport = getScrollViewport();
-    if (!viewport) return;
-
-    // 먼저 하이라이트된 텍스트 요소를 찾음
-    const highlightElement = viewport.querySelector(
-      '[data-search-highlight="current"]'
-    );
-
-    if (highlightElement) {
-      // 하이라이트된 텍스트로 스크롤
-      highlightElement.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-      return;
-    }
-
-    // 하이라이트 요소가 없으면 메시지 영역으로 스크롤 (fallback)
-    const messageElement = viewport.querySelector(
+    // DOM-only fallback (no virtualizer): center the message.
+    const messageElement = viewport?.querySelector(
       `[data-message-uuid="${matchUuid}"]`
     );
-
-    if (messageElement) {
-      messageElement.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }
+    messageElement?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [getScrollViewport, virtualizer, getScrollIndex]);
 
   // 메시지 로드 완료 후 스크롤 실행
