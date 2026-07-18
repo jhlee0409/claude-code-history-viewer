@@ -136,6 +136,17 @@ fn rename_claude_session_file(
     let rename_line = serde_json::to_string(&rename_event)
         .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
     lines.push(rename_line);
+
+    // Also append a modern `custom-title` event so Claude Code 2.x reflects the
+    // rename in `claude --resume`; the legacy line above keeps older clients and
+    // CCHV's own summary logic working.
+    if let Some(session_id) = &context.session_id {
+        let custom_title_event = build_claude_custom_title_event(session_id, &normalized_title);
+        let custom_title_line = serde_json::to_string(&custom_title_event)
+            .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
+        lines.push(custom_title_line);
+    }
+
     write_jsonl_lines(file_path, &lines)?;
 
     Ok(NativeRenameResult {
@@ -213,7 +224,11 @@ fn reset_claude_session_file(file_path: &str) -> Result<NativeRenameResult, Stri
     let mut removed_rename = false;
 
     for line in lines {
-        if is_claude_rename_event_line(&line) {
+        // Remove legacy `Session renamed to:` events (any title) and the modern
+        // `custom-title` events that carry the name being reset. Matching the
+        // custom-title by value leaves unrelated (older/CLI-set) titles intact,
+        // so the picker falls back to the prior name rather than to nothing.
+        if is_claude_rename_event_line(&line) || is_custom_title_line_for(&line, &previous_title) {
             removed_rename = true;
             continue;
         }
@@ -532,6 +547,8 @@ fn collect_claude_rename_context(
 
         if let Some(rename_name) = extract_claude_rename_from_value(&json) {
             context.latest_rename = Some(rename_name);
+        } else if let Some(custom_title) = extract_custom_title_from_value(&json) {
+            context.latest_rename = Some(custom_title);
         }
 
         let is_user = json.get("type").and_then(Value::as_str) == Some("user");
@@ -662,6 +679,40 @@ fn is_claude_rename_event_line(line: &str) -> bool {
         .ok()
         .and_then(|json| extract_claude_rename_from_value(&json))
         .is_some()
+}
+
+/// Extract the title from a modern `custom-title` event.
+/// Claude Code 2.x drives the `claude --resume` picker from these events, so
+/// CCHV writes one alongside the legacy `Session renamed to:` output.
+fn extract_custom_title_from_value(json: &Value) -> Option<String> {
+    if json.get("type").and_then(Value::as_str) != Some("custom-title") {
+        return None;
+    }
+    let title = json.get("customTitle").and_then(Value::as_str)?.trim();
+    if title.is_empty() {
+        return None;
+    }
+    Some(title.to_string())
+}
+
+/// Build a minimal `custom-title` event matching the shape the Claude CLI writes
+/// (`{"type","customTitle","sessionId"}`), so `claude --resume` shows the name.
+fn build_claude_custom_title_event(session_id: &str, new_title: &str) -> Value {
+    serde_json::json!({
+        "type": "custom-title",
+        "customTitle": new_title,
+        "sessionId": session_id,
+    })
+}
+
+/// True if `line` is a `custom-title` event whose title equals `target`.
+/// Used by reset to remove the `custom-title` CCHV appended for a given name
+/// while leaving unrelated (older/CLI-set) titles intact.
+fn is_custom_title_line_for(line: &str, target: &str) -> bool {
+    serde_json::from_str::<Value>(line)
+        .ok()
+        .and_then(|json| extract_custom_title_from_value(&json))
+        .is_some_and(|title| title == target)
 }
 
 /// Extracts message content from JSON, handling both direct string and nested object formats
@@ -984,6 +1035,15 @@ mod tests {
         .to_string()
     }
 
+    fn sample_custom_title_event(session_id: &str, title: &str) -> String {
+        serde_json::json!({
+            "type": "custom-title",
+            "customTitle": title,
+            "sessionId": session_id,
+        })
+        .to_string()
+    }
+
     #[tokio::test]
     async fn test_rename_claude_session_appends_local_command_event() {
         let temp_dir = tempfile::TempDir::new().unwrap();
@@ -1006,7 +1066,8 @@ mod tests {
 
         let updated = fs::read_to_string(&file_path).unwrap();
         let lines: Vec<&str> = updated.lines().collect();
-        assert_eq!(lines.len(), 3);
+        // Original 2 messages + legacy rename event + modern custom-title event.
+        assert_eq!(lines.len(), 4);
 
         let first_message: Value = serde_json::from_str(lines[0]).unwrap();
         assert_eq!(
@@ -1024,6 +1085,21 @@ mod tests {
             Some(
                 "<local-command-stdout>Session renamed to: My [Project] v2</local-command-stdout>"
             )
+        );
+
+        // The modern custom-title event drives `claude --resume` and must carry
+        // the exact minimal shape the CLI writes.
+        let custom_title_event: Value = serde_json::from_str(lines[3]).unwrap();
+        assert_eq!(custom_title_event["type"].as_str(), Some("custom-title"));
+        assert_eq!(
+            custom_title_event["customTitle"].as_str(),
+            Some("My [Project] v2")
+        );
+        assert_eq!(custom_title_event["sessionId"].as_str(), Some(session_id));
+        assert_eq!(
+            custom_title_event.as_object().map(serde_json::Map::len),
+            Some(3),
+            "custom-title event must be the minimal 3-key CLI shape"
         );
 
         let sessions = crate::commands::session::load_project_sessions(
@@ -1076,6 +1152,79 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].summary, Some("[RFC] draft parser".to_string()));
         assert!(!sessions[0].is_renamed);
+    }
+
+    #[tokio::test]
+    async fn test_reset_removes_custom_title_for_reset_name() {
+        // A full rename cycle (legacy + custom-title) followed by a reset must
+        // leave no trace of the name, in the JSONL or in CCHV's summary.
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session-ct.jsonl");
+        let session_id = "session-ct";
+        let content = format!(
+            "{}\n{}\n",
+            sample_rename_test_user(session_id, "user-uuid", "Original request"),
+            sample_rename_test_assistant(session_id, "user-uuid", "assistant-uuid")
+        );
+        fs::write(&file_path, content).unwrap();
+
+        rename_claude_session_file(file_path.to_str().unwrap(), "z_obsolete").unwrap();
+        let after_rename = fs::read_to_string(&file_path).unwrap();
+        assert!(after_rename.contains("\"custom-title\""));
+        assert!(after_rename.contains("z_obsolete"));
+
+        let result = reset_claude_session_file(file_path.to_str().unwrap()).unwrap();
+        assert_eq!(result.previous_title, "z_obsolete");
+
+        let after_reset = fs::read_to_string(&file_path).unwrap();
+        assert!(!after_reset.contains("z_obsolete"));
+        assert!(!after_reset.contains("Session renamed to:"));
+
+        let sessions = crate::commands::session::load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(sessions[0].summary, Some("Original request".to_string()));
+        assert!(!sessions[0].is_renamed);
+    }
+
+    #[tokio::test]
+    async fn test_reset_preserves_unrelated_custom_title() {
+        // An older custom-title (e.g. one the CLI set) must survive a reset that
+        // targets a different, CCHV-applied name — the picker reverts to it.
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session-keep.jsonl");
+        let session_id = "session-keep";
+        let content = format!(
+            "{}\n{}\n{}\n",
+            sample_rename_test_user(session_id, "user-uuid", "Original request"),
+            sample_rename_test_assistant(session_id, "user-uuid", "assistant-uuid"),
+            sample_custom_title_event(session_id, "cli-set-name")
+        );
+        fs::write(&file_path, content).unwrap();
+
+        // CCHV renames on top of the CLI-set title, then resets its own rename.
+        rename_claude_session_file(file_path.to_str().unwrap(), "cchv-name").unwrap();
+        let result = reset_claude_session_file(file_path.to_str().unwrap()).unwrap();
+        assert_eq!(result.previous_title, "cchv-name");
+
+        let after_reset = fs::read_to_string(&file_path).unwrap();
+        assert!(!after_reset.contains("cchv-name"));
+        assert!(
+            after_reset.contains("cli-set-name"),
+            "an unrelated (older) custom-title must be preserved"
+        );
+
+        let sessions = crate::commands::session::load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(sessions[0].summary, Some("cli-set-name".to_string()));
+        assert!(sessions[0].is_renamed);
     }
 
     #[tokio::test]
