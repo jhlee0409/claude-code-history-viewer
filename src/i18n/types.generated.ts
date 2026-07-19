@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-07-14T16:30:38.203Z
- * 총 키 개수: 1863
+ * 생성 시간: 2026-07-19T06:38:29.072Z
+ * 총 키 개수: 1873
  * Namespace 수: 11
  */
 
@@ -415,7 +415,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (239개)
+ * session namespace의 번역 키 (249개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -648,6 +648,16 @@ export type SessionKeys =
   | 'session.selection.loadAllError'
   | 'session.selection.loadingAll'
   | 'session.selection.partialNotice'
+  | 'session.selection.resume'
+  | 'session.selection.resumeConfirmButton'
+  | 'session.selection.resumeDescription'
+  | 'session.selection.resumeError'
+  | 'session.selection.resumeMore'
+  | 'session.selection.resumePartial'
+  | 'session.selection.resumeSkipped'
+  | 'session.selection.resumeSuccess'
+  | 'session.selection.resumeTargets'
+  | 'session.selection.resumeTitle'
   | 'session.selection.selectAll'
   | 'session.selection.selectAllCount'
   | 'session.showJsonlFile'
@@ -3062,6 +3072,16 @@ export type TranslationKey =
   | 'session.selection.loadAllError'
   | 'session.selection.loadingAll'
   | 'session.selection.partialNotice'
+  | 'session.selection.resume'
+  | 'session.selection.resumeConfirmButton'
+  | 'session.selection.resumeDescription'
+  | 'session.selection.resumeError'
+  | 'session.selection.resumeMore'
+  | 'session.selection.resumePartial'
+  | 'session.selection.resumeSkipped'
+  | 'session.selection.resumeSuccess'
+  | 'session.selection.resumeTargets'
+  | 'session.selection.resumeTitle'
   | 'session.selection.selectAll'
   | 'session.selection.selectAllCount'
   | 'session.showJsonlFile'

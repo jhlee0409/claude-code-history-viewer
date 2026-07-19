@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeSession } from "@/types";
+import { getResumeCommand } from "@/utils/providers";
 
 /**
  * Run an async task over `items` with at most `limit` in flight at once.
@@ -33,6 +34,10 @@ type DeleteOutcome =
   | { session: ClaudeSession; ok: true }
   | { session: ClaudeSession; ok: false; error: string };
 
+type ResumeOutcome =
+  | { session: ClaudeSession; ok: true }
+  | { session: ClaudeSession; ok: false; error: string };
+
 /**
  * Mass operations for the multi-select session list. Reuses the hardened
  * single-session `delete_session` command (path validation, symlink guard,
@@ -42,6 +47,7 @@ type DeleteOutcome =
 export function useSessionBatchActions() {
   const { t } = useTranslation();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
 
   const copyIds = useCallback(
     async (sessions: ClaudeSession[]) => {
@@ -144,5 +150,92 @@ export function useSessionBatchActions() {
     [t]
   );
 
-  return { isDeleting, deleteSessions, copyIds };
+  const resumeSessions = useCallback(
+    async (sessions: ClaudeSession[], cwd?: string) => {
+      if (sessions.length === 0) return;
+
+      const resumable = sessions
+        .map((session) => ({
+          session,
+          command: getResumeCommand(
+            session.provider ?? "claude",
+            session.actual_session_id,
+            undefined,
+            session.entrypoint
+          ),
+        }))
+        .filter(
+          (item): item is { session: ClaudeSession; command: string } =>
+            item.command != null
+        );
+
+      if (resumable.length === 0) return;
+
+      setIsResuming(true);
+      try {
+        const results = await mapWithConcurrency<
+          { session: ClaudeSession; command: string },
+          ResumeOutcome
+        >(resumable, 4, async ({ session, command }) => {
+          try {
+            await api("open_resume_in_terminal", { command, cwd });
+            return { session, ok: true };
+          } catch (error) {
+            return {
+              session,
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            };
+          }
+        });
+
+        const opened = results.filter(
+          (r): r is Extract<ResumeOutcome, { ok: true }> => r.ok
+        );
+        const failed = results.filter(
+          (r): r is Extract<ResumeOutcome, { ok: false }> => !r.ok
+        );
+
+        if (failed.length === 0) {
+          toast.success(
+            t("session.selection.resumeSuccess", {
+              count: opened.length,
+              defaultValue: "Opened {{count}} session(s)",
+            })
+          );
+        } else if (opened.length > 0) {
+          console.error("[session selection] batch resume had failures", failed);
+          toast.error(
+            t("session.selection.resumePartial", {
+              opened: opened.length,
+              failed: failed.length,
+              defaultValue: "Opened {{opened}}, failed {{failed}}",
+            }),
+            { description: failed[0]?.error }
+          );
+        } else {
+          console.error("[session selection] batch resume failed", failed);
+          toast.error(t("session.selection.resumeError", "Failed to open terminal"), {
+            description: failed[0]?.error,
+          });
+        }
+
+        if (opened.length > 0) {
+          useAppStore.getState().exitSessionSelectionMode();
+        }
+      } catch (error) {
+        const description =
+          error instanceof Error ? error.message : String(error);
+        console.error("[session selection] batch resume failed", error);
+        toast.error(t("session.selection.resumeError", "Failed to open terminal"), {
+          description,
+        });
+      } finally {
+        setIsResuming(false);
+      }
+    },
+    [t]
+  );
+
+  return { isDeleting, isResuming, deleteSessions, resumeSessions, copyIds };
 }
