@@ -201,8 +201,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         return Err("Session file must not be a symlink".to_string());
     }
 
-    let data =
-        fs::read_to_string(path).map_err(|e| format!("Failed to read session file: {e}"))?;
+    let data = fs::read_to_string(path).map_err(|e| format!("Failed to read session file: {e}"))?;
     let session_id = file_uuid(path);
     let timestamp = file_mtime_rfc3339(path);
 
@@ -351,12 +350,11 @@ fn clean_user_text(text: &str) -> String {
         let after_open = &text[start + "<user_query>".len()..];
         // Truncate at the closing tag — this drops any <context> blob that
         // Cursor appends after </user_query>.
-        let inner = if let Some(end) = after_open.find("</user_query>") {
+        if let Some(end) = after_open.find("</user_query>") {
             &after_open[..end]
         } else {
             after_open
-        };
-        inner
+        }
     } else {
         // No wrapper — pass through (covers assistant messages and plain turns).
         text
@@ -756,8 +754,14 @@ mod tests {
         assert_eq!(messages[1].uuid, "uuid-1-1");
         // User text is cleaned: XML wrapper stripped.
         let user_content = messages[0].content.as_ref().unwrap().to_string();
-        assert!(!user_content.contains("<user_query>"), "raw XML tag leaked into user message");
-        assert!(user_content.contains("fix the LOGIN bug"), "user query text missing");
+        assert!(
+            !user_content.contains("<user_query>"),
+            "raw XML tag leaked into user message"
+        );
+        assert!(
+            user_content.contains("fix the LOGIN bug"),
+            "user query text missing"
+        );
     }
 
     #[test]
@@ -786,7 +790,7 @@ mod tests {
     // New tests for issue #472
     // ---------------------------------------------------------------------------
 
-    /// clean_user_text strips <user_query> wrapper and drops trailing <context> blob.
+    /// `clean_user_text` strips the `<user_query>` wrapper and drops the trailing `<context>` blob.
     #[test]
     fn clean_user_text_strips_wrapper_and_context() {
         let input = "<user_query>do something useful</user_query><context>lots of verbose context here</context>";
@@ -796,7 +800,7 @@ mod tests {
         assert!(!result.contains('<'), "XML tags leaked");
     }
 
-    /// clean_user_text passes non-wrapped assistant text through unchanged.
+    /// `clean_user_text` passes non-wrapped assistant text through unchanged.
     #[test]
     fn clean_user_text_no_wrapper_passthrough() {
         let input = "Here is the fix for your bug.";
@@ -807,9 +811,11 @@ mod tests {
     #[test]
     fn redacted_only_message_is_skipped() {
         // Explicit redaction type.
-        let explicit = r#"{"role":"user","message":{"content":[{"type":"redacted","data":"[REDACTED]"}]}}"#;
+        let explicit =
+            r#"{"role":"user","message":{"content":[{"type":"redacted","data":"[REDACTED]"}]}}"#;
         // Literal [REDACTED] text sentinel.
-        let sentinel = r#"{"role":"user","message":{"content":[{"type":"text","text":"[REDACTED]"}]}}"#;
+        let sentinel =
+            r#"{"role":"user","message":{"content":[{"type":"text","text":"[REDACTED]"}]}}"#;
         // Mixed: both forms in one message.
         let mixed_redacted = r#"{"role":"assistant","message":{"content":[{"type":"redacted","data":"[REDACTED]"},{"type":"text","text":"[REDACTED]"}]}}"#;
 
@@ -826,20 +832,25 @@ mod tests {
         assert_eq!(messages.len(), 1, "partially-redacted message must be kept");
         let content = messages[0].content.as_ref().unwrap().to_string();
         assert!(content.contains("Here is what I found."));
-        assert!(!content.contains("[REDACTED]"), "redacted placeholder leaked into output");
+        assert!(
+            !content.contains("[REDACTED]"),
+            "redacted placeholder leaked into output"
+        );
     }
 
-    /// tool_result and command_output blocks must appear in the rendered message.
+    /// `tool_result` and `command_output` blocks must appear in the rendered message.
     #[test]
     fn tool_result_and_command_output_extracted() {
-        let line = r#"{"role":"assistant","message":{"content":[
-            {"type":"tool_result","content":[{"type":"text","text":"file contents here"}]},
-            {"type":"command_output","output":"$ cargo build\nCompiling foo v0.1.0"}
-        ]}}"#;
+        // JSONL: one compact JSON object per line (parse_transcript splits on
+        // newlines, so the transcript line must not be pretty-printed).
+        let line = r#"{"role":"assistant","message":{"content":[{"type":"tool_result","content":[{"type":"text","text":"file contents here"}]},{"type":"command_output","output":"$ cargo build\nCompiling foo v0.1.0"}]}}"#;
         let messages = parse_transcript(line, "s", "");
         assert_eq!(messages.len(), 1);
         let content = messages[0].content.as_ref().unwrap().to_string();
-        assert!(content.contains("file contents here"), "tool_result text missing");
+        assert!(
+            content.contains("file contents here"),
+            "tool_result text missing"
+        );
         assert!(content.contains("cargo build"), "command_output missing");
     }
 }
