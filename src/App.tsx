@@ -18,6 +18,7 @@ import {
   type GroupingMode,
 } from "./types";
 import { getProviderLabel, normalizeProviderIds } from "./utils/providers";
+import { findProjectForSession } from "./utils/projectMatch";
 import {
   fetchStartupSessionHint,
   preloadSessionFromCli,
@@ -298,41 +299,13 @@ function App() {
         setIsViewingGlobalStats(false);
         setAnalyticsCurrentView("messages");
 
-        // Find the project this session belongs to.
-        //
-        // Comparing `project.name === session.project_name` is unreliable
-        // across providers: each provider picks its own way to turn a raw
-        // on-disk directory (e.g. "Users-foo-Projects-bar") into a sidebar
-        // display label, and `session.project_name` is set by the loader,
-        // not by the sidebar. CodeBuddy in particular shortens
-        // `dir_name.rsplit('-').next()` for its sidebar label while the
-        // session loader keeps the encoded form — the two never match,
-        // so the previous equality check failed to switch to the right
-        // project when a session was selected.
-        //
-        // The path prefix is the one signal that's stable everywhere:
-        // a session's `file_path` always lives under its project's `path`.
-        // Match on that first, fall back to the name equality only when
-        // `file_path` is unavailable.
-        //
-        // The prefix match must respect the path-segment boundary so
-        // sibling projects sharing a parent dir don't collide — without
-        // this, `/a/proj` would also match a session under `/a/proj2`.
-        const findProjectForSession = (s: ClaudeSession) => {
-          if (s.file_path) {
-            const fp = s.file_path;
-            const byPath = projects.find((p) => {
-              if (!fp.startsWith(p.path)) return false;
-              if (fp.length === p.path.length) return true;
-              const next = fp.charAt(p.path.length);
-              return next === "/" || next === "\\";
-            });
-            if (byPath) return byPath;
-          }
-          return projects.find((p) => p.name === s.project_name);
-        };
-
-        const targetProject = findProjectForSession(session);
+        // Find the project this session belongs to. Extracted to
+        // src/utils/projectMatch.ts (unit-tested): the match must stay
+        // within the session's provider — kimi:// and kimicode:// project
+        // paths carry a scheme while their session file_path does not, so a
+        // name-only fallback can jump to a same-named project of another
+        // provider and hide the session list the user clicked into.
+        const targetProject = findProjectForSession(projects, session);
         const currentProject = useAppStore.getState().selectedProject;
         if (
           targetProject &&
