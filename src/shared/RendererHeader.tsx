@@ -22,6 +22,8 @@ type ContentProviderProps = {
   hasError?: boolean;
   enableToggle?: boolean;
   expandKey?: string;
+  /** When true, force the content open (e.g. a search match lives inside). */
+  autoExpand?: boolean;
 };
 
 const ContentProvider = ({
@@ -29,11 +31,19 @@ const ContentProvider = ({
   hasError,
   enableToggle,
   expandKey,
+  autoExpand,
 }: ContentProviderProps) => {
   const [isOpen, toggle] = useToggle(expandKey ?? "renderer");
 
+  // Reveal collapsed content when a search match is inside it, so the
+  // highlighted term is actually visible (#429). `autoExpand` is applied as an
+  // ephemeral override rather than written through `setIsOpen`, so it does not
+  // mutate the persisted expand registry (which the WYSIWYG capture renderer
+  // reads) and cleanly reverts once the search term clears.
   return (
-    <ContentContext.Provider value={{ isOpen, toggle, hasError, enableToggle }}>
+    <ContentContext.Provider
+      value={{ isOpen: isOpen || autoExpand === true, toggle, hasError, enableToggle }}
+    >
       {children}
     </ContentContext.Provider>
   );
@@ -45,6 +55,8 @@ type RendererWrapperProps = {
   hasError?: boolean;
   enableToggle?: boolean;
   expandKey?: string;
+  /** When true, force the content open (e.g. a search match lives inside). */
+  autoExpand?: boolean;
 };
 
 const RendererWrapper = ({
@@ -53,9 +65,10 @@ const RendererWrapper = ({
   hasError = false,
   enableToggle = true,
   expandKey,
+  autoExpand,
 }: RendererWrapperProps) => {
   return (
-    <ContentProvider hasError={hasError} enableToggle={enableToggle} expandKey={expandKey}>
+    <ContentProvider hasError={hasError} enableToggle={enableToggle} expandKey={expandKey} autoExpand={autoExpand}>
       <div
         className={cn(
           "mt-1.5 border border-border overflow-hidden",

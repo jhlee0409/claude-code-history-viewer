@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
 use uuid::Uuid;
@@ -136,6 +136,17 @@ fn rename_claude_session_file(
     let rename_line = serde_json::to_string(&rename_event)
         .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
     lines.push(rename_line);
+
+    // Also append a modern `custom-title` event so Claude Code 2.x reflects the
+    // rename in `claude --resume`; the legacy line above keeps older clients and
+    // CCHV's own summary logic working.
+    if let Some(session_id) = &context.session_id {
+        let custom_title_event = build_claude_custom_title_event(session_id, &normalized_title);
+        let custom_title_line = serde_json::to_string(&custom_title_event)
+            .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;
+        lines.push(custom_title_line);
+    }
+
     write_jsonl_lines(file_path, &lines)?;
 
     Ok(NativeRenameResult {
@@ -213,7 +224,11 @@ fn reset_claude_session_file(file_path: &str) -> Result<NativeRenameResult, Stri
     let mut removed_rename = false;
 
     for line in lines {
-        if is_claude_rename_event_line(&line) {
+        // Remove legacy `Session renamed to:` events (any title) and the modern
+        // `custom-title` events that carry the name being reset. Matching the
+        // custom-title by value leaves unrelated (older/CLI-set) titles intact,
+        // so the picker falls back to the prior name rather than to nothing.
+        if is_claude_rename_event_line(&line) || is_custom_title_line_for(&line, &previous_title) {
             removed_rename = true;
             continue;
         }
@@ -254,14 +269,121 @@ fn reset_claude_session_file(file_path: &str) -> Result<NativeRenameResult, Stri
     })
 }
 
-/// Validates that the file path is within the ~/.claude directory.
-/// This prevents path traversal attacks that could modify arbitrary files.
+/// Collect the Claude configuration directories the user has registered, plus
+/// `CLAUDE_CONFIG_DIR`. These are the same sources `scan_all_projects` reads, so
+/// any directory whose sessions the app displays is represented here.
+fn configured_claude_dirs() -> Vec<String> {
+    let mut dirs = Vec::new();
+
+    if let Ok(user_data_path) = crate::commands::metadata::get_user_data_path() {
+        if let Ok(content) = fs::read_to_string(user_data_path) {
+            if let Ok(metadata) = serde_json::from_str::<crate::models::UserMetadata>(&content) {
+                dirs.extend(
+                    metadata
+                        .settings
+                        .custom_claude_paths
+                        .into_iter()
+                        .map(|custom| custom.path),
+                );
+            }
+        }
+    }
+
+    if let Ok(env_dir) = std::env::var("CLAUDE_CONFIG_DIR") {
+        let trimmed = env_dir.trim();
+        if !trimmed.is_empty() {
+            dirs.push(expand_home_prefix(trimmed));
+        }
+    }
+
+    dirs
+}
+
+/// Expand a leading `~` to the home directory, mirroring `detect_claude_config_dir`.
+fn expand_home_prefix(raw: &str) -> String {
+    let Some(home) = dirs::home_dir() else {
+        return raw.to_string();
+    };
+    if raw == "~" {
+        return home.to_string_lossy().to_string();
+    }
+    match raw.strip_prefix("~/") {
+        Some(rest) => home.join(rest).to_string_lossy().to_string(),
+        None => raw.to_string(),
+    }
+}
+
+/// Resolve the Claude configuration roots a native rename may write to.
+///
+/// Always includes the default `~/.claude`. A configured directory is only added
+/// once it passes [`validate_custom_claude_path`], which requires an absolute,
+/// non-symlinked base with a real `projects/` subdirectory. The allowlist can
+/// therefore only widen to directories the user registered and that the app
+/// already scans — never to arbitrary paths.
+fn resolve_claude_roots(configured: &[String]) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    if let Some(home) = dirs::home_dir() {
+        push_root(&mut roots, home.join(".claude"));
+    }
+
+    for dir in configured {
+        let candidate = PathBuf::from(dir);
+        if crate::utils::validate_custom_claude_path(&candidate).is_ok() {
+            push_root(&mut roots, candidate);
+        }
+    }
+
+    roots
+}
+
+/// Push a root, resolved to its canonical form so it compares correctly against
+/// the canonicalized file path. Duplicates are skipped.
+/// Add an allowed Claude root. A root that is itself a symlink is rejected, so a
+/// symlinked `~/.claude` cannot smuggle its target into the allowlist and bypass
+/// the "only the project directory may be a symlink" policy.
+///
+/// The path is stored as-is (not canonicalized): `validate_claude_path_with_roots`
+/// compares it lexically against the raw request path, so both sides must use the
+/// same representation. Canonicalizing here would break that on Windows, where
+/// `canonicalize()` yields the `\\?\` verbatim form.
+fn push_root(roots: &mut Vec<PathBuf>, path: PathBuf) {
+    let is_symlink = fs::symlink_metadata(&path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false);
+    if is_symlink {
+        return;
+    }
+    if !roots.contains(&path) {
+        roots.push(path);
+    }
+}
+
+fn allowed_claude_roots() -> Vec<PathBuf> {
+    resolve_claude_roots(&configured_claude_dirs())
+}
+
+/// Validates that the file path is within `~/.claude` or a registered custom
+/// Claude directory. This prevents path traversal attacks that could modify
+/// arbitrary files.
 ///
 /// Security checks performed:
 /// 1. Path must be absolute
-/// 2. No symlinks allowed in any path component
-/// 3. Filename must match pattern ^[A-Za-z0-9_-]+$
+/// 2. Filename stem must match ^[A-Za-z0-9_-]+$ and the extension must be `.jsonl`
+/// 3. Path must be lexically under an allowed root's `projects/` folder, with no
+///    `.`/`..` traversal components
+/// 4. Depth-1 symlink policy (matches `scan_projects`, #277): the project
+///    directory may be a symlink to a directory (this is how shared sessions are
+///    linked in), but `projects/` and everything below the project directory must
+///    be symlink-free, and the session path must resolve to a regular file
 fn validate_claude_path(file_path: &str) -> Result<(), String> {
+    validate_claude_path_with_roots(file_path, &allowed_claude_roots())
+}
+
+fn validate_claude_path_with_roots(
+    file_path: &str,
+    allowed_roots: &[PathBuf],
+) -> Result<(), String> {
     let file_path_buf = std::path::PathBuf::from(file_path);
 
     // 1. Require absolute path
@@ -271,68 +393,112 @@ fn validate_claude_path(file_path: &str) -> Result<(), String> {
         );
     }
 
-    // 2. Block symlinks in path components
-    // Check each ancestor for symlinks before canonicalizing
-    let mut current = file_path_buf.as_path();
-    while let Some(parent) = current.parent() {
-        if parent.as_os_str().is_empty() {
-            break;
-        }
-        // Use symlink_metadata to avoid following symlinks
-        if let Ok(metadata) = fs::symlink_metadata(parent) {
-            if metadata.file_type().is_symlink() {
-                return Err(RenameError::PermissionDenied(
-                    "Symlinks are not allowed in path".to_string(),
-                )
-                .to_string());
-            }
-        }
-        current = parent;
+    // 2. Validate filename pattern
+    let Some(stem) = file_path_buf.file_stem() else {
+        return Err(RenameError::PermissionDenied("Invalid filename".to_string()).to_string());
+    };
+    if !FILENAME_REGEX.is_match(&stem.to_string_lossy()) {
+        return Err(RenameError::PermissionDenied(
+            "Filename must contain only alphanumeric characters, underscores, and hyphens"
+                .to_string(),
+        )
+        .to_string());
+    }
+    // Require a `.jsonl` extension so rename cannot rewrite non-session files
+    // (e.g. notes.txt, config.json) that happen to be valid JSON lines.
+    if file_path_buf.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+        return Err(RenameError::PermissionDenied(
+            "Session file must have a .jsonl extension".to_string(),
+        )
+        .to_string());
     }
 
-    // Also check the final file itself for symlinks
-    if let Ok(metadata) = fs::symlink_metadata(&file_path_buf) {
-        if metadata.file_type().is_symlink() {
-            return Err(
-                RenameError::PermissionDenied("File path cannot be a symlink".to_string())
-                    .to_string(),
-            );
-        }
+    // 3. The file must sit under an allowed root's `projects/` directory. Match
+    // lexically: the path from the root down to `projects/` is always real, so
+    // the only symlink (if any) is the project directory just below it.
+    let Some((projects_dir, relative)) = allowed_roots.iter().find_map(|root| {
+        let projects_dir = root.join("projects");
+        file_path_buf
+            .strip_prefix(&projects_dir)
+            .ok()
+            .map(|rel| (projects_dir, rel.to_path_buf()))
+    }) else {
+        return Err(RenameError::PermissionDenied(
+            "File path must be within the projects/ folder of ~/.claude or a registered custom \
+             Claude directory"
+                .to_string(),
+        )
+        .to_string());
+    };
+
+    // 4. Reject path traversal: every component under `projects/` must be a plain
+    // name (no `.` / `..` / prefixes), and there must be at least
+    // `<project>/<session>.jsonl`.
+    let components: Vec<std::path::Component> = relative.components().collect();
+    if components.len() < 2
+        || !components
+            .iter()
+            .all(|c| matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(RenameError::PermissionDenied(
+            "Invalid session path under projects/".to_string(),
+        )
+        .to_string());
     }
 
-    // 3. Validate filename pattern
-    if let Some(filename) = file_path_buf.file_stem() {
-        let filename_str = filename.to_string_lossy();
-        if !FILENAME_REGEX.is_match(&filename_str) {
+    // 5. `projects/` itself must be a real directory, never a symlink (mirrors
+    // validate_custom_claude_path).
+    if fs::symlink_metadata(&projects_dir)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(
+            RenameError::PermissionDenied("projects/ must not be a symlink".to_string())
+                .to_string(),
+        );
+    }
+
+    // 6. Depth-1 symlink policy (matches scan_projects, #277): the project
+    // directory (first component under `projects/`) may be a symlink that
+    // resolves to a directory — this is how shared sessions are linked in — but
+    // nothing deeper may be a symlink, and the target must be a real file.
+    let project_dir = projects_dir.join(components[0]);
+    let project_meta = fs::symlink_metadata(&project_dir)
+        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+    if project_meta.file_type().is_symlink() {
+        if !project_dir.is_dir() {
             return Err(RenameError::PermissionDenied(
-                "Filename must contain only alphanumeric characters, underscores, and hyphens"
-                    .to_string(),
+                "Project directory symlink does not resolve to a directory".to_string(),
             )
             .to_string());
         }
-    } else {
-        return Err(RenameError::PermissionDenied("Invalid filename".to_string()).to_string());
+    } else if !project_meta.is_dir() {
+        return Err(
+            RenameError::PermissionDenied("Project path is not a directory".to_string())
+                .to_string(),
+        );
     }
 
-    // Canonicalize to resolve .. components (symlinks already blocked above)
-    let canonical_path = file_path_buf
-        .canonicalize()
-        .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
-
-    // Get home directory
-    let home_dir = dirs::home_dir().ok_or_else(|| {
-        RenameError::IoError("Cannot determine home directory".to_string()).to_string()
-    })?;
-
-    // Build the allowed claude directory path
-    let claude_dir = home_dir.join(".claude");
-
-    // Verify the file is within ~/.claude
-    if !canonical_path.starts_with(&claude_dir) {
-        return Err(RenameError::PermissionDenied(
-            "File path must be within ~/.claude directory".to_string(),
-        )
-        .to_string());
+    // Every component below the project directory must be symlink-free, and the
+    // session path must resolve to a regular file.
+    let mut current = project_dir;
+    let deeper = &components[1..];
+    for (i, comp) in deeper.iter().enumerate() {
+        current.push(comp);
+        let meta = fs::symlink_metadata(&current)
+            .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+        if meta.file_type().is_symlink() {
+            return Err(RenameError::PermissionDenied(
+                "Symlinks are not allowed below the project directory".to_string(),
+            )
+            .to_string());
+        }
+        if i + 1 == deeper.len() && !meta.is_file() {
+            return Err(RenameError::PermissionDenied(
+                "Session path is not a regular file".to_string(),
+            )
+            .to_string());
+        }
     }
 
     Ok(())
@@ -381,6 +547,8 @@ fn collect_claude_rename_context(
 
         if let Some(rename_name) = extract_claude_rename_from_value(&json) {
             context.latest_rename = Some(rename_name);
+        } else if let Some(custom_title) = extract_custom_title_from_value(&json) {
+            context.latest_rename = Some(custom_title);
         }
 
         let is_user = json.get("type").and_then(Value::as_str) == Some("user");
@@ -511,6 +679,40 @@ fn is_claude_rename_event_line(line: &str) -> bool {
         .ok()
         .and_then(|json| extract_claude_rename_from_value(&json))
         .is_some()
+}
+
+/// Extract the title from a modern `custom-title` event.
+/// Claude Code 2.x drives the `claude --resume` picker from these events, so
+/// CCHV writes one alongside the legacy `Session renamed to:` output.
+fn extract_custom_title_from_value(json: &Value) -> Option<String> {
+    if json.get("type").and_then(Value::as_str) != Some("custom-title") {
+        return None;
+    }
+    let title = json.get("customTitle").and_then(Value::as_str)?.trim();
+    if title.is_empty() {
+        return None;
+    }
+    Some(title.to_string())
+}
+
+/// Build a minimal `custom-title` event matching the shape the Claude CLI writes
+/// (`{"type","customTitle","sessionId"}`), so `claude --resume` shows the name.
+fn build_claude_custom_title_event(session_id: &str, new_title: &str) -> Value {
+    serde_json::json!({
+        "type": "custom-title",
+        "customTitle": new_title,
+        "sessionId": session_id,
+    })
+}
+
+/// True if `line` is a `custom-title` event whose title equals `target`.
+/// Used by reset to remove the `custom-title` CCHV appended for a given name
+/// while leaving unrelated (older/CLI-set) titles intact.
+fn is_custom_title_line_for(line: &str, target: &str) -> bool {
+    serde_json::from_str::<Value>(line)
+        .ok()
+        .and_then(|json| extract_custom_title_from_value(&json))
+        .is_some_and(|title| title == target)
 }
 
 /// Extracts message content from JSON, handling both direct string and nested object formats
@@ -833,6 +1035,15 @@ mod tests {
         .to_string()
     }
 
+    fn sample_custom_title_event(session_id: &str, title: &str) -> String {
+        serde_json::json!({
+            "type": "custom-title",
+            "customTitle": title,
+            "sessionId": session_id,
+        })
+        .to_string()
+    }
+
     #[tokio::test]
     async fn test_rename_claude_session_appends_local_command_event() {
         let temp_dir = tempfile::TempDir::new().unwrap();
@@ -855,7 +1066,8 @@ mod tests {
 
         let updated = fs::read_to_string(&file_path).unwrap();
         let lines: Vec<&str> = updated.lines().collect();
-        assert_eq!(lines.len(), 3);
+        // Original 2 messages + legacy rename event + modern custom-title event.
+        assert_eq!(lines.len(), 4);
 
         let first_message: Value = serde_json::from_str(lines[0]).unwrap();
         assert_eq!(
@@ -873,6 +1085,21 @@ mod tests {
             Some(
                 "<local-command-stdout>Session renamed to: My [Project] v2</local-command-stdout>"
             )
+        );
+
+        // The modern custom-title event drives `claude --resume` and must carry
+        // the exact minimal shape the CLI writes.
+        let custom_title_event: Value = serde_json::from_str(lines[3]).unwrap();
+        assert_eq!(custom_title_event["type"].as_str(), Some("custom-title"));
+        assert_eq!(
+            custom_title_event["customTitle"].as_str(),
+            Some("My [Project] v2")
+        );
+        assert_eq!(custom_title_event["sessionId"].as_str(), Some(session_id));
+        assert_eq!(
+            custom_title_event.as_object().map(serde_json::Map::len),
+            Some(3),
+            "custom-title event must be the minimal 3-key CLI shape"
         );
 
         let sessions = crate::commands::session::load_project_sessions(
@@ -925,6 +1152,79 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].summary, Some("[RFC] draft parser".to_string()));
         assert!(!sessions[0].is_renamed);
+    }
+
+    #[tokio::test]
+    async fn test_reset_removes_custom_title_for_reset_name() {
+        // A full rename cycle (legacy + custom-title) followed by a reset must
+        // leave no trace of the name, in the JSONL or in CCHV's summary.
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session-ct.jsonl");
+        let session_id = "session-ct";
+        let content = format!(
+            "{}\n{}\n",
+            sample_rename_test_user(session_id, "user-uuid", "Original request"),
+            sample_rename_test_assistant(session_id, "user-uuid", "assistant-uuid")
+        );
+        fs::write(&file_path, content).unwrap();
+
+        rename_claude_session_file(file_path.to_str().unwrap(), "z_obsolete").unwrap();
+        let after_rename = fs::read_to_string(&file_path).unwrap();
+        assert!(after_rename.contains("\"custom-title\""));
+        assert!(after_rename.contains("z_obsolete"));
+
+        let result = reset_claude_session_file(file_path.to_str().unwrap()).unwrap();
+        assert_eq!(result.previous_title, "z_obsolete");
+
+        let after_reset = fs::read_to_string(&file_path).unwrap();
+        assert!(!after_reset.contains("z_obsolete"));
+        assert!(!after_reset.contains("Session renamed to:"));
+
+        let sessions = crate::commands::session::load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(sessions[0].summary, Some("Original request".to_string()));
+        assert!(!sessions[0].is_renamed);
+    }
+
+    #[tokio::test]
+    async fn test_reset_preserves_unrelated_custom_title() {
+        // An older custom-title (e.g. one the CLI set) must survive a reset that
+        // targets a different, CCHV-applied name — the picker reverts to it.
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("session-keep.jsonl");
+        let session_id = "session-keep";
+        let content = format!(
+            "{}\n{}\n{}\n",
+            sample_rename_test_user(session_id, "user-uuid", "Original request"),
+            sample_rename_test_assistant(session_id, "user-uuid", "assistant-uuid"),
+            sample_custom_title_event(session_id, "cli-set-name")
+        );
+        fs::write(&file_path, content).unwrap();
+
+        // CCHV renames on top of the CLI-set title, then resets its own rename.
+        rename_claude_session_file(file_path.to_str().unwrap(), "cchv-name").unwrap();
+        let result = reset_claude_session_file(file_path.to_str().unwrap()).unwrap();
+        assert_eq!(result.previous_title, "cchv-name");
+
+        let after_reset = fs::read_to_string(&file_path).unwrap();
+        assert!(!after_reset.contains("cchv-name"));
+        assert!(
+            after_reset.contains("cli-set-name"),
+            "an unrelated (older) custom-title must be preserved"
+        );
+
+        let sessions = crate::commands::session::load_project_sessions(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(sessions[0].summary, Some("cli-set-name".to_string()));
+        assert!(sessions[0].is_renamed);
     }
 
     #[tokio::test]
@@ -1323,6 +1623,251 @@ mod tests {
         // Nonexistent file should fail at canonicalize
         let result = validate_claude_path("/nonexistent/path/to/file.jsonl");
         assert!(result.is_err());
+    }
+
+    /// Canonicalize the temp root: on macOS `TempDir` sits under `/var/folders`,
+    /// and `/var` is a symlink, which `validate_claude_path` rejects outright.
+    /// Real Claude directories under `$HOME` have no symlinked ancestors.
+    fn real_temp_root(temp: &tempfile::TempDir) -> PathBuf {
+        temp.path().canonicalize().unwrap()
+    }
+
+    /// Build a Claude-shaped config dir (`<base>/projects/<project>/<name>.jsonl`)
+    /// and return the base plus the session file path.
+    fn make_claude_dir(base: &Path, session_name: &str) -> (PathBuf, String) {
+        let project_dir = base.join("projects").join("-tmp-demo");
+        fs::create_dir_all(&project_dir).unwrap();
+        let session = project_dir.join(format!("{session_name}.jsonl"));
+        fs::write(&session, "{}\n").unwrap();
+        (base.to_path_buf(), session.to_string_lossy().to_string())
+    }
+
+    #[test]
+    fn validate_claude_path_accepts_registered_custom_directory() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let custom_base = real_temp_root(&temp).join(".claude-holophonix");
+        fs::create_dir_all(&custom_base).unwrap();
+        let (base, session_path) = make_claude_dir(&custom_base, "session-1");
+
+        let roots = resolve_claude_roots(&[base.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&session_path, &roots).is_ok(),
+            "a session inside a registered custom Claude directory must be renameable"
+        );
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_directory_that_is_not_registered() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let unregistered = real_temp_root(&temp).join(".claude-other");
+        fs::create_dir_all(&unregistered).unwrap();
+        let (_base, session_path) = make_claude_dir(&unregistered, "session-1");
+
+        // Roots resolved without the directory being configured. The path itself
+        // is symlink-free, so this fails on root containment specifically.
+        let roots = resolve_claude_roots(&[]);
+        assert!(
+            validate_claude_path_with_roots(&session_path, &roots).is_err(),
+            "an unregistered directory must stay rejected"
+        );
+    }
+
+    #[test]
+    fn resolve_claude_roots_skips_directory_without_projects_subdir() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let bogus = real_temp_root(&temp).join(".claude-bogus");
+        fs::create_dir_all(&bogus).unwrap(); // no projects/ inside
+
+        let roots = resolve_claude_roots(&[bogus.to_string_lossy().to_string()]);
+        let bogus_canonical = bogus.canonicalize().unwrap();
+        assert!(
+            !roots.contains(&bogus_canonical),
+            "a directory failing validate_custom_claude_path must not widen the allowlist"
+        );
+    }
+
+    #[test]
+    fn resolve_claude_roots_skips_symlinked_custom_directory() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let real_base = real_temp_root(&temp).join("real-claude");
+        fs::create_dir_all(real_base.join("projects")).unwrap();
+        let link = real_temp_root(&temp).join("linked-claude");
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real_base, &link).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&real_base, &link).unwrap();
+
+        let roots = resolve_claude_roots(&[link.to_string_lossy().to_string()]);
+        // The symlinked base is rejected, so only the default ~/.claude root remains.
+        assert!(
+            !roots.iter().any(|r| r.starts_with(real_temp_root(&temp))),
+            "a symlinked custom base must be rejected"
+        );
+    }
+
+    #[test]
+    fn resolve_claude_roots_always_includes_default_claude_dir() {
+        let roots = resolve_claude_roots(&[]);
+        if let Some(home) = dirs::home_dir() {
+            let default_root = home.join(".claude");
+            // Roots are stored as-is (not canonicalized), unless ~/.claude is a
+            // symlink (then push_root drops it).
+            let is_symlink = fs::symlink_metadata(&default_root)
+                .map(|m| m.file_type().is_symlink())
+                .unwrap_or(false);
+            if !is_symlink {
+                assert!(
+                    roots.contains(&default_root),
+                    "the default ~/.claude root must always be allowed"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn push_root_rejects_symlinked_root() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let real = real_temp_root(&temp).join("real-root");
+        fs::create_dir_all(&real).unwrap();
+        let link = real_temp_root(&temp).join("linked-root");
+        symlink_dir(&real, &link);
+
+        let mut roots = Vec::new();
+        push_root(&mut roots, link.clone());
+        assert!(
+            !roots.contains(&link) && roots.is_empty(),
+            "a symlinked root must not enter the allowlist"
+        );
+
+        // A real root is still accepted, stored as-is (not canonicalized).
+        push_root(&mut roots, real.clone());
+        assert_eq!(roots, vec![real]);
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_non_jsonl_extension() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        let project_dir = root.join("projects").join("-proj");
+        fs::create_dir_all(&project_dir).unwrap();
+        let non_session = project_dir.join("config.json");
+        fs::write(&non_session, "{}\n").unwrap();
+
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&non_session.to_string_lossy(), &roots).is_err(),
+            "only .jsonl session files may be renamed"
+        );
+    }
+
+    #[cfg(unix)]
+    fn symlink_dir(target: &Path, link: &Path) {
+        std::os::unix::fs::symlink(target, link).unwrap();
+    }
+    #[cfg(windows)]
+    fn symlink_dir(target: &Path, link: &Path) {
+        std::os::windows::fs::symlink_dir(target, link).unwrap();
+    }
+
+    #[test]
+    fn validate_claude_path_accepts_symlinked_project_directory() {
+        // Mirrors the shared-sessions layout: a project directory under
+        // <root>/projects is a symlink into a real directory elsewhere (e.g.
+        // /Users/Shared/.claude/projects). The session file is a real file.
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        fs::create_dir_all(root.join("projects")).unwrap();
+
+        let shared = real_temp_root(&temp).join("shared").join("-Shared-proj");
+        fs::create_dir_all(&shared).unwrap();
+        let session = shared.join("session-1.jsonl");
+        fs::write(&session, "{}\n").unwrap();
+
+        // <root>/projects/-Shared-proj -> <temp>/shared/-Shared-proj
+        symlink_dir(&shared, &root.join("projects").join("-Shared-proj"));
+
+        let session_path = root
+            .join("projects")
+            .join("-Shared-proj")
+            .join("session-1.jsonl")
+            .to_string_lossy()
+            .to_string();
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&session_path, &roots).is_ok(),
+            "a session under a depth-1 symlinked project directory must be renameable"
+        );
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_symlink_below_project_directory() {
+        // A symlink deeper than the project directory is not allowed.
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        let project_dir = root.join("projects").join("-proj");
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let elsewhere = real_temp_root(&temp).join("elsewhere");
+        fs::create_dir_all(&elsewhere).unwrap();
+        fs::write(elsewhere.join("session-1.jsonl"), "{}\n").unwrap();
+
+        // <root>/projects/-proj/subdir -> <temp>/elsewhere  (symlink below depth 1)
+        symlink_dir(&elsewhere, &project_dir.join("subdir"));
+
+        let session_path = project_dir
+            .join("subdir")
+            .join("session-1.jsonl")
+            .to_string_lossy()
+            .to_string();
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&session_path, &roots).is_err(),
+            "symlinks below the project directory must stay rejected"
+        );
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_symlinked_session_file() {
+        // The session file itself must be a real file, not a symlink.
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        let project_dir = root.join("projects").join("-proj");
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let real_file = real_temp_root(&temp).join("target.jsonl");
+        fs::write(&real_file, "{}\n").unwrap();
+        let link = project_dir.join("session-1.jsonl");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real_file, &link).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&real_file, &link).unwrap();
+
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&link.to_string_lossy(), &roots).is_err(),
+            "a symlinked session file must be rejected"
+        );
+    }
+
+    #[test]
+    fn validate_claude_path_rejects_path_traversal_under_projects() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = real_temp_root(&temp).join(".claude");
+        fs::create_dir_all(root.join("projects")).unwrap();
+
+        let traversal = root
+            .join("projects")
+            .join("..")
+            .join("evil")
+            .join("session-1.jsonl")
+            .to_string_lossy()
+            .to_string();
+        let roots = resolve_claude_roots(&[root.to_string_lossy().to_string()]);
+        assert!(
+            validate_claude_path_with_roots(&traversal, &roots).is_err(),
+            "`..` traversal under projects/ must be rejected"
+        );
     }
 
     #[test]

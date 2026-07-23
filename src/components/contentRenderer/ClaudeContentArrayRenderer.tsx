@@ -172,6 +172,9 @@ export const ClaudeContentArrayRenderer = memo(({
               toolUse={entry.toolUse}
               toolResults={skipToolResults ? [] : entry.toolResults}
               onViewSubagent={onViewSubagent}
+              searchQuery={searchQuery}
+              isCurrentMatch={isCurrentMatch}
+              currentMatchIndex={currentMatchIndex}
             />
           );
         }

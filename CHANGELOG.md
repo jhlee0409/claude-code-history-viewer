@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.0] - 2026-07-18
+
+Feature release: multi-session terminal resume, a full Recent Edits diff view, richer in-session search, and two new/expanded providers (Antigravity CLI, VS Code legacy sessions).
+
+### Added
+- **Resume multiple sessions in a terminal** — multi-select sessions and open each in a new terminal window; desktop-only (hidden in WebUI `--serve` mode) with a whitelisted, per-OS terminal launcher. (#463, closes #462)
+- **Recent Edits diff view** — expand a file edit into a full added/removed diff, with clickable +N/−N stats to jump straight to added or removed lines. (#473)
+- **"Reveal in folder" for edited files** — open the containing folder from a Recent Edits row (Finder/Explorer/file manager); shown only for real absolute paths in the desktop app. (#475)
+- **Antigravity CLI provider** — reads Google's `~/.gemini/antigravity-cli/` conversation store (history index + per-session transcripts), following its move away from the legacy `gemini-cli`. (#470, closes #452)
+- **Structured AskUserQuestion rendering** — the tool now renders CLI-style (question, header, and each option's label/description, single/multi-select) instead of raw JSON. (#481)
+
+### Fixed
+- **In-session search misses inside collapsed tool cards** — a match inside a collapsed tool block (e.g. AskUserQuestion) now auto-expands and highlights the matched text, and navigating between occurrences scrolls straight to the match instead of double-scrolling through the message. (#481, #429)
+- **Cursor Agent CLI transcript rendering** — strip the `<user_query>`/`<context>` XML envelope from prompts, hide fully-`[REDACTED]` messages (keeping partially-redacted ones), and surface `tool_result` / `command_output` (shell) output that was previously missing. (#482, closes #472)
+- **Session rename under symlinked project dirs** — renaming works for sessions in depth-1 symlinked project directories and registered custom Claude directories, with a hardened path validator. (#478)
+- **Renames reflected in `claude -r`** — a custom-title event is written so Claude Code 2.x shows renamed sessions on resume. (#477)
+- **VS Code legacy sessions** — read legacy `.json` chat sessions and multi-root workspaces. (#469)
+- **Folder selector layout** — a long path no longer distorts the folder-select dialog width. (#479)
+
 ## [1.21.0] - 2026-07-12
 
 Performance release: a full data-scaling pass for large histories — paginated message loading, cached analytics, and self-validating search caches — plus session multi-select with mass delete.

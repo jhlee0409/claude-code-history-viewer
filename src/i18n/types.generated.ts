@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-07-21T02:48:06.043Z
- * 총 키 개수: 1859
+ * 생성 시간: 2026-07-23T02:30:40.545Z
+ * 총 키 개수: 1878
  * Namespace 수: 11
  */
 
@@ -416,7 +416,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (239개)
+ * session namespace의 번역 키 (249개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -649,6 +649,16 @@ export type SessionKeys =
   | 'session.selection.loadAllError'
   | 'session.selection.loadingAll'
   | 'session.selection.partialNotice'
+  | 'session.selection.resume'
+  | 'session.selection.resumeConfirmButton'
+  | 'session.selection.resumeDescription'
+  | 'session.selection.resumeError'
+  | 'session.selection.resumeMore'
+  | 'session.selection.resumePartial'
+  | 'session.selection.resumeSkipped'
+  | 'session.selection.resumeSuccess'
+  | 'session.selection.resumeTargets'
+  | 'session.selection.resumeTitle'
   | 'session.selection.selectAll'
   | 'session.selection.selectAllCount'
   | 'session.showJsonlFile'
@@ -1939,7 +1949,7 @@ export type FeedbackKeys =
   | 'feedback.types.other';
 
 /**
- * recentEdits namespace의 번역 키 (20개)
+ * recentEdits namespace의 번역 키 (29개)
  * 파일: locales/{lang}/recentEdits.json
  */
 export type RecentEditsKeys =
@@ -1950,17 +1960,26 @@ export type RecentEditsKeys =
   | 'recentEdits.copyContent'
   | 'recentEdits.created'
   | 'recentEdits.description'
+  | 'recentEdits.diff'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
   | 'recentEdits.lines'
   | 'recentEdits.loading'
   | 'recentEdits.noEdits'
   | 'recentEdits.noEditsDescription'
+  | 'recentEdits.noLinesToShow'
   | 'recentEdits.noSearchResults'
   | 'recentEdits.restoreError'
   | 'recentEdits.restoreFile'
+  | 'recentEdits.revealError'
+  | 'recentEdits.revealInExplorer'
+  | 'recentEdits.revealInFinder'
+  | 'recentEdits.revealInFolder'
   | 'recentEdits.searchPlaceholder'
+  | 'recentEdits.showAddedLines'
+  | 'recentEdits.showDiff'
   | 'recentEdits.showMore'
+  | 'recentEdits.showRemovedLines'
   | 'recentEdits.stats'
   | 'recentEdits.title';
 
@@ -2789,17 +2808,26 @@ export type TranslationKey =
   | 'recentEdits.copyContent'
   | 'recentEdits.created'
   | 'recentEdits.description'
+  | 'recentEdits.diff'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
   | 'recentEdits.lines'
   | 'recentEdits.loading'
   | 'recentEdits.noEdits'
   | 'recentEdits.noEditsDescription'
+  | 'recentEdits.noLinesToShow'
   | 'recentEdits.noSearchResults'
   | 'recentEdits.restoreError'
   | 'recentEdits.restoreFile'
+  | 'recentEdits.revealError'
+  | 'recentEdits.revealInExplorer'
+  | 'recentEdits.revealInFinder'
+  | 'recentEdits.revealInFolder'
   | 'recentEdits.searchPlaceholder'
+  | 'recentEdits.showAddedLines'
+  | 'recentEdits.showDiff'
   | 'recentEdits.showMore'
+  | 'recentEdits.showRemovedLines'
   | 'recentEdits.stats'
   | 'recentEdits.title'
   | 'redactedThinkingRenderer.description'
@@ -3054,6 +3082,16 @@ export type TranslationKey =
   | 'session.selection.loadAllError'
   | 'session.selection.loadingAll'
   | 'session.selection.partialNotice'
+  | 'session.selection.resume'
+  | 'session.selection.resumeConfirmButton'
+  | 'session.selection.resumeDescription'
+  | 'session.selection.resumeError'
+  | 'session.selection.resumeMore'
+  | 'session.selection.resumePartial'
+  | 'session.selection.resumeSkipped'
+  | 'session.selection.resumeSuccess'
+  | 'session.selection.resumeTargets'
+  | 'session.selection.resumeTitle'
   | 'session.selection.selectAll'
   | 'session.selection.selectAllCount'
   | 'session.showJsonlFile'
