@@ -543,26 +543,28 @@ fn convert_wire_events(values: &[Value], session_id: &str) -> ConvertedWire {
                             .cloned()
                             .unwrap_or(Value::Null);
                         let uuid = next_uuid(&event, &mut counter);
-                        match step_order.last() {
-                            Some(open_step) => pending_results.push(PendingResult {
+                        if let Some(open_step) = step_order.last() {
+                            pending_results.push(PendingResult {
                                 step_uuid: open_step.clone(),
                                 uuid,
                                 timestamp,
                                 tool_call_id,
                                 output,
-                            }),
-                            // No open step (truncated file) — emit immediately.
-                            None => messages.push(build_tool_result_message(
-                                uuid,
-                                session_id,
-                                timestamp,
-                                tool_call_id,
-                                output,
-                            )),
+                            });
+                        } else {
+                            // No open step (truncated file) — merge into an
+                            // earlier assistant message by tool_use id, or
+                            // fall back to a standalone tool message.
+                            let block = tool_result_block(&tool_call_id, output);
+                            if !merge_result_block(&mut messages, &block) {
+                                messages.push(build_tool_result_message(
+                                    uuid, session_id, timestamp, block,
+                                ));
+                            }
                         }
                     }
                     "step.end" => {
-                        flush_step(
+                        let flushed = flush_step(
                             &step_uuid,
                             &mut step_order,
                             &mut step_blocks,
@@ -576,6 +578,7 @@ fn convert_wire_events(values: &[Value], session_id: &str) -> ConvertedWire {
                             &mut pending_results,
                             &mut messages,
                             session_id,
+                            flushed,
                         );
                     }
                     _ => {}
@@ -587,7 +590,7 @@ fn convert_wire_events(values: &[Value], session_id: &str) -> ConvertedWire {
 
     // Flush steps that never saw their `step.end` (e.g. truncated files).
     for step_uuid in std::mem::take(&mut step_order) {
-        flush_step(
+        let flushed = flush_step(
             &step_uuid,
             &mut Vec::new(),
             &mut step_blocks,
@@ -596,18 +599,27 @@ fn convert_wire_events(values: &[Value], session_id: &str) -> ConvertedWire {
             &last_event_time,
             &mut counter,
         );
-        drain_step_results(&step_uuid, &mut pending_results, &mut messages, session_id);
-    }
-    // Results whose step never began (or whose stepUuid was lost) — keep
-    // arrival order rather than dropping them.
-    for result in std::mem::take(&mut pending_results) {
-        messages.push(build_tool_result_message(
-            result.uuid,
+        drain_step_results(
+            &step_uuid,
+            &mut pending_results,
+            &mut messages,
             session_id,
-            result.timestamp,
-            result.tool_call_id,
-            result.output,
-        ));
+            flushed,
+        );
+    }
+    // Results whose step never began (or whose stepUuid was lost) — merge by
+    // tool_use id when possible, else keep them as standalone tool messages
+    // in arrival order rather than dropping them.
+    for result in std::mem::take(&mut pending_results) {
+        let block = tool_result_block(&result.tool_call_id, result.output);
+        if !merge_result_block(&mut messages, &block) {
+            messages.push(build_tool_result_message(
+                result.uuid,
+                session_id,
+                result.timestamp,
+                block,
+            ));
+        }
     }
 
     ConvertedWire {
@@ -626,12 +638,60 @@ struct PendingResult {
     output: Value,
 }
 
+fn tool_result_block(tool_call_id: &str, output: Value) -> Value {
+    json!({
+        "type": "tool_result",
+        "tool_use_id": tool_call_id,
+        "content": output
+    })
+}
+
+/// Append a `tool_result` block to the most recent assistant message holding
+/// the matching `tool_use` (same convention as codex / `copilot_cli`), so the
+/// unified tool card renders call and result together. Returns false when no
+/// earlier message carries that `tool_use`.
+fn merge_result_block(messages: &mut [ClaudeMessage], block: &Value) -> bool {
+    let tool_use_id = block
+        .get("tool_use_id")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    for prev in messages.iter_mut().rev() {
+        if prev.message_type != "assistant" {
+            continue;
+        }
+        let has_matching_tool_use = prev
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .map(|arr| {
+                arr.iter().any(|item| {
+                    item.get("type").and_then(Value::as_str) == Some("tool_use")
+                        && item.get("id").and_then(Value::as_str) == Some(tool_use_id)
+                })
+            })
+            .unwrap_or(false);
+        if has_matching_tool_use {
+            append_content_block(prev, block.clone());
+            return true;
+        }
+    }
+    false
+}
+
+fn append_content_block(message: &mut ClaudeMessage, block: Value) {
+    match &mut message.content {
+        Some(Value::Array(arr)) => arr.push(block),
+        other => *other = Some(Value::Array(vec![block])),
+    }
+}
+
+/// Fallback for results that no assistant message claims: a standalone
+/// `tool` message (same shape as legacy kimi / vibe).
 fn build_tool_result_message(
     uuid: String,
     session_id: &str,
     timestamp: String,
-    tool_call_id: String,
-    output: Value,
+    block: Value,
 ) -> ClaudeMessage {
     build_provider_message(
         PROVIDER_ID,
@@ -640,36 +700,40 @@ fn build_tool_result_message(
         timestamp,
         "tool",
         Some("tool"),
-        Some(json!([{
-            "type": "tool_result",
-            "tool_use_id": tool_call_id,
-            "content": output
-        }])),
+        Some(Value::Array(vec![block])),
         None,
     )
 }
 
-/// Emit buffered tool results belonging to `step_uuid`, preserving arrival
-/// order. Called right after the step's assistant message is flushed.
+/// Drain buffered tool results belonging to `step_uuid`, preserving arrival
+/// order. Called right after the step's flush; `flushed` is the index of the
+/// step's assistant message when one was emitted.
 fn drain_step_results(
     step_uuid: &str,
     pending_results: &mut Vec<PendingResult>,
     messages: &mut Vec<ClaudeMessage>,
     session_id: &str,
+    flushed: Option<usize>,
 ) {
     let mut i = 0;
     while i < pending_results.len() {
-        if pending_results[i].step_uuid == step_uuid {
-            let result = pending_results.remove(i);
+        if pending_results[i].step_uuid != step_uuid {
+            i += 1;
+            continue;
+        }
+        let result = pending_results.remove(i);
+        let block = tool_result_block(&result.tool_call_id, result.output);
+        let merged_into_step = match flushed {
+            Some(idx) => merge_result_block(&mut messages[idx..=idx], &block),
+            None => false,
+        };
+        if !merged_into_step && !merge_result_block(messages, &block) {
             messages.push(build_tool_result_message(
                 result.uuid,
                 session_id,
                 result.timestamp,
-                result.tool_call_id,
-                result.output,
+                block,
             ));
-        } else {
-            i += 1;
         }
     }
 }
@@ -683,13 +747,11 @@ fn flush_step(
     session_id: &str,
     timestamp: &str,
     counter: &mut u64,
-) {
-    let Some(blocks) = step_blocks.remove(step_uuid) else {
-        return;
-    };
+) -> Option<usize> {
+    let blocks = step_blocks.remove(step_uuid)?;
     step_order.retain(|uuid| uuid != step_uuid);
     if blocks.is_empty() {
-        return;
+        return None;
     }
     *counter += 1;
     messages.push(build_provider_message(
@@ -702,6 +764,7 @@ fn flush_step(
         Some(Value::Array(blocks)),
         None,
     ));
+    Some(messages.len() - 1)
 }
 
 /// Look up the session's `workDir` in `session_index.jsonl` by matching the
@@ -746,14 +809,25 @@ fn workdir_key_slug(key: &str) -> String {
     }
 }
 
+/// Normalize user message content. Pure-text content becomes a plain string
+/// (Claude's simple string format) — wrapping a lone text block in an array
+/// renders the same text twice in the UI (bubble + text box), because the
+/// array renderer's `skipText` dedup only applies to assistant messages.
 fn content_to_blocks(content: Option<&Value>) -> Value {
     match content {
         Some(Value::Array(items)) => {
+            if let [item] = items.as_slice() {
+                if item.get("type").and_then(Value::as_str) == Some("text") {
+                    if let Some(text) = item.get("text").and_then(Value::as_str) {
+                        return Value::String(text.to_string());
+                    }
+                }
+            }
             Value::Array(items.iter().map(normalize_content_block).collect())
         }
-        Some(Value::String(text)) => json!([{ "type": "text", "text": text }]),
+        Some(Value::String(text)) => Value::String(text.clone()),
         Some(Value::Null) | None => Value::Array(Vec::new()),
-        Some(other) => json!([{ "type": "text", "text": other.to_string() }]),
+        Some(other) => Value::String(other.to_string()),
     }
 }
 
