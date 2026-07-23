@@ -152,6 +152,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       gemini: 0,
       goose: 0,
       kimi: 0,
+      "kimi-code": 0,
       kiro: 0,
       llm: 0,
       opencode: 0,

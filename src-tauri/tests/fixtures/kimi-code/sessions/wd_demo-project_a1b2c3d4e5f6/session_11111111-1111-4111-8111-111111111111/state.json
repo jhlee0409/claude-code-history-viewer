@@ -1,0 +1,14 @@
+{
+  "createdAt": "2026-07-21T02:17:56.338Z",
+  "updatedAt": "2026-07-21T02:18:24.000Z",
+  "title": "Implement Kimi Code provider",
+  "isCustomTitle": false,
+  "agents": {
+    "main": {
+      "homedir": "/nonexistent/agents/main",
+      "type": "main",
+      "parentAgentId": null
+    }
+  },
+  "custom": {}
+}

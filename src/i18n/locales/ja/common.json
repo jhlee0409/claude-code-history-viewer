@@ -131,6 +131,7 @@
   "common.provider.gemini": "Gemini CLI",
   "common.provider.goose": "Goose",
   "common.provider.kimi": "Kimi CLI",
+  "common.provider.kimiCode": "Kimi Code CLI",
   "common.provider.detectError": "プロバイダーの検出に失敗しました。Claude のみ使用します。",
   "common.provider.antigravity": "Antigravity",
   "common.provider.kiro": "Kiro CLI",

@@ -11,6 +11,7 @@ import {
   normalizeProviderIds,
   supportsConversationBreakdown,
   supportsNativeRename,
+  supportsResumeCommand,
   supportsSessionDeletion,
 } from "@/utils/providers";
 
@@ -55,6 +56,7 @@ describe("providers utils", () => {
       "gemini",
       "goose",
       "kimi",
+      "kimi-code",
       "kiro",
       "llm",
       "ompi",
@@ -99,6 +101,19 @@ describe("providers utils", () => {
       "common.provider.kimi:Kimi CLI"
     );
     expect(getResumeCommand("kimi", "abc-123")).toBe("kimi -r abc-123");
+  });
+
+  it("returns the kimi --session resume flag for kimi-code sessions", () => {
+    expect(getProviderLabel((key, fallback) => `${key}:${fallback}`, "kimi-code")).toBe(
+      "common.provider.kimiCode:Kimi Code CLI"
+    );
+    expect(supportsResumeCommand("kimi-code")).toBe(true);
+    expect(getResumeCommand("kimi-code", "session_abc-123")).toBe(
+      "kimi --session session_abc-123"
+    );
+    expect(getResumeCommand("kimi-code", "session_abc", "/Users/foo/proj")).toBe(
+      "cd '/Users/foo/proj' && kimi --session session_abc"
+    );
   });
 
   it("returns the vibe resume flag for vibe sessions", () => {
