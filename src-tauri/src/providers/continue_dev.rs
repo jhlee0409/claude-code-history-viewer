@@ -8,7 +8,7 @@
 //!
 //! Continue defaults to `~/.continue` (overridable via `CONTINUE_GLOBAL_DIR`);
 //! `PearAI` rebrands the directory to `~/.pearai` (see [`super::pearai`]). The
-//! shared logic is parameterized by [`Family`].
+//! shared logic is parameterized by `Family`.
 //!
 //! Session file shape (Continue `Session`):
 //! ```json

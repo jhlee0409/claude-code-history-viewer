@@ -6,7 +6,7 @@
 //! (`CODEX_HOME` is deliberately ignored by Open Interpreter).
 //!
 //! Because the on-disk format is byte-compatible with Codex, this module reuses
-//! the Codex rollout parser ([`super::codex::parse_rollout_file`]) and metadata
+//! the Codex rollout parser (`super::codex::parse_rollout_file`) and metadata
 //! extractors, validating paths against the Open Interpreter root and re-tagging
 //! the provider on the result. Projects group rollouts by `cwd`, like Codex.
 
