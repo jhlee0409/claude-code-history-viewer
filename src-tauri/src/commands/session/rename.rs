@@ -316,7 +316,7 @@ fn expand_home_prefix(raw: &str) -> String {
 /// Resolve the Claude configuration roots a native rename may write to.
 ///
 /// Always includes the default `~/.claude`. A configured directory is only added
-/// once it passes [`validate_custom_claude_path`], which requires an absolute,
+/// once it passes [`crate::utils::validate_custom_claude_path`], which requires an absolute,
 /// non-symlinked base with a real `projects/` subdirectory. The allowlist can
 /// therefore only widen to directories the user registered and that the app
 /// already scans — never to arbitrary paths.
