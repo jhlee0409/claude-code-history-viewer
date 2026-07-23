@@ -412,6 +412,12 @@ fn convert_wire_events(values: &[Value], session_id: &str) -> ConvertedWire {
     // Insertion-ordered step aggregation.
     let mut step_order: Vec<String> = Vec::new();
     let mut step_blocks: HashMap<String, Vec<Value>> = HashMap::new();
+    // tool.result events arrive mid-step (before `step.end`) and carry no
+    // `stepUuid`, so they are attributed to the step open at arrival time and
+    // buffered — emitting them immediately would place the result BEFORE the
+    // assistant message holding its tool_use, the reverse of every other
+    // provider's conversation order. Drained right after the step's flush.
+    let mut pending_results: Vec<PendingResult> = Vec::new();
     // Timestamp of the most recent event — used when flushing steps that
     // never saw their `step.end` before EOF.
     let mut last_event_time = String::new();
@@ -529,27 +535,31 @@ fn convert_wire_events(values: &[Value], session_id: &str) -> ConvertedWire {
                         let tool_call_id = event
                             .get("toolCallId")
                             .and_then(Value::as_str)
-                            .unwrap_or("");
+                            .unwrap_or("")
+                            .to_string();
                         let output = event
                             .get("result")
                             .and_then(|result| result.get("output"))
                             .cloned()
                             .unwrap_or(Value::Null);
                         let uuid = next_uuid(&event, &mut counter);
-                        messages.push(build_provider_message(
-                            PROVIDER_ID,
-                            uuid,
-                            session_id,
-                            timestamp,
-                            "tool",
-                            Some("tool"),
-                            Some(json!([{
-                                "type": "tool_result",
-                                "tool_use_id": tool_call_id,
-                                "content": output
-                            }])),
-                            None,
-                        ));
+                        match step_order.last() {
+                            Some(open_step) => pending_results.push(PendingResult {
+                                step_uuid: open_step.clone(),
+                                uuid,
+                                timestamp,
+                                tool_call_id,
+                                output,
+                            }),
+                            // No open step (truncated file) — emit immediately.
+                            None => messages.push(build_tool_result_message(
+                                uuid,
+                                session_id,
+                                timestamp,
+                                tool_call_id,
+                                output,
+                            )),
+                        }
                     }
                     "step.end" => {
                         flush_step(
@@ -560,6 +570,12 @@ fn convert_wire_events(values: &[Value], session_id: &str) -> ConvertedWire {
                             session_id,
                             &timestamp,
                             &mut counter,
+                        );
+                        drain_step_results(
+                            &step_uuid,
+                            &mut pending_results,
+                            &mut messages,
+                            session_id,
                         );
                     }
                     _ => {}
@@ -580,12 +596,81 @@ fn convert_wire_events(values: &[Value], session_id: &str) -> ConvertedWire {
             &last_event_time,
             &mut counter,
         );
+        drain_step_results(&step_uuid, &mut pending_results, &mut messages, session_id);
+    }
+    // Results whose step never began (or whose stepUuid was lost) — keep
+    // arrival order rather than dropping them.
+    for result in std::mem::take(&mut pending_results) {
+        messages.push(build_tool_result_message(
+            result.uuid,
+            session_id,
+            result.timestamp,
+            result.tool_call_id,
+            result.output,
+        ));
     }
 
     ConvertedWire {
         messages,
         has_tool_use,
         cwd_from_system_prompt,
+    }
+}
+
+/// A `tool.result` buffered until its step's assistant message is flushed.
+struct PendingResult {
+    step_uuid: String,
+    uuid: String,
+    timestamp: String,
+    tool_call_id: String,
+    output: Value,
+}
+
+fn build_tool_result_message(
+    uuid: String,
+    session_id: &str,
+    timestamp: String,
+    tool_call_id: String,
+    output: Value,
+) -> ClaudeMessage {
+    build_provider_message(
+        PROVIDER_ID,
+        uuid,
+        session_id,
+        timestamp,
+        "tool",
+        Some("tool"),
+        Some(json!([{
+            "type": "tool_result",
+            "tool_use_id": tool_call_id,
+            "content": output
+        }])),
+        None,
+    )
+}
+
+/// Emit buffered tool results belonging to `step_uuid`, preserving arrival
+/// order. Called right after the step's assistant message is flushed.
+fn drain_step_results(
+    step_uuid: &str,
+    pending_results: &mut Vec<PendingResult>,
+    messages: &mut Vec<ClaudeMessage>,
+    session_id: &str,
+) {
+    let mut i = 0;
+    while i < pending_results.len() {
+        if pending_results[i].step_uuid == step_uuid {
+            let result = pending_results.remove(i);
+            messages.push(build_tool_result_message(
+                result.uuid,
+                session_id,
+                result.timestamp,
+                result.tool_call_id,
+                result.output,
+            ));
+        } else {
+            i += 1;
+        }
     }
 }
 

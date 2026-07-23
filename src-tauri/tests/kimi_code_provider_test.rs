@@ -26,7 +26,7 @@ fn kimi_code_provider_scans_projects_from_sessions_tree() {
         project.actual_path
     );
     assert_eq!(project.session_count, 2);
-    assert_eq!(project.message_count, 7);
+    assert_eq!(project.message_count, 8);
     assert_eq!(project.provider.as_deref(), Some("kimi-code"));
     assert_eq!(project.storage_type.as_deref(), Some("jsonl"));
 }
@@ -69,7 +69,7 @@ fn kimi_code_provider_loads_sessions_with_titles_and_timestamps() {
         Some("Implement Kimi Code provider")
     );
     assert!(second.has_tool_use);
-    assert_eq!(second.message_count, 5);
+    assert_eq!(second.message_count, 6);
     assert_eq!(second.first_message_time, "2026-07-21T02:18:18+00:00");
     assert_eq!(second.last_message_time, "2026-07-21T02:18:28+00:00");
     assert_eq!(second.provider.as_deref(), Some("kimi-code"));
@@ -87,7 +87,7 @@ fn kimi_code_provider_loads_messages_without_internal_events() {
     )
     .expect("load_messages_from_base_path should parse fixture");
 
-    assert_eq!(messages.len(), 5);
+    assert_eq!(messages.len(), 6);
     assert!(messages
         .iter()
         .all(|m| m.provider.as_deref() == Some("kimi-code")));
@@ -100,19 +100,14 @@ fn kimi_code_provider_loads_messages_without_internal_events() {
         "Implement the Kimi Code provider"
     );
 
-    // tool.result becomes a standalone tool message.
-    assert_eq!(messages[1].message_type, "tool");
-    let tool_block = &messages[1].content.as_ref().unwrap()[0];
-    assert_eq!(tool_block["type"], "tool_result");
-    assert_eq!(tool_block["tool_use_id"], "tool_abc123");
-    assert_eq!(tool_block["content"], "src/providers/kimi.rs");
-
     // Loop events of step-1 are aggregated into one assistant message,
-    // timestamped by its step.end.
-    assert_eq!(messages[2].message_type, "assistant");
-    assert_eq!(messages[2].timestamp, "2026-07-21T02:18:24+00:00");
-    let blocks = messages[2].content.as_ref().unwrap().as_array().unwrap();
-    assert_eq!(blocks.len(), 3);
+    // timestamped by its step.end. The assistant message (with the tool_use
+    // blocks) must come BEFORE the tool results — tool.result events arrive
+    // mid-step in the wire but belong after the call, like Claude sessions.
+    assert_eq!(messages[1].message_type, "assistant");
+    assert_eq!(messages[1].timestamp, "2026-07-21T02:18:24+00:00");
+    let blocks = messages[1].content.as_ref().unwrap().as_array().unwrap();
+    assert_eq!(blocks.len(), 4);
     assert_eq!(blocks[0]["type"], "thinking");
     assert_eq!(
         blocks[0]["thinking"],
@@ -124,19 +119,37 @@ fn kimi_code_provider_loads_messages_without_internal_events() {
     assert_eq!(blocks[2]["id"], "tool_abc123");
     assert_eq!(blocks[2]["name"], "Grep");
     assert_eq!(blocks[2]["input"]["pattern"], "kimi");
+    assert_eq!(blocks[3]["type"], "tool_use");
+    assert_eq!(blocks[3]["id"], "tool_def456");
+    assert_eq!(blocks[3]["name"], "Read");
+    assert_eq!(blocks[3]["input"]["file_path"], "src/providers/kimi.rs");
+
+    // Both tool.results of step-1 follow the assistant message as standalone
+    // tool messages, in arrival order.
+    assert_eq!(messages[2].message_type, "tool");
+    let tool_block = &messages[2].content.as_ref().unwrap()[0];
+    assert_eq!(tool_block["type"], "tool_result");
+    assert_eq!(tool_block["tool_use_id"], "tool_abc123");
+    assert_eq!(tool_block["content"], "src/providers/kimi.rs");
+
+    assert_eq!(messages[3].message_type, "tool");
+    let tool_block = &messages[3].content.as_ref().unwrap()[0];
+    assert_eq!(tool_block["type"], "tool_result");
+    assert_eq!(tool_block["tool_use_id"], "tool_def456");
+    assert_eq!(tool_block["content"], "pub fn scan()");
 
     // String message content is normalized into a text block.
-    assert_eq!(messages[3].message_type, "user");
+    assert_eq!(messages[4].message_type, "user");
     assert_eq!(
-        messages[3].content.as_ref().unwrap(),
+        messages[4].content.as_ref().unwrap(),
         &serde_json::json!([{ "type": "text", "text": "Now add tests." }])
     );
 
     // step-2 never saw its step.end — flushed at EOF with the last event time.
-    assert_eq!(messages[4].message_type, "assistant");
-    assert_eq!(messages[4].timestamp, "2026-07-21T02:18:28+00:00");
+    assert_eq!(messages[5].message_type, "assistant");
+    assert_eq!(messages[5].timestamp, "2026-07-21T02:18:28+00:00");
     assert_eq!(
-        messages[4].content.as_ref().unwrap(),
+        messages[5].content.as_ref().unwrap(),
         &serde_json::json!([{ "type": "text", "text": "Done." }])
     );
 }
