@@ -1022,6 +1022,32 @@ fn collect_provider_global_file_stats(
 ) -> (Vec<SessionFileStats>, HashSet<String>) {
     let mut project_keys = HashSet::new();
 
+    if provider == StatsProvider::Cursor {
+        let Ok(sessions) = providers::cursor::collect_global_stats_sessions() else {
+            return (Vec::new(), project_keys);
+        };
+        let mut all_stats = Vec::with_capacity(sessions.len());
+        for (project_display_name, messages) in sessions {
+            project_keys.insert(format!(
+                "cursor:{}",
+                project_display_name
+                    .strip_suffix(" [cursor]")
+                    .unwrap_or(&project_display_name)
+            ));
+            if let Some(stats) = build_global_session_file_stats_from_messages(
+                StatsProvider::Cursor,
+                project_display_name,
+                &messages,
+                mode,
+                s_limit,
+                e_limit,
+            ) {
+                all_stats.push(stats);
+            }
+        }
+        return (all_stats, project_keys);
+    }
+
     if provider == StatsProvider::Antigravity {
         // Use the resolver that honors the external-state override so an
         // external Antigravity root contributes to the global summary
@@ -1221,7 +1247,7 @@ fn collect_provider_global_file_stats(
                 StatsProvider::Kimi => providers::kimi::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
                 StatsProvider::Copilot => providers::copilot::load_messages(file_path),
-                StatsProvider::Cursor => providers::cursor::load_messages(file_path),
+                StatsProvider::Cursor => providers::cursor::load_stats_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
             }
             .unwrap_or_default();
@@ -2151,7 +2177,7 @@ fn load_provider_messages_for_stats(
         StatsProvider::Kimi => providers::kimi::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
         StatsProvider::Copilot => providers::copilot::load_messages(&session.file_path),
-        StatsProvider::Cursor => providers::cursor::load_messages(&session.file_path),
+        StatsProvider::Cursor => providers::cursor::load_stats_messages(&session.file_path),
         StatsProvider::Claude => {
             Err("Claude messages are handled by legacy stats path".to_string())
         }
@@ -2900,7 +2926,7 @@ pub async fn get_session_token_stats(
             StatsProvider::Kimi => providers::kimi::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
             StatsProvider::Copilot => providers::copilot::load_messages(&session_path)?,
-            StatsProvider::Cursor => providers::cursor::load_messages(&session_path)?,
+            StatsProvider::Cursor => providers::cursor::load_stats_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
         };
 
@@ -5204,7 +5230,8 @@ mod tests {
             "fullConversationHeadersOnly": [
                 { "bubbleId": "b1", "type": 1 },
                 { "bubbleId": "b2", "type": 2 }
-            ]
+            ],
+            "promptTokenBreakdown": { "totalUsedTokens": 4200 }
         })
         .to_string();
         global_conn
@@ -5281,9 +5308,17 @@ mod tests {
             global
                 .model_distribution
                 .iter()
-                .any(|model| model.model_name == "composer"),
-            "expected composer in model_distribution: {:?}",
+                .any(|model| model.model_name == "cursor" && model.token_count >= 4200),
+            "expected cursor in model_distribution: {:?}",
             global.model_distribution
+        );
+        assert!(
+            global
+                .provider_distribution
+                .iter()
+                .any(|provider| provider.provider_id == "cursor" && provider.tokens >= 4200),
+            "expected cursor tokens in provider_distribution: {:?}",
+            global.provider_distribution
         );
     }
 
