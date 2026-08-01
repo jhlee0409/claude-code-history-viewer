@@ -68,6 +68,11 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   // Google models (OpenCode)
   'gemini-2.5-pro': { input: 1.25, output: 10, cacheWrite: 0, cacheRead: 0 },
   'gemini-2.5-flash': { input: 0.15, output: 0.60, cacheWrite: 0, cacheRead: 0 },
+  'grok-4.5-build': { input: 1, output: 2, cacheWrite: 0, cacheRead: 0.20 },
+  'grok-4.5': { input: 2, output: 6, cacheWrite: 0, cacheRead: 0.30 },
+  'grok-4.3': { input: 1.25, output: 2.5, cacheWrite: 0, cacheRead: 0.20 },
+  'grok-build': { input: 1, output: 2, cacheWrite: 0, cacheRead: 0.20 },
+  'grok-4': { input: 3, output: 15, cacheWrite: 0, cacheRead: 0.75 },
 };
 
 const DEFAULT_PRICING: ModelPricing = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 };
