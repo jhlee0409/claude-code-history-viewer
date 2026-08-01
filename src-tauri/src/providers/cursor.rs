@@ -22,6 +22,13 @@ pub fn detect() -> Option<ProviderInfo> {
 
 /// Get Cursor user data path
 pub fn get_base_path() -> Option<PathBuf> {
+    if let Ok(env_val) = std::env::var("CURSOR_USER_DIR") {
+        let path = PathBuf::from(env_val);
+        if path.is_dir() {
+            return Some(path.canonicalize().unwrap_or(path));
+        }
+    }
+
     let home = dirs::home_dir()?;
 
     #[cfg(target_os = "macos")]
@@ -44,6 +51,21 @@ pub fn get_base_path() -> Option<PathBuf> {
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Cursor not found")?;
     scan_projects_in(&base.join("workspaceStorage"))
+}
+
+/// Resolve a human-readable project name from a `cursor://` workspace path
+/// via `workspace.json` (folder basename), without requiring a full scan.
+pub fn display_name_for_project_path(project_path: &str) -> Option<String> {
+    let ws_path = project_path
+        .strip_prefix("cursor://")
+        .unwrap_or(project_path);
+    let workspace_json = PathBuf::from(ws_path).join("workspace.json");
+    read_workspace_folder(&workspace_json).and_then(|folder| {
+        PathBuf::from(&folder)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .filter(|n| !n.is_empty())
+    })
 }
 
 fn scan_projects_in(ws_dir: &Path) -> Result<Vec<ClaudeProject>, String> {
@@ -592,7 +614,7 @@ fn convert_assistant_bubble(
         "assistant",
         Some("assistant"),
         Some(Value::Array(content_blocks)),
-        None,
+        Some("composer".to_string()),
     ))
 }
 
@@ -785,6 +807,19 @@ mod tests {
     fn test_empty_bubble() {
         let bubble = json!({"type": 2, "bubbleId": "empty", "text": ""});
         assert!(convert_cursor_bubble(&bubble, 2, "session-1").is_none());
+    }
+
+    #[test]
+    fn test_assistant_bubble_uses_composer_model() {
+        let bubble = json!({
+            "type": 2,
+            "bubbleId": "a1",
+            "text": "hello",
+            "createdAt": "2026-07-27T20:00:00Z"
+        });
+        let msg = convert_cursor_bubble(&bubble, 2, "session-1").unwrap();
+        assert_eq!(msg.model.as_deref(), Some("composer"));
+        assert_eq!(msg.provider.as_deref(), Some("cursor"));
     }
 
     /// Write a minimal valid Cursor workspace: `workspace.json` + a `state.vscdb`
