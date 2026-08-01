@@ -22,12 +22,12 @@ export const formatNumber = (num: number): string => {
 };
 
 /**
- * Claude API pricing configuration
+ * Model API pricing configuration
  */
 interface ModelPricing {
   input: number;
   output: number;
-  cacheWrite: number;
+  cacheWrite: number | null;
   cacheRead: number;
 }
 
@@ -47,6 +47,9 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   'claude-3-5-sonnet': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
   'claude-3-5-haiku': { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.10 },
   'claude-3-haiku': { input: 0.25, output: 1.25, cacheWrite: 0.30, cacheRead: 0.03 },
+  // MiniMax models
+  'minimax-m3': { input: 0.6, output: 2.4, cacheWrite: null, cacheRead: 0.12 },
+  'minimax-m2.7': { input: 0.3, output: 1.2, cacheWrite: 0.375, cacheRead: 0.06 },
   // OpenAI models (Codex CLI) - specific keys must precede prefix matches
   // cacheWrite is 0 (OpenAI does not charge for cache writes)
   // cacheRead is input_rate * 0.1 (90% discount on cached input)
@@ -84,7 +87,7 @@ export const hasExplicitModelPricing = (modelName: string): boolean =>
   findModelPricing(modelName) != null;
 
 /**
- * Calculate Claude API pricing for a model
+ * Calculate API pricing for a model
  */
 export const calculateModelPrice = (
   modelName: string,
@@ -97,7 +100,9 @@ export const calculateModelPrice = (
 
   const inputCost = (inputTokens / 1000000) * modelPricing.input;
   const outputCost = (outputTokens / 1000000) * modelPricing.output;
-  const cacheWriteCost = (cacheCreationTokens / 1000000) * modelPricing.cacheWrite;
+  const cacheWriteCost = modelPricing.cacheWrite == null
+    ? 0
+    : (cacheCreationTokens / 1000000) * modelPricing.cacheWrite;
   const cacheReadCost = (cacheReadTokens / 1000000) * modelPricing.cacheRead;
 
   return inputCost + outputCost + cacheWriteCost + cacheReadCost;
