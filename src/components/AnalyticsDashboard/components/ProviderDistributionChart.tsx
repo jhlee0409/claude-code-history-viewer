@@ -16,6 +16,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   codex: "var(--metric-green)",
   cursor: "var(--metric-cyan)",
   gemini: "var(--metric-purple)",
+  grok: "var(--metric-red)",
   opencode: "var(--metric-blue)",
 };
 
