@@ -446,7 +446,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   copilot: "bg-[#8250df]/15 text-[#6639ba] dark:text-[#d2a8ff]",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   crush: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
-  cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+  cursor: "bg-[#f54e00]/15 text-[#d04200] dark:text-[#ff6a2a]",
   "cursor-agent": "bg-violet-500/15 text-violet-600 dark:text-violet-400",
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
