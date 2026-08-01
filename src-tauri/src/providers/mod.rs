@@ -19,6 +19,7 @@ pub mod cursor_agent;
 pub mod forgecode;
 pub mod gemini;
 pub mod goose;
+pub mod grok;
 pub mod kimi;
 pub mod kiro;
 pub mod llm;
@@ -63,6 +64,8 @@ pub enum ProviderId {
     CursorAgent,
     Gemini,
     Goose,
+    /// xAI Grok CLI (`~/.grok/sessions`).
+    Grok,
     Kimi,
     ForgeCode,
     Kiro,
@@ -105,6 +108,7 @@ impl ProviderId {
             Self::CursorAgent => "cursor-agent",
             Self::Gemini => "gemini",
             Self::Goose => "goose",
+            Self::Grok => "grok",
             Self::Kimi => "kimi",
             Self::ForgeCode => "forgecode",
             Self::Kiro => "kiro",
@@ -138,6 +142,7 @@ impl ProviderId {
             "cursor-agent" => Some(Self::CursorAgent),
             "gemini" => Some(Self::Gemini),
             "goose" => Some(Self::Goose),
+            "grok" => Some(Self::Grok),
             "kimi" => Some(Self::Kimi),
             "forgecode" => Some(Self::ForgeCode),
             "kiro" => Some(Self::Kiro),
@@ -172,6 +177,7 @@ impl ProviderId {
             Self::CursorAgent => "Cursor Agent",
             Self::Gemini => "Gemini CLI",
             Self::Goose => "Goose",
+            Self::Grok => "Grok CLI",
             Self::Kimi => "Kimi CLI",
             Self::ForgeCode => "ForgeCode",
             Self::Kiro => "Kiro CLI",
@@ -219,6 +225,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = goose::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = grok::detect() {
         providers.push(info);
     }
     if let Some(info) = kimi::detect() {

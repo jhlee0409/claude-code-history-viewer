@@ -38,6 +38,7 @@ pub async fn scan_all_projects(
             "copilot".to_string(),
             "gemini".to_string(),
             "goose".to_string(),
+            "grok".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -125,6 +126,7 @@ pub async fn scan_all_projects(
         ("pearai", providers::pearai::scan_projects),
         ("gemini", providers::gemini::scan_projects),
         ("goose", providers::goose::scan_projects),
+        ("grok", providers::grok::scan_projects),
         ("kimi", providers::kimi::scan_projects),
         ("forgecode", providers::forgecode::scan_projects),
         ("opencode", providers::opencode::scan_projects),
@@ -319,6 +321,7 @@ pub async fn load_provider_sessions(
         "copilot" => providers::copilot::load_sessions(&project_path, exclude),
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "goose" => providers::goose::load_sessions(&project_path, exclude),
+        "grok" => providers::grok::load_sessions(&project_path, exclude),
         "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
@@ -431,6 +434,7 @@ fn load_non_claude_messages(
         "copilot" => providers::copilot::load_messages(session_path),
         "gemini" => providers::gemini::load_messages(session_path),
         "goose" => providers::goose::load_messages(session_path),
+        "grok" => providers::grok::load_messages(session_path),
         "kimi" => providers::kimi::load_messages(session_path),
         "forgecode" => providers::forgecode::load_messages(session_path),
         "opencode" => providers::opencode::load_messages(session_path),
@@ -606,6 +610,7 @@ pub async fn search_all_providers(
             "copilot".to_string(),
             "gemini".to_string(),
             "goose".to_string(),
+            "grok".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
             "opencode".to_string(),
@@ -735,6 +740,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Goose search failed: {e}");
+            }
+        }
+    }
+
+    // Grok
+    if providers_to_search.iter().any(|p| p == "grok") {
+        match providers::grok::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Grok search failed: {e}");
             }
         }
     }
