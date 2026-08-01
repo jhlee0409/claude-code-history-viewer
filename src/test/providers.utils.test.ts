@@ -54,6 +54,7 @@ describe("providers utils", () => {
       "forgecode",
       "gemini",
       "goose",
+      "grok",
       "kimi",
       "kiro",
       "llm",
