@@ -7,6 +7,7 @@
 //! - `rename`: Native session renaming functions
 //! - `delete`: Session deletion
 
+mod chain;
 mod delete;
 mod edits;
 mod load;
@@ -15,6 +16,7 @@ mod resume;
 mod search;
 
 // Re-export all commands
+pub use chain::{resolve_session_chain, superseded_chain_paths};
 pub use delete::*;
 pub use edits::*;
 pub use load::*;
