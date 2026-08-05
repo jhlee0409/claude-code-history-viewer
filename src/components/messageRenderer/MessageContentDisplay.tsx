@@ -1,6 +1,9 @@
 import React, { useMemo, Children, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { Copy, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CommandRenderer, ImageRenderer, TaskNotificationRenderer, hasTaskNotification } from "../contentRenderer";
@@ -13,6 +16,10 @@ import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 
 const LINE_LIMIT = 3;
 const TABLE_ROW_LIMIT = 2;
+
+/** Module-level plugin arrays for stable reference across renders. */
+const REMARK_PLUGINS = [remarkGfm, remarkMath];
+const REHYPE_PLUGINS = [rehypeKatex];
 
 // Get line count and preview text
 const getTextInfo = (text: string) => {
@@ -279,7 +286,8 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
               "prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground"
             )}>
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={REMARK_PLUGINS}
+                rehypePlugins={REHYPE_PLUGINS}
                 skipHtml
                 components={{
                   table: CollapsibleTable,
