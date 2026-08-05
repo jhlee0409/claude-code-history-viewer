@@ -136,12 +136,15 @@ describe('Tauri Configuration Tests', () => {
       });
 
       it('should have appropriate minimum window dimensions', () => {
-        expect(mainWindow.minWidth).toBe(900);
-        expect(mainWindow.minHeight).toBe(600);
+        // Deliberately narrow: lets the window shrink to well under a third
+        // of a typical screen width for side-by-side use, while still
+        // leaving enough room for the collapsed sidebar/navigator layout.
+        expect(mainWindow.minWidth).toBe(380);
+        expect(mainWindow.minHeight).toBe(400);
         expect(mainWindow.minWidth).toBeLessThanOrEqual(mainWindow.width);
         expect(mainWindow.minHeight).toBeLessThanOrEqual(mainWindow.height);
-        expect(mainWindow.minWidth).toBeGreaterThan(400); // Reasonable minimum
-        expect(mainWindow.minHeight).toBeGreaterThan(300); // Reasonable minimum
+        expect(mainWindow.minWidth).toBeGreaterThan(200); // Reasonable minimum
+        expect(mainWindow.minHeight).toBeGreaterThan(200); // Reasonable minimum
       });
 
       it('should have reasonable aspect ratio', () => {
