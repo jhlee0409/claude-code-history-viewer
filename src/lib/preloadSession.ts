@@ -20,6 +20,8 @@
 import { toast } from "sonner";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
+import { isWebUI } from "@/utils/platform";
+import { readWebUIDeepLink } from "@/utils/webuiDeepLink";
 import type { SessionPickerCandidate } from "@/store/slices/sessionPickerSlice";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 
@@ -56,6 +58,11 @@ export interface PreloadDependencies {
  * that calls the Tauri / WebUI backend.
  */
 export async function fetchStartupSessionHint(): Promise<SessionHint | null> {
+  if (isWebUI()) {
+    const { sessionId } = readWebUIDeepLink();
+    return sessionId ? { kind: "uuid", value: sessionId } : null;
+  }
+
   try {
     return await api<SessionHint | null>("get_startup_session_hint");
   } catch (error) {

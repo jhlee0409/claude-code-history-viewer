@@ -161,6 +161,35 @@ describe("messageSlice — chat-style pagination", () => {
   beforeEach(() => {
     mockApi.mockReset();
     mockToastError.mockReset();
+    delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("writes the selected session to the WebUI URL", async () => {
+    const store = createTestStore();
+    installBackend(makeBackend(1));
+
+    await store.getState().selectSession(makeSession());
+
+    const url = new URL(window.location.href);
+    expect(url.searchParams.get("session")).toBe("session-1");
+    expect(url.searchParams.get("msg")).toBeNull();
+  });
+
+  it("preserves a message target when loading the session from that deep link", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/?session=session-1&msg=uuid-1",
+    );
+    const store = createTestStore();
+    installBackend(makeBackend(1));
+
+    await store.getState().selectSession(makeSession());
+
+    const url = new URL(window.location.href);
+    expect(url.searchParams.get("session")).toBe("session-1");
+    expect(url.searchParams.get("msg")).toBe("uuid-1");
   });
 
   it("selectSession loads only the newest window", async () => {

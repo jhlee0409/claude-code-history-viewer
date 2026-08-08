@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import {
+  fetchStartupSessionHint,
   preloadSessionFromCli,
   type PreloadDependencies,
   type SessionHint,
@@ -79,6 +80,8 @@ describe("preloadSessionFromCli", () => {
     mockStoreState.excludeSidechain = false;
     mockStoreState.selectedSession = null;
     mockStoreState.getSessionDisplayName = (_id: string, fallback?: string) => fallback;
+    delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    window.history.replaceState({}, "", "/");
   });
 
   afterEach(() => {
@@ -92,6 +95,21 @@ describe("preloadSessionFromCli", () => {
     expect(deps.selectProject).not.toHaveBeenCalled();
     expect(deps.selectSession).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("uses a WebUI session query as the startup hint", async () => {
+    window.history.replaceState({}, "", `/?session=${UUID}&msg=message-123`);
+
+    await expect(fetchStartupSessionHint()).resolves.toEqual({
+      kind: "uuid",
+      value: UUID,
+    });
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("does not call the desktop startup-hint command in WebUI mode", async () => {
+    await expect(fetchStartupSessionHint()).resolves.toBeNull();
+    expect(api).not.toHaveBeenCalled();
   });
 
   it("opens a matching session across projects", async () => {

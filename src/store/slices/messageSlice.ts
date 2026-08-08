@@ -36,6 +36,11 @@ import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { supportsConversationBreakdown } from "../../utils/providers";
 import { normalizeDateFilterOptions } from "../../utils/date";
 import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
+import {
+  type WebUINavigationOptions,
+  readWebUIDeepLink,
+  writeWebUIDeepLink,
+} from "../../utils/webuiDeepLink";
 
 // ============================================================================
 // State Interface
@@ -64,7 +69,10 @@ export interface MessageSliceState {
 }
 
 export interface MessageSliceActions {
-  selectSession: (session: ClaudeSession) => Promise<void>;
+  selectSession: (
+    session: ClaudeSession,
+    options?: WebUINavigationOptions,
+  ) => Promise<void>;
   /** Load the next (older) page of the current session and prepend it. */
   loadMoreMessages: () => Promise<void>;
   /**
@@ -402,7 +410,7 @@ export const createMessageSlice: StateCreator<
   return {
     ...initialMessageState,
 
-  selectSession: async (session: ClaudeSession) => {
+  selectSession: async (session: ClaudeSession, options) => {
     // In-place reloads share a file_path, so the path guard alone cannot drop
     // a stale overlapping reload (e.g. two quick filter toggles) — the epoch
     // does. Captured before any await.
@@ -439,6 +447,18 @@ export const createMessageSlice: StateCreator<
     }
 
     get().setSelectedSession(session);
+    const sessionId = session.actual_session_id || session.session_id;
+    const currentDeepLink = readWebUIDeepLink();
+    writeWebUIDeepLink(
+      {
+        sessionId,
+        messageId:
+          currentDeepLink.sessionId === sessionId
+            ? currentDeepLink.messageId
+            : null,
+      },
+      options?.history,
+    );
     // Note: sessionSearch state reset is handled by searchSlice
 
     // The session file may have changed (or the session did) — the cached

@@ -21,6 +21,10 @@ import type { GroupingMode } from "../../types/metadata.types";
 import { DEFAULT_PROVIDER_ID, getProviderId, PROVIDER_IDS } from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
+import {
+  type WebUINavigationOptions,
+  writeWebUIDeepLink,
+} from "../../utils/webuiDeepLink";
 
 // ============================================================================
 // State Interface
@@ -49,7 +53,7 @@ export interface ProjectSliceActions {
   refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
   loadMoreSessions: () => Promise<void>;
-  clearProjectSelection: () => void;
+  clearProjectSelection: (options?: WebUINavigationOptions) => void;
   setClaudePath: (path: string) => Promise<void>;
   setError: (error: AppError | null) => void;
   setSelectedSession: (session: ClaudeSession | null) => void;
@@ -673,7 +677,7 @@ export const createProjectSlice: StateCreator<
     }
   },
 
-  clearProjectSelection: () => {
+  clearProjectSelection: (options) => {
     nextRequestId("selectProject");
 
     set({
@@ -699,6 +703,10 @@ export const createProjectSlice: StateCreator<
     get().setDateFilter({ start: null, end: null });
     get().clearTargetMessage();
     get().exitSessionSelectionMode();
+    writeWebUIDeepLink(
+      { sessionId: null, messageId: null },
+      options?.history,
+    );
   },
 
   setClaudePath: async (path: string) => {
