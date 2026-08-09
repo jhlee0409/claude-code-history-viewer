@@ -30,6 +30,9 @@ enum StatsProvider {
     Kimi,
     Antigravity,
     Copilot,
+    Ompi,
+    Pi,
+    Gemini,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,6 +71,9 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::Copilot => "copilot",
+        StatsProvider::Ompi => "ompi",
+        StatsProvider::Pi => "pi",
+        StatsProvider::Gemini => "gemini",
     }
 }
 
@@ -224,6 +230,9 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Kimi,
         StatsProvider::Antigravity,
         StatsProvider::Copilot,
+        StatsProvider::Ompi,
+        StatsProvider::Pi,
+        StatsProvider::Gemini,
     ]
     .into_iter()
     .collect()
@@ -247,6 +256,9 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "kimi" => Some(StatsProvider::Kimi),
             "antigravity" => Some(StatsProvider::Antigravity),
             "copilot" => Some(StatsProvider::Copilot),
+            "ompi" => Some(StatsProvider::Ompi),
+            "pi" => Some(StatsProvider::Pi),
+            "gemini" => Some(StatsProvider::Gemini),
             _ => {
                 unknown.push(provider);
                 None
@@ -274,8 +286,14 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::OpenCode
     } else if project_path.starts_with("kimi://") {
         StatsProvider::Kimi
+    } else if project_path.starts_with("gemini://") {
+        StatsProvider::Gemini
     } else if is_antigravity_path(project_path) {
         StatsProvider::Antigravity
+    } else if is_ompi_path(project_path) {
+        StatsProvider::Ompi
+    } else if is_pi_path(project_path) {
+        StatsProvider::Pi
     } else if is_codebuddy_path(project_path) {
         StatsProvider::Codebuddy
     } else if project_path.starts_with("copilot://")
@@ -301,6 +319,18 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
 
     if is_antigravity_path(session_path) {
         return StatsProvider::Antigravity;
+    }
+
+    if is_gemini_path(session_path) {
+        return StatsProvider::Gemini;
+    }
+
+    if is_ompi_path(session_path) {
+        return StatsProvider::Ompi;
+    }
+
+    if is_pi_path(session_path) {
+        return StatsProvider::Pi;
     }
 
     if session_path.starts_with("forgecode://") || session_path.starts_with("forgecode-db://") {
@@ -391,6 +421,50 @@ fn is_codebuddy_path_under(path: &str, home: &Path) -> bool {
 fn is_kimi_path(path: &str) -> bool {
     providers::kimi::get_base_path()
         .map(|root| Path::new(path).starts_with(root))
+        .unwrap_or(false)
+}
+
+/// Whether `path` lies under the oh-my-pi sessions store root
+/// (`~/.omp/agent/sessions/`). Anchored detection avoids false positives
+/// from arbitrary substrings (e.g. `/work/foo.omp-agent-test`).
+fn is_ompi_path(path: &str) -> bool {
+    let Some(home) = dirs::home_dir() else {
+        return false;
+    };
+    is_ompi_path_under(path, &home)
+}
+
+/// Implementation of [`is_ompi_path`] parameterized by the home dir, so
+/// tests can drive the anchored check with a fixed home.
+fn is_ompi_path_under(path: &str, home: &Path) -> bool {
+    let root = home.join(".omp").join("agent").join("sessions");
+    Path::new(path).starts_with(root)
+}
+
+/// Whether `path` lies under the Pi sessions store root
+/// (`~/.pi/agent/sessions/`).
+fn is_pi_path(path: &str) -> bool {
+    let Some(home) = dirs::home_dir() else {
+        return false;
+    };
+    is_pi_path_under(path, &home)
+}
+
+/// Implementation of [`is_pi_path`] parameterized by the home dir, so
+/// tests can drive the anchored check with a fixed home.
+fn is_pi_path_under(path: &str, home: &Path) -> bool {
+    let root = home.join(".pi").join("agent").join("sessions");
+    Path::new(path).starts_with(root)
+}
+
+/// Whether `path` lies under the Gemini CLI sessions root
+/// (`<base>/tmp/` — the directory that holds per-project `chats/` dirs).
+/// Anchored on the `tmp` subtree (not the whole `~/.gemini`) so paths under
+/// other Gemini sub-trees (e.g. the Antigravity store at `~/.gemini/antigravity`)
+/// are not misrouted to the Gemini provider.
+fn is_gemini_path(path: &str) -> bool {
+    providers::gemini::get_base_path()
+        .map(|root| Path::new(path).starts_with(PathBuf::from(root).join("tmp")))
         .unwrap_or(false)
 }
 
@@ -1106,6 +1180,9 @@ fn collect_provider_global_file_stats(
         StatsProvider::Kimi => providers::kimi::scan_projects().unwrap_or_default(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
         StatsProvider::Copilot => providers::copilot::scan_projects().unwrap_or_default(),
+        StatsProvider::Ompi => providers::ompi::scan_projects().unwrap_or_default(),
+        StatsProvider::Pi => providers::pi::scan_projects().unwrap_or_default(),
+        StatsProvider::Gemini => providers::gemini::scan_projects().unwrap_or_default(),
         StatsProvider::Claude => Vec::new(),
     };
 
@@ -1117,6 +1194,9 @@ fn collect_provider_global_file_stats(
         StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::Copilot => "copilot",
+        StatsProvider::Ompi => "ompi",
+        StatsProvider::Pi => "pi",
+        StatsProvider::Gemini => "gemini",
         StatsProvider::Claude => "claude",
     };
 
@@ -1137,6 +1217,9 @@ fn collect_provider_global_file_stats(
                 providers::antigravity::load_sessions(&project.path, false)
             }
             StatsProvider::Copilot => providers::copilot::load_sessions(&project.path, false),
+            StatsProvider::Ompi => providers::ompi::load_sessions(&project.path, false),
+            StatsProvider::Pi => providers::pi::load_sessions(&project.path, false),
+            StatsProvider::Gemini => providers::gemini::load_sessions(&project.path, false),
             StatsProvider::Claude => Ok(Vec::new()),
         }
         .unwrap_or_default();
@@ -1158,6 +1241,9 @@ fn collect_provider_global_file_stats(
                 StatsProvider::Kimi => providers::kimi::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
                 StatsProvider::Copilot => providers::copilot::load_messages(file_path),
+                StatsProvider::Ompi => providers::ompi::load_messages(file_path),
+                StatsProvider::Pi => providers::pi::load_messages(file_path),
+                StatsProvider::Gemini => providers::gemini::load_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
             }
             .unwrap_or_default();
@@ -1911,6 +1997,36 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                     .map(|project| project.name)
             })
             .unwrap_or_else(|| "Copilot".to_string()),
+        StatsProvider::Ompi | StatsProvider::Pi => {
+            if let Ok(projects) = match provider {
+                StatsProvider::Ompi => providers::ompi::scan_projects(),
+                _ => providers::pi::scan_projects(),
+            } {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            PathBuf::from(project_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown")
+                .to_string()
+        }
+        StatsProvider::Gemini => {
+            if let Ok(projects) = providers::gemini::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("gemini://")
+                .and_then(|p| {
+                    PathBuf::from(p)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                })
+                .unwrap_or_else(|| "Gemini".to_string())
+        }
     }
 }
 
@@ -1982,6 +2098,42 @@ fn resolve_provider_project_name_from_session(
             }
             "Copilot".to_string()
         }
+        StatsProvider::Ompi => {
+            if let Ok(projects) = providers::ompi::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::ompi::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "oh-my-pi".to_string()
+        }
+        StatsProvider::Pi => {
+            if let Ok(projects) = providers::pi::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::pi::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "Pi".to_string()
+        }
+        StatsProvider::Gemini => {
+            if let Ok(projects) = providers::gemini::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::gemini::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "Gemini".to_string()
+        }
         StatsProvider::Claude => "unknown".to_string(),
     }
 }
@@ -1999,6 +2151,9 @@ fn load_provider_sessions_for_stats(
         StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
         StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
+        StatsProvider::Ompi => providers::ompi::load_sessions(project_path, false),
+        StatsProvider::Pi => providers::pi::load_sessions(project_path, false),
+        StatsProvider::Gemini => providers::gemini::load_sessions(project_path, false),
         StatsProvider::Claude => {
             Err("Claude sessions are handled by legacy stats path".to_string())
         }
@@ -2018,6 +2173,9 @@ fn load_provider_messages_for_stats(
         StatsProvider::Kimi => providers::kimi::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
         StatsProvider::Copilot => providers::copilot::load_messages(&session.file_path),
+        StatsProvider::Ompi => providers::ompi::load_messages(&session.file_path),
+        StatsProvider::Pi => providers::pi::load_messages(&session.file_path),
+        StatsProvider::Gemini => providers::gemini::load_messages(&session.file_path),
         StatsProvider::Claude => {
             Err("Claude messages are handled by legacy stats path".to_string())
         }
@@ -2765,6 +2923,9 @@ pub async fn get_session_token_stats(
             StatsProvider::Kimi => providers::kimi::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
             StatsProvider::Copilot => providers::copilot::load_messages(&session_path)?,
+            StatsProvider::Ompi => providers::ompi::load_messages(&session_path)?,
+            StatsProvider::Pi => providers::pi::load_messages(&session_path)?,
+            StatsProvider::Gemini => providers::gemini::load_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
         };
 
@@ -3726,6 +3887,34 @@ pub async fn get_global_stats_summary(
             collect_provider_global_file_stats(StatsProvider::Antigravity, mode, s_ref, e_ref);
         project_names.extend(antigravity_projects);
         file_stats.extend(antigravity_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Copilot) {
+        let (copilot_stats, copilot_projects) =
+            collect_provider_global_file_stats(StatsProvider::Copilot, mode, s_ref, e_ref);
+        project_names.extend(copilot_projects);
+        file_stats.extend(copilot_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Ompi) {
+        let (ompi_stats, ompi_projects) =
+            collect_provider_global_file_stats(StatsProvider::Ompi, mode, s_ref, e_ref);
+        project_names.extend(ompi_projects);
+        file_stats.extend(ompi_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Pi) {
+        let (pi_stats, pi_projects) =
+            collect_provider_global_file_stats(StatsProvider::Pi, mode, s_ref, e_ref);
+        project_names.extend(pi_projects);
+        file_stats.extend(pi_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Gemini) {
+        let (gemini_stats, gemini_projects) =
+            collect_provider_global_file_stats(StatsProvider::Gemini, mode, s_ref, e_ref);
+        project_names.extend(gemini_projects);
+        file_stats.extend(gemini_stats);
     }
 
     // When date filtering is active, exclude sessions that ended up with zero messages
@@ -6338,5 +6527,147 @@ mod tests {
             is_codebuddy_path_under(real.to_string_lossy().as_ref(), home),
             "anchored detection must accept ~/.codebuddy/projects/.../*.jsonl"
         );
+    }
+
+    /// `oh-my-pi` provider detection must be anchored under
+    /// `~/.omp/agent/sessions`, not a substring match, so lookalike paths
+    /// (e.g. `/work/foo.omp-agent-test`) do not get routed to the ompi
+    /// loader.
+    #[test]
+    fn is_ompi_path_rejects_substring_lookalikes() {
+        let home = Path::new("/test-home/user");
+        assert!(
+            !is_ompi_path_under("/work/foo.omp-agent-test/abc.jsonl", home),
+            "name suffix lookalike must not match"
+        );
+        assert!(
+            !is_ompi_path_under("/Users/dev/notes/.omp-clone/data.jsonl", home),
+            "hidden-dir lookalike must not match"
+        );
+        assert!(
+            !is_ompi_path_under("/tmp/sample.omp.jsonl", home),
+            "filename containing the substring must not match"
+        );
+    }
+
+    /// Real-shaped oh-my-pi / Pi paths must be detected. Mirrors the runtime
+    /// layout: `~/.omp/agent/sessions/<escaped-cwd>/<session>.jsonl`.
+    #[test]
+    fn is_ompi_path_accepts_real_layout() {
+        let home = Path::new("/test-home/user");
+        let real = home
+            .join(".omp")
+            .join("agent")
+            .join("sessions")
+            .join("--Users-justin--")
+            .join("2026-08-01T00-00-00-000Z_019f0000-0000-7000-0000-000000000000.jsonl");
+        assert!(
+            is_ompi_path_under(real.to_string_lossy().as_ref(), home),
+            "anchored detection must accept ~/.omp/agent/sessions/.../*.jsonl"
+        );
+        assert!(
+            is_pi_path_under(
+                home.join(".pi")
+                    .join("agent")
+                    .join("sessions")
+                    .join("proj")
+                    .join("s.jsonl")
+                    .to_string_lossy()
+                    .as_ref(),
+                home
+            ),
+            "anchored detection must accept ~/.pi/agent/sessions/.../*.jsonl"
+        );
+    }
+
+    /// `parse_active_stats_providers` must accept the ompi/pi/gemini ids that
+    /// the frontend sends after the user selects those provider tabs,
+    /// instead of silently dropping them (which zeroed all stats).
+    #[test]
+    fn parse_active_stats_providers_accepts_ompi_pi_gemini() {
+        let parsed = parse_active_stats_providers(Some(vec![
+            "ompi".to_string(),
+            "pi".to_string(),
+            "gemini".to_string(),
+            "codex".to_string(),
+        ]));
+        assert!(parsed.contains(&StatsProvider::Ompi));
+        assert!(parsed.contains(&StatsProvider::Pi));
+        assert!(parsed.contains(&StatsProvider::Gemini));
+        assert!(parsed.contains(&StatsProvider::Codex));
+        assert_eq!(parsed.len(), 4);
+    }
+
+    /// `detect_project_provider` must route gemini virtual project keys and
+    /// ompi/pi on-disk project dirs to their own providers (not Claude).
+    /// Uses an injected HOME so the assertion is meaningful regardless of
+    /// the runner's environment.
+    #[test]
+    #[serial]
+    fn detect_project_provider_routes_new_providers() {
+        let temp = TempDir::new().expect("tempdir");
+        let _guard = EnvVarGuard::set("HOME", temp.path());
+        let home = temp.path().to_string_lossy().to_string();
+
+        let ompi_proj = format!("{home}/.omp/agent/sessions/-tmp");
+        let pi_proj = format!("{home}/.pi/agent/sessions/-tmp");
+        let claude_proj = format!("{home}/.claude/projects/-Users-justin");
+
+        assert_eq!(
+            detect_project_provider(&format!("gemini://{home}/.gemini/tmp/proj-a")),
+            StatsProvider::Gemini
+        );
+        assert_eq!(detect_project_provider(&ompi_proj), StatsProvider::Ompi);
+        assert_eq!(detect_project_provider(&pi_proj), StatsProvider::Pi);
+        assert_eq!(detect_project_provider(&claude_proj), StatsProvider::Claude);
+    }
+
+    /// `detect_session_provider` must route ompi/pi/gemini session files to
+    /// their own providers (not Claude), so token stats stop reporting
+    /// "No valid messages found in session". Uses an injected HOME so the
+    /// assertion is meaningful regardless of the runner's environment.
+    #[test]
+    #[serial]
+    fn detect_session_provider_routes_new_providers() {
+        let temp = TempDir::new().expect("tempdir");
+        let _guard = EnvVarGuard::set("HOME", temp.path());
+        let home = temp.path().to_string_lossy().to_string();
+
+        assert_eq!(
+            detect_session_provider(&format!(
+                "{home}/.omp/agent/sessions/-tmp/2026-08-01T00-00-00-000Z_x.jsonl"
+            )),
+            StatsProvider::Ompi
+        );
+        assert_eq!(
+            detect_session_provider(&format!(
+                "{home}/.pi/agent/sessions/-tmp/2026-08-01T00-00-00-000Z_x.jsonl"
+            )),
+            StatsProvider::Pi
+        );
+        assert_eq!(
+            detect_session_provider(&format!("{home}/.gemini/tmp/abcd/chats/chat-1.jsonl")),
+            StatsProvider::Gemini
+        );
+        // A codex rollout still routes to Codex.
+        assert_eq!(
+            detect_session_provider(&format!("{home}/.codex/sessions/2026/rollout-x.jsonl")),
+            StatsProvider::Codex
+        );
+        // Claude files still route to Claude.
+        assert_eq!(
+            detect_session_provider(&format!("{home}/.claude/projects/-u/s.jsonl")),
+            StatsProvider::Claude
+        );
+    }
+
+    /// Provider ids emitted by `stats_provider_id` match the ids the frontend
+    /// sends in `active_providers` for the new providers.
+    #[test]
+    fn stats_provider_id_matches_frontend_ids() {
+        assert_eq!(stats_provider_id(StatsProvider::Ompi), "ompi");
+        assert_eq!(stats_provider_id(StatsProvider::Pi), "pi");
+        assert_eq!(stats_provider_id(StatsProvider::Gemini), "gemini");
+        assert_eq!(stats_provider_id(StatsProvider::Claude), "claude");
     }
 }
