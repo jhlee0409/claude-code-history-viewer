@@ -34,6 +34,7 @@ enum StatsProvider {
     Ompi,
     Pi,
     Gemini,
+    Cursor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,6 +77,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Ompi => "ompi",
         StatsProvider::Pi => "pi",
         StatsProvider::Gemini => "gemini",
+        StatsProvider::Cursor => "cursor",
     }
 }
 
@@ -236,6 +238,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Ompi,
         StatsProvider::Pi,
         StatsProvider::Gemini,
+        StatsProvider::Cursor,
     ]
     .into_iter()
     .collect()
@@ -263,6 +266,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "ompi" => Some(StatsProvider::Ompi),
             "pi" => Some(StatsProvider::Pi),
             "gemini" => Some(StatsProvider::Gemini),
+            "cursor" => Some(StatsProvider::Cursor),
             _ => {
                 unknown.push(provider);
                 None
@@ -294,6 +298,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Kimi
     } else if project_path.starts_with("gemini://") {
         StatsProvider::Gemini
+    } else if project_path.starts_with("cursor://") {
+        StatsProvider::Cursor
     } else if is_antigravity_path(project_path) {
         StatsProvider::Antigravity
     } else if is_ompi_path(project_path) {
@@ -317,6 +323,10 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
 fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.starts_with("opencode://") {
         return StatsProvider::OpenCode;
+    }
+
+    if session_path.starts_with("cursor://") {
+        return StatsProvider::Cursor;
     }
 
     if is_grok_path(session_path) {
@@ -503,6 +513,21 @@ fn grok_virtual_paths_match(left: &str, right: &str) -> bool {
     }
     let left_path = left.strip_prefix("grok://").unwrap_or(left);
     let right_path = right.strip_prefix("grok://").unwrap_or(right);
+    match (
+        Path::new(left_path).canonicalize(),
+        Path::new(right_path).canonicalize(),
+    ) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
+fn cursor_virtual_paths_match(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let left_path = left.strip_prefix("cursor://").unwrap_or(left);
+    let right_path = right.strip_prefix("cursor://").unwrap_or(right);
     match (
         Path::new(left_path).canonicalize(),
         Path::new(right_path).canonicalize(),
@@ -1084,6 +1109,32 @@ fn collect_provider_global_file_stats(
 ) -> (Vec<SessionFileStats>, HashSet<String>) {
     let mut project_keys = HashSet::new();
 
+    if provider == StatsProvider::Cursor {
+        let Ok(sessions) = providers::cursor::collect_global_stats_sessions() else {
+            return (Vec::new(), project_keys);
+        };
+        let mut all_stats = Vec::with_capacity(sessions.len());
+        for (project_display_name, messages) in sessions {
+            project_keys.insert(format!(
+                "cursor:{}",
+                project_display_name
+                    .strip_suffix(" [cursor]")
+                    .unwrap_or(&project_display_name)
+            ));
+            if let Some(stats) = build_global_session_file_stats_from_messages(
+                StatsProvider::Cursor,
+                project_display_name,
+                &messages,
+                mode,
+                s_limit,
+                e_limit,
+            ) {
+                all_stats.push(stats);
+            }
+        }
+        return (all_stats, project_keys);
+    }
+
     if provider == StatsProvider::Antigravity {
         // Use the resolver that honors the external-state override so an
         // external Antigravity root contributes to the global summary
@@ -1228,6 +1279,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::Ompi => providers::ompi::scan_projects().unwrap_or_default(),
         StatsProvider::Pi => providers::pi::scan_projects().unwrap_or_default(),
         StatsProvider::Gemini => providers::gemini::scan_projects().unwrap_or_default(),
+        StatsProvider::Cursor => providers::cursor::scan_projects().unwrap_or_default(),
         StatsProvider::Claude => Vec::new(),
     };
 
@@ -1254,6 +1306,7 @@ fn collect_provider_global_file_stats(
             StatsProvider::Ompi => providers::ompi::load_sessions(&project.path, false),
             StatsProvider::Pi => providers::pi::load_sessions(&project.path, false),
             StatsProvider::Gemini => providers::gemini::load_sessions(&project.path, false),
+            StatsProvider::Cursor => providers::cursor::load_sessions(&project.path, false),
             StatsProvider::Claude => Ok(Vec::new()),
         }
         .unwrap_or_default();
@@ -1279,6 +1332,7 @@ fn collect_provider_global_file_stats(
                 StatsProvider::Ompi => providers::ompi::load_messages(file_path),
                 StatsProvider::Pi => providers::pi::load_messages(file_path),
                 StatsProvider::Gemini => providers::gemini::load_messages(file_path),
+                StatsProvider::Cursor => providers::cursor::load_stats_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
             }
             .unwrap_or_default();
@@ -2088,6 +2142,27 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 })
                 .unwrap_or_else(|| "Gemini".to_string())
         }
+        StatsProvider::Cursor => {
+            if let Ok(projects) = providers::cursor::scan_projects() {
+                if let Some(project) = projects
+                    .into_iter()
+                    .find(|p| cursor_virtual_paths_match(&p.path, project_path))
+                {
+                    return project.name;
+                }
+            }
+            if let Some(name) = providers::cursor::display_name_for_project_path(project_path) {
+                return name;
+            }
+            project_path
+                .strip_prefix("cursor://")
+                .and_then(|p| {
+                    PathBuf::from(p)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                })
+                .unwrap_or_else(|| "Cursor".to_string())
+        }
     }
 }
 
@@ -2202,6 +2277,18 @@ fn resolve_provider_project_name_from_session(
             }
             "Gemini".to_string()
         }
+        StatsProvider::Cursor => {
+            if let Ok(projects) = providers::cursor::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::cursor::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "Cursor".to_string()
+        }
         StatsProvider::Claude => "unknown".to_string(),
     }
 }
@@ -2223,6 +2310,7 @@ fn load_provider_sessions_for_stats(
         StatsProvider::Ompi => providers::ompi::load_sessions(project_path, false),
         StatsProvider::Pi => providers::pi::load_sessions(project_path, false),
         StatsProvider::Gemini => providers::gemini::load_sessions(project_path, false),
+        StatsProvider::Cursor => providers::cursor::load_sessions(project_path, false),
         StatsProvider::Claude => {
             Err("Claude sessions are handled by legacy stats path".to_string())
         }
@@ -2246,6 +2334,7 @@ fn load_provider_messages_for_stats(
         StatsProvider::Ompi => providers::ompi::load_messages(&session.file_path),
         StatsProvider::Pi => providers::pi::load_messages(&session.file_path),
         StatsProvider::Gemini => providers::gemini::load_messages(&session.file_path),
+        StatsProvider::Cursor => providers::cursor::load_stats_messages(&session.file_path),
         StatsProvider::Claude => {
             Err("Claude messages are handled by legacy stats path".to_string())
         }
@@ -2997,6 +3086,7 @@ pub async fn get_session_token_stats(
             StatsProvider::Ompi => providers::ompi::load_messages(&session_path)?,
             StatsProvider::Pi => providers::pi::load_messages(&session_path)?,
             StatsProvider::Gemini => providers::gemini::load_messages(&session_path)?,
+            StatsProvider::Cursor => providers::cursor::load_stats_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
         };
 
@@ -3953,6 +4043,13 @@ pub async fn get_global_stats_summary(
         file_stats.extend(grok_stats);
     }
 
+    if providers_to_include.contains(&StatsProvider::Cursor) {
+        let (cursor_stats, cursor_projects) =
+            collect_provider_global_file_stats(StatsProvider::Cursor, mode, s_ref, e_ref);
+        project_names.extend(cursor_projects);
+        file_stats.extend(cursor_stats);
+    }
+
     if providers_to_include.contains(&StatsProvider::Kimi) {
         let (kimi_stats, kimi_projects) =
             collect_provider_global_file_stats(StatsProvider::Kimi, mode, s_ref, e_ref);
@@ -4880,6 +4977,12 @@ mod tests {
             StatsProvider::Grok
         );
         assert_eq!(
+            detect_project_provider(
+                "cursor:///Users/jack/Library/Application Support/Cursor/User/workspaceStorage/hash"
+            ),
+            StatsProvider::Cursor
+        );
+        assert_eq!(
             detect_project_provider("kimi:///Users/jack/.kimi/sessions/project-hash"),
             StatsProvider::Kimi
         );
@@ -4933,6 +5036,10 @@ mod tests {
         assert_eq!(
             detect_session_provider("opencode://project/ses_abc"),
             StatsProvider::OpenCode
+        );
+        assert_eq!(
+            detect_session_provider("cursor://composer-id-abc"),
+            StatsProvider::Cursor
         );
         if let Some(root) = providers::grok::get_base_path() {
             let grok_session = PathBuf::from(root)
@@ -5020,6 +5127,7 @@ mod tests {
         assert!(providers.contains(&StatsProvider::Kimi));
         assert!(providers.contains(&StatsProvider::Antigravity));
         assert!(providers.contains(&StatsProvider::Copilot));
+        assert!(providers.contains(&StatsProvider::Cursor));
     }
 
     #[test]
@@ -5059,6 +5167,14 @@ mod tests {
         let providers = parse_active_stats_providers(Some(vec!["grok".to_string()]));
         assert_eq!(providers.len(), 1);
         assert!(providers.contains(&StatsProvider::Grok));
+    }
+
+    #[test]
+    /// Verify parse active stats providers supports Cursor.
+    fn test_parse_active_stats_providers_supports_cursor() {
+        let providers = parse_active_stats_providers(Some(vec!["cursor".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Cursor));
     }
 
     #[test]
@@ -5247,6 +5363,150 @@ mod tests {
                 .any(|project| project.project_name.contains("demo")),
             "expected grok project in top_projects: {:?}",
             global.top_projects
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn get_project_stats_summary_accepts_cursor_virtual_path() {
+        let temp = TempDir::new().expect("temp dir");
+        let user_dir = temp.path().join("Cursor").join("User");
+        let ws_path = user_dir.join("workspaceStorage").join("hash-demo");
+        fs::create_dir_all(&ws_path).unwrap();
+        fs::create_dir_all(user_dir.join("globalStorage")).unwrap();
+
+        fs::write(
+            ws_path.join("workspace.json"),
+            r#"{"folder":"file:///Users/test/demo"}"#,
+        )
+        .unwrap();
+
+        let ws_conn = rusqlite::Connection::open(ws_path.join("state.vscdb")).unwrap();
+        ws_conn
+            .execute(
+                "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+                [],
+            )
+            .unwrap();
+        let composers = json!({
+            "allComposers": [{
+                "composerId": "comp-demo",
+                "name": "Demo chat",
+                "createdAt": 1_700_000_000_000u64,
+                "lastUpdatedAt": 1_700_000_100_000u64,
+                "isArchived": false,
+                "unifiedMode": "agent"
+            }]
+        })
+        .to_string();
+        ws_conn
+            .execute(
+                "INSERT INTO ItemTable (key, value) VALUES ('composer.composerData', ?1)",
+                [&composers],
+            )
+            .unwrap();
+
+        let global_conn =
+            rusqlite::Connection::open(user_dir.join("globalStorage").join("state.vscdb")).unwrap();
+        global_conn
+            .execute(
+                "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+                [],
+            )
+            .unwrap();
+        let composer_data = json!({
+            "fullConversationHeadersOnly": [
+                { "bubbleId": "b1", "type": 1 },
+                { "bubbleId": "b2", "type": 2 }
+            ],
+            "promptTokenBreakdown": { "totalUsedTokens": 4200 }
+        })
+        .to_string();
+        global_conn
+            .execute(
+                "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+                rusqlite::params!["composerData:comp-demo", composer_data],
+            )
+            .unwrap();
+        global_conn
+            .execute(
+                "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+                rusqlite::params![
+                    "bubbleId:comp-demo:b1",
+                    json!({
+                        "bubbleId": "b1",
+                        "type": 1,
+                        "text": "hello cursor",
+                        "createdAt": "2026-07-27T20:00:00Z"
+                    })
+                    .to_string()
+                ],
+            )
+            .unwrap();
+        global_conn
+            .execute(
+                "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+                rusqlite::params![
+                    "bubbleId:comp-demo:b2",
+                    json!({
+                        "bubbleId": "b2",
+                        "type": 2,
+                        "text": "hi from composer",
+                        "createdAt": "2026-07-27T20:01:00Z"
+                    })
+                    .to_string()
+                ],
+            )
+            .unwrap();
+
+        let _env = EnvVarGuard::set("CURSOR_USER_DIR", &user_dir);
+        let project_path = format!("cursor://{}", ws_path.to_string_lossy());
+
+        assert_eq!(
+            detect_project_provider(&project_path),
+            StatsProvider::Cursor
+        );
+
+        let summary = get_project_stats_summary(project_path.clone(), None, None, None)
+            .await
+            .expect("cursor virtual project path should load stats");
+        assert_eq!(summary.project_name, "demo");
+        assert!(summary.total_sessions >= 1);
+        assert!(summary.total_messages >= 1);
+
+        let global = get_global_stats_summary(
+            "/tmp".to_string(),
+            Some(vec!["cursor".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("cursor should contribute to global stats");
+        assert!(
+            global
+                .provider_distribution
+                .iter()
+                .any(|provider| provider.provider_id == "cursor" && provider.sessions >= 1),
+            "expected cursor in provider_distribution: {:?}",
+            global.provider_distribution
+        );
+        assert!(
+            global
+                .model_distribution
+                .iter()
+                .any(|model| model.model_name == "cursor" && model.token_count >= 4200),
+            "expected cursor in model_distribution: {:?}",
+            global.model_distribution
+        );
+        assert!(
+            global
+                .provider_distribution
+                .iter()
+                .any(|provider| provider.provider_id == "cursor" && provider.tokens >= 4200),
+            "expected cursor tokens in provider_distribution: {:?}",
+            global.provider_distribution
         );
     }
 
