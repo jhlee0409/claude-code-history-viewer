@@ -1846,8 +1846,22 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     // conversation. For the common case (no chain) this is just `[session_path]`.
     let chain = super::chain::resolve_session_chain(Path::new(&session_path));
     let mut messages: Vec<ClaudeMessage> = Vec::new();
-    for path in &chain {
-        messages.extend(load_all_messages_from_file(path)?);
+    for (index, path) in chain.iter().enumerate() {
+        let is_leaf = index + 1 == chain.len();
+        match load_all_messages_from_file(path) {
+            Ok(file_messages) => messages.extend(file_messages),
+            Err(error) if is_leaf => return Err(error),
+            Err(error) => {
+                // A predecessor can disappear while Claude Code is rotating
+                // files. Preserve the readable part of the conversation and
+                // make the leaf failure fatal because it is the requested
+                // session itself.
+                log::warn!(
+                    "Skipping unreadable predecessor in session chain {}: {error}",
+                    path.display()
+                );
+            }
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -2335,35 +2349,47 @@ pub async fn load_session_messages_paginated(
     } else {
         // Chained session: walk the files newest -> oldest, consuming the
         // requested chat-style window, then present them oldest -> newest.
-        let mut file_totals: Vec<usize> = Vec::with_capacity(chain.len());
-        for path in &chain {
-            file_totals.push(count_valid_messages_in_file(path, exclude)?);
-        }
-        let total_count: usize = file_totals.iter().sum();
-
         let mut skip = offset;
         let mut remaining = limit;
         let mut chunks: Vec<Vec<ClaudeMessage>> = Vec::new();
+        let mut total_count = 0usize;
 
         for idx in (0..chain.len()).rev() {
+            let is_leaf = idx + 1 == chain.len();
+            // Keep scanning older files after the requested page is full so
+            // total_count remains exact, but pass limit=0 to avoid parsing
+            // message payloads a second time.
+            let requested_limit = if remaining == 0 { 0 } else { remaining };
+            let requested_offset = if remaining == 0 { 0 } else { skip };
+            let result = load_message_window_from_file(
+                &chain[idx],
+                requested_offset,
+                requested_limit,
+                exclude,
+            );
+            let (messages, file_total, _) = match result {
+                Ok(result) => result,
+                Err(error) if is_leaf => return Err(error),
+                Err(error) => {
+                    log::warn!(
+                        "Skipping unreadable predecessor in paginated session chain {}: {error}",
+                        chain[idx].display()
+                    );
+                    continue;
+                }
+            };
+
+            total_count += file_total;
             if remaining == 0 {
-                break;
+                continue;
             }
-            let file_total = file_totals[idx];
             if skip >= file_total {
                 skip -= file_total;
                 continue;
             }
-            let (messages, _, reached_start) =
-                load_message_window_from_file(&chain[idx], skip, remaining, exclude)?;
             remaining -= messages.len();
             chunks.push(messages);
             skip = 0;
-            if !reached_start {
-                // The window was satisfied without exhausting this file, so
-                // there is no need to look further back yet.
-                break;
-            }
         }
 
         chunks.reverse();
@@ -2396,8 +2422,18 @@ pub async fn get_session_message_count(
     let chain = super::chain::resolve_session_chain(Path::new(&session_path));
 
     let mut total = 0usize;
-    for path in &chain {
-        total += count_valid_messages_in_file(path, exclude)?;
+    for (index, path) in chain.iter().enumerate() {
+        let is_leaf = index + 1 == chain.len();
+        match count_valid_messages_in_file(path, exclude) {
+            Ok(file_total) => total += file_total,
+            Err(error) if is_leaf => return Err(error),
+            Err(error) => {
+                log::warn!(
+                    "Skipping unreadable predecessor in session count chain {}: {error}",
+                    path.display()
+                );
+            }
+        }
     }
     Ok(total)
 }
@@ -2576,6 +2612,50 @@ mod tests {
         assert_eq!(page.total_count, 5);
         assert_eq!(page.messages.len(), 3);
         assert!(page.has_more);
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_paginated_merges_continuation_chain() {
+        let temp_dir = TempDir::new().unwrap();
+        let older_content = format!(
+            "{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Before"),
+            create_sample_assistant_message("tail-uuid", "session-1", "Earlier reply")
+        );
+        create_test_jsonl_file(&temp_dir, "older.jsonl", &older_content);
+
+        let newer_content = format!(
+            "{{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-1\",\"logicalParentUuid\":\"tail-uuid\",\"sessionId\":\"session-2\",\"timestamp\":\"2025-06-26T10:02:00Z\"}}\n{}\n{}\n",
+            create_sample_user_message("uuid-3", "session-2", "After"),
+            create_sample_assistant_message("uuid-4", "session-2", "Latest reply")
+        );
+        let newer_path = create_test_jsonl_file(&temp_dir, "newer.jsonl", &newer_content);
+        let newer_path_string = newer_path.to_string_lossy().to_string();
+
+        let all_messages = load_session_messages(newer_path_string.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            all_messages
+                .iter()
+                .map(|message| message.uuid.as_str())
+                .collect::<Vec<_>>(),
+            vec!["uuid-1", "tail-uuid", "boundary-1", "uuid-3", "uuid-4"]
+        );
+        assert_eq!(
+            get_session_message_count(newer_path_string.clone(), None)
+                .await
+                .unwrap(),
+            5
+        );
+
+        let first_page = load_session_messages_paginated(newer_path_string, 0, 3, None)
+            .await
+            .unwrap();
+        assert_eq!(first_page.total_count, 5);
+        assert_eq!(first_page.messages.len(), 3);
+        assert_eq!(first_page.messages[0].uuid, "boundary-1");
+        assert!(first_page.has_more);
     }
 
     #[tokio::test]
