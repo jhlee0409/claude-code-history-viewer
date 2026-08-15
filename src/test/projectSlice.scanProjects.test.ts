@@ -334,6 +334,50 @@ describe("projectSlice scanProjects", () => {
     expect(store.getState().setActiveProviders).toHaveBeenCalledWith(["codex"]);
   });
 
+  it("initializes WSL-only sources when native Claude is unavailable", async () => {
+    const store = createTestStore();
+    const wslProject = createMockProject("wsl-only");
+
+    store.setState({
+      claudePath: "",
+      providers: [],
+      activeProviders: ["claude"],
+      userMetadata: {
+        ...DEFAULT_USER_METADATA,
+        settings: {
+          wsl: { enabled: true, excludedDistros: [] },
+        },
+      },
+    });
+
+    vi.mocked(api).mockImplementation((command, args) => {
+      if (command === "get_claude_folder_path") {
+        return Promise.reject(new Error("CLAUDE_FOLDER_NOT_FOUND:missing"));
+      }
+      if (command === "scan_all_projects") {
+        expect(args).toEqual({
+          activeProviders: ["claude"],
+          wslEnabled: true,
+          wslExcludedDistros: [],
+        });
+        return Promise.resolve([wslProject]);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+
+    expect(store.getState().error).toBeNull();
+    expect(store.getState().projects).toEqual([
+      { ...wslProject, provider: "claude" },
+    ]);
+    expect(store.getState().detectProviders).not.toHaveBeenCalled();
+    expect(vi.mocked(api)).not.toHaveBeenCalledWith(
+      "scan_projects",
+      expect.anything(),
+    );
+  });
+
   it("persists the provider IDs returned by explicit discovery", async () => {
     const store = createTestStore();
     const codexProject = createMockProject("discovered-codex", "codex");
