@@ -152,9 +152,17 @@ function App() {
   // re-invokes the CLI twice in quick succession, the newer intent wins.
   const pendingHintRef = useRef<SessionHint | null>(null);
   const pendingMessageTargetRef = useRef<string | null>(null);
+  const preloadGenerationRef = useRef(0);
+
+  const invalidatePreload = useCallback(() => {
+    preloadGenerationRef.current += 1;
+  }, []);
 
   const runPreloadWithHint = useCallback(
     (hint: SessionHint, messageId: string | null = null) => {
+      const generation = ++preloadGenerationRef.current;
+      const isCurrent = () => preloadGenerationRef.current === generation;
+
       void preloadSessionFromCli({
         getStartupSessionHint: () => Promise.resolve(hint),
         projects: projectsRef.current,
@@ -163,12 +171,17 @@ function App() {
           selectSession(session, { history: "none" }),
         openSessionPicker,
         t: (key, fallback) => t(key, fallback ?? key),
+        isCurrent,
       }).then(({ matched }) => {
-        if (matched && messageId) {
+        if (isCurrent() && matched && messageId) {
           const state = useAppStore.getState();
           state.setAnalyticsCurrentView("messages");
           state.navigateToMessage(messageId, { history: "none" });
         }
+      }).catch((error) => {
+        if (!isCurrent()) return;
+        console.error("Failed to preload session:", error);
+        toast.error(t("common.error.unexpected", "Failed to open session"));
       });
     },
     [selectProject, selectSession, openSessionPicker, t],
@@ -188,7 +201,11 @@ function App() {
       runPreloadWithHint(queued, messageId);
       return;
     }
+    const startupGeneration = preloadGenerationRef.current;
     void fetchStartupSessionHint().then((hint) => {
+      // A second invocation or deep link may have arrived while the startup
+      // command was resolving. Its newer request owns navigation now.
+      if (preloadGenerationRef.current !== startupGeneration) return;
       if (hint) {
         runPreloadWithHint(hint, readWebUIDeepLink().messageId);
       }
@@ -211,6 +228,7 @@ function App() {
         if (cancelled) return;
         unlisten = await listen<SessionHint>("cli-session-hint", (event) => {
           const hint = event.payload;
+          invalidatePreload();
           // Projects not yet loaded: stash and let the first-load effect
           // consume the latest hint. This handles the race where the user
           // re-invokes the CLI before the initial project scan finishes.
@@ -232,11 +250,12 @@ function App() {
       cancelled = true;
       unlisten?.();
     };
-  }, [runPreloadWithHint]);
+  }, [invalidatePreload, runPreloadWithHint]);
 
   useEffect(
     () =>
       listenForWebUIDeepLinks((deepLink) => {
+        invalidatePreload();
         if (!deepLink.sessionId) {
           pendingHintRef.current = null;
           pendingMessageTargetRef.current = null;
@@ -274,7 +293,7 @@ function App() {
           deepLink.messageId,
         );
       }),
-    [clearProjectSelection, runPreloadWithHint],
+    [clearProjectSelection, invalidatePreload, runPreloadWithHint],
   );
 
   // Local state

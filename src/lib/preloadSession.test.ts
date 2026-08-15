@@ -409,6 +409,33 @@ describe("preloadSessionFromCli", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("skips a resolved match when a newer preload supersedes it", async () => {
+    vi.mocked(api).mockResolvedValueOnce([session] as unknown as never);
+    let isCurrent = true;
+    const selectProject = vi.fn().mockImplementation(async () => {
+      // Simulate a newer CLI/deep-link request arriving while the project
+      // selection is loading.
+      isCurrent = false;
+    });
+
+    const deps = makeDeps({
+      getStartupSessionHint: vi.fn().mockResolvedValue({
+        kind: "uuid",
+        value: UUID,
+      } as SessionHint),
+      projects: [project],
+      selectProject,
+      isCurrent: () => isCurrent,
+    });
+
+    const result = await preloadSessionFromCli(deps);
+
+    expect(result).toEqual({ handled: true, matched: false });
+    expect(selectProject).toHaveBeenCalledWith(project);
+    expect(deps.selectSession).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   // Real race simulation: user clicks a session mid-scan. Exercises the
   // per-loop guard inside scan helpers, not just the final guard.
   it("aborts scan loop when selectedSession mutates mid-scan", async () => {
