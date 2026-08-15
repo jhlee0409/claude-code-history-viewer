@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-08-01T03:15:38.501Z
- * 총 키 개수: 1878
+ * 생성 시간: 2026-08-15T13:41:59.526Z
+ * 총 키 개수: 1881
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (182개)
+ * common namespace의 번역 키 (183개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -134,6 +134,7 @@ export type CommonKeys =
   | 'common.provider.pearai'
   | 'common.provider.pi'
   | 'common.provider.qwen'
+  | 'common.provider.saveError'
   | 'common.provider.trae'
   | 'common.provider.vibe'
   | 'common.provider.zcode'
@@ -416,7 +417,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (249개)
+ * session namespace의 번역 키 (251개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -432,6 +433,8 @@ export type SessionKeys =
   | 'project.copyPath'
   | 'project.count'
   | 'project.currentSelection'
+  | 'project.discoverProviders'
+  | 'project.discoveringProviders'
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'
@@ -2380,6 +2383,7 @@ export type TranslationKey =
   | 'common.provider.pearai'
   | 'common.provider.pi'
   | 'common.provider.qwen'
+  | 'common.provider.saveError'
   | 'common.provider.trae'
   | 'common.provider.vibe'
   | 'common.provider.zcode'
@@ -2770,6 +2774,8 @@ export type TranslationKey =
   | 'project.copyPath'
   | 'project.count'
   | 'project.currentSelection'
+  | 'project.discoverProviders'
+  | 'project.discoveringProviders'
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'

@@ -20,6 +20,8 @@
   "project.groupingWorktree": "Group by worktree",
   "project.hiddenPatterns": "Hidden patterns",
   "project.copyPath": "Copy path",
+  "project.discoverProviders": "Find other providers",
+  "project.discoveringProviders": "Searching for providers...",
   "project.pathCopied": "Path copied to clipboard",
   "project.hide": "Hide project",
   "project.main": "main",

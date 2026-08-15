@@ -19,7 +19,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeSession, ContentItem } from "@/types";
-import { getProviderLabel, hasNonDefaultProvider, getProviderBadgeStyle } from "@/utils/providers";
+import {
+    getProviderLabel,
+    getWslSearchableProviderIds,
+    hasNonDefaultProvider,
+    getProviderBadgeStyle,
+} from "@/utils/providers";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -102,7 +107,15 @@ export const GlobalSearchModal = ({
         async (searchQuery: string) => {
             const trimmedQuery = searchQuery.trim();
 
-            if (!claudePath || trimmedQuery.length < 2) {
+            const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
+            const customClaudePaths = userMetadata?.settings?.customClaudePaths;
+            const hasCustomPaths = (customClaudePaths?.length ?? 0) > 0;
+            const wslEnabled = userMetadata?.settings?.wsl?.enabled ?? false;
+            const hasAlternativeSource = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
+            const nativeClaudePath = claudePath || undefined;
+            const wslProviders = wslEnabled ? getWslSearchableProviderIds(activeProviders) : undefined;
+
+            if (trimmedQuery.length < 2 || (!claudePath && !hasAlternativeSource)) {
                 setResults([]);
                 setIsSearching(false);
                 return;
@@ -119,14 +132,23 @@ export const GlobalSearchModal = ({
                 if (messageTypeFilter !== "all") {
                     filters.messageType = messageTypeFilter;
                 }
-                const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
-                const wslEnabled = userMetadata?.settings?.wsl?.enabled ?? false;
                 const wslExcludedDistros = userMetadata?.settings?.wsl?.excludedDistros ?? [];
+                const useAllProvidersSearch = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
                 const searchResults = await api<GlobalSearchResult[]>(
-                    (hasNonClaudeProviders || wslEnabled) ? "search_all_providers" : "search_messages",
-                    (hasNonClaudeProviders || wslEnabled)
-                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: MAX_RESULTS, wslEnabled, wslExcludedDistros }
-                        : { claudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
+                    useAllProvidersSearch ? "search_all_providers" : "search_messages",
+                    useAllProvidersSearch
+                        ? {
+                              claudePath: nativeClaudePath,
+                              query: trimmedQuery,
+                              activeProviders,
+                              filters,
+                              limit: MAX_RESULTS,
+                              customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
+                              wslEnabled,
+                              wslProviders,
+                              wslExcludedDistros,
+                          }
+                        : { claudePath: nativeClaudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
                 );
                 setResults(searchResults);
                 setSelectedIndex(0);

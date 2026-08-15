@@ -225,6 +225,7 @@ export interface AppStoreActions {
 
   // Project actions
   initializeApp: () => Promise<void>;
+  discoverProviders: () => Promise<void>;
   scanProjects: () => Promise<void>;
   refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
@@ -384,7 +385,7 @@ export interface AppStoreActions {
   setNavigatorOpen: (open: boolean) => void;
 
   // Provider actions
-  detectProviders: () => Promise<void>;
+  detectProviders: () => Promise<boolean>;
   toggleProvider: (id: ProviderId) => void;
   setActiveProviders: (ids: ProviderId[]) => void;
 

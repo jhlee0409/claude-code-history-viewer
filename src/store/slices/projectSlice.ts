@@ -10,6 +10,7 @@ import type { ClaudeProject, ClaudeSession, SessionPage, AppError, ProviderId, U
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import { toast } from "sonner";
+import i18n from "../../i18n";
 import type { FullAppStore } from "./types";
 import {
   detectWorktreeGroupsHybrid,
@@ -18,7 +19,12 @@ import {
   type DirectoryGroupingResult,
 } from "../../utils/worktreeUtils";
 import type { GroupingMode } from "../../types/metadata.types";
-import { DEFAULT_PROVIDER_ID, getProviderId, PROVIDER_IDS } from "../../utils/providers";
+import {
+  DEFAULT_PROVIDER_ID,
+  getProviderId,
+  normalizeProviderIds,
+  PROVIDER_IDS,
+} from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import {
@@ -49,6 +55,7 @@ export interface ProjectSliceState {
 
 export interface ProjectSliceActions {
   initializeApp: () => Promise<void>;
+  discoverProviders: () => Promise<void>;
   scanProjects: () => Promise<void>;
   refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
@@ -247,6 +254,26 @@ export const createProjectSlice: StateCreator<
         );
       }
 
+      // Load metadata before resolving the Claude path so an explicit provider
+      // discovery choice can restore non-Claude projects on startup without
+      // running the broad provider detector again.
+      await get().loadMetadata();
+      const savedProviderIds = normalizeProviderIds(
+        get().userMetadata?.settings?.discoveredProviderIds ?? []
+      );
+      if (savedProviderIds.length > 0) {
+        get().setActiveProviders(savedProviderIds);
+      }
+      const hasSavedNonClaudeProviders = savedProviderIds.some(
+        (provider) => provider !== DEFAULT_PROVIDER_ID
+      );
+      const savedSettings = get().userMetadata?.settings;
+      const hasCustomClaudePaths =
+        (savedSettings?.customClaudePaths?.length ?? 0) > 0;
+      const hasWslSource = savedSettings?.wsl?.enabled ?? false;
+      const hasConfiguredScanSource =
+        hasSavedNonClaudeProviders || hasCustomClaudePaths || hasWslSource;
+
       // Try to load saved settings first
       try {
         const store = await storageAdapter.load("settings.json", {
@@ -261,9 +288,6 @@ export const createProjectSlice: StateCreator<
           });
           if (isValid) {
             set({ claudePath: savedPath });
-            await get().loadMetadata();
-            await get().detectProviders();
-            await autoRegisterConfigDir(get);
             await get().scanProjects();
             return;
           }
@@ -272,16 +296,12 @@ export const createProjectSlice: StateCreator<
         console.log("No saved settings found");
       }
 
-      // Try default Claude path. If `~/.claude` is missing but other providers
-      // (Codex, OpenCode, Cursor, …) are detected on disk, proceed without a
-      // Claude path so the user can browse the providers they actually have
-      // installed (#222).
+      // Try the default Claude path. Provider discovery is intentionally not
+      // part of startup: scanning every supported provider can touch protected
+      // user folders before the user has asked to browse them.
       try {
         const claudePath = await api<string>("get_claude_folder_path");
         set({ claudePath });
-        await get().loadMetadata();
-        await get().detectProviders();
-        await autoRegisterConfigDir(get);
         await get().scanProjects();
         return;
       } catch (claudeFolderError) {
@@ -293,18 +313,15 @@ export const createProjectSlice: StateCreator<
           throw claudeFolderError;
         }
 
-        await get().loadMetadata();
-        await get().detectProviders();
-        const detectedProviders = get().providers;
-        const hasOtherProvider = detectedProviders.some(
-          (provider) => provider.is_available && provider.id !== "claude"
-        );
-        if (!hasOtherProvider) {
-          throw claudeFolderError;
+        // A user who previously opted in to another provider (or configured a
+        // custom Claude/WSL source) should not be forced through the Claude
+        // folder picker on every launch.
+        if (hasConfiguredScanSource) {
+          await get().scanProjects();
+          return;
         }
 
-        await autoRegisterConfigDir(get);
-        await get().scanProjects();
+        throw claudeFolderError;
       }
     } catch (error) {
       console.error("Failed to initialize app:", error);
@@ -330,27 +347,74 @@ export const createProjectSlice: StateCreator<
     }
   },
 
-  // NOTE: scanProjects loads ALL available providers' projects, while filtering
-  // by activeProviders happens client-side in the ProjectTree UI. Provider scans
-  // are launched independently so a slow provider does not block fast providers
-  // from appearing in the sidebar.
+  // Explicitly opt in to discovery of other providers and custom Claude
+  // locations. This is the only path that calls the broad provider detector.
+  discoverProviders: async () => {
+    set({ error: null });
+    const detected = await get().detectProviders();
+    if (!detected) {
+      // Detection failures are already surfaced by providerSlice. Continue
+      // with the last persisted/detected provider state without overwriting
+      // it with an empty discovery result.
+      await get().scanProjects();
+      return;
+    }
+    await autoRegisterConfigDir(get);
+    const discoveredProviderIds = normalizeProviderIds(
+      get().providers
+        .filter((provider) => provider.is_available)
+        .map((provider) => provider.id as ProviderId)
+    );
+    try {
+      await get().updateUserSettings({ discoveredProviderIds });
+    } catch (error) {
+      // Provider discovery should still show the current result if metadata
+      // persistence is unavailable; the next explicit discovery can retry it.
+      console.error("Failed to persist discovered providers:", error);
+      toast.error(i18n.t("common.provider.saveError"));
+    }
+    await get().scanProjects();
+  },
+
+  // Provider discovery is empty during first startup, so the initial scan is
+  // limited to the default provider. Once the user explicitly discovers
+  // providers, the detected IDs (or their persisted IDs after restart) become
+  // the scan candidate list while `activeProviders` remains a client-side
+  // filter. Provider scans are launched independently so a slow provider does
+  // not block fast providers from appearing in the sidebar.
   scanProjects: async () => {
     const requestId = nextRequestId("scanProjects");
-    const { claudePath, providers } = get();
+    const { claudePath, providers, activeProviders } = get();
     const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
     const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
-    const detectedAvailableProviders = providers
-      .filter((provider) => provider.is_available)
-      .map((provider) => provider.id);
-    const providerSet = new Set<ProviderId>(detectedAvailableProviders);
-    if (claudePath || hasCustomPaths || providerSet.size === 0) {
+    const settings = get().userMetadata?.settings;
+    const wslEnabled = settings?.wsl?.enabled ?? false;
+    const detectedProviderIds = normalizeProviderIds(
+      providers
+        .filter((provider) => provider.is_available)
+        .map((provider) => provider.id as ProviderId)
+    );
+    const persistedProviderIds = normalizeProviderIds(
+      settings?.discoveredProviderIds ?? []
+    );
+    const requestedProviderIds = normalizeProviderIds(activeProviders);
+    const providerSet = new Set<ProviderId>(
+      detectedProviderIds.length > 0
+        ? detectedProviderIds
+        : persistedProviderIds.length > 0
+          ? persistedProviderIds
+        : requestedProviderIds.length > 0
+          ? requestedProviderIds
+          : [DEFAULT_PROVIDER_ID]
+    );
+    if (claudePath || hasCustomPaths || wslEnabled) {
       providerSet.add(DEFAULT_PROVIDER_ID);
     }
     const scanProviders = PROVIDER_IDS.filter((provider) => providerSet.has(provider));
     const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
     // Allow scanning when at least one source is available: a saved Claude path,
-    // a custom Claude path, or any non-Claude provider detected on disk (#222).
-    if (!claudePath && !hasCustomPaths && !hasNonClaudeProviders) return;
+    // a custom Claude path, WSL, or any non-Claude provider detected on disk (#222).
+    if (!claudePath && !hasCustomPaths && !wslEnabled && !hasNonClaudeProviders) return;
 
     set({ isLoadingProjects: true, error: null });
     try {

@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Folder, AlertCircle, ArrowLeft, CheckCircle2, HelpCircle } from "lucide-react";
+import {
+  Folder,
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  HelpCircle,
+  Search,
+} from "lucide-react";
 import { isTauri } from "@/utils/platform";
 import { api } from "@/services/api";
 import { useTranslation } from "react-i18next";
@@ -19,12 +26,16 @@ interface FolderSelectorProps {
   onFolderSelected: (path: string) => void;
   mode?: "notFound" | "change";
   onClose?: () => void;
+  onDiscoverProviders?: () => void | Promise<void>;
+  isDiscoveringProviders?: boolean;
 }
 
 export function FolderSelector({
   onFolderSelected,
   mode = "notFound",
   onClose,
+  onDiscoverProviders,
+  isDiscoveringProviders = false,
 }: FolderSelectorProps) {
   const { t } = useTranslation();
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -120,7 +131,7 @@ export function FolderSelector({
       {/* Select Button */}
       <Button
         onClick={handleSelectFolder}
-        disabled={isValidating}
+        disabled={isValidating || isDiscoveringProviders}
         size="lg"
         className="w-full"
       >
@@ -129,6 +140,21 @@ export function FolderSelector({
           ? t("folderPicker.validating")
           : t("folderPicker.selectButton")}
       </Button>
+
+      {!isChangeMode && onDiscoverProviders && (
+        <Button
+          onClick={() => void onDiscoverProviders()}
+          disabled={isValidating || isDiscoveringProviders}
+          variant="outline"
+          size="lg"
+          className="w-full"
+        >
+          <Search className="h-4 w-4" />
+          {isDiscoveringProviders
+            ? t("project.discoveringProviders", "Searching for providers...")
+            : t("project.discoverProviders", "Find other providers")}
+        </Button>
+      )}
 
       {/* Selected Path */}
       {selectedPath && (

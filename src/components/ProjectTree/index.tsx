@@ -92,6 +92,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const activeProviders = useAppStore((state) => state.activeProviders);
   const detectedProviders = useAppStore((state) => state.providers);
   const isDetectingProviders = useAppStore((state) => state.isDetectingProviders);
+  const isLoadingProjects = useAppStore((state) => state.isLoadingProjects);
+  const discoverProviders = useAppStore((state) => state.discoverProviders);
   const setActiveProviders = useAppStore((state) => state.setActiveProviders);
   const loadGlobalStats = useAppStore((state) => state.loadGlobalStats);
   const clearProjectSelection = useAppStore(
@@ -316,6 +318,13 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     );
     await applyProviderSelection(next.length > 0 ? next : [provider]);
   }, [applyProviderSelection, isAllProvidersSelected, selectableProviderIds, selectedProviderFilters]);
+
+  const handleDiscoverProviders = useCallback(() => {
+    void discoverProviders().catch((error) => {
+      console.error("Failed to discover providers:", error);
+      toast.error(t("common.provider.detectError"));
+    });
+  }, [discoverProviders, t]);
 
   // Defer the filtering work: the input echoes each keystroke immediately
   // while re-filtering hundreds/thousands of projects runs as an
@@ -910,7 +919,27 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               </button>
             </div>
             <CollapsibleContent>
-              <div className="mt-2 max-h-44 overflow-y-auto pr-1">
+              <div className="mt-2 space-y-2 max-h-52 overflow-y-auto pr-1">
+                <button
+                  type="button"
+                  onClick={handleDiscoverProviders}
+                  disabled={isDetectingProviders || isLoadingProjects}
+                  className={cn(
+                    "inline-flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-2xs font-medium transition-colors",
+                    isDetectingProviders || isLoadingProjects
+                      ? "cursor-not-allowed border-transparent bg-muted/20 text-muted-foreground/50"
+                      : "border-accent/20 bg-accent/5 text-accent hover:bg-accent/10"
+                  )}
+                  title={t("project.discoverProviders", "Find other providers")}
+                  aria-label={t("project.discoverProviders", "Find other providers")}
+                >
+                  <Search className="h-3 w-3" aria-hidden="true" />
+                  <span>
+                    {isDetectingProviders || isLoadingProjects
+                      ? t("project.discoveringProviders", "Searching for providers...")
+                      : t("project.discoverProviders", "Find other providers")}
+                  </span>
+                </button>
                 <div className="flex flex-wrap items-center gap-1">
                   {providerTabs.map((tab) => {
                     const isActive = tab.id === "all"

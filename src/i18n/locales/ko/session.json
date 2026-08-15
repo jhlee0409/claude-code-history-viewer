@@ -20,6 +20,8 @@
   "project.groupingWorktree": "워크트리별",
   "project.hiddenPatterns": "숨김 패턴",
   "project.copyPath": "경로 복사",
+  "project.discoverProviders": "다른 프로바이더 검색",
+  "project.discoveringProviders": "프로바이더 검색 중...",
   "project.pathCopied": "경로가 클립보드에 복사되었습니다",
   "project.hide": "프로젝트 숨기기",
   "project.main": "메인",

@@ -377,6 +377,8 @@ pub struct SearchAllProvidersParams {
     #[serde(default)]
     pub active_providers: Option<Vec<String>>,
     #[serde(default)]
+    pub wsl_providers: Option<Vec<String>>,
+    #[serde(default)]
     pub filters: Option<Value>,
     #[serde(default)]
     pub limit: Option<usize>,
@@ -932,6 +934,7 @@ handler_json!(
             p.claude_path,
             p.query,
             p.active_providers,
+            p.wsl_providers,
             p.filters,
             p.limit,
             p.custom_claude_paths,

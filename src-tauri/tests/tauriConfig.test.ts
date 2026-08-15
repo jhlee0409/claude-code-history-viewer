@@ -193,16 +193,11 @@ describe('Tauri Configuration Tests', () => {
     it('should have valid capabilities array', () => {
       expect(Array.isArray(config.app.security.capabilities)).toBe(true);
       expect(config.app.security.capabilities.length).toBeGreaterThan(0);
-      expect(config.app.security.capabilities).toContain('default');
-      expect(config.app.security.capabilities).toContain('http-requests');
+      expect(config.app.security.capabilities).toEqual(['default']);
+      expect(config.app.security.capabilities).not.toContain('http-requests');
     });
 
     it('should only contain valid capability strings', () => {
-      // const validCapabilities = [
-      //   'default', 'http-requests', 'fs', 'shell', 
-      //   'notification', 'updater', 'window-management'
-      // ];
-      
       config.app.security.capabilities.forEach((capability: string) => {
         expect(typeof capability).toBe('string');
         expect(capability.length).toBeGreaterThan(0);
@@ -210,9 +205,8 @@ describe('Tauri Configuration Tests', () => {
       });
     });
 
-    it('should have withGlobalTauri enabled', () => {
-      expect(config.app.withGlobalTauri).toBe(true);
-      expect(typeof config.app.withGlobalTauri).toBe('boolean');
+    it('should keep the global Tauri bridge disabled', () => {
+      expect(config.app.withGlobalTauri ?? false).toBe(false);
     });
   });
 
@@ -223,15 +217,9 @@ describe('Tauri Configuration Tests', () => {
       expect(config.plugins).not.toBeNull();
     });
 
-    describe('File System Plugin', () => {
-      it('should have fs plugin configuration', () => {
-        expect(config.plugins.fs).toBeDefined();
-        expect(typeof config.plugins.fs).toBe('object');
-      });
-
-      it('should have requireLiteralLeadingDot set to false', () => {
-        expect(config.plugins.fs.requireLiteralLeadingDot).toBe(false);
-        expect(typeof config.plugins.fs.requireLiteralLeadingDot).toBe('boolean');
+    describe('Unused plugins', () => {
+      it('should not configure the unused file-system plugin', () => {
+        expect(config.plugins.fs).toBeUndefined();
       });
     });
 
