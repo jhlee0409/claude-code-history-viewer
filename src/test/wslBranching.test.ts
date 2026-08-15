@@ -181,6 +181,7 @@ describe("searchMessages — WSL branch routing", () => {
     expect(mockApi).toHaveBeenCalledWith(
       "search_all_providers",
       expect.objectContaining({
+        claudePath: undefined,
         query: "hello",
         wslEnabled: true,
       }),

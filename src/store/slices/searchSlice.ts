@@ -94,6 +94,7 @@ export const createSearchSlice: StateCreator<
     const settings = get().userMetadata?.settings;
     const wslEnabled = settings?.wsl?.enabled ?? false;
     const hasAlternativeSource = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
+    const nativeClaudePath = claudePath || undefined;
 
     if (!query.trim() || (!claudePath && !hasAlternativeSource)) {
       set({ searchResults: [], searchQuery: "" });
@@ -104,7 +105,7 @@ export const createSearchSlice: StateCreator<
     try {
       const results = (hasNonClaudeProviders || hasCustomPaths || wslEnabled)
         ? await api<ClaudeMessage[]>("search_all_providers", {
-            claudePath,
+            claudePath: nativeClaudePath,
             query,
             activeProviders,
             filters,
@@ -113,7 +114,7 @@ export const createSearchSlice: StateCreator<
             wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
           })
         : await api<ClaudeMessage[]>("search_messages", {
-            claudePath,
+            claudePath: nativeClaudePath,
             query,
             filters,
           });
