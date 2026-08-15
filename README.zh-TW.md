@@ -6,7 +6,7 @@
 
 **AI 程式設計助手的統一歷史檢視器。**
 
-瀏覽、搜尋和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode** 和 **CodeBuddy Code** 的對話記錄 — 桌面應用程式或無頭伺服器。100% 離線。
+瀏覽、搜尋和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的對話記錄 — 桌面應用程式或無頭伺服器。100% 離線。
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -63,7 +63,7 @@ Docker、VPS、systemd 設定請參閱[伺服器模式](#伺服器模式-webui)�
 
 AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供跨工具回顧歷史的方式。CCHV 解決了這個問題。
 
-**二十八個助手。一個檢視器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae 工作階段之間無縫切換 — 比較 Token 用量、跨提供者搜尋、在一個介面中分析您的工作流程。
+**二十九個助手。一個檢視器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae 工作階段之間無縫切換 — 比較 Token 用量、跨提供者搜尋、在一個介面中分析您的工作流程。
 
 | 提供者 | 資料位置 | 取得內容 |
 |----------|--------------|--------------|
@@ -79,6 +79,7 @@ AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供�
 | **OpenCode** | `~/.local/share/opencode/` | 對話工作階段和工具結果 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 資料庫中的對話記錄 |
 | **CodeBuddy Code** | `~/.codebuddy/projects/` | 包含工具呼叫的對話記錄（Claude Code fork 格式） |
+| **Grok CLI** | `~/.grok/sessions/` | Grok CLI 對話、工具呼叫與模型用量 |
 | **Kimi** | `~/.kimi/` | 工作階段記錄，支援 `kimi -r` 恢復 |
 | **Kiro** | `kiro-cli/data.sqlite3` | 以 SQLite 為後端的對話記錄 |
 | **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` 儲存（與 Kiro CLI 提供者共用格式） |
@@ -120,7 +121,7 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 
 | 功能 | 說明 |
 |---------|-------------|
-| **多提供者支援** | 統一檢視 **28 個 AI 程式設計助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae — 依提供者篩選、跨工具比較 |
+| **多提供者支援** | 統一檢視 **29 個 AI 程式設計助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae — 依提供者篩選、跨工具比較 |
 | **對話瀏覽器** | 依專案/工作階段瀏覽對話記錄，支援工作樹分組 |
 | **全域搜尋** | 即時搜尋所有提供者的對話記錄 |
 | **分析儀表板** | 雙模式 Token 統計（帳單 vs 對話）、成本明細、提供者分佈圖表 |
@@ -134,6 +135,16 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 | 提供者 | 說明 |
 |---------|-------|
 | **Antigravity** | 透過標準 provider 資料流載入。工作階段來自 token monitor 快取，可直接參與專案/工作階段瀏覽、Token 統計、分析儀表板與全域搜尋，無需另外建立專用 UI 模式。 |
+
+### v1.23.0 新增
+
+| 功能 | 說明 |
+|------|------|
+| **Grok CLI 提供者** | 瀏覽與搜尋 `~/.grok/sessions/` 中的 Grok CLI 工作階段，並將模型/Token 用量納入分析 |
+| **工作階段連續性** | 將相關的 Claude 逐字稿檔案合併為一個可瀏覽的對話 |
+| **WebUI 深連結** | 支援可分享的連結，直接開啟指定的工作階段與訊息 |
+| **更安全的導覽與恢復** | 全域搜尋選取結果會同步所屬專案/工作階段；不可用工作樹的歷史仍會保留，同時停用無效的恢復操作；Windows 恢復命令同時支援 CMD 與 PowerShell |
+| **提供者探索修正** | 提供者專用與 WSL 專用掃描不再假設本機一定存在 Claude 資料目錄 |
 
 ### v1.18.0 新增
 
@@ -380,7 +391,7 @@ GET /health
 ## 使用方式
 
 1. 啟動應用程式
-2. 自動掃描所有 28 個支援提供者（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 見上方提供者表格）的對話資料
+2. 自動掃描所有 29 個支援提供者（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 見上方提供者表格）的對話資料
 3. 在左側邊欄瀏覽專案 — 使用分頁列依提供者篩選
 4. 點擊工作階段檢視訊息
 5. 使用分頁切換訊息、分析、Token 統計、最近編輯和工作階段面板

@@ -6,7 +6,7 @@
 
 **AIコーディングアシスタントのための統合履歴ビューア。**
 
-**Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code**の会話履歴を閲覧・検索・分析 — デスクトップアプリまたはヘッドレスサーバーとして。100%オフライン。
+**Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code**、**Grok CLI**の会話履歴を閲覧・検索・分析 — デスクトップアプリまたはヘッドレスサーバーとして。100%オフライン。
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -63,7 +63,7 @@ Docker、VPS、systemdのセットアップは[サーバーモード](#サーバ
 
 AIコーディングアシスタントは数千もの会話メッセージを生成しますが、ツール間で履歴を振り返る方法を提供していません。CCHVがこの課題を解決します。
 
-**28のアシスタント。1つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code・Kilo Code含む）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Traeのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
+**29のアシスタント。1つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code・Kilo Code含む）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Traeのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
 
 | プロバイダー | データの場所 | 取得できる情報 |
 |----------|--------------|--------------|
@@ -79,6 +79,7 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **OpenCode** | `~/.local/share/opencode/` | 会話セッションとツール結果 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLiteデータベースの会話履歴 |
 | **CodeBuddy Code** | `~/.codebuddy/projects/` | ツール呼び出しを含む会話履歴（Claude Codeフォーク形式） |
+| **Grok CLI** | `~/.grok/sessions/` | Grok CLIの会話、ツール呼び出し、モデル使用量 |
 | **Kimi** | `~/.kimi/` | `kimi -r`によるresume対応のセッション履歴 |
 | **Kiro** | `kiro-cli/data.sqlite3` | SQLiteベースの会話履歴 |
 | **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations`ストア（Kiro CLIプロバイダーと同一形式） |
@@ -120,7 +121,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | 機能 | 説明 |
 |---------|-------------|
-| **マルチプロバイダー対応** | **28のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code・Kilo Code含む）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae — プロバイダー別フィルタリング、ツール間比較 |
+| **マルチプロバイダー対応** | **29のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code・Kilo Code含む）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae — プロバイダー別フィルタリング、ツール間比較 |
 | **会話ブラウザ** | プロジェクト/セッション別に会話を閲覧（ワークツリーグループ化対応） |
 | **グローバル検索** | 全プロバイダーの会話を瞬時に検索 |
 | **分析ダッシュボード** | デュアルモードトークン統計（課金 vs 会話）、コスト内訳、プロバイダー分布チャート |
@@ -134,6 +135,16 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 | プロバイダー | メモ |
 |---------|-------|
 | **Antigravity** | 標準のプロバイダーパイプラインで読み込まれます。セッションはtoken monitorのキャッシュから取得され、専用UIモードを増やさずに、プロジェクト/セッション表示、トークン統計、分析、グローバル検索に参加します。 |
+
+### v1.23.0の新機能
+
+| 機能 | 説明 |
+|------|------|
+| **Grok CLIプロバイダー** | `~/.grok/sessions/`のGrok CLIセッションを閲覧・検索し、モデル/トークン使用量を分析に含めます |
+| **セッションの継続性** | 関連するClaudeトランスクリプトファイルを1つの閲覧可能な会話に統合します |
+| **WebUIディープリンク** | 特定のセッションとメッセージを直接開く共有可能なリンクに対応します |
+| **安全なナビゲーションとresume** | グローバル検索の選択を対象プロジェクト/セッションと同期し、利用できないワークツリーの履歴を残したまま無効なresume操作を無効化；WindowsのresumeコマンドはCMDとPowerShellの両方で動作します |
+| **プロバイダー検出の修正** | プロバイダー固有およびWSL専用のスキャンで、ネイティブClaudeデータディレクトリを不要に仮定しません |
 
 ### v1.18.0の新機能
 
@@ -380,7 +391,7 @@ GET /health
 ## 使い方
 
 1. アプリを起動
-2. 対応する全28プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
+2. 対応する全29プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
 3. 左サイドバーでプロジェクトを閲覧 — タブバーでプロバイダー別フィルタリング
 4. セッションをクリックしてメッセージを確認
 5. タブでメッセージ、分析、トークン統計、最近の編集、セッションボードを切り替え

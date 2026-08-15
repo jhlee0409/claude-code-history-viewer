@@ -6,7 +6,7 @@
 
 **The unified history viewer for AI coding assistants.**
 
-Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, and **CodeBuddy Code** — as a desktop app or headless server. 100% offline.
+Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, and **Grok CLI** — as a desktop app or headless server. 100% offline.
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -63,7 +63,7 @@ See [Server Mode](#server-mode-webui) for Docker, VPS, and systemd setup.
 
 AI coding assistants generate thousands of conversation messages, but none of them provide a way to look back at your history across tools. CCHV solves this.
 
-**Twenty-eight assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code & Kilo Code), Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, and Trae sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
+**Twenty-nine assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code & Kilo Code), Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, and Trae sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
 
 | Provider | Data Location | What You Get |
 |----------|--------------|--------------|
@@ -79,6 +79,7 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **OpenCode** | `~/.local/share/opencode/` | Conversation sessions and tool results |
 | **ForgeCode** | `~/.forge/.forge.db` | Conversation history from SQLite database |
 | **CodeBuddy Code** | `~/.codebuddy/projects/` | Conversation history with tool calls (Claude Code fork format) |
+| **Grok CLI** | `~/.grok/sessions/` | Grok CLI conversations, tool calls, and model usage |
 | **Kimi** | `~/.kimi/` | Session history with `kimi -r` resume |
 | **Kiro** | `kiro-cli/data.sqlite3` | SQLite-backed conversation history |
 | **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` store (shares format with the Kiro CLI provider) |
@@ -120,7 +121,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Provider Support** | Unified viewer for **28 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code & Kilo Code), Aider, OpenCode, ForgeCode, CodeBuddy Code, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, and Trae — filter by provider, compare across tools |
+| **Multi-Provider Support** | Unified viewer for **29 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code & Kilo Code), Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, and Trae — filter by provider, compare across tools |
 | **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
 | **Global Search** | Search across all conversations from all providers instantly |
 | **Analytics Dashboard** | Dual-mode token stats (billing vs conversation), cost breakdown, and provider distribution charts |
@@ -134,6 +135,16 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 | Provider | Notes |
 |---------|-------|
 | **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
+
+### New in v1.23.0
+
+| Feature | Description |
+|---------|-------------|
+| **Grok CLI provider** | Browse Grok CLI sessions from `~/.grok/sessions/`, search across them, and include model/token usage in analytics |
+| **Session continuity** | Related Claude transcript files are merged into one browsable conversation |
+| **WebUI deep links** | Shareable links can open a specific session and message directly |
+| **Safer navigation and resume** | Global-search selection syncs the owning project/session; unavailable worktree history stays visible with invalid resume actions disabled; Windows resume commands work in both CMD and PowerShell |
+| **Provider discovery fixes** | Provider-specific and WSL-only scans no longer assume a native Claude data directory exists |
 
 ### New in v1.18.0
 
@@ -380,7 +391,7 @@ GET /health
 ## Usage
 
 1. Launch the app
-2. It automatically scans for conversation data from all 28 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
+2. It automatically scans for conversation data from all 29 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
 3. Browse projects in the left sidebar — filter by provider using the tab bar
 4. Click a session to view messages
 5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board

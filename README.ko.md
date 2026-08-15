@@ -6,7 +6,7 @@
 
 **AI 코딩 어시스턴트를 위한 통합 히스토리 뷰어.**
 
-**Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**의 대화 기록을 탐색, 검색, 분석하세요 — 데스크톱 앱 또는 헤드리스 서버로. 100% 오프라인.
+**Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, **Grok CLI**의 대화 기록을 탐색, 검색, 분석하세요 — 데스크톱 앱 또는 헤드리스 서버로. 100% 오프라인.
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -63,7 +63,7 @@ Docker, VPS, systemd 설정은 [서버 모드](#서버-모드-webui)를 참고�
 
 AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 도구 간에 히스토리를 돌아볼 방법을 제공하지 않습니다. CCHV가 이를 해결합니다.
 
-**스물여덟 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code & Kilo Code 포함), Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
+**스물아홉 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code & Kilo Code 포함), Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
 
 | 프로바이더 | 데이터 위치 | 제공 내용 |
 |----------|--------------|--------------|
@@ -79,6 +79,7 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 | **OpenCode** | `~/.local/share/opencode/` | 대화 세션 및 도구 결과 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 데이터베이스의 대화 기록 |
 | **CodeBuddy Code** | `~/.codebuddy/projects/` | 도구 호출이 포함된 대화 기록 (Claude Code 포크 포맷) |
+| **Grok CLI** | `~/.grok/sessions/` | Grok CLI 대화, 도구 호출 및 모델 사용량 |
 | **Kimi** | `~/.kimi/` | `kimi -r` 재개를 지원하는 세션 기록 |
 | **Kiro** | `kiro-cli/data.sqlite3` | SQLite 기반 대화 기록 |
 | **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` 저장소 (Kiro CLI 프로바이더와 포맷 공유) |
@@ -120,7 +121,7 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 
 | 기능 | 설명 |
 |---------|-------------|
-| **멀티 프로바이더** | **28개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code & Kilo Code 포함), Aider, OpenCode, ForgeCode, CodeBuddy Code, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae — 프로바이더별 필터링, 도구 간 비교 |
+| **멀티 프로바이더** | **29개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code & Kilo Code 포함), Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae — 프로바이더별 필터링, 도구 간 비교 |
 | **대화 브라우저** | 프로젝트/세션별 대화 탐색 (워크트리 그룹핑 지원) |
 | **글로벌 검색** | 모든 프로바이더의 대화에서 즉시 검색 |
 | **분석 대시보드** | 듀얼 모드 토큰 통계 (빌링 vs 대화), 비용 브레이크다운, 프로바이더 분포 차트 |
@@ -134,6 +135,16 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 | 프로바이더 | 설명 |
 |---------|-------|
 | **Antigravity** | 표준 프로바이더 파이프라인으로 로드됩니다. 세션은 token monitor 캐시에서 가져오며, 별도 UI 모드 없이 프로젝트/세션 보기, 토큰 통계, 분석 대시보드, 글로벌 검색에 바로 참여합니다. |
+
+### v1.23.0 신규
+
+| 기능 | 설명 |
+|------|------|
+| **Grok CLI 프로바이더** | `~/.grok/sessions/`의 Grok CLI 세션을 탐색·검색하고 모델/토큰 사용량을 분석에 포함 |
+| **세션 연속성** | 서로 이어지는 Claude 트랜스크립트 파일을 하나의 탐색 가능한 대화로 통합 |
+| **WebUI 딥 링크** | 특정 세션과 메시지를 바로 여는 공유 가능한 링크 지원 |
+| **안전한 탐색 및 재개** | 글로벌 검색 결과 선택이 프로젝트/세션과 동기화되고, 사용할 수 없는 워크트리 기록은 유지하면서 잘못된 재개 동작은 비활성화; Windows 재개 명령은 CMD와 PowerShell 모두 지원 |
+| **프로바이더 탐색 수정** | 프로바이더별·WSL 전용 스캔이 기본 Claude 데이터 디렉토리를 불필요하게 가정하지 않음 |
 
 ### v1.18.0 신규
 
@@ -380,7 +391,7 @@ GET /health
 ## 사용법
 
 1. 앱 실행
-2. 지원하는 28개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
+2. 지원하는 29개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
 3. 좌측 사이드바에서 프로젝트 탐색 — 탭 바로 프로바이더별 필터링
 4. 세션 클릭하여 메시지 확인
 5. 탭으로 메시지, 분석, 토큰 통계, 최근 편집, 세션 보드 전환

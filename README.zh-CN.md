@@ -6,7 +6,7 @@
 
 **AI 编程助手的统一历史查看器。**
 
-浏览、搜索和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode** 和 **CodeBuddy Code** 的对话记录 — 桌面应用或无头服务器。100% 离线。
+浏览、搜索和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的对话记录 — 桌面应用或无头服务器。100% 离线。
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -63,7 +63,7 @@ Docker、VPS、systemd 设置请参阅[服务器模式](#服务器模式-webui)�
 
 AI 编程助手生成了数千条对话消息，但它们都不提供跨工具回顾历史的方式。CCHV 解决了这个问题。
 
-**二十八个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae 会话之间无缝切换 — 比较 Token 用量、跨提供商搜索、在一个界面中分析你的工作流。
+**二十九个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae 会话之间无缝切换 — 比较 Token 用量、跨提供商搜索、在一个界面中分析你的工作流。
 
 | 提供商 | 数据位置 | 获取内容 |
 |----------|--------------|--------------|
@@ -79,6 +79,7 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 | **OpenCode** | `~/.local/share/opencode/` | 对话会话和工具结果 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 数据库中的对话记录 |
 | **CodeBuddy Code** | `~/.codebuddy/projects/` | 包含工具调用的对话历史（Claude Code fork 格式） |
+| **Grok CLI** | `~/.grok/sessions/` | Grok CLI 对话、工具调用和模型用量 |
 | **Kimi** | `~/.kimi/` | 会话历史，支持 `kimi -r` 恢复 |
 | **Kiro** | `kiro-cli/data.sqlite3` | 基于 SQLite 的对话历史 |
 | **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` 存储（与 Kiro CLI 提供商共用格式） |
@@ -120,7 +121,7 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 | 功能 | 描述 |
 |---------|-------------|
-| **多提供商支持** | 统一查看 **28 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae — 按提供商筛选、跨工具比较 |
+| **多提供商支持** | 统一查看 **29 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae — 按提供商筛选、跨工具比较 |
 | **对话浏览器** | 按项目/会话导航对话,支持工作树分组 |
 | **全局搜索** | 即时搜索所有提供商的对话内容 |
 | **分析仪表板** | 双模式 Token 统计（计费 vs 对话）、成本明细、提供商分布图表 |
@@ -134,6 +135,16 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 | 提供商 | 说明 |
 |---------|-------|
 | **Antigravity** | 走现有统一 provider 数据流接入。会话来自 token monitor 缓存，可直接参与项目/会话浏览、Token 统计、分析仪表板和全局搜索，无需单独的专用页面。 |
+
+### v1.23.0 新增
+
+| 功能 | 描述 |
+|------|------|
+| **Grok CLI 提供商** | 浏览和搜索 `~/.grok/sessions/` 中的 Grok CLI 会话，并将模型/Token 用量纳入分析 |
+| **会话连续性** | 将相关的 Claude 转录文件合并为一个可浏览的对话 |
+| **WebUI 深链接** | 支持可分享的链接，直接打开指定会话和消息 |
+| **更安全的导航与恢复** | 全局搜索选中结果会同步所属项目/会话；不可用工作树的历史仍保留，同时禁用无效恢复操作；Windows 恢复命令同时支持 CMD 和 PowerShell |
+| **提供商发现修复** | 提供商专用和 WSL 专用扫描不再假设本机一定存在 Claude 数据目录 |
 
 ### v1.18.0 新增
 
@@ -380,7 +391,7 @@ GET /health
 ## 使用方法
 
 1. 启动应用
-2. 自动扫描全部 28 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
+2. 自动扫描全部 29 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
 3. 在左侧边栏浏览项目 — 使用标签栏按提供商筛选
 4. 点击会话查看消息
 5. 使用标签页在消息、分析、Token 统计、最近编辑和会话面板之间切换

@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.0] - 2026-08-16
+
+Feature and fix release: broader provider coverage, deep links, session continuity, and safer project/search workflows.
+
+### Added
+- **Cross-file Claude session continuations** — related transcript files are merged into one browsable conversation.
+- **Grok CLI support** — browse Grok CLI conversations and attribute their model usage in analytics.
+- **Cursor global statistics** — Cursor usage now participates in global analytics.
+- **WebUI session and message deep links** — share or restore a direct link to a conversation and message.
+
+### Changed
+- **Global search navigation** — selecting a result now expands and selects the owning project/session in the sidebar.
+- **Unavailable worktree history** — conversations remain visible and searchable after their last-known worktree is removed, while invalid resume actions are disabled.
+- **Windows resume commands** — generated commands work from both CMD and PowerShell.
+- **Startup provider discovery** — WSL-only and provider-specific scans avoid unnecessary native Claude assumptions.
+
+### Fixed
+- Codex-only global search now works when no Claude data directory exists.
+- Windows Claude session rename validation accepts extended-length representations of the default Claude path.
+- Pi, oh-my-pi, and Gemini usage is routed correctly through token statistics.
+
+### Breaking
+- None.
+
 ## [1.22.0] - 2026-07-18
 
 Feature release: multi-session terminal resume, a full Recent Edits diff view, richer in-session search, and two new/expanded providers (Antigravity CLI, VS Code legacy sessions).
