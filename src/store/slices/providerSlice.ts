@@ -23,7 +23,8 @@ export interface ProviderSliceState {
 }
 
 export interface ProviderSliceActions {
-  detectProviders: () => Promise<void>;
+  /** Returns true when detection completed and false when the previous state was preserved. */
+  detectProviders: () => Promise<boolean>;
   toggleProvider: (id: ProviderId) => void;
   setActiveProviders: (ids: ProviderId[]) => void;
 }
@@ -65,10 +66,14 @@ export const createProviderSlice: StateCreator<
           ? activeProviders
           : [DEFAULT_PROVIDER_ID],
       });
+      return true;
     } catch (error) {
       console.error("Failed to detect providers:", error);
-      set({ providers: [], activeProviders: [DEFAULT_PROVIDER_ID] });
       toast.error(i18n.t("common.provider.detectError"));
+      // Keep the last known state. The caller may still have persisted
+      // provider IDs that must not be replaced with an empty result after a
+      // transient detection failure.
+      return false;
     } finally {
       set({ isDetectingProviders: false });
     }

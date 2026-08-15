@@ -3,8 +3,11 @@ import { useAppStore } from "@/store/useAppStore";
 import { useModal } from "@/contexts/modal";
 import { AppErrorType } from "@/types";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 export const FolderSelectorContainer: React.FC = () => {
+  const { t } = useTranslation();
   const { isOpen, closeModal, folderSelectorMode, openModal } = useModal();
   const {
     setClaudePath,
@@ -49,6 +52,7 @@ export const FolderSelectorContainer: React.FC = () => {
       }
     } catch (err) {
       console.error("Failed to discover providers:", err);
+      toast.error(t("common.provider.detectError"));
     }
   };
 

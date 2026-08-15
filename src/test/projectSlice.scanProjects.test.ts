@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
+import { toast } from "sonner";
 import { api } from "../services/api";
 import {
   createProjectSlice,
@@ -16,6 +17,12 @@ import {
 
 vi.mock("../services/api", () => ({
   api: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+  },
 }));
 
 type Deferred<T> = {
@@ -110,7 +117,7 @@ const createTestStore = () =>
     analytics: { currentView: "messages" },
     messages: [],
     activeProviders: ["claude"],
-    detectProviders: vi.fn().mockResolvedValue(undefined),
+    detectProviders: vi.fn().mockResolvedValue(true),
     setActiveProviders: vi.fn().mockImplementation((ids: ProviderInfo["id"][]) => {
       set({ activeProviders: ids });
     }),
@@ -154,6 +161,7 @@ const createTestStore = () =>
 describe("projectSlice scanProjects", () => {
   beforeEach(() => {
     vi.mocked(api).mockReset();
+    vi.mocked(toast.error).mockReset();
     delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
     window.history.replaceState({}, "", "/");
   });
@@ -376,6 +384,75 @@ describe("projectSlice scanProjects", () => {
       "codex",
     ]);
     expect(store.getState().projects).toEqual([codexProject]);
+  });
+
+  it("preserves persisted provider IDs when explicit discovery fails", async () => {
+    const store = createTestStore();
+    const codexProject = createMockProject("saved-codex", "codex");
+    const updateUserSettings = vi.fn();
+
+    store.setState({
+      claudePath: "",
+      providers: [],
+      activeProviders: ["codex"],
+      userMetadata: {
+        ...DEFAULT_USER_METADATA,
+        settings: { discoveredProviderIds: ["codex"] },
+      },
+      detectProviders: vi.fn().mockResolvedValue(false),
+      updateUserSettings,
+    });
+
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "scan_all_projects") {
+        return Promise.resolve([codexProject]);
+      }
+      if (command === "detect_claude_config_dir") {
+        return Promise.resolve(null);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().discoverProviders();
+
+    expect(updateUserSettings).not.toHaveBeenCalled();
+    expect(store.getState().userMetadata.settings.discoveredProviderIds).toEqual([
+      "codex",
+    ]);
+    expect(store.getState().projects).toEqual([codexProject]);
+  });
+
+  it("surfaces provider settings persistence failures", async () => {
+    const store = createTestStore();
+    const updateUserSettings = vi.fn().mockRejectedValue(new Error("save failed"));
+
+    store.setState({
+      claudePath: "",
+      providers: [
+        {
+          id: "codex",
+          display_name: "Codex",
+          base_path: "/root/.codex",
+          is_available: true,
+        },
+      ],
+      activeProviders: ["codex"],
+      updateUserSettings,
+    });
+
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "detect_claude_config_dir") {
+        return Promise.resolve(null);
+      }
+      if (command === "scan_all_projects") {
+        return Promise.resolve([]);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().discoverProviders();
+
+    expect(toast.error).toHaveBeenCalledWith(expect.any(String));
   });
 
   it("reports provider errors when successful scans return no projects", async () => {

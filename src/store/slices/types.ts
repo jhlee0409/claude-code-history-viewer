@@ -385,7 +385,7 @@ export interface AppStoreActions {
   setNavigatorOpen: (open: boolean) => void;
 
   // Provider actions
-  detectProviders: () => Promise<void>;
+  detectProviders: () => Promise<boolean>;
   toggleProvider: (id: ProviderId) => void;
   setActiveProviders: (ids: ProviderId[]) => void;
 

@@ -320,8 +320,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   }, [applyProviderSelection, isAllProvidersSelected, selectableProviderIds, selectedProviderFilters]);
 
   const handleDiscoverProviders = useCallback(() => {
-    void discoverProviders();
-  }, [discoverProviders]);
+    void discoverProviders().catch((error) => {
+      console.error("Failed to discover providers:", error);
+      toast.error(t("common.provider.detectError"));
+    });
+  }, [discoverProviders, t]);
 
   // Defer the filtering work: the input echoes each keystroke immediately
   // while re-filtering hundreds/thousands of projects runs as an

@@ -10,6 +10,7 @@ import type { ClaudeProject, ClaudeSession, SessionPage, AppError, ProviderId, U
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import { toast } from "sonner";
+import i18n from "../../i18n";
 import type { FullAppStore } from "./types";
 import {
   detectWorktreeGroupsHybrid,
@@ -350,7 +351,14 @@ export const createProjectSlice: StateCreator<
   // locations. This is the only path that calls the broad provider detector.
   discoverProviders: async () => {
     set({ error: null });
-    await get().detectProviders();
+    const detected = await get().detectProviders();
+    if (!detected) {
+      // Detection failures are already surfaced by providerSlice. Continue
+      // with the last persisted/detected provider state without overwriting
+      // it with an empty discovery result.
+      await get().scanProjects();
+      return;
+    }
     await autoRegisterConfigDir(get);
     const discoveredProviderIds = normalizeProviderIds(
       get().providers
@@ -363,6 +371,7 @@ export const createProjectSlice: StateCreator<
       // Provider discovery should still show the current result if metadata
       // persistence is unavailable; the next explicit discovery can retry it.
       console.error("Failed to persist discovered providers:", error);
+      toast.error(i18n.t("common.provider.saveError"));
     }
     await get().scanProjects();
   },
@@ -404,8 +413,8 @@ export const createProjectSlice: StateCreator<
     const scanProviders = PROVIDER_IDS.filter((provider) => providerSet.has(provider));
     const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);
     // Allow scanning when at least one source is available: a saved Claude path,
-    // a custom Claude path, or any non-Claude provider detected on disk (#222).
-    if (!claudePath && !hasCustomPaths && !hasNonClaudeProviders) return;
+    // a custom Claude path, WSL, or any non-Claude provider detected on disk (#222).
+    if (!claudePath && !hasCustomPaths && !wslEnabled && !hasNonClaudeProviders) return;
 
     set({ isLoadingProjects: true, error: null });
     try {

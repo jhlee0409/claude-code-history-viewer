@@ -193,7 +193,7 @@ describe('Tauri Configuration Tests', () => {
     it('should have valid capabilities array', () => {
       expect(Array.isArray(config.app.security.capabilities)).toBe(true);
       expect(config.app.security.capabilities.length).toBeGreaterThan(0);
-      expect(config.app.security.capabilities).toContain('default');
+      expect(config.app.security.capabilities).toEqual(['default']);
       expect(config.app.security.capabilities).not.toContain('http-requests');
     });
 

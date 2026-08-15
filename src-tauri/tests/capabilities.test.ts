@@ -5,6 +5,41 @@ import * as path from "path";
 const defaultCapabilityPath = path.join(__dirname, "../capabilities/default.json");
 
 describe("Tauri Capabilities", () => {
+  const expectedPermissions = [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:app:allow-version",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "process:allow-restart",
+    "updater:allow-check",
+    "updater:allow-download",
+    "updater:allow-install",
+    "updater:allow-download-and-install",
+    "store:allow-load",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-save",
+    "opener:allow-reveal-item-in-dir",
+    {
+      identifier: "opener:allow-open-url",
+      allow: [
+        { url: "http://*" },
+        { url: "https://*" },
+        { url: "mailto:*" },
+      ],
+    },
+    "os:allow-locale",
+  ];
+
+  it("matches the reviewed least-privilege permission allowlist exactly", () => {
+    const capability = JSON.parse(fs.readFileSync(defaultCapabilityPath, "utf-8"));
+
+    expect(capability.permissions).toEqual(expectedPermissions);
+  });
+
   it("includes process restart permission required by plugin-process relaunch", () => {
     const capability = JSON.parse(fs.readFileSync(defaultCapabilityPath, "utf-8"));
     expect(capability.permissions).toContain("process:allow-restart");
