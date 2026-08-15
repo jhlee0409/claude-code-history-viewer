@@ -217,23 +217,32 @@ export interface AppStoreState {
 
 export interface AppStoreActions {
   // Navigation actions
-  navigateToMessage: (uuid: string) => void;
+  navigateToMessage: (
+    uuid: string,
+    options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,
+  ) => void;
   clearTargetMessage: () => void;
 
   // Project actions
   initializeApp: () => Promise<void>;
+  discoverProviders: () => Promise<void>;
   scanProjects: () => Promise<void>;
   refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
   loadMoreSessions: () => Promise<void>;
-  clearProjectSelection: () => void;
+  clearProjectSelection: (
+    options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,
+  ) => void;
   setClaudePath: (path: string) => Promise<void>;
   setError: (error: AppError | null) => void;
   setSelectedSession: (session: ClaudeSession | null) => void;
   setSessions: (sessions: ClaudeSession[]) => void;
 
   // Message actions
-  selectSession: (session: ClaudeSession) => Promise<void>;
+  selectSession: (
+    session: ClaudeSession,
+    options?: import("@/utils/webuiDeepLink").WebUINavigationOptions,
+  ) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   ensureMessageLoaded: (uuid: string) => Promise<boolean>;
   fetchFullSessionMessages: () => Promise<ClaudeMessage[]>;
@@ -376,7 +385,7 @@ export interface AppStoreActions {
   setNavigatorOpen: (open: boolean) => void;
 
   // Provider actions
-  detectProviders: () => Promise<void>;
+  detectProviders: () => Promise<boolean>;
   toggleProvider: (id: ProviderId) => void;
   setActiveProviders: (ids: ProviderId[]) => void;
 

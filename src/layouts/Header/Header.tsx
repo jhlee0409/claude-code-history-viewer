@@ -5,7 +5,6 @@ import {
   MessageSquare,
   Activity,
   FileEdit,
-  Terminal,
   SlidersHorizontal,
   Columns,
   Search,
@@ -22,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { getAssetPath, isMacOS, isTauri } from "@/utils/platform";
 import { SettingDropdown } from "./SettingDropdown";
+import { SessionCopyMenu } from "./SessionCopyMenu";
 
 interface HeaderProps {
   analyticsActions: UseAnalyticsReturn["actions"];
@@ -152,16 +152,19 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
 
       {/* Center: Quick Stats (when session selected) */}
       {selectedSession && computed.isMessagesView && (
-        <div className="relative z-10 hidden lg:flex items-center gap-2 pointer-events-none">
-          <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-2xs text-muted-foreground font-mono">
-            {selectedSession.actual_session_id.slice(0, 8)}
-          </span>
+        <div className="relative z-10 hidden lg:flex items-center gap-2">
+          <SessionCopyMenu project={selectedProject} session={selectedSession} />
         </div>
       )}
 
       {/* Right: Actions */}
       <div className="relative z-10 flex items-center gap-1">
+        {selectedSession && computed.isMessagesView && (
+          <div className="lg:hidden">
+            <SessionCopyMenu compact project={selectedProject} session={selectedSession} />
+          </div>
+        )}
+
         {/* Search button with shortcut hint */}
         <button
           onClick={() => openModal("globalSearch")}

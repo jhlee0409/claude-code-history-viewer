@@ -57,6 +57,30 @@ describe("ProjectTree tree semantics", () => {
     expect(treeItem).toHaveAttribute("aria-level", "2");
   });
 
+  it("keeps an unavailable project selectable and exposes its location status", () => {
+    const project = {
+      ...createProject("/tmp/deleted-worktree", "deleted-worktree"),
+      path_status: "unavailable" as const,
+    };
+
+    render(
+      <ProjectItem
+        project={project}
+        isExpanded={false}
+        isSelected={false}
+        onToggle={vi.fn()}
+        onClick={vi.fn()}
+        onContextMenu={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("treeitem", { name: /deleted-worktree/i })).toBeInTheDocument();
+    expect(screen.getByTestId("project-path-unavailable")).toHaveAttribute(
+      "aria-label",
+      "Location unavailable"
+    );
+  });
+
   it("renders group header as expandable treeitem", () => {
     render(
       <GroupHeader

@@ -243,6 +243,38 @@ describe("useSessionEditing clipboard actions", () => {
     );
   });
 
+  it("does not offer resume when the last-known project location is unavailable", async () => {
+    useAppStore.setState({
+      projects: [
+        {
+          name: session.project_name,
+          path: "/root/.claude/projects/-tmp-deleted-worktree",
+          actual_path: "/tmp/deleted-worktree",
+          session_count: 1,
+          message_count: 1,
+          last_modified: session.last_modified,
+          path_status: "unavailable",
+          provider: "claude",
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useSessionEditing(session));
+
+    expect(result.current.supportsResumeCommand).toBe(false);
+
+    await act(async () => {
+      await result.current.handleCopyResumeCommand({
+        stopPropagation: vi.fn(),
+      } as unknown as React.MouseEvent);
+    });
+
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(
+      "Resume is unavailable because the last-known working directory is missing"
+    );
+  });
+
   it("reports copy failure when fallback cannot write clipboard payload", async () => {
     const writeText = vi.fn().mockRejectedValue(new Error("permission denied"));
     const addEventListener = vi.spyOn(document, "addEventListener");

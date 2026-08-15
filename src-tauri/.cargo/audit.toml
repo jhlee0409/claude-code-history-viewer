@@ -1,0 +1,13 @@
+# cargo-audit configuration (read by the `Security Audit` CI job, which runs
+# `cargo audit` from this directory).
+#
+# The ignored advisories below are DoS-class issues in `quick-xml 0.37`, pulled
+# in transitively via `plist` -> `tauri` / `tauri-plugin-os` (used to parse
+# local macOS .plist files, not untrusted network input). They can only be
+# resolved once `plist`/Tauri adopt `quick-xml >= 0.41`, which is out of our
+# control. Re-check and remove these entries when a Tauri update lands.
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0194", # quick-xml: quadratic time on duplicate attribute names
+    "RUSTSEC-2026-0195", # quick-xml: unbounded namespace-declaration allocation
+]

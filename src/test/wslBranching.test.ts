@@ -88,10 +88,11 @@ function createTestStore() {
 function seedStore(
   store: ReturnType<typeof createTestStore>,
   wslEnabled: boolean,
-  excludedDistros: string[] = []
+  excludedDistros: string[] = [],
+  claudePath = "/home/user/.claude",
 ) {
   store.setState({
-    claudePath: "/home/user/.claude",
+    claudePath,
     userMetadata: {
       version: 1,
       sessions: {},
@@ -117,6 +118,21 @@ describe("scanProjects — WSL branch routing", () => {
     expect(mockApi).toHaveBeenCalledWith(
       "scan_all_projects",
       expect.objectContaining({ wslEnabled: true })
+    );
+  });
+
+  it("scans WSL when no native Claude path is configured", async () => {
+    const store = createTestStore();
+    seedStore(store, true, [], "");
+
+    await store.getState().scanProjects();
+
+    expect(mockApi).toHaveBeenCalledWith(
+      "scan_all_projects",
+      expect.objectContaining({
+        activeProviders: ["claude"],
+        wslEnabled: true,
+      }),
     );
   });
 
@@ -153,6 +169,40 @@ describe("searchMessages — WSL branch routing", () => {
     expect(mockApi).toHaveBeenCalledWith(
       "search_all_providers",
       expect.objectContaining({ wslEnabled: true, query: "hello" })
+    );
+  });
+
+  it("searches WSL when no native Claude path is configured", async () => {
+    const store = createTestStore();
+    seedStore(store, true, [], "");
+
+    await store.getState().searchMessages("hello");
+
+    expect(mockApi).toHaveBeenCalledWith(
+      "search_all_providers",
+      expect.objectContaining({
+        claudePath: undefined,
+        query: "hello",
+        wslEnabled: true,
+      }),
+    );
+  });
+
+  it("keeps native providers separate from WSL providers", async () => {
+    const store = createTestStore();
+    seedStore(store, true, [], "");
+    store.setState({ activeProviders: ["claude", "codex"] });
+
+    await store.getState().searchMessages("hello");
+
+    expect(mockApi).toHaveBeenCalledWith(
+      "search_all_providers",
+      expect.objectContaining({
+        claudePath: undefined,
+        activeProviders: ["claude", "codex"],
+        wslEnabled: true,
+        wslProviders: ["claude"],
+      }),
     );
   });
 

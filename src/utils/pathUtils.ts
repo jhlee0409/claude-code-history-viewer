@@ -14,6 +14,16 @@ export function isAbsolutePath(path: string): boolean {
 }
 
 /**
+ * A project can remain browsable even when its last-known working directory
+ * has been removed (for example, an ephemeral Git worktree).
+ */
+export function isProjectPathUnavailable(project: {
+  path_status?: string;
+} | null | undefined): boolean {
+  return project?.path_status === "unavailable";
+}
+
+/**
  * Detect home directory from paths (infer from /Users/xxx, /home/xxx, or Windows Users paths)
  */
 export function detectHomeDir(paths: string[]): string | null {

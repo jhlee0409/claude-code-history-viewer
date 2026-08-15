@@ -6,20 +6,37 @@
     "main"
   ],
   "permissions": [
-    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:app:allow-version",
     "core:window:allow-start-dragging",
-    "core:webview:allow-set-webview-zoom",
+    "core:window:allow-internal-toggle-maximize",
     "dialog:allow-open",
     "dialog:allow-save",
-    "dialog:default",
     "process:allow-restart",
-    "updater:default",
     "updater:allow-check",
+    "updater:allow-download",
+    "updater:allow-install",
+    "updater:allow-download-and-install",
     "store:allow-load",
     "store:allow-get",
     "store:allow-set",
     "store:allow-save",
     "opener:allow-reveal-item-in-dir",
-    "opener:allow-open-url"
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "http://*"
+        },
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "mailto:*"
+        }
+      ]
+    },
+    "os:allow-locale"
   ]
 }

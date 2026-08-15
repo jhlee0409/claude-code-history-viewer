@@ -83,10 +83,12 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
   );
   const resumableSessions = useMemo(
     () =>
-      selectedSessions.filter((s) =>
-        supportsResumeCommandForSession(s.provider ?? "claude", s.entrypoint)
-      ),
-    [selectedSessions]
+      selectedProject?.path_status === "unavailable"
+        ? []
+        : selectedSessions.filter((s) =>
+            supportsResumeCommandForSession(s.provider ?? "claude", s.entrypoint)
+          ),
+    [selectedProject?.path_status, selectedSessions]
   );
 
   const selectedCount = selectedSessions.length;

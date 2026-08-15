@@ -19,7 +19,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeSession, ContentItem } from "@/types";
-import { getProviderLabel, hasNonDefaultProvider, getProviderBadgeStyle } from "@/utils/providers";
+import {
+    getProviderLabel,
+    getWslSearchableProviderIds,
+    hasNonDefaultProvider,
+    getProviderBadgeStyle,
+} from "@/utils/providers";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -33,6 +38,13 @@ interface GlobalSearchModalProps {
 }
 
 const MAX_RESULTS = 100;
+
+type SearchResultGroup = {
+    label: string;
+    provider?: string;
+    pathUnavailable: boolean;
+    items: GlobalSearchResult[];
+};
 
 export const GlobalSearchModal = ({
     isOpen,
@@ -57,26 +69,37 @@ export const GlobalSearchModal = ({
 
     // Group results by project name
     const groupedResults = useMemo(() => {
-        const groups = new Map<string, { label: string; provider?: string; items: GlobalSearchResult[] }>();
+        const groups = new Map<string, SearchResultGroup>();
 
         for (const result of results) {
             const projectName =
                 result.projectName || t("globalSearch.unknownProject");
+            const resultProvider = result.provider ?? "claude";
+            const matchingProject = projects.find(
+                (project) =>
+                    (project.provider ?? "claude") === resultProvider &&
+                    project.name === projectName
+            );
             const providerLabel = getProviderLabel(
                 (key, fallback) => t(key, fallback),
                 result.provider,
             );
-            const groupKey = `${result.provider ?? "claude"}::${projectName}`;
+            const groupKey = `${resultProvider}::${projectName}`;
             const groupLabel = `${projectName} (${providerLabel})`;
 
             if (!groups.has(groupKey)) {
-                groups.set(groupKey, { label: groupLabel, provider: result.provider, items: [] });
+                groups.set(groupKey, {
+                    label: groupLabel,
+                    provider: result.provider,
+                    pathUnavailable: matchingProject?.path_status === "unavailable",
+                    items: [],
+                });
             }
             groups.get(groupKey)!.items.push(result);
         }
 
         return groups;
-    }, [results, t]);
+    }, [projects, results, t]);
 
     // Flatten grouped results for keyboard navigation
     const flattenedResults = useMemo(() => {
@@ -102,7 +125,15 @@ export const GlobalSearchModal = ({
         async (searchQuery: string) => {
             const trimmedQuery = searchQuery.trim();
 
-            if (!claudePath || trimmedQuery.length < 2) {
+            const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
+            const customClaudePaths = userMetadata?.settings?.customClaudePaths;
+            const hasCustomPaths = (customClaudePaths?.length ?? 0) > 0;
+            const wslEnabled = userMetadata?.settings?.wsl?.enabled ?? false;
+            const hasAlternativeSource = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
+            const nativeClaudePath = claudePath || undefined;
+            const wslProviders = wslEnabled ? getWslSearchableProviderIds(activeProviders) : undefined;
+
+            if (trimmedQuery.length < 2 || (!claudePath && !hasAlternativeSource)) {
                 setResults([]);
                 setIsSearching(false);
                 return;
@@ -119,14 +150,23 @@ export const GlobalSearchModal = ({
                 if (messageTypeFilter !== "all") {
                     filters.messageType = messageTypeFilter;
                 }
-                const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
-                const wslEnabled = userMetadata?.settings?.wsl?.enabled ?? false;
                 const wslExcludedDistros = userMetadata?.settings?.wsl?.excludedDistros ?? [];
+                const useAllProvidersSearch = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
                 const searchResults = await api<GlobalSearchResult[]>(
-                    (hasNonClaudeProviders || wslEnabled) ? "search_all_providers" : "search_messages",
-                    (hasNonClaudeProviders || wslEnabled)
-                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: MAX_RESULTS, wslEnabled, wslExcludedDistros }
-                        : { claudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
+                    useAllProvidersSearch ? "search_all_providers" : "search_messages",
+                    useAllProvidersSearch
+                        ? {
+                              claudePath: nativeClaudePath,
+                              query: trimmedQuery,
+                              activeProviders,
+                              filters,
+                              limit: MAX_RESULTS,
+                              customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
+                              wslEnabled,
+                              wslProviders,
+                              wslExcludedDistros,
+                          }
+                        : { claudePath: nativeClaudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
                 );
                 setResults(searchResults);
                 setSelectedIndex(0);
@@ -173,8 +213,10 @@ export const GlobalSearchModal = ({
                     // a result clicked while in analytics/tokenStats/etc. loads the
                     // session but stays hidden behind the other view (issue #390).
                     setAnalyticsCurrentView("messages");
-                    if (result.uuid) navigateToMessage(result.uuid);
                     await selectSession(targetSession);
+                    if (result.uuid) {
+                        navigateToMessage(result.uuid, { history: "replace" });
+                    }
                     onClose();
                     return;
                 }
@@ -243,9 +285,11 @@ export const GlobalSearchModal = ({
                     if (token !== resolveTokenRef.current) return; // cancelled
                     if (found) {
                         setAnalyticsCurrentView("messages");
-                        if (result.uuid) navigateToMessage(result.uuid);
                         await selectProject(found.project);
                         await selectSession(found.session);
+                        if (result.uuid) {
+                            navigateToMessage(result.uuid, { history: "replace" });
+                        }
                         onClose();
                         return;
                     }
@@ -594,6 +638,17 @@ export const GlobalSearchModal = ({
                                                     )}
                                                 >
                                                     {getProviderLabel((key, fallback) => t(key, fallback), group.provider)}
+                                                </Badge>
+                                            )}
+                                            {group.pathUnavailable && (
+                                                <Badge
+                                                    size="sm"
+                                                    className="rounded px-1 py-0 text-2xs bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                                    title={t("project.pathUnavailableDescription", {
+                                                        defaultValue: "Last-known location is unavailable",
+                                                    })}
+                                                >
+                                                    {t("project.pathUnavailable", "Location unavailable")}
                                                 </Badge>
                                             )}
                                             <span className="truncate">{group.label}</span>

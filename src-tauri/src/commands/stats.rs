@@ -27,9 +27,14 @@ enum StatsProvider {
     Codex,
     ForgeCode,
     OpenCode,
+    Grok,
     Kimi,
     Antigravity,
     Copilot,
+    Ompi,
+    Pi,
+    Gemini,
+    Cursor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,9 +70,14 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Codex => "codex",
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
+        StatsProvider::Grok => "grok",
         StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::Copilot => "copilot",
+        StatsProvider::Ompi => "ompi",
+        StatsProvider::Pi => "pi",
+        StatsProvider::Gemini => "gemini",
+        StatsProvider::Cursor => "cursor",
     }
 }
 
@@ -221,9 +231,14 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Codex,
         StatsProvider::ForgeCode,
         StatsProvider::OpenCode,
+        StatsProvider::Grok,
         StatsProvider::Kimi,
         StatsProvider::Antigravity,
         StatsProvider::Copilot,
+        StatsProvider::Ompi,
+        StatsProvider::Pi,
+        StatsProvider::Gemini,
+        StatsProvider::Cursor,
     ]
     .into_iter()
     .collect()
@@ -244,9 +259,14 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "codex" => Some(StatsProvider::Codex),
             "forgecode" => Some(StatsProvider::ForgeCode),
             "opencode" => Some(StatsProvider::OpenCode),
+            "grok" => Some(StatsProvider::Grok),
             "kimi" => Some(StatsProvider::Kimi),
             "antigravity" => Some(StatsProvider::Antigravity),
             "copilot" => Some(StatsProvider::Copilot),
+            "ompi" => Some(StatsProvider::Ompi),
+            "pi" => Some(StatsProvider::Pi),
+            "gemini" => Some(StatsProvider::Gemini),
+            "cursor" => Some(StatsProvider::Cursor),
             _ => {
                 unknown.push(provider);
                 None
@@ -272,10 +292,20 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::ForgeCode
     } else if project_path.starts_with("opencode://") {
         StatsProvider::OpenCode
+    } else if project_path.starts_with("grok://") {
+        StatsProvider::Grok
     } else if project_path.starts_with("kimi://") {
         StatsProvider::Kimi
+    } else if project_path.starts_with("gemini://") {
+        StatsProvider::Gemini
+    } else if project_path.starts_with("cursor://") {
+        StatsProvider::Cursor
     } else if is_antigravity_path(project_path) {
         StatsProvider::Antigravity
+    } else if is_ompi_path(project_path) {
+        StatsProvider::Ompi
+    } else if is_pi_path(project_path) {
+        StatsProvider::Pi
     } else if is_codebuddy_path(project_path) {
         StatsProvider::Codebuddy
     } else if project_path.starts_with("copilot://")
@@ -295,12 +325,32 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
         return StatsProvider::OpenCode;
     }
 
+    if session_path.starts_with("cursor://") {
+        return StatsProvider::Cursor;
+    }
+
+    if is_grok_path(session_path) {
+        return StatsProvider::Grok;
+    }
+
     if is_kimi_path(session_path) {
         return StatsProvider::Kimi;
     }
 
     if is_antigravity_path(session_path) {
         return StatsProvider::Antigravity;
+    }
+
+    if is_gemini_path(session_path) {
+        return StatsProvider::Gemini;
+    }
+
+    if is_ompi_path(session_path) {
+        return StatsProvider::Ompi;
+    }
+
+    if is_pi_path(session_path) {
+        return StatsProvider::Pi;
     }
 
     if session_path.starts_with("forgecode://") || session_path.starts_with("forgecode-db://") {
@@ -392,6 +442,99 @@ fn is_kimi_path(path: &str) -> bool {
     providers::kimi::get_base_path()
         .map(|root| Path::new(path).starts_with(root))
         .unwrap_or(false)
+}
+
+/// Whether `path` lies under the oh-my-pi sessions store root
+/// (`~/.omp/agent/sessions/`). Anchored detection avoids false positives
+/// from arbitrary substrings (e.g. `/work/foo.omp-agent-test`).
+fn is_ompi_path(path: &str) -> bool {
+    let Some(home) = dirs::home_dir() else {
+        return false;
+    };
+    is_ompi_path_under(path, &home)
+}
+
+/// Implementation of [`is_ompi_path`] parameterized by the home dir, so
+/// tests can drive the anchored check with a fixed home.
+fn is_ompi_path_under(path: &str, home: &Path) -> bool {
+    let root = home.join(".omp").join("agent").join("sessions");
+    Path::new(path).starts_with(root)
+}
+
+/// Whether `path` lies under the Pi sessions store root
+/// (`~/.pi/agent/sessions/`).
+fn is_pi_path(path: &str) -> bool {
+    let Some(home) = dirs::home_dir() else {
+        return false;
+    };
+    is_pi_path_under(path, &home)
+}
+
+/// Implementation of [`is_pi_path`] parameterized by the home dir, so
+/// tests can drive the anchored check with a fixed home.
+fn is_pi_path_under(path: &str, home: &Path) -> bool {
+    let root = home.join(".pi").join("agent").join("sessions");
+    Path::new(path).starts_with(root)
+}
+
+/// Whether `path` lies under the Gemini CLI sessions root
+/// (`<base>/tmp/` — the directory that holds per-project `chats/` dirs).
+/// Anchored on the `tmp` subtree (not the whole `~/.gemini`) so paths under
+/// other Gemini sub-trees (e.g. the Antigravity store at `~/.gemini/antigravity`)
+/// are not misrouted to the Gemini provider.
+fn path_from_current_dir(path: PathBuf) -> PathBuf {
+    if path.is_absolute() {
+        path
+    } else {
+        std::env::current_dir()
+            .map(|current_dir| current_dir.join(&path))
+            .unwrap_or(path)
+    }
+}
+
+fn is_gemini_path(path: &str) -> bool {
+    providers::gemini::get_base_path()
+        .map(|root| {
+            path_from_current_dir(PathBuf::from(path))
+                .starts_with(path_from_current_dir(PathBuf::from(root).join("tmp")))
+        })
+        .unwrap_or(false)
+}
+
+fn is_grok_path(path: &str) -> bool {
+    providers::grok::get_base_path()
+        .map(|root| Path::new(path).starts_with(root))
+        .unwrap_or(false)
+}
+
+fn grok_virtual_paths_match(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let left_path = left.strip_prefix("grok://").unwrap_or(left);
+    let right_path = right.strip_prefix("grok://").unwrap_or(right);
+    match (
+        Path::new(left_path).canonicalize(),
+        Path::new(right_path).canonicalize(),
+    ) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
+fn cursor_virtual_paths_match(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let left_path = left.strip_prefix("cursor://").unwrap_or(left);
+    let right_path = right.strip_prefix("cursor://").unwrap_or(right);
+    match (
+        Path::new(left_path).canonicalize(),
+        Path::new(right_path).canonicalize(),
+    ) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 /// Parse a line using simd-json (requires mutable slice)
@@ -966,6 +1109,32 @@ fn collect_provider_global_file_stats(
 ) -> (Vec<SessionFileStats>, HashSet<String>) {
     let mut project_keys = HashSet::new();
 
+    if provider == StatsProvider::Cursor {
+        let Ok(sessions) = providers::cursor::collect_global_stats_sessions() else {
+            return (Vec::new(), project_keys);
+        };
+        let mut all_stats = Vec::with_capacity(sessions.len());
+        for (project_display_name, messages) in sessions {
+            project_keys.insert(format!(
+                "cursor:{}",
+                project_display_name
+                    .strip_suffix(" [cursor]")
+                    .unwrap_or(&project_display_name)
+            ));
+            if let Some(stats) = build_global_session_file_stats_from_messages(
+                StatsProvider::Cursor,
+                project_display_name,
+                &messages,
+                mode,
+                s_limit,
+                e_limit,
+            ) {
+                all_stats.push(stats);
+            }
+        }
+        return (all_stats, project_keys);
+    }
+
     if provider == StatsProvider::Antigravity {
         // Use the resolver that honors the external-state override so an
         // external Antigravity root contributes to the global summary
@@ -1103,22 +1272,18 @@ fn collect_provider_global_file_stats(
         StatsProvider::Codex => providers::codex::scan_projects().unwrap_or_default(),
         StatsProvider::ForgeCode => providers::forgecode::scan_projects().unwrap_or_default(),
         StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
+        StatsProvider::Grok => providers::grok::scan_projects().unwrap_or_default(),
         StatsProvider::Kimi => providers::kimi::scan_projects().unwrap_or_default(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
         StatsProvider::Copilot => providers::copilot::scan_projects().unwrap_or_default(),
+        StatsProvider::Ompi => providers::ompi::scan_projects().unwrap_or_default(),
+        StatsProvider::Pi => providers::pi::scan_projects().unwrap_or_default(),
+        StatsProvider::Gemini => providers::gemini::scan_projects().unwrap_or_default(),
+        StatsProvider::Cursor => providers::cursor::scan_projects().unwrap_or_default(),
         StatsProvider::Claude => Vec::new(),
     };
 
-    let provider_tag = match provider {
-        StatsProvider::Codebuddy => "codebuddy",
-        StatsProvider::Codex => "codex",
-        StatsProvider::ForgeCode => "forgecode",
-        StatsProvider::OpenCode => "opencode",
-        StatsProvider::Kimi => "kimi",
-        StatsProvider::Antigravity => "antigravity",
-        StatsProvider::Copilot => "copilot",
-        StatsProvider::Claude => "claude",
-    };
+    let provider_tag = stats_provider_id(provider);
 
     // Collect all (project_display_name, session_file_path) pairs first
     let mut session_tasks: Vec<(String, String)> = Vec::new();
@@ -1132,11 +1297,16 @@ fn collect_provider_global_file_stats(
             StatsProvider::Codex => providers::codex::load_sessions(&project.path, false),
             StatsProvider::ForgeCode => providers::forgecode::load_sessions(&project.path, false),
             StatsProvider::OpenCode => providers::opencode::load_sessions(&project.path, false),
+            StatsProvider::Grok => providers::grok::load_sessions(&project.path, false),
             StatsProvider::Kimi => providers::kimi::load_sessions(&project.path, false),
             StatsProvider::Antigravity => {
                 providers::antigravity::load_sessions(&project.path, false)
             }
             StatsProvider::Copilot => providers::copilot::load_sessions(&project.path, false),
+            StatsProvider::Ompi => providers::ompi::load_sessions(&project.path, false),
+            StatsProvider::Pi => providers::pi::load_sessions(&project.path, false),
+            StatsProvider::Gemini => providers::gemini::load_sessions(&project.path, false),
+            StatsProvider::Cursor => providers::cursor::load_sessions(&project.path, false),
             StatsProvider::Claude => Ok(Vec::new()),
         }
         .unwrap_or_default();
@@ -1155,9 +1325,14 @@ fn collect_provider_global_file_stats(
                 StatsProvider::Codex => providers::codex::load_messages(file_path),
                 StatsProvider::ForgeCode => providers::forgecode::load_messages(file_path),
                 StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
+                StatsProvider::Grok => providers::grok::load_messages(file_path),
                 StatsProvider::Kimi => providers::kimi::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
                 StatsProvider::Copilot => providers::copilot::load_messages(file_path),
+                StatsProvider::Ompi => providers::ompi::load_messages(file_path),
+                StatsProvider::Pi => providers::pi::load_messages(file_path),
+                StatsProvider::Gemini => providers::gemini::load_messages(file_path),
+                StatsProvider::Cursor => providers::cursor::load_stats_messages(file_path),
                 StatsProvider::Claude => Ok(Vec::new()),
             }
             .unwrap_or_default();
@@ -1879,6 +2054,32 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 .unwrap_or(project_path)
                 .to_string()
         }
+        StatsProvider::Grok => {
+            if let Ok(projects) = providers::grok::scan_projects() {
+                if let Some(project) = projects
+                    .into_iter()
+                    .find(|p| grok_virtual_paths_match(&p.path, project_path))
+                {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("grok://")
+                .and_then(|p| {
+                    PathBuf::from(p).file_name().map(|n| {
+                        let encoded = n.to_string_lossy().to_string();
+                        let decoded = urlencoding::decode(&encoded)
+                            .map(std::borrow::Cow::into_owned)
+                            .unwrap_or_else(|_| encoded.clone());
+                        Path::new(&decoded)
+                            .file_name()
+                            .map(|name| name.to_string_lossy().to_string())
+                            .filter(|name| !name.is_empty())
+                            .unwrap_or(encoded)
+                    })
+                })
+                .unwrap_or_else(|| project_path.to_string())
+        }
         StatsProvider::Kimi => {
             if let Ok(projects) = providers::kimi::scan_projects() {
                 if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
@@ -1911,6 +2112,57 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                     .map(|project| project.name)
             })
             .unwrap_or_else(|| "Copilot".to_string()),
+        StatsProvider::Ompi | StatsProvider::Pi => {
+            if let Ok(projects) = match provider {
+                StatsProvider::Ompi => providers::ompi::scan_projects(),
+                _ => providers::pi::scan_projects(),
+            } {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            PathBuf::from(project_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown")
+                .to_string()
+        }
+        StatsProvider::Gemini => {
+            if let Ok(projects) = providers::gemini::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("gemini://")
+                .and_then(|p| {
+                    PathBuf::from(p)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                })
+                .unwrap_or_else(|| "Gemini".to_string())
+        }
+        StatsProvider::Cursor => {
+            if let Ok(projects) = providers::cursor::scan_projects() {
+                if let Some(project) = projects
+                    .into_iter()
+                    .find(|p| cursor_virtual_paths_match(&p.path, project_path))
+                {
+                    return project.name;
+                }
+            }
+            if let Some(name) = providers::cursor::display_name_for_project_path(project_path) {
+                return name;
+            }
+            project_path
+                .strip_prefix("cursor://")
+                .and_then(|p| {
+                    PathBuf::from(p)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                })
+                .unwrap_or_else(|| "Cursor".to_string())
+        }
     }
 }
 
@@ -1962,6 +2214,13 @@ fn resolve_provider_project_name_from_session(
             }
             "codex".to_string()
         }
+        StatsProvider::Grok => {
+            if let Some(project_dir) = Path::new(session_path).parent() {
+                let project_path = format!("grok://{}", project_dir.to_string_lossy());
+                return resolve_provider_project_name(provider, &project_path);
+            }
+            "grok".to_string()
+        }
         StatsProvider::Kimi => {
             if let Some(project_dir) = Path::new(session_path).parent() {
                 let project_path = format!("kimi://{}", project_dir.to_string_lossy());
@@ -1982,6 +2241,54 @@ fn resolve_provider_project_name_from_session(
             }
             "Copilot".to_string()
         }
+        StatsProvider::Ompi => {
+            if let Ok(projects) = providers::ompi::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::ompi::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "oh-my-pi".to_string()
+        }
+        StatsProvider::Pi => {
+            if let Ok(projects) = providers::pi::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::pi::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "Pi".to_string()
+        }
+        StatsProvider::Gemini => {
+            if let Ok(projects) = providers::gemini::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::gemini::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "Gemini".to_string()
+        }
+        StatsProvider::Cursor => {
+            if let Ok(projects) = providers::cursor::scan_projects() {
+                for project in projects {
+                    if let Ok(sessions) = providers::cursor::load_sessions(&project.path, false) {
+                        if sessions.iter().any(|s| s.file_path == session_path) {
+                            return project.name;
+                        }
+                    }
+                }
+            }
+            "Cursor".to_string()
+        }
         StatsProvider::Claude => "unknown".to_string(),
     }
 }
@@ -1996,9 +2303,14 @@ fn load_provider_sessions_for_stats(
         StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
         StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
+        StatsProvider::Grok => providers::grok::load_sessions(project_path, false),
         StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
         StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
+        StatsProvider::Ompi => providers::ompi::load_sessions(project_path, false),
+        StatsProvider::Pi => providers::pi::load_sessions(project_path, false),
+        StatsProvider::Gemini => providers::gemini::load_sessions(project_path, false),
+        StatsProvider::Cursor => providers::cursor::load_sessions(project_path, false),
         StatsProvider::Claude => {
             Err("Claude sessions are handled by legacy stats path".to_string())
         }
@@ -2015,9 +2327,14 @@ fn load_provider_messages_for_stats(
         StatsProvider::Codex => providers::codex::load_messages(&session.file_path),
         StatsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path),
         StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
+        StatsProvider::Grok => providers::grok::load_messages(&session.file_path),
         StatsProvider::Kimi => providers::kimi::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
         StatsProvider::Copilot => providers::copilot::load_messages(&session.file_path),
+        StatsProvider::Ompi => providers::ompi::load_messages(&session.file_path),
+        StatsProvider::Pi => providers::pi::load_messages(&session.file_path),
+        StatsProvider::Gemini => providers::gemini::load_messages(&session.file_path),
+        StatsProvider::Cursor => providers::cursor::load_stats_messages(&session.file_path),
         StatsProvider::Claude => {
             Err("Claude messages are handled by legacy stats path".to_string())
         }
@@ -2762,9 +3079,14 @@ pub async fn get_session_token_stats(
             StatsProvider::Codex => providers::codex::load_messages(&session_path)?,
             StatsProvider::ForgeCode => providers::forgecode::load_messages(&session_path)?,
             StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
+            StatsProvider::Grok => providers::grok::load_messages(&session_path)?,
             StatsProvider::Kimi => providers::kimi::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
             StatsProvider::Copilot => providers::copilot::load_messages(&session_path)?,
+            StatsProvider::Ompi => providers::ompi::load_messages(&session_path)?,
+            StatsProvider::Pi => providers::pi::load_messages(&session_path)?,
+            StatsProvider::Gemini => providers::gemini::load_messages(&session_path)?,
+            StatsProvider::Cursor => providers::cursor::load_stats_messages(&session_path)?,
             StatsProvider::Claude => Vec::new(),
         };
 
@@ -3714,6 +4036,20 @@ pub async fn get_global_stats_summary(
         file_stats.extend(opencode_stats);
     }
 
+    if providers_to_include.contains(&StatsProvider::Grok) {
+        let (grok_stats, grok_projects) =
+            collect_provider_global_file_stats(StatsProvider::Grok, mode, s_ref, e_ref);
+        project_names.extend(grok_projects);
+        file_stats.extend(grok_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Cursor) {
+        let (cursor_stats, cursor_projects) =
+            collect_provider_global_file_stats(StatsProvider::Cursor, mode, s_ref, e_ref);
+        project_names.extend(cursor_projects);
+        file_stats.extend(cursor_stats);
+    }
+
     if providers_to_include.contains(&StatsProvider::Kimi) {
         let (kimi_stats, kimi_projects) =
             collect_provider_global_file_stats(StatsProvider::Kimi, mode, s_ref, e_ref);
@@ -3726,6 +4062,34 @@ pub async fn get_global_stats_summary(
             collect_provider_global_file_stats(StatsProvider::Antigravity, mode, s_ref, e_ref);
         project_names.extend(antigravity_projects);
         file_stats.extend(antigravity_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Copilot) {
+        let (copilot_stats, copilot_projects) =
+            collect_provider_global_file_stats(StatsProvider::Copilot, mode, s_ref, e_ref);
+        project_names.extend(copilot_projects);
+        file_stats.extend(copilot_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Ompi) {
+        let (ompi_stats, ompi_projects) =
+            collect_provider_global_file_stats(StatsProvider::Ompi, mode, s_ref, e_ref);
+        project_names.extend(ompi_projects);
+        file_stats.extend(ompi_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Pi) {
+        let (pi_stats, pi_projects) =
+            collect_provider_global_file_stats(StatsProvider::Pi, mode, s_ref, e_ref);
+        project_names.extend(pi_projects);
+        file_stats.extend(pi_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Gemini) {
+        let (gemini_stats, gemini_projects) =
+            collect_provider_global_file_stats(StatsProvider::Gemini, mode, s_ref, e_ref);
+        project_names.extend(gemini_projects);
+        file_stats.extend(gemini_stats);
     }
 
     // When date filtering is active, exclude sessions that ended up with zero messages
@@ -4609,6 +4973,16 @@ mod tests {
             StatsProvider::OpenCode
         );
         assert_eq!(
+            detect_project_provider("grok:///Users/jack/.grok/sessions/%2FUsers%2Fjack%2Frepo"),
+            StatsProvider::Grok
+        );
+        assert_eq!(
+            detect_project_provider(
+                "cursor:///Users/jack/Library/Application Support/Cursor/User/workspaceStorage/hash"
+            ),
+            StatsProvider::Cursor
+        );
+        assert_eq!(
             detect_project_provider("kimi:///Users/jack/.kimi/sessions/project-hash"),
             StatsProvider::Kimi
         );
@@ -4663,6 +5037,19 @@ mod tests {
             detect_session_provider("opencode://project/ses_abc"),
             StatsProvider::OpenCode
         );
+        assert_eq!(
+            detect_session_provider("cursor://composer-id-abc"),
+            StatsProvider::Cursor
+        );
+        if let Some(root) = providers::grok::get_base_path() {
+            let grok_session = PathBuf::from(root)
+                .join("sessions")
+                .join("%2FUsers%2Fjack%2Frepo")
+                .join("session-id")
+                .to_string_lossy()
+                .to_string();
+            assert_eq!(detect_session_provider(&grok_session), StatsProvider::Grok);
+        }
         if let Some(root) = providers::kimi::get_base_path() {
             let kimi_session = PathBuf::from(root)
                 .join("sessions")
@@ -4736,9 +5123,11 @@ mod tests {
         assert!(providers.contains(&StatsProvider::Codex));
         assert!(providers.contains(&StatsProvider::ForgeCode));
         assert!(providers.contains(&StatsProvider::OpenCode));
+        assert!(providers.contains(&StatsProvider::Grok));
         assert!(providers.contains(&StatsProvider::Kimi));
         assert!(providers.contains(&StatsProvider::Antigravity));
         assert!(providers.contains(&StatsProvider::Copilot));
+        assert!(providers.contains(&StatsProvider::Cursor));
     }
 
     #[test]
@@ -4770,6 +5159,22 @@ mod tests {
         let providers = parse_active_stats_providers(Some(vec!["forgecode".to_string()]));
         assert_eq!(providers.len(), 1);
         assert!(providers.contains(&StatsProvider::ForgeCode));
+    }
+
+    #[test]
+    /// Verify parse active stats providers supports Grok.
+    fn test_parse_active_stats_providers_supports_grok() {
+        let providers = parse_active_stats_providers(Some(vec!["grok".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Grok));
+    }
+
+    #[test]
+    /// Verify parse active stats providers supports Cursor.
+    fn test_parse_active_stats_providers_supports_cursor() {
+        let providers = parse_active_stats_providers(Some(vec!["cursor".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Cursor));
     }
 
     #[test]
@@ -4869,6 +5274,240 @@ mod tests {
             false,
             StatsMode::BillingTotal
         ));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn get_project_stats_summary_accepts_grok_virtual_path() {
+        let temp = TempDir::new().expect("temp dir");
+        let encoded = "%2FUsers%2Ftest%2Fdemo";
+        let session_id = "019fa555-791c-71e2-8c92-ff2e6fa26d6e";
+        let project_dir = temp.path().join("sessions").join(encoded);
+        let session_dir = project_dir.join(session_id);
+        fs::create_dir_all(&session_dir).unwrap();
+
+        fs::write(
+            session_dir.join("summary.json"),
+            serde_json::json!({
+                "info": { "id": session_id, "cwd": "/Users/test/demo" },
+                "generated_title": "Demo",
+                "created_at": "2026-07-27T20:47:50Z",
+                "updated_at": "2026-07-27T21:11:25Z",
+                "num_chat_messages": 2,
+                "current_model_id": "grok-4.5"
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            session_dir.join("chat_history.jsonl"),
+            r#"{"type":"user","content":"hello"}
+{"type":"assistant","content":"hi","model_id":"grok-4.5"}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            session_dir.join("signals.json"),
+            serde_json::json!({
+                "contextTokensUsed": 42,
+                "primaryModelId": "grok-4.5",
+                "toolCallCount": 0
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let _env = EnvVarGuard::set("GROK_HOME", temp.path());
+        let project_path = format!("grok://{}", project_dir.to_string_lossy());
+
+        assert_eq!(detect_project_provider(&project_path), StatsProvider::Grok);
+
+        let summary = get_project_stats_summary(project_path.clone(), None, None, None)
+            .await
+            .expect("grok virtual project path should load stats");
+        assert_eq!(summary.project_name, "demo");
+        assert!(summary.total_sessions >= 1);
+        assert!(summary.total_messages >= 1);
+        assert_eq!(summary.total_tokens, 42);
+
+        let global = get_global_stats_summary(
+            "/tmp".to_string(),
+            Some(vec!["grok".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("grok should contribute to global stats");
+        assert!(
+            global
+                .provider_distribution
+                .iter()
+                .any(|provider| provider.provider_id == "grok" && provider.tokens >= 42),
+            "expected grok in provider_distribution: {:?}",
+            global.provider_distribution
+        );
+        assert!(
+            global
+                .model_distribution
+                .iter()
+                .any(|model| model.model_name.contains("grok") && model.token_count >= 42),
+            "expected grok model in model_distribution: {:?}",
+            global.model_distribution
+        );
+        assert!(
+            global
+                .top_projects
+                .iter()
+                .any(|project| project.project_name.contains("demo")),
+            "expected grok project in top_projects: {:?}",
+            global.top_projects
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn get_project_stats_summary_accepts_cursor_virtual_path() {
+        let temp = TempDir::new().expect("temp dir");
+        let user_dir = temp.path().join("Cursor").join("User");
+        let ws_path = user_dir.join("workspaceStorage").join("hash-demo");
+        fs::create_dir_all(&ws_path).unwrap();
+        fs::create_dir_all(user_dir.join("globalStorage")).unwrap();
+
+        fs::write(
+            ws_path.join("workspace.json"),
+            r#"{"folder":"file:///Users/test/demo"}"#,
+        )
+        .unwrap();
+
+        let ws_conn = rusqlite::Connection::open(ws_path.join("state.vscdb")).unwrap();
+        ws_conn
+            .execute(
+                "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+                [],
+            )
+            .unwrap();
+        let composers = json!({
+            "allComposers": [{
+                "composerId": "comp-demo",
+                "name": "Demo chat",
+                "createdAt": 1_700_000_000_000u64,
+                "lastUpdatedAt": 1_700_000_100_000u64,
+                "isArchived": false,
+                "unifiedMode": "agent"
+            }]
+        })
+        .to_string();
+        ws_conn
+            .execute(
+                "INSERT INTO ItemTable (key, value) VALUES ('composer.composerData', ?1)",
+                [&composers],
+            )
+            .unwrap();
+
+        let global_conn =
+            rusqlite::Connection::open(user_dir.join("globalStorage").join("state.vscdb")).unwrap();
+        global_conn
+            .execute(
+                "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value TEXT)",
+                [],
+            )
+            .unwrap();
+        let composer_data = json!({
+            "fullConversationHeadersOnly": [
+                { "bubbleId": "b1", "type": 1 },
+                { "bubbleId": "b2", "type": 2 }
+            ],
+            "promptTokenBreakdown": { "totalUsedTokens": 4200 }
+        })
+        .to_string();
+        global_conn
+            .execute(
+                "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+                rusqlite::params!["composerData:comp-demo", composer_data],
+            )
+            .unwrap();
+        global_conn
+            .execute(
+                "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+                rusqlite::params![
+                    "bubbleId:comp-demo:b1",
+                    json!({
+                        "bubbleId": "b1",
+                        "type": 1,
+                        "text": "hello cursor",
+                        "createdAt": "2026-07-27T20:00:00Z"
+                    })
+                    .to_string()
+                ],
+            )
+            .unwrap();
+        global_conn
+            .execute(
+                "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+                rusqlite::params![
+                    "bubbleId:comp-demo:b2",
+                    json!({
+                        "bubbleId": "b2",
+                        "type": 2,
+                        "text": "hi from composer",
+                        "createdAt": "2026-07-27T20:01:00Z"
+                    })
+                    .to_string()
+                ],
+            )
+            .unwrap();
+
+        let _env = EnvVarGuard::set("CURSOR_USER_DIR", &user_dir);
+        let project_path = format!("cursor://{}", ws_path.to_string_lossy());
+
+        assert_eq!(
+            detect_project_provider(&project_path),
+            StatsProvider::Cursor
+        );
+
+        let summary = get_project_stats_summary(project_path.clone(), None, None, None)
+            .await
+            .expect("cursor virtual project path should load stats");
+        assert_eq!(summary.project_name, "demo");
+        assert!(summary.total_sessions >= 1);
+        assert!(summary.total_messages >= 1);
+
+        let global = get_global_stats_summary(
+            "/tmp".to_string(),
+            Some(vec!["cursor".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("cursor should contribute to global stats");
+        assert!(
+            global
+                .provider_distribution
+                .iter()
+                .any(|provider| provider.provider_id == "cursor" && provider.sessions >= 1),
+            "expected cursor in provider_distribution: {:?}",
+            global.provider_distribution
+        );
+        assert!(
+            global
+                .model_distribution
+                .iter()
+                .any(|model| model.model_name == "cursor" && model.token_count >= 4200),
+            "expected cursor in model_distribution: {:?}",
+            global.model_distribution
+        );
+        assert!(
+            global
+                .provider_distribution
+                .iter()
+                .any(|provider| provider.provider_id == "cursor" && provider.tokens >= 4200),
+            "expected cursor tokens in provider_distribution: {:?}",
+            global.provider_distribution
+        );
     }
 
     #[test]
@@ -6338,5 +6977,154 @@ mod tests {
             is_codebuddy_path_under(real.to_string_lossy().as_ref(), home),
             "anchored detection must accept ~/.codebuddy/projects/.../*.jsonl"
         );
+    }
+
+    /// `oh-my-pi` provider detection must be anchored under
+    /// `~/.omp/agent/sessions`, not a substring match, so lookalike paths
+    /// (e.g. `/work/foo.omp-agent-test`) do not get routed to the ompi
+    /// loader.
+    #[test]
+    fn is_ompi_path_rejects_substring_lookalikes() {
+        let home = Path::new("/test-home/user");
+        assert!(
+            !is_ompi_path_under("/work/foo.omp-agent-test/abc.jsonl", home),
+            "name suffix lookalike must not match"
+        );
+        assert!(
+            !is_ompi_path_under("/Users/dev/notes/.omp-clone/data.jsonl", home),
+            "hidden-dir lookalike must not match"
+        );
+        assert!(
+            !is_ompi_path_under("/tmp/sample.omp.jsonl", home),
+            "filename containing the substring must not match"
+        );
+    }
+
+    /// Real-shaped oh-my-pi / Pi paths must be detected. Mirrors the runtime
+    /// layout: `~/.omp/agent/sessions/<escaped-cwd>/<session>.jsonl`.
+    #[test]
+    fn is_ompi_path_accepts_real_layout() {
+        let home = Path::new("/test-home/user");
+        let real = home
+            .join(".omp")
+            .join("agent")
+            .join("sessions")
+            .join("--Users-justin--")
+            .join("2026-08-01T00-00-00-000Z_019f0000-0000-7000-0000-000000000000.jsonl");
+        assert!(
+            is_ompi_path_under(real.to_string_lossy().as_ref(), home),
+            "anchored detection must accept ~/.omp/agent/sessions/.../*.jsonl"
+        );
+        assert!(
+            is_pi_path_under(
+                home.join(".pi")
+                    .join("agent")
+                    .join("sessions")
+                    .join("proj")
+                    .join("s.jsonl")
+                    .to_string_lossy()
+                    .as_ref(),
+                home
+            ),
+            "anchored detection must accept ~/.pi/agent/sessions/.../*.jsonl"
+        );
+    }
+
+    /// `parse_active_stats_providers` must accept the ompi/pi/gemini ids that
+    /// the frontend sends after the user selects those provider tabs,
+    /// instead of silently dropping them (which zeroed all stats).
+    #[test]
+    fn parse_active_stats_providers_accepts_ompi_pi_gemini() {
+        let parsed = parse_active_stats_providers(Some(vec![
+            "ompi".to_string(),
+            "pi".to_string(),
+            "gemini".to_string(),
+            "codex".to_string(),
+        ]));
+        assert!(parsed.contains(&StatsProvider::Ompi));
+        assert!(parsed.contains(&StatsProvider::Pi));
+        assert!(parsed.contains(&StatsProvider::Gemini));
+        assert!(parsed.contains(&StatsProvider::Codex));
+        assert_eq!(parsed.len(), 4);
+    }
+
+    /// `detect_project_provider` must route gemini virtual project keys and
+    /// ompi/pi on-disk project dirs to their own providers (not Claude).
+    /// Uses an injected HOME so the assertion is meaningful regardless of
+    /// the runner's environment.
+    #[test]
+    #[serial]
+    fn detect_project_provider_routes_new_providers() {
+        let temp = TempDir::new().expect("tempdir");
+        let _guard = EnvVarGuard::set("HOME", temp.path());
+        let home = temp.path().to_string_lossy().to_string();
+
+        let ompi_proj = format!("{home}/.omp/agent/sessions/-tmp");
+        let pi_proj = format!("{home}/.pi/agent/sessions/-tmp");
+        let claude_proj = format!("{home}/.claude/projects/-Users-justin");
+
+        assert_eq!(
+            detect_project_provider(&format!("gemini://{home}/.gemini/tmp/proj-a")),
+            StatsProvider::Gemini
+        );
+        assert_eq!(detect_project_provider(&ompi_proj), StatsProvider::Ompi);
+        assert_eq!(detect_project_provider(&pi_proj), StatsProvider::Pi);
+        assert_eq!(detect_project_provider(&claude_proj), StatsProvider::Claude);
+    }
+
+    /// `detect_session_provider` must route ompi/pi/gemini session files to
+    /// their own providers (not Claude), so token stats stop reporting
+    /// "No valid messages found in session". Uses an injected HOME so the
+    /// assertion is meaningful regardless of the runner's environment.
+    #[test]
+    #[serial]
+    fn detect_session_provider_routes_new_providers() {
+        let temp = TempDir::new().expect("tempdir");
+        let _guard = EnvVarGuard::set("HOME", temp.path());
+        let gemini_home = TempDir::new_in(".").expect("relative Gemini home");
+        let _gemini_guard = EnvVarGuard::set("GEMINI_HOME", gemini_home.path());
+        let gemini_home_absolute = fs::canonicalize(gemini_home.path()).expect("Gemini home");
+        let home = temp.path().to_string_lossy().to_string();
+
+        assert_eq!(
+            detect_session_provider(&format!(
+                "{home}/.omp/agent/sessions/-tmp/2026-08-01T00-00-00-000Z_x.jsonl"
+            )),
+            StatsProvider::Ompi
+        );
+        assert_eq!(
+            detect_session_provider(&format!(
+                "{home}/.pi/agent/sessions/-tmp/2026-08-01T00-00-00-000Z_x.jsonl"
+            )),
+            StatsProvider::Pi
+        );
+        assert_eq!(
+            detect_session_provider(
+                &gemini_home_absolute
+                    .join("tmp/abcd/chats/chat-1.jsonl")
+                    .to_string_lossy(),
+            ),
+            StatsProvider::Gemini
+        );
+        // A codex rollout still routes to Codex.
+        assert_eq!(
+            detect_session_provider(&format!("{home}/.codex/sessions/2026/rollout-x.jsonl")),
+            StatsProvider::Codex
+        );
+        // Claude files still route to Claude.
+        assert_eq!(
+            detect_session_provider(&format!("{home}/.claude/projects/-u/s.jsonl")),
+            StatsProvider::Claude
+        );
+    }
+
+    /// Provider ids emitted by `stats_provider_id` match the ids the frontend
+    /// sends in `active_providers` for the new providers.
+    #[test]
+    fn stats_provider_id_matches_frontend_ids() {
+        assert_eq!(stats_provider_id(StatsProvider::Ompi), "ompi");
+        assert_eq!(stats_provider_id(StatsProvider::Pi), "pi");
+        assert_eq!(stats_provider_id(StatsProvider::Gemini), "gemini");
+        assert_eq!(stats_provider_id(StatsProvider::Claude), "claude");
     }
 }

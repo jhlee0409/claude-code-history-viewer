@@ -14,8 +14,9 @@ const PROVIDER_COLORS: Record<string, string> = {
   claude: "var(--metric-amber)",
   cline: "var(--metric-teal)",
   codex: "var(--metric-green)",
-  cursor: "var(--metric-cyan)",
+  cursor: "#f54e00",
   gemini: "var(--metric-purple)",
+  grok: "var(--metric-red)",
   opencode: "var(--metric-blue)",
 };
 
@@ -23,9 +24,19 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
   providers,
 }) => {
   const { t } = useTranslation();
-  const sortedProviders = [...providers].sort((a, b) => b.tokens - a.tokens);
+  const sortedProviders = [...providers].sort(
+    (a, b) => b.tokens - a.tokens || b.sessions - a.sessions
+  );
   const totalTokens = sortedProviders.reduce((sum, provider) => sum + provider.tokens, 0);
-  const maxTokens = Math.max(...sortedProviders.map((provider) => provider.tokens), 1);
+  const totalSessions = sortedProviders.reduce((sum, provider) => sum + provider.sessions, 0);
+  const useSessionBars = totalTokens === 0;
+  const totalBarValue = useSessionBars ? totalSessions : totalTokens;
+  const maxBarValue = Math.max(
+    ...(useSessionBars
+      ? sortedProviders.map((provider) => provider.sessions)
+      : sortedProviders.map((provider) => provider.tokens)),
+    1
+  );
 
   if (sortedProviders.length === 0) {
     return (
@@ -41,8 +52,9 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
       {sortedProviders.map((provider) => {
         const normalizedId = getProviderId(provider.provider_id);
         const color = PROVIDER_COLORS[normalizedId] ?? "var(--metric-purple)";
-        const percentage = totalTokens > 0 ? (provider.tokens / totalTokens) * 100 : 0;
-        const barWidth = (provider.tokens / maxTokens) * 100;
+        const barValue = useSessionBars ? provider.sessions : provider.tokens;
+        const percentage = totalBarValue > 0 ? (barValue / totalBarValue) * 100 : 0;
+        const barWidth = (barValue / maxBarValue) * 100;
 
         return (
           <div
@@ -59,7 +71,9 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
                   {getProviderLabel((key, fallback) => t(key, fallback), provider.provider_id)}
                 </span>
                 <span className="font-mono text-px11 font-semibold tabular-nums shrink-0 text-foreground">
-                  {provider.tokens.toLocaleString()}
+                  {useSessionBars
+                    ? provider.sessions.toLocaleString()
+                    : provider.tokens.toLocaleString()}
                 </span>
               </div>
 

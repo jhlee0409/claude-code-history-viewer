@@ -1,6 +1,6 @@
 // src/components/ProjectTree/components/GroupedProjectList.tsx
 import React from "react";
-import { FolderTree, GitBranch } from "lucide-react";
+import { AlertCircle, FolderTree, GitBranch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeProject, ClaudeSession } from "../../../types";
 import type { WorktreeGroup, DirectoryGroup } from "../../../utils/worktreeUtils";
@@ -8,6 +8,7 @@ import type { GroupingStrategy } from "../types";
 import { ProjectItem } from "./ProjectItem";
 import { SessionList } from "./SessionList";
 import { GroupHeader } from "./GroupHeader";
+import { isProjectPathUnavailable } from "../../../utils/pathUtils";
 
 interface GroupedProjectListProps {
   groupingMode: GroupingStrategy;
@@ -128,11 +129,50 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     );
   };
 
+  const renderUnavailableGroup = (unavailableProjects: ClaudeProject[]) => {
+    if (unavailableProjects.length === 0) return null;
+
+    const groupKey = "group:unavailable-projects";
+    const isGroupExpanded = expandedProjects.has(groupKey);
+
+    return (
+      <div className="space-y-0.5" role="none" data-testid="unavailable-projects-group">
+        <GroupHeader
+          groupKey={groupKey}
+          label={t("project.pathUnavailableGroup", "Unavailable locations")}
+          icon={<AlertCircle className="w-3.5 h-3.5" />}
+          count={unavailableProjects.length}
+          isExpanded={isGroupExpanded}
+          ariaLevel={1}
+          onToggle={() => toggleGroup(groupKey, unavailableProjects)}
+          variant="unavailable"
+        />
+        {isGroupExpanded && (
+          <div role="group" className="ml-4 pl-3 border-l-2 border-amber-500/20 space-y-0.5">
+            {unavailableProjects.map((project) =>
+              renderProjectWithSessions(project, "default", 2)
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Strategy 1: Directory Grouping
   if (groupingMode === "directory") {
+    const unavailableProjects = directoryGroups.flatMap((group) =>
+      group.projects.filter(isProjectPathUnavailable)
+    );
+    const availableDirectoryGroups = directoryGroups
+      .map((group) => ({
+        ...group,
+        projects: group.projects.filter((project) => !isProjectPathUnavailable(project)),
+      }))
+      .filter((group) => group.projects.length > 0);
+
     return (
       <>
-        {directoryGroups.map((group) => {
+        {availableDirectoryGroups.map((group) => {
           const groupKey = `dir:${group.path}`;
           const isGroupExpanded = expandedProjects.has(groupKey);
 
@@ -156,6 +196,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
             </div>
           );
         })}
+        {renderUnavailableGroup(unavailableProjects)}
       </>
     );
   }
@@ -166,6 +207,10 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
       worktreeGroups.flatMap((group) => [group.parent.path, ...group.children.map((child) => child.path)])
     );
     const displayProjects = ungroupedProjects ?? projects.filter((project) => !groupedPaths.has(project.path));
+    const availableDisplayProjects = displayProjects.filter(
+      (project) => !isProjectPathUnavailable(project)
+    );
+    const unavailableDisplayProjects = displayProjects.filter(isProjectPathUnavailable);
 
     return (
       <>
@@ -196,11 +241,20 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
             </div>
           );
         })}
-        {displayProjects.map((project) => renderProjectWithSessions(project, "default", 1))}
+        {availableDisplayProjects.map((project) => renderProjectWithSessions(project, "default", 1))}
+        {renderUnavailableGroup(unavailableDisplayProjects)}
       </>
     );
   }
 
   // Strategy 3: No Grouping (Flat List)
-  return <>{projects.map((project) => renderProjectWithSessions(project, "default", 1))}</>;
+  const availableProjects = projects.filter((project) => !isProjectPathUnavailable(project));
+  const unavailableProjects = projects.filter(isProjectPathUnavailable);
+
+  return (
+    <>
+      {availableProjects.map((project) => renderProjectWithSessions(project, "default", 1))}
+      {renderUnavailableGroup(unavailableProjects)}
+    </>
+  );
 };

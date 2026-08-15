@@ -81,5 +81,5 @@ export interface GroupHeaderProps {
   isExpanded: boolean;
   ariaLevel?: number;
   onToggle: () => void;
-  variant: "directory" | "worktree";
+  variant: "directory" | "worktree" | "unavailable";
 }

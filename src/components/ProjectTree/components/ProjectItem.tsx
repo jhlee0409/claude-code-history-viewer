@@ -1,6 +1,6 @@
 // src/components/ProjectTree/components/ProjectItem.tsx
 import React from "react";
-import { ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
@@ -14,6 +14,7 @@ import {
   getCompactParentPath,
   getPathLeaf,
   isAbsolutePath,
+  isProjectPathUnavailable,
 } from "../../../utils/pathUtils";
 
 export const ProjectItem: React.FC<ProjectItemProps> = ({
@@ -33,6 +34,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   const isWorktree = variant === "worktree";
   const isGrouped = isMain || isWorktree;
   const isExpandable = project.session_count > 0;
+  const isPathUnavailable = isProjectPathUnavailable(project);
   const actualPath = project.actual_path || project.path || project.name;
 
   const providerId = getProviderId(project.provider);
@@ -65,6 +67,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       type="button"
       role="treeitem"
       data-tree-node="project"
+      data-project-path={project.path}
       aria-level={ariaLevel}
       aria-selected={isSelected}
       aria-expanded={isExpandable ? isExpanded : undefined}
@@ -180,6 +183,20 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
           )}
         >
           {providerLabel}
+        </span>
+      )}
+
+      {isPathUnavailable && (
+        <span
+          data-testid="project-path-unavailable"
+          aria-label={t("project.pathUnavailable", "Location unavailable")}
+          title={t("project.pathUnavailablePath", {
+            path: actualPath,
+            defaultValue: "Last-known location is unavailable: {{path}}",
+          })}
+          className="flex-shrink-0 text-amber-600 dark:text-amber-400"
+        >
+          <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       )}
 

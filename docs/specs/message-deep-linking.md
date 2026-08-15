@@ -43,11 +43,13 @@ Inside `MessageViewer.tsx` (or a `useMessageNavigation` hook):
 4. **Highlight**: Pass a `isTarget` prop to `VirtualizedMessageRow` for a CSS animation (yellow fade-out).
 5. **Cleanup**: Call `clearTargetMessage()` after a short timeout or immediately after scroll initiation.
 
-## 3. URL / Routing (Future "Hypermedia" Phase)
-To support browser back/forward buttons and external links:
-- Sync `selectedSession` and `targetMessageUuid` to URL Query Params.
-- `?session=UUID&msg=UUID`
-- On App mount/URL change: Read params -> Hydrate Store -> Trigger Navigation Flow.
+## 3. WebUI URL Routing
+The browser WebUI supports durable task and message links:
+- `?session=UUID` opens a task.
+- `?session=UUID&msg=UUID` opens, scrolls to, and highlights a message.
+- Task and message selections update browser history.
+- Pasted links and browser Back/Forward hydrate the store and reuse the existing message-navigation flow.
+- The Tauri desktop app does not mutate its URL; this routing is WebUI-only.
 
 ## 4. Implementation Steps
 

@@ -244,6 +244,10 @@ pub struct UserSettings {
     /// WSL integration settings (Windows only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wsl: Option<WslSettings>,
+
+    /// Providers explicitly discovered by the user and allowed to scan on startup
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub discovered_provider_ids: Vec<String>,
 }
 
 #[cfg(test)]
@@ -356,5 +360,20 @@ mod tests {
         let json = r#"{"sessions":{},"projects":{},"settings":{}}"#;
         let metadata: UserMetadata = serde_json::from_str(json).unwrap();
         assert!(metadata.settings.wsl.is_none());
+    }
+
+    #[test]
+    fn test_discovered_provider_ids_roundtrip() {
+        let mut metadata = UserMetadata::new();
+        metadata.settings.discovered_provider_ids = vec!["codex".to_string(), "gemini".to_string()];
+
+        let json = serde_json::to_string(&metadata).unwrap();
+        assert!(json.contains("discoveredProviderIds"));
+
+        let deserialized: UserMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            deserialized.settings.discovered_provider_ids,
+            vec!["codex", "gemini"]
+        );
     }
 }

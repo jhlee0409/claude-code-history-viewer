@@ -9,5 +9,6 @@ expression: project
   "session_count": 2,
   "message_count": 42,
   "last_modified": "2026-06-08T20:32:11.000Z",
+  "path_status": "unavailable",
   "provider": "pi"
 }
