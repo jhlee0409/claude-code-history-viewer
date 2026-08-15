@@ -47,7 +47,9 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   'claude-3-5-sonnet': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
   'claude-3-5-haiku': { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.10 },
   'claude-3-haiku': { input: 0.25, output: 1.25, cacheWrite: 0.30, cacheRead: 0.03 },
-  // MiniMax models
+  // MiniMax models. M3 uses the Standard <=512K context tier; this calculator
+  // has no context-length input, and the current tier publishes no separate
+  // cache-write charge, so cache creation is intentionally treated as free.
   'minimax-m3': { input: 0.6, output: 2.4, cacheWrite: null, cacheRead: 0.12 },
   'minimax-m2.7': { input: 0.3, output: 1.2, cacheWrite: 0.375, cacheRead: 0.06 },
   // OpenAI models (Codex CLI) - specific keys must precede prefix matches
