@@ -372,10 +372,9 @@ describe("projectSlice scanProjects", () => {
       { ...wslProject, provider: "claude" },
     ]);
     expect(store.getState().detectProviders).not.toHaveBeenCalled();
-    expect(vi.mocked(api)).not.toHaveBeenCalledWith(
-      "scan_projects",
-      expect.anything(),
-    );
+    expect(
+      vi.mocked(api).mock.calls.some(([command]) => command === "scan_projects"),
+    ).toBe(false);
   });
 
   it("persists the provider IDs returned by explicit discovery", async () => {
