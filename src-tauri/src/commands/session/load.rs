@@ -846,7 +846,11 @@ fn session_with_sidechain_filter(
     mut session: ClaudeSession,
     sidechain_count: usize,
     exclude: bool,
+    superseded: &std::collections::HashSet<PathBuf>,
 ) -> Option<ClaudeSession> {
+    if superseded.contains(Path::new(&session.file_path)) {
+        return None;
+    }
     if exclude {
         session.message_count = session.message_count.saturating_sub(sidechain_count);
         if session.message_count == 0 {
@@ -1090,6 +1094,12 @@ pub async fn load_project_sessions_page(
     let mut cache = load_cache(&project_path);
     let mut cache_updated = false;
 
+    // Hide files that are a non-leaf link in some other session's resolved
+    // continuation chain (see `chain.rs`) — a Claude Code auto-continuation
+    // shows as one entry (the leaf, which now renders the full merged
+    // history) instead of one entry per file.
+    let superseded = super::chain::superseded_chain_paths(project_root);
+
     let mut candidates: Vec<SessionPageCandidate> = Vec::new();
     let mut known_dropped_candidates = 0usize;
 
@@ -1122,6 +1132,7 @@ pub async fn load_project_sessions_page(
                         session.clone(),
                         cached.sidechain_count,
                         exclude,
+                        &superseded,
                     )
                     .is_some()
                     {
@@ -1212,9 +1223,12 @@ pub async fn load_project_sessions_page(
         for (source, result_opt) in results {
             match source {
                 SessionPageCandidateSource::Cached(session, sidechain_count) => {
-                    if let Some(session) =
-                        session_with_sidechain_filter(*session, sidechain_count, exclude)
-                    {
+                    if let Some(session) = session_with_sidechain_filter(
+                        *session,
+                        sidechain_count,
+                        exclude,
+                        &superseded,
+                    ) {
                         sessions.push(session);
                     } else {
                         newly_dropped_candidates = newly_dropped_candidates.saturating_add(1);
@@ -1274,6 +1288,7 @@ pub async fn load_project_sessions_page(
                             result.session,
                             result.sidechain_count,
                             exclude,
+                            &superseded,
                         ) {
                             sessions.push(session);
                         } else {
@@ -1518,6 +1533,15 @@ pub async fn load_project_sessions(
 
     // 6. Sort by last message time (conversation time) instead of filesystem modification time
     sessions.sort_by(|a, b| b.last_message_time.cmp(&a.last_message_time));
+
+    // 7. Hide files that are a non-leaf link in some other session's resolved
+    // continuation chain (see `chain.rs`) — a Claude Code auto-continuation
+    // shows as one entry (the leaf, which now renders the full merged
+    // history) instead of one entry per file.
+    let superseded = super::chain::superseded_chain_paths(Path::new(&project_path));
+    if !superseded.is_empty() {
+        sessions.retain(|s| !superseded.contains(Path::new(&s.file_path)));
+    }
 
     // 8. Summary propagation
     propagate_session_summaries(&mut sessions);
@@ -1816,9 +1840,52 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
 
+    // Resolve any cross-file continuation chain (see `chain.rs`) and load
+    // every file in it, oldest first, so a session that Claude Code split
+    // across files after running out of context still reads as one
+    // conversation. For the common case (no chain) this is just `[session_path]`.
+    let chain = super::chain::resolve_session_chain(Path::new(&session_path));
+    let mut messages: Vec<ClaudeMessage> = Vec::new();
+    for (index, path) in chain.iter().enumerate() {
+        let is_leaf = index + 1 == chain.len();
+        match load_all_messages_from_file(path) {
+            Ok(file_messages) => messages.extend(file_messages),
+            Err(error) if is_leaf => return Err(error),
+            Err(error) => {
+                // A predecessor can disappear while Claude Code is rotating
+                // files. Preserve the readable part of the conversation and
+                // make the leaf failure fatal because it is the requested
+                // session itself.
+                log::warn!(
+                    "Skipping unreadable predecessor in session chain {}: {error}",
+                    path.display()
+                );
+            }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        let elapsed = start_time.elapsed();
+        eprintln!(
+            "📤 [load_session_messages] {} messages across {} file(s), {}ms elapsed (simd-json + mmap optimized)",
+            messages.len(),
+            chain.len(),
+            elapsed.as_millis()
+        );
+    }
+
+    Ok(messages)
+}
+
+/// Load every viewer-visible message from a single `.jsonl` file, in order.
+/// Factored out of `load_session_messages` so it can be called once per file
+/// in a resolved continuation chain.
+#[allow(unsafe_code)] // Required for mmap performance optimization
+fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>, String> {
     // Use memory-mapped file for faster I/O
     let file =
-        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -1858,19 +1925,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
 
     // Sort by line number to maintain original order
     messages.sort_by_key(|(line_num, _)| *line_num);
-    let messages: Vec<ClaudeMessage> = messages.into_iter().map(|(_, msg)| msg).collect();
-
-    #[cfg(debug_assertions)]
-    {
-        let elapsed = start_time.elapsed();
-        eprintln!(
-            "📤 [load_session_messages] {} messages, {}ms elapsed (simd-json + mmap optimized)",
-            messages.len(),
-            elapsed.as_millis()
-        );
-    }
-
-    Ok(messages)
+    Ok(messages.into_iter().map(|(_, msg)| msg).collect())
 }
 
 // ============================================================================
@@ -2187,20 +2242,22 @@ pub fn get_session_message_offset(
     Ok(None)
 }
 
-#[tauri::command]
+/// Load a chat-style window of messages from a SINGLE file (the pre-chain
+/// pagination algorithm, unchanged). `offset_from_end` counts messages
+/// already consumed from the newest end of this file.
+///
+/// Returns the window's messages (oldest-to-newest), this file's own total
+/// viewer-visible message count, and whether the window reached line 0 of
+/// the file (i.e. there is nothing older left to read from this file).
 #[allow(unsafe_code)] // Required for mmap performance optimization
-pub async fn load_session_messages_paginated(
-    session_path: String,
-    offset: usize,
+fn load_message_window_from_file(
+    session_path: &Path,
+    offset_from_end: usize,
     limit: usize,
-    exclude_sidechain: Option<bool>,
-) -> Result<MessagePage, String> {
-    #[cfg(debug_assertions)]
-    let start_time = std::time::Instant::now();
-
-    // Use memory-mapped file for faster I/O
+    exclude: bool,
+) -> Result<(Vec<ClaudeMessage>, usize, bool), String> {
     let file =
-        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2208,47 +2265,25 @@ pub async fn load_session_messages_paginated(
     let mmap = unsafe { Mmap::map(&file) }
         .map_err(|e| format!("Failed to memory-map session file: {e}"))?;
 
-    let exclude = exclude_sidechain.unwrap_or(false);
-
-    // Find line boundaries efficiently using SIMD-accelerated memchr
     let line_ranges = find_line_ranges(&mmap);
 
-    // Phase 1: Build valid line indices (fast classification)
     let valid_indices: Vec<usize> = line_ranges
         .iter()
         .enumerate()
-        .filter(|(_, &(start, end))| {
-            let line = &mmap[start..end];
-            classify_line_fast(line, exclude)
-        })
+        .filter(|(_, &(start, end))| classify_line_fast(&mmap[start..end], exclude))
         .map(|(idx, _)| idx)
         .collect();
 
     let total_count = valid_indices.len();
-
-    // Chat-style pagination: offset=0 means newest messages (at the end)
-    if total_count == 0 {
-        return Ok(MessagePage {
-            messages: vec![],
-            total_count: 0,
-            has_more: false,
-            next_offset: 0,
-        });
+    if total_count == 0 || offset_from_end >= total_count {
+        return Ok((vec![], total_count, offset_from_end >= total_count));
     }
 
-    let already_loaded = offset;
-    let remaining_messages = total_count.saturating_sub(already_loaded);
-    let messages_to_load = std::cmp::min(limit, remaining_messages);
+    let remaining_messages = total_count - offset_from_end;
+    let messages_to_load = limit.min(remaining_messages);
+    let start_idx = total_count - offset_from_end - messages_to_load;
+    let end_idx = total_count - offset_from_end;
 
-    let (start_idx, end_idx) = if remaining_messages == 0 {
-        (0, 0)
-    } else {
-        let start = total_count - already_loaded - messages_to_load;
-        let end = total_count - already_loaded;
-        (start, end)
-    };
-
-    // Phase 2: Parse only the target lines (parallel with simd-json)
     let target_indices = &valid_indices[start_idx..end_idx];
     let mut parsed: Vec<(usize, ClaudeMessage)> = target_indices
         .par_iter()
@@ -2260,37 +2295,17 @@ pub async fn load_session_messages_paginated(
         })
         .collect();
 
-    // Sort by line number to maintain original order
     parsed.sort_by_key(|(line_num, _)| *line_num);
     let messages: Vec<ClaudeMessage> = parsed.into_iter().map(|(_, msg)| msg).collect();
 
-    let has_more = start_idx > 0;
-    let next_offset = offset + messages.len();
-
-    #[cfg(debug_assertions)]
-    {
-        let elapsed = start_time.elapsed();
-        eprintln!("📊 load_session_messages_paginated performance: {}/{} messages, {}ms elapsed (simd-json + mmap)",
-                 messages.len(), total_count, elapsed.as_millis());
-    }
-
-    Ok(MessagePage {
-        messages,
-        total_count,
-        has_more,
-        next_offset,
-    })
+    Ok((messages, total_count, start_idx == 0))
 }
 
-#[tauri::command]
+/// Count viewer-visible messages in a single file (the pre-chain algorithm).
 #[allow(unsafe_code)] // Required for mmap performance optimization
-pub async fn get_session_message_count(
-    session_path: String,
-    exclude_sidechain: Option<bool>,
-) -> Result<usize, String> {
-    // Use memory-mapped file for faster I/O
+fn count_valid_messages_in_file(session_path: &Path, exclude: bool) -> Result<usize, String> {
     let file =
-        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2298,21 +2313,129 @@ pub async fn get_session_message_count(
     let mmap = unsafe { Mmap::map(&file) }
         .map_err(|e| format!("Failed to memory-map session file: {e}"))?;
 
-    let exclude = exclude_sidechain.unwrap_or(false);
-
-    // Find line boundaries and count valid lines using SIMD-accelerated memchr
     let line_ranges = find_line_ranges(&mmap);
-
-    // Parallel counting with fast classification
-    let count: usize = line_ranges
+    Ok(line_ranges
         .par_iter()
-        .filter(|&&(start, end)| {
-            let line = &mmap[start..end];
-            classify_line_fast(line, exclude)
-        })
-        .count();
+        .filter(|&&(start, end)| classify_line_fast(&mmap[start..end], exclude))
+        .count())
+}
 
-    Ok(count)
+#[tauri::command]
+#[allow(unsafe_code)] // Required for mmap performance optimization
+pub async fn load_session_messages_paginated(
+    session_path: String,
+    offset: usize,
+    limit: usize,
+    exclude_sidechain: Option<bool>,
+) -> Result<MessagePage, String> {
+    #[cfg(debug_assertions)]
+    let start_time = std::time::Instant::now();
+
+    let exclude = exclude_sidechain.unwrap_or(false);
+    let chain = super::chain::resolve_session_chain(Path::new(&session_path));
+
+    let page = if chain.len() <= 1 {
+        // Common case: no cross-file continuation. Same algorithm and
+        // performance characteristics as before this feature existed.
+        let (messages, total_count, _) =
+            load_message_window_from_file(Path::new(&session_path), offset, limit, exclude)?;
+        let next_offset = offset + messages.len();
+        MessagePage {
+            messages,
+            total_count,
+            has_more: next_offset < total_count,
+            next_offset,
+        }
+    } else {
+        // Chained session: walk the files newest -> oldest, consuming the
+        // requested chat-style window, then present them oldest -> newest.
+        let mut skip = offset;
+        let mut remaining = limit;
+        let mut chunks: Vec<Vec<ClaudeMessage>> = Vec::new();
+        let mut total_count = 0usize;
+
+        for idx in (0..chain.len()).rev() {
+            let is_leaf = idx + 1 == chain.len();
+            // Keep scanning older files after the requested page is full so
+            // total_count remains exact, but pass limit=0 to avoid parsing
+            // message payloads a second time.
+            let requested_limit = if remaining == 0 { 0 } else { remaining };
+            let requested_offset = if remaining == 0 { 0 } else { skip };
+            let result = load_message_window_from_file(
+                &chain[idx],
+                requested_offset,
+                requested_limit,
+                exclude,
+            );
+            let (messages, file_total, _) = match result {
+                Ok(result) => result,
+                Err(error) if is_leaf => return Err(error),
+                Err(error) => {
+                    log::warn!(
+                        "Skipping unreadable predecessor in paginated session chain {}: {error}",
+                        chain[idx].display()
+                    );
+                    continue;
+                }
+            };
+
+            total_count += file_total;
+            if remaining == 0 {
+                continue;
+            }
+            if skip >= file_total {
+                skip -= file_total;
+                continue;
+            }
+            remaining -= messages.len();
+            chunks.push(messages);
+            skip = 0;
+        }
+
+        chunks.reverse();
+        let messages: Vec<ClaudeMessage> = chunks.into_iter().flatten().collect();
+        let next_offset = offset + messages.len();
+        MessagePage {
+            messages,
+            total_count,
+            has_more: next_offset < total_count,
+            next_offset,
+        }
+    };
+
+    #[cfg(debug_assertions)]
+    {
+        let elapsed = start_time.elapsed();
+        eprintln!("📊 load_session_messages_paginated performance: {}/{} messages across {} file(s), {}ms elapsed (simd-json + mmap)",
+                 page.messages.len(), page.total_count, chain.len(), elapsed.as_millis());
+    }
+
+    Ok(page)
+}
+
+#[tauri::command]
+pub async fn get_session_message_count(
+    session_path: String,
+    exclude_sidechain: Option<bool>,
+) -> Result<usize, String> {
+    let exclude = exclude_sidechain.unwrap_or(false);
+    let chain = super::chain::resolve_session_chain(Path::new(&session_path));
+
+    let mut total = 0usize;
+    for (index, path) in chain.iter().enumerate() {
+        let is_leaf = index + 1 == chain.len();
+        match count_valid_messages_in_file(path, exclude) {
+            Ok(file_total) => total += file_total,
+            Err(error) if is_leaf => return Err(error),
+            Err(error) => {
+                log::warn!(
+                    "Skipping unreadable predecessor in session count chain {}: {error}",
+                    path.display()
+                );
+            }
+        }
+    }
+    Ok(total)
 }
 
 #[cfg(test)]
@@ -2489,6 +2612,50 @@ mod tests {
         assert_eq!(page.total_count, 5);
         assert_eq!(page.messages.len(), 3);
         assert!(page.has_more);
+    }
+
+    #[tokio::test]
+    async fn test_load_session_messages_paginated_merges_continuation_chain() {
+        let temp_dir = TempDir::new().unwrap();
+        let older_content = format!(
+            "{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Before"),
+            create_sample_assistant_message("tail-uuid", "session-1", "Earlier reply")
+        );
+        create_test_jsonl_file(&temp_dir, "older.jsonl", &older_content);
+
+        let newer_content = format!(
+            "{{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-1\",\"logicalParentUuid\":\"tail-uuid\",\"sessionId\":\"session-2\",\"timestamp\":\"2025-06-26T10:02:00Z\"}}\n{}\n{}\n",
+            create_sample_user_message("uuid-3", "session-2", "After"),
+            create_sample_assistant_message("uuid-4", "session-2", "Latest reply")
+        );
+        let newer_path = create_test_jsonl_file(&temp_dir, "newer.jsonl", &newer_content);
+        let newer_path_string = newer_path.to_string_lossy().to_string();
+
+        let all_messages = load_session_messages(newer_path_string.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            all_messages
+                .iter()
+                .map(|message| message.uuid.as_str())
+                .collect::<Vec<_>>(),
+            vec!["uuid-1", "tail-uuid", "boundary-1", "uuid-3", "uuid-4"]
+        );
+        assert_eq!(
+            get_session_message_count(newer_path_string.clone(), None)
+                .await
+                .unwrap(),
+            5
+        );
+
+        let first_page = load_session_messages_paginated(newer_path_string, 0, 3, None)
+            .await
+            .unwrap();
+        assert_eq!(first_page.total_count, 5);
+        assert_eq!(first_page.messages.len(), 3);
+        assert_eq!(first_page.messages[0].uuid, "boundary-1");
+        assert!(first_page.has_more);
     }
 
     #[tokio::test]
