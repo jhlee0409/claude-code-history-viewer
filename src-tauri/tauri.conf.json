@@ -30,16 +30,11 @@
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://api.github.com https://github.com https://*.githubusercontent.com https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'",
       "capabilities": [
-        "default",
-        "http-requests"
+        "default"
       ]
-    },
-    "withGlobalTauri": true
+    }
   },
   "plugins": {
-    "fs": {
-      "requireLiteralLeadingDot": false
-    },
     "updater": {
       "active": true,
       "endpoints": [

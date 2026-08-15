@@ -20,6 +20,8 @@
   "project.groupingWorktree": "按工作樹",
   "project.hiddenPatterns": "隱藏模式",
   "project.copyPath": "複製路徑",
+  "project.discoverProviders": "尋找其他提供者",
+  "project.discoveringProviders": "正在搜尋提供者...",
   "project.pathCopied": "路徑已複製到剪貼簿",
   "project.hide": "隱藏專案",
   "project.main": "主分支",

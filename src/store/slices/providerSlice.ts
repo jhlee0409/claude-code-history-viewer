@@ -59,10 +59,15 @@ export const createProviderSlice: StateCreator<
       const activeProviders = providers
         .filter((p) => p.is_available)
         .map((p) => p.id as ProviderId);
-      set({ providers, activeProviders });
+      set({
+        providers,
+        activeProviders: activeProviders.length > 0
+          ? activeProviders
+          : [DEFAULT_PROVIDER_ID],
+      });
     } catch (error) {
       console.error("Failed to detect providers:", error);
-      set({ activeProviders: [DEFAULT_PROVIDER_ID] });
+      set({ providers: [], activeProviders: [DEFAULT_PROVIDER_ID] });
       toast.error(i18n.t("common.provider.detectError"));
     } finally {
       set({ isDetectingProviders: false });

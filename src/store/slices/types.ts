@@ -225,6 +225,7 @@ export interface AppStoreActions {
 
   // Project actions
   initializeApp: () => Promise<void>;
+  discoverProviders: () => Promise<void>;
   scanProjects: () => Promise<void>;
   refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;

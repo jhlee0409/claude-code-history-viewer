@@ -6,8 +6,15 @@ import { useEffect } from "react";
 
 export const FolderSelectorContainer: React.FC = () => {
   const { isOpen, closeModal, folderSelectorMode, openModal } = useModal();
-  const { setClaudePath, scanProjects, addCustomClaudePath, error } =
-    useAppStore();
+  const {
+    setClaudePath,
+    scanProjects,
+    addCustomClaudePath,
+    discoverProviders,
+    isDetectingProviders,
+    isLoadingProjects,
+    error,
+  } = useAppStore();
 
   // 에러 발생 시 자동으로 폴더 선택 모달 열기
   useEffect(() => {
@@ -34,6 +41,17 @@ export const FolderSelectorContainer: React.FC = () => {
     }
   };
 
+  const handleDiscoverProviders = async () => {
+    try {
+      await discoverProviders();
+      if (useAppStore.getState().projects.length > 0) {
+        closeModal("folderSelector");
+      }
+    } catch (err) {
+      console.error("Failed to discover providers:", err);
+    }
+  };
+
   if (!isOpen("folderSelector")) return null;
 
   return (
@@ -42,6 +60,10 @@ export const FolderSelectorContainer: React.FC = () => {
         mode={folderSelectorMode}
         onClose={() => closeModal("folderSelector")}
         onFolderSelected={handleFolderSelected}
+        onDiscoverProviders={
+          folderSelectorMode === "notFound" ? handleDiscoverProviders : undefined
+        }
+        isDiscoveringProviders={isDetectingProviders || isLoadingProjects}
       />
     </div>
   );

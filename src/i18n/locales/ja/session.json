@@ -20,6 +20,8 @@
   "project.groupingWorktree": "ワークツリー別",
   "project.hiddenPatterns": "非表示パターン",
   "project.copyPath": "パスをコピー",
+  "project.discoverProviders": "他のプロバイダーを検索",
+  "project.discoveringProviders": "プロバイダーを検索中...",
   "project.pathCopied": "パスをクリップボードにコピーしました",
   "project.hide": "プロジェクトを非表示",
   "project.main": "メイン",
