@@ -51,11 +51,18 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 **Headless server** — access from any browser:
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://...install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
 See [Server Mode](#server-mode-webui) for Docker, VPS, and systemd setup.
+
+**Choose a mode:**
+
+| Mode | Best for | What it does |
+|------|----------|--------------|
+| Desktop app | Local browsing | Opens local conversation files in a native app |
+| Headless server | Browser, VPS, or remote access | Serves local conversation files through the WebUI; keep authentication enabled |
 
 ---
 
@@ -245,12 +252,10 @@ brew uninstall --cask claude-code-history-viewer
 ```
 
 > **Migrating from manual (.dmg) installation?**
-> Remove the existing app before installing via Homebrew to avoid conflicts.
+> Move the existing app to Trash in Finder before installing via Homebrew to avoid conflicts.
 > Choose **one** installation method — do not mix manual and Homebrew installs.
+> Then run:
 > ```bash
-> # Remove the manually installed app first
-> rm -rf "/Applications/Claude Code History Viewer.app"
-> # Then install via Homebrew
 > brew tap jhlee0409/tap
 > brew install --cask claude-code-history-viewer
 > ```
@@ -273,7 +278,7 @@ pnpm tauri:dev       # Development
 pnpm tauri:build     # Production build
 ```
 
-**Requirements**: Node.js 18+, pnpm, Rust toolchain
+**Requirements**: Node.js 20.19+ (or 22.12+), pnpm, Rust toolchain
 
 ## Server Mode (WebUI)
 
@@ -361,6 +366,8 @@ docker compose logs webui
 
 The `docker-compose.yml` mounts `~/.claude`, `~/.codex`, and `~/.local/share/opencode` as read-only volumes.
 
+> The sample Docker setup mounts Claude, Codex, and OpenCode only. To browse another provider, add its local data directory as a read-only volume at the path that provider expects inside the container, then restart the container.
+
 ### systemd Service
 
 For persistent server on Linux, use the provided systemd template:
@@ -398,7 +405,7 @@ GET /health
 
 ### Command-line flags
 
-Launch the app pre-focused on a specific session by passing a `--session` flag:
+Launch the app pre-focused on a specific session with one of these selectors:
 
 ```bash
 # Full UUID
@@ -409,9 +416,26 @@ claude-code-history-viewer --session 1265cd74
 
 # Equals form also works
 claude-code-history-viewer --session=1265cd74
+
+# Exact Claude session-folder name under ~/.claude/projects/
+claude-code-history-viewer --session-folder my-project
+
+# Case-insensitive substring match against session titles
+claude-code-history-viewer --session-title "auth bug"
 ```
 
-The viewer scans every known project, navigates to the matching session, and falls back to normal startup if no session matches. Values that are neither hex-or-dash of length 8..36 nor an absolute path are silently ignored.
+`--session` accepts a full UUID, UUID prefix, or absolute path to a `.jsonl` file. `--session-folder` matches an exact Claude session-folder name, while `--session-title` performs a case-insensitive title substring search and may show a picker when multiple sessions match. If multiple selectors are supplied, precedence is `--session` > `--session-folder` > `--session-title`.
+
+The app also accepts these deep-link forms from a registered desktop environment:
+
+```text
+file:///absolute/path/to/session.jsonl
+claude-code-history-viewer://session/1265cd74-caa9-472e-b343-c4f44b5cf12c
+claude-code-history-viewer://session-folder/my-project
+claude-code-history-viewer://session-title/auth%20bug
+```
+
+The viewer scans every known project, navigates to the matching session, and falls back to normal startup if no session matches.
 
 ## Accessibility
 
@@ -441,15 +465,18 @@ The app includes accessibility features for keyboard-only, low-vision, and scree
 
 ## Data Privacy
 
-**100% offline.** No conversation data is sent to any server. No analytics, no tracking, no telemetry.
+**Desktop mode is local-first.** Conversation files are read from local disk; no conversation data is uploaded, and there is no analytics, tracking, or telemetry.
 
-Your data stays on your machine.
+**Server mode** intentionally serves local files to browsers and clients that can reach the server. Keep it bound to `127.0.0.1` for local-only use, or keep token authentication enabled before exposing it to a network.
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
 | "No Claude data found" | Make sure `~/.claude` exists with conversation history |
+| A provider is missing | Check its data path in the provider table. For an additional Claude directory, open **Settings → Custom Claude Directories**. In Docker, add the provider's data directory as a read-only volume. |
+| Cannot connect to the WebUI | `cchv-server` defaults to port `3727`. Use the startup URL, check for port conflicts, and verify firewall or proxy rules when connecting remotely. |
+| "Unauthorized" / HTTP 401 | Use the token URL printed at startup or send `Authorization: Bearer <token>`. For a fixed token, use `--token` or `CCHV_TOKEN`. |
 | Performance issues | Large histories may be slow initially — the app uses virtual scrolling |
 | Update problems | If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) |
 
@@ -461,9 +488,11 @@ Contributions are welcome! Here's how to get started:
 2. Create a feature branch (`git checkout -b feat/my-feature`)
 3. Run checks before committing:
    ```bash
-   pnpm tsc --build .        # TypeScript
+   pnpm exec tsc --build .   # TypeScript
    pnpm vitest run            # Tests
    pnpm lint                  # Lint
+   just rust-check-all        # Rust format, clippy, and tests
+   pnpm run i18n:validate     # Locale consistency
    ```
 4. Commit your changes (`git commit -m 'feat: add my feature'`)
 5. Push to the branch (`git push origin feat/my-feature`)

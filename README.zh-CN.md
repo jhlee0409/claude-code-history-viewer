@@ -51,11 +51,18 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 **无头服务器** — 从任意浏览器访问：
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://...install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
 Docker、VPS、systemd 设置请参阅[服务器模式](#服务器模式-webui)。
+
+**选择模式:**
+
+| 模式 | 适用场景 | 工作方式 |
+|------|----------|----------|
+| 桌面应用 | 本地浏览 | 在原生应用中打开本地对话文件 |
+| 无头服务器 | 浏览器、VPS 或远程访问 | 通过 WebUI 提供本地对话文件；请保持启用身份验证 |
 
 ---
 
@@ -245,12 +252,10 @@ brew uninstall --cask claude-code-history-viewer
 ```
 
 > **从手动安装(.dmg)迁移？**
-> 为避免冲突，请先删除现有应用，然后通过 Homebrew 安装。
+> 为避免冲突，请先在 Finder 中将现有应用移到废纸篓，然后通过 Homebrew 安装。
 > 请只使用**一种**安装方式 — 不要混合使用手动安装和 Homebrew。
+> 然后运行:
 > ```bash
-> # 先删除手动安装的应用
-> rm -rf "/Applications/Claude Code History Viewer.app"
-> # 通过 Homebrew 安装
 > brew tap jhlee0409/tap
 > brew install --cask claude-code-history-viewer
 > ```
@@ -273,7 +278,7 @@ pnpm tauri:dev       # Development
 pnpm tauri:build     # Production build
 ```
 
-**系统要求**: Node.js 18+, pnpm, Rust 工具链
+**系统要求**: Node.js 20.19+（或 22.12+）、pnpm、Rust 工具链
 
 ## 服务器模式 (WebUI)
 
@@ -361,6 +366,8 @@ docker compose logs webui
 
 `docker-compose.yml` 将 `~/.claude`、`~/.codex` 和 `~/.local/share/opencode` 作为只读卷挂载。
 
+> 示例 Docker 配置只挂载 Claude、Codex 和 OpenCode。要浏览其他提供商，请将其本地数据目录以只读卷挂载到容器内该提供商预期的路径，然后重启容器。
+
 ### systemd 服务
 
 在 Linux 上持久运行服务器，使用提供的 systemd 模板:
@@ -398,7 +405,7 @@ GET /health
 
 ### 命令行参数
 
-使用 `--session` 参数启动应用并预先聚焦到指定会话：
+使用以下任一选择器启动应用并预先聚焦到指定会话：
 
 ```bash
 # Full UUID
@@ -409,9 +416,26 @@ claude-code-history-viewer --session 1265cd74
 
 # Equals form also works
 claude-code-history-viewer --session=1265cd74
+
+# Exact Claude session-folder name under ~/.claude/projects/
+claude-code-history-viewer --session-folder my-project
+
+# Case-insensitive substring match against session titles
+claude-code-history-viewer --session-title "auth bug"
 ```
 
-应用会扫描所有已知项目并导航到匹配的会话；若没有匹配会话，则按正常流程启动。既不是 hex-或-短横线的 8-36 字符也不是绝对路径的值将被静默忽略。
+`--session` 接受完整 UUID、UUID 前缀或 `.jsonl` 会话文件的绝对路径。`--session-folder` 精确匹配 Claude 会话文件夹名称；`--session-title` 按不区分大小写的标题子字符串搜索，匹配多个会话时可能显示选择器。若同时提供多个选择器，优先级为 `--session` > `--session-folder` > `--session-title`。
+
+注册了协议的桌面环境还支持以下深层链接格式：
+
+```text
+file:///absolute/path/to/session.jsonl
+claude-code-history-viewer://session/1265cd74-caa9-472e-b343-c4f44b5cf12c
+claude-code-history-viewer://session-folder/my-project
+claude-code-history-viewer://session-title/auth%20bug
+```
+
+应用会扫描所有已知项目并导航到匹配的会话；若没有匹配会话，则按正常流程启动。
 
 ## 无障碍
 
@@ -441,15 +465,18 @@ claude-code-history-viewer --session=1265cd74
 
 ## 数据隐私
 
-**100% 离线运行。** 不会将任何对话数据发送到任何服务器。无分析、无跟踪、无遥测。
+**桌面模式以本地为主。** 对话文件从本地磁盘读取；不会上传对话数据，也没有分析、跟踪或遥测。
 
-您的数据保留在您的设备上。
+**服务器模式**会有意将本地文件提供给能够访问服务器的浏览器和客户端。仅限本机使用时请绑定到 `127.0.0.1`；向网络公开前请保持令牌身份验证启用。
 
 ## 常见问题
 
 | 问题 | 解决方案 |
 |---------|----------|
 | "未找到 Claude 数据" | 确保 `~/.claude` 目录存在且包含对话历史 |
+| 缺少某个提供商 | 检查提供商表中的数据路径。要添加其他 Claude 目录，请打开**设置 → 自定义 Claude 目录**。使用 Docker 时，将该提供商的数据目录作为只读卷挂载。 |
+| 无法连接 WebUI | `cchv-server` 默认使用 `3727` 端口。使用启动时输出的 URL；远程连接时检查端口冲突以及防火墙/代理规则。 |
+| "Unauthorized" / HTTP 401 | 使用启动时输出的令牌 URL，或发送 `Authorization: Bearer <token>`。固定令牌可通过 `--token` 或 `CCHV_TOKEN` 设置。 |
 | 性能问题 | 大量历史记录初次加载可能较慢 — 应用使用虚拟滚动优化性能 |
 | 更新问题 | 如果自动更新失败,请从 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 手动下载 |
 
@@ -461,9 +488,11 @@ claude-code-history-viewer --session=1265cd74
 2. 创建功能分支 (`git checkout -b feat/my-feature`)
 3. 提交前运行检查:
    ```bash
-   pnpm tsc --build .        # TypeScript
+   pnpm exec tsc --build .   # TypeScript
    pnpm vitest run            # 测试
    pnpm lint                  # 代码检查
+   just rust-check-all        # Rust 格式检查、clippy 和测试
+   pnpm run i18n:validate     # 语言环境一致性
    ```
 4. 提交更改 (`git commit -m 'feat: add my feature'`)
 5. 推送到分支 (`git push origin feat/my-feature`)

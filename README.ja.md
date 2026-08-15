@@ -51,11 +51,18 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 **ヘッドレスサーバー** — 任意のブラウザからアクセス：
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://...install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
 Docker、VPS、systemdのセットアップは[サーバーモード](#サーバーモード-webui)をご覧ください。
+
+**モードを選択:**
+
+| モード | おすすめの用途 | 動作 |
+|------|----------------|------|
+| デスクトップアプリ | ローカルでの閲覧 | ローカルの会話ファイルをネイティブアプリで開きます |
+| ヘッドレスサーバー | ブラウザ、VPS、リモートアクセス | WebUI経由でローカルの会話ファイルを提供します。認証を有効にしてください |
 
 ---
 
@@ -245,12 +252,10 @@ brew uninstall --cask claude-code-history-viewer
 ```
 
 > **手動インストール(.dmg)から移行しますか？**
-> 競合を防ぐため、Homebrewでインストールする前に既存のアプリを削除してください。
+> 競合を防ぐため、Homebrewでインストールする前にFinderで既存のアプリをゴミ箱に移動してください。
 > インストール方法は**1つだけ**使用してください — 手動とHomebrewを混在させないでください。
+> 次に以下を実行します:
 > ```bash
-> # Remove the manually installed app first
-> rm -rf "/Applications/Claude Code History Viewer.app"
-> # Then install via Homebrew
 > brew tap jhlee0409/tap
 > brew install --cask claude-code-history-viewer
 > ```
@@ -273,7 +278,7 @@ pnpm tauri:dev       # Development
 pnpm tauri:build     # Production build
 ```
 
-**要件**: Node.js 18+、pnpm、Rustツールチェーン
+**要件**: Node.js 20.19+（または22.12+）、pnpm、Rustツールチェーン
 
 ## サーバーモード (WebUI)
 
@@ -361,6 +366,8 @@ docker compose logs webui
 
 `docker-compose.yml`は`~/.claude`、`~/.codex`、`~/.local/share/opencode`を読み取り専用ボリュームとしてマウントします。
 
+> サンプルのDocker設定でマウントされるのはClaude、Codex、OpenCodeのみです。他のプロバイダーを閲覧するには、そのローカルデータディレクトリをコンテナ内でプロバイダーが想定するパスに読み取り専用ボリュームとして追加し、コンテナを再起動してください。
+
 ### systemdサービス
 
 Linuxでの永続的なサーバー運用には、提供されたsystemdテンプレートを使用:
@@ -398,7 +405,7 @@ GET /health
 
 ### コマンドラインフラグ
 
-`--session` フラグで特定のセッションを事前選択した状態でアプリを起動できます。
+次のセレクターのいずれかを使うと、特定のセッションを事前選択した状態でアプリを起動できます。
 
 ```bash
 # Full UUID
@@ -409,9 +416,26 @@ claude-code-history-viewer --session 1265cd74
 
 # Equals form also works
 claude-code-history-viewer --session=1265cd74
+
+# Exact Claude session-folder name under ~/.claude/projects/
+claude-code-history-viewer --session-folder my-project
+
+# Case-insensitive substring match against session titles
+claude-code-history-viewer --session-title "auth bug"
 ```
 
-ビューアは既知のすべてのプロジェクトをスキャンして一致するセッションに移動し、一致するものがなければ通常起動に戻ります。hexまたはダッシュで構成される8〜36文字でも絶対パスでもない値は黙って無視されます。
+`--session`には完全なUUID、UUIDプレフィックス、または`.jsonl`セッションファイルの絶対パスを指定できます。`--session-folder`はClaudeのセッションフォルダー名を完全一致で検索し、`--session-title`はタイトルを大文字小文字を区別せず部分一致で検索します。複数のセッションが一致した場合は選択画面が表示されることがあります。複数のセレクターを指定した場合の優先順位は`--session` > `--session-folder` > `--session-title`です。
+
+登録済みのデスクトップ環境からは、次のディープリンク形式も開けます:
+
+```text
+file:///absolute/path/to/session.jsonl
+claude-code-history-viewer://session/1265cd74-caa9-472e-b343-c4f44b5cf12c
+claude-code-history-viewer://session-folder/my-project
+claude-code-history-viewer://session-title/auth%20bug
+```
+
+ビューアは既知のすべてのプロジェクトをスキャンして一致するセッションに移動し、一致するものがなければ通常起動に戻ります。
 
 ## アクセシビリティ
 
@@ -441,15 +465,18 @@ claude-code-history-viewer --session=1265cd74
 
 ## データプライバシー
 
-**100%オフライン。** 会話データはどのサーバーにも送信されません。分析、トラッキング、テレメトリーは一切ありません。
+**デスクトップモードはローカル優先です。** 会話ファイルはローカルディスクから読み込まれ、会話データのアップロード、分析、トラッキング、テレメトリーは行いません。
 
-データはあなたのマシンに留まります。
+**サーバーモード**では、サーバーに到達できるブラウザやクライアントにローカルファイルを意図的に提供します。ローカルだけで使う場合は`127.0.0.1`にバインドし、ネットワークに公開する前にトークン認証を有効にしてください。
 
 ## トラブルシューティング
 
 | 問題 | 解決策 |
 |---------|----------|
 | 「Claudeデータが見つかりません」 | `~/.claude`に会話履歴があることを確認 |
+| プロバイダーが表示されない | プロバイダー表のデータパスを確認してください。追加のClaudeディレクトリは**設定 → カスタムClaudeディレクトリ**から登録できます。Dockerではデータディレクトリを読み取り専用ボリュームとして追加してください。 |
+| WebUIに接続できない | `cchv-server`のデフォルトポートは`3727`です。起動時のURLを使い、リモート接続ではポート競合とファイアウォール/プロキシの設定を確認してください。 |
+| 「Unauthorized」/ HTTP 401 | 起動時に表示されたトークン付きURLを使うか、`Authorization: Bearer <token>`を送信してください。固定トークンは`--token`または`CCHV_TOKEN`で設定できます。 |
 | パフォーマンスの問題 | 大量の履歴は初期読み込みが遅い場合あり — アプリは仮想スクロールを使用 |
 | 更新の問題 | 自動更新が失敗した場合、[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)から手動ダウンロード |
 
@@ -461,9 +488,11 @@ claude-code-history-viewer --session=1265cd74
 2. フィーチャーブランチを作成 (`git checkout -b feat/my-feature`)
 3. コミット前にチェックを実行:
    ```bash
-   pnpm tsc --build .        # TypeScript
+   pnpm exec tsc --build .   # TypeScript
    pnpm vitest run            # Tests
    pnpm lint                  # Lint
+   just rust-check-all        # Rust format, clippy, and tests
+   pnpm run i18n:validate     # Locale consistency
    ```
 4. 変更をコミット (`git commit -m 'feat: add my feature'`)
 5. ブランチにプッシュ (`git push origin feat/my-feature`)
