@@ -3,6 +3,16 @@ import type { ProviderId } from "../types";
 export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
+// WSL provider loaders use UNC-backed paths and are not interchangeable with
+// native provider loaders. Keep this list aligned with the backend routing.
+export const WSL_SEARCHABLE_PROVIDER_IDS: readonly ProviderId[] = ["claude", "copilot"];
+
+export function getWslSearchableProviderIds(
+  ids: readonly ProviderId[],
+): ProviderId[] {
+  return WSL_SEARCHABLE_PROVIDER_IDS.filter((id) => ids.includes(id));
+}
+
 const PROVIDER_TRANSLATIONS: Record<
   ProviderId,
   { key: string; fallback: string }

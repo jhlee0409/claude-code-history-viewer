@@ -19,7 +19,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeMessage, ClaudeSession, ContentItem } from "@/types";
-import { getProviderLabel, hasNonDefaultProvider, getProviderBadgeStyle } from "@/utils/providers";
+import {
+    getProviderLabel,
+    getWslSearchableProviderIds,
+    hasNonDefaultProvider,
+    getProviderBadgeStyle,
+} from "@/utils/providers";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -108,6 +113,7 @@ export const GlobalSearchModal = ({
             const wslEnabled = userMetadata?.settings?.wsl?.enabled ?? false;
             const hasAlternativeSource = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
             const nativeClaudePath = claudePath || undefined;
+            const wslProviders = wslEnabled ? getWslSearchableProviderIds(activeProviders) : undefined;
 
             if (trimmedQuery.length < 2 || (!claudePath && !hasAlternativeSource)) {
                 setResults([]);
@@ -139,6 +145,7 @@ export const GlobalSearchModal = ({
                               limit: MAX_RESULTS,
                               customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
                               wslEnabled,
+                              wslProviders,
                               wslExcludedDistros,
                           }
                         : { claudePath: nativeClaudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },

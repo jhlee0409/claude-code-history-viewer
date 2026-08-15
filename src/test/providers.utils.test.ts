@@ -6,6 +6,7 @@ import {
   getProviderId,
   getProviderLabel,
   getResumeCommand,
+  getWslSearchableProviderIds,
   hasAnyConversationBreakdownProvider,
   hasNonDefaultProvider,
   normalizeProviderIds,
@@ -35,6 +36,13 @@ describe("providers utils", () => {
   it("detects non-default provider selection", () => {
     expect(hasNonDefaultProvider(["claude"])).toBe(false);
     expect(hasNonDefaultProvider(["claude", "opencode"])).toBe(true);
+  });
+
+  it("selects only providers with WSL search routing", () => {
+    expect(getWslSearchableProviderIds(["claude", "codex", "copilot", "gemini"])).toEqual([
+      "claude",
+      "copilot",
+    ]);
   });
 
   it("keeps provider id list stable for all known providers", () => {

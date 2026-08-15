@@ -188,6 +188,24 @@ describe("searchMessages — WSL branch routing", () => {
     );
   });
 
+  it("keeps native providers separate from WSL providers", async () => {
+    const store = createTestStore();
+    seedStore(store, true, [], "");
+    store.setState({ activeProviders: ["claude", "codex"] });
+
+    await store.getState().searchMessages("hello");
+
+    expect(mockApi).toHaveBeenCalledWith(
+      "search_all_providers",
+      expect.objectContaining({
+        claudePath: undefined,
+        activeProviders: ["claude", "codex"],
+        wslEnabled: true,
+        wslProviders: ["claude"],
+      }),
+    );
+  });
+
   it("falls back to search_messages when wslEnabled is false and no other providers", async () => {
     const store = createTestStore();
     seedStore(store, false);

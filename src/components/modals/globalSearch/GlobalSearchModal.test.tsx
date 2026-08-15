@@ -93,6 +93,7 @@ describe("GlobalSearchModal WSL search routing", () => {
     });
 
     it("searches WSL when no native Claude path is configured", async () => {
+        storeState.activeProviders = ["claude", "codex"];
         render(<GlobalSearchModal isOpen onClose={vi.fn()} />);
 
         fireEvent.change(screen.getByPlaceholderText("globalSearch.placeholder"), {
@@ -105,8 +106,9 @@ describe("GlobalSearchModal WSL search routing", () => {
                 expect.objectContaining({
                     claudePath: undefined,
                     query: "hello",
-                    activeProviders: ["claude"],
+                    activeProviders: ["claude", "codex"],
                     wslEnabled: true,
+                    wslProviders: ["claude"],
                 }),
             );
         });

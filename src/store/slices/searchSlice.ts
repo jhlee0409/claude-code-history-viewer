@@ -17,7 +17,7 @@ import {
   type FullAppStore,
   createEmptySearchState,
 } from "./types";
-import { hasNonDefaultProvider } from "../../utils/providers";
+import { getWslSearchableProviderIds, hasNonDefaultProvider } from "../../utils/providers";
 
 // ============================================================================
 // State Interface
@@ -95,6 +95,7 @@ export const createSearchSlice: StateCreator<
     const wslEnabled = settings?.wsl?.enabled ?? false;
     const hasAlternativeSource = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
     const nativeClaudePath = claudePath || undefined;
+    const wslProviders = wslEnabled ? getWslSearchableProviderIds(activeProviders) : undefined;
 
     if (!query.trim() || (!claudePath && !hasAlternativeSource)) {
       set({ searchResults: [], searchQuery: "" });
@@ -111,6 +112,7 @@ export const createSearchSlice: StateCreator<
             filters,
             customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
             wslEnabled,
+            wslProviders,
             wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
           })
         : await api<ClaudeMessage[]>("search_messages", {
