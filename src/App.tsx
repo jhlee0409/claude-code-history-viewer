@@ -346,23 +346,6 @@ function App() {
     void loadGlobalStats();
   }, [clearProjectSelection, loadGlobalStats, setAnalyticsCurrentView]);
 
-  const activeProvidersKey = useMemo(
-    () => normalizeProviderIds(activeProviders).join(","),
-    [activeProviders]
-  );
-  const prevGlobalProvidersKeyRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!isViewingGlobalStats) {
-      prevGlobalProvidersKeyRef.current = activeProvidersKey;
-      return;
-    }
-    if (prevGlobalProvidersKeyRef.current === activeProvidersKey) {
-      return;
-    }
-    prevGlobalProvidersKeyRef.current = activeProvidersKey;
-    void loadGlobalStats();
-  }, [activeProvidersKey, isViewingGlobalStats, loadGlobalStats]);
-
   const handleToggleSidebar = useCallback(() => {
     setIsSidebarCollapsed((prev) => !prev);
   }, []);

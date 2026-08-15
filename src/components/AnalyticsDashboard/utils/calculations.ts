@@ -68,10 +68,17 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   // Google models (OpenCode)
   'gemini-2.5-pro': { input: 1.25, output: 10, cacheWrite: 0, cacheRead: 0 },
   'gemini-2.5-flash': { input: 0.15, output: 0.60, cacheWrite: 0, cacheRead: 0 },
-  'grok-4.5-build': { input: 1, output: 2, cacheWrite: 0, cacheRead: 0.20 },
+  // xAI's Grok Build aliases: grok-build-latest resolves to Grok 4.5,
+  // while grok-build-0.1 / grok-code-fast are the lower-priced Build model.
+  'grok-build-latest': { input: 2, output: 6, cacheWrite: 0, cacheRead: 0.30 },
+  'grok-build-0.1': { input: 1, output: 2, cacheWrite: 0, cacheRead: 0.20 },
+  'grok-code-fast-1-0825': { input: 1, output: 2, cacheWrite: 0, cacheRead: 0.20 },
+  'grok-code-fast-1': { input: 1, output: 2, cacheWrite: 0, cacheRead: 0.20 },
+  'grok-code-fast': { input: 1, output: 2, cacheWrite: 0, cacheRead: 0.20 },
+  'grok-4.5-build': { input: 2, output: 6, cacheWrite: 0, cacheRead: 0.30 },
   'grok-4.5': { input: 2, output: 6, cacheWrite: 0, cacheRead: 0.30 },
   'grok-4.3': { input: 1.25, output: 2.5, cacheWrite: 0, cacheRead: 0.20 },
-  'grok-build': { input: 1, output: 2, cacheWrite: 0, cacheRead: 0.20 },
+  'grok-build': { input: 2, output: 6, cacheWrite: 0, cacheRead: 0.30 },
   'grok-4': { input: 3, output: 15, cacheWrite: 0, cacheRead: 0.75 },
 };
 

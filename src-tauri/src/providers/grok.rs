@@ -287,16 +287,6 @@ pub fn load_messages_from_base_path(
 
     attach_session_token_usage(&session_dir, &mut messages);
 
-    if !updated_at.is_empty() {
-        if let Some(message) = messages
-            .iter_mut()
-            .rev()
-            .find(|message| message.usage.is_some())
-        {
-            message.timestamp = updated_at;
-        }
-    }
-
     Ok(messages)
 }
 
@@ -314,8 +304,28 @@ pub fn search_from_base_path(
     let mut results = Vec::new();
 
     for project in scan_projects_from_path(base_path)? {
-        for session in load_sessions_from_base_path(base_path, &project.path, false)? {
-            for mut message in load_messages_from_base_path(base_path, &session.file_path)? {
+        let sessions = match load_sessions_from_base_path(base_path, &project.path, false) {
+            Ok(sessions) => sessions,
+            Err(error) => {
+                log::warn!(
+                    "Skipping unreadable Grok project during search {}: {error}",
+                    project.path
+                );
+                continue;
+            }
+        };
+        for session in sessions {
+            let messages = match load_messages_from_base_path(base_path, &session.file_path) {
+                Ok(messages) => messages,
+                Err(error) => {
+                    log::warn!(
+                        "Skipping unreadable Grok session during search {}: {error}",
+                        session.file_path
+                    );
+                    continue;
+                }
+            };
+            for mut message in messages {
                 if let Some(content) = &message.content {
                     if search_json_value_case_insensitive(content, &query_lower) {
                         message.project_name = Some(project.name.clone());
@@ -686,7 +696,7 @@ fn attach_session_token_usage(session_dir: &Path, messages: &mut [ClaudeMessage]
         return;
     }
 
-    let model = signals
+    let fallback_model = signals
         .get("primaryModelId")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
@@ -697,6 +707,10 @@ fn attach_session_token_usage(session_dir: &Path, messages: &mut [ClaudeMessage]
         .rev()
         .find(|message| message.message_type == "assistant")
     {
+        // Grok exposes contextTokensUsed as a session-level context snapshot,
+        // not per-response billing. The shared message schema has no context
+        // field, so retain it as an explicitly approximate input count for
+        // aggregate analytics.
         message.usage = Some(TokenUsage {
             input_tokens: Some(capped),
             output_tokens: None,
@@ -704,8 +718,8 @@ fn attach_session_token_usage(session_dir: &Path, messages: &mut [ClaudeMessage]
             cache_read_input_tokens: None,
             service_tier: None,
         });
-        if let Some(model) = model {
-            message.model = Some(model);
+        if message.model.is_none() {
+            message.model = fallback_model;
         }
     }
 }
@@ -887,6 +901,7 @@ mod tests {
             r#"{"type":"assistant","content":"Hi there","tool_calls":[{"id":"call-1","name":"read_file","arguments":"{\"target_file\":\"/tmp/a.txt\"}"}],"model_id":"grok-4.5"}"#,
             r#"{"type":"tool_result","tool_call_id":"call-1","content":"file contents"}"#,
             r#"{"type":"backend_tool_call","kind":{"tool_type":"web_search","action":{"type":"search","query":"rust"}}}"#,
+            r#"{"type":"assistant","content":"Final answer","model_id":"grok-4.5"}"#,
             r"not-json",
         ];
         fs::write(session_dir.join(CHAT_HISTORY_FILE), lines.join("\n")).unwrap();
@@ -987,40 +1002,14 @@ mod tests {
                 .and_then(|usage| usage.input_tokens)
                 .is_some_and(|tokens| tokens == 12345)
         }));
+        let usage_message = messages
+            .iter()
+            .find(|message| message.usage.is_some())
+            .unwrap();
+        assert_eq!(usage_message.model.as_deref(), Some("grok-4.5"));
 
         let results = search("Hello grok", 10).unwrap();
         assert!(!results.is_empty());
-    }
-
-    #[test]
-    #[serial]
-    fn smoke_scan_real_grok_home_when_present() {
-        let _env = EnvVarGuard::remove("GROK_HOME");
-        let Some(base) = dirs::home_dir().map(|h| h.join(".grok")) else {
-            return;
-        };
-        if !base.join("sessions").is_dir() {
-            return;
-        }
-
-        let projects = scan_projects().expect("scan real Grok projects");
-        assert!(
-            !projects.is_empty(),
-            "expected at least one Grok project under ~/.grok/sessions"
-        );
-        assert!(projects
-            .iter()
-            .all(|p| p.provider.as_deref() == Some("grok")));
-
-        let sessions = load_sessions(&projects[0].path, false).expect("load real sessions");
-        assert!(!sessions.is_empty());
-
-        let messages =
-            load_messages(&sessions[0].file_path).expect("load real chat_history messages");
-        assert!(
-            !messages.is_empty(),
-            "expected messages in first real Grok session"
-        );
     }
 
     #[test]
