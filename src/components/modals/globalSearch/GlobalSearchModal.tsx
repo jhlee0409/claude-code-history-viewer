@@ -39,6 +39,13 @@ interface GlobalSearchModalProps {
 
 const MAX_RESULTS = 100;
 
+type SearchResultGroup = {
+    label: string;
+    provider?: string;
+    pathUnavailable: boolean;
+    items: GlobalSearchResult[];
+};
+
 export const GlobalSearchModal = ({
     isOpen,
     onClose,
@@ -62,26 +69,37 @@ export const GlobalSearchModal = ({
 
     // Group results by project name
     const groupedResults = useMemo(() => {
-        const groups = new Map<string, { label: string; provider?: string; items: GlobalSearchResult[] }>();
+        const groups = new Map<string, SearchResultGroup>();
 
         for (const result of results) {
             const projectName =
                 result.projectName || t("globalSearch.unknownProject");
+            const resultProvider = result.provider ?? "claude";
+            const matchingProject = projects.find(
+                (project) =>
+                    (project.provider ?? "claude") === resultProvider &&
+                    project.name === projectName
+            );
             const providerLabel = getProviderLabel(
                 (key, fallback) => t(key, fallback),
                 result.provider,
             );
-            const groupKey = `${result.provider ?? "claude"}::${projectName}`;
+            const groupKey = `${resultProvider}::${projectName}`;
             const groupLabel = `${projectName} (${providerLabel})`;
 
             if (!groups.has(groupKey)) {
-                groups.set(groupKey, { label: groupLabel, provider: result.provider, items: [] });
+                groups.set(groupKey, {
+                    label: groupLabel,
+                    provider: result.provider,
+                    pathUnavailable: matchingProject?.path_status === "unavailable",
+                    items: [],
+                });
             }
             groups.get(groupKey)!.items.push(result);
         }
 
         return groups;
-    }, [results, t]);
+    }, [projects, results, t]);
 
     // Flatten grouped results for keyboard navigation
     const flattenedResults = useMemo(() => {
@@ -620,6 +638,17 @@ export const GlobalSearchModal = ({
                                                     )}
                                                 >
                                                     {getProviderLabel((key, fallback) => t(key, fallback), group.provider)}
+                                                </Badge>
+                                            )}
+                                            {group.pathUnavailable && (
+                                                <Badge
+                                                    size="sm"
+                                                    className="rounded px-1 py-0 text-2xs bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                                    title={t("project.pathUnavailableDescription", {
+                                                        defaultValue: "Last-known location is unavailable",
+                                                    })}
+                                                >
+                                                    {t("project.pathUnavailable", "Location unavailable")}
                                                 </Badge>
                                             )}
                                             <span className="truncate">{group.label}</span>

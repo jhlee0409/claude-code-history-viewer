@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { getResumeCommand } from "@/utils/providers";
+import { isProjectPathUnavailable } from "@/utils/pathUtils";
 
 interface SessionCopyMenuProps {
   project: ClaudeProject | null;
@@ -26,12 +27,14 @@ export const SessionCopyMenu = ({
 }: SessionCopyMenuProps) => {
   const { t } = useTranslation();
   const providerId = session.provider ?? project?.provider ?? "claude";
-  const resumeCommand = getResumeCommand(
-    providerId,
-    session.actual_session_id,
-    project?.actual_path,
-    session.entrypoint,
-  );
+  const resumeCommand = isProjectPathUnavailable(project)
+    ? null
+    : getResumeCommand(
+        providerId,
+        session.actual_session_id,
+        project?.actual_path,
+        session.entrypoint,
+      );
   const copySessionIdLabel = t("session.copySessionId", "Copy Session ID");
   const triggerLabel = `${resumeCommand
     ? `${copySessionIdLabel} / ${t("session.copyResumeCommand", "Copy Resume Command")}`

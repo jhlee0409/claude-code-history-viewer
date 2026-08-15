@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_PROVIDER_ID,
   PROVIDER_IDS,
@@ -188,6 +188,21 @@ describe("providers utils", () => {
     expect(getResumeCommand("codex", "abc", "/tmp/it's-mine")).toBe(
       "cd '/tmp/it'\\''s-mine' && codex resume abc"
     );
+  });
+
+  it("formats a Windows resume command that works from CMD and PowerShell", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    );
+
+    const cwd = String.raw`E:\work\My Project`;
+    expect(getResumeCommand("claude", "abc-123", cwd)).toBe(
+      String.raw`powershell.exe -NoProfile -Command "Set-Location -LiteralPath 'E:\work\My Project'; claude --resume abc-123"`,
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("detects whether current scope has any supported provider", () => {

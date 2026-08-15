@@ -104,6 +104,7 @@ export type {
   GitWorktreeType,
   GitInfo,
   GitCommit,
+  ProjectPathStatus,
   ProviderId,
   ProviderInfo,
   ClaudeProject,

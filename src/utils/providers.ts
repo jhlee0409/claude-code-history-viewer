@@ -1,4 +1,5 @@
 import type { ProviderId } from "../types";
+import { isWindows } from "./platform";
 
 export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
@@ -365,6 +366,13 @@ function shellQuotePath(p: string): string {
   return `'${p.replace(/'/g, "'\\''")}'`;
 }
 
+// PowerShell's single-quoted strings are literal; a single quote is escaped by
+// doubling it. The resulting command can be pasted into either CMD or
+// PowerShell because both shells can invoke powershell.exe.
+function powershellQuotePath(p: string): string {
+  return `'${p.replace(/'/g, "''")}'`;
+}
+
 export function getResumeCommand(
   provider: ProviderId | string | undefined,
   sessionId: string,
@@ -417,7 +425,13 @@ export function getResumeCommand(
   }
 
   if (resume == null) return null;
-  return cwd ? `cd ${shellQuotePath(cwd)} && ${resume}` : resume;
+  if (!cwd) return resume;
+
+  if (isWindows()) {
+    return `powershell.exe -NoProfile -Command "Set-Location -LiteralPath ${powershellQuotePath(cwd)}; ${resume}"`;
+  }
+
+  return `cd ${shellQuotePath(cwd)} && ${resume}`;
 }
 
 /**

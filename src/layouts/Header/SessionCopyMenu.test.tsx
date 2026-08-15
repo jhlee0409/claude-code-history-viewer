@@ -100,6 +100,22 @@ describe("SessionCopyMenu", () => {
     });
   });
 
+  it("keeps the session id action when the project location is unavailable", async () => {
+    render(
+      <SessionCopyMenu
+        project={{ ...project, path_status: "unavailable" }}
+        session={session}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Copy Resume Command" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Copy Session ID" }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(session.actual_session_id);
+    });
+  });
+
   it("renders an accessible compact trigger", () => {
     render(<SessionCopyMenu compact project={project} session={session} />);
 

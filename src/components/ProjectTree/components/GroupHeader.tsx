@@ -31,6 +31,13 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       badge: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
       expandIcon: "text-emerald-500",
     },
+    unavailable: {
+      text: "text-amber-700 dark:text-amber-300",
+      bg: "bg-amber-500/20",
+      border: "border-l-amber-500/50",
+      badge: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+      expandIcon: "text-amber-500",
+    },
   };
 
   const colors = variantColors[variant];

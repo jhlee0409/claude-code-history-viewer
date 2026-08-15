@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -31,12 +31,11 @@ export function useSessionEditing(session: ClaudeSession) {
 
   const providerId = session.provider ?? "claude";
   const isServerReadOnly = useAppStore((state) => state.isServerReadOnly);
+  const selectedProject = useAppStore((state) => state.selectedProject);
+  const loadedSessions = useAppStore((state) => state.sessions);
+  const projects = useAppStore((state) => state.projects);
   const supportsNativeRename =
     !isServerReadOnly && providerSupportsNativeRename(providerId);
-  const supportsResumeCommand = supportsResumeCommandForSession(
-    providerId,
-    session.entrypoint
-  );
   const supportsSessionDeletion =
     !isServerReadOnly && providerSupportsSessionDeletion(providerId);
   const supportsRevealInFinder = isAbsolutePath(session.file_path);
@@ -183,45 +182,55 @@ export function useSessionEditing(session: ClaudeSession) {
     [handleCopyToClipboard, session.actual_session_id, t]
   );
 
-  const projectCwd = useAppStore(
-    (state) => {
-      const selectedProject = state.selectedProject;
-      const isLoadedInSelectedProject =
-        !!selectedProject &&
-        state.sessions.some(
-          (loadedSession) =>
-            loadedSession.session_id === session.session_id ||
-            loadedSession.file_path === session.file_path
-        );
+  const projectForSession = useMemo(() => {
+    const isLoadedInSelectedProject =
+      !!selectedProject &&
+      loadedSessions.some(
+        (loadedSession) =>
+          loadedSession.session_id === session.session_id ||
+          loadedSession.file_path === session.file_path
+      );
 
-      if (isLoadedInSelectedProject) {
-        return selectedProject.actual_path;
-      }
+    if (isLoadedInSelectedProject) {
+      return selectedProject;
+    }
 
-      const providerMatch = state.projects.find(
+    return (
+      projects.find(
         (project) =>
           (project.provider ?? "claude") === providerId &&
           project.name === session.project_name
-      );
-      return (
-        providerMatch?.actual_path ??
-        state.projects.find((p) => p.name === session.project_name)?.actual_path
-      );
-    }
-  );
+      ) ?? projects.find((project) => project.name === session.project_name)
+    );
+  }, [loadedSessions, projects, providerId, selectedProject, session.file_path, session.project_name, session.session_id]);
+
+  const projectPathUnavailable = projectForSession?.path_status === "unavailable";
+  const projectCwd = projectPathUnavailable ? undefined : projectForSession?.actual_path;
+  const supportsResumeCommand =
+    supportsResumeCommandForSession(providerId, session.entrypoint) &&
+    !projectPathUnavailable;
 
   const handleCopyResumeCommand = useCallback(
     (e: React.MouseEvent) => {
-      const resumeCommand = getResumeCommand(
-        providerId,
-        session.actual_session_id,
-        projectCwd,
-        session.entrypoint
-      );
+      const resumeCommand = projectPathUnavailable
+        ? null
+        : getResumeCommand(
+            providerId,
+            session.actual_session_id,
+            projectCwd,
+            session.entrypoint
+          );
       if (!resumeCommand) {
         e.stopPropagation();
         setIsContextMenuOpen(false);
-        toast.error(t("session.copyResumeCommandError", "Resume command unavailable"));
+        toast.error(
+          projectPathUnavailable
+            ? t(
+                "session.resumeUnavailableLocation",
+                "Resume is unavailable because the last-known working directory is missing"
+              )
+            : t("session.copyResumeCommandError", "Resume command unavailable")
+        );
         return;
       }
 
@@ -236,7 +245,15 @@ export function useSessionEditing(session: ClaudeSession) {
             )
       );
     },
-    [handleCopyToClipboard, projectCwd, providerId, session.actual_session_id, session.entrypoint, t]
+    [
+      handleCopyToClipboard,
+      projectCwd,
+      projectPathUnavailable,
+      providerId,
+      session.actual_session_id,
+      session.entrypoint,
+      t,
+    ]
   );
 
   const handleCopyFilePath = useCallback(

@@ -114,6 +114,29 @@ describe("GlobalSearchModal WSL search routing", () => {
         });
     });
 
+    it("searches a Codex-only installation without a native Claude path", async () => {
+        storeState.activeProviders = ["codex"];
+        storeState.userMetadata.settings.wsl.enabled = false;
+
+        render(<GlobalSearchModal isOpen onClose={vi.fn()} />);
+
+        fireEvent.change(screen.getByPlaceholderText("globalSearch.placeholder"), {
+            target: { value: "hello" },
+        });
+
+        await waitFor(() => {
+            expect(mockApi).toHaveBeenCalledWith(
+                "search_all_providers",
+                expect.objectContaining({
+                    claudePath: undefined,
+                    query: "hello",
+                    activeProviders: ["codex"],
+                    wslEnabled: false,
+                }),
+            );
+        });
+    });
+
     it("keeps the native search path when native Claude is available", async () => {
         storeState.claudePath = "/home/user/.claude";
         storeState.userMetadata.settings.wsl.enabled = false;

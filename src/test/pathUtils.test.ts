@@ -3,6 +3,7 @@ import {
   getCompactParentPath,
   getDisplayPathParts,
   getPathLeaf,
+  isProjectPathUnavailable,
 } from "../utils/pathUtils";
 
 describe("path display utilities", () => {
@@ -71,5 +72,11 @@ describe("path display utilities", () => {
       "my-repo",
     ]);
     expect(getCompactParentPath(path)).toBe("iCloud Drive / Research / OB");
+  });
+
+  it("recognizes an unavailable project location without changing path formatting", () => {
+    expect(isProjectPathUnavailable({ path_status: "unavailable" })).toBe(true);
+    expect(isProjectPathUnavailable({})).toBe(false);
+    expect(isProjectPathUnavailable(null)).toBe(false);
   });
 });

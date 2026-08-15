@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-08-15T13:41:59.526Z
- * 총 키 개수: 1881
+ * 생성 시간: 2026-08-15T17:10:04.379Z
+ * 총 키 개수: 1887
  * Namespace 수: 11
  */
 
@@ -417,7 +417,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (251개)
+ * session namespace의 번역 키 (257개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -430,6 +430,7 @@ export type SessionKeys =
   | 'project.a11y.selectedState'
   | 'project.addPattern'
   | 'project.collapseSidebar'
+  | 'project.copyLastKnownPath'
   | 'project.copyPath'
   | 'project.count'
   | 'project.currentSelection'
@@ -448,6 +449,10 @@ export type SessionKeys =
   | 'project.main'
   | 'project.notFound'
   | 'project.pathCopied'
+  | 'project.pathUnavailable'
+  | 'project.pathUnavailableDescription'
+  | 'project.pathUnavailableGroup'
+  | 'project.pathUnavailablePath'
   | 'project.removePattern'
   | 'project.resetProviderFilters'
   | 'project.searchPlaceholder'
@@ -628,6 +633,7 @@ export type SessionKeys =
   | 'session.renamePlaceholder'
   | 'session.resetError'
   | 'session.resetName'
+  | 'session.resumeUnavailableLocation'
   | 'session.revealError'
   | 'session.saveError'
   | 'session.scanning'
@@ -2771,6 +2777,7 @@ export type TranslationKey =
   | 'project.a11y.selectedState'
   | 'project.addPattern'
   | 'project.collapseSidebar'
+  | 'project.copyLastKnownPath'
   | 'project.copyPath'
   | 'project.count'
   | 'project.currentSelection'
@@ -2789,6 +2796,10 @@ export type TranslationKey =
   | 'project.main'
   | 'project.notFound'
   | 'project.pathCopied'
+  | 'project.pathUnavailable'
+  | 'project.pathUnavailableDescription'
+  | 'project.pathUnavailableGroup'
+  | 'project.pathUnavailablePath'
   | 'project.removePattern'
   | 'project.resetProviderFilters'
   | 'project.searchPlaceholder'
@@ -3064,6 +3075,7 @@ export type TranslationKey =
   | 'session.renamePlaceholder'
   | 'session.resetError'
   | 'session.resetName'
+  | 'session.resumeUnavailableLocation'
   | 'session.revealError'
   | 'session.saveError'
   | 'session.scanning'

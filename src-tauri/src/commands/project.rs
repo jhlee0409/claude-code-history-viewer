@@ -504,6 +504,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_scan_projects_keeps_missing_worktree_history_visible() {
+        let temp_dir = TempDir::new().unwrap();
+        let claude_dir = temp_dir.path().join(".claude");
+        let project_dir = claude_dir.join("projects").join("-tmp-deleted-worktree");
+        fs::create_dir_all(&project_dir).unwrap();
+
+        create_test_jsonl_file(
+            &project_dir,
+            "session.jsonl",
+            &jsonl_lines(vec![serde_json::json!({
+                "uuid": "uuid-missing-worktree",
+                "sessionId": "session-missing-worktree",
+                "timestamp": "2026-08-16T10:00:00Z",
+                "type": "user",
+                "cwd": "/tmp/deleted-worktree",
+                "message": { "role": "user", "content": "Keep this history" },
+            })]),
+        );
+
+        let projects = scan_projects(claude_dir.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].actual_path, "/tmp/deleted-worktree");
+
+        let serialized = serde_json::to_value(&projects[0]).unwrap();
+        assert_eq!(
+            serialized.get("path_status"),
+            Some(&serde_json::json!("unavailable"))
+        );
+        assert_eq!(serialized.get("session_count"), Some(&serde_json::json!(1)));
+    }
+
+    #[tokio::test]
     async fn test_scan_projects_multiple_projects() {
         let temp_dir = TempDir::new().unwrap();
         let claude_dir = temp_dir.path().join(".claude");
