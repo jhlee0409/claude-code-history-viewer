@@ -1,6 +1,6 @@
 import type { ProviderId } from "../types";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 const PROVIDER_TRANSLATIONS: Record<
@@ -22,6 +22,7 @@ const PROVIDER_TRANSLATIONS: Record<
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   goose: { key: "common.provider.goose", fallback: "Goose" },
+  grok: { key: "common.provider.grok", fallback: "Grok CLI" },
   kimi: { key: "common.provider.kimi", fallback: "Kimi CLI" },
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
   llm: { key: "common.provider.llm", fallback: "llm" },
@@ -156,6 +157,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  grok: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   kimi: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -276,6 +284,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "cursor-agent":
     case "gemini":
     case "goose":
+    case "grok":
     case "kimi":
     case "forgecode":
     case "kiro":
@@ -442,6 +451,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   goose: "bg-red-500/15 text-red-600 dark:text-red-400",
+  grok: "bg-zinc-800/15 text-zinc-800 dark:text-zinc-200",
   kimi: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300",
   kiro: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
   llm: "bg-slate-500/15 text-slate-600 dark:text-slate-400",

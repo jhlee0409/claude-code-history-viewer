@@ -27,6 +27,7 @@ enum StatsProvider {
     Codex,
     ForgeCode,
     OpenCode,
+    Grok,
     Kimi,
     Antigravity,
     Copilot,
@@ -68,6 +69,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Codex => "codex",
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
+        StatsProvider::Grok => "grok",
         StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::Copilot => "copilot",
@@ -227,6 +229,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Codex,
         StatsProvider::ForgeCode,
         StatsProvider::OpenCode,
+        StatsProvider::Grok,
         StatsProvider::Kimi,
         StatsProvider::Antigravity,
         StatsProvider::Copilot,
@@ -253,6 +256,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "codex" => Some(StatsProvider::Codex),
             "forgecode" => Some(StatsProvider::ForgeCode),
             "opencode" => Some(StatsProvider::OpenCode),
+            "grok" => Some(StatsProvider::Grok),
             "kimi" => Some(StatsProvider::Kimi),
             "antigravity" => Some(StatsProvider::Antigravity),
             "copilot" => Some(StatsProvider::Copilot),
@@ -284,6 +288,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::ForgeCode
     } else if project_path.starts_with("opencode://") {
         StatsProvider::OpenCode
+    } else if project_path.starts_with("grok://") {
+        StatsProvider::Grok
     } else if project_path.starts_with("kimi://") {
         StatsProvider::Kimi
     } else if project_path.starts_with("gemini://") {
@@ -311,6 +317,10 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
 fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.starts_with("opencode://") {
         return StatsProvider::OpenCode;
+    }
+
+    if is_grok_path(session_path) {
+        return StatsProvider::Grok;
     }
 
     if is_kimi_path(session_path) {
@@ -479,6 +489,27 @@ fn is_gemini_path(path: &str) -> bool {
                 .starts_with(path_from_current_dir(PathBuf::from(root).join("tmp")))
         })
         .unwrap_or(false)
+}
+
+fn is_grok_path(path: &str) -> bool {
+    providers::grok::get_base_path()
+        .map(|root| Path::new(path).starts_with(root))
+        .unwrap_or(false)
+}
+
+fn grok_virtual_paths_match(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let left_path = left.strip_prefix("grok://").unwrap_or(left);
+    let right_path = right.strip_prefix("grok://").unwrap_or(right);
+    match (
+        Path::new(left_path).canonicalize(),
+        Path::new(right_path).canonicalize(),
+    ) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 /// Parse a line using simd-json (requires mutable slice)
@@ -1190,6 +1221,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::Codex => providers::codex::scan_projects().unwrap_or_default(),
         StatsProvider::ForgeCode => providers::forgecode::scan_projects().unwrap_or_default(),
         StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
+        StatsProvider::Grok => providers::grok::scan_projects().unwrap_or_default(),
         StatsProvider::Kimi => providers::kimi::scan_projects().unwrap_or_default(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
         StatsProvider::Copilot => providers::copilot::scan_projects().unwrap_or_default(),
@@ -1213,6 +1245,7 @@ fn collect_provider_global_file_stats(
             StatsProvider::Codex => providers::codex::load_sessions(&project.path, false),
             StatsProvider::ForgeCode => providers::forgecode::load_sessions(&project.path, false),
             StatsProvider::OpenCode => providers::opencode::load_sessions(&project.path, false),
+            StatsProvider::Grok => providers::grok::load_sessions(&project.path, false),
             StatsProvider::Kimi => providers::kimi::load_sessions(&project.path, false),
             StatsProvider::Antigravity => {
                 providers::antigravity::load_sessions(&project.path, false)
@@ -1239,6 +1272,7 @@ fn collect_provider_global_file_stats(
                 StatsProvider::Codex => providers::codex::load_messages(file_path),
                 StatsProvider::ForgeCode => providers::forgecode::load_messages(file_path),
                 StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
+                StatsProvider::Grok => providers::grok::load_messages(file_path),
                 StatsProvider::Kimi => providers::kimi::load_messages(file_path),
                 StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
                 StatsProvider::Copilot => providers::copilot::load_messages(file_path),
@@ -1966,6 +2000,32 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 .unwrap_or(project_path)
                 .to_string()
         }
+        StatsProvider::Grok => {
+            if let Ok(projects) = providers::grok::scan_projects() {
+                if let Some(project) = projects
+                    .into_iter()
+                    .find(|p| grok_virtual_paths_match(&p.path, project_path))
+                {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("grok://")
+                .and_then(|p| {
+                    PathBuf::from(p).file_name().map(|n| {
+                        let encoded = n.to_string_lossy().to_string();
+                        let decoded = urlencoding::decode(&encoded)
+                            .map(std::borrow::Cow::into_owned)
+                            .unwrap_or_else(|_| encoded.clone());
+                        Path::new(&decoded)
+                            .file_name()
+                            .map(|name| name.to_string_lossy().to_string())
+                            .filter(|name| !name.is_empty())
+                            .unwrap_or(encoded)
+                    })
+                })
+                .unwrap_or_else(|| project_path.to_string())
+        }
         StatsProvider::Kimi => {
             if let Ok(projects) = providers::kimi::scan_projects() {
                 if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
@@ -2079,6 +2139,13 @@ fn resolve_provider_project_name_from_session(
             }
             "codex".to_string()
         }
+        StatsProvider::Grok => {
+            if let Some(project_dir) = Path::new(session_path).parent() {
+                let project_path = format!("grok://{}", project_dir.to_string_lossy());
+                return resolve_provider_project_name(provider, &project_path);
+            }
+            "grok".to_string()
+        }
         StatsProvider::Kimi => {
             if let Some(project_dir) = Path::new(session_path).parent() {
                 let project_path = format!("kimi://{}", project_dir.to_string_lossy());
@@ -2149,6 +2216,7 @@ fn load_provider_sessions_for_stats(
         StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
         StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
+        StatsProvider::Grok => providers::grok::load_sessions(project_path, false),
         StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
         StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
@@ -2171,6 +2239,7 @@ fn load_provider_messages_for_stats(
         StatsProvider::Codex => providers::codex::load_messages(&session.file_path),
         StatsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path),
         StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
+        StatsProvider::Grok => providers::grok::load_messages(&session.file_path),
         StatsProvider::Kimi => providers::kimi::load_messages(&session.file_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
         StatsProvider::Copilot => providers::copilot::load_messages(&session.file_path),
@@ -2921,6 +2990,7 @@ pub async fn get_session_token_stats(
             StatsProvider::Codex => providers::codex::load_messages(&session_path)?,
             StatsProvider::ForgeCode => providers::forgecode::load_messages(&session_path)?,
             StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
+            StatsProvider::Grok => providers::grok::load_messages(&session_path)?,
             StatsProvider::Kimi => providers::kimi::load_messages(&session_path)?,
             StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
             StatsProvider::Copilot => providers::copilot::load_messages(&session_path)?,
@@ -3876,6 +3946,13 @@ pub async fn get_global_stats_summary(
         file_stats.extend(opencode_stats);
     }
 
+    if providers_to_include.contains(&StatsProvider::Grok) {
+        let (grok_stats, grok_projects) =
+            collect_provider_global_file_stats(StatsProvider::Grok, mode, s_ref, e_ref);
+        project_names.extend(grok_projects);
+        file_stats.extend(grok_stats);
+    }
+
     if providers_to_include.contains(&StatsProvider::Kimi) {
         let (kimi_stats, kimi_projects) =
             collect_provider_global_file_stats(StatsProvider::Kimi, mode, s_ref, e_ref);
@@ -4799,6 +4876,10 @@ mod tests {
             StatsProvider::OpenCode
         );
         assert_eq!(
+            detect_project_provider("grok:///Users/jack/.grok/sessions/%2FUsers%2Fjack%2Frepo"),
+            StatsProvider::Grok
+        );
+        assert_eq!(
             detect_project_provider("kimi:///Users/jack/.kimi/sessions/project-hash"),
             StatsProvider::Kimi
         );
@@ -4853,6 +4934,15 @@ mod tests {
             detect_session_provider("opencode://project/ses_abc"),
             StatsProvider::OpenCode
         );
+        if let Some(root) = providers::grok::get_base_path() {
+            let grok_session = PathBuf::from(root)
+                .join("sessions")
+                .join("%2FUsers%2Fjack%2Frepo")
+                .join("session-id")
+                .to_string_lossy()
+                .to_string();
+            assert_eq!(detect_session_provider(&grok_session), StatsProvider::Grok);
+        }
         if let Some(root) = providers::kimi::get_base_path() {
             let kimi_session = PathBuf::from(root)
                 .join("sessions")
@@ -4926,6 +5016,7 @@ mod tests {
         assert!(providers.contains(&StatsProvider::Codex));
         assert!(providers.contains(&StatsProvider::ForgeCode));
         assert!(providers.contains(&StatsProvider::OpenCode));
+        assert!(providers.contains(&StatsProvider::Grok));
         assert!(providers.contains(&StatsProvider::Kimi));
         assert!(providers.contains(&StatsProvider::Antigravity));
         assert!(providers.contains(&StatsProvider::Copilot));
@@ -4960,6 +5051,14 @@ mod tests {
         let providers = parse_active_stats_providers(Some(vec!["forgecode".to_string()]));
         assert_eq!(providers.len(), 1);
         assert!(providers.contains(&StatsProvider::ForgeCode));
+    }
+
+    #[test]
+    /// Verify parse active stats providers supports Grok.
+    fn test_parse_active_stats_providers_supports_grok() {
+        let providers = parse_active_stats_providers(Some(vec!["grok".to_string()]));
+        assert_eq!(providers.len(), 1);
+        assert!(providers.contains(&StatsProvider::Grok));
     }
 
     #[test]
@@ -5059,6 +5158,96 @@ mod tests {
             false,
             StatsMode::BillingTotal
         ));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn get_project_stats_summary_accepts_grok_virtual_path() {
+        let temp = TempDir::new().expect("temp dir");
+        let encoded = "%2FUsers%2Ftest%2Fdemo";
+        let session_id = "019fa555-791c-71e2-8c92-ff2e6fa26d6e";
+        let project_dir = temp.path().join("sessions").join(encoded);
+        let session_dir = project_dir.join(session_id);
+        fs::create_dir_all(&session_dir).unwrap();
+
+        fs::write(
+            session_dir.join("summary.json"),
+            serde_json::json!({
+                "info": { "id": session_id, "cwd": "/Users/test/demo" },
+                "generated_title": "Demo",
+                "created_at": "2026-07-27T20:47:50Z",
+                "updated_at": "2026-07-27T21:11:25Z",
+                "num_chat_messages": 2,
+                "current_model_id": "grok-4.5"
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            session_dir.join("chat_history.jsonl"),
+            r#"{"type":"user","content":"hello"}
+{"type":"assistant","content":"hi","model_id":"grok-4.5"}
+"#,
+        )
+        .unwrap();
+        fs::write(
+            session_dir.join("signals.json"),
+            serde_json::json!({
+                "contextTokensUsed": 42,
+                "primaryModelId": "grok-4.5",
+                "toolCallCount": 0
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let _env = EnvVarGuard::set("GROK_HOME", temp.path());
+        let project_path = format!("grok://{}", project_dir.to_string_lossy());
+
+        assert_eq!(detect_project_provider(&project_path), StatsProvider::Grok);
+
+        let summary = get_project_stats_summary(project_path.clone(), None, None, None)
+            .await
+            .expect("grok virtual project path should load stats");
+        assert_eq!(summary.project_name, "demo");
+        assert!(summary.total_sessions >= 1);
+        assert!(summary.total_messages >= 1);
+        assert_eq!(summary.total_tokens, 42);
+
+        let global = get_global_stats_summary(
+            "/tmp".to_string(),
+            Some(vec!["grok".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("grok should contribute to global stats");
+        assert!(
+            global
+                .provider_distribution
+                .iter()
+                .any(|provider| provider.provider_id == "grok" && provider.tokens >= 42),
+            "expected grok in provider_distribution: {:?}",
+            global.provider_distribution
+        );
+        assert!(
+            global
+                .model_distribution
+                .iter()
+                .any(|model| model.model_name.contains("grok") && model.token_count >= 42),
+            "expected grok model in model_distribution: {:?}",
+            global.model_distribution
+        );
+        assert!(
+            global
+                .top_projects
+                .iter()
+                .any(|project| project.project_name.contains("demo")),
+            "expected grok project in top_projects: {:?}",
+            global.top_projects
+        );
     }
 
     #[test]
