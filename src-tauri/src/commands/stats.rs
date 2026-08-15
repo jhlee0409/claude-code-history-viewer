@@ -462,9 +462,22 @@ fn is_pi_path_under(path: &str, home: &Path) -> bool {
 /// Anchored on the `tmp` subtree (not the whole `~/.gemini`) so paths under
 /// other Gemini sub-trees (e.g. the Antigravity store at `~/.gemini/antigravity`)
 /// are not misrouted to the Gemini provider.
+fn path_from_current_dir(path: PathBuf) -> PathBuf {
+    if path.is_absolute() {
+        path
+    } else {
+        std::env::current_dir()
+            .map(|current_dir| current_dir.join(&path))
+            .unwrap_or(path)
+    }
+}
+
 fn is_gemini_path(path: &str) -> bool {
     providers::gemini::get_base_path()
-        .map(|root| Path::new(path).starts_with(PathBuf::from(root).join("tmp")))
+        .map(|root| {
+            path_from_current_dir(PathBuf::from(path))
+                .starts_with(path_from_current_dir(PathBuf::from(root).join("tmp")))
+        })
         .unwrap_or(false)
 }
 
@@ -1186,19 +1199,7 @@ fn collect_provider_global_file_stats(
         StatsProvider::Claude => Vec::new(),
     };
 
-    let provider_tag = match provider {
-        StatsProvider::Codebuddy => "codebuddy",
-        StatsProvider::Codex => "codex",
-        StatsProvider::ForgeCode => "forgecode",
-        StatsProvider::OpenCode => "opencode",
-        StatsProvider::Kimi => "kimi",
-        StatsProvider::Antigravity => "antigravity",
-        StatsProvider::Copilot => "copilot",
-        StatsProvider::Ompi => "ompi",
-        StatsProvider::Pi => "pi",
-        StatsProvider::Gemini => "gemini",
-        StatsProvider::Claude => "claude",
-    };
+    let provider_tag = stats_provider_id(provider);
 
     // Collect all (project_display_name, session_file_path) pairs first
     let mut session_tasks: Vec<(String, String)> = Vec::new();
@@ -6631,6 +6632,9 @@ mod tests {
     fn detect_session_provider_routes_new_providers() {
         let temp = TempDir::new().expect("tempdir");
         let _guard = EnvVarGuard::set("HOME", temp.path());
+        let gemini_home = TempDir::new_in(".").expect("relative Gemini home");
+        let _gemini_guard = EnvVarGuard::set("GEMINI_HOME", gemini_home.path());
+        let gemini_home_absolute = fs::canonicalize(gemini_home.path()).expect("Gemini home");
         let home = temp.path().to_string_lossy().to_string();
 
         assert_eq!(
@@ -6646,7 +6650,11 @@ mod tests {
             StatsProvider::Pi
         );
         assert_eq!(
-            detect_session_provider(&format!("{home}/.gemini/tmp/abcd/chats/chat-1.jsonl")),
+            detect_session_provider(
+                &gemini_home_absolute
+                    .join("tmp/abcd/chats/chat-1.jsonl")
+                    .to_string_lossy(),
+            ),
             StatsProvider::Gemini
         );
         // A codex rollout still routes to Codex.
