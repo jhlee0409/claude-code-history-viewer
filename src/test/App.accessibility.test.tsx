@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import App from "@/App";
 
 const { useAppStoreMock } = vi.hoisted(() => {
@@ -44,6 +44,8 @@ const { useAppStoreMock } = vi.hoisted(() => {
     selectProject: vi.fn(async () => {}),
     selectSession: vi.fn(async () => {}),
     clearProjectSelection: vi.fn(),
+    navigateToMessage: vi.fn(),
+    clearTargetMessage: vi.fn(),
     setSessionSearchQuery: vi.fn(),
     setSearchFilterType: vi.fn(),
     goToNextMatch: vi.fn(),
@@ -268,6 +270,11 @@ vi.mock("react-i18next", async (importOriginal) => {
 });
 
 describe("App accessibility smoke", () => {
+  beforeEach(() => {
+    window.history.replaceState({}, "", "/");
+    vi.clearAllMocks();
+  });
+
   it("renders skip links and landmark targets", () => {
     render(<App />);
 
@@ -288,5 +295,23 @@ describe("App accessibility smoke", () => {
     expect(document.getElementById("main-content")).not.toBeNull();
     expect(document.getElementById("message-navigator")).not.toBeNull();
     expect(document.getElementById("app-settings-button")).not.toBeNull();
+  });
+
+  it("replays a WebUI message link from browser history", async () => {
+    render(<App />);
+
+    window.history.replaceState(
+      {},
+      "",
+      "/?session=session-1&msg=message-2",
+    );
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    await waitFor(() => {
+      expect(useAppStoreMock.getState().navigateToMessage).toHaveBeenCalledWith(
+        "message-2",
+        { history: "none" },
+      );
+    });
   });
 });

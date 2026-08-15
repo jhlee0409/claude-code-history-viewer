@@ -146,6 +146,19 @@ const createTestStore = () =>
 describe("projectSlice scanProjects", () => {
   beforeEach(() => {
     vi.mocked(api).mockReset();
+    delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("clears the WebUI deep link with browser history control", () => {
+    window.history.replaceState({}, "", "/?session=session-1&msg=message-1");
+    const store = createTestStore();
+
+    store.getState().clearProjectSelection({ history: "replace" });
+
+    const url = new URL(window.location.href);
+    expect(url.searchParams.get("session")).toBeNull();
+    expect(url.searchParams.get("msg")).toBeNull();
   });
 
   it("publishes each provider as soon as that provider scan completes", async () => {

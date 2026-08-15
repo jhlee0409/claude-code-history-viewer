@@ -1,5 +1,9 @@
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
+import {
+    type WebUINavigationOptions,
+    writeWebUIDeepLink,
+} from "@/utils/webuiDeepLink";
 
 export interface NavigationSliceState {
     targetMessageUuid: string | null;
@@ -7,7 +11,7 @@ export interface NavigationSliceState {
 }
 
 export interface NavigationSliceActions {
-    navigateToMessage: (uuid: string) => void;
+    navigateToMessage: (uuid: string, options?: WebUINavigationOptions) => void;
     clearTargetMessage: () => void;
 }
 
@@ -18,14 +22,25 @@ export const createNavigationSlice: StateCreator<
     [],
     [],
     NavigationSlice
-> = (set) => ({
+> = (set, get) => ({
     targetMessageUuid: null,
     shouldHighlightTarget: false,
 
-    navigateToMessage: (uuid) => set({
-        targetMessageUuid: uuid,
-        shouldHighlightTarget: true
-    }),
+    navigateToMessage: (uuid, options) => {
+        set({
+            targetMessageUuid: uuid,
+            shouldHighlightTarget: true
+        });
+
+        const session = get().selectedSession;
+        const sessionId = session?.actual_session_id || session?.session_id;
+        if (sessionId) {
+            writeWebUIDeepLink(
+                { sessionId, messageId: uuid },
+                options?.history ?? "push",
+            );
+        }
+    },
 
     clearTargetMessage: () => set({
         targetMessageUuid: null,

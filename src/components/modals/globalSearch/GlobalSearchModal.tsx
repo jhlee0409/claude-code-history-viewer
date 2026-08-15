@@ -173,8 +173,10 @@ export const GlobalSearchModal = ({
                     // a result clicked while in analytics/tokenStats/etc. loads the
                     // session but stays hidden behind the other view (issue #390).
                     setAnalyticsCurrentView("messages");
-                    if (result.uuid) navigateToMessage(result.uuid);
                     await selectSession(targetSession);
+                    if (result.uuid) {
+                        navigateToMessage(result.uuid, { history: "replace" });
+                    }
                     onClose();
                     return;
                 }
@@ -243,9 +245,11 @@ export const GlobalSearchModal = ({
                     if (token !== resolveTokenRef.current) return; // cancelled
                     if (found) {
                         setAnalyticsCurrentView("messages");
-                        if (result.uuid) navigateToMessage(result.uuid);
                         await selectProject(found.project);
                         await selectSession(found.session);
+                        if (result.uuid) {
+                            navigateToMessage(result.uuid, { history: "replace" });
+                        }
                         onClose();
                         return;
                     }
