@@ -69,7 +69,13 @@ export const createWatcherSlice: StateCreator<
 
     const timer = setTimeout(() => {
       projectUpdateTimers.delete(projectPath);
-      get().markProjectUpdated(projectPath);
+      // Reload the project's session list (not just a timestamp) so that a
+      // newly-created session file — e.g. a Claude Code auto-continuation —
+      // shows up, and superseded-chain-predecessor filtering on the backend
+      // re-runs with the new file present. `triggerProjectRefresh` is a
+      // no-op beyond marking the timestamp when `projectPath` isn't the
+      // currently selected project, so this is safe to call unconditionally.
+      void get().triggerProjectRefresh(projectPath);
     }, PROJECT_UPDATE_DEBOUNCE_MS);
 
     projectUpdateTimers.set(projectPath, timer);
