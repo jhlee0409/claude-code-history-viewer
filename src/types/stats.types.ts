@@ -25,7 +25,7 @@ export interface SessionTokenStats {
   last_message_time: string;
   summary?: string;
   most_used_tools: ToolUsageStats[];
-  model_distribution: ModelStats[];
+  model_distribution?: ModelStats[];
 }
 
 /**
@@ -134,7 +134,7 @@ export interface ProjectStatsSummary {
   most_used_subagents: ToolUsageStats[];
   daily_stats: DailyStats[];
   activity_heatmap: ActivityHeatmap[];
-  model_distribution: ModelStats[];
+  model_distribution?: ModelStats[];
   token_distribution: {
     input: number;
     output: number;
@@ -198,6 +198,6 @@ export interface GlobalStatsSummary {
   /** Claude subagents (`Agent` tool) by invocation count (#321). */
   most_used_subagents: ToolUsageStats[];
   provider_distribution: ProviderUsageStats[];
-  model_distribution: ModelStats[];
+  model_distribution?: ModelStats[];
   top_projects: ProjectRanking[];
 }

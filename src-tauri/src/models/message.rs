@@ -249,6 +249,50 @@ mod tests {
     }
 
     #[test]
+    fn test_token_usage_provider_aliases() {
+        let usage: TokenUsage = serde_json::from_value(json!({
+            "inputTokens": 100,
+            "output": 200,
+            "cacheWrite": 50,
+            "cacheReadInputTokens": 25,
+            "cacheCreationInputTokens5m": 40,
+            "cacheCreationInputTokens1h": 10,
+            "cache_creation": {
+                "ephemeral5mInputTokens": 40,
+                "ephemeral1hInputTokens": 10
+            },
+            "reasoning": 7,
+            "serviceTier": "fast"
+        }))
+        .unwrap();
+
+        assert_eq!(usage.input_tokens, Some(100));
+        assert_eq!(usage.output_tokens, Some(200));
+        assert_eq!(usage.cache_creation_input_tokens, Some(50));
+        assert_eq!(usage.cache_read_input_tokens, Some(25));
+        assert_eq!(usage.cache_creation_input_tokens_5m, Some(40));
+        assert_eq!(usage.cache_creation_input_tokens_1h, Some(10));
+        assert_eq!(
+            usage
+                .cache_creation
+                .as_ref()
+                .unwrap()
+                .ephemeral_5m_input_tokens,
+            Some(40)
+        );
+        assert_eq!(
+            usage
+                .cache_creation
+                .as_ref()
+                .unwrap()
+                .ephemeral_1h_input_tokens,
+            Some(10)
+        );
+        assert_eq!(usage.reasoning_tokens, Some(7));
+        assert_eq!(usage.service_tier.as_deref(), Some("fast"));
+    }
+
+    #[test]
     fn test_token_usage_with_none_values() {
         let json_str = r#"{"input_tokens": 100}"#;
         let usage: TokenUsage = serde_json::from_str(json_str).unwrap();

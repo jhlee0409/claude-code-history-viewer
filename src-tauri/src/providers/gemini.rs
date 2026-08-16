@@ -678,7 +678,11 @@ fn convert_gemini_response(
         output_tokens: t.get("output").and_then(Value::as_u64).map(|v| v as u32),
         cache_creation_input_tokens: None,
         cache_read_input_tokens: t.get("cached").and_then(Value::as_u64).map(|v| v as u32),
-        reasoning_tokens: t.get("reasoning").and_then(Value::as_u64).map(|v| v as u32),
+        reasoning_tokens: t
+            .get("thoughts")
+            .or_else(|| t.get("reasoning"))
+            .and_then(Value::as_u64)
+            .map(|v| v as u32),
         service_tier: None,
         ..Default::default()
     });
@@ -1187,6 +1191,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(100));
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.reasoning_tokens, Some(10));
 
         let content = result.content.unwrap();
         let arr = content.as_array().unwrap();

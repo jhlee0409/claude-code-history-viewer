@@ -533,16 +533,10 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
             .and_then(|v| v.as_str())
             .map(String::from);
 
-        // Extract usage from val["tokens"] with fields "input" and "output"
-        let usage = val.get("tokens").map(|t| TokenUsage {
-            input_tokens: t.get("input").and_then(Value::as_u64).map(|v| v as u32),
-            output_tokens: t.get("output").and_then(Value::as_u64).map(|v| v as u32),
-            cache_creation_input_tokens: None,
-            cache_read_input_tokens: None,
-            reasoning_tokens: t.get("reasoning").and_then(Value::as_u64).map(|v| v as u32),
-            service_tier: None,
-            ..Default::default()
-        });
+        // Extract usage from val["tokens"]. Parts can contain additional
+        // cache/reasoning fields, so the message-level value is merged below
+        // instead of unconditionally winning.
+        let usage = val.get("tokens").map(parse_opencode_token_usage);
 
         // Extract cost from val["cost"]
         let cost_usd = val.get("cost").and_then(Value::as_f64);
@@ -564,8 +558,10 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 
         let (content_value, parts_usage, parts_cost) = process_parts(&part_values);
 
-        // Use message-level usage/cost if present, otherwise fall back to parts-derived
-        let final_usage = usage.or(parts_usage);
+        // Message-level input/output are aggregate values. Fill only missing
+        // fields from parts so cache/reasoning usage is retained without
+        // double-counting input/output.
+        let final_usage = merge_token_usage(usage, parts_usage);
         let final_cost = cost_usd.or(parts_cost);
 
         let message_type = match role {
@@ -1030,15 +1026,7 @@ fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<Cl
             .and_then(|v| v.as_str())
             .map(String::from);
 
-        let usage = val.get("tokens").map(|t| TokenUsage {
-            input_tokens: t.get("input").and_then(Value::as_u64).map(|v| v as u32),
-            output_tokens: t.get("output").and_then(Value::as_u64).map(|v| v as u32),
-            cache_creation_input_tokens: None,
-            cache_read_input_tokens: None,
-            reasoning_tokens: t.get("reasoning").and_then(Value::as_u64).map(|v| v as u32),
-            service_tier: None,
-            ..Default::default()
-        });
+        let usage = val.get("tokens").map(parse_opencode_token_usage);
 
         let cost_usd = val.get("cost").and_then(Value::as_f64);
 
@@ -1057,7 +1045,7 @@ fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<Cl
 
         let (content_value, parts_usage, parts_cost) = process_parts(&part_values);
 
-        let final_usage = usage.or(parts_usage);
+        let final_usage = merge_token_usage(usage, parts_usage);
         let final_cost = cost_usd.or(parts_cost);
 
         let message_type = match role {
@@ -1247,6 +1235,58 @@ fn sum_opt(a: Option<u32>, b: Option<u32>) -> Option<u32> {
     }
 }
 
+fn parse_opencode_token_usage(tokens: &Value) -> TokenUsage {
+    let cache = tokens.get("cache");
+    let token = |key: &str| tokens.get(key).and_then(Value::as_u64).map(|v| v as u32);
+    let cache_token = |key: &str| {
+        cache
+            .and_then(|value| value.get(key))
+            .and_then(Value::as_u64)
+            .map(|v| v as u32)
+    };
+
+    TokenUsage {
+        input_tokens: token("input"),
+        output_tokens: token("output"),
+        cache_creation_input_tokens: cache_token("write"),
+        cache_read_input_tokens: cache_token("read"),
+        reasoning_tokens: token("reasoning"),
+        service_tier: None,
+        ..Default::default()
+    }
+}
+
+/// Preserve message-level aggregate input/output while filling fields that
+/// are only present on step-finish parts.
+fn merge_token_usage(
+    primary: Option<TokenUsage>,
+    fallback: Option<TokenUsage>,
+) -> Option<TokenUsage> {
+    match (primary, fallback) {
+        (Some(primary), Some(fallback)) => Some(TokenUsage {
+            input_tokens: primary.input_tokens.or(fallback.input_tokens),
+            output_tokens: primary.output_tokens.or(fallback.output_tokens),
+            cache_creation_input_tokens: primary
+                .cache_creation_input_tokens
+                .or(fallback.cache_creation_input_tokens),
+            cache_creation_input_tokens_5m: primary
+                .cache_creation_input_tokens_5m
+                .or(fallback.cache_creation_input_tokens_5m),
+            cache_creation_input_tokens_1h: primary
+                .cache_creation_input_tokens_1h
+                .or(fallback.cache_creation_input_tokens_1h),
+            cache_read_input_tokens: primary
+                .cache_read_input_tokens
+                .or(fallback.cache_read_input_tokens),
+            reasoning_tokens: primary.reasoning_tokens.or(fallback.reasoning_tokens),
+            service_tier: primary.service_tier.or(fallback.service_tier),
+            cache_creation: primary.cache_creation.or(fallback.cache_creation),
+        }),
+        (Some(usage), None) | (None, Some(usage)) => Some(usage),
+        (None, None) => None,
+    }
+}
+
 // is_safe_storage_id is imported from crate::utils
 
 fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<f64>) {
@@ -1342,28 +1382,12 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                 // Extract token usage if available
                 let (input, output, reasoning, cache_read, cache_write) =
                     if let Some(t) = part.get("tokens") {
-                        let cache_obj = t.get("cache");
-                        let i = t.get("input").and_then(Value::as_u64).map(|v| v as u32);
-                        let o = t.get("output").and_then(Value::as_u64).map(|v| v as u32);
-                        let r = t.get("reasoning").and_then(Value::as_u64).map(|v| v as u32);
-                        let cw = cache_obj
-                            .and_then(|c| c.get("write"))
-                            .and_then(Value::as_u64)
-                            .map(|v| v as u32);
-                        let cr = cache_obj
-                            .and_then(|c| c.get("read"))
-                            .and_then(Value::as_u64)
-                            .map(|v| v as u32);
-
-                        let new_usage = TokenUsage {
-                            input_tokens: i,
-                            output_tokens: o,
-                            cache_creation_input_tokens: cw,
-                            cache_read_input_tokens: cr,
-                            reasoning_tokens: r,
-                            service_tier: None,
-                            ..Default::default()
-                        };
+                        let new_usage = parse_opencode_token_usage(t);
+                        let i = new_usage.input_tokens;
+                        let o = new_usage.output_tokens;
+                        let r = new_usage.reasoning_tokens;
+                        let cw = new_usage.cache_creation_input_tokens;
+                        let cr = new_usage.cache_read_input_tokens;
                         usage = match usage {
                             Some(prev) => Some(TokenUsage {
                                 input_tokens: sum_opt(prev.input_tokens, new_usage.input_tokens),
@@ -1637,6 +1661,29 @@ mod tests {
         assert_eq!(blocks[2]["name"], "Task");
         assert_eq!(blocks[2]["id"], "task-2");
         assert_eq!(blocks[3]["tool_use_id"], "task-2");
+    }
+
+    #[test]
+    fn merges_message_usage_with_part_usage_without_double_counting() {
+        let message_usage = parse_opencode_token_usage(&json!({
+            "input": 100,
+            "output": 50
+        }));
+        let part_usage = parse_opencode_token_usage(&json!({
+            "input": 10,
+            "output": 5,
+            "reasoning": 7,
+            "cache": { "read": 30, "write": 20 }
+        }));
+
+        let merged = merge_token_usage(Some(message_usage), Some(part_usage))
+            .expect("partial usage should merge");
+
+        assert_eq!(merged.input_tokens, Some(100));
+        assert_eq!(merged.output_tokens, Some(50));
+        assert_eq!(merged.reasoning_tokens, Some(7));
+        assert_eq!(merged.cache_read_input_tokens, Some(30));
+        assert_eq!(merged.cache_creation_input_tokens, Some(20));
     }
 
     #[test]

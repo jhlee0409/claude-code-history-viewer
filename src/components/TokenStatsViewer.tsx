@@ -284,12 +284,14 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               {metrics.map((metric, i) => (
                 <Tooltip key={metric.label}>
                   <TooltipTrigger asChild>
-                    <div
+                    <button
+                      type="button"
+                      aria-label={`${metric.label}: ${metric.value.toLocaleString()}`}
                       className={cn(
-                        "relative p-4 rounded-xl text-center",
+                        "relative w-full appearance-none p-4 rounded-xl text-center text-inherit",
                         "bg-card/80 backdrop-blur-sm",
                         "border border-border/50",
-                        "transition-all duration-300",
+                        "transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                         "hover:border-border hover:shadow-md hover:scale-[1.02] cursor-default"
                       )}
                     >
@@ -307,7 +309,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                       <div className="text-px12 font-medium text-muted-foreground uppercase tracking-wider mt-1">
                         {metric.label}
                       </div>
-                    </div>
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent className="font-mono text-xs">
                     {metric.value.toLocaleString()}

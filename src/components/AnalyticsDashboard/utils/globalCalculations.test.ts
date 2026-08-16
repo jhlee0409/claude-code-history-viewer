@@ -135,6 +135,35 @@ describe("global cost calculations", () => {
     expect(summary.estimatedCost).toBeCloseTo(5.6);
   });
 
+  it("subtracts one-hour cache tokens from the aggregate fallback", () => {
+    const summary = calculateGlobalCostSummary(
+      [usage({
+        model_name: "claude-sonnet-5",
+        provider_id: "claude",
+        token_count: 1_000_000,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_creation_tokens: 1_000_000,
+        context_breakdown: [
+          {
+            min_context_tokens: 0,
+            token_count: 1_000_000,
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_creation_tokens: 1_000_000,
+            cache_creation_tokens_1h: 300_000,
+            cache_read_tokens: 0,
+            reasoning_tokens: 0,
+          },
+        ],
+      })],
+      1_000_000,
+    );
+
+    // 0.7M at $2.5/M (5m) + 0.3M at $4/M (1h).
+    expect(summary.estimatedCost).toBeCloseTo(2.95);
+  });
+
   it("keeps fast-tier rows separate from standard-tier rows", () => {
     const summary = calculateGlobalCostSummary(
       [usage({

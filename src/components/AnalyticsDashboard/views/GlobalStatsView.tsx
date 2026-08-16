@@ -46,6 +46,8 @@ interface GlobalStatsViewProps {
   metricMode?: MetricMode;
 }
 
+const EMPTY_MODEL_DISTRIBUTION: NonNullable<GlobalStatsSummary["model_distribution"]> = [];
+
 export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
   globalSummary,
   globalConversationSummary,
@@ -53,13 +55,16 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
 }) => {
   const { t } = useTranslation();
   const totalSessionTime = globalSummary.total_session_duration_minutes;
+  const modelDistribution = globalSummary.model_distribution ?? EMPTY_MODEL_DISTRIBUTION;
+  const conversationModelDistribution =
+    globalConversationSummary?.model_distribution ?? EMPTY_MODEL_DISTRIBUTION;
   const costSummary = useMemo(
     () =>
       calculateGlobalCostSummary(
-        globalSummary.model_distribution,
+        modelDistribution,
         globalSummary.total_tokens
       ),
-    [globalSummary.model_distribution, globalSummary.total_tokens]
+    [modelDistribution, globalSummary.total_tokens]
   );
   const totalEstimatedCost = costSummary.totalEstimatedCost;
   const conversationCostSummary = useMemo(() => {
@@ -67,10 +72,10 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
       return null;
     }
     return calculateGlobalCostSummary(
-      globalConversationSummary.model_distribution,
+      conversationModelDistribution,
       globalConversationSummary.total_tokens
     );
-  }, [globalConversationSummary]);
+  }, [conversationModelDistribution, globalConversationSummary]);
 
   const billingTokens = globalSummary.total_tokens;
   const billingCost = costSummary.pricedModels > 0 ? totalEstimatedCost : null;
@@ -157,11 +162,13 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="px-2 py-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 text-px11">
-          {costSummary.exactModels > 0 && costSummary.estimatedModels > 0
-            ? t("analytics.mixedCostLabel", "Exact + estimated")
-            : costSummary.exactModels > 0
-              ? t("analytics.exactCostLabel", "Exact source cost")
-              : t("analytics.estimatedLabel", "Estimated")}
+          {costSummary.exactModels === 0 && costSummary.estimatedModels === 0
+            ? t("analytics.noDataAvailable")
+            : costSummary.exactModels > 0 && costSummary.estimatedModels > 0
+              ? t("analytics.mixedCostLabel", "Exact + estimated")
+              : costSummary.exactModels > 0
+                ? t("analytics.exactCostLabel", "Exact source cost")
+                : t("analytics.estimatedLabel", "Estimated")}
         </span>
         <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-px11">
           {t("analytics.pricingCoverage", "Pricing coverage")}: {costSummary.coveragePercent.toFixed(1)}%
@@ -188,10 +195,10 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           </SectionCard>
         )}
 
-        {globalSummary.model_distribution.length > 0 && (
+        {modelDistribution.length > 0 && (
           <SectionCard title={t("analytics.modelDistribution")} icon={Cpu} colorVariant="blue">
             <div className="space-y-3">
-              {globalSummary.model_distribution.map((model) => {
+              {modelDistribution.map((model) => {
                 const { percentage, formattedPrice, formattedTokens, pricingStatus } = calculateModelMetrics(
                   model.model_name,
                   model.token_count,
@@ -239,12 +246,12 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                       </Tooltip>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-px12 text-muted-foreground">
-                          {metricMode === "cost_estimated" ? formattedPrice : formattedTokens}
+                          {metricMode === "cost_estimated" ? formattedTokens : formattedPrice}
                         </span>
                         <span className="font-mono text-px12 font-semibold text-foreground">
                           {metricMode === "cost_estimated"
-                            ? formattedTokens
-                            : formattedPrice}
+                            ? formattedPrice
+                            : formattedTokens}
                         </span>
                         <span
                           className={cn(

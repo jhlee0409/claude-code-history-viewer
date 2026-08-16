@@ -93,7 +93,10 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
                   stroke={arc.color}
                   strokeWidth="20"
                   strokeLinecap="butt"
-                  className="cursor-pointer transition-opacity duration-200 hover:opacity-70"
+                  tabIndex={0}
+                  role="img"
+                  aria-label={`${arc.label}: ${formatNumber(arc.value)} (${(arc.percentage * 100).toFixed(1)}%)`}
+                  className="cursor-pointer transition-opacity duration-200 hover:opacity-70 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:opacity-70"
                 />
               </TooltipTrigger>
               <ChartTooltip

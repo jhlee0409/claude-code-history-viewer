@@ -105,8 +105,8 @@ pub struct DateRange {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelStats {
-    #[serde(default)]
-    pub provider_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     pub model_name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service_tier: Option<String>,
@@ -187,6 +187,7 @@ pub struct GlobalStatsSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_session_token_stats_serialization() {
@@ -238,5 +239,27 @@ mod tests {
         assert_eq!(dist.cache_creation, 0);
         assert_eq!(dist.cache_read, 0);
         assert_eq!(dist.reasoning, 0);
+    }
+
+    #[test]
+    fn test_model_stats_legacy_payload_without_provider_id() {
+        let stats: ModelStats = serde_json::from_value(json!({
+            "model_name": "legacy-model",
+            "message_count": 1,
+            "token_count": 10,
+            "input_tokens": 5,
+            "output_tokens": 5,
+            "cache_creation_tokens": 0,
+            "cache_read_tokens": 0,
+            "context_breakdown": []
+        }))
+        .unwrap();
+
+        assert_eq!(stats.provider_id, None);
+        assert!(!serde_json::to_value(stats)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .contains_key("provider_id"));
     }
 }

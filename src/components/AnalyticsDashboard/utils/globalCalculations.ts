@@ -86,8 +86,9 @@ const calculateContextBreakdownPrice = (
 
   let total = 0;
   for (const bucket of breakdown) {
-    const cacheCreation5m = bucket.cache_creation_tokens_5m ?? bucket.cache_creation_tokens;
     const cacheCreation1h = bucket.cache_creation_tokens_1h ?? 0;
+    const cacheCreation5m = bucket.cache_creation_tokens_5m
+      ?? Math.max(bucket.cache_creation_tokens - cacheCreation1h, 0);
     const options = {
       providerId: usage.provider_id,
       serviceTier: usage.service_tier,

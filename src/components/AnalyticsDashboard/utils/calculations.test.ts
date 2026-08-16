@@ -77,6 +77,34 @@ describe("Grok model pricing", () => {
   });
 });
 
+describe("service tier normalization", () => {
+  it("maps only the exact priority tier to fast", () => {
+    expect(
+      calculateModelPrice(
+        "gpt-5.3-codex",
+        oneMillionTokens,
+        oneMillionTokens,
+        0,
+        0,
+        { serviceTier: "priority" },
+      ),
+    ).toBeCloseTo(31.5);
+  });
+
+  it("falls back to the 5-minute cache-write rate when no 1-hour rate exists", () => {
+    expect(
+      calculateModelPrice(
+        "minimax-m2.7",
+        0,
+        0,
+        oneMillionTokens,
+        0,
+        { cacheWriteTtl: "1h" },
+      ),
+    ).toBeCloseTo(0.375);
+  });
+});
+
 describe("provider pricing boundaries", () => {
   it("does not apply a default price to an unknown model", () => {
     expect(

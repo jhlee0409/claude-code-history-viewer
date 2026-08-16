@@ -46,10 +46,14 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
   const nestedCacheCreationTokens1h = usage?.cache_creation?.ephemeral_1h_input_tokens ?? 0;
   const cacheCreationTokens1h = usage?.cache_creation_input_tokens_1h
     ?? nestedCacheCreationTokens1h;
+  const reportedCacheCreationTokens5m = usage?.cache_creation_input_tokens_5m
+    ?? nestedCacheCreationTokens5m;
   const cacheCreationTokens = usage?.cache_creation_input_tokens
-    ?? nestedCacheCreationTokens5m + nestedCacheCreationTokens1h;
+    ?? reportedCacheCreationTokens5m + cacheCreationTokens1h;
   const cacheCreationTokens5m = usage?.cache_creation_input_tokens_5m
-    ?? Math.max(cacheCreationTokens - cacheCreationTokens1h, 0);
+    ?? (usage?.cache_creation_input_tokens == null
+      ? reportedCacheCreationTokens5m
+      : Math.max(cacheCreationTokens - cacheCreationTokens1h, 0));
   const contextTokens =
     (usage?.input_tokens ?? 0) + cacheCreationTokens + (usage?.cache_read_input_tokens ?? 0);
   const estimatedCost =
@@ -133,12 +137,12 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
           <div
             id="token-usage-tooltip"
             role="tooltip"
-            className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 bg-popover text-popover-foreground ${layout.smallText} ${layout.rounded} ${layout.containerPadding} opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10 border border-border`}
+            className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 bg-popover text-popover-foreground ${layout.smallText} ${layout.rounded} ${layout.containerPadding} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none shadow-lg z-10 border border-border`}
           >
             <p><strong>{t('assistantMessageDetails.tokenUsage')}</strong></p>
             {usage.input_tokens ? <p>{t('assistantMessageDetails.input')}: {usage.input_tokens.toLocaleString()}</p> : null}
             {usage.output_tokens ? <p>{t('assistantMessageDetails.output')}: {usage.output_tokens.toLocaleString()}</p> : null}
-            {usage.cache_creation_input_tokens ? <p>{t('assistantMessageDetails.cacheCreation')}: {usage.cache_creation_input_tokens.toLocaleString()}</p> : null}
+            {cacheCreationTokens ? <p>{t('assistantMessageDetails.cacheCreation')}: {cacheCreationTokens.toLocaleString()}</p> : null}
             {usage.cache_read_input_tokens ? <p>{t('assistantMessageDetails.cacheRead')}: {usage.cache_read_input_tokens.toLocaleString()}</p> : null}
             {usage.reasoning_tokens ? <p>{t('assistantMessageDetails.reasoning', { defaultValue: 'Reasoning' })}: {usage.reasoning_tokens.toLocaleString()}</p> : null}
             {usage.service_tier ? <p>{t('assistantMessageDetails.tier')}: {usage.service_tier}</p> : null}

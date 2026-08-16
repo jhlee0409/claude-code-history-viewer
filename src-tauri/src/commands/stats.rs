@@ -2685,7 +2685,7 @@ fn build_model_stats(
                     .unwrap_or_default();
                 context_breakdown.sort_by_key(|bucket| bucket.min_context_tokens);
                 ModelStats {
-                    provider_id: provider_id.clone(),
+                    provider_id: Some(provider_id.clone()),
                     model_name: model_name.to_string(),
                     service_tier: service_tier.map(str::to_string),
                     message_count,
@@ -5317,7 +5317,7 @@ pub async fn get_global_stats_summary(
                 context_breakdown.sort_by_key(|bucket| bucket.min_context_tokens);
                 let cost_usd = model_cost_map.get(&(provider, model_key.clone())).copied();
                 ModelStats {
-                    provider_id: stats_provider_id(provider).to_string(),
+                    provider_id: Some(stats_provider_id(provider).to_string()),
                     model_name: model_name.to_string(),
                     service_tier: service_tier.map(str::to_string),
                     message_count,
@@ -6846,7 +6846,7 @@ mod tests {
             .iter()
             .find(|model| model.model_name == "claude-sonnet-4-6")
             .expect("model distribution entry");
-        assert_eq!(model.provider_id, "claude");
+        assert_eq!(model.provider_id.as_deref(), Some("claude"));
         assert_eq!(model.token_count, 150);
         assert_eq!(model.cost_usd, Some(0.005));
     }

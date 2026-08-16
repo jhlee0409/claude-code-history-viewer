@@ -278,7 +278,8 @@ const findModelPricing = (
   if (TOKEN_UNSUPPORTED_MODEL_PATTERNS.some((pattern) => pattern.test(modelSegment))) {
     return null;
   }
-  const normalizedServiceTier = serviceTier?.trim().toLowerCase().replace("priority", "fast");
+  const rawServiceTier = serviceTier?.trim().toLowerCase();
+  const normalizedServiceTier = rawServiceTier === "priority" ? "fast" : rawServiceTier;
   const candidates = SORTED_MODEL_PRICING_ENTRIES
     .filter(([key]) => matchesModelKey(normalizedModelName, key))
     .flatMap(([key, basePricing]) => {
