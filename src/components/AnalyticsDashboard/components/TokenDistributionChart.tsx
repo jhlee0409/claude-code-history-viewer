@@ -6,7 +6,7 @@
 
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { TrendingUp, Zap, Database, Eye } from "lucide-react";
+import { TrendingUp, Zap, Database, Eye, Brain } from "lucide-react";
 import { Tooltip, TooltipTrigger } from "../../ui/tooltip";
 import { ChartTooltip } from "../../ui/chart-tooltip";
 import type { TokenDistribution } from "../types";
@@ -30,6 +30,7 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
       { label: t("analytics.output"), value: distribution.output, color: "var(--metric-purple)", icon: Zap },
       { label: t("analytics.cacheCreation"), value: distribution.cache_creation, color: "var(--metric-blue)", icon: Database },
       { label: t("analytics.cacheRead"), value: distribution.cache_read, color: "var(--metric-amber)", icon: Eye },
+      { label: t("analytics.reasoning", "Reasoning"), value: distribution.reasoning, color: "var(--metric-pink)", icon: Brain },
     ],
     [t, distribution]
   );

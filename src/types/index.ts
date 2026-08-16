@@ -210,6 +210,7 @@ export type {
   DailyStats,
   ActivityHeatmap,
   ToolUsageStats,
+  ModelContextStats,
   ModelStats,
   DateRange,
   ProjectStatsSummary,

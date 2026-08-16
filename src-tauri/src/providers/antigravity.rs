@@ -614,7 +614,9 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
                 output_tokens: Some(output_tokens),
                 cache_creation_input_tokens: Some(cache_write),
                 cache_read_input_tokens: Some(cache_read),
+                reasoning_tokens: None,
                 service_tier: None,
+                ..Default::default()
             }),
             provider: Some("antigravity".to_string()),
             message_id: None,

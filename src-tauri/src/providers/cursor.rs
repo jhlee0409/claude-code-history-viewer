@@ -632,7 +632,9 @@ fn attach_composer_token_usage(composer: &Value, messages: &mut [ClaudeMessage])
             output_tokens: None,
             cache_creation_input_tokens: None,
             cache_read_input_tokens: None,
+            reasoning_tokens: None,
             service_tier: None,
+            ..Default::default()
         });
         if !stamp.is_empty() {
             message.timestamp = stamp;

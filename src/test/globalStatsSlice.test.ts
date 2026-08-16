@@ -42,6 +42,7 @@ const buildGlobalSummary = (): GlobalStatsSummary => ({
     output: 1,
     cache_creation: 0,
     cache_read: 0,
+    reasoning: 0,
   },
   daily_stats: [],
   activity_heatmap: [],

@@ -61,4 +61,5 @@ export interface TokenDistribution {
   output: number;
   cache_creation: number;
   cache_read: number;
+  reasoning: number;
 }

@@ -716,7 +716,9 @@ fn attach_session_token_usage(session_dir: &Path, messages: &mut [ClaudeMessage]
             output_tokens: None,
             cache_creation_input_tokens: None,
             cache_read_input_tokens: None,
+            reasoning_tokens: None,
             service_tier: None,
+            ..Default::default()
         });
         if message.model.is_none() {
             message.model = fallback_model;

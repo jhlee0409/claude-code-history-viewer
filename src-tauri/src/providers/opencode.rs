@@ -539,7 +539,9 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
             output_tokens: t.get("output").and_then(Value::as_u64).map(|v| v as u32),
             cache_creation_input_tokens: None,
             cache_read_input_tokens: None,
+            reasoning_tokens: t.get("reasoning").and_then(Value::as_u64).map(|v| v as u32),
             service_tier: None,
+            ..Default::default()
         });
 
         // Extract cost from val["cost"]
@@ -1033,7 +1035,9 @@ fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<Cl
             output_tokens: t.get("output").and_then(Value::as_u64).map(|v| v as u32),
             cache_creation_input_tokens: None,
             cache_read_input_tokens: None,
+            reasoning_tokens: t.get("reasoning").and_then(Value::as_u64).map(|v| v as u32),
             service_tier: None,
+            ..Default::default()
         });
 
         let cost_usd = val.get("cost").and_then(Value::as_f64);
@@ -1356,7 +1360,9 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                             output_tokens: o,
                             cache_creation_input_tokens: cw,
                             cache_read_input_tokens: cr,
+                            reasoning_tokens: r,
                             service_tier: None,
+                            ..Default::default()
                         };
                         usage = match usage {
                             Some(prev) => Some(TokenUsage {
@@ -1370,7 +1376,12 @@ fn process_parts(parts: &[Value]) -> (Option<Value>, Option<TokenUsage>, Option<
                                     prev.cache_read_input_tokens,
                                     new_usage.cache_read_input_tokens,
                                 ),
+                                reasoning_tokens: sum_opt(
+                                    prev.reasoning_tokens,
+                                    new_usage.reasoning_tokens,
+                                ),
                                 service_tier: None,
+                                ..Default::default()
                             }),
                             None => Some(new_usage),
                         };

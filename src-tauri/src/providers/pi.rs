@@ -522,6 +522,14 @@ fn convert_record(rec: &Value, session_id: &str, provider: &'static str) -> Opti
     } else {
         None
     };
+    let cost_usd = msg
+        .get("usage")
+        .and_then(|usage| usage.get("cost"))
+        .and_then(|cost| {
+            cost.get("total")
+                .and_then(Value::as_f64)
+                .or_else(|| cost.as_f64())
+        });
 
     let mut out = build_provider_message(
         provider,
@@ -543,6 +551,7 @@ fn convert_record(rec: &Value, session_id: &str, provider: &'static str) -> Opti
             out.usage = Some(convert_usage(usage));
         }
     }
+    out.cost_usd = cost_usd;
     Some(out)
 }
 
@@ -633,7 +642,9 @@ fn convert_usage(usage: &Value) -> TokenUsage {
         output_tokens: g("output"),
         cache_creation_input_tokens: g("cacheWrite"),
         cache_read_input_tokens: g("cacheRead"),
+        reasoning_tokens: g("reasoning"),
         service_tier: None,
+        ..Default::default()
     }
 }
 
@@ -769,6 +780,7 @@ mod tests {
         assert_eq!(a.role.as_deref(), Some("assistant"));
         assert_eq!(a.parent_uuid.as_deref(), Some("u1"));
         assert_eq!(a.model.as_deref(), Some("claude-opus-4-8"));
+        assert_eq!(a.cost_usd, Some(0.001));
         assert_eq!(a.timestamp, ms_to_iso(1_749_412_330_000));
         assert_eq!(a.usage.as_ref().unwrap().input_tokens, Some(12));
         assert_eq!(a.usage.as_ref().unwrap().output_tokens, Some(34));

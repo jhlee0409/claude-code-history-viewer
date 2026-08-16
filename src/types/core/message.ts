@@ -101,7 +101,14 @@ export interface MessagePayload {
     input_tokens?: number;
     output_tokens?: number;
     cache_creation_input_tokens?: number;
+    cache_creation_input_tokens_5m?: number;
+    cache_creation_input_tokens_1h?: number;
+    cache_creation?: {
+      ephemeral_5m_input_tokens?: number;
+      ephemeral_1h_input_tokens?: number;
+    };
     cache_read_input_tokens?: number;
+    reasoning_tokens?: number;
     service_tier?: string;
   };
 }
@@ -190,7 +197,14 @@ export interface ClaudeAssistantMessage extends BaseClaudeMessage {
     input_tokens?: number;
     output_tokens?: number;
     cache_creation_input_tokens?: number;
+    cache_creation_input_tokens_5m?: number;
+    cache_creation_input_tokens_1h?: number;
+    cache_creation?: {
+      ephemeral_5m_input_tokens?: number;
+      ephemeral_1h_input_tokens?: number;
+    };
     cache_read_input_tokens?: number;
+    reasoning_tokens?: number;
     service_tier?: string;
   };
   // Metrics (2025)

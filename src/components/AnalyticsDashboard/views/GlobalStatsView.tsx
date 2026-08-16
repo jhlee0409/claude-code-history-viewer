@@ -18,7 +18,7 @@ import {
   Sparkles,
   Bot,
 } from "lucide-react";
-import type { GlobalStatsSummary } from "../../../types";
+import type { GlobalStatsSummary, MetricMode } from "../../../types";
 import { formatDuration } from "../../../utils/time";
 import { cn } from "@/lib/utils";
 import {
@@ -43,11 +43,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 interface GlobalStatsViewProps {
   globalSummary: GlobalStatsSummary;
   globalConversationSummary: GlobalStatsSummary | null;
+  metricMode?: MetricMode;
 }
 
 export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
   globalSummary,
   globalConversationSummary,
+  metricMode = "tokens",
 }) => {
   const { t } = useTranslation();
   const totalSessionTime = globalSummary.total_session_duration_minutes;
@@ -71,7 +73,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
   }, [globalConversationSummary]);
 
   const billingTokens = globalSummary.total_tokens;
-  const billingCost = totalEstimatedCost;
+  const billingCost = costSummary.pricedModels > 0 ? totalEstimatedCost : null;
   const conversationBreakdownCoverage = useMemo(
     () =>
       calculateConversationBreakdownCoverage(globalSummary.provider_distribution),
@@ -113,7 +115,9 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           value={formatNumber(globalSummary.total_tokens)}
           subValue={
             t("analytics.estimatedCostValue", "Estimated Cost: {{cost}}", {
-              cost: formatCurrency(totalEstimatedCost),
+              cost: billingCost == null
+                ? t("common.dash", "—")
+                : formatCurrency(totalEstimatedCost),
             })
           }
           colorVariant="blue"
@@ -143,17 +147,30 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
         billingTokens={billingTokens}
         conversationTokens={globalConversationSummary?.total_tokens ?? null}
         billingCost={billingCost}
-        conversationCost={conversationCostSummary?.totalEstimatedCost ?? null}
+        conversationCost={
+          conversationCostSummary && conversationCostSummary.pricedModels > 0
+            ? conversationCostSummary.totalEstimatedCost
+            : null
+        }
         showProviderLimitHelp={conversationBreakdownCoverage.hasLimitedProviders}
       />
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="px-2 py-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 text-px11">
-          {t("analytics.estimatedLabel", "Estimated")}
+          {costSummary.exactModels > 0 && costSummary.estimatedModels > 0
+            ? t("analytics.mixedCostLabel", "Exact + estimated")
+            : costSummary.exactModels > 0
+              ? t("analytics.exactCostLabel", "Exact source cost")
+              : t("analytics.estimatedLabel", "Estimated")}
         </span>
         <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-px11">
           {t("analytics.pricingCoverage", "Pricing coverage")}: {costSummary.coveragePercent.toFixed(1)}%
         </span>
+        {costSummary.unpricedModels > 0 && (
+          <span className="px-2 py-1 rounded-md bg-red-500/10 text-red-700 dark:text-red-300 text-px11">
+            {t("analytics.unpricedModels", "Unpriced models")}: {costSummary.unpricedModels}
+          </span>
+        )}
         <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-px11">
           {t("analytics.lastUpdated", "Last updated")}: {lastUpdated}
         </span>
@@ -175,18 +192,26 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           <SectionCard title={t("analytics.modelDistribution")} icon={Cpu} colorVariant="blue">
             <div className="space-y-3">
               {globalSummary.model_distribution.map((model) => {
-                const { percentage, formattedPrice, formattedTokens } = calculateModelMetrics(
+                const { percentage, formattedPrice, formattedTokens, pricingStatus } = calculateModelMetrics(
                   model.model_name,
                   model.token_count,
                   model.input_tokens,
                   model.output_tokens,
                   model.cache_creation_tokens,
                   model.cache_read_tokens,
-                  globalSummary.total_tokens
+                  globalSummary.total_tokens,
+                  {
+                    providerId: model.provider_id,
+                    serviceTier: model.service_tier,
+                    sourceCostUSD: model.cost_usd,
+                    reasoningTokens: model.reasoning_tokens,
+                    contextBreakdown: model.context_breakdown,
+                  },
                 );
+                const modelKey = `${model.provider_id ?? "unknown"}:${model.model_name}:${model.service_tier ?? "standard"}`;
 
                 return (
-                  <div key={model.model_name}>
+                  <div key={modelKey}>
                     <div className="flex items-center justify-between mb-1.5">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -194,19 +219,48 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                             type="button"
                             className="block max-w-[60%] text-px12 font-medium text-foreground truncate text-left cursor-default"
                           >
-                            {model.model_name}
+                            <span className="flex items-center gap-1.5">
+                              <span>{model.model_name}</span>
+                              <span className="text-px10 text-muted-foreground/70">
+                                [{model.provider_id ?? t("analytics.unknownProvider", "unknown provider")}]
+                              </span>
+                              {model.service_tier && model.service_tier !== "standard" && (
+                                <span className="text-px10 text-muted-foreground/70">
+                                  [{model.service_tier}]
+                                </span>
+                              )}
+                            </span>
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {model.model_name}
+                          {model.provider_id ? `${model.provider_id} / ` : ""}{model.model_name}
+                          {model.service_tier ? ` (${model.service_tier})` : ""}
                         </TooltipContent>
                       </Tooltip>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-px12 text-muted-foreground">
-                          {formattedPrice}
+                          {metricMode === "cost_estimated" ? formattedPrice : formattedTokens}
                         </span>
                         <span className="font-mono text-px12 font-semibold text-foreground">
-                          {formattedTokens}
+                          {metricMode === "cost_estimated"
+                            ? formattedTokens
+                            : formattedPrice}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-px10 uppercase tracking-wide",
+                            pricingStatus === "exact"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : pricingStatus === "estimated"
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-red-600 dark:text-red-400",
+                          )}
+                        >
+                          {pricingStatus === "exact"
+                            ? t("analytics.costExact", "exact")
+                            : pricingStatus === "estimated"
+                              ? t("analytics.costEstimatedShort", "est.")
+                              : t("analytics.costUnavailable", "n/a")}
                         </span>
                       </div>
                     </div>

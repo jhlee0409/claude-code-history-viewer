@@ -14,5 +14,6 @@ expression: stats
   "message_count": 50,
   "first_message_time": "2025-01-01T08:00:00Z",
   "last_message_time": "2025-01-01T17:00:00Z",
-  "most_used_tools": []
+  "most_used_tools": [],
+  "model_distribution": []
 }

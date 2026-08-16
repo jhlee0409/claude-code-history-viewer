@@ -678,7 +678,9 @@ fn convert_gemini_response(
         output_tokens: t.get("output").and_then(Value::as_u64).map(|v| v as u32),
         cache_creation_input_tokens: None,
         cache_read_input_tokens: t.get("cached").and_then(Value::as_u64).map(|v| v as u32),
+        reasoning_tokens: t.get("reasoning").and_then(Value::as_u64).map(|v| v as u32),
         service_tier: None,
+        ..Default::default()
     });
 
     let content = if content_blocks.is_empty() {

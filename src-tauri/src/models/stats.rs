@@ -17,6 +17,9 @@ pub struct SessionTokenStats {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
     pub most_used_tools: Vec<ToolUsageStats>,
+    /// Per-model token/cost breakdown used by project and session billing UI.
+    #[serde(default)]
+    pub model_distribution: Vec<ModelStats>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -68,6 +71,9 @@ pub struct ProjectStatsSummary {
     pub daily_stats: Vec<DailyStats>,
     pub activity_heatmap: Vec<ActivityHeatmap>,
     pub token_distribution: TokenDistribution,
+    /// Per-model token/cost breakdown used by project billing UI.
+    #[serde(default)]
+    pub model_distribution: Vec<ModelStats>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -99,12 +105,40 @@ pub struct DateRange {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelStats {
+    #[serde(default)]
+    pub provider_id: String,
     pub model_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
     pub message_count: u32,
     pub token_count: u64,
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cache_creation_tokens: u64,
+    pub cache_read_tokens: u64,
+    #[serde(default)]
+    pub reasoning_tokens: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
+    /// Per-request context buckets. Keeping this at the model row preserves
+    /// exact context-tier billing after rows are aggregated by model.
+    #[serde(default)]
+    pub context_breakdown: Vec<ModelContextStats>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModelContextStats {
+    /// Zero means the default/short context tier; otherwise this is the
+    /// provider's minimum token threshold for the long tier.
+    pub min_context_tokens: u64,
+    pub token_count: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_creation_tokens: u64,
+    #[serde(default)]
+    pub cache_creation_tokens_5m: u64,
+    #[serde(default)]
+    pub cache_creation_tokens_1h: u64,
     pub cache_read_tokens: u64,
     #[serde(default)]
     pub reasoning_tokens: u64,
@@ -170,6 +204,7 @@ mod tests {
             last_message_time: "2025-06-01T12:00:00Z".to_string(),
             summary: Some("Test session summary".to_string()),
             most_used_tools: Vec::new(),
+            model_distribution: Vec::new(),
         };
 
         let serialized = serde_json::to_string(&stats).unwrap();

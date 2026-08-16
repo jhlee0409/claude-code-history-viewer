@@ -54,12 +54,14 @@
 //! (`opencode://` …) and carry no `(size, mtime)` identity.
 
 use super::{
-    dedup_usage_key, extract_token_usage, extract_token_usage_from_global_entry,
-    parse_global_stats_entry_simd, parse_raw_log_entry_simd, parse_timestamp_utc,
-    should_include_stats_entry, token_usage_has_token_fields, token_usage_totals,
-    track_skill_and_subagent_usage, track_skill_and_subagent_usage_from_global_entry,
-    track_tool_usage, track_tool_usage_from_global_entry, ModelUsageAggregate,
+    build_model_stats, dedup_usage_key, extract_token_usage, extract_token_usage_from_global_entry,
+    merge_model_context_usage, parse_global_stats_entry_simd, parse_raw_log_entry_simd,
+    parse_timestamp_utc, should_include_stats_entry, token_usage_has_token_fields,
+    token_usage_totals, track_skill_and_subagent_usage,
+    track_skill_and_subagent_usage_from_global_entry, track_tool_usage,
+    track_tool_usage_from_global_entry, ModelContextUsageMap, ModelUsageAggregate,
     ProjectSessionFileStats, SessionComparisonStats, SessionFileStats, StatsMode, StatsProvider,
+    UNKNOWN_MODEL_NAME,
 };
 use crate::models::{ClaudeMessage, DailyStats, SessionTokenStats, TokenUsage, ToolUsageStats};
 use crate::utils::find_line_ranges;
@@ -87,12 +89,15 @@ pub(super) struct DayBucket {
     output_tokens: u64,
     cache_creation_tokens: u64,
     cache_read_tokens: u64,
+    reasoning_tokens: u64,
     tool_usage: HashMap<String, (u32, u32)>,
     skill_usage: HashMap<String, (u32, u32)>,
     subagent_usage: HashMap<String, (u32, u32)>,
-    /// Populated by the global builder only; message-pipeline composers do
-    /// not read model breakdowns.
+    /// Populated by both global and message-pipeline builders for billing
+    /// breakdowns. Project/session composers may consume this map directly.
     model_usage: HashMap<String, ModelUsageAggregate>,
+    model_context_usage: ModelContextUsageMap,
+    model_costs: HashMap<String, f64>,
     /// hour-of-day → (message count, deduped tokens).
     hourly_activity: HashMap<u8, (u32, u64)>,
     first_ts: Option<DateTime<Utc>>,
@@ -114,7 +119,11 @@ pub(super) struct DayBucket {
 
 impl DayBucket {
     fn token_total(&self) -> u64 {
-        self.input_tokens + self.output_tokens + self.cache_creation_tokens + self.cache_read_tokens
+        self.input_tokens
+            + self.output_tokens
+            + self.cache_creation_tokens
+            + self.cache_read_tokens
+            + self.reasoning_tokens
     }
 }
 
@@ -281,7 +290,7 @@ fn bucketed_dedup_totals(
     bucket: Option<&str>,
     usage: &TokenUsage,
     spans_buckets: &mut bool,
-) -> (u64, u64, u64, u64, u64) {
+) -> (u64, u64, u64, u64, u64, u64) {
     let Some(key) = dedup_key else {
         return token_usage_totals(usage);
     };
@@ -294,7 +303,36 @@ fn bucketed_dedup_totals(
             if occupied.get().as_deref() != bucket {
                 *spans_buckets = true;
             }
-            (0, 0, 0, 0, 0)
+            (0, 0, 0, 0, 0, 0)
+        }
+    }
+}
+
+/// Dedup an authoritative source cost while recording whether the same
+/// message identity appears in more than one day bucket. This mirrors
+/// [`bucketed_dedup_totals`] so date-filtered composition can fall back to a
+/// row-level scan instead of assigning a repeated cost to the wrong day.
+fn bucketed_dedup_source_cost(
+    first_bucket_by_key: &mut HashMap<String, Option<String>>,
+    dedup_key: Option<String>,
+    bucket: Option<&str>,
+    cost_usd: Option<f64>,
+    spans_buckets: &mut bool,
+) -> Option<f64> {
+    let cost_usd = cost_usd?;
+    let Some(key) = dedup_key else {
+        return Some(cost_usd);
+    };
+    match first_bucket_by_key.entry(key) {
+        Entry::Vacant(vacant) => {
+            vacant.insert(bucket.map(str::to_string));
+            Some(cost_usd)
+        }
+        Entry::Occupied(occupied) => {
+            if occupied.get().as_deref() != bucket {
+                *spans_buckets = true;
+            }
+            None
         }
     }
 }
@@ -303,18 +341,25 @@ impl DayBucket {
     /// Token, timestamp, and session-id bookkeeping shared by both builders.
     fn record_row(
         &mut self,
-        totals: (u64, u64, u64, u64, u64),
+        totals: (u64, u64, u64, u64, u64, u64),
         timestamp: Option<(DateTime<Utc>, &str)>,
         session_id: Option<&str>,
         row_seq: u64,
     ) {
-        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
-            totals;
+        let (
+            input_tokens,
+            output_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
+            reasoning_tokens,
+            tokens,
+        ) = totals;
         self.message_count = self.message_count.saturating_add(1);
         self.input_tokens += input_tokens;
         self.output_tokens += output_tokens;
         self.cache_creation_tokens += cache_creation_tokens;
         self.cache_read_tokens += cache_read_tokens;
+        self.reasoning_tokens += reasoning_tokens;
 
         if self.first_session_id.is_none() {
             if let Some(session_id) = session_id {
@@ -343,20 +388,26 @@ impl DayBucket {
         }
     }
 
-    fn record_model_usage(&mut self, model_name: &str, totals: (u64, u64, u64, u64, u64)) {
-        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
-            totals;
-        let entry = self
-            .model_usage
-            .entry(model_name.to_string())
-            .or_insert((0, 0, 0, 0, 0, 0, 0));
-        entry.0 += 1;
-        entry.1 += tokens;
-        entry.2 += input_tokens;
-        entry.3 += output_tokens;
-        entry.4 += cache_creation_tokens;
-        entry.5 += cache_read_tokens;
-        entry.6 += 0;
+    fn record_model_usage(
+        &mut self,
+        model_name: &str,
+        totals: (u64, u64, u64, u64, u64, u64),
+        service_tier: Option<&str>,
+        cache_creation_tokens_1h: u64,
+        cost_usd: Option<f64>,
+    ) {
+        super::accumulate_model_usage(
+            &mut self.model_usage,
+            &mut self.model_context_usage,
+            &mut self.model_costs,
+            super::ModelUsageUpdate {
+                model_name,
+                service_tier,
+                totals,
+                cache_creation_tokens_1h,
+                source_cost: cost_usd,
+            },
+        );
     }
 }
 
@@ -409,6 +460,7 @@ pub(super) fn build_global_file_aggregate(
 
     let mut aggregate = FileAggregate::default();
     let mut first_bucket_by_key: HashMap<String, Option<String>> = HashMap::new();
+    let mut first_cost_bucket_by_key: HashMap<String, Option<String>> = HashMap::new();
     let mut day_timestamps: HashMap<String, Vec<DateTime<Utc>>> = HashMap::new();
     let mut row_seq = 0u64;
 
@@ -440,6 +492,16 @@ pub(super) fn build_global_file_aggregate(
             &usage,
             &mut aggregate.dedup_spans_buckets,
         );
+        let source_cost = entry
+            .cost_usd
+            .or_else(|| entry.message.as_ref().and_then(|message| message.cost_usd));
+        let deduped_source_cost = bucketed_dedup_source_cost(
+            &mut first_cost_bucket_by_key,
+            dedup_usage_key("", message_id, uuid),
+            date.as_deref(),
+            source_cost,
+            &mut aggregate.dedup_spans_buckets,
+        );
 
         if let Some(ts) = parsed_ts {
             day_timestamps
@@ -455,8 +517,22 @@ pub(super) fn build_global_file_aggregate(
             None,
             row_seq,
         );
-        if let Some(model_name) = entry.message.as_ref().and_then(|m| m.model.as_deref()) {
-            bucket.record_model_usage(model_name, totals);
+        let model_name = entry
+            .message
+            .as_ref()
+            .and_then(|m| m.model.as_deref())
+            .unwrap_or(UNKNOWN_MODEL_NAME);
+        if entry.message.as_ref().is_some_and(|m| m.model.is_some())
+            || totals.5 > 0
+            || deduped_source_cost.is_some()
+        {
+            bucket.record_model_usage(
+                model_name,
+                totals,
+                usage.service_tier.as_deref(),
+                u64::from(usage.cache_creation_input_tokens_1h.unwrap_or(0)),
+                deduped_source_cost,
+            );
         }
         track_tool_usage_from_global_entry(&entry, &mut bucket.tool_usage);
         track_skill_and_subagent_usage_from_global_entry(
@@ -487,6 +563,7 @@ pub(super) fn build_message_file_aggregate(
 
     let mut aggregate = FileAggregate::default();
     let mut first_bucket_by_key: HashMap<String, Option<String>> = HashMap::new();
+    let mut first_cost_bucket_by_key: HashMap<String, Option<String>> = HashMap::new();
     let mut day_timestamps: HashMap<String, Vec<DateTime<Utc>>> = HashMap::new();
     let mut row_seq = 0u64;
 
@@ -529,6 +606,17 @@ pub(super) fn build_message_file_aggregate(
             &usage,
             &mut aggregate.dedup_spans_buckets,
         );
+        let deduped_source_cost = bucketed_dedup_source_cost(
+            &mut first_cost_bucket_by_key,
+            dedup_usage_key(
+                &message.session_id,
+                message.message_id.as_deref(),
+                &message.uuid,
+            ),
+            date.as_deref(),
+            message.cost_usd,
+            &mut aggregate.dedup_spans_buckets,
+        );
 
         if let Some(ts) = parsed_ts {
             day_timestamps
@@ -544,6 +632,16 @@ pub(super) fn build_message_file_aggregate(
             Some(&message.session_id),
             row_seq,
         );
+        let model_name = message.model.as_deref().unwrap_or(UNKNOWN_MODEL_NAME);
+        if message.model.is_some() || totals.5 > 0 || deduped_source_cost.is_some() {
+            bucket.record_model_usage(
+                model_name,
+                totals,
+                usage.service_tier.as_deref(),
+                u64::from(usage.cache_creation_input_tokens_1h.unwrap_or(0)),
+                deduped_source_cost,
+            );
+        }
         track_tool_usage(&message, &mut bucket.tool_usage);
         track_skill_and_subagent_usage(
             &message,
@@ -681,10 +779,15 @@ pub(super) fn compose_global(
         stats.token_distribution.output += bucket.output_tokens;
         stats.token_distribution.cache_creation += bucket.cache_creation_tokens;
         stats.token_distribution.cache_read += bucket.cache_read_tokens;
+        stats.token_distribution.reasoning += bucket.reasoning_tokens;
         merge_counter_map(&mut stats.tool_usage, &bucket.tool_usage);
         merge_counter_map(&mut stats.skill_usage, &bucket.skill_usage);
         merge_counter_map(&mut stats.subagent_usage, &bucket.subagent_usage);
         merge_model_map(&mut stats.model_usage, &bucket.model_usage);
+        merge_model_context_usage(&mut stats.model_context_usage, &bucket.model_context_usage);
+        for (model, cost) in &bucket.model_costs {
+            *stats.model_costs.entry(model.clone()).or_insert(0.0) += cost;
+        }
 
         stats.daily_stats.insert(
             (*date).clone(),
@@ -734,10 +837,15 @@ pub(super) fn compose_global(
         stats.token_distribution.output += undated.output_tokens;
         stats.token_distribution.cache_creation += undated.cache_creation_tokens;
         stats.token_distribution.cache_read += undated.cache_read_tokens;
+        stats.token_distribution.reasoning += undated.reasoning_tokens;
         merge_counter_map(&mut stats.tool_usage, &undated.tool_usage);
         merge_counter_map(&mut stats.skill_usage, &undated.skill_usage);
         merge_counter_map(&mut stats.subagent_usage, &undated.subagent_usage);
         merge_model_map(&mut stats.model_usage, &undated.model_usage);
+        merge_model_context_usage(&mut stats.model_context_usage, &undated.model_context_usage);
+        for (model, cost) in &undated.model_costs {
+            *stats.model_costs.entry(model.clone()).or_insert(0.0) += cost;
+        }
     }
 
     stats.session_duration_minutes = merged_active_minutes(&runs);
@@ -763,9 +871,15 @@ pub(super) fn compose_project(
         stats.token_distribution.output += bucket.output_tokens;
         stats.token_distribution.cache_creation += bucket.cache_creation_tokens;
         stats.token_distribution.cache_read += bucket.cache_read_tokens;
+        stats.token_distribution.reasoning += bucket.reasoning_tokens;
         merge_counter_map(&mut stats.tool_usage, &bucket.tool_usage);
         merge_counter_map(&mut stats.skill_usage, &bucket.skill_usage);
         merge_counter_map(&mut stats.subagent_usage, &bucket.subagent_usage);
+        merge_model_map(&mut stats.model_usage, &bucket.model_usage);
+        merge_model_context_usage(&mut stats.model_context_usage, &bucket.model_context_usage);
+        for (model, cost) in &bucket.model_costs {
+            *stats.model_costs.entry(model.clone()).or_insert(0.0) += cost;
+        }
 
         stats.session_dates.insert((*date).clone());
         stats.daily_stats.insert(
@@ -803,9 +917,15 @@ pub(super) fn compose_project(
         stats.token_distribution.output += undated.output_tokens;
         stats.token_distribution.cache_creation += undated.cache_creation_tokens;
         stats.token_distribution.cache_read += undated.cache_read_tokens;
+        stats.token_distribution.reasoning += undated.reasoning_tokens;
         merge_counter_map(&mut stats.tool_usage, &undated.tool_usage);
         merge_counter_map(&mut stats.skill_usage, &undated.skill_usage);
         merge_counter_map(&mut stats.subagent_usage, &undated.subagent_usage);
+        merge_model_map(&mut stats.model_usage, &undated.model_usage);
+        merge_model_context_usage(&mut stats.model_context_usage, &undated.model_context_usage);
+        for (model, cost) in &undated.model_costs {
+            *stats.model_costs.entry(model.clone()).or_insert(0.0) += cost;
+        }
     }
 
     if stats.total_messages == 0 {
@@ -836,8 +956,12 @@ pub(super) fn compose_session_token(
     let mut total_output_tokens = 0u64;
     let mut total_cache_creation_tokens = 0u64;
     let mut total_cache_read_tokens = 0u64;
+    let mut total_reasoning_tokens = 0u64;
     let mut message_count = 0usize;
     let mut tool_usage: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut model_usage: HashMap<String, ModelUsageAggregate> = HashMap::new();
+    let mut model_context_usage: ModelContextUsageMap = HashMap::new();
+    let mut model_costs: HashMap<String, f64> = HashMap::new();
     let mut first: Option<(DateTime<Utc>, &String)> = None;
     let mut last: Option<(DateTime<Utc>, &String)> = None;
 
@@ -856,7 +980,13 @@ pub(super) fn compose_session_token(
         total_output_tokens += bucket.output_tokens;
         total_cache_creation_tokens += bucket.cache_creation_tokens;
         total_cache_read_tokens += bucket.cache_read_tokens;
+        total_reasoning_tokens += bucket.reasoning_tokens;
         merge_counter_map(&mut tool_usage, &bucket.tool_usage);
+        merge_model_map(&mut model_usage, &bucket.model_usage);
+        merge_model_context_usage(&mut model_context_usage, &bucket.model_context_usage);
+        for (model, cost) in &bucket.model_costs {
+            *model_costs.entry(model.clone()).or_insert(0.0) += cost;
+        }
 
         if let (Some(ts), Some(raw)) = (bucket.first_ts, bucket.first_ts_raw.as_ref()) {
             if first.map_or(true, |(current, _)| ts < current) {
@@ -877,7 +1007,8 @@ pub(super) fn compose_session_token(
     let total_tokens = total_input_tokens
         + total_output_tokens
         + total_cache_creation_tokens
-        + total_cache_read_tokens;
+        + total_cache_read_tokens
+        + total_reasoning_tokens;
 
     Composed::Ready(Some(SessionTokenStats {
         session_id: session_id.to_string(),
@@ -886,7 +1017,7 @@ pub(super) fn compose_session_token(
         total_output_tokens,
         total_cache_creation_tokens,
         total_cache_read_tokens,
-        total_reasoning_tokens: 0,
+        total_reasoning_tokens,
         total_tokens,
         message_count,
         first_message_time: first
@@ -896,6 +1027,12 @@ pub(super) fn compose_session_token(
             .map(|(_, raw)| raw.clone())
             .unwrap_or_else(|| "unknown".to_string()),
         summary: aggregate.summary.clone(),
+        model_distribution: build_model_stats(
+            StatsProvider::Claude,
+            model_usage,
+            model_context_usage,
+            model_costs,
+        ),
         // The scan path emits the map unsorted; keep that shape.
         most_used_tools: tool_usage
             .into_iter()

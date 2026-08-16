@@ -1,12 +1,49 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TokenUsage {
+    #[serde(alias = "inputTokens", alias = "input")]
     pub input_tokens: Option<u32>,
+    #[serde(alias = "outputTokens", alias = "output")]
     pub output_tokens: Option<u32>,
+    #[serde(alias = "cacheCreationInputTokens", alias = "cacheWrite")]
     pub cache_creation_input_tokens: Option<u32>,
+    #[serde(alias = "cacheReadInputTokens", alias = "cacheRead")]
     pub cache_read_input_tokens: Option<u32>,
+    /// Anthropic's nested cache-write breakdown. The aggregate field above is
+    /// retained for providers that only expose one cache-write number.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_creation: Option<CacheCreationUsage>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "cacheCreationInputTokens5m"
+    )]
+    pub cache_creation_input_tokens_5m: Option<u32>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "cacheCreationInputTokens1h"
+    )]
+    pub cache_creation_input_tokens_1h: Option<u32>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "reasoningTokens",
+        alias = "reasoning",
+        alias = "thoughtsTokenCount"
+    )]
+    pub reasoning_tokens: Option<u32>,
+    #[serde(default, alias = "serviceTier")]
     pub service_tier: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CacheCreationUsage {
+    #[serde(default, alias = "ephemeral5mInputTokens")]
+    pub ephemeral_5m_input_tokens: Option<u32>,
+    #[serde(default, alias = "ephemeral1hInputTokens")]
+    pub ephemeral_1h_input_tokens: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,7 +233,9 @@ mod tests {
             output_tokens: Some(200),
             cache_creation_input_tokens: Some(50),
             cache_read_input_tokens: Some(25),
+            reasoning_tokens: None,
             service_tier: Some("standard".to_string()),
+            ..Default::default()
         };
 
         let serialized = serde_json::to_string(&usage).unwrap();
