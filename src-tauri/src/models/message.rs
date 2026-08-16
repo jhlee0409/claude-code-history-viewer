@@ -239,8 +239,10 @@ mod tests {
         };
 
         let serialized = serde_json::to_string(&usage).unwrap();
+        let serialized_value: serde_json::Value = serde_json::from_str(&serialized).unwrap();
         let deserialized: TokenUsage = serde_json::from_str(&serialized).unwrap();
 
+        assert!(serialized_value.get("reasoning_tokens").is_none());
         assert_eq!(deserialized.input_tokens, Some(100));
         assert_eq!(deserialized.output_tokens, Some(200));
         assert_eq!(deserialized.cache_creation_input_tokens, Some(50));
