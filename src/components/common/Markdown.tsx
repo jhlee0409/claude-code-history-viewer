@@ -12,16 +12,9 @@
 
 import { memo } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import "katex/dist/katex.min.css";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
-
-/** Module-level plugin arrays for stable reference across renders. */
-const REMARK_PLUGINS = [remarkGfm, remarkMath];
-const REHYPE_PLUGINS = [rehypeKatex];
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 
 interface MarkdownProps {
   children: string;
