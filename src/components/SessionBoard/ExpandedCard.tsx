@@ -295,6 +295,9 @@ export const ExpandedCard = memo(({
                         <>
                             <span>{t("session.board.input")} {message.usage.input_tokens || 0}</span>
                             <span>{t("session.board.output")} {message.usage.output_tokens || 0}</span>
+                            {message.usage.reasoning_tokens ? (
+                                <span>{t("analytics.reasoning", "Reasoning")} {message.usage.reasoning_tokens}</span>
+                            ) : null}
                         </>
                     )}
                 </div>

@@ -1006,7 +1006,9 @@ fn convert_assistant_message(
         output_tokens: Some(out),
         cache_creation_input_tokens: None,
         cache_read_input_tokens: None,
+        reasoning_tokens: None,
         service_tier: None,
+        ..Default::default()
     });
 
     let message_id = data

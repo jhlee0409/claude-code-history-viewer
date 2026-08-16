@@ -1125,12 +1125,14 @@ fn extract_usage(payload: &Value) -> Option<TokenUsage> {
     let input_tokens = direct_input_tokens.or_else(|| {
         prompt_tokens.map(|prompt| prompt.saturating_sub(cache_read_input_tokens.unwrap_or(0)))
     });
+    let reasoning_tokens = extract_u32(usage, &["reasoning_tokens", "reasoningTokens"]);
     let service_tier = extract_string(usage, &["service_tier", "serviceTier"]);
 
     if input_tokens.is_none()
         && output_tokens.is_none()
         && cache_creation_input_tokens.is_none()
         && cache_read_input_tokens.is_none()
+        && reasoning_tokens.is_none()
         && service_tier.is_none()
     {
         None
@@ -1140,7 +1142,9 @@ fn extract_usage(payload: &Value) -> Option<TokenUsage> {
             output_tokens,
             cache_creation_input_tokens,
             cache_read_input_tokens,
+            reasoning_tokens,
             service_tier,
+            ..Default::default()
         })
     }
 }

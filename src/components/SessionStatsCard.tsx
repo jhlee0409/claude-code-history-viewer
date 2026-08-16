@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import { TrendingUp, Zap, Database, Eye } from "lucide-react";
+import { TrendingUp, Zap, Database, Eye, Brain } from "lucide-react";
 import type { SessionTokenStats } from "../types";
 import { formatDateCompact } from "../utils/time";
 import { cn } from "@/lib/utils";
@@ -53,6 +53,7 @@ export const SessionStatsCard = memo(({
     { key: "output", label: t("analytics.outputTokens"), value: stats.total_output_tokens, color: "#a855f7", icon: Zap },
     { key: "cache_create", label: t("analytics.cacheCreation"), value: stats.total_cache_creation_tokens, color: "#3b82f6", icon: Database },
     { key: "cache_read", label: t("analytics.cacheRead"), value: stats.total_cache_read_tokens, color: "#f59e0b", icon: Eye },
+    { key: "reasoning", label: t("analytics.reasoning", "Reasoning"), value: stats.total_reasoning_tokens, color: "#ec4899", icon: Brain },
   ];
 
   const activeTokens = tokenData.filter(t => t.value > 0);

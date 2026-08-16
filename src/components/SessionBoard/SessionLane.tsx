@@ -157,7 +157,12 @@ export const SessionLane = ({
                 let hasUsageParams = false;
                 for (const m of allMsgs) {
                     if (isClaudeAssistantMessage(m) && m.usage) {
-                        totalTokens += (m.usage.input_tokens || 0) + (m.usage.output_tokens || 0);
+                        totalTokens +=
+                            (m.usage.input_tokens || 0) +
+                            (m.usage.output_tokens || 0) +
+                            (m.usage.cache_creation_input_tokens || 0) +
+                            (m.usage.cache_read_input_tokens || 0) +
+                            (m.usage.reasoning_tokens || 0);
                         hasUsageParams = true;
                     }
                 }

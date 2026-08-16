@@ -916,7 +916,9 @@ fn build_assistant_message(
             output_tokens: Some(out as u32),
             cache_creation_input_tokens: None,
             cache_read_input_tokens: None,
+            reasoning_tokens: None,
             service_tier: None,
+            ..Default::default()
         });
     let duration_ms = req.get("elapsedMs").and_then(Value::as_u64);
 

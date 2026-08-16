@@ -148,6 +148,9 @@ export const createBoardSlice: StateCreator<
                         totalTokens: 0,
                         inputTokens: 0,
                         outputTokens: 0,
+                        cacheCreationTokens: 0,
+                        cacheReadTokens: 0,
+                        reasoningTokens: 0,
                         errorCount: derivedStats.errorCount, // Use derived count which is more robust
                         durationMs: 0,
                         toolCount: 0,
@@ -182,7 +185,15 @@ export const createBoardSlice: StateCreator<
                                 seenUsageKeys.add(usageKey);
                                 stats.inputTokens += usage.input_tokens || 0;
                                 stats.outputTokens += usage.output_tokens || 0;
-                                stats.totalTokens += (usage.input_tokens || 0) + (usage.output_tokens || 0);
+                                stats.cacheCreationTokens += usage.cache_creation_input_tokens || 0;
+                                stats.cacheReadTokens += usage.cache_read_input_tokens || 0;
+                                stats.reasoningTokens += usage.reasoning_tokens || 0;
+                                stats.totalTokens +=
+                                    (usage.input_tokens || 0) +
+                                    (usage.output_tokens || 0) +
+                                    (usage.cache_creation_input_tokens || 0) +
+                                    (usage.cache_read_input_tokens || 0) +
+                                    (usage.reasoning_tokens || 0);
                             }
                         }
 

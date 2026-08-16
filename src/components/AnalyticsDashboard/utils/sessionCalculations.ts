@@ -38,6 +38,7 @@ export const calculateSessionMetrics = (stats: SessionTokenStats): SessionMetric
     output: stats.total_output_tokens,
     cache_creation: stats.total_cache_creation_tokens,
     cache_read: stats.total_cache_read_tokens,
+    reasoning: stats.total_reasoning_tokens,
   };
 
   return {

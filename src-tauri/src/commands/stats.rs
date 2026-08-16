@@ -1,9 +1,9 @@
 #[cfg(test)]
 use crate::models::MessageContent;
 use crate::models::{
-    ActivityHeatmap, ClaudeMessage, DailyStats, GlobalStatsSummary, ModelStats, ProjectRanking,
-    ProjectStatsSummary, ProviderUsageStats, RawLogEntry, SessionComparison, SessionTokenStats,
-    TokenDistribution, TokenUsage, ToolUsageStats,
+    ActivityHeatmap, ClaudeMessage, DailyStats, GlobalStatsSummary, ModelContextStats, ModelStats,
+    ProjectRanking, ProjectStatsSummary, ProviderUsageStats, RawLogEntry, SessionComparison,
+    SessionTokenStats, TokenDistribution, TokenUsage, ToolUsageStats,
 };
 use crate::providers;
 use crate::utils::find_line_ranges;
@@ -23,10 +23,26 @@ mod cache;
 enum StatsProvider {
     #[default]
     Claude,
+    Aider,
+    AmazonQ,
+    Cline,
     Codebuddy,
     Codex,
+    Continue,
     ForgeCode,
     OpenCode,
+    OpenHands,
+    OpenInterpreter,
+    PearAI,
+    Qwen,
+    Trae,
+    Vibe,
+    Zed,
+    Crush,
+    CursorAgent,
+    Goose,
+    Kiro,
+    Llm,
     Grok,
     Kimi,
     Antigravity,
@@ -66,10 +82,26 @@ fn parse_stats_mode(stats_mode: Option<String>) -> StatsMode {
 fn stats_provider_id(provider: StatsProvider) -> &'static str {
     match provider {
         StatsProvider::Claude => "claude",
+        StatsProvider::Aider => "aider",
+        StatsProvider::AmazonQ => "amazonq",
+        StatsProvider::Cline => "cline",
         StatsProvider::Codebuddy => "codebuddy",
         StatsProvider::Codex => "codex",
+        StatsProvider::Continue => "continue",
         StatsProvider::ForgeCode => "forgecode",
         StatsProvider::OpenCode => "opencode",
+        StatsProvider::OpenHands => "openhands",
+        StatsProvider::OpenInterpreter => "openinterpreter",
+        StatsProvider::PearAI => "pearai",
+        StatsProvider::Qwen => "qwen",
+        StatsProvider::Trae => "trae",
+        StatsProvider::Vibe => "vibe",
+        StatsProvider::Zed => "zed",
+        StatsProvider::Crush => "crush",
+        StatsProvider::CursorAgent => "cursor-agent",
+        StatsProvider::Goose => "goose",
+        StatsProvider::Kiro => "kiro",
+        StatsProvider::Llm => "llm",
         StatsProvider::Grok => "grok",
         StatsProvider::Kimi => "kimi",
         StatsProvider::Antigravity => "antigravity",
@@ -104,21 +136,51 @@ fn token_usage_has_token_fields(usage: &TokenUsage) -> bool {
     usage.input_tokens.is_some()
         || usage.output_tokens.is_some()
         || usage.cache_creation_input_tokens.is_some()
+        || usage.cache_creation_input_tokens_5m.is_some()
+        || usage.cache_creation_input_tokens_1h.is_some()
+        || usage.cache_creation.is_some()
         || usage.cache_read_input_tokens.is_some()
+        || usage.reasoning_tokens.is_some()
+}
+
+/// Normalize nested cache-write usage into the flat fields used by the
+/// dashboard while retaining the provider's 5-minute/1-hour split.
+fn normalize_token_usage(mut usage: TokenUsage) -> TokenUsage {
+    if let Some(cache_creation) = usage.cache_creation.take() {
+        let five_minute = cache_creation.ephemeral_5m_input_tokens;
+        let one_hour = cache_creation.ephemeral_1h_input_tokens;
+        if usage.cache_creation_input_tokens_5m.is_none() {
+            usage.cache_creation_input_tokens_5m = five_minute;
+        }
+        if usage.cache_creation_input_tokens_1h.is_none() {
+            usage.cache_creation_input_tokens_1h = one_hour;
+        }
+        if usage.cache_creation_input_tokens.is_none() {
+            usage.cache_creation_input_tokens = Some(
+                five_minute
+                    .unwrap_or(0)
+                    .saturating_add(one_hour.unwrap_or(0)),
+            );
+        }
+    }
+    usage
 }
 
 /// Summarize token usage into input, output, cache, and total counts.
-fn token_usage_totals(usage: &TokenUsage) -> (u64, u64, u64, u64, u64) {
+fn token_usage_totals(usage: &TokenUsage) -> (u64, u64, u64, u64, u64, u64) {
     let input_tokens = u64::from(usage.input_tokens.unwrap_or(0));
     let output_tokens = u64::from(usage.output_tokens.unwrap_or(0));
     let cache_creation_tokens = u64::from(usage.cache_creation_input_tokens.unwrap_or(0));
     let cache_read_tokens = u64::from(usage.cache_read_input_tokens.unwrap_or(0));
-    let total_tokens = input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens;
+    let reasoning_tokens = u64::from(usage.reasoning_tokens.unwrap_or(0));
+    let total_tokens =
+        input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens + reasoning_tokens;
     (
         input_tokens,
         output_tokens,
         cache_creation_tokens,
         cache_read_tokens,
+        reasoning_tokens,
         total_tokens,
     )
 }
@@ -227,10 +289,26 @@ fn should_include_stats_message(message: &ClaudeMessage, mode: StatsMode) -> boo
 fn all_stats_providers() -> HashSet<StatsProvider> {
     [
         StatsProvider::Claude,
+        StatsProvider::Aider,
+        StatsProvider::AmazonQ,
+        StatsProvider::Cline,
         StatsProvider::Codebuddy,
         StatsProvider::Codex,
+        StatsProvider::Continue,
         StatsProvider::ForgeCode,
         StatsProvider::OpenCode,
+        StatsProvider::OpenHands,
+        StatsProvider::OpenInterpreter,
+        StatsProvider::PearAI,
+        StatsProvider::Qwen,
+        StatsProvider::Trae,
+        StatsProvider::Vibe,
+        StatsProvider::Zed,
+        StatsProvider::Crush,
+        StatsProvider::CursorAgent,
+        StatsProvider::Goose,
+        StatsProvider::Kiro,
+        StatsProvider::Llm,
         StatsProvider::Grok,
         StatsProvider::Kimi,
         StatsProvider::Antigravity,
@@ -255,10 +333,26 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
         .into_iter()
         .filter_map(|provider| match provider.as_str() {
             "claude" => Some(StatsProvider::Claude),
+            "aider" => Some(StatsProvider::Aider),
+            "amazonq" => Some(StatsProvider::AmazonQ),
+            "cline" => Some(StatsProvider::Cline),
             "codebuddy" => Some(StatsProvider::Codebuddy),
             "codex" => Some(StatsProvider::Codex),
+            "continue" => Some(StatsProvider::Continue),
             "forgecode" => Some(StatsProvider::ForgeCode),
             "opencode" => Some(StatsProvider::OpenCode),
+            "openhands" => Some(StatsProvider::OpenHands),
+            "openinterpreter" => Some(StatsProvider::OpenInterpreter),
+            "pearai" => Some(StatsProvider::PearAI),
+            "qwen" => Some(StatsProvider::Qwen),
+            "trae" => Some(StatsProvider::Trae),
+            "vibe" => Some(StatsProvider::Vibe),
+            "zed" => Some(StatsProvider::Zed),
+            "crush" => Some(StatsProvider::Crush),
+            "cursor-agent" => Some(StatsProvider::CursorAgent),
+            "goose" => Some(StatsProvider::Goose),
+            "kiro" => Some(StatsProvider::Kiro),
+            "llm" => Some(StatsProvider::Llm),
             "grok" => Some(StatsProvider::Grok),
             "kimi" => Some(StatsProvider::Kimi),
             "antigravity" => Some(StatsProvider::Antigravity),
@@ -286,7 +380,37 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
 
 /// Detect the provider encoded in a project path.
 fn detect_project_provider(project_path: &str) -> StatsProvider {
-    if project_path.starts_with("codex://") {
+    if project_path.starts_with("aider://") {
+        StatsProvider::Aider
+    } else if project_path.starts_with("amazonq://") {
+        StatsProvider::AmazonQ
+    } else if project_path.starts_with("cline://") {
+        StatsProvider::Cline
+    } else if project_path.starts_with("continue://") {
+        StatsProvider::Continue
+    } else if project_path.starts_with("crush://") {
+        StatsProvider::Crush
+    } else if project_path.starts_with("goose://") {
+        StatsProvider::Goose
+    } else if project_path.starts_with("kiro://") {
+        StatsProvider::Kiro
+    } else if project_path.starts_with("llm://") {
+        StatsProvider::Llm
+    } else if project_path.starts_with("openhands://") {
+        StatsProvider::OpenHands
+    } else if project_path.starts_with("openinterpreter://") {
+        StatsProvider::OpenInterpreter
+    } else if project_path.starts_with("pearai://") {
+        StatsProvider::PearAI
+    } else if project_path.starts_with("qwen://") {
+        StatsProvider::Qwen
+    } else if project_path.starts_with("trae://") {
+        StatsProvider::Trae
+    } else if project_path.starts_with("vibe://") {
+        StatsProvider::Vibe
+    } else if project_path.starts_with("zed://") {
+        StatsProvider::Zed
+    } else if project_path.starts_with("codex://") {
         StatsProvider::Codex
     } else if project_path.starts_with("forgecode://") {
         StatsProvider::ForgeCode
@@ -308,6 +432,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Pi
     } else if is_codebuddy_path(project_path) {
         StatsProvider::Codebuddy
+    } else if path_under_root(project_path, providers::cursor_agent::get_base_path()) {
+        StatsProvider::CursorAgent
     } else if project_path.starts_with("copilot://")
         || project_path.starts_with("copilot-cli://")
         || project_path.starts_with("copilot-desktop://")
@@ -321,6 +447,69 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
 
 /// Detect the provider encoded in a session path.
 fn detect_session_provider(session_path: &str) -> StatsProvider {
+    if session_path.starts_with("aider://") || session_path.ends_with(".aider.chat.history.md") {
+        return StatsProvider::Aider;
+    }
+    if session_path.starts_with("amazonq://") {
+        return StatsProvider::AmazonQ;
+    }
+    if session_path.starts_with("cline://") {
+        return StatsProvider::Cline;
+    }
+    if session_path.starts_with("continue://") {
+        return StatsProvider::Continue;
+    }
+    if session_path.starts_with("crush://") {
+        return StatsProvider::Crush;
+    }
+    if session_path.starts_with("goose://") {
+        return StatsProvider::Goose;
+    }
+    if session_path.starts_with("kiro://") {
+        return StatsProvider::Kiro;
+    }
+    if session_path.starts_with("llm://") {
+        return StatsProvider::Llm;
+    }
+    if session_path.starts_with("openhands://") {
+        return StatsProvider::OpenHands;
+    }
+    if session_path.starts_with("openinterpreter://") {
+        return StatsProvider::OpenInterpreter;
+    }
+    if session_path.starts_with("pearai://") {
+        return StatsProvider::PearAI;
+    }
+    if session_path.starts_with("qwen://") {
+        return StatsProvider::Qwen;
+    }
+    if session_path.starts_with("trae://") {
+        return StatsProvider::Trae;
+    }
+    if session_path.starts_with("vibe://") {
+        return StatsProvider::Vibe;
+    }
+    if session_path.starts_with("zed://") {
+        return StatsProvider::Zed;
+    }
+    if path_under_root(session_path, providers::cursor_agent::get_base_path()) {
+        return StatsProvider::CursorAgent;
+    }
+    if path_under_root(session_path, providers::continue_dev::get_base_path()) {
+        return StatsProvider::Continue;
+    }
+    if path_under_root(session_path, providers::pearai::get_base_path()) {
+        return StatsProvider::PearAI;
+    }
+    if path_under_root(session_path, providers::qwen::get_base_path()) {
+        return StatsProvider::Qwen;
+    }
+    if path_under_root(session_path, providers::vibe::get_base_path()) {
+        return StatsProvider::Vibe;
+    }
+    if path_under_root(session_path, providers::openinterpreter::get_base_path()) {
+        return StatsProvider::OpenInterpreter;
+    }
     if session_path.starts_with("opencode://") {
         return StatsProvider::OpenCode;
     }
@@ -393,6 +582,10 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     } else {
         StatsProvider::Claude
     }
+}
+
+fn path_under_root(path: &str, root: Option<String>) -> bool {
+    root.is_some_and(|root| Path::new(path).starts_with(Path::new(&root)))
 }
 
 fn is_copilot_cli_session_path(session_path: &str) -> bool {
@@ -560,6 +753,8 @@ struct GlobalStatsLogEntry {
     /// Row identifier — fallback dedup key when `message.id` is absent (#283).
     uuid: Option<String>,
     message: Option<GlobalStatsMessageContent>,
+    #[serde(rename = "costUSD")]
+    cost_usd: Option<f64>,
     #[serde(rename = "toolUse")]
     tool_use: Option<GlobalStatsToolUse>,
     #[serde(rename = "toolUseResult")]
@@ -576,6 +771,8 @@ struct GlobalStatsMessageContent {
     content: Option<serde_json::Value>,
     model: Option<String>,
     usage: Option<TokenUsage>,
+    #[serde(rename = "costUSD")]
+    cost_usd: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -597,34 +794,71 @@ fn parse_global_stats_entry_simd(line: &mut [u8]) -> Option<GlobalStatsLogEntry>
     simd_json::serde::from_slice(line).ok()
 }
 
+/// Read the first numeric token field that a provider exposes under one of
+/// its known `snake_case`/`camelCase` aliases.
+fn usage_u32(value: &serde_json::Value, keys: &[&str]) -> Option<u32> {
+    keys.iter()
+        .find_map(|key| value.get(*key).and_then(serde_json::Value::as_u64))
+        .and_then(|value| u32::try_from(value).ok())
+}
+
 /// Apply token usage fields from a JSON value into a token-usage struct.
 fn apply_usage_fields_from_value(usage_obj: &serde_json::Value, usage: &mut TokenUsage) {
-    if let Some(input) = usage_obj
-        .get("input_tokens")
-        .and_then(serde_json::Value::as_u64)
-    {
-        usage.input_tokens = Some(input as u32);
+    usage.input_tokens =
+        usage_u32(usage_obj, &["input_tokens", "inputTokens"]).or(usage.input_tokens);
+    usage.output_tokens =
+        usage_u32(usage_obj, &["output_tokens", "outputTokens"]).or(usage.output_tokens);
+    usage.cache_creation_input_tokens = usage_u32(
+        usage_obj,
+        &[
+            "cache_creation_input_tokens",
+            "cacheCreationInputTokens",
+            "cacheWrite",
+        ],
+    )
+    .or(usage.cache_creation_input_tokens);
+    if let Some(cache_creation) = usage_obj.get("cache_creation") {
+        usage.cache_creation_input_tokens_5m = usage_u32(
+            cache_creation,
+            &["ephemeral_5m_input_tokens", "ephemeral5mInputTokens"],
+        )
+        .or(usage.cache_creation_input_tokens_5m);
+        usage.cache_creation_input_tokens_1h = usage_u32(
+            cache_creation,
+            &["ephemeral_1h_input_tokens", "ephemeral1hInputTokens"],
+        )
+        .or(usage.cache_creation_input_tokens_1h);
+        if usage.cache_creation_input_tokens.is_none() {
+            usage.cache_creation_input_tokens = Some(
+                usage
+                    .cache_creation_input_tokens_5m
+                    .unwrap_or(0)
+                    .saturating_add(usage.cache_creation_input_tokens_1h.unwrap_or(0)),
+            );
+        }
     }
-    if let Some(output) = usage_obj
-        .get("output_tokens")
-        .and_then(serde_json::Value::as_u64)
-    {
-        usage.output_tokens = Some(output as u32);
-    }
-    if let Some(cache_creation) = usage_obj
-        .get("cache_creation_input_tokens")
-        .and_then(serde_json::Value::as_u64)
-    {
-        usage.cache_creation_input_tokens = Some(cache_creation as u32);
-    }
-    if let Some(cache_read) = usage_obj
-        .get("cache_read_input_tokens")
-        .and_then(serde_json::Value::as_u64)
-    {
-        usage.cache_read_input_tokens = Some(cache_read as u32);
-    }
+    usage.cache_read_input_tokens = usage_u32(
+        usage_obj,
+        &[
+            "cache_read_input_tokens",
+            "cacheReadInputTokens",
+            "cacheRead",
+        ],
+    )
+    .or(usage.cache_read_input_tokens);
+    usage.reasoning_tokens = usage_u32(
+        usage_obj,
+        &[
+            "reasoning_tokens",
+            "reasoningTokens",
+            "reasoning",
+            "thoughtsTokenCount",
+        ],
+    )
+    .or(usage.reasoning_tokens);
     if let Some(tier) = usage_obj
         .get("service_tier")
+        .or_else(|| usage_obj.get("serviceTier"))
         .and_then(serde_json::Value::as_str)
     {
         usage.service_tier = Some(tier.to_string());
@@ -636,7 +870,7 @@ fn extract_token_usage_from_global_entry(entry: &GlobalStatsLogEntry) -> TokenUs
     // 1. From message.usage (most common for assistant messages)
     if let Some(msg) = &entry.message {
         if let Some(usage) = &msg.usage {
-            return usage.clone();
+            return normalize_token_usage(usage.clone());
         }
 
         if let Some(content) = &msg.content {
@@ -646,7 +880,9 @@ fn extract_token_usage_from_global_entry(entry: &GlobalStatsLogEntry) -> TokenUs
                     output_tokens: None,
                     cache_creation_input_tokens: None,
                     cache_read_input_tokens: None,
+                    reasoning_tokens: None,
                     service_tier: None,
+                    ..Default::default()
                 };
                 if let Some(usage_obj) = content.get("usage") {
                     apply_usage_fields_from_value(usage_obj, &mut usage);
@@ -663,7 +899,9 @@ fn extract_token_usage_from_global_entry(entry: &GlobalStatsLogEntry) -> TokenUs
         output_tokens: None,
         cache_creation_input_tokens: None,
         cache_read_input_tokens: None,
+        reasoning_tokens: None,
         service_tier: None,
+        ..Default::default()
     };
 
     // 2. From tool_use_result.usage
@@ -684,7 +922,7 @@ fn extract_token_usage_from_global_entry(entry: &GlobalStatsLogEntry) -> TokenUs
         }
     }
 
-    usage
+    normalize_token_usage(usage)
 }
 
 /// Track tool usage from the lightweight global stats entry
@@ -734,6 +972,93 @@ fn track_tool_usage_from_global_entry(
 
 /// Intermediate stats collected from a single session file (for parallel processing)
 type ModelUsageAggregate = (u32, u64, u64, u64, u64, u64, u64);
+type ModelContextUsageMap = HashMap<String, HashMap<u64, ModelContextStats>>;
+const UNKNOWN_MODEL_NAME: &str = "unknown";
+const MODEL_USAGE_KEY_SEPARATOR: char = '\u{1f}';
+
+fn normalize_service_tier(service_tier: Option<&str>) -> Option<String> {
+    service_tier
+        .map(str::trim)
+        .filter(|tier| !tier.is_empty())
+        .map(|tier| match tier.to_ascii_lowercase().as_str() {
+            // OpenAI renamed Priority to Fast while keeping the old API value
+            // accepted for compatibility. Normalize both to one display row.
+            "priority" => "fast".to_string(),
+            normalized => normalized.to_string(),
+        })
+}
+
+fn model_usage_key(model_name: &str, service_tier: Option<&str>) -> String {
+    let model_name = model_name.to_string();
+    match normalize_service_tier(service_tier) {
+        Some(service_tier) => format!("{model_name}{MODEL_USAGE_KEY_SEPARATOR}{service_tier}"),
+        None => model_name,
+    }
+}
+
+fn split_model_usage_key(key: &str) -> (&str, Option<&str>) {
+    key.split_once(MODEL_USAGE_KEY_SEPARATOR)
+        .map_or((key, None), |(model_name, service_tier)| {
+            (model_name, Some(service_tier))
+        })
+}
+
+fn context_tier_min_tokens(model_name: &str, context_tokens: u64) -> u64 {
+    let normalized = model_name.trim().to_ascii_lowercase();
+    let model = normalized
+        .strip_prefix("models/")
+        .unwrap_or(&normalized)
+        .rsplit('/')
+        .next()
+        .unwrap_or(&normalized);
+    let matches_model = |key: &str| {
+        model == key
+            || model.starts_with(&format!("{key}-"))
+            || model.starts_with(&format!("{key}@"))
+            || model.starts_with(&format!("{key}:"))
+    };
+    let threshold = if [
+        "gpt-5.6",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5.5",
+        "gpt-5.4",
+    ]
+    .into_iter()
+    .any(matches_model)
+    {
+        Some(272_001)
+    } else if matches_model("gemini-3.1-pro-preview") || matches_model("gemini-2.5-pro") {
+        Some(200_001)
+    } else if matches_model("minimax-m3") {
+        Some(512_001)
+    } else if [
+        "grok-4.6",
+        "grok-4.5",
+        "grok-4.5-build",
+        "grok-build-latest",
+        "grok-build-0.1",
+        "grok-code-fast-1-0825",
+        "grok-code-fast-1",
+        "grok-code-fast",
+        "grok-4.3",
+        "grok-4.20-multi-agent-0309",
+        "grok-4.20-0309-reasoning",
+        "grok-4.20-0309-non-reasoning",
+        "grok-build",
+    ]
+    .into_iter()
+    .any(matches_model)
+    {
+        Some(200_001)
+    } else {
+        None
+    };
+    threshold
+        .filter(|threshold| context_tokens >= *threshold)
+        .unwrap_or(0)
+}
 
 #[derive(Default)]
 struct SessionFileStats {
@@ -746,6 +1071,8 @@ struct SessionFileStats {
     daily_stats: HashMap<String, DailyStats>,
     activity_data: HashMap<(u8, u8), (u32, u64)>, // (hour, day) -> (count, tokens)
     model_usage: HashMap<String, ModelUsageAggregate>, // model -> (msg_count, total, input, output, cache_create, cache_read, reasoning)
+    model_context_usage: ModelContextUsageMap,
+    model_costs: HashMap<String, f64>, // model -> authoritative source cost when present
     session_duration_minutes: u64,
     first_message: Option<DateTime<Utc>>,
     last_message: Option<DateTime<Utc>>,
@@ -814,6 +1141,7 @@ fn scan_session_file_for_global_stats(
     // #283: stream entries one at a time with owned-key dedup so we never
     // buffer parsed log entries (which can carry MB-sized `content` payloads).
     let mut seen_usage_keys: HashSet<String> = HashSet::new();
+    let mut seen_cost_keys: HashSet<String> = HashSet::new();
 
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
@@ -847,27 +1175,52 @@ fn scan_session_file_for_global_stats(
         stats.total_messages = stats.total_messages.saturating_add(1);
         let message_id = entry.message.as_ref().and_then(|m| m.id.as_deref());
         let uuid = entry.uuid.as_deref().unwrap_or("");
-        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
-            dedup_token_totals(&mut seen_usage_keys, "", message_id, uuid, &usage);
+        let (
+            input_tokens,
+            output_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
+            reasoning_tokens,
+            tokens,
+        ) = dedup_token_totals(&mut seen_usage_keys, "", message_id, uuid, &usage);
+        let source_cost = entry
+            .cost_usd
+            .or_else(|| entry.message.as_ref().and_then(|message| message.cost_usd));
+        let deduped_source_cost =
+            dedup_source_cost(&mut seen_cost_keys, "", message_id, uuid, source_cost);
 
         stats.total_tokens += tokens;
         stats.token_distribution.input += input_tokens;
         stats.token_distribution.output += output_tokens;
         stats.token_distribution.cache_creation += cache_creation_tokens;
         stats.token_distribution.cache_read += cache_read_tokens;
-        if let Some(msg) = &entry.message {
-            if let Some(model_name) = &msg.model {
-                let model_entry = stats
-                    .model_usage
-                    .entry(model_name.clone())
-                    .or_insert((0, 0, 0, 0, 0, 0, 0));
-                model_entry.0 += 1;
-                model_entry.1 += tokens;
-                model_entry.2 += input_tokens;
-                model_entry.3 += output_tokens;
-                model_entry.4 += cache_creation_tokens;
-                model_entry.5 += cache_read_tokens;
-                model_entry.6 += 0;
+        stats.token_distribution.reasoning += reasoning_tokens;
+        let model_name = entry
+            .message
+            .as_ref()
+            .and_then(|message| message.model.as_deref())
+            .unwrap_or(UNKNOWN_MODEL_NAME);
+        let has_model = entry
+            .message
+            .as_ref()
+            .is_some_and(|message| message.model.is_some());
+        if has_model || tokens > 0 || deduped_source_cost.is_some() {
+            let model_entry = stats
+                .model_usage
+                .entry(model_name.to_string())
+                .or_insert((0, 0, 0, 0, 0, 0, 0));
+            model_entry.0 += 1;
+            model_entry.1 += tokens;
+            model_entry.2 += input_tokens;
+            model_entry.3 += output_tokens;
+            model_entry.4 += cache_creation_tokens;
+            model_entry.5 += cache_read_tokens;
+            model_entry.6 += reasoning_tokens;
+            if let Some(cost_usd) = deduped_source_cost {
+                *stats
+                    .model_costs
+                    .entry(model_name.to_string())
+                    .or_insert(0.0) += cost_usd;
             }
         }
 
@@ -990,6 +1343,7 @@ fn build_global_session_file_stats_from_messages(
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
     // #283: counts rows but only adds usage once per (session_id, message.id).
     let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
+    let mut seen_cost_keys: HashSet<String> = HashSet::with_capacity(messages.len());
 
     let has_date_filter = s_limit.is_some() || e_limit.is_some();
 
@@ -1007,18 +1361,33 @@ fn build_global_session_file_stats_from_messages(
         }
 
         stats.total_messages = stats.total_messages.saturating_add(1);
-        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
-            dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        let (
+            input_tokens,
+            output_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
+            reasoning_tokens,
+            tokens,
+        ) = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        let deduped_source_cost = dedup_source_cost(
+            &mut seen_cost_keys,
+            &message.session_id,
+            message.message_id.as_deref(),
+            &message.uuid,
+            message.cost_usd,
+        );
 
         stats.total_tokens += tokens;
         stats.token_distribution.input += input_tokens;
         stats.token_distribution.output += output_tokens;
         stats.token_distribution.cache_creation += cache_creation_tokens;
         stats.token_distribution.cache_read += cache_read_tokens;
-        if let Some(model_name) = &message.model {
+        stats.token_distribution.reasoning += reasoning_tokens;
+        if message.model.is_some() || tokens > 0 || deduped_source_cost.is_some() {
+            let model_name = message.model.as_deref().unwrap_or(UNKNOWN_MODEL_NAME);
             let model_entry = stats
                 .model_usage
-                .entry(model_name.clone())
+                .entry(model_name.to_string())
                 .or_insert((0, 0, 0, 0, 0, 0, 0));
             model_entry.0 += 1;
             model_entry.1 += tokens;
@@ -1026,7 +1395,13 @@ fn build_global_session_file_stats_from_messages(
             model_entry.3 += output_tokens;
             model_entry.4 += cache_creation_tokens;
             model_entry.5 += cache_read_tokens;
-            model_entry.6 += 0;
+            model_entry.6 += reasoning_tokens;
+            if let Some(cost_usd) = deduped_source_cost {
+                *stats
+                    .model_costs
+                    .entry(model_name.to_string())
+                    .or_insert(0.0) += cost_usd;
+            }
         }
 
         if let Some(timestamp) = parsed_timestamp {
@@ -1098,6 +1473,121 @@ fn build_global_session_file_stats_from_messages(
     }
 
     Some(stats)
+}
+
+/// Dispatch the common project/session/message interface used by global and
+/// project stats. Keeping this table in one place prevents a provider from
+/// being visible in the project tree but silently disappearing from stats.
+fn scan_stats_projects(
+    provider: StatsProvider,
+) -> Result<Vec<crate::models::ClaudeProject>, String> {
+    match provider {
+        StatsProvider::Aider => providers::aider::scan_projects(),
+        StatsProvider::AmazonQ => providers::amazon_q::scan_projects(),
+        StatsProvider::Cline => providers::cline::scan_projects(),
+        StatsProvider::Codebuddy => providers::codebuddy::scan_projects(),
+        StatsProvider::Codex => providers::codex::scan_projects(),
+        StatsProvider::Continue => providers::continue_dev::scan_projects(),
+        StatsProvider::ForgeCode => providers::forgecode::scan_projects(),
+        StatsProvider::OpenCode => providers::opencode::scan_projects(),
+        StatsProvider::OpenHands => providers::openhands::scan_projects(),
+        StatsProvider::OpenInterpreter => providers::openinterpreter::scan_projects(),
+        StatsProvider::PearAI => providers::pearai::scan_projects(),
+        StatsProvider::Qwen => providers::qwen::scan_projects(),
+        StatsProvider::Trae => providers::trae::scan_projects(),
+        StatsProvider::Vibe => providers::vibe::scan_projects(),
+        StatsProvider::Zed => providers::zed::scan_projects(),
+        StatsProvider::Crush => providers::crush::scan_projects(),
+        StatsProvider::CursorAgent => providers::cursor_agent::scan_projects(),
+        StatsProvider::Goose => providers::goose::scan_projects(),
+        StatsProvider::Kiro => providers::kiro::scan_projects(),
+        StatsProvider::Llm => providers::llm::scan_projects(),
+        StatsProvider::Grok => providers::grok::scan_projects(),
+        StatsProvider::Kimi => providers::kimi::scan_projects(),
+        StatsProvider::Antigravity => providers::antigravity::scan_projects(),
+        StatsProvider::Copilot => providers::copilot::scan_projects(),
+        StatsProvider::Ompi => providers::ompi::scan_projects(),
+        StatsProvider::Pi => providers::pi::scan_projects(),
+        StatsProvider::Gemini => providers::gemini::scan_projects(),
+        StatsProvider::Cursor => providers::cursor::scan_projects(),
+        StatsProvider::Claude => Ok(Vec::new()),
+    }
+}
+
+fn load_stats_sessions(
+    provider: StatsProvider,
+    project_path: &str,
+) -> Result<Vec<crate::models::ClaudeSession>, String> {
+    match provider {
+        StatsProvider::Aider => providers::aider::load_sessions(project_path, false),
+        StatsProvider::AmazonQ => providers::amazon_q::load_sessions(project_path, false),
+        StatsProvider::Cline => providers::cline::load_sessions(project_path, false),
+        StatsProvider::Codebuddy => providers::codebuddy::load_sessions(project_path, false),
+        StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
+        StatsProvider::Continue => providers::continue_dev::load_sessions(project_path, false),
+        StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
+        StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
+        StatsProvider::OpenHands => providers::openhands::load_sessions(project_path, false),
+        StatsProvider::OpenInterpreter => {
+            providers::openinterpreter::load_sessions(project_path, false)
+        }
+        StatsProvider::PearAI => providers::pearai::load_sessions(project_path, false),
+        StatsProvider::Qwen => providers::qwen::load_sessions(project_path, false),
+        StatsProvider::Trae => providers::trae::load_sessions(project_path, false),
+        StatsProvider::Vibe => providers::vibe::load_sessions(project_path, false),
+        StatsProvider::Zed => providers::zed::load_sessions(project_path, false),
+        StatsProvider::Crush => providers::crush::load_sessions(project_path, false),
+        StatsProvider::CursorAgent => providers::cursor_agent::load_sessions(project_path, false),
+        StatsProvider::Goose => providers::goose::load_sessions(project_path, false),
+        StatsProvider::Kiro => providers::kiro::load_sessions(project_path, false),
+        StatsProvider::Llm => providers::llm::load_sessions(project_path, false),
+        StatsProvider::Grok => providers::grok::load_sessions(project_path, false),
+        StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
+        StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
+        StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
+        StatsProvider::Ompi => providers::ompi::load_sessions(project_path, false),
+        StatsProvider::Pi => providers::pi::load_sessions(project_path, false),
+        StatsProvider::Gemini => providers::gemini::load_sessions(project_path, false),
+        StatsProvider::Cursor => providers::cursor::load_sessions(project_path, false),
+        StatsProvider::Claude => Ok(Vec::new()),
+    }
+}
+
+fn load_stats_messages(
+    provider: StatsProvider,
+    session_path: &str,
+) -> Result<Vec<ClaudeMessage>, String> {
+    match provider {
+        StatsProvider::Aider => providers::aider::load_messages(session_path),
+        StatsProvider::AmazonQ => providers::amazon_q::load_messages(session_path),
+        StatsProvider::Cline => providers::cline::load_messages(session_path),
+        StatsProvider::Codebuddy => providers::codebuddy::load_messages(session_path),
+        StatsProvider::Codex => providers::codex::load_messages(session_path),
+        StatsProvider::Continue => providers::continue_dev::load_messages(session_path),
+        StatsProvider::ForgeCode => providers::forgecode::load_messages(session_path),
+        StatsProvider::OpenCode => providers::opencode::load_messages(session_path),
+        StatsProvider::OpenHands => providers::openhands::load_messages(session_path),
+        StatsProvider::OpenInterpreter => providers::openinterpreter::load_messages(session_path),
+        StatsProvider::PearAI => providers::pearai::load_messages(session_path),
+        StatsProvider::Qwen => providers::qwen::load_messages(session_path),
+        StatsProvider::Trae => providers::trae::load_messages(session_path),
+        StatsProvider::Vibe => providers::vibe::load_messages(session_path),
+        StatsProvider::Zed => providers::zed::load_messages(session_path),
+        StatsProvider::Crush => providers::crush::load_messages(session_path),
+        StatsProvider::CursorAgent => providers::cursor_agent::load_messages(session_path),
+        StatsProvider::Goose => providers::goose::load_messages(session_path),
+        StatsProvider::Kiro => providers::kiro::load_messages(session_path),
+        StatsProvider::Llm => providers::llm::load_messages(session_path),
+        StatsProvider::Grok => providers::grok::load_messages(session_path),
+        StatsProvider::Kimi => providers::kimi::load_messages(session_path),
+        StatsProvider::Antigravity => providers::antigravity::load_messages(session_path),
+        StatsProvider::Copilot => providers::copilot::load_messages(session_path),
+        StatsProvider::Ompi => providers::ompi::load_messages(session_path),
+        StatsProvider::Pi => providers::pi::load_messages(session_path),
+        StatsProvider::Gemini => providers::gemini::load_messages(session_path),
+        StatsProvider::Cursor => providers::cursor::load_stats_messages(session_path),
+        StatsProvider::Claude => Ok(Vec::new()),
+    }
 }
 
 /// Collect global stats rows for a non-Claude provider.
@@ -1267,21 +1757,7 @@ fn collect_provider_global_file_stats(
         return (all_stats, project_keys);
     }
 
-    let projects = match provider {
-        StatsProvider::Codebuddy => providers::codebuddy::scan_projects().unwrap_or_default(),
-        StatsProvider::Codex => providers::codex::scan_projects().unwrap_or_default(),
-        StatsProvider::ForgeCode => providers::forgecode::scan_projects().unwrap_or_default(),
-        StatsProvider::OpenCode => providers::opencode::scan_projects().unwrap_or_default(),
-        StatsProvider::Grok => providers::grok::scan_projects().unwrap_or_default(),
-        StatsProvider::Kimi => providers::kimi::scan_projects().unwrap_or_default(),
-        StatsProvider::Antigravity => providers::antigravity::scan_projects().unwrap_or_default(),
-        StatsProvider::Copilot => providers::copilot::scan_projects().unwrap_or_default(),
-        StatsProvider::Ompi => providers::ompi::scan_projects().unwrap_or_default(),
-        StatsProvider::Pi => providers::pi::scan_projects().unwrap_or_default(),
-        StatsProvider::Gemini => providers::gemini::scan_projects().unwrap_or_default(),
-        StatsProvider::Cursor => providers::cursor::scan_projects().unwrap_or_default(),
-        StatsProvider::Claude => Vec::new(),
-    };
+    let projects = scan_stats_projects(provider).unwrap_or_default();
 
     let provider_tag = stats_provider_id(provider);
 
@@ -1292,24 +1768,7 @@ fn collect_provider_global_file_stats(
         let project_display_name = format!("{} [{}]", project.name, provider_tag);
         project_keys.insert(format!("{provider_tag}:{}", project.path));
 
-        let sessions = match provider {
-            StatsProvider::Codebuddy => providers::codebuddy::load_sessions(&project.path, false),
-            StatsProvider::Codex => providers::codex::load_sessions(&project.path, false),
-            StatsProvider::ForgeCode => providers::forgecode::load_sessions(&project.path, false),
-            StatsProvider::OpenCode => providers::opencode::load_sessions(&project.path, false),
-            StatsProvider::Grok => providers::grok::load_sessions(&project.path, false),
-            StatsProvider::Kimi => providers::kimi::load_sessions(&project.path, false),
-            StatsProvider::Antigravity => {
-                providers::antigravity::load_sessions(&project.path, false)
-            }
-            StatsProvider::Copilot => providers::copilot::load_sessions(&project.path, false),
-            StatsProvider::Ompi => providers::ompi::load_sessions(&project.path, false),
-            StatsProvider::Pi => providers::pi::load_sessions(&project.path, false),
-            StatsProvider::Gemini => providers::gemini::load_sessions(&project.path, false),
-            StatsProvider::Cursor => providers::cursor::load_sessions(&project.path, false),
-            StatsProvider::Claude => Ok(Vec::new()),
-        }
-        .unwrap_or_default();
+        let sessions = load_stats_sessions(provider, &project.path).unwrap_or_default();
 
         for session in sessions {
             session_tasks.push((project_display_name.clone(), session.file_path));
@@ -1320,22 +1779,7 @@ fn collect_provider_global_file_stats(
     let all_stats: Vec<SessionFileStats> = session_tasks
         .par_iter()
         .filter_map(|(project_name, file_path)| {
-            let messages = match provider {
-                StatsProvider::Codebuddy => providers::codebuddy::load_messages(file_path),
-                StatsProvider::Codex => providers::codex::load_messages(file_path),
-                StatsProvider::ForgeCode => providers::forgecode::load_messages(file_path),
-                StatsProvider::OpenCode => providers::opencode::load_messages(file_path),
-                StatsProvider::Grok => providers::grok::load_messages(file_path),
-                StatsProvider::Kimi => providers::kimi::load_messages(file_path),
-                StatsProvider::Antigravity => providers::antigravity::load_messages(file_path),
-                StatsProvider::Copilot => providers::copilot::load_messages(file_path),
-                StatsProvider::Ompi => providers::ompi::load_messages(file_path),
-                StatsProvider::Pi => providers::pi::load_messages(file_path),
-                StatsProvider::Gemini => providers::gemini::load_messages(file_path),
-                StatsProvider::Cursor => providers::cursor::load_stats_messages(file_path),
-                StatsProvider::Claude => Ok(Vec::new()),
-            }
-            .unwrap_or_default();
+            let messages = load_stats_messages(provider, file_path).unwrap_or_default();
 
             build_global_session_file_stats_from_messages(
                 provider,
@@ -1356,6 +1800,9 @@ fn collect_provider_global_file_stats(
 struct ProjectSessionFileStats {
     total_messages: u32,
     token_distribution: TokenDistribution,
+    model_usage: HashMap<String, ModelUsageAggregate>,
+    model_context_usage: ModelContextUsageMap,
+    model_costs: HashMap<String, f64>,
     tool_usage: HashMap<String, (u32, u32)>,
     skill_usage: HashMap<String, (u32, u32)>, // Skill tool, keyed by input.skill (#321)
     subagent_usage: HashMap<String, (u32, u32)>, // Agent tool, keyed by input.subagent_type (#321)
@@ -1410,6 +1857,7 @@ fn scan_session_file_for_project_stats(
     // #283: stream entries with owned-key dedup so we never buffer parsed
     // messages (which can carry MB-sized `content` payloads).
     let mut seen_usage_keys: HashSet<String> = HashSet::new();
+    let mut seen_cost_keys: HashSet<String> = HashSet::new();
 
     for (start, end) in line_ranges {
         let mut line_bytes = mmap[start..end].to_vec();
@@ -1434,13 +1882,52 @@ fn scan_session_file_for_project_stats(
         }
 
         stats.total_messages += 1;
-        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, tokens) =
-            dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
+        let (
+            input_tokens,
+            output_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
+            reasoning_tokens,
+            tokens,
+        ) = dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
+        let deduped_source_cost = dedup_source_cost(
+            &mut seen_cost_keys,
+            &message.session_id,
+            message.message_id.as_deref(),
+            &message.uuid,
+            message.cost_usd,
+        );
+
+        let model_name = message.model.as_deref().unwrap_or(UNKNOWN_MODEL_NAME);
+        if message.model.is_some() || tokens > 0 || deduped_source_cost.is_some() {
+            accumulate_model_usage(
+                &mut stats.model_usage,
+                &mut stats.model_context_usage,
+                &mut stats.model_costs,
+                ModelUsageUpdate {
+                    model_name,
+                    service_tier: usage.service_tier.as_deref(),
+                    totals: (
+                        input_tokens,
+                        output_tokens,
+                        cache_creation_tokens,
+                        cache_read_tokens,
+                        reasoning_tokens,
+                        tokens,
+                    ),
+                    cache_creation_tokens_1h: u64::from(
+                        usage.cache_creation_input_tokens_1h.unwrap_or(0),
+                    ),
+                    source_cost: deduped_source_cost,
+                },
+            );
+        }
 
         stats.token_distribution.input += input_tokens;
         stats.token_distribution.output += output_tokens;
         stats.token_distribution.cache_creation += cache_creation_tokens;
         stats.token_distribution.cache_read += cache_read_tokens;
+        stats.token_distribution.reasoning += reasoning_tokens;
 
         if let Some(timestamp) = parsed_ts {
             session_timestamps.push(timestamp);
@@ -1659,7 +2146,7 @@ fn track_antigravity_tool_usage(
 /// Extract token usage from a normalized message.
 fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
     if let Some(usage) = &message.usage {
-        return usage.clone();
+        return normalize_token_usage(usage.clone());
     }
 
     let mut usage = TokenUsage {
@@ -1667,7 +2154,9 @@ fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
         output_tokens: None,
         cache_creation_input_tokens: None,
         cache_read_input_tokens: None,
+        reasoning_tokens: None,
         service_tier: None,
+        ..Default::default()
     };
 
     if let Some(content) = &message.content {
@@ -1701,7 +2190,7 @@ fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
         }
     }
 
-    usage
+    normalize_token_usage(usage)
 }
 
 /// Dedup-aware token totals for usage accounting (#283).
@@ -1728,14 +2217,36 @@ fn dedup_token_totals(
     message_id: Option<&str>,
     uuid: &str,
     usage: &TokenUsage,
-) -> (u64, u64, u64, u64, u64) {
+) -> (u64, u64, u64, u64, u64, u64) {
     let Some(key) = dedup_usage_key(session_id, message_id, uuid) else {
         return token_usage_totals(usage);
     };
     if seen.insert(key) {
         token_usage_totals(usage)
     } else {
-        (0, 0, 0, 0, 0)
+        (0, 0, 0, 0, 0, 0)
+    }
+}
+
+/// Dedup an authoritative source cost using the same identity as token usage.
+/// Claude JSONL can repeat a complete `costUSD` value on every row belonging
+/// to one assistant turn, so summing every row would overstate billing.
+#[inline]
+fn dedup_source_cost(
+    seen: &mut HashSet<String>,
+    session_id: &str,
+    message_id: Option<&str>,
+    uuid: &str,
+    cost_usd: Option<f64>,
+) -> Option<f64> {
+    let cost_usd = cost_usd?;
+    let Some(key) = dedup_usage_key(session_id, message_id, uuid) else {
+        return Some(cost_usd);
+    };
+    if seen.insert(key) {
+        Some(cost_usd)
+    } else {
+        None
     }
 }
 
@@ -1756,7 +2267,7 @@ fn dedup_token_totals_msg(
     seen: &mut HashSet<String>,
     message: &ClaudeMessage,
     usage: &TokenUsage,
-) -> (u64, u64, u64, u64, u64) {
+) -> (u64, u64, u64, u64, u64, u64) {
     dedup_token_totals(
         seen,
         &message.session_id,
@@ -1933,6 +2444,49 @@ fn build_antigravity_session_token_stats(
         .map(|ts| ts.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
         .unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
 
+    let mut model_usage: HashMap<String, ModelUsageAggregate> = HashMap::new();
+    let mut model_context_usage: ModelContextUsageMap = HashMap::new();
+    let mut model_costs: HashMap<String, f64> = HashMap::new();
+    for record in &records {
+        let (input_tokens, cache_creation_tokens, cache_read_tokens, token_count) = match mode {
+            StatsMode::BillingTotal => (
+                record.input_tokens,
+                record.cache_creation_tokens,
+                record.cache_read_tokens,
+                record.total_tokens,
+            ),
+            StatsMode::ConversationOnly => (
+                record.conversation_input_tokens,
+                record.conversation_cache_creation_tokens,
+                record.conversation_cache_read_tokens,
+                record.conversation_input_tokens
+                    + record.output_tokens
+                    + record.conversation_cache_creation_tokens
+                    + record.conversation_cache_read_tokens
+                    + record.reasoning_tokens,
+            ),
+        };
+        accumulate_model_usage(
+            &mut model_usage,
+            &mut model_context_usage,
+            &mut model_costs,
+            ModelUsageUpdate {
+                model_name: &record.model,
+                service_tier: None,
+                totals: (
+                    input_tokens,
+                    record.output_tokens,
+                    cache_creation_tokens,
+                    cache_read_tokens,
+                    record.reasoning_tokens,
+                    token_count,
+                ),
+                cache_creation_tokens_1h: 0,
+                source_cost: None,
+            },
+        );
+    }
+
     let stats = SessionTokenStats {
         session_id: session.actual_session_id.clone(),
         project_name: session.project_name.clone(),
@@ -1977,6 +2531,12 @@ fn build_antigravity_session_token_stats(
         last_message_time,
         summary: session.summary.clone(),
         most_used_tools: Vec::new(),
+        model_distribution: build_model_stats(
+            StatsProvider::Antigravity,
+            model_usage,
+            model_context_usage,
+            model_costs,
+        ),
     };
 
     Ok(Some((stats, records)))
@@ -2000,6 +2560,232 @@ fn build_tool_usage_stats(tool_usage: HashMap<String, (u32, u32)>) -> Vec<ToolUs
 
     tools.sort_by_key(|tool| Reverse(tool.usage_count));
     tools
+}
+
+/// Add one row to a model aggregate. Token totals are already deduplicated by
+/// the caller, while `msg_count` intentionally remains row-based so the
+/// model breakdown agrees with the message count shown by the dashboard.
+struct ModelUsageUpdate<'a> {
+    model_name: &'a str,
+    service_tier: Option<&'a str>,
+    totals: (u64, u64, u64, u64, u64, u64),
+    cache_creation_tokens_1h: u64,
+    source_cost: Option<f64>,
+}
+
+fn accumulate_model_usage(
+    model_usage: &mut HashMap<String, ModelUsageAggregate>,
+    model_context_usage: &mut ModelContextUsageMap,
+    model_costs: &mut HashMap<String, f64>,
+    update: ModelUsageUpdate<'_>,
+) {
+    let ModelUsageUpdate {
+        model_name,
+        service_tier,
+        totals,
+        cache_creation_tokens_1h,
+        source_cost,
+    } = update;
+    let (
+        input_tokens,
+        output_tokens,
+        cache_creation_tokens,
+        cache_read_tokens,
+        reasoning_tokens,
+        tokens,
+    ) = totals;
+    let model_key = model_usage_key(model_name, service_tier);
+    let entry = model_usage
+        .entry(model_key.clone())
+        .or_insert((0, 0, 0, 0, 0, 0, 0));
+    entry.0 += 1;
+    entry.1 += tokens;
+    entry.2 += input_tokens;
+    entry.3 += output_tokens;
+    entry.4 += cache_creation_tokens;
+    entry.5 += cache_read_tokens;
+    entry.6 += reasoning_tokens;
+    let context_tier = context_tier_min_tokens(
+        model_name,
+        input_tokens + cache_creation_tokens + cache_read_tokens,
+    );
+    let context = model_context_usage
+        .entry(model_key.clone())
+        .or_default()
+        .entry(context_tier)
+        .or_insert_with(|| ModelContextStats {
+            min_context_tokens: context_tier,
+            ..Default::default()
+        });
+    let cache_creation_tokens_1h = cache_creation_tokens_1h.min(cache_creation_tokens);
+    context.token_count += tokens;
+    context.input_tokens += input_tokens;
+    context.output_tokens += output_tokens;
+    context.cache_creation_tokens += cache_creation_tokens;
+    context.cache_creation_tokens_1h += cache_creation_tokens_1h;
+    context.cache_creation_tokens_5m += cache_creation_tokens - cache_creation_tokens_1h;
+    context.cache_read_tokens += cache_read_tokens;
+    context.reasoning_tokens += reasoning_tokens;
+    if let Some(cost_usd) = source_cost {
+        *model_costs.entry(model_key).or_insert(0.0) += cost_usd;
+    }
+}
+
+fn merge_model_context_usage(target: &mut ModelContextUsageMap, source: &ModelContextUsageMap) {
+    for (model, buckets) in source {
+        for (min_context_tokens, values) in buckets {
+            let entry = target
+                .entry(model.clone())
+                .or_default()
+                .entry(*min_context_tokens)
+                .or_insert_with(|| ModelContextStats {
+                    min_context_tokens: *min_context_tokens,
+                    ..Default::default()
+                });
+            entry.token_count += values.token_count;
+            entry.input_tokens += values.input_tokens;
+            entry.output_tokens += values.output_tokens;
+            entry.cache_creation_tokens += values.cache_creation_tokens;
+            entry.cache_creation_tokens_5m += values.cache_creation_tokens_5m;
+            entry.cache_creation_tokens_1h += values.cache_creation_tokens_1h;
+            entry.cache_read_tokens += values.cache_read_tokens;
+            entry.reasoning_tokens += values.reasoning_tokens;
+        }
+    }
+}
+
+/// Convert an internal model aggregate into the serialized model breakdown
+/// consumed by all billing views.
+fn build_model_stats(
+    provider: StatsProvider,
+    model_usage: HashMap<String, ModelUsageAggregate>,
+    model_context_usage: ModelContextUsageMap,
+    model_costs: HashMap<String, f64>,
+) -> Vec<ModelStats> {
+    let provider_id = stats_provider_id(provider).to_string();
+    let mut models = model_usage
+        .into_iter()
+        .map(
+            |(
+                model_key,
+                (
+                    message_count,
+                    token_count,
+                    input_tokens,
+                    output_tokens,
+                    cache_creation_tokens,
+                    cache_read_tokens,
+                    reasoning_tokens,
+                ),
+            )| {
+                let (model_name, service_tier) = split_model_usage_key(&model_key);
+                let mut context_breakdown = model_context_usage
+                    .get(&model_key)
+                    .map(|buckets| buckets.values().cloned().collect::<Vec<_>>())
+                    .unwrap_or_default();
+                context_breakdown.sort_by_key(|bucket| bucket.min_context_tokens);
+                ModelStats {
+                    provider_id: Some(provider_id.clone()),
+                    model_name: model_name.to_string(),
+                    service_tier: service_tier.map(str::to_string),
+                    message_count,
+                    token_count,
+                    input_tokens,
+                    output_tokens,
+                    cache_creation_tokens,
+                    cache_read_tokens,
+                    reasoning_tokens,
+                    cost_usd: model_costs.get(&model_key).copied(),
+                    context_breakdown,
+                }
+            },
+        )
+        .collect::<Vec<_>>();
+    models.sort_by_key(|model| Reverse(model.token_count));
+    models
+}
+
+fn merge_model_stats(
+    model_usage: &mut HashMap<String, ModelUsageAggregate>,
+    model_context_usage: &mut ModelContextUsageMap,
+    model_costs: &mut HashMap<String, f64>,
+    models: Vec<ModelStats>,
+) {
+    for model in models {
+        let model_key = model_usage_key(&model.model_name, model.service_tier.as_deref());
+        let entry = model_usage
+            .entry(model_key.clone())
+            .or_insert((0, 0, 0, 0, 0, 0, 0));
+        entry.0 += model.message_count;
+        entry.1 += model.token_count;
+        entry.2 += model.input_tokens;
+        entry.3 += model.output_tokens;
+        entry.4 += model.cache_creation_tokens;
+        entry.5 += model.cache_read_tokens;
+        entry.6 += model.reasoning_tokens;
+        if let Some(cost_usd) = model.cost_usd {
+            *model_costs.entry(model_key.clone()).or_insert(0.0) += cost_usd;
+        }
+        if model.context_breakdown.is_empty() {
+            let context_tier = context_tier_min_tokens(
+                &model.model_name,
+                model.input_tokens + model.cache_creation_tokens + model.cache_read_tokens,
+            );
+            let fallback = ModelContextStats {
+                min_context_tokens: context_tier,
+                token_count: model.token_count,
+                input_tokens: model.input_tokens,
+                output_tokens: model.output_tokens,
+                cache_creation_tokens: model.cache_creation_tokens,
+                cache_creation_tokens_5m: model.cache_creation_tokens,
+                cache_creation_tokens_1h: 0,
+                cache_read_tokens: model.cache_read_tokens,
+                reasoning_tokens: model.reasoning_tokens,
+            };
+            model_context_usage
+                .entry(model_key)
+                .or_default()
+                .entry(context_tier)
+                .and_modify(|entry| {
+                    entry.token_count += fallback.token_count;
+                    entry.input_tokens += fallback.input_tokens;
+                    entry.output_tokens += fallback.output_tokens;
+                    entry.cache_creation_tokens += fallback.cache_creation_tokens;
+                    entry.cache_creation_tokens_5m += fallback.cache_creation_tokens_5m;
+                    entry.cache_read_tokens += fallback.cache_read_tokens;
+                    entry.reasoning_tokens += fallback.reasoning_tokens;
+                })
+                .or_insert(fallback);
+        } else {
+            for context in model.context_breakdown {
+                model_context_usage
+                    .entry(model_key.clone())
+                    .or_default()
+                    .entry(context.min_context_tokens)
+                    .and_modify(|entry| {
+                        entry.token_count += context.token_count;
+                        entry.input_tokens += context.input_tokens;
+                        entry.output_tokens += context.output_tokens;
+                        entry.cache_creation_tokens += context.cache_creation_tokens;
+                        entry.cache_creation_tokens_5m += context.cache_creation_tokens_5m;
+                        entry.cache_creation_tokens_1h += context.cache_creation_tokens_1h;
+                        entry.cache_read_tokens += context.cache_read_tokens;
+                        entry.reasoning_tokens += context.reasoning_tokens;
+                    })
+                    .or_insert(context);
+            }
+        }
+    }
+}
+
+fn fallback_provider_name(provider: StatsProvider, path: &str) -> String {
+    let raw = path.split_once("://").map(|(_, rest)| rest).unwrap_or(path);
+    Path::new(raw)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| stats_provider_id(provider))
+        .to_string()
 }
 
 /// Resolve the display name for a provider project path.
@@ -2163,6 +2949,22 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 })
                 .unwrap_or_else(|| "Cursor".to_string())
         }
+        StatsProvider::Aider
+        | StatsProvider::AmazonQ
+        | StatsProvider::Cline
+        | StatsProvider::Continue
+        | StatsProvider::OpenHands
+        | StatsProvider::OpenInterpreter
+        | StatsProvider::PearAI
+        | StatsProvider::Qwen
+        | StatsProvider::Trae
+        | StatsProvider::Vibe
+        | StatsProvider::Zed
+        | StatsProvider::Crush
+        | StatsProvider::CursorAgent
+        | StatsProvider::Goose
+        | StatsProvider::Kiro
+        | StatsProvider::Llm => fallback_provider_name(provider, project_path),
     }
 }
 
@@ -2289,6 +3091,22 @@ fn resolve_provider_project_name_from_session(
             }
             "Cursor".to_string()
         }
+        StatsProvider::Aider
+        | StatsProvider::AmazonQ
+        | StatsProvider::Cline
+        | StatsProvider::Continue
+        | StatsProvider::OpenHands
+        | StatsProvider::OpenInterpreter
+        | StatsProvider::PearAI
+        | StatsProvider::Qwen
+        | StatsProvider::Trae
+        | StatsProvider::Vibe
+        | StatsProvider::Zed
+        | StatsProvider::Crush
+        | StatsProvider::CursorAgent
+        | StatsProvider::Goose
+        | StatsProvider::Kiro
+        | StatsProvider::Llm => fallback_provider_name(provider, session_path),
         StatsProvider::Claude => "unknown".to_string(),
     }
 }
@@ -2298,23 +3116,7 @@ fn load_provider_sessions_for_stats(
     provider: StatsProvider,
     project_path: &str,
 ) -> Result<Vec<crate::models::ClaudeSession>, String> {
-    match provider {
-        StatsProvider::Codebuddy => providers::codebuddy::load_sessions(project_path, false),
-        StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
-        StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
-        StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
-        StatsProvider::Grok => providers::grok::load_sessions(project_path, false),
-        StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
-        StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
-        StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
-        StatsProvider::Ompi => providers::ompi::load_sessions(project_path, false),
-        StatsProvider::Pi => providers::pi::load_sessions(project_path, false),
-        StatsProvider::Gemini => providers::gemini::load_sessions(project_path, false),
-        StatsProvider::Cursor => providers::cursor::load_sessions(project_path, false),
-        StatsProvider::Claude => {
-            Err("Claude sessions are handled by legacy stats path".to_string())
-        }
-    }
+    load_stats_sessions(provider, project_path)
 }
 
 /// Load messages for a provider-specific stats request.
@@ -2322,35 +3124,35 @@ fn load_provider_messages_for_stats(
     provider: StatsProvider,
     session: &crate::models::ClaudeSession,
 ) -> Result<Vec<ClaudeMessage>, String> {
-    match provider {
-        StatsProvider::Codebuddy => providers::codebuddy::load_messages(&session.file_path),
-        StatsProvider::Codex => providers::codex::load_messages(&session.file_path),
-        StatsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path),
-        StatsProvider::OpenCode => providers::opencode::load_messages(&session.file_path),
-        StatsProvider::Grok => providers::grok::load_messages(&session.file_path),
-        StatsProvider::Kimi => providers::kimi::load_messages(&session.file_path),
-        StatsProvider::Antigravity => providers::antigravity::load_messages(&session.file_path),
-        StatsProvider::Copilot => providers::copilot::load_messages(&session.file_path),
-        StatsProvider::Ompi => providers::ompi::load_messages(&session.file_path),
-        StatsProvider::Pi => providers::pi::load_messages(&session.file_path),
-        StatsProvider::Gemini => providers::gemini::load_messages(&session.file_path),
-        StatsProvider::Cursor => providers::cursor::load_stats_messages(&session.file_path),
-        StatsProvider::Claude => {
-            Err("Claude messages are handled by legacy stats path".to_string())
-        }
-    }
+    load_stats_messages(provider, &session.file_path)
+}
+
+struct SessionTokenStatsOptions {
+    provider: StatsProvider,
+    session_id: String,
+    project_name: String,
+    summary: Option<String>,
+    mode: StatsMode,
+    start_date: Option<DateTime<Utc>>,
+    end_date: Option<DateTime<Utc>>,
 }
 
 /// Build session token stats from normalized provider messages.
 fn build_session_token_stats_from_messages(
-    session_id: String,
-    project_name: String,
-    summary: Option<String>,
+    options: SessionTokenStatsOptions,
     messages: &[ClaudeMessage],
-    mode: StatsMode,
-    s_limit: Option<&DateTime<Utc>>,
-    e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenStats> {
+    let SessionTokenStatsOptions {
+        provider,
+        session_id,
+        project_name,
+        summary,
+        mode,
+        start_date,
+        end_date,
+    } = options;
+    let s_limit = start_date.as_ref();
+    let e_limit = end_date.as_ref();
     if messages.is_empty() {
         return None;
     }
@@ -2359,9 +3161,14 @@ fn build_session_token_stats_from_messages(
     let mut total_output_tokens = 0u64;
     let mut total_cache_creation_tokens = 0u64;
     let mut total_cache_read_tokens = 0u64;
+    let mut total_reasoning_tokens = 0u64;
     let mut tool_usage: HashMap<String, (u32, u32)> = HashMap::new();
     // #283: only add usage once per (session_id, message.id).
     let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
+    let mut seen_cost_keys: HashSet<String> = HashSet::with_capacity(messages.len());
+    let mut model_usage: HashMap<String, ModelUsageAggregate> = HashMap::new();
+    let mut model_context_usage: ModelContextUsageMap = HashMap::new();
+    let mut model_costs: HashMap<String, f64> = HashMap::new();
 
     let mut first_time: Option<DateTime<Utc>> = None;
     let mut last_time: Option<DateTime<Utc>> = None;
@@ -2381,12 +3188,50 @@ fn build_session_token_stats_from_messages(
 
         let usage = extract_token_usage(message);
         included_message_count += 1;
-        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, _) =
-            dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        let (
+            input_tokens,
+            output_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
+            reasoning_tokens,
+            tokens,
+        ) = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        let deduped_source_cost = dedup_source_cost(
+            &mut seen_cost_keys,
+            &message.session_id,
+            message.message_id.as_deref(),
+            &message.uuid,
+            message.cost_usd,
+        );
+        let model_name = message.model.as_deref().unwrap_or(UNKNOWN_MODEL_NAME);
+        if message.model.is_some() || tokens > 0 || deduped_source_cost.is_some() {
+            accumulate_model_usage(
+                &mut model_usage,
+                &mut model_context_usage,
+                &mut model_costs,
+                ModelUsageUpdate {
+                    model_name,
+                    service_tier: usage.service_tier.as_deref(),
+                    totals: (
+                        input_tokens,
+                        output_tokens,
+                        cache_creation_tokens,
+                        cache_read_tokens,
+                        reasoning_tokens,
+                        tokens,
+                    ),
+                    cache_creation_tokens_1h: u64::from(
+                        usage.cache_creation_input_tokens_1h.unwrap_or(0),
+                    ),
+                    source_cost: deduped_source_cost,
+                },
+            );
+        }
         total_input_tokens += input_tokens;
         total_output_tokens += output_tokens;
         total_cache_creation_tokens += cache_creation_tokens;
         total_cache_read_tokens += cache_read_tokens;
+        total_reasoning_tokens += reasoning_tokens;
 
         if let Some(ts) = parsed_timestamp {
             if first_time.map_or(true, |current| ts < current) {
@@ -2405,7 +3250,8 @@ fn build_session_token_stats_from_messages(
     let total_tokens = total_input_tokens
         + total_output_tokens
         + total_cache_creation_tokens
-        + total_cache_read_tokens;
+        + total_cache_read_tokens
+        + total_reasoning_tokens;
     if included_message_count == 0 {
         return None;
     }
@@ -2417,13 +3263,19 @@ fn build_session_token_stats_from_messages(
         total_output_tokens,
         total_cache_creation_tokens,
         total_cache_read_tokens,
-        total_reasoning_tokens: 0,
+        total_reasoning_tokens,
         total_tokens,
         message_count: included_message_count,
         first_message_time: first_time_raw.unwrap_or_else(|| "unknown".to_string()),
         last_message_time: last_time_raw.unwrap_or_else(|| "unknown".to_string()),
         summary,
         most_used_tools: build_tool_usage_stats(tool_usage),
+        model_distribution: build_model_stats(
+            provider,
+            model_usage,
+            model_context_usage,
+            model_costs,
+        ),
     })
 }
 
@@ -2481,17 +3333,20 @@ fn get_provider_project_token_stats(
     for session in &sessions {
         let messages = load_provider_messages_for_stats(provider, session)?;
         if let Some(stats) = build_session_token_stats_from_messages(
-            session.actual_session_id.clone(),
-            if session.project_name.is_empty() {
-                project_name.clone()
-            } else {
-                session.project_name.clone()
+            SessionTokenStatsOptions {
+                provider,
+                session_id: session.actual_session_id.clone(),
+                project_name: if session.project_name.is_empty() {
+                    project_name.clone()
+                } else {
+                    session.project_name.clone()
+                },
+                summary: session.summary.clone(),
+                mode,
+                start_date: s_limit,
+                end_date: e_limit,
             },
-            session.summary.clone(),
             &messages,
-            mode,
-            s_limit.as_ref(),
-            e_limit.as_ref(),
         ) {
             all_stats.push(stats);
         }
@@ -2535,6 +3390,9 @@ fn get_provider_project_stats_summary(
         let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
         let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
         let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
+        let mut project_model_usage: HashMap<String, ModelUsageAggregate> = HashMap::new();
+        let mut project_model_context_usage: ModelContextUsageMap = HashMap::new();
+        let mut project_model_costs: HashMap<String, f64> = HashMap::new();
 
         for session in &sessions {
             let Some((session_stats, records)) = build_antigravity_session_token_stats(
@@ -2555,6 +3413,12 @@ fn get_provider_project_stats_summary(
             summary.token_distribution.cache_creation += session_stats.total_cache_creation_tokens;
             summary.token_distribution.cache_read += session_stats.total_cache_read_tokens;
             summary.token_distribution.reasoning += session_stats.total_reasoning_tokens;
+            merge_model_stats(
+                &mut project_model_usage,
+                &mut project_model_context_usage,
+                &mut project_model_costs,
+                session_stats.model_distribution,
+            );
 
             if let Ok(messages) = providers::antigravity::load_messages(&session.file_path) {
                 track_antigravity_tool_usage(
@@ -2637,6 +3501,12 @@ fn get_provider_project_stats_summary(
         summary.daily_stats = daily_stats_map.into_values().collect();
         summary.daily_stats.sort_by(|a, b| a.date.cmp(&b.date));
         summary.most_used_tools = build_tool_usage_stats(tool_usage_map);
+        summary.model_distribution = build_model_stats(
+            StatsProvider::Antigravity,
+            project_model_usage,
+            project_model_context_usage,
+            project_model_costs,
+        );
         summary.activity_heatmap = activity_map
             .into_iter()
             .map(|((hour, day), (count, tokens))| ActivityHeatmap {
@@ -2677,6 +3547,9 @@ fn get_provider_project_stats_summary(
 
     let mut session_durations: Vec<u32> = Vec::new();
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut project_model_usage: HashMap<String, ModelUsageAggregate> = HashMap::new();
+    let mut project_model_context_usage: ModelContextUsageMap = HashMap::new();
+    let mut project_model_costs: HashMap<String, f64> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
 
@@ -2691,6 +3564,7 @@ fn get_provider_project_stats_summary(
         let mut session_dates = HashSet::new();
         // #283: per-session dedup
         let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
+        let mut seen_cost_keys: HashSet<String> = HashSet::with_capacity(messages.len());
 
         for message in &messages {
             if !should_include_stats_message(message, mode) {
@@ -2712,13 +3586,46 @@ fn get_provider_project_stats_summary(
                 output_tokens,
                 cache_creation_tokens,
                 cache_read_tokens,
+                reasoning_tokens,
                 total_tokens,
             ) = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+            let deduped_source_cost = dedup_source_cost(
+                &mut seen_cost_keys,
+                &message.session_id,
+                message.message_id.as_deref(),
+                &message.uuid,
+                message.cost_usd,
+            );
+            let model_name = message.model.as_deref().unwrap_or(UNKNOWN_MODEL_NAME);
+            if message.model.is_some() || total_tokens > 0 || deduped_source_cost.is_some() {
+                accumulate_model_usage(
+                    &mut project_model_usage,
+                    &mut project_model_context_usage,
+                    &mut project_model_costs,
+                    ModelUsageUpdate {
+                        model_name,
+                        service_tier: usage.service_tier.as_deref(),
+                        totals: (
+                            input_tokens,
+                            output_tokens,
+                            cache_creation_tokens,
+                            cache_read_tokens,
+                            reasoning_tokens,
+                            total_tokens,
+                        ),
+                        cache_creation_tokens_1h: u64::from(
+                            usage.cache_creation_input_tokens_1h.unwrap_or(0),
+                        ),
+                        source_cost: deduped_source_cost,
+                    },
+                );
+            }
 
             summary.token_distribution.input += input_tokens;
             summary.token_distribution.output += output_tokens;
             summary.token_distribution.cache_creation += cache_creation_tokens;
             summary.token_distribution.cache_read += cache_read_tokens;
+            summary.token_distribution.reasoning += reasoning_tokens;
 
             if let Some(timestamp) = parsed_ts {
                 parsed_timestamps.push(timestamp);
@@ -2779,6 +3686,12 @@ fn get_provider_project_stats_summary(
     }
 
     summary.most_used_tools = build_tool_usage_stats(tool_usage_map);
+    summary.model_distribution = build_model_stats(
+        provider,
+        project_model_usage,
+        project_model_context_usage,
+        project_model_costs,
+    );
     summary.daily_stats = daily_stats_map.into_values().collect();
     summary.daily_stats.sort_by(|a, b| a.date.cmp(&b.date));
     summary.activity_heatmap = activity_map
@@ -2794,7 +3707,8 @@ fn get_provider_project_stats_summary(
     summary.total_tokens = summary.token_distribution.input
         + summary.token_distribution.output
         + summary.token_distribution.cache_creation
-        + summary.token_distribution.cache_read;
+        + summary.token_distribution.cache_read
+        + summary.token_distribution.reasoning;
     summary.avg_tokens_per_session = if summary.total_sessions > 0 {
         summary.total_tokens / summary.total_sessions as u64
     } else {
@@ -2949,7 +3863,7 @@ fn get_provider_session_comparison(
             }
 
             included_message_count += 1;
-            let (_, _, _, _, tokens) =
+            let (_, _, _, _, _, tokens) =
                 dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
             total_tokens += tokens;
 
@@ -3074,21 +3988,7 @@ pub async fn get_session_token_stats(
             .ok_or_else(|| "No valid messages found in session".to_string());
         }
 
-        let messages = match provider {
-            StatsProvider::Codebuddy => providers::codebuddy::load_messages(&session_path)?,
-            StatsProvider::Codex => providers::codex::load_messages(&session_path)?,
-            StatsProvider::ForgeCode => providers::forgecode::load_messages(&session_path)?,
-            StatsProvider::OpenCode => providers::opencode::load_messages(&session_path)?,
-            StatsProvider::Grok => providers::grok::load_messages(&session_path)?,
-            StatsProvider::Kimi => providers::kimi::load_messages(&session_path)?,
-            StatsProvider::Antigravity => providers::antigravity::load_messages(&session_path)?,
-            StatsProvider::Copilot => providers::copilot::load_messages(&session_path)?,
-            StatsProvider::Ompi => providers::ompi::load_messages(&session_path)?,
-            StatsProvider::Pi => providers::pi::load_messages(&session_path)?,
-            StatsProvider::Gemini => providers::gemini::load_messages(&session_path)?,
-            StatsProvider::Cursor => providers::cursor::load_stats_messages(&session_path)?,
-            StatsProvider::Claude => Vec::new(),
-        };
+        let messages = load_stats_messages(provider, &session_path)?;
 
         let session_id = messages
             .first()
@@ -3097,13 +3997,16 @@ pub async fn get_session_token_stats(
         let project_name = resolve_provider_project_name_from_session(provider, &session_path);
 
         return build_session_token_stats_from_messages(
-            session_id,
-            project_name,
-            None,
+            SessionTokenStatsOptions {
+                provider,
+                session_id,
+                project_name,
+                summary: None,
+                mode,
+                start_date: s_limit,
+                end_date: e_limit,
+            },
             &messages,
-            mode,
-            s_limit.as_ref(),
-            e_limit.as_ref(),
         )
         .filter(|stats| {
             is_within_date_limits(
@@ -3197,11 +4100,15 @@ fn scan_session_token_stats(
     let mut total_output_tokens = 0u64;
     let mut total_cache_creation_tokens = 0u64;
     let mut total_cache_read_tokens = 0u64;
+    let mut total_reasoning_tokens = 0u64;
     let mut message_count = 0usize;
     let mut first_time: Option<String> = None;
     let mut last_time: Option<String> = None;
     let mut summary: Option<String> = None;
     let mut tool_usage: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut model_usage: HashMap<String, ModelUsageAggregate> = HashMap::new();
+    let mut model_context_usage: ModelContextUsageMap = HashMap::new();
+    let mut model_costs: HashMap<String, f64> = HashMap::new();
     let mut included_message_count = 0usize;
 
     // Use SIMD-accelerated line detection
@@ -3209,6 +4116,7 @@ fn scan_session_token_stats(
 
     // #283: stream entries with owned-key dedup (no per-file Vec buffering).
     let mut seen_usage_keys: HashSet<String> = HashSet::new();
+    let mut seen_cost_keys: HashSet<String> = HashSet::new();
 
     for (start, end) in line_ranges {
         let mut line_bytes = mmap[start..end].to_vec();
@@ -3244,12 +4152,50 @@ fn scan_session_token_stats(
         message_count += 1;
         included_message_count += 1;
 
-        let (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, _) =
-            dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
+        let (
+            input_tokens,
+            output_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
+            reasoning_tokens,
+            tokens,
+        ) = dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
+        let deduped_source_cost = dedup_source_cost(
+            &mut seen_cost_keys,
+            &message.session_id,
+            message.message_id.as_deref(),
+            &message.uuid,
+            message.cost_usd,
+        );
+        let model_name = message.model.as_deref().unwrap_or(UNKNOWN_MODEL_NAME);
+        if message.model.is_some() || tokens > 0 || deduped_source_cost.is_some() {
+            accumulate_model_usage(
+                &mut model_usage,
+                &mut model_context_usage,
+                &mut model_costs,
+                ModelUsageUpdate {
+                    model_name,
+                    service_tier: usage.service_tier.as_deref(),
+                    totals: (
+                        input_tokens,
+                        output_tokens,
+                        cache_creation_tokens,
+                        cache_read_tokens,
+                        reasoning_tokens,
+                        tokens,
+                    ),
+                    cache_creation_tokens_1h: u64::from(
+                        usage.cache_creation_input_tokens_1h.unwrap_or(0),
+                    ),
+                    source_cost: deduped_source_cost,
+                },
+            );
+        }
         total_input_tokens += input_tokens;
         total_output_tokens += output_tokens;
         total_cache_creation_tokens += cache_creation_tokens;
         total_cache_read_tokens += cache_read_tokens;
+        total_reasoning_tokens += reasoning_tokens;
 
         if let Some(ts) = parsed_timestamp {
             let should_set_first = first_time
@@ -3281,7 +4227,8 @@ fn scan_session_token_stats(
     let total_tokens = total_input_tokens
         + total_output_tokens
         + total_cache_creation_tokens
-        + total_cache_read_tokens;
+        + total_cache_read_tokens
+        + total_reasoning_tokens;
 
     Some(SessionTokenStats {
         session_id,
@@ -3290,12 +4237,18 @@ fn scan_session_token_stats(
         total_output_tokens,
         total_cache_creation_tokens,
         total_cache_read_tokens,
-        total_reasoning_tokens: 0,
+        total_reasoning_tokens,
         total_tokens,
         message_count: included_message_count,
         first_message_time: first_time.unwrap_or_else(|| "unknown".to_string()),
         last_message_time: last_time.unwrap_or_else(|| "unknown".to_string()),
         summary,
+        model_distribution: build_model_stats(
+            StatsProvider::Claude,
+            model_usage,
+            model_context_usage,
+            model_costs,
+        ),
         most_used_tools: tool_usage
             .into_iter()
             .map(|(name, (usage, success))| ToolUsageStats {
@@ -3472,6 +4425,9 @@ pub async fn get_project_stats_summary(
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut skill_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut subagent_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut project_model_usage: HashMap<String, ModelUsageAggregate> = HashMap::new();
+    let mut project_model_context_usage: ModelContextUsageMap = HashMap::new();
+    let mut project_model_costs: HashMap<String, f64> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
     let mut session_count_by_date: HashMap<String, usize> = HashMap::new();
@@ -3485,6 +4441,17 @@ pub async fn get_project_stats_summary(
         summary.token_distribution.cache_creation += stats.token_distribution.cache_creation;
         summary.token_distribution.cache_read += stats.token_distribution.cache_read;
         summary.token_distribution.reasoning += stats.token_distribution.reasoning;
+        merge_model_stats(
+            &mut project_model_usage,
+            &mut project_model_context_usage,
+            &mut project_model_costs,
+            build_model_stats(
+                StatsProvider::Claude,
+                stats.model_usage,
+                stats.model_context_usage,
+                stats.model_costs,
+            ),
+        );
 
         // Aggregate tool usage
         for (name, (usage, success)) in stats.tool_usage {
@@ -3566,6 +4533,13 @@ pub async fn get_project_stats_summary(
         .sort_by_key(|tool| Reverse(tool.usage_count));
     summary.most_used_skills = build_tool_usage_stats(skill_usage_map);
     summary.most_used_subagents = build_tool_usage_stats(subagent_usage_map);
+    let project_model_distribution = build_model_stats(
+        StatsProvider::Claude,
+        project_model_usage,
+        project_model_context_usage,
+        project_model_costs,
+    );
+    summary.model_distribution = project_model_distribution;
 
     summary.daily_stats = daily_stats_map.into_values().collect();
     summary.daily_stats.sort_by(|a, b| a.date.cmp(&b.date));
@@ -3583,7 +4557,8 @@ pub async fn get_project_stats_summary(
     summary.total_tokens = summary.token_distribution.input
         + summary.token_distribution.output
         + summary.token_distribution.cache_creation
-        + summary.token_distribution.cache_read;
+        + summary.token_distribution.cache_read
+        + summary.token_distribution.reasoning;
     summary.avg_tokens_per_session = if summary.total_sessions > 0 {
         summary.total_tokens / summary.total_sessions as u64
     } else {
@@ -3699,7 +4674,8 @@ fn scan_session_file_for_comparison(
 
         message_count += 1;
 
-        let (_, _, _, _, tokens) = dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
+        let (_, _, _, _, _, tokens) =
+            dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
         total_tokens += tokens;
 
         if let Some(timestamp) = parsed_ts {
@@ -4092,6 +5068,35 @@ pub async fn get_global_stats_summary(
         file_stats.extend(gemini_stats);
     }
 
+    // Provider IDs that use the same normalized message pipeline as the
+    // original stats providers. Keep this list explicit so adding a provider
+    // to the enum cannot accidentally trigger an expensive scan twice.
+    for provider in [
+        StatsProvider::Aider,
+        StatsProvider::AmazonQ,
+        StatsProvider::Cline,
+        StatsProvider::Continue,
+        StatsProvider::Crush,
+        StatsProvider::CursorAgent,
+        StatsProvider::Goose,
+        StatsProvider::Kiro,
+        StatsProvider::Llm,
+        StatsProvider::OpenHands,
+        StatsProvider::OpenInterpreter,
+        StatsProvider::PearAI,
+        StatsProvider::Qwen,
+        StatsProvider::Trae,
+        StatsProvider::Vibe,
+        StatsProvider::Zed,
+    ] {
+        if providers_to_include.contains(&provider) {
+            let (provider_stats, provider_projects) =
+                collect_provider_global_file_stats(provider, mode, s_ref, e_ref);
+            project_names.extend(provider_projects);
+            file_stats.extend(provider_stats);
+        }
+    }
+
     // When date filtering is active, exclude sessions that ended up with zero messages
     if s_ref.is_some() || e_ref.is_some() {
         file_stats.retain(|s| s.total_messages > 0);
@@ -4118,7 +5123,10 @@ pub async fn get_global_stats_summary(
     let mut subagent_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut daily_stats_map: HashMap<String, DailyStats> = HashMap::new();
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
-    let mut model_usage_map: HashMap<String, ModelUsageAggregate> = HashMap::new();
+    let mut model_usage_map: HashMap<(StatsProvider, String), ModelUsageAggregate> = HashMap::new();
+    let mut model_context_map: HashMap<(StatsProvider, String), HashMap<u64, ModelContextStats>> =
+        HashMap::new();
+    let mut model_cost_map: HashMap<(StatsProvider, String), f64> = HashMap::new();
     let mut project_stats_map: HashMap<String, (u32, u32, u64)> = HashMap::new();
     let mut provider_stats_map: HashMap<StatsProvider, (u32, u32, u64)> = HashMap::new();
     let mut provider_projects_map: HashMap<StatsProvider, HashSet<String>> = HashMap::new();
@@ -4183,8 +5191,13 @@ pub async fn get_global_stats_summary(
         for (model, (msg_count, total, input, output, cache_create, cache_read, reasoning)) in
             stats.model_usage
         {
+            if let Some(cost_usd) = stats.model_costs.get(&model) {
+                *model_cost_map
+                    .entry((provider, model.clone()))
+                    .or_insert(0.0) += cost_usd;
+            }
             let entry = model_usage_map
-                .entry(model)
+                .entry((provider, model))
                 .or_insert((0, 0, 0, 0, 0, 0, 0));
             entry.0 += msg_count;
             entry.1 += total;
@@ -4193,6 +5206,24 @@ pub async fn get_global_stats_summary(
             entry.4 += cache_create;
             entry.5 += cache_read;
             entry.6 += reasoning;
+        }
+        for (model, buckets) in stats.model_context_usage {
+            let target = model_context_map.entry((provider, model)).or_default();
+            for (min_context_tokens, values) in buckets {
+                target
+                    .entry(min_context_tokens)
+                    .and_modify(|entry| {
+                        entry.token_count += values.token_count;
+                        entry.input_tokens += values.input_tokens;
+                        entry.output_tokens += values.output_tokens;
+                        entry.cache_creation_tokens += values.cache_creation_tokens;
+                        entry.cache_creation_tokens_5m += values.cache_creation_tokens_5m;
+                        entry.cache_creation_tokens_1h += values.cache_creation_tokens_1h;
+                        entry.cache_read_tokens += values.cache_read_tokens;
+                        entry.reasoning_tokens += values.reasoning_tokens;
+                    })
+                    .or_insert(values);
+            }
         }
 
         // Aggregate provider stats
@@ -4267,7 +5298,7 @@ pub async fn get_global_stats_summary(
         .into_iter()
         .map(
             |(
-                model_name,
+                (provider, model_key),
                 (
                     message_count,
                     token_count,
@@ -4277,15 +5308,28 @@ pub async fn get_global_stats_summary(
                     cache_read_tokens,
                     reasoning_tokens,
                 ),
-            )| ModelStats {
-                model_name,
-                message_count,
-                token_count,
-                input_tokens,
-                output_tokens,
-                cache_creation_tokens,
-                cache_read_tokens,
-                reasoning_tokens,
+            )| {
+                let (model_name, service_tier) = split_model_usage_key(&model_key);
+                let mut context_breakdown = model_context_map
+                    .get(&(provider, model_key.clone()))
+                    .map(|buckets| buckets.values().cloned().collect::<Vec<_>>())
+                    .unwrap_or_default();
+                context_breakdown.sort_by_key(|bucket| bucket.min_context_tokens);
+                let cost_usd = model_cost_map.get(&(provider, model_key.clone())).copied();
+                ModelStats {
+                    provider_id: Some(stats_provider_id(provider).to_string()),
+                    model_name: model_name.to_string(),
+                    service_tier: service_tier.map(str::to_string),
+                    message_count,
+                    token_count,
+                    input_tokens,
+                    output_tokens,
+                    cache_creation_tokens,
+                    cache_read_tokens,
+                    reasoning_tokens,
+                    cost_usd,
+                    context_breakdown,
+                }
             },
         )
         .collect();
@@ -4530,7 +5574,9 @@ mod tests {
                     output_tokens: Some(50),
                     cache_creation_input_tokens: Some(20),
                     cache_read_input_tokens: Some(10),
+                    reasoning_tokens: None,
                     service_tier: Some("standard".to_string()),
+                    ..Default::default()
                 }),
             }),
             tool_use: None,
@@ -4739,7 +5785,9 @@ mod tests {
                 output_tokens: Some(50),
                 cache_creation_input_tokens: Some(20),
                 cache_read_input_tokens: Some(10),
+                reasoning_tokens: None,
                 service_tier: Some("standard".to_string()),
+                ..Default::default()
             }),
             role: Some("assistant".to_string()),
             model: None,
@@ -5128,6 +6176,19 @@ mod tests {
         assert!(providers.contains(&StatsProvider::Antigravity));
         assert!(providers.contains(&StatsProvider::Copilot));
         assert!(providers.contains(&StatsProvider::Cursor));
+    }
+
+    #[test]
+    fn test_parse_active_stats_providers_covers_every_supported_provider() {
+        let supported = all_stats_providers();
+        let ids = supported
+            .iter()
+            .map(|provider| stats_provider_id(*provider).to_string())
+            .collect::<Vec<_>>();
+        let parsed = parse_active_stats_providers(Some(ids));
+
+        assert_eq!(parsed, supported);
+        assert_eq!(supported.len(), 29);
     }
 
     #[test]
@@ -5640,7 +6701,9 @@ mod tests {
                 output_tokens: Some(5),
                 cache_creation_input_tokens: None,
                 cache_read_input_tokens: None,
+                reasoning_tokens: None,
                 service_tier: None,
+                ..Default::default()
             }),
         );
         assert!(should_include_stats_message(
@@ -5738,6 +6801,54 @@ mod tests {
             2,
             "appended file must be re-parsed exactly once"
         );
+    }
+
+    #[tokio::test]
+    async fn test_global_model_distribution_preserves_source_cost() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let project_dir = temp_dir.path().join("projects").join("cost-project");
+        fs::create_dir_all(&project_dir).expect("project dir");
+        let session_path = project_dir.join("session-cost.jsonl");
+        let entry = json!({
+            "uuid": "cost-row",
+            "sessionId": "cost-session",
+            "timestamp": "2026-08-01T10:00:00Z",
+            "type": "assistant",
+            "costUSD": 0.005,
+            "isSidechain": false,
+            "message": {
+                "role": "assistant",
+                "id": "cost-message",
+                "model": "claude-sonnet-4-6",
+                "content": [{"type": "text", "text": "priced"}],
+                "usage": {"input_tokens": 100, "output_tokens": 50}
+            }
+        });
+        // Claude may repeat the complete source cost on split rows for one
+        // assistant turn. The duplicate uuid must not make billing double.
+        let mut duplicate = entry.clone();
+        duplicate["uuid"] = json!("cost-row-duplicate");
+        fs::write(&session_path, format!("{entry}\n{duplicate}\n")).expect("session file");
+
+        let summary = get_global_stats_summary(
+            temp_dir.path().to_string_lossy().to_string(),
+            Some(vec!["claude".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("global summary");
+
+        let model = summary
+            .model_distribution
+            .iter()
+            .find(|model| model.model_name == "claude-sonnet-4-6")
+            .expect("model distribution entry");
+        assert_eq!(model.provider_id.as_deref(), Some("claude"));
+        assert_eq!(model.token_count, 150);
+        assert_eq!(model.cost_usd, Some(0.005));
     }
 
     #[tokio::test]
@@ -6696,7 +7807,9 @@ mod tests {
             output_tokens: Some(222),
             cache_creation_input_tokens: Some(28644),
             cache_read_input_tokens: Some(14732),
+            reasoning_tokens: None,
             service_tier: Some("standard".to_string()),
+            ..Default::default()
         }
     }
 
@@ -6824,11 +7937,47 @@ mod tests {
     }
 
     #[test]
+    fn test_global_model_distribution_keeps_token_usage_without_model_name() {
+        let message = make_test_message(
+            Some("qwen"),
+            "assistant",
+            Some(TokenUsage {
+                input_tokens: Some(10),
+                output_tokens: Some(5),
+                cache_creation_input_tokens: None,
+                cache_read_input_tokens: None,
+                reasoning_tokens: Some(7),
+                service_tier: None,
+                ..Default::default()
+            }),
+        );
+
+        let stats = build_global_session_file_stats_from_messages(
+            StatsProvider::Qwen,
+            "qwen-project".to_string(),
+            &[message],
+            StatsMode::BillingTotal,
+            None,
+            None,
+        )
+        .expect("stats");
+
+        let model_entry = stats
+            .model_usage
+            .get(UNKNOWN_MODEL_NAME)
+            .expect("unknown model");
+        assert_eq!(model_entry.0, 1);
+        assert_eq!(model_entry.1, 22);
+        assert_eq!(model_entry.6, 7);
+        assert_eq!(stats.total_tokens, 22);
+    }
+
+    #[test]
     fn test_dedup_token_totals_returns_full_when_first_seen() {
         let mut seen: HashSet<String> = HashSet::new();
         let usage = sample_usage();
         let result = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
-        assert_eq!(result, (6, 222, 28644, 14732, 6 + 222 + 28644 + 14732));
+        assert_eq!(result, (6, 222, 28644, 14732, 0, 6 + 222 + 28644 + 14732));
     }
 
     #[test]
@@ -6837,7 +7986,7 @@ mod tests {
         let usage = sample_usage();
         let _ = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
         let result = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-2", &usage);
-        assert_eq!(result, (0, 0, 0, 0, 0), "duplicate by message_id");
+        assert_eq!(result, (0, 0, 0, 0, 0, 0), "duplicate by message_id");
     }
 
     #[test]
@@ -6847,7 +7996,7 @@ mod tests {
         let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
         let r2 = dedup_token_totals(&mut seen, "sess-1", Some("msg_b"), "uuid-2", &usage);
         assert_eq!(r1, r2, "both should return full totals");
-        assert_ne!(r1, (0, 0, 0, 0, 0));
+        assert_ne!(r1, (0, 0, 0, 0, 0, 0));
     }
 
     #[test]
@@ -6861,7 +8010,7 @@ mod tests {
         assert_eq!(r2.0, 6);
         // Same uuid repeated → second is deduped.
         let r3 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-1", &usage);
-        assert_eq!(r3, (0, 0, 0, 0, 0));
+        assert_eq!(r3, (0, 0, 0, 0, 0, 0));
     }
 
     #[test]
@@ -6870,8 +8019,8 @@ mod tests {
         let usage = sample_usage();
         let r1 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage);
         let r2 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage);
-        assert_ne!(r1, (0, 0, 0, 0, 0));
-        assert_eq!(r2, (0, 0, 0, 0, 0));
+        assert_ne!(r1, (0, 0, 0, 0, 0, 0));
+        assert_eq!(r2, (0, 0, 0, 0, 0, 0));
     }
 
     #[test]
@@ -6880,8 +8029,8 @@ mod tests {
         let usage = sample_usage();
         let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
         let r2 = dedup_token_totals(&mut seen, "sess-2", Some("msg_a"), "uuid-2", &usage);
-        assert_ne!(r1, (0, 0, 0, 0, 0));
-        assert_ne!(r2, (0, 0, 0, 0, 0));
+        assert_ne!(r1, (0, 0, 0, 0, 0, 0));
+        assert_ne!(r2, (0, 0, 0, 0, 0, 0));
     }
 
     #[test]
@@ -6893,8 +8042,8 @@ mod tests {
         let usage = sample_usage();
         let r1 = dedup_token_totals(&mut seen, "", None, "", &usage);
         let r2 = dedup_token_totals(&mut seen, "", None, "", &usage);
-        assert_ne!(r1, (0, 0, 0, 0, 0), "first unkeyable row counts");
-        assert_ne!(r2, (0, 0, 0, 0, 0), "second unkeyable row also counts");
+        assert_ne!(r1, (0, 0, 0, 0, 0, 0), "first unkeyable row counts");
+        assert_ne!(r2, (0, 0, 0, 0, 0, 0), "second unkeyable row also counts");
         assert_eq!(r1, r2, "both contribute full totals");
     }
 
@@ -6918,13 +8067,16 @@ mod tests {
         ];
 
         let stats = build_session_token_stats_from_messages(
-            "sess-1".to_string(),
-            "test-project".to_string(),
-            None,
+            SessionTokenStatsOptions {
+                provider: StatsProvider::Claude,
+                session_id: "sess-1".to_string(),
+                project_name: "test-project".to_string(),
+                summary: None,
+                mode: StatsMode::BillingTotal,
+                start_date: None,
+                end_date: None,
+            },
             &messages,
-            StatsMode::BillingTotal,
-            None,
-            None,
         )
         .expect("stats");
 
@@ -7126,5 +8278,61 @@ mod tests {
         assert_eq!(stats_provider_id(StatsProvider::Pi), "pi");
         assert_eq!(stats_provider_id(StatsProvider::Gemini), "gemini");
         assert_eq!(stats_provider_id(StatsProvider::Claude), "claude");
+    }
+
+    #[test]
+    fn model_stats_preserve_context_buckets_and_normalize_fast_tier() {
+        assert_eq!(
+            context_tier_min_tokens("openai/gpt-5.6-terra-2026-01-01", 272_001),
+            272_001
+        );
+        assert_eq!(context_tier_min_tokens("gpt-5.6-terra", 272_000), 0);
+
+        let model_key = model_usage_key("gpt-5.6-terra", Some("priority"));
+        let mut model_usage = HashMap::new();
+        model_usage.insert(model_key.clone(), (1, 300, 200, 100, 0, 0, 0));
+        let mut context_usage = HashMap::new();
+        context_usage.insert(
+            model_key,
+            HashMap::from([(
+                272_001,
+                ModelContextStats {
+                    min_context_tokens: 272_001,
+                    token_count: 300,
+                    input_tokens: 200,
+                    output_tokens: 100,
+                    ..Default::default()
+                },
+            )]),
+        );
+
+        let models = build_model_stats(
+            StatsProvider::Codex,
+            model_usage,
+            context_usage,
+            HashMap::new(),
+        );
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].service_tier.as_deref(), Some("fast"));
+        assert_eq!(models[0].context_breakdown[0].min_context_tokens, 272_001);
+    }
+
+    #[test]
+    fn nested_anthropic_cache_usage_is_flattened_with_ttl_split() {
+        let usage: TokenUsage = serde_json::from_value(json!({
+            "input_tokens": 100,
+            "cache_creation": {
+                "ephemeral_5m_input_tokens": 10,
+                "ephemeral_1h_input_tokens": 5
+            },
+            "serviceTier": "standard"
+        }))
+        .expect("nested usage should deserialize");
+        let usage = normalize_token_usage(usage);
+
+        assert_eq!(usage.cache_creation_input_tokens, Some(15));
+        assert_eq!(usage.cache_creation_input_tokens_5m, Some(10));
+        assert_eq!(usage.cache_creation_input_tokens_1h, Some(5));
+        assert_eq!(usage.service_tier.as_deref(), Some("standard"));
     }
 }
