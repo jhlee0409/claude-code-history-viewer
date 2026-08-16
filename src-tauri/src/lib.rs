@@ -112,28 +112,26 @@ pub fn run() {
 fn run_tauri() {
     configure_linux_ime_environment();
 
-    // Workaround for WebKitGTK GPU process crash in AppImage environments.
+    // Workaround for WebKitGTK GPU-process crashes on Linux.
     //
-    // AppImage bundles Ubuntu-compiled EGL/Mesa libs, but the system's
-    // WebKitGPUProcess (not bundled) inherits LD_LIBRARY_PATH and loads them,
-    // causing EGL_BAD_ALLOC on distros with newer Mesa (e.g. Arch Linux).
+    // AppImage: bundled Ubuntu-compiled EGL/Mesa libs conflict with the system
+    // WebKitGPUProcess (which inherits LD_LIBRARY_PATH), causing EGL_BAD_ALLOC
+    // on distros with newer Mesa (e.g. Arch Linux). The CI pipeline removes
+    // conflicting EGL libs from the AppImage (primary fix).
     //
-    // The CI pipeline removes conflicting EGL libs from the AppImage (primary fix).
-    // This env var is defense-in-depth for edge cases (NVIDIA driver quirks, etc.).
+    // Plain binaries: NVIDIA proprietary/open drivers on Wayland can crash at
+    // startup in the DMA-BUF renderer path with "Gdk-Message: Error 71
+    // (Protocol error) dispatching to Wayland display" (seen with WebKitGTK
+    // 2.52 + NVIDIA 610 + GNOME Wayland), so this is not gated on AppImage.
     //
     // See: https://github.com/jhlee0409/claude-code-history-viewer/issues/186
     // See: https://github.com/tauri-apps/tauri/issues/11988
     // Note: std::env::set_var becomes unsafe in Rust edition 2024.
     // This is safe here because no threads exist yet at this point in startup.
+    // Only set if not already configured by the user.
     #[cfg(target_os = "linux")]
-    if std::env::var("APPIMAGE")
-        .map(|v| !v.is_empty())
-        .unwrap_or(false)
-    {
-        // Only set if not already configured by the user
-        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
-            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-        }
+    if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
 
     use std::sync::{Arc, Mutex};
