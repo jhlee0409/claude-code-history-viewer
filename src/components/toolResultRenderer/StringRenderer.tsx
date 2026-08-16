@@ -4,7 +4,7 @@ import { memo, useEffect } from "react";
 import { Folder, Check, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
@@ -80,7 +80,7 @@ export const StringRenderer = memo(function StringRenderer({ result, searchQuery
             </div>
           ) : (
             <div className={`p-3 ${layout.prose}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                 {displayResult}
               </ReactMarkdown>
             </div>

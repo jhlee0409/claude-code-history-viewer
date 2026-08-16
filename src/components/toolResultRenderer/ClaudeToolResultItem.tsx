@@ -14,7 +14,7 @@ import { memo } from "react";
 import { Check, FileText, AlertTriangle, Folder, File, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { Highlight, themes } from "prism-react-renderer";
 import { useCopyButton } from "../../hooks/useCopyButton";
 import { Renderer } from "../../shared/RendererHeader";
@@ -290,7 +290,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
         <div className={layout.bodyText}>
           {typeof content === "string" ? (
             <div className={layout.prose}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                 {content}
               </ReactMarkdown>
             </div>
@@ -304,7 +304,7 @@ export const ClaudeToolResultItem = memo(function ClaudeToolResultItem({
                   if (contentItem.type === "text" && typeof contentItem.text === "string") {
                     return (
                       <div key={idx} className={layout.prose}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                           {contentItem.text}
                         </ReactMarkdown>
                       </div>

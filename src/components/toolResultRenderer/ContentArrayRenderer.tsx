@@ -8,7 +8,7 @@
 import { Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { ThinkingRenderer, ToolUseRenderer } from "../contentRenderer";
 import { ClaudeToolResultItem } from "./ClaudeToolResultItem";
 import { cn } from "@/lib/utils";
@@ -158,7 +158,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                       itemObj.text.includes("</thinking>") ? (
                         <ThinkingRenderer thinking={itemObj.text} searchQuery={searchQuery} />
                       ) : (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                           {itemObj.text}
                         </ReactMarkdown>
                       )}
