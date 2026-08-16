@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.0] - 2026-08-16
+
+Feature and fix release: model-aware analytics, corrected token accounting, and more compact window layouts.
+
+### Added
+- **Model-aware cost analytics** — model usage, context tiers, cache TTLs, service tiers, provider-reported costs, and separately reported reasoning tokens are represented in project and global statistics.
+- **Reasoning-token distribution** — reasoning usage is shown separately in token analytics while remaining included in applicable cost estimates.
+
+### Changed
+- **Compact desktop layouts** — the main window can shrink to 380×400 for side-by-side use when the sidebar and navigator are collapsed.
+- **Pricing status clarity** — known prices, source-reported costs, unknown models, and subscription/proxy usage are distinguished instead of being presented as one fallback estimate.
+
+### Fixed
+- Duplicate token and cost counting across repeated provider usage records.
+- Missing cache, reasoning, and cost fields in provider histories, including OpenCode and Gemini-compatible payloads.
+- Unknown or unsupported models no longer receive invented token-price estimates.
+
+### Breaking
+- None.
+
 ## [1.23.0] - 2026-08-16
 
 Feature and fix release: broader provider coverage, deep links, session continuity, and safer project/search workflows.
