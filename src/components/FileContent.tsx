@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { Highlight, themes } from "prism-react-renderer";
 import { useCopyButton } from "../hooks/useCopyButton";
 import { useTheme } from "@/contexts/theme";
@@ -257,7 +257,7 @@ export const FileContent = ({
               </div>
               {language === "markdown" ? (
                 <div className={`p-4 bg-tool-file/5 text-foreground ${layout.prose}`}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                     {displayContent}
                   </ReactMarkdown>
                 </div>

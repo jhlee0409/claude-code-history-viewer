@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { MessageCircle, User, Bot, Wrench, X, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { useTranslation } from "react-i18next";
 import { formatTime } from "../../utils/time";
 import { layout } from "@/components/renderers";
@@ -108,7 +108,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                 "content" in msg.message ? (
                   typeof msg.message.content === "string" ? (
                     <div className="prose prose-sm max-w-none prose-gray">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                         {msg.message.content}
                       </ReactMarkdown>
                     </div>
@@ -120,7 +120,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                             {item.type === "text" &&
                               typeof item.text === "string" && (
                                 <div className="prose prose-sm max-w-none prose-gray">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                                     {item.text}
                                   </ReactMarkdown>
                                 </div>

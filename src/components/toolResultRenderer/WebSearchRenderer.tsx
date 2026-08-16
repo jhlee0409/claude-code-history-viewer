@@ -2,7 +2,7 @@
 
 import { Globe } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { useTranslation } from "react-i18next";
 import { Renderer } from "../../shared/RendererHeader";
 import { layout } from "@/components/renderers";
@@ -105,7 +105,7 @@ export const WebSearchRenderer = ({
 
                       return (
                         <div className={layout.prose}>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                             {result}
                           </ReactMarkdown>
                         </div>
@@ -129,7 +129,7 @@ export const WebSearchRenderer = ({
                               <div key={idx}>
                                 {item && typeof item === "object" && "text" in item && typeof item.text === "string" ? (
                                   <div className={layout.prose}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                                       {item.text}
                                     </ReactMarkdown>
                                   </div>
@@ -197,7 +197,7 @@ const SearchResultItem = ({
     )}
     {description && (
       <div className={`${layout.bodyText} leading-relaxed text-foreground/80`}>
-        <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
           {description}
         </ReactMarkdown>
       </div>

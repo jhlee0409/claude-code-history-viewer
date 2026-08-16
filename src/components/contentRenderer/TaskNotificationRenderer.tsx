@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { cn } from "@/lib/utils";
 import { layout, getVariantStyles } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
@@ -192,7 +192,7 @@ const TaskRow = memo(function TaskRow({
             )}>
               {notification.result ? (
                 <div className={cn(layout.prose, "text-2xs")}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                     {notification.result}
                   </ReactMarkdown>
                 </div>
@@ -442,7 +442,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               {isDetailsExpanded ? (
                 // Full content
                 <div className={cn(layout.prose, "text-2xs animate-fade-in")}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                     {remainingText}
                   </ReactMarkdown>
                 </div>
@@ -457,7 +457,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                     "text-2xs",
                     "line-clamp-3 text-muted-foreground"
                   )}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
                       {getPreviewLines(remainingText, 3)}
                     </ReactMarkdown>
                   </div>

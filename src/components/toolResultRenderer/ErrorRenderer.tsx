@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { Renderer } from "../../shared/RendererHeader";
 import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { useTranslation } from "react-i18next";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
@@ -41,7 +41,7 @@ export const ErrorRenderer = ({
               currentMatchIndex={currentMatchIndex}
             />
           ) : (
-            <Markdown remarkPlugins={[remarkGfm]}>{errorMessage}</Markdown>
+            <Markdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{errorMessage}</Markdown>
           )}
         </div>
       </Renderer.Content>

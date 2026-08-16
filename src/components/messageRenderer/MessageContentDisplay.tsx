@@ -1,6 +1,5 @@
 import React, { useMemo, Children, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Copy, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CommandRenderer, ImageRenderer, TaskNotificationRenderer, hasTaskNotification } from "../contentRenderer";
@@ -9,6 +8,7 @@ import { TooltipButton } from "../../shared/TooltipButton";
 import { HighlightedText } from "../common";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 
 const LINE_LIMIT = 3;
@@ -279,7 +279,8 @@ export const MessageContentDisplay: React.FC<MessageContentDisplayProps> = ({
               "prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground"
             )}>
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={REMARK_PLUGINS}
+                rehypePlugins={REHYPE_PLUGINS}
                 skipHtml
                 components={{
                   table: CollapsibleTable,

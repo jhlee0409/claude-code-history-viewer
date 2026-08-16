@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Terminal, CheckCircle, AlertCircle, Info, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
@@ -331,7 +331,7 @@ export const CommandRenderer = ({
                 isError ? "bg-destructive/5 text-destructive" : "bg-success/5 text-success"
               )}
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>{output.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>{output.content}</ReactMarkdown>
             </div>
           </div>
         );
@@ -389,7 +389,7 @@ export const CommandRenderer = ({
       {/* Remaining Text */}
       {withoutCommands && (
         <div className={layout.prose}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
             {withoutCommands}
           </ReactMarkdown>
         </div>
