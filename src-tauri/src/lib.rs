@@ -130,7 +130,7 @@ fn run_tauri() {
     // This is safe here because no threads exist yet at this point in startup.
     // Only set if not already configured by the user.
     #[cfg(target_os = "linux")]
-    if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
 
