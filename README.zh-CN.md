@@ -510,6 +510,6 @@ claude-code-history-viewer://session-title/auth%20bug
 
 如果这个项目对您有帮助,请给它一个星标!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.com/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.dera.page/#jhlee0409/claude-code-history-viewer&Date)
 
 </div>
