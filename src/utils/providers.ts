@@ -1,7 +1,18 @@
 import type { ProviderId } from "../types";
+import { isWindows } from "./platform";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "kimi", "kimi-code", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "kimi", "kimi-code", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
+
+// WSL provider loaders use UNC-backed paths and are not interchangeable with
+// native provider loaders. Keep this list aligned with the backend routing.
+export const WSL_SEARCHABLE_PROVIDER_IDS: readonly ProviderId[] = ["claude", "copilot"];
+
+export function getWslSearchableProviderIds(
+  ids: readonly ProviderId[],
+): ProviderId[] {
+  return WSL_SEARCHABLE_PROVIDER_IDS.filter((id) => ids.includes(id));
+}
 
 const PROVIDER_TRANSLATIONS: Record<
   ProviderId,
@@ -22,6 +33,7 @@ const PROVIDER_TRANSLATIONS: Record<
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   goose: { key: "common.provider.goose", fallback: "Goose" },
+  grok: { key: "common.provider.grok", fallback: "Grok CLI" },
   kimi: { key: "common.provider.kimi", fallback: "Kimi CLI" },
   "kimi-code": { key: "common.provider.kimiCode", fallback: "Kimi Code CLI" },
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
@@ -157,6 +169,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  grok: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   kimi: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -284,6 +303,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "cursor-agent":
     case "gemini":
     case "goose":
+    case "grok":
     case "kimi":
     case "kimi-code":
     case "forgecode":
@@ -355,6 +375,13 @@ function shellQuotePath(p: string): string {
   return `'${p.replace(/'/g, "'\\''")}'`;
 }
 
+// PowerShell's single-quoted strings are literal; a single quote is escaped by
+// doubling it. The resulting command can be pasted into either CMD or
+// PowerShell because both shells can invoke powershell.exe.
+function powershellQuotePath(p: string): string {
+  return `'${p.replace(/'/g, "''")}'`;
+}
+
 export function getResumeCommand(
   provider: ProviderId | string | undefined,
   sessionId: string,
@@ -411,7 +438,13 @@ export function getResumeCommand(
   }
 
   if (resume == null) return null;
-  return cwd ? `cd ${shellQuotePath(cwd)} && ${resume}` : resume;
+  if (!cwd) return resume;
+
+  if (isWindows()) {
+    return `powershell.exe -NoProfile -Command "Set-Location -LiteralPath ${powershellQuotePath(cwd)}; ${resume}"`;
+  }
+
+  return `cd ${shellQuotePath(cwd)} && ${resume}`;
 }
 
 /**
@@ -450,11 +483,12 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   copilot: "bg-[#8250df]/15 text-[#6639ba] dark:text-[#d2a8ff]",
   cline: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   crush: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
-  cursor: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+  cursor: "bg-[#f54e00]/15 text-[#d04200] dark:text-[#ff6a2a]",
   "cursor-agent": "bg-violet-500/15 text-violet-600 dark:text-violet-400",
   forgecode: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   goose: "bg-red-500/15 text-red-600 dark:text-red-400",
+  grok: "bg-zinc-800/15 text-zinc-800 dark:text-zinc-200",
   kimi: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300",
   "kimi-code": "bg-fuchsia-600/15 text-fuchsia-700 dark:text-fuchsia-300",
   kiro: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",

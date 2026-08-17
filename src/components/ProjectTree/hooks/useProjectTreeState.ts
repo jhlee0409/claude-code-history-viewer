@@ -29,6 +29,26 @@ export function useProjectTreeState(groupingMode: GroupingMode) {
     });
   }, []);
 
+  const ensureProjectExpanded = useCallback(
+    (projectPath: string, groupKey?: string) => {
+      if (!projectPath) return;
+
+      setExpandedProjects((prev) => {
+        if (prev.has(projectPath) && (!groupKey || prev.has(groupKey))) {
+          return prev;
+        }
+
+        const next = new Set(prev);
+        next.add(projectPath);
+        if (groupKey) {
+          next.add(groupKey);
+        }
+        return next;
+      });
+    },
+    []
+  );
+
   const isProjectExpanded = useCallback(
     (projectPath: string) => {
       return expandedProjects.has(projectPath);
@@ -58,6 +78,7 @@ export function useProjectTreeState(groupingMode: GroupingMode) {
     expandedProjects,
     setExpandedProjects,
     toggleProject,
+    ensureProjectExpanded,
     isProjectExpanded,
     contextMenu,
     handleContextMenu,

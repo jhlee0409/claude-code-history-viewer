@@ -22,6 +22,7 @@ import { LoadingState } from "./ui/loading";
 import { SessionStatsCard } from "./SessionStatsCard";
 import { DatePickerHeader } from "./ui/DatePickerHeader";
 import { BillingBreakdownCard } from "./AnalyticsDashboard/components/BillingBreakdownCard";
+import { calculateGlobalCostSummary } from "./AnalyticsDashboard/utils";
 import { supportsConversationBreakdown } from "../utils/providers";
 import { useAppStore } from "../store/useAppStore";
 
@@ -55,6 +56,11 @@ const TOKEN_COLORS = {
     base: "var(--metric-amber)",
     glow: "var(--glow-amber)",
     bg: "color-mix(in oklch, var(--metric-amber) 10%, transparent)"
+  },
+  reasoning: {
+    base: "var(--metric-pink)",
+    glow: "var(--glow-pink)",
+    bg: "color-mix(in oklch, var(--metric-pink) 10%, transparent)"
   },
 } as const;
 
@@ -96,6 +102,26 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
   const sessionMetadata = useAppStore((state) => state.userMetadata.sessions);
   const showProviderLimitHelp = !supportsConversationBreakdown(providerId);
   const hasSessionConversationData = sessionConversationStats != null;
+  const sessionCostSummary = useMemo(
+    () =>
+      sessionStats
+        ? calculateGlobalCostSummary(
+            sessionStats.model_distribution ?? [],
+            sessionStats.total_tokens,
+          )
+        : null,
+    [sessionStats],
+  );
+  const sessionConversationCostSummary = useMemo(
+    () =>
+      sessionConversationStats
+        ? calculateGlobalCostSummary(
+            sessionConversationStats.model_distribution ?? [],
+            sessionConversationStats.total_tokens,
+          )
+        : null,
+    [sessionConversationStats],
+  );
   const sessionDisplayById = useMemo(() => {
     const byId = new Map<string, string | undefined>();
     for (const session of sessions) {
@@ -159,6 +185,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
           total_cache_creation_tokens:
             projectStatsSummary.token_distribution.cache_creation,
           total_cache_read_tokens: projectStatsSummary.token_distribution.cache_read,
+          total_reasoning_tokens: projectStatsSummary.token_distribution.reasoning,
           total_tokens: projectStatsSummary.total_tokens,
           message_count: projectStatsSummary.total_messages,
         }
@@ -171,6 +198,8 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               acc.total_cache_creation_tokens + stats.total_cache_creation_tokens,
             total_cache_read_tokens:
               acc.total_cache_read_tokens + stats.total_cache_read_tokens,
+            total_reasoning_tokens:
+              acc.total_reasoning_tokens + stats.total_reasoning_tokens,
             total_tokens: acc.total_tokens + stats.total_tokens,
             message_count: acc.message_count + stats.message_count,
           }),
@@ -179,6 +208,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
             total_output_tokens: 0,
             total_cache_creation_tokens: 0,
             total_cache_read_tokens: 0,
+            total_reasoning_tokens: 0,
             total_tokens: 0,
             message_count: 0,
           }
@@ -193,12 +223,29 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
           const conversationStats = projectConversationById.get(stats.session_id);
           return acc + (conversationStats?.total_tokens ?? 0);
         }, 0);
+    const projectModelDistribution =
+      projectStatsSummary?.model_distribution ??
+      projectStats.flatMap((stats) => stats.model_distribution ?? []);
+    const projectCostSummary = calculateGlobalCostSummary(
+      projectModelDistribution,
+      totalStats.total_tokens,
+    );
+    const projectConversationModelDistribution =
+      projectConversationStatsSummary?.model_distribution ??
+      projectConversationStats.flatMap((stats) => stats.model_distribution ?? []);
+    const projectConversationCostSummary = hasProjectConversationData
+      ? calculateGlobalCostSummary(
+          projectConversationModelDistribution,
+          conversationTotalTokens,
+        )
+      : null;
 
     const metrics = [
       { label: t("analytics.totalTokens"), value: totalStats.total_tokens, color: "var(--metric-purple)" },
       { label: t("analytics.inputTokens"), value: totalStats.total_input_tokens, color: tokenColors.input.base },
       { label: t("analytics.outputTokens"), value: totalStats.total_output_tokens, color: tokenColors.output.base },
       { label: t("analytics.cacheCreation"), value: totalStats.total_cache_creation_tokens, color: tokenColors.cacheWrite.base },
+      { label: t("analytics.reasoning", "Reasoning"), value: totalStats.total_reasoning_tokens, color: tokenColors.reasoning.base },
       { label: t("analytics.totalMessages"), value: totalStats.message_count, color: "var(--muted-foreground)" },
     ];
 
@@ -237,12 +284,14 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               {metrics.map((metric, i) => (
                 <Tooltip key={metric.label}>
                   <TooltipTrigger asChild>
-                    <div
+                    <button
+                      type="button"
+                      aria-label={`${metric.label}: ${metric.value.toLocaleString()}`}
                       className={cn(
-                        "relative p-4 rounded-xl text-center",
+                        "relative w-full appearance-none p-4 rounded-xl text-center text-inherit",
                         "bg-card/80 backdrop-blur-sm",
                         "border border-border/50",
-                        "transition-all duration-300",
+                        "transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                         "hover:border-border hover:shadow-md hover:scale-[1.02] cursor-default"
                       )}
                     >
@@ -260,7 +309,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                       <div className="text-px12 font-medium text-muted-foreground uppercase tracking-wider mt-1">
                         {metric.label}
                       </div>
-                    </div>
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent className="font-mono text-xs">
                     {metric.value.toLocaleString()}
@@ -273,6 +322,16 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               <BillingBreakdownCard
                 billingTokens={totalStats.total_tokens}
                 conversationTokens={hasProjectConversationData ? conversationTotalTokens : null}
+                billingCost={
+                  projectCostSummary.pricedModels > 0
+                    ? projectCostSummary.totalEstimatedCost
+                    : null
+                }
+                conversationCost={
+                  projectConversationCostSummary && projectConversationCostSummary.pricedModels > 0
+                    ? projectConversationCostSummary.totalEstimatedCost
+                    : null
+                }
                 showProviderLimitHelp={showProviderLimitHelp}
               />
             </div>
@@ -430,6 +489,16 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               conversationTokens={
                 hasSessionConversationData
                   ? sessionConversationStats?.total_tokens ?? 0
+                  : null
+              }
+              billingCost={
+                sessionCostSummary && sessionCostSummary.pricedModels > 0
+                  ? sessionCostSummary.totalEstimatedCost
+                  : null
+              }
+              conversationCost={
+                sessionConversationCostSummary && sessionConversationCostSummary.pricedModels > 0
+                  ? sessionConversationCostSummary.totalEstimatedCost
                   : null
               }
               showProviderLimitHelp={showProviderLimitHelp}

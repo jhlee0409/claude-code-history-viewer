@@ -14,6 +14,34 @@ pub struct CustomClaudePathParam {
     pub label: Option<String>,
 }
 
+// Only these providers have WSL-specific loaders that accept UNC-backed paths.
+// Other providers remain native-only even when WSL search is enabled.
+const WSL_SEARCHABLE_PROVIDER_IDS: &[&str] = &["claude", "copilot"];
+
+fn is_wsl_search_provider(provider: &str) -> bool {
+    WSL_SEARCHABLE_PROVIDER_IDS.contains(&provider)
+}
+
+/// Keep native provider selection separate from WSL provider routing.
+///
+/// The optional request list is used by newer clients to make the source split
+/// explicit. Older clients can omit it; in that case we derive the safe WSL
+/// subset from the native provider selection. In both cases, the backend
+/// validates the provider capability and active-provider membership.
+fn select_wsl_search_providers(
+    native_providers: &[String],
+    requested_wsl_providers: Option<&[String]>,
+) -> Vec<String> {
+    let requested = requested_wsl_providers.unwrap_or(native_providers);
+
+    requested
+        .iter()
+        .filter(|provider| native_providers.iter().any(|native| native == *provider))
+        .filter(|provider| is_wsl_search_provider(provider.as_str()))
+        .cloned()
+        .collect()
+}
+
 /// Detect all available providers
 #[tauri::command]
 pub async fn detect_providers() -> Result<Vec<providers::ProviderInfo>, String> {
@@ -38,6 +66,7 @@ pub async fn scan_all_projects(
             "copilot".to_string(),
             "gemini".to_string(),
             "goose".to_string(),
+            "grok".to_string(),
             "kimi".to_string(),
             "kimi-code".to_string(),
             "forgecode".to_string(),
@@ -126,6 +155,7 @@ pub async fn scan_all_projects(
         ("pearai", providers::pearai::scan_projects),
         ("gemini", providers::gemini::scan_projects),
         ("goose", providers::goose::scan_projects),
+        ("grok", providers::grok::scan_projects),
         ("kimi", providers::kimi::scan_projects),
         ("kimi-code", providers::kimi_code::scan_projects),
         ("forgecode", providers::forgecode::scan_projects),
@@ -321,6 +351,7 @@ pub async fn load_provider_sessions(
         "copilot" => providers::copilot::load_sessions(&project_path, exclude),
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "goose" => providers::goose::load_sessions(&project_path, exclude),
+        "grok" => providers::grok::load_sessions(&project_path, exclude),
         "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "kimi-code" => providers::kimi_code::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
@@ -434,6 +465,7 @@ fn load_non_claude_messages(
         "copilot" => providers::copilot::load_messages(session_path),
         "gemini" => providers::gemini::load_messages(session_path),
         "goose" => providers::goose::load_messages(session_path),
+        "grok" => providers::grok::load_messages(session_path),
         "kimi" => providers::kimi::load_messages(session_path),
         "kimi-code" => providers::kimi_code::load_messages(session_path),
         "forgecode" => providers::forgecode::load_messages(session_path),
@@ -590,6 +622,7 @@ pub async fn search_all_providers(
     claude_path: Option<String>,
     query: String,
     active_providers: Option<Vec<String>>,
+    wsl_providers: Option<Vec<String>>,
     filters: Option<Value>,
     limit: Option<usize>,
     custom_claude_paths: Option<Vec<CustomClaudePathParam>>,
@@ -610,6 +643,7 @@ pub async fn search_all_providers(
             "copilot".to_string(),
             "gemini".to_string(),
             "goose".to_string(),
+            "grok".to_string(),
             "kimi".to_string(),
             "kimi-code".to_string(),
             "forgecode".to_string(),
@@ -634,6 +668,12 @@ pub async fn search_all_providers(
             "vibe".to_string(),
         ]
     });
+    // Native loaders use the full active provider selection. WSL loaders use
+    // only providers with explicit UNC-path support, so a mixed selection such
+    // as ["claude", "codex"] keeps native Codex search while routing only
+    // Claude to WSL.
+    let wsl_search_providers =
+        select_wsl_search_providers(&providers_to_search, wsl_providers.as_deref());
 
     let mut all_results = Vec::new();
 
@@ -740,6 +780,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Goose search failed: {e}");
+            }
+        }
+    }
+
+    // Grok
+    if providers_to_search.iter().any(|p| p == "grok") {
+        match providers::grok::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Grok search failed: {e}");
             }
         }
     }
@@ -974,15 +1024,11 @@ pub async fn search_all_providers(
     }
 
     // WSL search
-    if wsl_enabled.unwrap_or(false)
-        && providers_to_search
-            .iter()
-            .any(|p| matches!(p.as_str(), "claude" | "copilot"))
-    {
+    if wsl_enabled.unwrap_or(false) && !wsl_search_providers.is_empty() {
         let excluded = wsl_excluded_distros.unwrap_or_default();
 
         for (distro, home_path) in resolve_active_wsl_distros(&excluded) {
-            if providers_to_search.iter().any(|p| p == "claude") {
+            if wsl_search_providers.iter().any(|p| p == "claude") {
                 let claude_linux_path = home_path.join(".claude");
                 if let Some(unc_path) =
                     crate::wsl::resolve_wsl_provider_path(&distro.name, &claude_linux_path)
@@ -1011,7 +1057,7 @@ pub async fn search_all_providers(
                 }
             }
 
-            if providers_to_search.iter().any(|p| p == "copilot") {
+            if wsl_search_providers.iter().any(|p| p == "copilot") {
                 let copilot_linux_path = home_path.join(".copilot");
                 let copilot_base =
                     crate::wsl::resolve_wsl_provider_path(&distro.name, &copilot_linux_path)
@@ -1209,6 +1255,25 @@ fn append_content_block(msg: &mut ClaudeMessage, block: Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn select_wsl_search_providers_separates_native_and_wsl_sources() {
+        let active_providers = vec!["claude".to_string(), "codex".to_string()];
+        let requested_wsl_providers = vec!["claude".to_string(), "codex".to_string()];
+
+        assert_eq!(
+            select_wsl_search_providers(&active_providers, Some(&requested_wsl_providers),),
+            vec!["claude"]
+        );
+        assert_eq!(
+            select_wsl_search_providers(&active_providers, None),
+            vec!["claude"]
+        );
+        assert!(
+            select_wsl_search_providers(&active_providers, Some(&["codex".to_string()]),)
+                .is_empty()
+        );
+    }
 
     /// Create a normalized message value for merged tool output.
     fn make_message(message_type: &str, content: Value) -> ClaudeMessage {

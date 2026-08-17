@@ -6,7 +6,7 @@
 
 **AI 编程助手的统一历史查看器。**
 
-浏览、搜索和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode** 和 **CodeBuddy Code** 的对话记录 — 桌面应用或无头服务器。100% 离线。
+浏览、搜索和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的对话记录 — 桌面应用或无头服务器。100% 离线。
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -51,11 +51,18 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 **无头服务器** — 从任意浏览器访问：
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://...install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
 Docker、VPS、systemd 设置请参阅[服务器模式](#服务器模式-webui)。
+
+**选择模式:**
+
+| 模式 | 适用场景 | 工作方式 |
+|------|----------|----------|
+| 桌面应用 | 本地浏览 | 在原生应用中打开本地对话文件 |
+| 无头服务器 | 浏览器、VPS 或远程访问 | 通过 WebUI 提供本地对话文件；请保持启用身份验证 |
 
 ---
 
@@ -63,7 +70,7 @@ Docker、VPS、systemd 设置请参阅[服务器模式](#服务器模式-webui)�
 
 AI 编程助手生成了数千条对话消息，但它们都不提供跨工具回顾历史的方式。CCHV 解决了这个问题。
 
-**二十八个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae 会话之间无缝切换 — 比较 Token 用量、跨提供商搜索、在一个界面中分析你的工作流。
+**二十九个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae 会话之间无缝切换 — 比较 Token 用量、跨提供商搜索、在一个界面中分析你的工作流。
 
 | 提供商 | 数据位置 | 获取内容 |
 |----------|--------------|--------------|
@@ -79,6 +86,7 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 | **OpenCode** | `~/.local/share/opencode/` | 对话会话和工具结果 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 数据库中的对话记录 |
 | **CodeBuddy Code** | `~/.codebuddy/projects/` | 包含工具调用的对话历史（Claude Code fork 格式） |
+| **Grok CLI** | `~/.grok/sessions/` | Grok CLI 对话、工具调用和模型用量 |
 | **Kimi** | `~/.kimi/` | 会话历史，支持 `kimi -r` 恢复 |
 | **Kiro** | `kiro-cli/data.sqlite3` | 基于 SQLite 的对话历史 |
 | **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` 存储（与 Kiro CLI 提供商共用格式） |
@@ -120,7 +128,7 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 | 功能 | 描述 |
 |---------|-------------|
-| **多提供商支持** | 统一查看 **28 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae — 按提供商筛选、跨工具比较 |
+| **多提供商支持** | 统一查看 **29 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae — 按提供商筛选、跨工具比较 |
 | **对话浏览器** | 按项目/会话导航对话,支持工作树分组 |
 | **全局搜索** | 即时搜索所有提供商的对话内容 |
 | **分析仪表板** | 双模式 Token 统计（计费 vs 对话）、成本明细、提供商分布图表 |
@@ -134,6 +142,16 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 | 提供商 | 说明 |
 |---------|-------|
 | **Antigravity** | 走现有统一 provider 数据流接入。会话来自 token monitor 缓存，可直接参与项目/会话浏览、Token 统计、分析仪表板和全局搜索，无需单独的专用页面。 |
+
+### v1.23.0 新增
+
+| 功能 | 描述 |
+|------|------|
+| **Grok CLI 提供商** | 浏览和搜索 `~/.grok/sessions/` 中的 Grok CLI 会话，并将模型/Token 用量纳入分析 |
+| **会话连续性** | 将相关的 Claude 转录文件合并为一个可浏览的对话 |
+| **WebUI 深链接** | 支持可分享的链接，直接打开指定会话和消息 |
+| **更安全的导航与恢复** | 全局搜索选中结果会同步所属项目/会话；不可用工作树的历史仍保留，同时禁用无效恢复操作；Windows 恢复命令同时支持 CMD 和 PowerShell |
+| **提供商发现修复** | 提供商专用和 WSL 专用扫描不再假设本机一定存在 Claude 数据目录 |
 
 ### v1.18.0 新增
 
@@ -234,12 +252,10 @@ brew uninstall --cask claude-code-history-viewer
 ```
 
 > **从手动安装(.dmg)迁移？**
-> 为避免冲突，请先删除现有应用，然后通过 Homebrew 安装。
+> 为避免冲突，请先在 Finder 中将现有应用移到废纸篓，然后通过 Homebrew 安装。
 > 请只使用**一种**安装方式 — 不要混合使用手动安装和 Homebrew。
+> 然后运行:
 > ```bash
-> # 先删除手动安装的应用
-> rm -rf "/Applications/Claude Code History Viewer.app"
-> # 通过 Homebrew 安装
 > brew tap jhlee0409/tap
 > brew install --cask claude-code-history-viewer
 > ```
@@ -262,7 +278,7 @@ pnpm tauri:dev       # Development
 pnpm tauri:build     # Production build
 ```
 
-**系统要求**: Node.js 18+, pnpm, Rust 工具链
+**系统要求**: Node.js 20.19+（或 22.12+）、pnpm、Rust 工具链
 
 ## 服务器模式 (WebUI)
 
@@ -350,6 +366,8 @@ docker compose logs webui
 
 `docker-compose.yml` 将 `~/.claude`、`~/.codex` 和 `~/.local/share/opencode` 作为只读卷挂载。
 
+> 示例 Docker 配置只挂载 Claude、Codex 和 OpenCode。要浏览其他提供商，请将其本地数据目录以只读卷挂载到容器内该提供商预期的路径，然后重启容器。
+
 ### systemd 服务
 
 在 Linux 上持久运行服务器，使用提供的 systemd 模板:
@@ -380,14 +398,14 @@ GET /health
 ## 使用方法
 
 1. 启动应用
-2. 自动扫描全部 28 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
+2. 自动扫描全部 29 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
 3. 在左侧边栏浏览项目 — 使用标签栏按提供商筛选
 4. 点击会话查看消息
 5. 使用标签页在消息、分析、Token 统计、最近编辑和会话面板之间切换
 
 ### 命令行参数
 
-使用 `--session` 参数启动应用并预先聚焦到指定会话：
+使用以下任一选择器启动应用并预先聚焦到指定会话：
 
 ```bash
 # Full UUID
@@ -398,9 +416,26 @@ claude-code-history-viewer --session 1265cd74
 
 # Equals form also works
 claude-code-history-viewer --session=1265cd74
+
+# Exact Claude session-folder name under ~/.claude/projects/
+claude-code-history-viewer --session-folder my-project
+
+# Case-insensitive substring match against session titles
+claude-code-history-viewer --session-title "auth bug"
 ```
 
-应用会扫描所有已知项目并导航到匹配的会话；若没有匹配会话，则按正常流程启动。既不是 hex-或-短横线的 8-36 字符也不是绝对路径的值将被静默忽略。
+`--session` 接受完整 UUID、UUID 前缀或 `.jsonl` 会话文件的绝对路径。`--session-folder` 精确匹配 Claude 会话文件夹名称；`--session-title` 按不区分大小写的标题子字符串搜索，匹配多个会话时可能显示选择器。若同时提供多个选择器，优先级为 `--session` > `--session-folder` > `--session-title`。
+
+注册了协议的桌面环境还支持以下深层链接格式：
+
+```text
+file:///absolute/path/to/session.jsonl
+claude-code-history-viewer://session/1265cd74-caa9-472e-b343-c4f44b5cf12c
+claude-code-history-viewer://session-folder/my-project
+claude-code-history-viewer://session-title/auth%20bug
+```
+
+应用会扫描所有已知项目并导航到匹配的会话；若没有匹配会话，则按正常流程启动。
 
 ## 无障碍
 
@@ -430,15 +465,18 @@ claude-code-history-viewer --session=1265cd74
 
 ## 数据隐私
 
-**100% 离线运行。** 不会将任何对话数据发送到任何服务器。无分析、无跟踪、无遥测。
+**桌面模式以本地为主。** 对话文件从本地磁盘读取；不会上传对话数据，也没有分析、跟踪或遥测。
 
-您的数据保留在您的设备上。
+**服务器模式**会有意将本地文件提供给能够访问服务器的浏览器和客户端。仅限本机使用时请绑定到 `127.0.0.1`；向网络公开前请保持令牌身份验证启用。
 
 ## 常见问题
 
 | 问题 | 解决方案 |
 |---------|----------|
 | "未找到 Claude 数据" | 确保 `~/.claude` 目录存在且包含对话历史 |
+| 缺少某个提供商 | 检查提供商表中的数据路径。要添加其他 Claude 目录，请打开**设置 → 自定义 Claude 目录**。使用 Docker 时，将该提供商的数据目录作为只读卷挂载。 |
+| 无法连接 WebUI | `cchv-server` 默认使用 `3727` 端口。使用启动时输出的 URL；远程连接时检查端口冲突以及防火墙/代理规则。 |
+| "Unauthorized" / HTTP 401 | 使用启动时输出的令牌 URL，或发送 `Authorization: Bearer <token>`。固定令牌可通过 `--token` 或 `CCHV_TOKEN` 设置。 |
 | 性能问题 | 大量历史记录初次加载可能较慢 — 应用使用虚拟滚动优化性能 |
 | 更新问题 | 如果自动更新失败,请从 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 手动下载 |
 
@@ -450,9 +488,11 @@ claude-code-history-viewer --session=1265cd74
 2. 创建功能分支 (`git checkout -b feat/my-feature`)
 3. 提交前运行检查:
    ```bash
-   pnpm tsc --build .        # TypeScript
+   pnpm exec tsc --build .   # TypeScript
    pnpm vitest run            # 测试
    pnpm lint                  # 代码检查
+   just rust-check-all        # Rust 格式检查、clippy 和测试
+   pnpm run i18n:validate     # 语言环境一致性
    ```
 4. 提交更改 (`git commit -m 'feat: add my feature'`)
 5. 推送到分支 (`git push origin feat/my-feature`)

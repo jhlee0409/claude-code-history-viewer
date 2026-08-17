@@ -6,7 +6,7 @@
 
 **AI 코딩 어시스턴트를 위한 통합 히스토리 뷰어.**
 
-**Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**의 대화 기록을 탐색, 검색, 분석하세요 — 데스크톱 앱 또는 헤드리스 서버로. 100% 오프라인.
+**Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, **Grok CLI**의 대화 기록을 탐색, 검색, 분석하세요 — 데스크톱 앱 또는 헤드리스 서버로. 100% 오프라인.
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -51,11 +51,18 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 **헤드리스 서버** — 브라우저에서 접근:
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # 또는: curl -fsSL https://...install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
 Docker, VPS, systemd 설정은 [서버 모드](#서버-모드-webui)를 참고하세요.
+
+**모드 선택:**
+
+| 모드 | 적합한 경우 | 동작 |
+|------|------------|------|
+| 데스크톱 앱 | 로컬 탐색 | 로컬 대화 파일을 네이티브 앱에서 엽니다 |
+| 헤드리스 서버 | 브라우저, VPS 또는 원격 접근 | WebUI로 로컬 대화 파일을 제공합니다. 인증을 유지하세요 |
 
 ---
 
@@ -63,7 +70,7 @@ Docker, VPS, systemd 설정은 [서버 모드](#서버-모드-webui)를 참고�
 
 AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 도구 간에 히스토리를 돌아볼 방법을 제공하지 않습니다. CCHV가 이를 해결합니다.
 
-**스물여덟 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code & Kilo Code 포함), Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
+**스물아홉 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code & Kilo Code 포함), Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
 
 | 프로바이더 | 데이터 위치 | 제공 내용 |
 |----------|--------------|--------------|
@@ -79,6 +86,7 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 | **OpenCode** | `~/.local/share/opencode/` | 대화 세션 및 도구 결과 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 데이터베이스의 대화 기록 |
 | **CodeBuddy Code** | `~/.codebuddy/projects/` | 도구 호출이 포함된 대화 기록 (Claude Code 포크 포맷) |
+| **Grok CLI** | `~/.grok/sessions/` | Grok CLI 대화, 도구 호출 및 모델 사용량 |
 | **Kimi** | `~/.kimi/` | `kimi -r` 재개를 지원하는 세션 기록 |
 | **Kiro** | `kiro-cli/data.sqlite3` | SQLite 기반 대화 기록 |
 | **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` 저장소 (Kiro CLI 프로바이더와 포맷 공유) |
@@ -120,7 +128,7 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 
 | 기능 | 설명 |
 |---------|-------------|
-| **멀티 프로바이더** | **28개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code & Kilo Code 포함), Aider, OpenCode, ForgeCode, CodeBuddy Code, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae — 프로바이더별 필터링, 도구 간 비교 |
+| **멀티 프로바이더** | **29개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code & Kilo Code 포함), Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae — 프로바이더별 필터링, 도구 간 비교 |
 | **대화 브라우저** | 프로젝트/세션별 대화 탐색 (워크트리 그룹핑 지원) |
 | **글로벌 검색** | 모든 프로바이더의 대화에서 즉시 검색 |
 | **분석 대시보드** | 듀얼 모드 토큰 통계 (빌링 vs 대화), 비용 브레이크다운, 프로바이더 분포 차트 |
@@ -134,6 +142,16 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 | 프로바이더 | 설명 |
 |---------|-------|
 | **Antigravity** | 표준 프로바이더 파이프라인으로 로드됩니다. 세션은 token monitor 캐시에서 가져오며, 별도 UI 모드 없이 프로젝트/세션 보기, 토큰 통계, 분석 대시보드, 글로벌 검색에 바로 참여합니다. |
+
+### v1.23.0 신규
+
+| 기능 | 설명 |
+|------|------|
+| **Grok CLI 프로바이더** | `~/.grok/sessions/`의 Grok CLI 세션을 탐색·검색하고 모델/토큰 사용량을 분석에 포함 |
+| **세션 연속성** | 서로 이어지는 Claude 트랜스크립트 파일을 하나의 탐색 가능한 대화로 통합 |
+| **WebUI 딥 링크** | 특정 세션과 메시지를 바로 여는 공유 가능한 링크 지원 |
+| **안전한 탐색 및 재개** | 글로벌 검색 결과 선택이 프로젝트/세션과 동기화되고, 사용할 수 없는 워크트리 기록은 유지하면서 잘못된 재개 동작은 비활성화; Windows 재개 명령은 CMD와 PowerShell 모두 지원 |
+| **프로바이더 탐색 수정** | 프로바이더별·WSL 전용 스캔이 기본 Claude 데이터 디렉토리를 불필요하게 가정하지 않음 |
 
 ### v1.18.0 신규
 
@@ -234,12 +252,10 @@ brew uninstall --cask claude-code-history-viewer
 ```
 
 > **기존 수동 설치(.dmg)에서 전환하시나요?**
-> 충돌을 방지하려면 기존 앱을 먼저 삭제한 후 Homebrew로 설치하세요.
+> 충돌을 방지하려면 Finder에서 기존 앱을 휴지통으로 이동한 후 Homebrew로 설치하세요.
 > 설치 방식은 **하나만** 사용하세요 — 수동 설치와 Homebrew를 함께 사용하지 마세요.
+> 그런 다음 실행하세요:
 > ```bash
-> # 수동 설치된 앱을 먼저 삭제
-> rm -rf "/Applications/Claude Code History Viewer.app"
-> # Homebrew로 설치
 > brew tap jhlee0409/tap
 > brew install --cask claude-code-history-viewer
 > ```
@@ -262,7 +278,7 @@ pnpm tauri:dev       # 개발 모드
 pnpm tauri:build     # 프로덕션 빌드
 ```
 
-**요구사항**: Node.js 18+, pnpm, Rust toolchain
+**요구사항**: Node.js 20.19+ (또는 22.12+), pnpm, Rust toolchain
 
 ## 서버 모드 (WebUI)
 
@@ -350,6 +366,8 @@ docker compose logs webui
 
 `docker-compose.yml`은 `~/.claude`, `~/.codex`, `~/.local/share/opencode`를 읽기 전용 볼륨으로 마운트합니다.
 
+> 기본 Docker 설정은 Claude, Codex, OpenCode만 마운트합니다. 다른 프로바이더를 보려면 해당 로컬 데이터 디렉토리를 컨테이너 내부에서 프로바이더가 기대하는 경로에 읽기 전용 볼륨으로 추가한 후 컨테이너를 재시작하세요.
+
 ### systemd 서비스
 
 Linux에서 지속적인 서버 운영을 위해 제공된 systemd 템플릿을 사용하세요:
@@ -380,14 +398,14 @@ GET /health
 ## 사용법
 
 1. 앱 실행
-2. 지원하는 28개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
+2. 지원하는 29개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
 3. 좌측 사이드바에서 프로젝트 탐색 — 탭 바로 프로바이더별 필터링
 4. 세션 클릭하여 메시지 확인
 5. 탭으로 메시지, 분석, 토큰 통계, 최근 편집, 세션 보드 전환
 
 ### 커맨드라인 플래그
 
-`--session` 플래그를 사용하여 특정 세션이 미리 선택된 상태로 앱을 실행할 수 있습니다.
+다음 선택자 중 하나를 사용하여 특정 세션이 미리 선택된 상태로 앱을 실행할 수 있습니다.
 
 ```bash
 # 전체 UUID
@@ -398,9 +416,26 @@ claude-code-history-viewer --session 1265cd74
 
 # equals 형식도 지원
 claude-code-history-viewer --session=1265cd74
+
+# Exact Claude session-folder name under ~/.claude/projects/
+claude-code-history-viewer --session-folder my-project
+
+# Case-insensitive substring match against session titles
+claude-code-history-viewer --session-title "auth bug"
 ```
 
-앱이 모든 프로젝트를 스캔하여 매칭되는 세션으로 이동하며, 일치하는 세션이 없으면 일반 실행으로 진행됩니다. 값이 hex-또는-dash 조합의 8..36자 형식도 아니고 절대 경로도 아니면 조용히 무시됩니다.
+`--session`은 전체 UUID, UUID 접두어 또는 `.jsonl` 세션 파일의 절대 경로를 받습니다. `--session-folder`는 Claude 세션 폴더 이름을 정확히 일치시키고, `--session-title`은 제목을 대소문자 구분 없이 부분 검색하며 여러 세션이 일치하면 선택기를 표시할 수 있습니다. 여러 선택자를 함께 지정하면 우선순위는 `--session` > `--session-folder` > `--session-title`입니다.
+
+등록된 데스크톱 환경에서는 다음 딥 링크 형식도 열 수 있습니다.
+
+```text
+file:///absolute/path/to/session.jsonl
+claude-code-history-viewer://session/1265cd74-caa9-472e-b343-c4f44b5cf12c
+claude-code-history-viewer://session-folder/my-project
+claude-code-history-viewer://session-title/auth%20bug
+```
+
+앱은 모든 프로젝트를 스캔하여 일치하는 세션으로 이동하며, 일치하는 세션이 없으면 일반 실행으로 진행됩니다.
 
 ## 접근성
 
@@ -430,15 +465,18 @@ claude-code-history-viewer --session=1265cd74
 
 ## 데이터 프라이버시
 
-**100% 오프라인.** 대화 데이터는 어떤 서버로도 전송되지 않습니다. 분석도, 추적도, 원격 측정도 없습니다.
+**데스크톱 모드는 로컬 우선입니다.** 대화 파일은 로컬 디스크에서 읽으며 대화 데이터 업로드, 분석, 추적 또는 원격 측정이 없습니다.
 
-모든 데이터는 사용자의 기기에만 저장됩니다.
+**서버 모드**는 서버에 접근할 수 있는 브라우저와 클라이언트에 로컬 파일을 의도적으로 제공합니다. 로컬 전용으로 사용하려면 `127.0.0.1`에 바인딩하고, 네트워크에 노출하기 전에는 토큰 인증을 유지하세요.
 
 ## 문제 해결
 
 | 문제 | 해결 방법 |
 |---------|----------|
 | "Claude 데이터를 찾을 수 없음" | `~/.claude` 폴더가 존재하고 대화 기록이 있는지 확인 |
+| 프로바이더가 보이지 않음 | 프로바이더 표의 데이터 경로를 확인하세요. 추가 Claude 디렉토리는 **설정 → 커스텀 Claude 디렉토리**에서 등록할 수 있습니다. Docker에서는 해당 데이터 디렉토리를 읽기 전용 볼륨으로 추가하세요. |
+| WebUI에 연결할 수 없음 | `cchv-server`의 기본 포트는 `3727`입니다. 시작 시 출력된 URL을 사용하고, 원격 접속이라면 포트 충돌과 방화벽/프록시 규칙을 확인하세요. |
+| "Unauthorized" / HTTP 401 | 시작 시 출력된 토큰 URL을 사용하거나 `Authorization: Bearer <token>`을 보내세요. 고정 토큰은 `--token` 또는 `CCHV_TOKEN`으로 설정할 수 있습니다. |
 | 성능 문제 | 대용량 대화 기록은 초기 로딩이 느릴 수 있음 — 앱은 가상 스크롤링 사용 |
 | 업데이트 오류 | 자동 업데이트 실패 시 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)에서 수동 다운로드 |
 
@@ -450,9 +488,11 @@ claude-code-history-viewer --session=1265cd74
 2. 기능 브랜치 생성 (`git checkout -b feat/my-feature`)
 3. 커밋 전 체크 실행:
    ```bash
-   pnpm tsc --build .        # TypeScript
+   pnpm exec tsc --build .   # TypeScript
    pnpm vitest run            # 테스트
    pnpm lint                  # 린트
+   just rust-check-all        # Rust 포맷, clippy, 테스트
+   pnpm run i18n:validate     # 로케일 일관성
    ```
 4. 변경 사항 커밋 (`git commit -m 'feat: add my feature'`)
 5. 브랜치에 푸시 (`git push origin feat/my-feature`)

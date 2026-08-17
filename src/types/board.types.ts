@@ -4,6 +4,9 @@ export interface BoardSessionStats {
     totalTokens: number;
     inputTokens: number;
     outputTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+    reasoningTokens: number;
     errorCount: number;
     durationMs: number;
     toolCount: number;

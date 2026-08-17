@@ -316,7 +316,7 @@ fn expand_home_prefix(raw: &str) -> String {
 /// Resolve the Claude configuration roots a native rename may write to.
 ///
 /// Always includes the default `~/.claude`. A configured directory is only added
-/// once it passes [`validate_custom_claude_path`], which requires an absolute,
+/// once it passes [`crate::utils::validate_custom_claude_path`], which requires an absolute,
 /// non-symlinked base with a real `projects/` subdirectory. The allowlist can
 /// therefore only widen to directories the user registered and that the app
 /// already scans — never to arbitrary paths.
@@ -337,16 +337,13 @@ fn resolve_claude_roots(configured: &[String]) -> Vec<PathBuf> {
     roots
 }
 
-/// Push a root, resolved to its canonical form so it compares correctly against
-/// the canonicalized file path. Duplicates are skipped.
 /// Add an allowed Claude root. A root that is itself a symlink is rejected, so a
 /// symlinked `~/.claude` cannot smuggle its target into the allowlist and bypass
 /// the "only the project directory may be a symlink" policy.
 ///
-/// The path is stored as-is (not canonicalized): `validate_claude_path_with_roots`
-/// compares it lexically against the raw request path, so both sides must use the
-/// same representation. Canonicalizing here would break that on Windows, where
-/// `canonicalize()` yields the `\\?\` verbatim form.
+/// The path is stored as-is (not canonicalized): the validator normalizes only
+/// temporary comparison copies, while filesystem checks continue to use the
+/// original path and preserve the depth-1 project symlink policy.
 fn push_root(roots: &mut Vec<PathBuf>, path: PathBuf) {
     let is_symlink = fs::symlink_metadata(&path)
         .map(|m| m.file_type().is_symlink())
@@ -357,6 +354,35 @@ fn push_root(roots: &mut Vec<PathBuf>, path: PathBuf) {
     if !roots.contains(&path) {
         roots.push(path);
     }
+}
+
+/// Remove the extended-length prefix that Windows may add to canonical paths.
+/// Keep this cross-platform so the representation rule can be unit-tested on
+/// Unix hosts as well.
+fn strip_windows_extended_prefix(path: &Path) -> PathBuf {
+    let raw = path.to_string_lossy();
+    if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    if let Some(rest) = raw.strip_prefix(r"\\?\") {
+        return PathBuf::from(rest);
+    }
+    path.to_path_buf()
+}
+
+/// Normalize only the representation used for the allowlist boundary check.
+/// Windows paths are case-insensitive for normal filesystem access, while
+/// Unix paths retain their case-sensitive semantics.
+fn normalize_path_for_comparison(path: &Path) -> PathBuf {
+    let stripped = strip_windows_extended_prefix(path);
+
+    #[cfg(windows)]
+    {
+        return PathBuf::from(stripped.to_string_lossy().to_ascii_lowercase());
+    }
+
+    #[cfg(not(windows))]
+    stripped
 }
 
 fn allowed_claude_roots() -> Vec<PathBuf> {
@@ -385,6 +411,7 @@ fn validate_claude_path_with_roots(
     allowed_roots: &[PathBuf],
 ) -> Result<(), String> {
     let file_path_buf = std::path::PathBuf::from(file_path);
+    let comparison_file_path = normalize_path_for_comparison(&file_path_buf);
 
     // 1. Require absolute path
     if !file_path_buf.is_absolute() {
@@ -417,9 +444,10 @@ fn validate_claude_path_with_roots(
     // lexically: the path from the root down to `projects/` is always real, so
     // the only symlink (if any) is the project directory just below it.
     let Some((projects_dir, relative)) = allowed_roots.iter().find_map(|root| {
-        let projects_dir = root.join("projects");
-        file_path_buf
-            .strip_prefix(&projects_dir)
+        let projects_dir = strip_windows_extended_prefix(&root.join("projects"));
+        let comparison_projects_dir = normalize_path_for_comparison(&projects_dir);
+        comparison_file_path
+            .strip_prefix(&comparison_projects_dir)
             .ok()
             .map(|rel| (projects_dir, rel.to_path_buf()))
     }) else {
@@ -1758,6 +1786,18 @@ mod tests {
         assert!(
             validate_claude_path_with_roots(&non_session.to_string_lossy(), &roots).is_err(),
             "only .jsonl session files may be renamed"
+        );
+    }
+
+    #[test]
+    fn normalizes_windows_verbatim_path_prefix_for_root_comparison() {
+        assert_eq!(
+            normalize_path_for_comparison(Path::new(r"\\?\C:\Users\Alice\.claude")),
+            PathBuf::from(r"C:\Users\Alice\.claude")
+        );
+        assert_eq!(
+            normalize_path_for_comparison(Path::new(r"\\?\UNC\server\share\.claude")),
+            PathBuf::from(r"\\server\share\.claude")
         );
     }
 

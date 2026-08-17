@@ -20,6 +20,8 @@
 import { toast } from "sonner";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
+import { isWebUI } from "@/utils/platform";
+import { readWebUIDeepLink } from "@/utils/webuiDeepLink";
 import type { SessionPickerCandidate } from "@/store/slices/sessionPickerSlice";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 
@@ -49,6 +51,12 @@ export interface PreloadDependencies {
   openSessionPicker: (candidates: SessionPickerCandidate[], hintValue: string) => void;
   /** i18n translator for the not-found toast. */
   t: Translator;
+  /**
+   * Returns false when a newer navigation request superseded this preload.
+   * Optional so callers that do not have concurrent navigation can use the
+   * resolver without maintaining a request token.
+   */
+  isCurrent?: () => boolean;
 }
 
 /**
@@ -56,6 +64,11 @@ export interface PreloadDependencies {
  * that calls the Tauri / WebUI backend.
  */
 export async function fetchStartupSessionHint(): Promise<SessionHint | null> {
+  if (isWebUI()) {
+    const { sessionId } = readWebUIDeepLink();
+    return sessionId ? { kind: "uuid", value: sessionId } : null;
+  }
+
   try {
     return await api<SessionHint | null>("get_startup_session_hint");
   } catch (error) {
@@ -162,16 +175,22 @@ async function loadSessionsFor(
  * Returns `null` when the race guard fires so callers can distinguish "user
  * picked something" from "no matches."
  */
-async function scanAllProjects(projects: ClaudeProject[]): Promise<ProjectSessionsPair[] | null> {
+async function scanAllProjects(
+  projects: ClaudeProject[],
+  isCurrent: () => boolean,
+): Promise<ProjectSessionsPair[] | null> {
   const { excludeSidechain } = useAppStore.getState();
   const out: ProjectSessionsPair[] = [];
 
   for (const project of projects) {
-    if (useAppStore.getState().selectedSession) {
+    if (!isCurrent() || useAppStore.getState().selectedSession) {
       return null;
     }
     try {
       const sessions = await loadSessionsFor(project, excludeSidechain);
+      if (!isCurrent() || useAppStore.getState().selectedSession) {
+        return null;
+      }
       out.push({ project, sessions });
     } catch (error) {
       console.warn(`preloadSession: failed to scan project ${project.name}:`, error);
@@ -187,12 +206,14 @@ async function scanAllProjects(projects: ClaudeProject[]): Promise<ProjectSessio
 async function resolveUuid(
   uuid: string,
   projects: ClaudeProject[],
+  isCurrent: () => boolean,
 ): Promise<SessionPickerCandidate | null> {
   const { excludeSidechain } = useAppStore.getState();
   for (const project of projects) {
-    if (useAppStore.getState().selectedSession) return null;
+    if (!isCurrent() || useAppStore.getState().selectedSession) return null;
     try {
       const sessions = await loadSessionsFor(project, excludeSidechain);
+      if (!isCurrent() || useAppStore.getState().selectedSession) return null;
       const session = matchByUuid(sessions, uuid);
       if (session) return { project, session };
     } catch (error) {
@@ -205,12 +226,14 @@ async function resolveUuid(
 async function resolvePath(
   absPath: string,
   projects: ClaudeProject[],
+  isCurrent: () => boolean,
 ): Promise<SessionPickerCandidate | null> {
   const { excludeSidechain } = useAppStore.getState();
   for (const project of projects) {
-    if (useAppStore.getState().selectedSession) return null;
+    if (!isCurrent() || useAppStore.getState().selectedSession) return null;
     try {
       const sessions = await loadSessionsFor(project, excludeSidechain);
+      if (!isCurrent() || useAppStore.getState().selectedSession) return null;
       const session = matchByPath(sessions, absPath);
       if (session) return { project, session };
     } catch (error) {
@@ -223,6 +246,7 @@ async function resolvePath(
 async function resolveFolder(
   folderName: string,
   projects: ClaudeProject[],
+  isCurrent: () => boolean,
 ): Promise<SessionPickerCandidate | null> {
   // Folder name matches the project directory name, not the full path.
   const lower = folderName.toLowerCase();
@@ -232,13 +256,14 @@ async function resolveFolder(
     const name = parts[parts.length - 1] ?? "";
     return name.toLowerCase() === lower;
   });
-  if (!target) return null;
+  if (!target || !isCurrent()) return null;
 
   if (useAppStore.getState().selectedSession) return null;
 
   try {
     const { excludeSidechain } = useAppStore.getState();
     const sessions = await loadSessionsFor(target, excludeSidechain);
+    if (!isCurrent() || useAppStore.getState().selectedSession) return null;
     // Pick the most recently modified session as the "default" for a folder hint.
     const sorted = [...sessions].sort((a, b) => {
       const at = a.last_modified ?? "";
@@ -263,12 +288,14 @@ async function resolveFolder(
 async function resolveTitle(
   substring: string,
   projects: ClaudeProject[],
+  isCurrent: () => boolean,
 ): Promise<SessionPickerCandidate[] | null> {
-  const scanned = await scanAllProjects(projects);
+  const scanned = await scanAllProjects(projects, isCurrent);
   if (scanned === null) return null;
 
   const candidates: SessionPickerCandidate[] = [];
   for (const { project, sessions } of scanned) {
+    if (!isCurrent() || useAppStore.getState().selectedSession) return null;
     for (const session of matchByTitle(sessions, substring)) {
       candidates.push({ project, session });
     }
@@ -283,24 +310,41 @@ async function resolveTitle(
 export async function preloadSessionFromCli(
   deps: PreloadDependencies,
 ): Promise<{ handled: boolean; matched: boolean }> {
+  const isCurrent = () => deps.isCurrent?.() ?? true;
+  if (!isCurrent()) {
+    return { handled: true, matched: false };
+  }
+
   const hint = await deps.getStartupSessionHint();
-  if (!hint) {
+  if (!hint || !isCurrent()) {
     return { handled: false, matched: false };
   }
 
   // Dispatch per kind.
   if (hint.kind === "uuid") {
-    return commitSingleMatch(await resolveUuid(hint.value, deps.projects), deps);
+    return commitSingleMatch(
+      await resolveUuid(hint.value, deps.projects, isCurrent),
+      deps,
+      isCurrent,
+    );
   }
   if (hint.kind === "path") {
-    return commitSingleMatch(await resolvePath(hint.value, deps.projects), deps);
+    return commitSingleMatch(
+      await resolvePath(hint.value, deps.projects, isCurrent),
+      deps,
+      isCurrent,
+    );
   }
   if (hint.kind === "folder") {
-    return commitSingleMatch(await resolveFolder(hint.value, deps.projects), deps);
+    return commitSingleMatch(
+      await resolveFolder(hint.value, deps.projects, isCurrent),
+      deps,
+      isCurrent,
+    );
   }
   if (hint.kind === "title") {
-    const matches = await resolveTitle(hint.value, deps.projects);
-    if (matches === null) {
+    const matches = await resolveTitle(hint.value, deps.projects, isCurrent);
+    if (matches === null || !isCurrent()) {
       // Race guard tripped during scan — user chose something else.
       return { handled: true, matched: false };
     }
@@ -312,10 +356,10 @@ export async function preloadSessionFromCli(
       return { handled: true, matched: false };
     }
     if (matches.length === 1) {
-      return commitSingleMatch(matches[0] ?? null, deps);
+      return commitSingleMatch(matches[0] ?? null, deps, isCurrent);
     }
     // Multi-match: delegate to the picker modal.
-    if (useAppStore.getState().selectedSession) {
+    if (!isCurrent() || useAppStore.getState().selectedSession) {
       return { handled: true, matched: false };
     }
     deps.openSessionPicker(matches, hint.value);
@@ -333,24 +377,28 @@ export async function preloadSessionFromCli(
 async function commitSingleMatch(
   match: SessionPickerCandidate | null,
   deps: PreloadDependencies,
+  isCurrent: () => boolean,
 ): Promise<{ handled: boolean; matched: boolean }> {
+  if (!isCurrent()) {
+    return { handled: true, matched: false };
+  }
   if (!match) {
-    if (useAppStore.getState().selectedSession) {
+    if (!isCurrent() || useAppStore.getState().selectedSession) {
       return { handled: true, matched: false };
     }
     toast.error(deps.t("globalSearch.sessionNotFound", "Session not found"));
     return { handled: true, matched: false };
   }
-  if (useAppStore.getState().selectedSession) {
+  if (!isCurrent() || useAppStore.getState().selectedSession) {
     return { handled: true, matched: false };
   }
   await deps.selectProject(match.project);
   // Re-check after the project-load await: the user may have clicked a
   // session while selectProject was loading. Skipping this check lets the
   // CLI hint clobber their manual choice.
-  if (useAppStore.getState().selectedSession) {
+  if (!isCurrent() || useAppStore.getState().selectedSession) {
     return { handled: true, matched: false };
   }
   await deps.selectSession(match.session);
-  return { handled: true, matched: true };
+  return { handled: true, matched: isCurrent() };
 }

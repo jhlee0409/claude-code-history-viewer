@@ -272,7 +272,9 @@ fn load_messages_conn(conn: &Connection, conv_id: &str) -> Result<Vec<ClaudeMess
                     output_tokens: output_tokens.map(|t| t.max(0) as u32),
                     cache_creation_input_tokens: None,
                     cache_read_input_tokens: None,
+                    reasoning_tokens: None,
                     service_tier: None,
+                    ..Default::default()
                 });
             }
             messages.push(msg);

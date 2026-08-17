@@ -119,6 +119,14 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                   </span>
                 </div>
               )}
+              {typeof usage.reasoning_tokens === "number" && (
+                <div>
+                  <span className="text-muted-foreground">{t("analytics.reasoning", "Reasoning")}</span>
+                  <span className="font-medium text-foreground ml-1">
+                    {usage.reasoning_tokens.toLocaleString()}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

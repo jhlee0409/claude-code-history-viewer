@@ -8,7 +8,7 @@
 // Provider Types
 // ============================================================================
 
-export type ProviderId = "aider" | "amazonq" | "antigravity" | "claude" | "cline" | "codebuddy" | "codex" | "continue" | "copilot" | "crush" | "cursor" | "cursor-agent" | "forgecode" | "gemini" | "goose" | "kimi" | "kimi-code" | "kiro" | "llm" | "ompi" | "opencode" | "openhands" | "openinterpreter" | "pearai" | "pi" | "qwen" | "trae" | "vibe" | "zed";
+export type ProviderId = "aider" | "amazonq" | "antigravity" | "claude" | "cline" | "codebuddy" | "codex" | "continue" | "copilot" | "crush" | "cursor" | "cursor-agent" | "forgecode" | "gemini" | "goose" | "grok" | "kimi" | "kimi-code" | "kiro" | "llm" | "ompi" | "opencode" | "openhands" | "openinterpreter" | "pearai" | "pi" | "qwen" | "trae" | "vibe" | "zed";
 
 export interface ProviderInfo {
   id: ProviderId;
@@ -42,6 +42,9 @@ export interface GitCommit {
 // Project & Session
 // ============================================================================
 
+/** The last-known project path no longer exists on this machine. */
+export type ProjectPathStatus = "unavailable";
+
 export interface ClaudeProject {
   name: string;
   /** Claude session storage path (e.g., "~/.claude/projects/-Users-jack-client-my-project") */
@@ -51,6 +54,8 @@ export interface ClaudeProject {
   session_count: number;
   message_count: number;
   last_modified: string;
+  /** Path-dependent actions are unavailable while the last-known path is missing. */
+  path_status?: ProjectPathStatus;
   /** Git worktree 정보 */
   git_info?: GitInfo;
   /** Provider identifier (claude, codex, opencode) */

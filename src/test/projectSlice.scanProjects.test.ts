@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
+import { toast } from "sonner";
 import { api } from "../services/api";
 import {
   createProjectSlice,
@@ -16,6 +17,12 @@ import {
 
 vi.mock("../services/api", () => ({
   api: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+  },
 }));
 
 type Deferred<T> = {
@@ -45,6 +52,9 @@ type TestStore = ProjectSlice & {
   messages: unknown[];
   activeProviders: ProviderInfo["id"][];
   detectProviders: ReturnType<typeof vi.fn>;
+  setActiveProviders: ReturnType<typeof vi.fn>;
+  loadMetadata: ReturnType<typeof vi.fn>;
+  loadServerConfig: ReturnType<typeof vi.fn>;
   exitSessionSelectionMode: ReturnType<typeof vi.fn>;
   selectSession: ReturnType<typeof vi.fn>;
   loadGlobalStats: ReturnType<typeof vi.fn>;
@@ -107,7 +117,12 @@ const createTestStore = () =>
     analytics: { currentView: "messages" },
     messages: [],
     activeProviders: ["claude"],
-    detectProviders: vi.fn().mockResolvedValue(undefined),
+    detectProviders: vi.fn().mockResolvedValue(true),
+    setActiveProviders: vi.fn().mockImplementation((ids: ProviderInfo["id"][]) => {
+      set({ activeProviders: ids });
+    }),
+    loadMetadata: vi.fn().mockResolvedValue(undefined),
+    loadServerConfig: vi.fn().mockResolvedValue(undefined),
     // Cross-slice dep added by the multi-select feature: selectProject /
     // clearProjectSelection abandon any in-progress session selection.
     exitSessionSelectionMode: vi.fn(),
@@ -146,6 +161,20 @@ const createTestStore = () =>
 describe("projectSlice scanProjects", () => {
   beforeEach(() => {
     vi.mocked(api).mockReset();
+    vi.mocked(toast.error).mockReset();
+    delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("clears the WebUI deep link with browser history control", () => {
+    window.history.replaceState({}, "", "/?session=session-1&msg=message-1");
+    const store = createTestStore();
+
+    store.getState().clearProjectSelection({ history: "replace" });
+
+    const url = new URL(window.location.href);
+    expect(url.searchParams.get("session")).toBeNull();
+    expect(url.searchParams.get("msg")).toBeNull();
   });
 
   it("publishes each provider as soon as that provider scan completes", async () => {
@@ -234,6 +263,239 @@ describe("projectSlice scanProjects", () => {
       geminiProject,
       codexProject,
     ]);
+  });
+
+  it("limits the initial scan to Claude before provider discovery is requested", async () => {
+    const store = createTestStore();
+    const claudeProject = createMockProject("initial-claude");
+
+    store.setState({
+      claudePath: "/root/.claude",
+      providers: [],
+      activeProviders: ["claude"],
+    });
+
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "scan_projects") {
+        return Promise.resolve([claudeProject]);
+      }
+      if (command === "scan_all_projects") {
+        return Promise.reject(
+          new Error("initial startup must not scan non-Claude providers")
+        );
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().scanProjects();
+
+    expect(store.getState().projects).toEqual([
+      { ...claudeProject, provider: "claude" },
+    ]);
+    expect(vi.mocked(api)).toHaveBeenCalledWith("scan_projects", {
+      claudePath: "/root/.claude",
+    });
+    expect(vi.mocked(api)).not.toHaveBeenCalledWith(
+      "scan_all_projects",
+      expect.anything()
+    );
+  });
+
+  it("restores explicitly discovered providers when Claude is not installed", async () => {
+    const store = createTestStore();
+    const codexProject = createMockProject("persisted-codex", "codex");
+
+    store.setState({
+      claudePath: "",
+      providers: [],
+      activeProviders: ["claude"],
+      userMetadata: {
+        ...DEFAULT_USER_METADATA,
+        settings: { discoveredProviderIds: ["codex"] },
+      },
+    });
+
+    vi.mocked(api).mockImplementation((command, args) => {
+      if (command === "get_claude_folder_path") {
+        return Promise.reject(new Error("CLAUDE_FOLDER_NOT_FOUND:missing"));
+      }
+      if (command === "scan_all_projects") {
+        expect(args).toEqual({ activeProviders: ["codex"] });
+        return Promise.resolve([codexProject]);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+
+    expect(store.getState().error).toBeNull();
+    expect(store.getState().projects).toEqual([codexProject]);
+    expect(store.getState().detectProviders).not.toHaveBeenCalled();
+    expect(store.getState().setActiveProviders).toHaveBeenCalledWith(["codex"]);
+  });
+
+  it("initializes WSL-only sources when native Claude is unavailable", async () => {
+    const store = createTestStore();
+    const wslProject = createMockProject("wsl-only");
+
+    store.setState({
+      claudePath: "",
+      providers: [],
+      activeProviders: ["claude"],
+      userMetadata: {
+        ...DEFAULT_USER_METADATA,
+        settings: {
+          wsl: { enabled: true, excludedDistros: [] },
+        },
+      },
+    });
+
+    vi.mocked(api).mockImplementation((command, args) => {
+      if (command === "get_claude_folder_path") {
+        return Promise.reject(new Error("CLAUDE_FOLDER_NOT_FOUND:missing"));
+      }
+      if (command === "scan_all_projects") {
+        expect(args).toEqual({
+          activeProviders: ["claude"],
+          wslEnabled: true,
+          wslExcludedDistros: [],
+        });
+        return Promise.resolve([wslProject]);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().initializeApp();
+
+    expect(store.getState().error).toBeNull();
+    expect(store.getState().projects).toEqual([
+      { ...wslProject, provider: "claude" },
+    ]);
+    expect(store.getState().detectProviders).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(api).mock.calls.some(([command]) => command === "scan_projects"),
+    ).toBe(false);
+  });
+
+  it("persists the provider IDs returned by explicit discovery", async () => {
+    const store = createTestStore();
+    const codexProject = createMockProject("discovered-codex", "codex");
+    const updateUserSettings = vi.fn().mockImplementation(
+      async (update: UserMetadata["settings"]) => {
+        store.setState({
+          userMetadata: {
+            ...store.getState().userMetadata,
+            settings: {
+              ...store.getState().userMetadata.settings,
+              ...update,
+            },
+          },
+        });
+      }
+    );
+
+    store.setState({
+      claudePath: "",
+      providers: [
+        {
+          id: "codex",
+          display_name: "Codex",
+          base_path: "/root/.codex",
+          is_available: true,
+        },
+      ],
+      activeProviders: ["codex"],
+      updateUserSettings,
+    });
+
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "detect_claude_config_dir") {
+        return Promise.resolve(null);
+      }
+      if (command === "scan_all_projects") {
+        return Promise.resolve([codexProject]);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().discoverProviders();
+
+    expect(updateUserSettings).toHaveBeenCalledWith({
+      discoveredProviderIds: ["codex"],
+    });
+    expect(store.getState().userMetadata.settings.discoveredProviderIds).toEqual([
+      "codex",
+    ]);
+    expect(store.getState().projects).toEqual([codexProject]);
+  });
+
+  it("preserves persisted provider IDs when explicit discovery fails", async () => {
+    const store = createTestStore();
+    const codexProject = createMockProject("saved-codex", "codex");
+    const updateUserSettings = vi.fn();
+
+    store.setState({
+      claudePath: "",
+      providers: [],
+      activeProviders: ["codex"],
+      userMetadata: {
+        ...DEFAULT_USER_METADATA,
+        settings: { discoveredProviderIds: ["codex"] },
+      },
+      detectProviders: vi.fn().mockResolvedValue(false),
+      updateUserSettings,
+    });
+
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "scan_all_projects") {
+        return Promise.resolve([codexProject]);
+      }
+      if (command === "detect_claude_config_dir") {
+        return Promise.resolve(null);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().discoverProviders();
+
+    expect(updateUserSettings).not.toHaveBeenCalled();
+    expect(store.getState().userMetadata.settings.discoveredProviderIds).toEqual([
+      "codex",
+    ]);
+    expect(store.getState().projects).toEqual([codexProject]);
+  });
+
+  it("surfaces provider settings persistence failures", async () => {
+    const store = createTestStore();
+    const updateUserSettings = vi.fn().mockRejectedValue(new Error("save failed"));
+
+    store.setState({
+      claudePath: "",
+      providers: [
+        {
+          id: "codex",
+          display_name: "Codex",
+          base_path: "/root/.codex",
+          is_available: true,
+        },
+      ],
+      activeProviders: ["codex"],
+      updateUserSettings,
+    });
+
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "detect_claude_config_dir") {
+        return Promise.resolve(null);
+      }
+      if (command === "scan_all_projects") {
+        return Promise.resolve([]);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().discoverProviders();
+
+    expect(toast.error).toHaveBeenCalledWith(expect.any(String));
   });
 
   it("reports provider errors when successful scans return no projects", async () => {

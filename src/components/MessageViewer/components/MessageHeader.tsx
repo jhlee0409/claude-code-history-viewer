@@ -110,6 +110,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 {message.usage.output_tokens && <p>{t("assistantMessageDetails.output")}: {message.usage.output_tokens.toLocaleString()}</p>}
                 {message.usage.cache_creation_input_tokens ? <p>{t("assistantMessageDetails.cacheCreation")}: {message.usage.cache_creation_input_tokens.toLocaleString()}</p> : null}
                 {message.usage.cache_read_input_tokens ? <p>{t("assistantMessageDetails.cacheRead")}: {message.usage.cache_read_input_tokens.toLocaleString()}</p> : null}
+                {typeof message.usage.reasoning_tokens === "number" ? <p>{t("analytics.reasoning", "Reasoning")}: {message.usage.reasoning_tokens.toLocaleString()}</p> : null}
                 <div className="absolute right-4 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-popover"></div>
               </div>
             </>

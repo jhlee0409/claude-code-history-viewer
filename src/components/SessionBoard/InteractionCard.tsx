@@ -218,7 +218,12 @@ export const InteractionCard = memo(({
         const totalMessagesCount = (siblings?.length || 0) + 1;
         const totalTokens = [message, ...(siblings || [])].reduce((sum, m) => {
             const usage = isClaudeAssistantMessage(m) ? m.usage : null;
-            return sum + (usage?.input_tokens || 0) + (usage?.output_tokens || 0);
+            return sum +
+                (usage?.input_tokens || 0) +
+                (usage?.output_tokens || 0) +
+                (usage?.cache_creation_input_tokens || 0) +
+                (usage?.cache_read_input_tokens || 0) +
+                (usage?.reasoning_tokens || 0);
         }, 0);
 
         // Normalize height: min 4px, max 24px, typical range handled logarithmically or linearly capped
@@ -555,6 +560,9 @@ export const InteractionCard = memo(({
                     <div className="mt-auto pt-1 flex gap-2 text-px9 text-muted-foreground opacity-60 font-mono items-center">
                         <span>{t("session.interaction.inputTokens")} {message.usage.input_tokens}</span>
                         <span>{t("session.interaction.outputTokens")} {message.usage.output_tokens}</span>
+                        {message.usage.reasoning_tokens ? (
+                            <span>{t("analytics.reasoning", "Reasoning")} {message.usage.reasoning_tokens}</span>
+                        ) : null}
 
                         {/* Cache Hit Indicator */}
                         {message.usage.cache_read_input_tokens && message.usage.cache_read_input_tokens > 0 && (

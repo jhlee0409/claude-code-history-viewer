@@ -19,6 +19,7 @@ pub mod cursor_agent;
 pub mod forgecode;
 pub mod gemini;
 pub mod goose;
+pub mod grok;
 pub mod kimi;
 /// Kimi Code CLI (new version) — `~/.kimi-code/sessions/<wd_key>/<session>/agents/main/wire.jsonl`.
 pub mod kimi_code;
@@ -65,6 +66,8 @@ pub enum ProviderId {
     CursorAgent,
     Gemini,
     Goose,
+    /// xAI Grok CLI (`~/.grok/sessions`).
+    Grok,
     Kimi,
     /// Kimi Code CLI (new version, `~/.kimi-code`) — distinct from legacy `kimi`.
     #[serde(rename = "kimi-code")]
@@ -110,6 +113,7 @@ impl ProviderId {
             Self::CursorAgent => "cursor-agent",
             Self::Gemini => "gemini",
             Self::Goose => "goose",
+            Self::Grok => "grok",
             Self::Kimi => "kimi",
             Self::KimiCode => "kimi-code",
             Self::ForgeCode => "forgecode",
@@ -144,6 +148,7 @@ impl ProviderId {
             "cursor-agent" => Some(Self::CursorAgent),
             "gemini" => Some(Self::Gemini),
             "goose" => Some(Self::Goose),
+            "grok" => Some(Self::Grok),
             "kimi" => Some(Self::Kimi),
             "kimi-code" => Some(Self::KimiCode),
             "forgecode" => Some(Self::ForgeCode),
@@ -179,6 +184,7 @@ impl ProviderId {
             Self::CursorAgent => "Cursor Agent",
             Self::Gemini => "Gemini CLI",
             Self::Goose => "Goose",
+            Self::Grok => "Grok CLI",
             Self::Kimi => "Kimi CLI",
             Self::KimiCode => "Kimi Code CLI",
             Self::ForgeCode => "ForgeCode",
@@ -227,6 +233,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = goose::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = grok::detect() {
         providers.push(info);
     }
     if let Some(info) = kimi::detect() {

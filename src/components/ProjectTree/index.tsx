@@ -92,6 +92,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const activeProviders = useAppStore((state) => state.activeProviders);
   const detectedProviders = useAppStore((state) => state.providers);
   const isDetectingProviders = useAppStore((state) => state.isDetectingProviders);
+  const isLoadingProjects = useAppStore((state) => state.isLoadingProjects);
+  const discoverProviders = useAppStore((state) => state.discoverProviders);
   const setActiveProviders = useAppStore((state) => state.setActiveProviders);
   const loadGlobalStats = useAppStore((state) => state.loadGlobalStats);
   const clearProjectSelection = useAppStore(
@@ -102,6 +104,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     expandedProjects,
     setExpandedProjects,
     isProjectExpanded,
+    ensureProjectExpanded,
     contextMenu,
     handleContextMenu,
     closeContextMenu,
@@ -151,6 +154,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       forgecode: 0,
       gemini: 0,
       goose: 0,
+      grok: 0,
       kimi: 0,
       "kimi-code": 0,
       kiro: 0,
@@ -316,6 +320,13 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     );
     await applyProviderSelection(next.length > 0 ? next : [provider]);
   }, [applyProviderSelection, isAllProvidersSelected, selectableProviderIds, selectedProviderFilters]);
+
+  const handleDiscoverProviders = useCallback(() => {
+    void discoverProviders().catch((error) => {
+      console.error("Failed to discover providers:", error);
+      toast.error(t("common.provider.detectError"));
+    });
+  }, [discoverProviders, t]);
 
   // Defer the filtering work: the input echoes each keystroke immediately
   // while re-filtering hundreds/thousands of projects runs as an
@@ -487,6 +498,46 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     [selectedProject, onProjectSelect, setExpandedProjects]
   );
 
+  const selectedProjectGroupKey = useMemo(() => {
+    if (!selectedProject) return undefined;
+
+    if (selectedProject.path_status === "unavailable") {
+      return "group:unavailable-projects";
+    }
+
+    if (groupingMode === "directory") {
+      const group = directoryGroups.find((candidate) =>
+        candidate.projects.some((project) => project.path === selectedProject.path)
+      );
+      return group ? `dir:${group.path}` : undefined;
+    }
+
+    if (groupingMode === "worktree") {
+      const group = worktreeGroups.find(
+        (candidate) =>
+          candidate.parent.path === selectedProject.path ||
+          candidate.children.some((project) => project.path === selectedProject.path)
+      );
+      return group ? `group:${group.parent.path}` : undefined;
+    }
+
+    return undefined;
+  }, [directoryGroups, groupingMode, selectedProject, worktreeGroups]);
+
+  // Global search and deep-link flows select projects through the store rather
+  // than through handleProjectClick, so the tree's local expansion state would
+  // otherwise stay collapsed (#486). Re-apply the selected project/session to
+  // the tree and include its containing group when grouped.
+  useEffect(() => {
+    if (!selectedProject?.path) return;
+    ensureProjectExpanded(selectedProject.path, selectedProjectGroupKey);
+  }, [
+    ensureProjectExpanded,
+    selectedProject?.path,
+    selectedProjectGroupKey,
+    selectedSession?.file_path,
+  ]);
+
   const handleGlobalStatsClick = useCallback(() => {
     // Global stats 진입 시 현재 열려 있는 프로젝트 확장을 닫는다.
     setExpandedProjects((prev) => {
@@ -576,6 +627,22 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     selectedProject?.path,
     isViewingGlobalStats,
   ]);
+
+  useEffect(() => {
+    if (!selectedProject?.path || !treeRef.current) return;
+
+    const frameId = requestAnimationFrame(() => {
+      const projectItem = Array.from(
+        treeRef.current?.querySelectorAll<HTMLElement>(
+          '[data-tree-node="project"]'
+        ) ?? []
+      ).find((item) => item.dataset.projectPath === selectedProject.path);
+
+      projectItem?.scrollIntoView?.({ block: "nearest" });
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [expandedProjects, selectedProject?.path, selectedSession?.file_path]);
 
   const handleTreeKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     const treeItems = Array.from(
@@ -910,7 +977,27 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               </button>
             </div>
             <CollapsibleContent>
-              <div className="mt-2 max-h-44 overflow-y-auto pr-1">
+              <div className="mt-2 space-y-2 max-h-52 overflow-y-auto pr-1">
+                <button
+                  type="button"
+                  onClick={handleDiscoverProviders}
+                  disabled={isDetectingProviders || isLoadingProjects}
+                  className={cn(
+                    "inline-flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-2xs font-medium transition-colors",
+                    isDetectingProviders || isLoadingProjects
+                      ? "cursor-not-allowed border-transparent bg-muted/20 text-muted-foreground/50"
+                      : "border-accent/20 bg-accent/5 text-accent hover:bg-accent/10"
+                  )}
+                  title={t("project.discoverProviders", "Find other providers")}
+                  aria-label={t("project.discoverProviders", "Find other providers")}
+                >
+                  <Search className="h-3 w-3" aria-hidden="true" />
+                  <span>
+                    {isDetectingProviders || isLoadingProjects
+                      ? t("project.discoveringProviders", "Searching for providers...")
+                      : t("project.discoverProviders", "Find other providers")}
+                  </span>
+                </button>
                 <div className="flex flex-wrap items-center gap-1">
                   {providerTabs.map((tab) => {
                     const isActive = tab.id === "all"

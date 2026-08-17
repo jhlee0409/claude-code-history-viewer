@@ -11,6 +11,7 @@ import type { SessionTokenStats, SessionComparison, ProviderId } from "../../../
 import { formatTime } from "../../../utils/time";
 import { SectionCard, TokenDistributionChart, BillingBreakdownCard } from "../components";
 import {
+  calculateGlobalCostSummary,
   formatNumber,
   calculateSessionMetrics,
   calculateSessionComparisonMetrics,
@@ -46,6 +47,21 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
     [sessionComparison, totalProjectSessions]
   );
   const billingTokens = sessionStats.total_tokens;
+  const billingCostSummary = useMemo(
+    () =>
+      calculateGlobalCostSummary(
+        sessionStats.model_distribution ?? [],
+        sessionStats.total_tokens,
+      ),
+    [sessionStats.model_distribution, sessionStats.total_tokens],
+  );
+  const conversationCostSummary = useMemo(() => {
+    if (!conversationStats) return null;
+    return calculateGlobalCostSummary(
+      conversationStats.model_distribution ?? [],
+      conversationStats.total_tokens,
+    );
+  }, [conversationStats]);
 
   return (
     <div className="space-y-6">
@@ -161,6 +177,16 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
       <BillingBreakdownCard
         billingTokens={billingTokens}
         conversationTokens={conversationStats != null ? conversationStats.total_tokens : null}
+        billingCost={
+          billingCostSummary.pricedModels > 0
+            ? billingCostSummary.totalEstimatedCost
+            : null
+        }
+        conversationCost={
+          conversationCostSummary && conversationCostSummary.pricedModels > 0
+            ? conversationCostSummary.totalEstimatedCost
+            : null
+        }
         showProviderLimitHelp={!supportsConversationBreakdown(providerId)}
       />
 

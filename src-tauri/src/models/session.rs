@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 /// Git worktree 유형
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -23,7 +24,19 @@ pub struct GitInfo {
     pub main_project_path: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Availability of a project's last-known filesystem location.
+///
+/// This is intentionally only serialized for unavailable absolute paths. A
+/// missing worktree does not mean the conversation is gone; it only means
+/// path-dependent actions such as opening the folder or resuming in that cwd
+/// need to be disabled.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectPathStatus {
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ClaudeProject {
     pub name: String,
     /// Claude session storage path (e.g., "~/.claude/projects/-Users-jack-client-my-project")
@@ -45,6 +58,57 @@ pub struct ClaudeProject {
     /// Label for custom Claude directory source (e.g., "Personal")
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_directory_label: Option<String>,
+}
+
+#[derive(Serialize)]
+struct ClaudeProjectPayload<'a> {
+    name: &'a str,
+    path: &'a str,
+    actual_path: &'a str,
+    session_count: usize,
+    message_count: usize,
+    last_modified: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    path_status: Option<ProjectPathStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    git_info: &'a Option<GitInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider: &'a Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    storage_type: &'a Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    custom_directory_label: &'a Option<String>,
+}
+
+impl Serialize for ClaudeProject {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        ClaudeProjectPayload {
+            name: &self.name,
+            path: &self.path,
+            actual_path: &self.actual_path,
+            session_count: self.session_count,
+            message_count: self.message_count,
+            last_modified: &self.last_modified,
+            path_status: project_path_status(&self.actual_path),
+            git_info: &self.git_info,
+            provider: &self.provider,
+            storage_type: &self.storage_type,
+            custom_directory_label: &self.custom_directory_label,
+        }
+        .serialize(serializer)
+    }
+}
+
+fn project_path_status(actual_path: &str) -> Option<ProjectPathStatus> {
+    let path = actual_path.trim();
+    if path.is_empty() || path.contains("://") || !Path::new(path).is_absolute() {
+        return None;
+    }
+
+    (!Path::new(path).is_dir()).then_some(ProjectPathStatus::Unavailable)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +151,51 @@ pub struct GitCommit {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn project_with_path(actual_path: &str) -> ClaudeProject {
+        ClaudeProject {
+            name: "test-project".to_string(),
+            path: "/tmp/.claude/projects/-tmp-test-project".to_string(),
+            actual_path: actual_path.to_string(),
+            session_count: 1,
+            message_count: 1,
+            last_modified: "2026-01-01T00:00:00Z".to_string(),
+            git_info: None,
+            provider: None,
+            storage_type: None,
+            custom_directory_label: None,
+        }
+    }
+
+    #[test]
+    fn unavailable_project_path_is_exposed_without_hiding_the_project() {
+        let project = project_with_path("/definitely-missing-claude-project");
+        let serialized = serde_json::to_value(project).unwrap();
+
+        assert_eq!(
+            serialized.get("path_status"),
+            Some(&serde_json::json!("unavailable"))
+        );
+        assert_eq!(
+            serialized.get("name"),
+            Some(&serde_json::json!("test-project"))
+        );
+        assert_eq!(serialized.get("session_count"), Some(&serde_json::json!(1)));
+    }
+
+    #[test]
+    fn existing_and_virtual_project_paths_are_not_marked_unavailable() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let existing = serde_json::to_value(project_with_path(
+            temp_dir.path().to_string_lossy().as_ref(),
+        ))
+        .unwrap();
+        let virtual_path =
+            serde_json::to_value(project_with_path("forgecode://workspace/ws-123")).unwrap();
+
+        assert!(existing.get("path_status").is_none());
+        assert!(virtual_path.get("path_status").is_none());
+    }
 
     #[test]
     fn test_claude_session_serialization() {

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { ClaudeProject } from "../types";
 import { computeMenuPosition, type Boundary } from "@/utils/contextMenu";
+import { isProjectPathUnavailable } from "@/utils/pathUtils";
 
 interface ProjectContextMenuProps {
   project: ClaudeProject;
@@ -107,6 +108,10 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
     onClose();
   };
 
+  const copyPathLabel = isProjectPathUnavailable(project)
+    ? t("project.copyLastKnownPath", "Copy last-known path")
+    : t("project.copyPath");
+
   const handleHideClick = () => {
     if (isHidden) {
       onUnhide(project.actual_path);
@@ -147,7 +152,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
           className={menuItemClass}
         >
           <Copy className="w-4 h-4" />
-          <span>{t("project.copyPath")}</span>
+          <span>{copyPathLabel}</span>
         </button>
 
         {/* Hide/Unhide option */}

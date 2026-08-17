@@ -485,12 +485,24 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
                         // Apply to last assistant message without usage
                         if let Some(last_msg) = messages.last_mut() {
                             if last_msg.message_type == "assistant" && last_msg.usage.is_none() {
+                                let service_tier = payload
+                                    .get("service_tier")
+                                    .or_else(|| payload.get("serviceTier"))
+                                    .or_else(|| {
+                                        payload
+                                            .get("usage")
+                                            .and_then(|usage| usage.get("service_tier"))
+                                    })
+                                    .and_then(|value| value.as_str())
+                                    .map(str::to_string);
                                 last_msg.usage = Some(TokenUsage {
                                     input_tokens: Some(non_cached_input),
                                     output_tokens: Some(delta_output),
                                     cache_creation_input_tokens: None,
                                     cache_read_input_tokens: Some(delta_cached),
-                                    service_tier: None,
+                                    reasoning_tokens: None,
+                                    service_tier,
+                                    ..Default::default()
                                 });
                             }
                         }

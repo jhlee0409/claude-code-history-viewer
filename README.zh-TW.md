@@ -6,7 +6,7 @@
 
 **AI 程式設計助手的統一歷史檢視器。**
 
-瀏覽、搜尋和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode** 和 **CodeBuddy Code** 的對話記錄 — 桌面應用程式或無頭伺服器。100% 離線。
+瀏覽、搜尋和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的對話記錄 — 桌面應用程式或無頭伺服器。100% 離線。
 
 [![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
@@ -51,11 +51,18 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 **無頭伺服器** — 從任何瀏覽器存取：
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://...install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
 Docker、VPS、systemd 設定請參閱[伺服器模式](#伺服器模式-webui)。
+
+**選擇模式：**
+
+| 模式 | 適用情境 | 運作方式 |
+|------|----------|----------|
+| 桌面應用程式 | 本機瀏覽 | 在原生應用程式中開啟本機對話檔案 |
+| 無頭伺服器 | 瀏覽器、VPS 或遠端存取 | 透過 WebUI 提供本機對話檔案；請保持啟用驗證 |
 
 ---
 
@@ -63,7 +70,7 @@ Docker、VPS、systemd 設定請參閱[伺服器模式](#伺服器模式-webui)�
 
 AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供跨工具回顧歷史的方式。CCHV 解決了這個問題。
 
-**二十八個助手。一個檢視器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae 工作階段之間無縫切換 — 比較 Token 用量、跨提供者搜尋、在一個介面中分析您的工作流程。
+**二十九個助手。一個檢視器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae 工作階段之間無縫切換 — 比較 Token 用量、跨提供者搜尋、在一個介面中分析您的工作流程。
 
 | 提供者 | 資料位置 | 取得內容 |
 |----------|--------------|--------------|
@@ -79,6 +86,7 @@ AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供�
 | **OpenCode** | `~/.local/share/opencode/` | 對話工作階段和工具結果 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 資料庫中的對話記錄 |
 | **CodeBuddy Code** | `~/.codebuddy/projects/` | 包含工具呼叫的對話記錄（Claude Code fork 格式） |
+| **Grok CLI** | `~/.grok/sessions/` | Grok CLI 對話、工具呼叫與模型用量 |
 | **Kimi** | `~/.kimi/` | 工作階段記錄，支援 `kimi -r` 恢復 |
 | **Kiro** | `kiro-cli/data.sqlite3` | 以 SQLite 為後端的對話記錄 |
 | **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` 儲存（與 Kiro CLI 提供者共用格式） |
@@ -120,7 +128,7 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 
 | 功能 | 說明 |
 |---------|-------------|
-| **多提供者支援** | 統一檢視 **28 個 AI 程式設計助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae — 依提供者篩選、跨工具比較 |
+| **多提供者支援** | 統一檢視 **29 個 AI 程式設計助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands 和 Trae — 依提供者篩選、跨工具比較 |
 | **對話瀏覽器** | 依專案/工作階段瀏覽對話記錄，支援工作樹分組 |
 | **全域搜尋** | 即時搜尋所有提供者的對話記錄 |
 | **分析儀表板** | 雙模式 Token 統計（帳單 vs 對話）、成本明細、提供者分佈圖表 |
@@ -134,6 +142,16 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 | 提供者 | 說明 |
 |---------|-------|
 | **Antigravity** | 透過標準 provider 資料流載入。工作階段來自 token monitor 快取，可直接參與專案/工作階段瀏覽、Token 統計、分析儀表板與全域搜尋，無需另外建立專用 UI 模式。 |
+
+### v1.23.0 新增
+
+| 功能 | 說明 |
+|------|------|
+| **Grok CLI 提供者** | 瀏覽與搜尋 `~/.grok/sessions/` 中的 Grok CLI 工作階段，並將模型/Token 用量納入分析 |
+| **工作階段連續性** | 將相關的 Claude 逐字稿檔案合併為一個可瀏覽的對話 |
+| **WebUI 深連結** | 支援可分享的連結，直接開啟指定的工作階段與訊息 |
+| **更安全的導覽與恢復** | 全域搜尋選取結果會同步所屬專案/工作階段；不可用工作樹的歷史仍會保留，同時停用無效的恢復操作；Windows 恢復命令同時支援 CMD 與 PowerShell |
+| **提供者探索修正** | 提供者專用與 WSL 專用掃描不再假設本機一定存在 Claude 資料目錄 |
 
 ### v1.18.0 新增
 
@@ -234,12 +252,10 @@ brew uninstall --cask claude-code-history-viewer
 ```
 
 > **從手動安裝 (.dmg) 遷移？**
-> 為避免衝突，請先刪除現有應用程式，然後透過 Homebrew 安裝。
+> 為避免衝突，請先在 Finder 中將現有應用程式移至垃圾桶，然後透過 Homebrew 安裝。
 > 請只使用**一種**安裝方式 — 不要混合使用手動安裝和 Homebrew。
+> 接著執行：
 > ```bash
-> # 先刪除手動安裝的應用程式
-> rm -rf "/Applications/Claude Code History Viewer.app"
-> # 透過 Homebrew 安裝
 > brew tap jhlee0409/tap
 > brew install --cask claude-code-history-viewer
 > ```
@@ -262,7 +278,7 @@ pnpm tauri:dev       # Development
 pnpm tauri:build     # Production build
 ```
 
-**需求**：Node.js 18+、pnpm、Rust 工具鏈
+**需求**：Node.js 20.19+（或 22.12+）、pnpm、Rust 工具鏈
 
 ## 伺服器模式 (WebUI)
 
@@ -350,6 +366,8 @@ docker compose logs webui
 
 `docker-compose.yml` 將 `~/.claude`、`~/.codex` 和 `~/.local/share/opencode` 作為唯讀磁碟區掛載。
 
+> 範例 Docker 設定只掛載 Claude、Codex 和 OpenCode。若要瀏覽其他提供者，請將其本機資料目錄以唯讀磁碟區掛載到容器內該提供者預期的路徑，然後重新啟動容器。
+
 ### systemd 服務
 
 在 Linux 上持續運行伺服器，使用提供的 systemd 範本：
@@ -380,14 +398,14 @@ GET /health
 ## 使用方式
 
 1. 啟動應用程式
-2. 自動掃描所有 28 個支援提供者（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 見上方提供者表格）的對話資料
+2. 自動掃描所有 29 個支援提供者（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 見上方提供者表格）的對話資料
 3. 在左側邊欄瀏覽專案 — 使用分頁列依提供者篩選
 4. 點擊工作階段檢視訊息
 5. 使用分頁切換訊息、分析、Token 統計、最近編輯和工作階段面板
 
 ### 命令列旗標
 
-使用 `--session` 旗標啟動應用程式並預先聚焦於指定工作階段：
+使用以下任一選擇器啟動應用程式並預先聚焦於指定工作階段：
 
 ```bash
 # Full UUID
@@ -398,9 +416,26 @@ claude-code-history-viewer --session 1265cd74
 
 # Equals form also works
 claude-code-history-viewer --session=1265cd74
+
+# Exact Claude session-folder name under ~/.claude/projects/
+claude-code-history-viewer --session-folder my-project
+
+# Case-insensitive substring match against session titles
+claude-code-history-viewer --session-title "auth bug"
 ```
 
-檢視器會掃描所有已知專案並導覽至符合的工作階段；若無任何相符項目，則以一般流程啟動。既非 hex-或-短橫線的 8..36 字元、也非絕對路徑的值會被靜默忽略。
+`--session` 接受完整 UUID、UUID 前綴或 `.jsonl` 工作階段檔案的絕對路徑。`--session-folder` 精確比對 Claude 工作階段資料夾名稱；`--session-title` 以不分大小寫的標題子字串搜尋，符合多個工作階段時可能顯示選擇器。若同時提供多個選擇器，優先順序為 `--session` > `--session-folder` > `--session-title`。
+
+已註冊協定的桌面環境也支援以下深層連結格式：
+
+```text
+file:///absolute/path/to/session.jsonl
+claude-code-history-viewer://session/1265cd74-caa9-472e-b343-c4f44b5cf12c
+claude-code-history-viewer://session-folder/my-project
+claude-code-history-viewer://session-title/auth%20bug
+```
+
+檢視器會掃描所有已知專案並導覽至符合的工作階段；若無任何相符項目，則以一般流程啟動。
 
 ## 無障礙
 
@@ -430,15 +465,18 @@ claude-code-history-viewer --session=1265cd74
 
 ## 資料隱私
 
-**100% 離線運作。** 不會將任何對話資料傳送至任何伺服器。無分析、無追蹤、無遙測。
+**桌面模式以本機為主。** 對話檔案從本機磁碟讀取；不會上傳對話資料，也沒有分析、追蹤或遙測。
 
-您的資料完全保留在本機電腦上。
+**伺服器模式**會刻意將本機檔案提供給能夠存取伺服器的瀏覽器和用戶端。僅限本機使用時請繫結至 `127.0.0.1`；向網路公開前請保持權杖驗證啟用。
 
 ## 疑難排解
 
 | 問題 | 解決方案 |
 |---------|----------|
 | 「找不到 Claude 資料」 | 請確認 `~/.claude` 存在且包含對話記錄 |
+| 缺少某個提供者 | 檢查提供者表中的資料路徑。要新增其他 Claude 目錄，請開啟**設定 → 自訂 Claude 目錄**。使用 Docker 時，將該提供者的資料目錄作為唯讀磁碟區掛載。 |
+| 無法連線至 WebUI | `cchv-server` 預設使用 `3727` 連接埠。使用啟動時輸出的 URL；遠端連線時檢查連接埠衝突以及防火牆/代理規則。 |
+| 「Unauthorized」/ HTTP 401 | 使用啟動時輸出的權杖 URL，或傳送 `Authorization: Bearer <token>`。固定權杖可透過 `--token` 或 `CCHV_TOKEN` 設定。 |
 | 效能問題 | 大量歷史記錄可能導致初始載入較慢 — 應用程式使用虛擬捲動技術 |
 | 更新問題 | 如果自動更新失敗，請從 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 手動下載 |
 
@@ -450,9 +488,11 @@ claude-code-history-viewer --session=1265cd74
 2. 建立功能分支 (`git checkout -b feat/my-feature`)
 3. 在提交前執行檢查：
    ```bash
-   pnpm tsc --build .        # TypeScript
+   pnpm exec tsc --build .   # TypeScript
    pnpm vitest run            # Tests
    pnpm lint                  # Lint
+   just rust-check-all        # Rust 格式檢查、clippy 和測試
+   pnpm run i18n:validate     # 語系一致性
    ```
 4. 提交變更 (`git commit -m 'feat: add my feature'`)
 5. 推送至分支 (`git push origin feat/my-feature`)

@@ -24,6 +24,11 @@ import {
   preloadSessionFromCli,
   type SessionHint,
 } from "./lib/preloadSession";
+import {
+  listenForWebUIDeepLinks,
+  readWebUIDeepLink,
+  writeWebUIDeepLink,
+} from "./utils/webuiDeepLink";
 
 import "./App.css";
 
@@ -147,16 +152,37 @@ function App() {
   // load path can pick it up. Only the *latest* hint is kept — if the user
   // re-invokes the CLI twice in quick succession, the newer intent wins.
   const pendingHintRef = useRef<SessionHint | null>(null);
+  const pendingMessageTargetRef = useRef<string | null>(null);
+  const preloadGenerationRef = useRef(0);
+
+  const invalidatePreload = useCallback(() => {
+    preloadGenerationRef.current += 1;
+  }, []);
 
   const runPreloadWithHint = useCallback(
-    (hint: SessionHint) => {
+    (hint: SessionHint, messageId: string | null = null) => {
+      const generation = ++preloadGenerationRef.current;
+      const isCurrent = () => preloadGenerationRef.current === generation;
+
       void preloadSessionFromCli({
         getStartupSessionHint: () => Promise.resolve(hint),
         projects: projectsRef.current,
         selectProject,
-        selectSession,
+        selectSession: (session) =>
+          selectSession(session, { history: "none" }),
         openSessionPicker,
         t: (key, fallback) => t(key, fallback ?? key),
+        isCurrent,
+      }).then(({ matched }) => {
+        if (isCurrent() && matched && messageId) {
+          const state = useAppStore.getState();
+          state.setAnalyticsCurrentView("messages");
+          state.navigateToMessage(messageId, { history: "none" });
+        }
+      }).catch((error) => {
+        if (!isCurrent()) return;
+        console.error("Failed to preload session:", error);
+        toast.error(t("common.error.unexpected", "Failed to open session"));
       });
     },
     [selectProject, selectSession, openSessionPicker, t],
@@ -171,18 +197,21 @@ function App() {
     const queued = pendingHintRef.current;
     if (queued) {
       pendingHintRef.current = null;
-      runPreloadWithHint(queued);
+      const messageId = pendingMessageTargetRef.current;
+      pendingMessageTargetRef.current = null;
+      runPreloadWithHint(queued, messageId);
       return;
     }
-    void preloadSessionFromCli({
-      getStartupSessionHint: fetchStartupSessionHint,
-      projects,
-      selectProject,
-      selectSession,
-      openSessionPicker,
-      t: (key, fallback) => t(key, fallback ?? key),
+    const startupGeneration = preloadGenerationRef.current;
+    void fetchStartupSessionHint().then((hint) => {
+      // A second invocation or deep link may have arrived while the startup
+      // command was resolving. Its newer request owns navigation now.
+      if (preloadGenerationRef.current !== startupGeneration) return;
+      if (hint) {
+        runPreloadWithHint(hint, readWebUIDeepLink().messageId);
+      }
     });
-  }, [isLoadingProjects, projects, selectProject, selectSession, openSessionPicker, t, runPreloadWithHint]);
+  }, [isLoadingProjects, projects, runPreloadWithHint]);
 
   // Second-invocation routing. `tauri-plugin-single-instance` (CLI re-exec)
   // and macOS `RunEvent::Opened` (Spotlight/Dock/Finder) both emit
@@ -200,11 +229,13 @@ function App() {
         if (cancelled) return;
         unlisten = await listen<SessionHint>("cli-session-hint", (event) => {
           const hint = event.payload;
+          invalidatePreload();
           // Projects not yet loaded: stash and let the first-load effect
           // consume the latest hint. This handles the race where the user
           // re-invokes the CLI before the initial project scan finishes.
           if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
             pendingHintRef.current = hint;
+            pendingMessageTargetRef.current = null;
             return;
           }
           runPreloadWithHint(hint);
@@ -220,7 +251,51 @@ function App() {
       cancelled = true;
       unlisten?.();
     };
-  }, [runPreloadWithHint]);
+  }, [invalidatePreload, runPreloadWithHint]);
+
+  useEffect(
+    () =>
+      listenForWebUIDeepLinks((deepLink) => {
+        invalidatePreload();
+        if (!deepLink.sessionId) {
+          pendingHintRef.current = null;
+          pendingMessageTargetRef.current = null;
+          clearProjectSelection({ history: "none" });
+          return;
+        }
+
+        if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
+          pendingHintRef.current = {
+            kind: "uuid",
+            value: deepLink.sessionId,
+          };
+          pendingMessageTargetRef.current = deepLink.messageId;
+          return;
+        }
+
+        const state = useAppStore.getState();
+        const currentSessionId =
+          state.selectedSession?.actual_session_id ||
+          state.selectedSession?.session_id;
+
+        if (currentSessionId === deepLink.sessionId) {
+          if (deepLink.messageId) {
+            state.setAnalyticsCurrentView("messages");
+            state.navigateToMessage(deepLink.messageId, { history: "none" });
+          } else {
+            state.clearTargetMessage();
+          }
+          return;
+        }
+
+        clearProjectSelection({ history: "none" });
+        runPreloadWithHint(
+          { kind: "uuid", value: deepLink.sessionId },
+          deepLink.messageId,
+        );
+      }),
+    [clearProjectSelection, invalidatePreload, runPreloadWithHint],
+  );
 
   // Local state
   const [isViewingGlobalStats, setIsViewingGlobalStats] = useState(false);
@@ -360,6 +435,7 @@ function App() {
       setDateFilter({ start: null, end: null });
 
       await selectProject(project);
+      writeWebUIDeepLink({ sessionId: null, messageId: null });
 
       try {
         if (activeView === "tokenStats") {

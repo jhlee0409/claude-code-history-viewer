@@ -457,12 +457,19 @@ fn convert_part(part: &Value) -> Option<Value> {
 
 fn convert_usage(usage: &Value) -> TokenUsage {
     let g = |k: &str| usage.get(k).and_then(Value::as_u64).map(|n| n as u32);
+    let prompt_tokens = g("promptTokenCount");
+    let cached_tokens = g("cachedContentTokenCount");
     TokenUsage {
-        input_tokens: g("promptTokenCount"),
+        // Gemini-compatible usage reports promptTokenCount inclusive of the
+        // cached subset. Keep only non-cached prompt tokens in input_tokens so
+        // totals and billing do not count the same cached tokens twice.
+        input_tokens: prompt_tokens.map(|prompt| prompt.saturating_sub(cached_tokens.unwrap_or(0))),
         output_tokens: g("candidatesTokenCount"),
         cache_creation_input_tokens: None,
-        cache_read_input_tokens: g("cachedContentTokenCount"),
+        cache_read_input_tokens: cached_tokens,
+        reasoning_tokens: g("thoughtsTokenCount"),
         service_tier: None,
+        ..Default::default()
     }
 }
 
@@ -591,7 +598,8 @@ mod tests {
         assert_eq!(a.role.as_deref(), Some("assistant"));
         assert_eq!(a.parent_uuid.as_deref(), Some("u1"));
         assert_eq!(a.model.as_deref(), Some("qwen3-coder-plus"));
-        assert_eq!(a.usage.as_ref().unwrap().input_tokens, Some(12));
+        // promptTokenCount includes the cached subset (12 total - 5 cached).
+        assert_eq!(a.usage.as_ref().unwrap().input_tokens, Some(7));
         assert_eq!(a.usage.as_ref().unwrap().output_tokens, Some(34));
         assert_eq!(a.usage.as_ref().unwrap().cache_read_input_tokens, Some(5));
         let ab = a.content.as_ref().unwrap().as_array().unwrap();

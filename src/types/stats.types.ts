@@ -18,12 +18,14 @@ export interface SessionTokenStats {
   total_output_tokens: number;
   total_cache_creation_tokens: number;
   total_cache_read_tokens: number;
+  total_reasoning_tokens: number;
   total_tokens: number;
   message_count: number;
   first_message_time: string;
   last_message_time: string;
   summary?: string;
   most_used_tools: ToolUsageStats[];
+  model_distribution?: ModelStats[];
 }
 
 /**
@@ -73,14 +75,33 @@ export interface ToolUsageStats {
 // Model Stats
 // ============================================================================
 
+export interface ModelContextStats {
+  /** Minimum prompt-context size represented by this bucket. Zero is default/short context. */
+  min_context_tokens: number;
+  token_count: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_tokens: number;
+  cache_creation_tokens_5m?: number;
+  cache_creation_tokens_1h?: number;
+  cache_read_tokens: number;
+  reasoning_tokens: number;
+}
+
 export interface ModelStats {
   model_name: string;
+  provider_id?: string;
+  service_tier?: string;
   message_count: number;
   token_count: number;
   input_tokens: number;
   output_tokens: number;
   cache_creation_tokens: number;
   cache_read_tokens: number;
+  reasoning_tokens: number;
+  cost_usd?: number | null;
+  /** Per-request context-tier buckets used to avoid pricing an aggregate as one request. */
+  context_breakdown?: ModelContextStats[];
 }
 
 // ============================================================================
@@ -113,11 +134,13 @@ export interface ProjectStatsSummary {
   most_used_subagents: ToolUsageStats[];
   daily_stats: DailyStats[];
   activity_heatmap: ActivityHeatmap[];
+  model_distribution?: ModelStats[];
   token_distribution: {
     input: number;
     output: number;
     cache_creation: number;
     cache_read: number;
+    reasoning: number;
   };
 }
 
@@ -165,6 +188,7 @@ export interface GlobalStatsSummary {
     output: number;
     cache_creation: number;
     cache_read: number;
+    reasoning: number;
   };
   daily_stats: DailyStats[];
   activity_heatmap: ActivityHeatmap[];
@@ -174,6 +198,6 @@ export interface GlobalStatsSummary {
   /** Claude subagents (`Agent` tool) by invocation count (#321). */
   most_used_subagents: ToolUsageStats[];
   provider_distribution: ProviderUsageStats[];
-  model_distribution: ModelStats[];
+  model_distribution?: ModelStats[];
   top_projects: ProjectRanking[];
 }

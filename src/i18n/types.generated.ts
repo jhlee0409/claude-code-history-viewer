@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-07-23T02:30:40.545Z
- * 총 키 개수: 1878
+ * 생성 시간: 2026-08-17T09:10:52.182Z
+ * 총 키 개수: 1888
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (182개)
+ * common namespace의 번역 키 (184개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -123,6 +123,7 @@ export type CommonKeys =
   | 'common.provider.forgecode'
   | 'common.provider.gemini'
   | 'common.provider.goose'
+  | 'common.provider.grok'
   | 'common.provider.kimi'
   | 'common.provider.kimiCode'
   | 'common.provider.kiro'
@@ -134,6 +135,7 @@ export type CommonKeys =
   | 'common.provider.pearai'
   | 'common.provider.pi'
   | 'common.provider.qwen'
+  | 'common.provider.saveError'
   | 'common.provider.trae'
   | 'common.provider.vibe'
   | 'common.provider.zcode'
@@ -416,7 +418,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (249개)
+ * session namespace의 번역 키 (257개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -429,9 +431,12 @@ export type SessionKeys =
   | 'project.a11y.selectedState'
   | 'project.addPattern'
   | 'project.collapseSidebar'
+  | 'project.copyLastKnownPath'
   | 'project.copyPath'
   | 'project.count'
   | 'project.currentSelection'
+  | 'project.discoverProviders'
+  | 'project.discoveringProviders'
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'
@@ -445,6 +450,10 @@ export type SessionKeys =
   | 'project.main'
   | 'project.notFound'
   | 'project.pathCopied'
+  | 'project.pathUnavailable'
+  | 'project.pathUnavailableDescription'
+  | 'project.pathUnavailableGroup'
+  | 'project.pathUnavailablePath'
   | 'project.removePattern'
   | 'project.resetProviderFilters'
   | 'project.searchPlaceholder'
@@ -625,6 +634,7 @@ export type SessionKeys =
   | 'session.renamePlaceholder'
   | 'session.resetError'
   | 'session.resetName'
+  | 'session.resumeUnavailableLocation'
   | 'session.revealError'
   | 'session.saveError'
   | 'session.scanning'
@@ -2369,6 +2379,7 @@ export type TranslationKey =
   | 'common.provider.forgecode'
   | 'common.provider.gemini'
   | 'common.provider.goose'
+  | 'common.provider.grok'
   | 'common.provider.kimi'
   | 'common.provider.kimiCode'
   | 'common.provider.kiro'
@@ -2380,6 +2391,7 @@ export type TranslationKey =
   | 'common.provider.pearai'
   | 'common.provider.pi'
   | 'common.provider.qwen'
+  | 'common.provider.saveError'
   | 'common.provider.trae'
   | 'common.provider.vibe'
   | 'common.provider.zcode'
@@ -2767,9 +2779,12 @@ export type TranslationKey =
   | 'project.a11y.selectedState'
   | 'project.addPattern'
   | 'project.collapseSidebar'
+  | 'project.copyLastKnownPath'
   | 'project.copyPath'
   | 'project.count'
   | 'project.currentSelection'
+  | 'project.discoverProviders'
+  | 'project.discoveringProviders'
   | 'project.expandSidebar'
   | 'project.expandedSiblingGroups'
   | 'project.explorer'
@@ -2783,6 +2798,10 @@ export type TranslationKey =
   | 'project.main'
   | 'project.notFound'
   | 'project.pathCopied'
+  | 'project.pathUnavailable'
+  | 'project.pathUnavailableDescription'
+  | 'project.pathUnavailableGroup'
+  | 'project.pathUnavailablePath'
   | 'project.removePattern'
   | 'project.resetProviderFilters'
   | 'project.searchPlaceholder'
@@ -3058,6 +3077,7 @@ export type TranslationKey =
   | 'session.renamePlaceholder'
   | 'session.resetError'
   | 'session.resetName'
+  | 'session.resumeUnavailableLocation'
   | 'session.revealError'
   | 'session.saveError'
   | 'session.scanning'

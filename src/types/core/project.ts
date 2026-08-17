@@ -5,6 +5,7 @@
  */
 
 import { matchGlobPattern } from "../../utils/globUtils";
+import type { ProviderId } from "./session";
 
 /** Current schema version for migration support */
 export const METADATA_SCHEMA_VERSION = 1;
@@ -86,6 +87,8 @@ export interface UserSettings {
   customClaudePaths?: CustomClaudePath[];
   /** WSL integration settings (Windows only) */
   wsl?: WslSettings;
+  /** Providers explicitly discovered by the user and allowed to scan on startup */
+  discoveredProviderIds?: ProviderId[];
 }
 
 // ============================================================================

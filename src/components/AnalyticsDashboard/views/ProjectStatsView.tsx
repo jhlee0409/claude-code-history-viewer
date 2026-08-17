@@ -19,7 +19,12 @@ import {
   DailyTrendChart,
   TokenDistributionChart,
 } from "../components";
-import { formatNumber, generateTrendData, extractProjectGrowth } from "../utils";
+import {
+  calculateGlobalCostSummary,
+  formatNumber,
+  generateTrendData,
+  extractProjectGrowth,
+} from "../utils";
 import { supportsConversationBreakdown } from "../../../utils/providers";
 
 interface ProjectStatsViewProps {
@@ -40,6 +45,22 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
     () => generateTrendData(projectSummary?.daily_stats),
     [projectSummary?.daily_stats]
   );
+
+  const billingCostSummary = useMemo(
+    () =>
+      calculateGlobalCostSummary(
+        projectSummary?.model_distribution ?? [],
+        projectSummary?.total_tokens ?? 0,
+      ),
+    [projectSummary?.model_distribution, projectSummary?.total_tokens],
+  );
+  const conversationCostSummary = useMemo(() => {
+    if (!conversationSummary) return null;
+    return calculateGlobalCostSummary(
+      conversationSummary.model_distribution ?? [],
+      conversationSummary.total_tokens,
+    );
+  }, [conversationSummary]);
 
   // 데이터가 없으면 항상 로딩 상태 표시 (뷰 전환 직후 isLoading이 false일 수 있음)
   if (!projectSummary) {
@@ -100,6 +121,16 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
       <BillingBreakdownCard
         billingTokens={billingTokens}
         conversationTokens={conversationSummary != null ? conversationSummary.total_tokens : null}
+        billingCost={
+          billingCostSummary.pricedModels > 0
+            ? billingCostSummary.totalEstimatedCost
+            : null
+        }
+        conversationCost={
+          conversationCostSummary && conversationCostSummary.pricedModels > 0
+            ? conversationCostSummary.totalEstimatedCost
+            : null
+        }
         showProviderLimitHelp={!supportsConversationBreakdown(providerId)}
       />
 

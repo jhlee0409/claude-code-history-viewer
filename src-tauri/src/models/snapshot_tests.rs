@@ -73,7 +73,9 @@ mod claude_message_snapshots {
                 output_tokens: Some(50),
                 cache_creation_input_tokens: Some(20),
                 cache_read_input_tokens: Some(10),
+                reasoning_tokens: None,
                 service_tier: Some("standard".to_string()),
+                ..Default::default()
             }),
             role: Some("assistant".to_string()),
             model: Some("claude-opus-4-20250514".to_string()),
@@ -132,7 +134,9 @@ mod claude_message_snapshots {
                 output_tokens: Some(45),
                 cache_creation_input_tokens: None,
                 cache_read_input_tokens: Some(30),
+                reasoning_tokens: None,
                 service_tier: None,
+                ..Default::default()
             }),
             role: Some("assistant".to_string()),
             model: Some("forge-model-v1".to_string()),
@@ -196,7 +200,9 @@ mod claude_message_snapshots {
                 output_tokens: Some(34),
                 cache_creation_input_tokens: Some(0),
                 cache_read_input_tokens: Some(5),
+                reasoning_tokens: None,
                 service_tier: None,
+                ..Default::default()
             }),
             role: Some("assistant".to_string()),
             model: Some("claude-opus-4-8".to_string()),
@@ -254,7 +260,9 @@ mod claude_message_snapshots {
                 output_tokens: Some(100),
                 cache_creation_input_tokens: None,
                 cache_read_input_tokens: None,
+                reasoning_tokens: None,
                 service_tier: None,
+                ..Default::default()
             }),
             role: Some("assistant".to_string()),
             model: Some("claude-opus-4-20250514".to_string()),
@@ -294,7 +302,9 @@ mod token_usage_snapshots {
             output_tokens: Some(500),
             cache_creation_input_tokens: Some(200),
             cache_read_input_tokens: Some(100),
+            reasoning_tokens: None,
             service_tier: Some("premium".to_string()),
+            ..Default::default()
         };
 
         assert_json_snapshot!("full_token_usage", usage);
@@ -307,7 +317,9 @@ mod token_usage_snapshots {
             output_tokens: Some(25),
             cache_creation_input_tokens: None,
             cache_read_input_tokens: None,
+            reasoning_tokens: None,
             service_tier: None,
+            ..Default::default()
         };
 
         assert_json_snapshot!("minimal_token_usage", usage);
@@ -471,6 +483,7 @@ mod stats_snapshots {
             last_message_time: "2025-01-01T17:00:00Z".to_string(),
             summary: None,
             most_used_tools: Vec::new(),
+            model_distribution: Vec::new(),
         };
 
         assert_json_snapshot!("session_token_stats", stats);

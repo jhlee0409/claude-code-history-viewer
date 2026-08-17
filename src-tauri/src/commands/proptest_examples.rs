@@ -130,7 +130,9 @@ proptest! {
             output_tokens: Some(output),
             cache_creation_input_tokens: None,
             cache_read_input_tokens: None,
+            reasoning_tokens: None,
             service_tier: None,
+            ..Default::default()
         };
 
         // Verify tokens are set correctly (no need to check >= 0 for u32)
@@ -149,7 +151,9 @@ proptest! {
             output_tokens: output,
             cache_creation_input_tokens: None,
             cache_read_input_tokens: None,
+            reasoning_tokens: None,
             service_tier: None,
+            ..Default::default()
         };
 
         let serialized = serde_json::to_string(&original).unwrap();

@@ -17,7 +17,7 @@ import {
   type FullAppStore,
   createEmptySearchState,
 } from "./types";
-import { hasNonDefaultProvider } from "../../utils/providers";
+import { getWslSearchableProviderIds, hasNonDefaultProvider } from "../../utils/providers";
 
 // ============================================================================
 // State Interface
@@ -89,30 +89,34 @@ export const createSearchSlice: StateCreator<
   searchMessages: async (query: string, filters: SearchFilters = {}) => {
     const { claudePath, activeProviders } = get();
     const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
+    const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
+    const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
+    const settings = get().userMetadata?.settings;
+    const wslEnabled = settings?.wsl?.enabled ?? false;
+    const hasAlternativeSource = hasNonClaudeProviders || hasCustomPaths || wslEnabled;
+    const nativeClaudePath = claudePath || undefined;
+    const wslProviders = wslEnabled ? getWslSearchableProviderIds(activeProviders) : undefined;
 
-    if (!query.trim() || (!claudePath && !hasNonClaudeProviders)) {
+    if (!query.trim() || (!claudePath && !hasAlternativeSource)) {
       set({ searchResults: [], searchQuery: "" });
       return;
     }
 
     set({ searchQuery: query });
     try {
-      const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
-      const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
-      const settings = get().userMetadata?.settings;
-      const wslEnabled = settings?.wsl?.enabled ?? false;
       const results = (hasNonClaudeProviders || hasCustomPaths || wslEnabled)
         ? await api<ClaudeMessage[]>("search_all_providers", {
-            claudePath,
+            claudePath: nativeClaudePath,
             query,
             activeProviders,
             filters,
             customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
             wslEnabled,
+            wslProviders,
             wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
           })
         : await api<ClaudeMessage[]>("search_messages", {
-            claudePath,
+            claudePath: nativeClaudePath,
             query,
             filters,
           });

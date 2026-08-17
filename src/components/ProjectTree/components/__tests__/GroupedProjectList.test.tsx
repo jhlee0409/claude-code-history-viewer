@@ -7,7 +7,15 @@ import { GroupedProjectList } from "../GroupedProjectList";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (
+      key: string,
+      options?: string | { defaultValue?: string; [name: string]: unknown }
+    ) => {
+      if (typeof options === "string") {
+        return options;
+      }
+      return options?.defaultValue ?? key;
+    },
   }),
 }));
 
@@ -141,5 +149,39 @@ describe("GroupedProjectList", () => {
 
     expect(handleProjectClick).toHaveBeenCalledTimes(1);
     expect(handleProjectClick).toHaveBeenCalledWith(project);
+  });
+
+  it("keeps unavailable projects in a collapsed, expandable group", () => {
+    const project = {
+      ...createProject("/tmp/deleted-worktree", "deleted-worktree"),
+      path_status: "unavailable" as const,
+    };
+
+    renderList({
+      groupingMode: "none",
+      project,
+      expandedProjects: new Set<string>(),
+    });
+
+    expect(screen.getByTestId("unavailable-projects-group")).toBeInTheDocument();
+    expect(
+      screen.getByRole("treeitem", { name: /expand unavailable locations group/i })
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId(`project-item-${project.path}`)).not.toBeInTheDocument();
+  });
+
+  it("shows unavailable projects after expanding the status group", () => {
+    const project = {
+      ...createProject("/tmp/deleted-worktree", "deleted-worktree"),
+      path_status: "unavailable" as const,
+    };
+
+    renderList({
+      groupingMode: "none",
+      project,
+      expandedProjects: new Set<string>(["group:unavailable-projects"]),
+    });
+
+    expect(screen.getByTestId(`project-item-${project.path}`)).toBeInTheDocument();
   });
 });
