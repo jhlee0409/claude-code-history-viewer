@@ -6236,7 +6236,7 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
-        assert_eq!(supported.len(), 29);
+        assert_eq!(supported.len(), 30);
     }
 
     #[test]
