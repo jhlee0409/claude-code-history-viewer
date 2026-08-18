@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.0] - 2026-08-19
+
+Feature and fix release: LaTeX math in transcripts, more useful Codex global search, and a Linux WebKit crash workaround for non-AppImage builds.
+
+### Added
+- **KaTeX math rendering** — `$…$` / `$$…$$` in assistant markdown now render as formulas across message views. (#499)
+
+### Fixed
+- **Codex global search ranking** — conversation prompts and replies stay above tool-only matches; JSON-escaped query text is still found. (#506)
+- **Linux WebKit DMA-BUF crash** — `WEBKIT_DISABLE_DMABUF_RENDERER=1` is set for all Linux launches when unset, not only AppImage. User override is preserved. (#503)
+
+### Breaking
+- None.
+
 ## [1.24.1] - 2026-08-16
 
 Patch release: resolves the Rust dependency security audit failure after v1.24.0.
