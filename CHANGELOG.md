@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.1] - 2026-08-16
+
+Patch release: resolves the Rust dependency security audit failure after v1.24.0.
+
+### Fixed
+- Updated `tauri-plugin-log` to remove the vulnerable `rkyv 0.7.46` transitive dependency.
+
 ## [1.24.0] - 2026-08-16
 
 Feature and fix release: model-aware analytics, corrected token accounting, and more compact window layouts.
