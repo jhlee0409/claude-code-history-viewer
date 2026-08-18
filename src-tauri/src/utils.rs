@@ -173,6 +173,38 @@ pub fn search_json_value_case_insensitive(value: &serde_json::Value, query_lower
     }
 }
 
+/// Returns whether the query matches text that the global-search result card
+/// can preview directly, rather than only nested tool input or output.
+///
+/// `query_lower` must already be lowercased by the caller.
+pub fn search_message_text_case_insensitive(message: &ClaudeMessage, query_lower: &str) -> bool {
+    match message.content.as_ref() {
+        Some(Value::String(text)) => text.to_lowercase().contains(query_lower),
+        Some(Value::Array(items)) => items.iter().any(|item| {
+            item.get("type").and_then(Value::as_str) == Some("text")
+                && item
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .is_some_and(|text| text.to_lowercase().contains(query_lower))
+        }),
+        _ => false,
+    }
+}
+
+/// Relevance tier for global-search results: user text, assistant text, other
+/// previewable text, then tool-only matches. Timestamps break ties later.
+pub fn search_result_priority(message: &ClaudeMessage, query_lower: &str) -> usize {
+    if !search_message_text_case_insensitive(message, query_lower) {
+        return 3;
+    }
+
+    match message.message_type.as_str() {
+        "user" => 0,
+        "assistant" => 1,
+        _ => 2,
+    }
+}
+
 // ===== Git Worktree Detection =====
 
 /// Decode Claude session storage path to actual project path

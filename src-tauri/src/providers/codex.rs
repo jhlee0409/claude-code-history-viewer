@@ -1,21 +1,22 @@
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::utils::{
-    build_provider_message, estimate_message_count_from_size, find_line_ranges,
-    search_json_value_case_insensitive,
+    build_provider_message, estimate_message_count_from_size, find_line_ranges, par_map_bounded,
+    search_json_value_case_insensitive, search_result_priority,
 };
 use chrono::{DateTime, Utc};
-use memchr::{memchr_iter, memmem};
+use memchr::{memchr2_iter, memchr_iter, memmem};
 use memmap2::Mmap;
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::Path;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
-use crate::commands::session::NativeRenameResult;
+use crate::commands::session::{apply_search_filters, NativeRenameResult};
 
 const STATE_DB_FILENAME: &str = "state_5.sqlite";
 
@@ -531,8 +532,124 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
     Ok(messages)
 }
 
-/// Search Codex sessions for a query string
-pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
+fn project_name_for_rollout(rollout_path: &Path) -> Option<String> {
+    let cwd = extract_session_cwd(rollout_path).ok().flatten()?;
+    Path::new(&cwd)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .or_else(|| (!cwd.is_empty()).then_some(cwd))
+}
+
+fn bytes_contain_query_case_insensitive(haystack: &[u8], query: &[u8]) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    if haystack.len() < query.len() {
+        return false;
+    }
+
+    let first_lower = query[0].to_ascii_lowercase();
+    let first_upper = query[0].to_ascii_uppercase();
+    let matches_at = |start: usize| {
+        haystack
+            .get(start..start + query.len())
+            .is_some_and(|candidate| candidate.eq_ignore_ascii_case(query))
+    };
+
+    if first_lower == first_upper {
+        memchr_iter(first_lower, haystack).any(matches_at)
+    } else {
+        memchr2_iter(first_lower, first_upper, haystack).any(matches_at)
+    }
+}
+
+fn rollout_might_contain_query(rollout_path: &Path, query_lower: &str) -> bool {
+    let Ok(bytes) = read_rollout_bytes(rollout_path) else {
+        return false;
+    };
+
+    for &(start, end) in &find_line_ranges(&bytes) {
+        let line = &bytes[start..end];
+        let line_matches = if query_lower.is_ascii() {
+            bytes_contain_query_case_insensitive(line, query_lower.as_bytes())
+        } else {
+            String::from_utf8_lossy(line)
+                .to_lowercase()
+                .contains(query_lower)
+        };
+        if !line_matches {
+            continue;
+        }
+
+        let mut buf = line.to_vec();
+        let Ok(value) = simd_json::from_slice::<Value>(&mut buf) else {
+            continue;
+        };
+        let line_type = value.get("type").and_then(Value::as_str).unwrap_or("");
+        let Some(payload) = value.get("payload") else {
+            continue;
+        };
+
+        let searchable = match line_type {
+            "response_item" => {
+                let payload_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
+                if payload_type == "message" {
+                    let role = payload
+                        .get("role")
+                        .and_then(Value::as_str)
+                        .unwrap_or("user");
+                    if role != "user" && role != "assistant" {
+                        continue;
+                    }
+                }
+                search_json_value_case_insensitive(payload, query_lower)
+            }
+            "event_msg" => {
+                let event_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
+                event_type != "user_message"
+                    && event_type != "agent_message"
+                    && search_json_value_case_insensitive(payload, query_lower)
+            }
+            "compacted" => "conversation compacted".contains(query_lower),
+            _ => false,
+        };
+        if searchable {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn is_searchable_codex_result(message: &ClaudeMessage) -> bool {
+    !matches!(message.role.as_deref(), Some("developer" | "system"))
+}
+
+fn compare_search_timestamps_desc(a: &ClaudeMessage, b: &ClaudeMessage) -> Ordering {
+    match (
+        DateTime::parse_from_rfc3339(&a.timestamp),
+        DateTime::parse_from_rfc3339(&b.timestamp),
+    ) {
+        (Ok(a_ts), Ok(b_ts)) => b_ts.cmp(&a_ts),
+        (Ok(_), Err(_)) => Ordering::Less,
+        (Err(_), Ok(_)) => Ordering::Greater,
+        (Err(_), Err(_)) => b.timestamp.cmp(&a.timestamp),
+    }
+}
+
+fn retain_newest_search_results(results: &mut Vec<ClaudeMessage>, limit: usize) {
+    if results.len() > limit {
+        results.sort_unstable_by(compare_search_timestamps_desc);
+        results.truncate(limit);
+    }
+}
+
+/// Search Codex sessions for a query string.
+///
+/// Filters are applied before the result cap, and displayable conversation
+/// text is kept ahead of tool-only matches so verbose tool transcripts cannot
+/// crowd the user's prompt or the assistant's reply out of global search.
+pub fn search(query: &str, limit: usize, filters: &Value) -> Result<Vec<ClaudeMessage>, String> {
     let session_dirs = get_existing_session_dirs()?;
 
     if session_dirs.is_empty() {
@@ -540,31 +657,67 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     }
 
     let query_lower = query.to_lowercase();
-    let mut results = Vec::new();
+    let mut ranked_results: [Vec<ClaudeMessage>; 4] = std::array::from_fn(|_| Vec::new());
+    let rollout_paths: Vec<PathBuf> = session_dirs
+        .into_iter()
+        .flat_map(|session_dir| {
+            WalkDir::new(session_dir)
+                .min_depth(1)
+                .into_iter()
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_type().is_file())
+                .filter(|entry| is_discoverable_rollout(entry.path()))
+                .map(walkdir::DirEntry::into_path)
+        })
+        .collect();
 
-    for session_dir in session_dirs {
-        for entry in WalkDir::new(session_dir)
-            .min_depth(1)
+    let candidate_paths: Vec<PathBuf> = par_map_bounded(rollout_paths, |rollout_path| {
+        rollout_might_contain_query(&rollout_path, &query_lower).then_some(rollout_path)
+    })
+    .into_iter()
+    .flatten()
+    .collect();
+
+    let matches_by_file = par_map_bounded(candidate_paths, |rollout_path| {
+        let Ok(messages) = load_messages(&rollout_path.to_string_lossy()) else {
+            return Vec::new();
+        };
+        let mut file_results: Vec<ClaudeMessage> = messages
             .into_iter()
-            .filter_map(Result::ok)
-            .filter(|e| e.file_type().is_file())
-            .filter(|e| is_discoverable_rollout(e.path()))
-        {
-            let rollout_path = entry.path();
+            .filter(|msg| {
+                is_searchable_codex_result(msg)
+                    && msg.content.as_ref().is_some_and(|content| {
+                        search_json_value_case_insensitive(content, &query_lower)
+                    })
+            })
+            .collect();
 
-            if let Ok(messages) = load_messages(&rollout_path.to_string_lossy()) {
-                for msg in messages {
-                    if results.len() >= limit {
-                        return Ok(results);
-                    }
-
-                    if let Some(content) = &msg.content {
-                        if search_json_value_case_insensitive(content, &query_lower) {
-                            results.push(msg);
-                        }
-                    }
-                }
+        if !file_results.is_empty() {
+            let project_name = project_name_for_rollout(&rollout_path);
+            for msg in &mut file_results {
+                msg.project_name.clone_from(&project_name);
             }
+        }
+        apply_search_filters(file_results, filters)
+    });
+
+    for file_results in matches_by_file {
+        for msg in file_results {
+            let priority = search_result_priority(&msg, &query_lower);
+            ranked_results[priority].push(msg);
+        }
+        for bucket in &mut ranked_results {
+            retain_newest_search_results(bucket, limit);
+        }
+    }
+
+    let mut results = Vec::new();
+    for mut bucket in ranked_results {
+        bucket.sort_unstable_by(compare_search_timestamps_desc);
+        bucket.truncate(limit.saturating_sub(results.len()));
+        results.extend(bucket);
+        if results.len() == limit {
+            break;
         }
     }
 
@@ -3392,6 +3545,167 @@ mod tests {
             .join("\n");
         fs::write(&rollout_path, format!("{body}\n")).expect("rollout fixture should be written");
         rollout_path
+    }
+
+    #[test]
+    #[serial]
+    fn search_prioritizes_conversation_text_over_tool_matches() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let sessions_dir = tmp.path().join("sessions/2026/08/13");
+        fs::create_dir_all(&sessions_dir).expect("sessions directory should be created");
+
+        let mut lines = vec![session_meta_line_with(
+            "2026-08-13T08:00:00Z",
+            "sess-wallpaper",
+            "/tmp/windows_remote_dev",
+        )];
+        for index in 0..101 {
+            lines.push(json!({
+                "timestamp": format!("2026-08-13T08:00:{:02}Z", index % 60),
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "id": format!("tool-{index}"),
+                    "call_id": format!("call-{index}"),
+                    "name": "exec_command",
+                    "arguments": json!({ "cmd": format!("rg wallpaper file-{index}") }).to_string()
+                }
+            }));
+        }
+        lines.push(user_message_line(
+            "2026-08-13T09:00:00Z",
+            "Please diagnose the Windows wallpaper problem.",
+        ));
+        write_rollout_lines(
+            &sessions_dir,
+            "rollout-2026-08-13T08-00-00-sess-wallpaper.jsonl",
+            &lines,
+        );
+
+        let _guard = EnvVarGuard::set("CODEX_HOME", tmp.path());
+        let results = search("wallpaper", 1, &json!({})).expect("Codex search should succeed");
+
+        assert_eq!(results.len(), 1);
+        assert!(crate::utils::search_message_text_case_insensitive(
+            &results[0],
+            "wallpaper"
+        ));
+        assert_eq!(results[0].message_type, "user");
+        assert_eq!(
+            results[0].project_name.as_deref(),
+            Some("windows_remote_dev")
+        );
+    }
+
+    #[test]
+    fn search_prefilter_matches_ascii_case_insensitively() {
+        assert!(bytes_contain_query_case_insensitive(
+            br#"{"text":"Windows Wallpaper Engine"}"#,
+            b"wallpaper"
+        ));
+        assert!(bytes_contain_query_case_insensitive(
+            br#"{"text":"WALLPAPER"}"#,
+            b"wallpaper"
+        ));
+        assert!(!bytes_contain_query_case_insensitive(
+            br#"{"text":"window manager"}"#,
+            b"wallpaper"
+        ));
+    }
+
+    #[test]
+    #[serial]
+    fn search_ignores_developer_instruction_matches() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let sessions_dir = tmp.path().join("sessions/2026/08/13");
+        fs::create_dir_all(&sessions_dir).expect("sessions directory should be created");
+        write_rollout_lines(
+            &sessions_dir,
+            "rollout-2026-08-13T08-00-00-developer-only.jsonl",
+            &[
+                session_meta_line_with(
+                    "2026-08-13T08:00:00Z",
+                    "sess-developer-only",
+                    "/tmp/project",
+                ),
+                json!({
+                    "timestamp": "2026-08-13T08:00:01Z",
+                    "type": "response_item",
+                    "payload": {
+                        "type": "message",
+                        "role": "developer",
+                        "content": [{
+                            "type": "input_text",
+                            "text": "Internal wallpaper instruction"
+                        }]
+                    }
+                }),
+                user_message_line("2026-08-13T08:00:02Z", "A different question"),
+            ],
+        );
+
+        let _guard = EnvVarGuard::set("CODEX_HOME", tmp.path());
+        let results = search("wallpaper", 100, &json!({})).expect("Codex search should succeed");
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    #[serial]
+    fn search_applies_role_and_project_filters_before_limit() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let sessions_dir = tmp.path().join("sessions/2026/08/13");
+        fs::create_dir_all(&sessions_dir).expect("sessions directory should be created");
+
+        write_rollout_lines(
+            &sessions_dir,
+            "rollout-2026-08-13T08-00-00-selected.jsonl",
+            &[
+                session_meta_line_with(
+                    "2026-08-13T08:00:00Z",
+                    "sess-selected",
+                    "/tmp/windows_remote_dev",
+                ),
+                user_message_line(
+                    "2026-08-13T08:00:01Z",
+                    "The selected wallpaper conversation.",
+                ),
+            ],
+        );
+        write_rollout_lines(
+            &sessions_dir,
+            "rollout-2026-08-13T09-00-00-newer.jsonl",
+            &[
+                session_meta_line_with("2026-08-13T09:00:00Z", "sess-newer", "/tmp/other_project"),
+                json!({
+                    "timestamp": "2026-08-13T09:00:01Z",
+                    "type": "response_item",
+                    "payload": {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{
+                            "type": "output_text",
+                            "text": "A newer wallpaper conversation."
+                        }]
+                    }
+                }),
+            ],
+        );
+
+        let _guard = EnvVarGuard::set("CODEX_HOME", tmp.path());
+        let filters = json!({
+            "messageType": "user",
+            "projects": ["windows_remote_dev"]
+        });
+        let results = search("wallpaper", 1, &filters).expect("Codex search should succeed");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].session_id, "sess-selected");
+        assert_eq!(results[0].message_type, "user");
+        assert_eq!(
+            results[0].project_name.as_deref(),
+            Some("windows_remote_dev")
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, MessagePage};
 use crate::providers;
-use crate::utils::parse_rfc3339_utc;
+use crate::utils::{parse_rfc3339_utc, search_result_priority};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cmp::Ordering;
@@ -40,6 +40,26 @@ fn select_wsl_search_providers(
         .filter(|provider| is_wsl_search_provider(provider.as_str()))
         .cloned()
         .collect()
+}
+
+fn compare_global_search_results(
+    a: &ClaudeMessage,
+    b: &ClaudeMessage,
+    query_lower: &str,
+) -> Ordering {
+    search_result_priority(a, query_lower)
+        .cmp(&search_result_priority(b, query_lower))
+        .then_with(|| {
+            match (
+                parse_rfc3339_utc(&a.timestamp),
+                parse_rfc3339_utc(&b.timestamp),
+            ) {
+                (Some(a_ts), Some(b_ts)) => b_ts.cmp(&a_ts),
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (None, None) => b.timestamp.cmp(&a.timestamp),
+            }
+        })
 }
 
 /// Detect all available providers
@@ -731,7 +751,7 @@ pub async fn search_all_providers(
 
     // Codex
     if providers_to_search.iter().any(|p| p == "codex") {
-        match providers::codex::search(&query, max_results) {
+        match providers::codex::search(&query, max_results, &search_filters) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Codex search failed: {e}");
@@ -1098,18 +1118,10 @@ pub async fn search_all_providers(
 
     all_results = crate::commands::session::apply_search_filters(all_results, &search_filters);
 
-    // Sort by parsed timestamp descending (robust to `Z` vs `+00:00` formats)
-    all_results.sort_by(|a, b| {
-        match (
-            parse_rfc3339_utc(&a.timestamp),
-            parse_rfc3339_utc(&b.timestamp),
-        ) {
-            (Some(a_ts), Some(b_ts)) => b_ts.cmp(&a_ts),
-            (Some(_), None) => Ordering::Less,
-            (None, Some(_)) => Ordering::Greater,
-            (None, None) => b.timestamp.cmp(&a.timestamp),
-        }
-    });
+    // Prefer the user's matching prompts, then displayable assistant text,
+    // while preserving tool-only matches after conversational results.
+    let query_lower = query.to_lowercase();
+    all_results.sort_by(|a, b| compare_global_search_results(a, b, &query_lower));
     all_results.truncate(max_results);
 
     Ok(all_results)
@@ -1302,6 +1314,45 @@ mod tests {
         let mut msg = make_message(message_type, content);
         msg.uuid = uuid.to_string();
         msg
+    }
+
+    #[test]
+    fn global_search_ranking_prefers_conversation_roles_over_tool_matches() {
+        let mut user = make_message_with_uuid(
+            "user-text",
+            "user",
+            serde_json::json!([{ "type": "text", "text": "wallpaper prompt" }]),
+        );
+        user.timestamp = "2026-02-19T10:00:00Z".to_string();
+
+        let mut assistant = make_message_with_uuid(
+            "assistant-text",
+            "assistant",
+            serde_json::json!([{ "type": "text", "text": "wallpaper answer" }]),
+        );
+        assistant.timestamp = "2026-02-19T11:00:00Z".to_string();
+
+        let mut tool = make_message_with_uuid(
+            "tool-match",
+            "assistant",
+            serde_json::json!([{
+                "type": "tool_use",
+                "name": "Bash",
+                "input": { "command": "rg wallpaper" }
+            }]),
+        );
+        tool.timestamp = "2026-02-19T12:00:00Z".to_string();
+
+        let mut results = [tool, assistant, user];
+        results.sort_by(|a, b| compare_global_search_results(a, b, "wallpaper"));
+
+        assert_eq!(
+            results
+                .iter()
+                .map(|message| message.uuid.as_str())
+                .collect::<Vec<_>>(),
+            vec!["user-text", "assistant-text", "tool-match"]
+        );
     }
 
     #[test]
