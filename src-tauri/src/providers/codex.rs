@@ -570,14 +570,16 @@ fn rollout_might_contain_query(rollout_path: &Path, query_lower: &str) -> bool {
 
     for &(start, end) in &find_line_ranges(&bytes) {
         let line = &bytes[start..end];
-        let line_matches = if query_lower.is_ascii() {
+        let raw_match = if query_lower.is_ascii() {
             bytes_contain_query_case_insensitive(line, query_lower.as_bytes())
         } else {
             String::from_utf8_lossy(line)
                 .to_lowercase()
                 .contains(query_lower)
         };
-        if !line_matches {
+        // A JSON escape can hide a decoded match from the raw byte scan, for
+        // example `\u0077allpaper`. Parse escaped lines before rejecting them.
+        if !raw_match && !line.contains(&b'\\') {
             continue;
         }
 
@@ -3611,6 +3613,22 @@ mod tests {
             br#"{"text":"window manager"}"#,
             b"wallpaper"
         ));
+    }
+
+    #[test]
+    fn search_prefilter_matches_json_escaped_text() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let rollout_path = tmp.path().join("rollout-escaped.jsonl");
+        fs::write(
+            &rollout_path,
+            concat!(
+                r#"{"timestamp":"2026-08-13T08:00:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"\u0077allpaper"}]}}"#,
+                "\n"
+            ),
+        )
+        .expect("rollout should be written");
+
+        assert!(rollout_might_contain_query(&rollout_path, "wallpaper"));
     }
 
     #[test]
