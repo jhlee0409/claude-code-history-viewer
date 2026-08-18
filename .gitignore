@@ -71,6 +71,7 @@ debug.log*
 # Auto-generated AI context files
 **/*/CLAUDE.md
 .serena/memories/
+.memsearch
 
 # AFC plugin state (abandoned tooling — kept out of the repo)
 .claude/afc/
