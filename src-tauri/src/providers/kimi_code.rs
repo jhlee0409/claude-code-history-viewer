@@ -674,14 +674,18 @@ pub(crate) fn fold_wire_messages(
             }
             "context.undo" => {
                 let count = record.get("count").and_then(Value::as_u64).unwrap_or(1) as usize;
-                apply_undo_cut(&mut history, count);
-                // The cut removed the assistant holding the open tool
-                // exchange, so its pending calls and any messages deferred
-                // behind that exchange are gone with it — keeping them
-                // would resurrect interrupted results for calls that no
-                // longer exist.
-                state.pending.clear();
-                state.deferred.clear();
+                let cut = apply_undo_cut(&mut history, count);
+                if cut {
+                    // The cut removed the assistant holding the open tool
+                    // exchange, so its pending calls and any messages
+                    // deferred behind that exchange are gone with it —
+                    // keeping them would resurrect interrupted results for
+                    // calls that no longer exist. Only clear on an actual
+                    // cut: a no-op undo (compaction boundary / no anchor)
+                    // must keep the live exchange state intact.
+                    state.pending.clear();
+                    state.deferred.clear();
+                }
             }
             "context.apply_compaction" => {
                 fold_apply_compaction(&mut history, &mut state, &record, &last_ts);
@@ -895,10 +899,11 @@ fn flush_deferred(history: &mut Vec<FoldedMessage>, state: &mut FoldState) {
 /// The agent core's `computeUndoCut`: walk back counting undo anchors
 /// (user prompts); the cut removes the anchor and everything after it, and
 /// extends backwards over injections the prompt owns. The walk stops at a
-/// compaction boundary.
-fn apply_undo_cut(history: &mut Vec<FoldedMessage>, count: usize) {
+/// compaction boundary. Returns `true` only when history was actually cut
+/// (`false` for a compaction-boundary stop or no matching anchor).
+fn apply_undo_cut(history: &mut Vec<FoldedMessage>, count: usize) -> bool {
     if history.is_empty() {
-        return;
+        return false;
     }
     let mut remaining = count;
     let mut cut_index: Option<usize> = None;
@@ -910,7 +915,7 @@ fn apply_undo_cut(history: &mut Vec<FoldedMessage>, count: usize) {
         let message = &history[i];
         match message.origin_kind() {
             Some("injection") => continue,
-            Some("compaction_summary") => return,
+            Some("compaction_summary") => return false,
             _ => {}
         }
         if message.is_undo_anchor() {
@@ -937,8 +942,12 @@ fn apply_undo_cut(history: &mut Vec<FoldedMessage>, count: usize) {
         }
     }
 
-    if let Some(cut) = cut_index {
-        history.truncate(cut);
+    match cut_index {
+        Some(cut) => {
+            history.truncate(cut);
+            true
+        }
+        None => false,
     }
 }
 
@@ -1674,6 +1683,45 @@ mod tests {
         assert!(
             !messages.iter().any(|m| m.message_type == "tool"),
             "no ghost interrupted result for the undone tool call"
+        );
+    }
+
+    #[test]
+    fn no_op_undo_keeps_deferred_messages_alive() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        let wire = vec![
+            // A compaction boundary makes later undos no-ops.
+            r#"{"type":"context.apply_compaction","contextSummary":"summary","compactedCount":1,"time":1786959458515}"#,
+            r#"{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"s1"},"time":1786959458516}"#,
+            r#"{"type":"context.append_loop_event","event":{"type":"tool.call","stepUuid":"s1","toolCallId":"tool_z","name":"Read","args":{"path":"a"}},"time":1786959458517}"#,
+            // Queued behind the open exchange…
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"queued"}],"toolCalls":[]},"time":1786959458518}"#,
+            // …and the undo walks into the compaction boundary → no cut.
+            // The deferred message must survive and flush after the
+            // exchange closes.
+            r#"{"type":"context.undo","count":1,"time":1786959458519}"#,
+            r#"{"type":"context.append_loop_event","event":{"type":"tool.result","toolCallId":"tool_z","result":{"output":"ok"}},"time":1786959458520}"#,
+            r#"{"type":"context.append_loop_event","event":{"type":"step.end","uuid":"s1"},"time":1786959458521}"#,
+        ];
+        let session_dir = write_session(&root, "wd_a", "session_x", &default_state(), &wire);
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+
+        let texts: Vec<&str> = messages
+            .iter()
+            .filter(|m| m.message_type == "user")
+            .filter_map(|m| {
+                m.content
+                    .as_ref()
+                    .and_then(Value::as_array)
+                    .and_then(|blocks| blocks[0].get("text").and_then(Value::as_str))
+            })
+            .collect();
+        assert!(
+            texts.contains(&"queued"),
+            "no-op undo must not drop the deferred message, got {texts:?}"
         );
     }
 
