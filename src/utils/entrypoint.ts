@@ -1,9 +1,10 @@
 /**
- * Session source (entrypoint) helpers.
- *
  * Claude Code stamps every JSONL record with a top-level `entrypoint` field
  * identifying the originating client: "cli" / "claude-vscode" / "claude-desktop".
- * The backend stores that raw value on `ClaudeSession.entrypoint` untouched;
+ * The kimi provider derives equivalent values at scan time from the kimi-code
+ * session state ("kimi-cli" terminal / "kimi-vscode" VS Code extension), and
+ * the copilot provider uses "copilot-cli" / "copilot-vscode" / "copilot-desktop".
+ * The backend stores the raw value on `ClaudeSession.entrypoint` untouched;
  * all normalization (raw value -> filter category, label, badge style) lives
  * here so unknown future values degrade gracefully instead of crashing.
  */
@@ -24,9 +25,11 @@ export function normalizeEntrypoint(
   switch (raw) {
     case "cli":
     case "copilot-cli":
+    case "kimi-cli":
       return "cli";
     case "claude-vscode":
     case "copilot-vscode":
+    case "kimi-vscode":
       return "vscode";
     case "claude-desktop":
     case "copilot-desktop":
