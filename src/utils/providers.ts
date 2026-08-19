@@ -34,7 +34,7 @@ const PROVIDER_TRANSLATIONS: Record<
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   goose: { key: "common.provider.goose", fallback: "Goose" },
   grok: { key: "common.provider.grok", fallback: "Grok CLI" },
-  kimi: { key: "common.provider.kimi", fallback: "Kimi CLI" },
+  kimi: { key: "common.provider.kimi", fallback: "Kimi" },
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
   llm: { key: "common.provider.llm", fallback: "llm" },
   ompi: { key: "common.provider.ompi", fallback: "oh-my-pi" },

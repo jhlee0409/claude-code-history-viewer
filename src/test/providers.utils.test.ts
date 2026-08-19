@@ -105,7 +105,7 @@ describe("providers utils", () => {
 
   it("returns the kimi resume subcommand for kimi sessions", () => {
     expect(getProviderLabel((key, fallback) => `${key}:${fallback}`, "kimi")).toBe(
-      "common.provider.kimi:Kimi CLI"
+      "common.provider.kimi:Kimi"
     );
     expect(getResumeCommand("kimi", "abc-123")).toBe("kimi -r abc-123");
   });
