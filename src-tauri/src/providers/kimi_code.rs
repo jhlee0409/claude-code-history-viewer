@@ -51,6 +51,7 @@ use chrono::{TimeZone, Utc};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
 /// The kimi-code layout is exposed through the existing `kimi` provider id
@@ -316,6 +317,20 @@ impl CodeSession {
                         .any(|block| block.get("type").and_then(Value::as_str) == Some("tool_use"))
                 })
         });
+        // Error results surface as `is_error` tool_result blocks (folded
+        // from `tool.result` records or interrupted-pending compensation).
+        let has_errors = self.messages.iter().any(|message| {
+            message
+                .content
+                .as_ref()
+                .and_then(Value::as_array)
+                .is_some_and(|blocks| {
+                    blocks.iter().any(|block| {
+                        block.get("type").and_then(Value::as_str) == Some("tool_result")
+                            && block.get("is_error").and_then(Value::as_bool) == Some(true)
+                    })
+                })
+        });
 
         ClaudeSession {
             session_id: self.session_id.clone(),
@@ -327,7 +342,7 @@ impl CodeSession {
             last_message_time: self.last_message_time.clone(),
             last_modified: self.last_message_time,
             has_tool_use,
-            has_errors: false,
+            has_errors,
             summary: self.summary,
             is_renamed: false,
             provider: Some(PROVIDER_ID.to_string()),
@@ -602,9 +617,12 @@ pub(crate) fn fold_wire_messages(
     if is_symlink(wire_path) || !wire_path.is_file() {
         return Vec::new();
     }
-    let Ok(content) = fs::read_to_string(wire_path) else {
+    // Streamed line-by-line: scan folds every session's journal, so whole
+    // journal buffering would multiply peak memory by the session count.
+    let Ok(file) = fs::File::open(wire_path) else {
         return Vec::new();
     };
+    let reader = std::io::BufReader::new(file);
 
     let mut history: Vec<FoldedMessage> = Vec::new();
     let mut state = FoldState {
@@ -614,8 +632,11 @@ pub(crate) fn fold_wire_messages(
     };
     let mut last_ts = fallback_ts.to_string();
 
-    for line in content.lines().filter(|line| !line.trim().is_empty()) {
-        let Ok(record) = serde_json::from_str::<Value>(line) else {
+    for line in reader.lines().map_while(Result::ok) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let Ok(record) = serde_json::from_str::<Value>(&line) else {
             continue; // torn/malformed tail — skip like the agent core does
         };
         if let Some(ts) = record
@@ -654,6 +675,13 @@ pub(crate) fn fold_wire_messages(
             "context.undo" => {
                 let count = record.get("count").and_then(Value::as_u64).unwrap_or(1) as usize;
                 apply_undo_cut(&mut history, count);
+                // The cut removed the assistant holding the open tool
+                // exchange, so its pending calls and any messages deferred
+                // behind that exchange are gone with it — keeping them
+                // would resurrect interrupted results for calls that no
+                // longer exist.
+                state.pending.clear();
+                state.deferred.clear();
             }
             "context.apply_compaction" => {
                 fold_apply_compaction(&mut history, &mut state, &record, &last_ts);
@@ -664,7 +692,7 @@ pub(crate) fn fold_wire_messages(
 
     // A journal cut mid-turn (crash) may still hold a partial assistant or
     // open tool exchange — settle it exactly like a `step.end` would.
-    settle_open_step(&mut history, &mut state);
+    settle_open_step(&mut history, &mut state, &last_ts);
 
     history
         .into_iter()
@@ -729,7 +757,7 @@ fn fold_loop_event(
     let event_type = event.get("type").and_then(Value::as_str).unwrap_or("");
     match event_type {
         "step.begin" => {
-            settle_open_step(history, state);
+            settle_open_step(history, state, timestamp);
             history.push(FoldedMessage {
                 role: "assistant".to_string(),
                 content: Vec::new(),
@@ -794,7 +822,7 @@ fn fold_loop_event(
             flush_deferred(history, state);
         }
         "step.end" => {
-            settle_open_step(history, state);
+            settle_open_step(history, state, timestamp);
         }
         _ => {}
     }
@@ -814,8 +842,8 @@ fn extract_output_marker(part: &Value) -> Option<&Value> {
 /// `step.end` / crash-tail semantics: pending calls become interrupted
 /// tool messages, then the open assistant is dropped when it recorded
 /// nothing sendable, or sealed otherwise, and deferred messages flush.
-fn settle_open_step(history: &mut Vec<FoldedMessage>, state: &mut FoldState) {
-    close_pending(history, state);
+fn settle_open_step(history: &mut Vec<FoldedMessage>, state: &mut FoldState, timestamp: &str) {
+    close_pending(history, state, timestamp);
 
     if let Some(index) = history.iter().rposition(|message| message.partial) {
         let vacuous = history[index].tool_calls.is_empty()
@@ -833,7 +861,7 @@ fn settle_open_step(history: &mut Vec<FoldedMessage>, state: &mut FoldState) {
     flush_deferred(history, state);
 }
 
-fn close_pending(history: &mut Vec<FoldedMessage>, state: &mut FoldState) {
+fn close_pending(history: &mut Vec<FoldedMessage>, state: &mut FoldState, timestamp: &str) {
     if state.pending.is_empty() {
         return;
     }
@@ -850,7 +878,7 @@ fn close_pending(history: &mut Vec<FoldedMessage>, state: &mut FoldState) {
             id: None,
             origin: None,
             partial: false,
-            timestamp: String::new(),
+            timestamp: timestamp.to_string(),
             model: None,
         });
     }
@@ -1139,56 +1167,46 @@ fn file_modified_iso(path: &Path) -> Option<String> {
         })
 }
 
-/// Resolve the `kimi-code://`-stripped workspace path to a real directory
-/// under the store's sessions root — canonical-form comparison so a
-/// symlinked workspace dir cannot redirect reads outside the store.
-fn resolve_workspace_dir(root: &Path, workspace_path: &str) -> Result<PathBuf, String> {
-    let workspace = Path::new(workspace_path);
-    if !workspace.is_absolute() {
-        return Err("Kimi Code workspace path must be absolute".to_string());
+/// Resolve `path` to its canonical form and require that it stays inside
+/// `<root>/sessions`. Rejects relative paths and symlinked entries — a
+/// symlinked directory cannot redirect reads outside the store. This
+/// guarantees containment only; it does not check the `wd_*/session_*`
+/// naming shape (a contained path without a readable `agents/main/wire.jsonl`
+/// simply yields no messages).
+fn resolve_within_sessions(root: &Path, path: &str, label: &str) -> Result<PathBuf, String> {
+    let target = Path::new(path);
+    if !target.is_absolute() {
+        return Err(format!("Kimi Code {label} path must be absolute"));
     }
-    if is_symlink(workspace) || !workspace.is_dir() {
-        return Err("Kimi Code workspace path is not a directory".to_string());
+    if is_symlink(target) || !target.is_dir() {
+        return Err(format!("Kimi Code {label} path is not a directory"));
     }
 
     let canonical_root = root
         .join(SESSIONS_DIR)
         .canonicalize()
         .map_err(|e| format!("Failed to resolve Kimi Code sessions root: {e}"))?;
-    let canonical_workspace = workspace
+    let canonical_target = target
         .canonicalize()
-        .map_err(|e| format!("Failed to resolve Kimi Code workspace path: {e}"))?;
-    if !canonical_workspace.starts_with(&canonical_root) {
-        return Err("Kimi Code workspace path is outside the sessions directory".to_string());
+        .map_err(|e| format!("Failed to resolve Kimi Code {label} path: {e}"))?;
+    if !canonical_target.starts_with(&canonical_root) {
+        return Err(format!(
+            "Kimi Code {label} path is outside the sessions directory"
+        ));
     }
 
-    Ok(canonical_workspace)
+    Ok(canonical_target)
 }
 
-/// Reject anything that is not a real, non-symlink `sessions/wd_*/session_*`
-/// directory under the kimi-code root — canonical-form comparison so a
-/// symlinked session dir cannot redirect reads outside the store.
+/// Resolve the `kimi-code://`-stripped workspace path to a real directory
+/// under the store's sessions root.
+fn resolve_workspace_dir(root: &Path, workspace_path: &str) -> Result<PathBuf, String> {
+    resolve_within_sessions(root, workspace_path, "workspace")
+}
+
+/// Resolve a session directory under the store's sessions root.
 fn validate_session_dir(root: &Path, session_path: &str) -> Result<PathBuf, String> {
-    let session_dir = Path::new(session_path);
-    if !session_dir.is_absolute() {
-        return Err("Kimi Code session path must be absolute".to_string());
-    }
-    if is_symlink(session_dir) || !session_dir.is_dir() {
-        return Err("Kimi Code session path is not a directory".to_string());
-    }
-
-    let sessions_root = root.join(SESSIONS_DIR);
-    let canonical_root = sessions_root
-        .canonicalize()
-        .map_err(|e| format!("Failed to resolve Kimi Code sessions root: {e}"))?;
-    let canonical_session = session_dir
-        .canonicalize()
-        .map_err(|e| format!("Failed to resolve Kimi Code session path: {e}"))?;
-    if !canonical_session.starts_with(&canonical_root) {
-        return Err("Kimi Code session path is outside the sessions directory".to_string());
-    }
-
-    Ok(canonical_session)
+    resolve_within_sessions(root, session_path, "session")
 }
 
 #[cfg(test)]
@@ -1559,6 +1577,104 @@ mod tests {
             load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
 
         assert_eq!(messages.len(), 2, "summary + post-compaction prompt stay");
+    }
+
+    #[test]
+    fn fold_undo_extends_over_prompt_owned_injections() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        let wire = vec![
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"keep"}],"toolCalls":[],"origin":{"kind":"user"},"id":"m1"},"time":1786959458516}"#,
+            // Owned by m2 → must be cut together with m2.
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"owned injection"}],"toolCalls":[],"origin":{"kind":"injection","ownerPromptId":"m2"},"id":"i1"},"time":1786959458517}"#,
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"drop"}],"toolCalls":[],"origin":{"kind":"user"},"id":"m2"},"time":1786959458518}"#,
+            r#"{"type":"context.undo","count":1,"time":1786959458519}"#,
+        ];
+        let session_dir = write_session(&root, "wd_a", "session_x", &default_state(), &wire);
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+
+        assert_eq!(
+            messages.len(),
+            1,
+            "the owned injection is cut with its prompt"
+        );
+        assert_eq!(messages[0].content.as_ref().unwrap()[0]["text"], "keep");
+    }
+
+    #[test]
+    fn fold_undo_keeps_injections_owned_by_another_prompt() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        let wire = vec![
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"keep"}],"toolCalls":[],"origin":{"kind":"user"},"id":"m1"},"time":1786959458516}"#,
+            // Owned by m1 → NOT cut by undoing m2.
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"foreign injection"}],"toolCalls":[],"origin":{"kind":"injection","ownerPromptId":"m1"},"id":"i1"},"time":1786959458517}"#,
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"drop"}],"toolCalls":[],"origin":{"kind":"user"},"id":"m2"},"time":1786959458518}"#,
+            r#"{"type":"context.undo","count":1,"time":1786959458519}"#,
+        ];
+        let session_dir = write_session(&root, "wd_a", "session_x", &default_state(), &wire);
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+
+        assert_eq!(messages.len(), 2, "the foreign injection survives");
+        assert_eq!(
+            messages[1].content.as_ref().unwrap()[0]["text"],
+            "foreign injection"
+        );
+    }
+
+    #[test]
+    fn interrupted_tool_message_carries_the_current_timestamp() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        let wire = vec![
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"run"}],"toolCalls":[]},"time":1786959458516}"#,
+            r#"{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"s1"},"time":1786959458517}"#,
+            r#"{"type":"context.append_loop_event","event":{"type":"tool.call","stepUuid":"s1","toolCallId":"tool_x","name":"Bash","args":{"command":"ls"}},"time":1786959458518}"#,
+            // Journal cut mid-exchange: no tool.result, no step.end. The
+            // final settle must stamp the interrupted message with the last
+            // seen time, not an empty string (session sorting depends on it).
+        ];
+        let session_dir = write_session(&root, "wd_a", "session_x", &default_state(), &wire);
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+
+        let interrupted = messages.last().expect("interrupted tool message");
+        assert!(!interrupted.timestamp.is_empty());
+        assert!(interrupted.timestamp.starts_with("2026-08"));
+    }
+
+    #[test]
+    fn undo_during_open_tool_exchange_drops_pending_and_deferred() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        let wire = vec![
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"keep"}],"toolCalls":[],"origin":{"kind":"user"},"id":"m0"},"time":1786959458515}"#,
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"first"}],"toolCalls":[],"origin":{"kind":"user"},"id":"m1"},"time":1786959458516}"#,
+            r#"{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"s1"},"time":1786959458517}"#,
+            r#"{"type":"context.append_loop_event","event":{"type":"tool.call","stepUuid":"s1","toolCallId":"tool_y","name":"Read","args":{"path":"a"}},"time":1786959458518}"#,
+            // A follow-up queues behind the open exchange…
+            r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"second"}],"toolCalls":[]},"time":1786959458519}"#,
+            // …then the m1 turn is undone mid-exchange. The pending call
+            // and the deferred message must vanish with the cut, not
+            // resurrect an interrupted result afterwards.
+            r#"{"type":"context.undo","count":1,"time":1786959458520}"#,
+        ];
+        let session_dir = write_session(&root, "wd_a", "session_x", &default_state(), &wire);
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+
+        assert_eq!(messages.len(), 1, "only the pre-anchor user prompt remains");
+        assert_eq!(messages[0].content.as_ref().unwrap()[0]["text"], "keep");
+        assert!(
+            !messages.iter().any(|m| m.message_type == "tool"),
+            "no ghost interrupted result for the undone tool call"
+        );
     }
 
     #[test]

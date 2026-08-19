@@ -1031,10 +1031,15 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
-    // Kimi Code (the `~/.kimi-code` rewrite) sessions.
+    // Kimi Code (the `~/.kimi-code` rewrite) sessions. Symlinked sessions
+    // roots are not registered — `is_dir()` follows symlinks, and watching
+    // through one would observe directories outside the store.
     if let Some(kimi_code_root) = providers::kimi_code::default_root() {
         let sessions = kimi_code_root.join("sessions");
-        if sessions.is_dir() {
+        let is_real_dir = std::fs::symlink_metadata(&sessions)
+            .map(|meta| meta.file_type().is_dir())
+            .unwrap_or(false);
+        if is_real_dir {
             paths.push(sessions);
         }
     }

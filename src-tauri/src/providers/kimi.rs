@@ -161,8 +161,11 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     match get_base_path() {
         Some(base) => {
             let mut projects = scan_projects_from_path(&base)?;
-            // Kimi-code workspaces coexist with the old CLI's sessions.
+            // Kimi-code workspaces coexist with the old CLI's sessions;
+            // re-sort the merged list so both stores interleave by
+            // last_modified instead of kimi-code always trailing.
             projects.extend(super::kimi_code::scan_projects());
+            projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
             Ok(projects)
         }
         // A kimi-code-only install still surfaces through this provider.
