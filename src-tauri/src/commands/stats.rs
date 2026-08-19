@@ -420,6 +420,9 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Grok
     } else if project_path.starts_with("kimi://") {
         StatsProvider::Kimi
+    } else if project_path.starts_with("kimi-code://") {
+        // Kimi Code workspaces surface through the kimi provider.
+        StatsProvider::Kimi
     } else if project_path.starts_with("gemini://") {
         StatsProvider::Gemini
     } else if project_path.starts_with("cursor://") {
@@ -632,9 +635,14 @@ fn is_codebuddy_path_under(path: &str, home: &Path) -> bool {
 }
 
 fn is_kimi_path(path: &str) -> bool {
+    // Covers the old CLI store (`~/.kimi`) and the kimi-code rewrite's
+    // `~/.kimi-code` sessions — both surface through the kimi provider.
     providers::kimi::get_base_path()
         .map(|root| Path::new(path).starts_with(root))
         .unwrap_or(false)
+        || providers::kimi_code::default_root()
+            .map(|root| Path::new(path).starts_with(root.join("sessions")))
+            .unwrap_or(false)
 }
 
 /// Whether `path` lies under the oh-my-pi sessions store root
@@ -3025,7 +3033,18 @@ fn resolve_provider_project_name_from_session(
         }
         StatsProvider::Kimi => {
             if let Some(project_dir) = Path::new(session_path).parent() {
-                let project_path = format!("kimi://{}", project_dir.to_string_lossy());
+                // Kimi-code session dirs live under `~/.kimi-code/sessions`
+                // and group under `kimi-code://` workspace paths; the old
+                // CLI layout uses `kimi://`.
+                let scheme = if providers::kimi_code::default_root()
+                    .map(|root| project_dir.starts_with(root.join("sessions")))
+                    .unwrap_or(false)
+                {
+                    providers::kimi_code::SCHEME
+                } else {
+                    "kimi://"
+                };
+                let project_path = format!("{scheme}{}", project_dir.to_string_lossy());
                 return resolve_provider_project_name(provider, &project_path);
             }
             "kimi".to_string()

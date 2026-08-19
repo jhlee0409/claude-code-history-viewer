@@ -16,14 +16,33 @@ const STATE_FILE: &str = "state.json";
 const WIRE_FILE: &str = "wire.jsonl";
 
 pub fn detect() -> Option<ProviderInfo> {
-    let base = get_base_path()?;
-    let sessions_path = Path::new(&base).join(SESSIONS_DIR);
-
+    // The kimi-code store (`~/.kimi-code`) is surfaced through this same
+    // provider; a kimi-code-only install still counts (antigravity-cli
+    // pattern) and its root becomes the reported base path.
+    let code_available = super::kimi_code::is_available();
+    if let Some(base) = get_base_path() {
+        let sessions_path = Path::new(&base).join(SESSIONS_DIR);
+        if !code_available && !sessions_path.is_dir() {
+            return None;
+        }
+        return Some(ProviderInfo {
+            id: PROVIDER_ID.to_string(),
+            display_name: "Kimi".to_string(),
+            base_path: base,
+            is_available: true,
+        });
+    }
+    if !code_available {
+        return None;
+    }
+    let base = super::kimi_code::default_root()?
+        .to_string_lossy()
+        .to_string();
     Some(ProviderInfo {
         id: PROVIDER_ID.to_string(),
-        display_name: "Kimi CLI".to_string(),
+        display_name: "Kimi".to_string(),
         base_path: base,
-        is_available: sessions_path.exists() && sessions_path.is_dir(),
+        is_available: true,
     })
 }
 
@@ -139,14 +158,27 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 }
 
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let base = get_base_path().ok_or("Kimi base path not found")?;
-    scan_projects_from_path(&base)
+    match get_base_path() {
+        Some(base) => {
+            let mut projects = scan_projects_from_path(&base)?;
+            // Kimi-code workspaces coexist with the old CLI's sessions.
+            projects.extend(super::kimi_code::scan_projects());
+            Ok(projects)
+        }
+        // A kimi-code-only install still surfaces through this provider.
+        None => Ok(super::kimi_code::scan_projects()),
+    }
 }
 
 pub fn load_sessions(
     project_path: &str,
     exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
+    // Kimi-code workspace paths carry the `kimi-code://` scheme and route
+    // to the wire-based loader; everything else is the old CLI layout.
+    if let Some(workspace) = project_path.strip_prefix(super::kimi_code::SCHEME) {
+        return super::kimi_code::load_sessions(workspace);
+    }
     let base = get_base_path().ok_or("Kimi base path not found")?;
     load_sessions_from_base_path(&base, project_path, exclude_sidechain)
 }
@@ -215,6 +247,10 @@ pub fn load_sessions_from_base_path(
 }
 
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
+    // Session dirs under the kimi-code store route to the wire loader.
+    if super::kimi_code::owns_session_path(session_path) {
+        return super::kimi_code::load_messages(session_path);
+    }
     let base = get_base_path().ok_or("Kimi base path not found")?;
     load_messages_from_base_path(&base, session_path)
 }
@@ -262,8 +298,17 @@ pub fn load_messages_from_base_path(
 }
 
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
-    let base = get_base_path().ok_or("Kimi base path not found")?;
-    search_from_base_path(&base, query, limit)
+    let mut results = match get_base_path() {
+        Some(base) => search_from_base_path(&base, query, limit)?,
+        None => Vec::new(),
+    };
+    // Kimi-code conversations carry real content — search them too.
+    if results.len() < limit {
+        let remaining = limit - results.len();
+        let code_results = super::kimi_code::search(query, remaining);
+        results.extend(code_results);
+    }
+    Ok(results)
 }
 
 pub fn search_from_base_path(
