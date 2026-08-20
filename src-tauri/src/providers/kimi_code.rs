@@ -69,6 +69,11 @@ const MAIN_AGENT: &str = "main";
 const WIRE_FILE: &str = "wire.jsonl";
 const STATE_FILE: &str = "state.json";
 const WORKSPACES_FILE: &str = "workspaces.json";
+/// Content-addressed store for pasted images, beside each agent's wire.
+const BLOBS_DIR: &str = "blobs";
+/// Largest blob inlined as base64 into a message (8 MiB). Bigger images are
+/// left as their raw `image_url` part instead of being held in memory.
+const MAX_INLINE_BLOB_BYTES: u64 = 8 * 1024 * 1024;
 const SUMMARY_MAX_CHARS: usize = 200;
 
 /// Default kimi-code home. Mirrors the agent core's bootstrap: the
@@ -603,6 +608,9 @@ struct FoldState {
     pending: Vec<String>,
     deferred: Vec<FoldedMessage>,
     model: Option<String>,
+    /// `<session>/agents/<agent>/blobs` — where `blobref:` image parts
+    /// resolve to. Sits beside the wire being folded.
+    blobs_dir: PathBuf,
 }
 
 /// Replay `wire.jsonl` into viewer messages.
@@ -629,6 +637,7 @@ pub(crate) fn fold_wire_messages(
         pending: Vec::new(),
         deferred: Vec::new(),
         model: None,
+        blobs_dir: wire_path.parent().unwrap_or(Path::new("")).join(BLOBS_DIR),
     };
     let mut last_ts = fallback_ts.to_string();
 
@@ -718,7 +727,10 @@ fn fold_append_message(
         return;
     }
     let content = match message.get("content") {
-        Some(Value::Array(items)) => items.iter().map(normalize_content_part).collect::<Vec<_>>(),
+        Some(Value::Array(items)) => items
+            .iter()
+            .map(|part| normalize_content_part(part, &state.blobs_dir))
+            .collect::<Vec<_>>(),
         Some(Value::String(text)) => vec![json!({ "type": "text", "text": text })],
         _ => Vec::new(),
     };
@@ -777,8 +789,9 @@ fn fold_loop_event(
         }
         "content.part" => {
             if let Some(part) = event.get("part") {
+                let normalized = normalize_content_part(part, &state.blobs_dir);
                 if let Some(open) = history.iter_mut().rev().find(|m| m.partial) {
-                    open.content.push(normalize_content_part(part));
+                    open.content.push(normalized);
                 }
             }
         }
@@ -1085,14 +1098,71 @@ fn convert_folded_message(
 
 /// Normalize a wire content part for the viewer: `think` → the viewer's
 /// `thinking` shape (same mapping as the old CLI reader).
-fn normalize_content_part(part: &Value) -> Value {
-    if part.get("type").and_then(Value::as_str) == Some("think") {
-        return json!({
+fn normalize_content_part(part: &Value, blobs_dir: &Path) -> Value {
+    match part.get("type").and_then(Value::as_str) {
+        Some("think") => json!({
             "type": "thinking",
             "thinking": part.get("think").and_then(Value::as_str).unwrap_or(""),
-        });
+        }),
+        // Pasted images. Unresolvable refs are left verbatim: an `image`
+        // block with no usable source renders as nothing at all, so the raw
+        // part is the more honest fallback.
+        Some("image_url") => part
+            .get("imageUrl")
+            .and_then(|image| image.get("url"))
+            .and_then(Value::as_str)
+            .and_then(|url| image_source_from_url(url, blobs_dir))
+            .map(|source| json!({ "type": "image", "source": source }))
+            .unwrap_or_else(|| part.clone()),
+        _ => part.clone(),
     }
-    part.clone()
+}
+
+/// Resolve a kimi-code image URL into a Claude-shaped `image` source.
+///
+/// Three forms occur: `blobref:<media-type>;<sha256>` (the persisted form —
+/// bytes live in the session's blob store), an inline `data:` URL, and a
+/// plain remote URL.
+fn image_source_from_url(url: &str, blobs_dir: &Path) -> Option<Value> {
+    if let Some(rest) = url.strip_prefix("blobref:") {
+        let (media_type, digest) = rest.split_once(';')?;
+        // Content-addressed: the digest is the file name, so reject anything
+        // that could escape the blob store.
+        if digest.is_empty() || !digest.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return None;
+        }
+        let blob = blobs_dir.join(digest);
+        if is_symlink(&blob) {
+            return None;
+        }
+        // Guard peak memory: scanning folds every session, and base64 adds
+        // another third on top of the file itself.
+        let too_large = fs::metadata(&blob).is_ok_and(|meta| meta.len() > MAX_INLINE_BLOB_BYTES);
+        if too_large {
+            return None;
+        }
+        let bytes = fs::read(&blob).ok()?;
+        return Some(json!({
+            "type": "base64",
+            "media_type": media_type,
+            "data": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, bytes),
+        }));
+    }
+
+    if let Some(rest) = url.strip_prefix("data:") {
+        let (media_type, data) = rest.split_once(";base64,")?;
+        return Some(json!({
+            "type": "base64",
+            "media_type": media_type,
+            "data": data,
+        }));
+    }
+
+    if url.starts_with("http://") || url.starts_with("https://") {
+        return Some(json!({ "type": "url", "url": url }));
+    }
+
+    None
 }
 
 /// Wire `toolCalls` entries (`{type: "function", id, name, arguments}` where
@@ -1833,6 +1903,80 @@ mod tests {
             .expect_err("symlinked session dir must be rejected");
         // The real session still loads.
         assert!(load_messages_from_root(&root, &session_dir.to_string_lossy()).is_ok());
+    }
+
+    /// Pasted images persist as `image_url` parts pointing at a
+    /// content-addressed blob next to the wire; the viewer only understands
+    /// Claude-shaped `image` blocks, so the fold resolves them.
+    #[test]
+    fn image_url_parts_are_converted_to_claude_image_blocks() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        sessions_root(&root);
+        let session_dir = write_session(
+            &root,
+            "wd_demo_abc123",
+            "session_img",
+            &default_state(),
+            &[
+                r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"look"},{"type":"image_url","imageUrl":{"url":"blobref:image/png;deadbeef"}},{"type":"image_url","imageUrl":{"url":"blobref:image/png;missing"}},{"type":"image_url","imageUrl":{"url":"https://example.com/a.png"}}],"origin":{"kind":"user"},"id":"msg_u1"},"time":1786959458516}"#,
+            ],
+        );
+        // The blob store sits beside the wire: <session>/agents/main/blobs/<sha>.
+        let blobs = session_dir.join(AGENTS_DIR).join(MAIN_AGENT).join("blobs");
+        fs::create_dir_all(&blobs).expect("create blobs dir");
+        fs::write(blobs.join("deadbeef"), [0x89u8, 0x50, 0x4e, 0x47]).expect("write blob");
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+        let parts = messages[0]
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .expect("content array");
+
+        assert_eq!(parts[1]["type"], "image");
+        assert_eq!(parts[1]["source"]["type"], "base64");
+        assert_eq!(parts[1]["source"]["media_type"], "image/png");
+        assert_eq!(parts[1]["source"]["data"], "iVBORw==");
+
+        // An unresolvable blobref stays verbatim rather than becoming an
+        // `image` block the renderer would silently drop.
+        assert_eq!(parts[2]["type"], "image_url");
+
+        assert_eq!(parts[3]["type"], "image");
+        assert_eq!(parts[3]["source"]["type"], "url");
+        assert_eq!(parts[3]["source"]["url"], "https://example.com/a.png");
+    }
+
+    /// Inline data URLs carry the bytes directly — no blob lookup needed.
+    #[test]
+    fn image_url_data_urls_are_converted_to_base64_image_blocks() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        sessions_root(&root);
+        let session_dir = write_session(
+            &root,
+            "wd_demo_abc123",
+            "session_data_url",
+            &default_state(),
+            &[
+                r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"image_url","imageUrl":{"url":"data:image/jpeg;base64,QUJD"}}],"origin":{"kind":"user"},"id":"msg_u1"},"time":1786959458516}"#,
+            ],
+        );
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+        let parts = messages[0]
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .expect("content array");
+
+        assert_eq!(parts[0]["type"], "image");
+        assert_eq!(parts[0]["source"]["type"], "base64");
+        assert_eq!(parts[0]["source"]["media_type"], "image/jpeg");
+        assert_eq!(parts[0]["source"]["data"], "QUJD");
     }
 
     #[test]
