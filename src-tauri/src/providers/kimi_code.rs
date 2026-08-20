@@ -45,7 +45,7 @@
 //! content, and is skipped. Parsing is tolerant: malformed lines are
 //! skipped, never propagated as scan errors.
 
-use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
+use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::utils::{build_provider_message, is_symlink, search_json_value_case_insensitive};
 use chrono::{TimeZone, Utc};
 use serde_json::{json, Value};
@@ -572,6 +572,9 @@ struct FoldedMessage {
     partial: bool,
     timestamp: String,
     model: Option<String>,
+    /// Token counts from the `usage.record` events emitted inside this
+    /// assistant step. Always `None` on non-assistant messages.
+    usage: Option<TokenUsage>,
 }
 
 impl FoldedMessage {
@@ -696,6 +699,13 @@ pub(crate) fn fold_wire_messages(
                     state.deferred.clear();
                 }
             }
+            // Emitted between `step.begin` and the step's content parts —
+            // the counts belong to the assistant turn being streamed.
+            "usage.record" => {
+                if let Some(usage) = record.get("usage") {
+                    fold_usage_record(&mut history, usage);
+                }
+            }
             "context.apply_compaction" => {
                 fold_apply_compaction(&mut history, &mut state, &record, &last_ts);
             }
@@ -712,6 +722,40 @@ pub(crate) fn fold_wire_messages(
         .enumerate()
         .filter_map(|(index, message)| convert_folded_message(message, session_id, index as u64))
         .collect()
+}
+
+/// Add one `usage.record`'s counts to the assistant step it belongs to.
+///
+/// On disk there is exactly one record per open step, but the counts are
+/// summed rather than assigned so a step that issued several requests totals
+/// correctly. A record with no assistant to attach to is dropped — there is
+/// no turn for the viewer to bill it to.
+fn fold_usage_record(history: &mut [FoldedMessage], usage: &Value) {
+    let Some(target) = history
+        .iter_mut()
+        .rev()
+        .find(|message| message.partial || message.role == "assistant")
+    else {
+        return;
+    };
+    if target.role != "assistant" {
+        return;
+    }
+
+    let field = |name: &str| usage.get(name).and_then(Value::as_u64).map(|v| v as u32);
+    let add = |current: Option<u32>, extra: Option<u32>| match (current, extra) {
+        (None, None) => None,
+        (a, b) => Some(a.unwrap_or(0).saturating_add(b.unwrap_or(0))),
+    };
+
+    let total = target.usage.get_or_insert_with(TokenUsage::default);
+    total.input_tokens = add(total.input_tokens, field("inputOther"));
+    total.output_tokens = add(total.output_tokens, field("output"));
+    total.cache_read_input_tokens = add(total.cache_read_input_tokens, field("inputCacheRead"));
+    total.cache_creation_input_tokens = add(
+        total.cache_creation_input_tokens,
+        field("inputCacheCreation"),
+    );
 }
 
 /// `ContextAppendMessage` fold: append unless a tool exchange is open, in
@@ -754,6 +798,7 @@ fn fold_append_message(
         partial: false,
         timestamp: timestamp.to_string(),
         model: state.model.clone(),
+        usage: None,
     };
 
     if state.pending.is_empty() {
@@ -785,6 +830,7 @@ fn fold_loop_event(
                 partial: true,
                 timestamp: timestamp.to_string(),
                 model: state.model.clone(),
+                usage: None,
             });
         }
         "content.part" => {
@@ -835,6 +881,7 @@ fn fold_loop_event(
                 partial: false,
                 timestamp: timestamp.to_string(),
                 model: None,
+                usage: None,
             });
             flush_deferred(history, state);
         }
@@ -897,6 +944,7 @@ fn close_pending(history: &mut Vec<FoldedMessage>, state: &mut FoldState, timest
             partial: false,
             timestamp: timestamp.to_string(),
             model: None,
+            usage: None,
         });
     }
     flush_deferred(history, state);
@@ -1014,6 +1062,7 @@ fn fold_apply_compaction(
             partial: false,
             timestamp: timestamp.to_string(),
             model: None,
+            usage: None,
         });
     }
 }
@@ -1054,7 +1103,7 @@ fn convert_folded_message(
             for call in &message.tool_calls {
                 blocks.push(call.clone());
             }
-            Some(build_provider_message(
+            let mut converted = build_provider_message(
                 PROVIDER_ID,
                 uuid,
                 session_id,
@@ -1063,7 +1112,9 @@ fn convert_folded_message(
                 Some("assistant"),
                 Some(Value::Array(blocks)),
                 message.model,
-            ))
+            );
+            converted.usage = message.usage;
+            Some(converted)
         }
         "tool" => {
             // Pull the output marker back out into the tool_result shape.
@@ -1903,6 +1954,71 @@ mod tests {
             .expect_err("symlinked session dir must be rejected");
         // The real session still loads.
         assert!(load_messages_from_root(&root, &session_dir.to_string_lossy()).is_ok());
+    }
+
+    /// `usage.record` lands inside the open assistant step (step.begin →
+    /// llm.request → usage.record → parts → step.end), which is where the
+    /// token counts belong for the analytics dashboard.
+    #[test]
+    fn usage_records_attach_to_the_open_assistant_step() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        sessions_root(&root);
+        let session_dir = write_session(
+            &root,
+            "wd_demo_abc123",
+            "session_usage",
+            &default_state(),
+            &[
+                r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"hi"}],"origin":{"kind":"user"},"id":"msg_u1"},"time":1786959458516}"#,
+                r#"{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"s1","turnId":"0","step":1},"time":1786959458517}"#,
+                r#"{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":4735,"output":79,"inputCacheRead":18944,"inputCacheCreation":12},"usageScope":"turn","time":1786959458518}"#,
+                r#"{"type":"context.append_loop_event","event":{"type":"content.part","uuid":"p1","stepUuid":"s1","part":{"type":"text","text":"hello"}},"time":1786959458519}"#,
+                r#"{"type":"context.append_loop_event","event":{"type":"step.end","uuid":"s1","turnId":"0","step":1,"finishReason":"end_turn"},"time":1786959458520}"#,
+            ],
+        );
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+        assert_eq!(messages.len(), 2);
+        assert!(
+            messages[0].usage.is_none(),
+            "the user prompt carries no usage"
+        );
+        let usage = messages[1].usage.as_ref().expect("assistant usage");
+        assert_eq!(usage.input_tokens, Some(4735));
+        assert_eq!(usage.output_tokens, Some(79));
+        assert_eq!(usage.cache_read_input_tokens, Some(18944));
+        assert_eq!(usage.cache_creation_input_tokens, Some(12));
+    }
+
+    /// One record per step is the shape on disk, but a step that issued more
+    /// than one request must total rather than keep only the last.
+    #[test]
+    fn usage_records_accumulate_within_one_step() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        sessions_root(&root);
+        let session_dir = write_session(
+            &root,
+            "wd_demo_abc123",
+            "session_usage_multi",
+            &default_state(),
+            &[
+                r#"{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"s1","turnId":"0","step":1},"time":1786959458517}"#,
+                r#"{"type":"usage.record","usage":{"inputOther":10,"output":1,"inputCacheRead":100,"inputCacheCreation":0},"usageScope":"turn","time":1786959458518}"#,
+                r#"{"type":"usage.record","usage":{"inputOther":20,"output":2,"inputCacheRead":200,"inputCacheCreation":0},"usageScope":"turn","time":1786959458519}"#,
+                r#"{"type":"context.append_loop_event","event":{"type":"content.part","uuid":"p1","stepUuid":"s1","part":{"type":"text","text":"hello"}},"time":1786959458520}"#,
+                r#"{"type":"context.append_loop_event","event":{"type":"step.end","uuid":"s1","turnId":"0","step":1,"finishReason":"end_turn"},"time":1786959458521}"#,
+            ],
+        );
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+        let usage = messages[0].usage.as_ref().expect("assistant usage");
+        assert_eq!(usage.input_tokens, Some(30));
+        assert_eq!(usage.output_tokens, Some(3));
+        assert_eq!(usage.cache_read_input_tokens, Some(300));
     }
 
     /// Pasted images persist as `image_url` parts pointing at a
