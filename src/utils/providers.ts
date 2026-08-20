@@ -1,7 +1,7 @@
 import type { ProviderId } from "../types";
 import { isWindows } from "./platform";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "kimi", "kimi-code", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 // WSL provider loaders use UNC-backed paths and are not interchangeable with
@@ -35,6 +35,7 @@ const PROVIDER_TRANSLATIONS: Record<
   goose: { key: "common.provider.goose", fallback: "Goose" },
   grok: { key: "common.provider.grok", fallback: "Grok CLI" },
   kimi: { key: "common.provider.kimi", fallback: "Kimi CLI" },
+  "kimi-code": { key: "common.provider.kimiCode", fallback: "Kimi Code CLI" },
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
   llm: { key: "common.provider.llm", fallback: "llm" },
   ompi: { key: "common.provider.ompi", fallback: "oh-my-pi" },
@@ -182,6 +183,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  "kimi-code": {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: true,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   kiro: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -297,6 +305,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "goose":
     case "grok":
     case "kimi":
+    case "kimi-code":
     case "forgecode":
     case "kiro":
     case "llm":
@@ -417,6 +426,10 @@ export function getResumeCommand(
     case "kimi":
       resume = `kimi -r ${sessionId}`;
       break;
+    case "kimi-code":
+      // New Kimi Code CLI: `-r`/`--resume` is a hidden alias for `--session`.
+      resume = `kimi --session ${sessionId}`;
+      break;
     case "vibe":
       resume = `vibe --resume ${sessionId}`;
       break;
@@ -477,6 +490,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   goose: "bg-red-500/15 text-red-600 dark:text-red-400",
   grok: "bg-zinc-800/15 text-zinc-800 dark:text-zinc-200",
   kimi: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300",
+  "kimi-code": "bg-fuchsia-600/15 text-fuchsia-700 dark:text-fuchsia-300",
   kiro: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
   llm: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
   ompi: "bg-teal-600/15 text-teal-700 dark:text-teal-300",

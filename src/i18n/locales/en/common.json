@@ -132,6 +132,7 @@
   "common.provider.goose": "Goose",
   "common.provider.grok": "Grok CLI",
   "common.provider.kimi": "Kimi CLI",
+  "common.provider.kimiCode": "Kimi Code CLI",
   "common.provider.detectError": "Failed to detect providers. Keeping the previous provider settings.",
   "common.provider.saveError": "Failed to save discovered provider settings. Please try again.",
   "common.provider.antigravity": "Antigravity",
