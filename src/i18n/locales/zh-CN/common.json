@@ -131,7 +131,7 @@
   "common.provider.gemini": "Gemini CLI",
   "common.provider.goose": "Goose",
   "common.provider.grok": "Grok CLI",
-  "common.provider.kimi": "Kimi CLI",
+  "common.provider.kimi": "Kimi",
   "common.provider.detectError": "检测提供商失败，将保留之前的提供商设置。",
   "common.provider.saveError": "无法保存已发现的提供商设置，请重试。",
   "common.provider.antigravity": "Antigravity",

@@ -20,6 +20,8 @@ const RESUME_COMMAND_PREFIXES: &[&str] = &[
     "copilot --resume=",
     "forge conversation resume ",
     "kimi -r ",
+    // kimi-code resumes with `-S`; the legacy kimi-cli store uses `-r`.
+    "kimi -S ",
     "vibe --resume ",
 ];
 
@@ -187,6 +189,7 @@ mod tests {
             "copilot --resume=abc_123",
             "forge conversation resume abc123",
             "kimi -r abc123",
+            "kimi -S session_abc-123",
             "vibe --resume abc123",
         ] {
             assert!(validate_resume_command(command).is_ok(), "{command}");
@@ -215,6 +218,7 @@ mod tests {
             "copilot --resume=x; rm -rf ~",
             "claude --resume `whoami`",
             "kimi -r x && y",
+            "kimi -S x && y",
             "vibe --resume x | y",
             "codex resume $(x)",
             "copilot --resume=x\"y",

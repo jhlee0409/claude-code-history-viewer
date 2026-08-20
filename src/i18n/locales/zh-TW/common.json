@@ -131,7 +131,7 @@
   "common.provider.gemini": "Gemini CLI",
   "common.provider.goose": "Goose",
   "common.provider.grok": "Grok CLI",
-  "common.provider.kimi": "Kimi CLI",
+  "common.provider.kimi": "Kimi",
   "common.provider.detectError": "偵測提供者失敗，將保留先前的提供者設定。",
   "common.provider.saveError": "無法儲存已找到的提供者設定，請再試一次。",
   "common.provider.antigravity": "Antigravity",
