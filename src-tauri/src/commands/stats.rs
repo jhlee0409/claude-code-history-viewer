@@ -45,6 +45,7 @@ enum StatsProvider {
     Llm,
     Grok,
     Kimi,
+    KimiCode,
     Antigravity,
     Copilot,
     Ompi,
@@ -104,6 +105,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Llm => "llm",
         StatsProvider::Grok => "grok",
         StatsProvider::Kimi => "kimi",
+        StatsProvider::KimiCode => "kimi-code",
         StatsProvider::Antigravity => "antigravity",
         StatsProvider::Copilot => "copilot",
         StatsProvider::Ompi => "ompi",
@@ -311,6 +313,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Llm,
         StatsProvider::Grok,
         StatsProvider::Kimi,
+        StatsProvider::KimiCode,
         StatsProvider::Antigravity,
         StatsProvider::Copilot,
         StatsProvider::Ompi,
@@ -355,6 +358,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "llm" => Some(StatsProvider::Llm),
             "grok" => Some(StatsProvider::Grok),
             "kimi" => Some(StatsProvider::Kimi),
+            "kimi-code" => Some(StatsProvider::KimiCode),
             "antigravity" => Some(StatsProvider::Antigravity),
             "copilot" => Some(StatsProvider::Copilot),
             "ompi" => Some(StatsProvider::Ompi),
@@ -418,6 +422,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::OpenCode
     } else if project_path.starts_with("grok://") {
         StatsProvider::Grok
+    } else if project_path.starts_with("kimicode://") {
+        StatsProvider::KimiCode
     } else if project_path.starts_with("kimi://") {
         StatsProvider::Kimi
     } else if project_path.starts_with("gemini://") {
@@ -520,6 +526,10 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
 
     if is_grok_path(session_path) {
         return StatsProvider::Grok;
+    }
+
+    if is_kimi_code_path(session_path) {
+        return StatsProvider::KimiCode;
     }
 
     if is_kimi_path(session_path) {
@@ -633,6 +643,12 @@ fn is_codebuddy_path_under(path: &str, home: &Path) -> bool {
 
 fn is_kimi_path(path: &str) -> bool {
     providers::kimi::get_base_path()
+        .map(|root| Path::new(path).starts_with(root))
+        .unwrap_or(false)
+}
+
+fn is_kimi_code_path(path: &str) -> bool {
+    providers::kimi_code::get_base_path()
         .map(|root| Path::new(path).starts_with(root))
         .unwrap_or(false)
 }
@@ -1504,6 +1520,7 @@ fn scan_stats_projects(
         StatsProvider::Llm => providers::llm::scan_projects(),
         StatsProvider::Grok => providers::grok::scan_projects(),
         StatsProvider::Kimi => providers::kimi::scan_projects(),
+        StatsProvider::KimiCode => providers::kimi_code::scan_projects(),
         StatsProvider::Antigravity => providers::antigravity::scan_projects(),
         StatsProvider::Copilot => providers::copilot::scan_projects(),
         StatsProvider::Ompi => providers::ompi::scan_projects(),
@@ -1543,6 +1560,7 @@ fn load_stats_sessions(
         StatsProvider::Llm => providers::llm::load_sessions(project_path, false),
         StatsProvider::Grok => providers::grok::load_sessions(project_path, false),
         StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
+        StatsProvider::KimiCode => providers::kimi_code::load_sessions(project_path, false),
         StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
         StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
         StatsProvider::Ompi => providers::ompi::load_sessions(project_path, false),
@@ -1580,6 +1598,7 @@ fn load_stats_messages(
         StatsProvider::Llm => providers::llm::load_messages(session_path),
         StatsProvider::Grok => providers::grok::load_messages(session_path),
         StatsProvider::Kimi => providers::kimi::load_messages(session_path),
+        StatsProvider::KimiCode => providers::kimi_code::load_messages(session_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(session_path),
         StatsProvider::Copilot => providers::copilot::load_messages(session_path),
         StatsProvider::Ompi => providers::ompi::load_messages(session_path),
@@ -2881,6 +2900,21 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 })
                 .unwrap_or_else(|| project_path.to_string())
         }
+        StatsProvider::KimiCode => {
+            if let Ok(projects) = providers::kimi_code::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("kimicode://")
+                .and_then(|p| {
+                    PathBuf::from(p)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                })
+                .unwrap_or_else(|| project_path.to_string())
+        }
         StatsProvider::Antigravity => {
             if let Ok(projects) = providers::antigravity::scan_projects() {
                 if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
@@ -3029,6 +3063,13 @@ fn resolve_provider_project_name_from_session(
                 return resolve_provider_project_name(provider, &project_path);
             }
             "kimi".to_string()
+        }
+        StatsProvider::KimiCode => {
+            if let Some(project_dir) = Path::new(session_path).parent() {
+                let project_path = format!("kimicode://{}", project_dir.to_string_lossy());
+                return resolve_provider_project_name(provider, &project_path);
+            }
+            "kimi-code".to_string()
         }
         StatsProvider::Antigravity => "Antigravity".to_string(),
         StatsProvider::Copilot => {
@@ -5033,6 +5074,13 @@ pub async fn get_global_stats_summary(
         file_stats.extend(kimi_stats);
     }
 
+    if providers_to_include.contains(&StatsProvider::KimiCode) {
+        let (kimi_code_stats, kimi_code_projects) =
+            collect_provider_global_file_stats(StatsProvider::KimiCode, mode, s_ref, e_ref);
+        project_names.extend(kimi_code_projects);
+        file_stats.extend(kimi_code_stats);
+    }
+
     if providers_to_include.contains(&StatsProvider::Antigravity) {
         let (antigravity_stats, antigravity_projects) =
             collect_provider_global_file_stats(StatsProvider::Antigravity, mode, s_ref, e_ref);
@@ -6188,7 +6236,7 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
-        assert_eq!(supported.len(), 29);
+        assert_eq!(supported.len(), 30);
     }
 
     #[test]

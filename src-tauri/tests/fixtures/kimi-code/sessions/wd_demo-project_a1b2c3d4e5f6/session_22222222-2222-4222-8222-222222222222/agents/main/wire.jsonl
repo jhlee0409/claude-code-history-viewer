@@ -1,0 +1,5 @@
+{"type":"metadata","version":1,"time":1784600399000}
+{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"Second session prompt"}],"origin":{"kind":"user"}},"time":1784600400000}
+{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"step-1","turnId":"0","step":1},"time":1784600401000}
+{"type":"context.append_loop_event","event":{"type":"content.part","uuid":"part-1","turnId":"0","step":1,"stepUuid":"step-1","part":{"type":"text","text":"Second reply."}},"time":1784600402000}
+{"type":"context.append_loop_event","event":{"type":"step.end","uuid":"step-1","turnId":"0","step":1,"usage":{"inputOther":10,"output":5}},"time":1784600403000}

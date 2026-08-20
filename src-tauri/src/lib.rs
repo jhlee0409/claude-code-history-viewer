@@ -1031,6 +1031,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(kimi_code_base) = providers::kimi_code::get_base_path() {
+        let sessions = PathBuf::from(kimi_code_base).join("sessions");
+        if sessions.is_dir() {
+            paths.push(sessions);
+        }
+    }
+
     // Pi / oh-my-pi: get_base_path() is already the sessions root.
     if let Some(pi_base) = providers::pi::get_base_path() {
         let sessions = PathBuf::from(pi_base);

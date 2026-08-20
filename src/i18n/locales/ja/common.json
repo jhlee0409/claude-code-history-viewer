@@ -132,6 +132,7 @@
   "common.provider.goose": "Goose",
   "common.provider.grok": "Grok CLI",
   "common.provider.kimi": "Kimi CLI",
+  "common.provider.kimiCode": "Kimi Code CLI",
   "common.provider.detectError": "プロバイダーの検出に失敗しました。以前のプロバイダー設定を維持します。",
   "common.provider.saveError": "検出したプロバイダー設定を保存できませんでした。もう一度お試しください。",
   "common.provider.antigravity": "Antigravity",

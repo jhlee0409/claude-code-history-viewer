@@ -274,6 +274,9 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             if let Some(paths) = extract_kimi_paths(path) {
                 return Some(paths);
             }
+            if let Some(paths) = extract_kimi_code_paths(path) {
+                return Some(paths);
+            }
             if let Some(paths) = extract_pi_family_paths(path) {
                 return Some(paths);
             }
@@ -285,9 +288,10 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             }
             extract_codex_paths(path)
         }
-        // Kimi state files and OpenCode storage files
+        // Kimi/Kimi Code state files and OpenCode storage files
         "json" => extract_vibe_paths(path)
             .or_else(|| extract_kimi_paths(path))
+            .or_else(|| extract_kimi_code_paths(path))
             .or_else(|| extract_opencode_paths(path)),
         // OpenCode SQLite database change — emit broad refresh for all OpenCode projects
         "db" | "db-wal" => extract_opencode_db_event(path),
@@ -495,6 +499,46 @@ fn extract_kimi_paths(path: &Path) -> Option<(String, String)> {
 
     Some((
         format!("kimi://{}", project_path.to_string_lossy()),
+        session_path.to_string_lossy().to_string(),
+    ))
+}
+
+/// Extract Kimi Code session identifiers from files under
+/// `~/.kimi-code/sessions/{workdir_key}/{session_id}/`.
+///
+/// Watched files: `state.json` directly in the session directory and the
+/// conversation log at `agents/main/wire.jsonl`.
+fn extract_kimi_code_paths(path: &Path) -> Option<(String, String)> {
+    let filename = path.file_name()?.to_str()?;
+    if !matches!(filename, "wire.jsonl" | "state.json") {
+        return None;
+    }
+
+    let sessions_root = crate::providers::kimi_code::get_base_path()
+        .map(PathBuf::from)
+        .map(|base| base.join("sessions"))?;
+    // Same canonicalization caveat as `extract_kimi_paths`: the watcher event
+    // path may not be canonical (e.g. macOS `/var` → `/private/var`).
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let relative = canonical_path.strip_prefix(&sessions_root).ok()?;
+    let parts: Vec<_> = relative.components().collect();
+
+    // state.json: <workdir_key>/<session_id>/state.json (3 parts)
+    // wire.jsonl: <workdir_key>/<session_id>/agents/main/wire.jsonl (5 parts)
+    let is_session_file = match (filename, parts.len()) {
+        ("state.json", 3) => true,
+        ("wire.jsonl", 5) => parts[2].as_os_str() == "agents" && parts[3].as_os_str() == "main",
+        _ => false,
+    };
+    if !is_session_file {
+        return None;
+    }
+
+    let project_path = sessions_root.join(parts[0].as_os_str());
+    let session_path = project_path.join(parts[1].as_os_str());
+
+    Some((
+        format!("kimicode://{}", project_path.to_string_lossy()),
         session_path.to_string_lossy().to_string(),
     ))
 }

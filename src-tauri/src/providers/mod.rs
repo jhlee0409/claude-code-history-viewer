@@ -21,6 +21,8 @@ pub mod gemini;
 pub mod goose;
 pub mod grok;
 pub mod kimi;
+/// Kimi Code CLI (new version) — `~/.kimi-code/sessions/<wd_key>/<session>/agents/main/wire.jsonl`.
+pub mod kimi_code;
 pub mod kiro;
 pub mod llm;
 pub mod ompi;
@@ -67,6 +69,9 @@ pub enum ProviderId {
     /// xAI Grok CLI (`~/.grok/sessions`).
     Grok,
     Kimi,
+    /// Kimi Code CLI (new version, `~/.kimi-code`) — distinct from legacy `kimi`.
+    #[serde(rename = "kimi-code")]
+    KimiCode,
     ForgeCode,
     Kiro,
     /// Simon Willison's `llm` CLI (`~/.../io.datasette.llm/logs.db`).
@@ -110,6 +115,7 @@ impl ProviderId {
             Self::Goose => "goose",
             Self::Grok => "grok",
             Self::Kimi => "kimi",
+            Self::KimiCode => "kimi-code",
             Self::ForgeCode => "forgecode",
             Self::Kiro => "kiro",
             Self::Llm => "llm",
@@ -144,6 +150,7 @@ impl ProviderId {
             "goose" => Some(Self::Goose),
             "grok" => Some(Self::Grok),
             "kimi" => Some(Self::Kimi),
+            "kimi-code" => Some(Self::KimiCode),
             "forgecode" => Some(Self::ForgeCode),
             "kiro" => Some(Self::Kiro),
             "llm" => Some(Self::Llm),
@@ -179,6 +186,7 @@ impl ProviderId {
             Self::Goose => "Goose",
             Self::Grok => "Grok CLI",
             Self::Kimi => "Kimi CLI",
+            Self::KimiCode => "Kimi Code CLI",
             Self::ForgeCode => "ForgeCode",
             Self::Kiro => "Kiro CLI",
             Self::Llm => "llm",
@@ -231,6 +239,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = kimi::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = kimi_code::detect() {
         providers.push(info);
     }
     if let Some(info) = forgecode::detect() {

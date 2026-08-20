@@ -1,0 +1,21 @@
+{"type":"metadata","version":1,"time":1784600295000}
+{"type":"config.update","profileName":"agent","systemPrompt":"You are Kimi Code CLI.\nThe current working directory is `/Users/dev/demo-project`.\nMore text.","time":1784600296000}
+{"type":"turn.prompt","input":[{"type":"text","text":"Implement the Kimi Code provider"}],"origin":{"kind":"user"},"time":1784600297000}
+{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"Implement the Kimi Code provider"}],"toolCalls":[],"origin":{"kind":"user"}},"time":1784600298000}
+{"type":"llm.request","time":1784600298500}
+{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"step-1","turnId":"0","step":1},"time":1784600299000}
+{"type":"context.append_loop_event","event":{"type":"content.part","uuid":"part-1","turnId":"0","step":1,"stepUuid":"step-1","part":{"type":"think","think":"I should inspect the provider registry first."}},"time":1784600300000}
+{"type":"context.append_loop_event","event":{"type":"content.part","uuid":"part-2","turnId":"0","step":1,"stepUuid":"step-1","part":{"type":"text","text":"Let me look at the existing providers."}},"time":1784600301000}
+{"type":"context.append_loop_event","event":{"type":"tool.call","uuid":"tool_abc123","turnId":"0","step":1,"stepUuid":"step-1","toolCallId":"tool_abc123","name":"Grep","args":{"pattern":"kimi","output_mode":"files_with_matches"},"description":"Searching for 'kimi'"},"time":1784600302000}
+{"type":"context.append_loop_event","event":{"type":"tool.result","parentUuid":"tool_abc123","toolCallId":"tool_abc123","result":{"output":"src/providers/kimi.rs"}},"time":1784600303000}
+{"type":"context.append_loop_event","event":{"type":"tool.call","uuid":"tool_def456","turnId":"0","step":1,"stepUuid":"step-1","toolCallId":"tool_def456","name":"Read","args":{"file_path":"src/providers/kimi.rs"},"description":"Reading kimi.rs"},"time":1784600303500}
+{"type":"context.append_loop_event","event":{"type":"tool.result","parentUuid":"tool_def456","toolCallId":"tool_def456","result":{"output":"pub fn scan()"}},"time":1784600303800}
+{"type":"context.append_loop_event","event":{"type":"step.end","uuid":"step-1","turnId":"0","step":1,"usage":{"inputOther":100,"output":20}},"time":1784600304000}
+{"type":"usage.record","time":1784600304500}
+{"type":"permission.set_mode","mode":"auto","time":1784600304600}
+{"type":"mcp.tools_discovered","time":1784600304700}
+{"type":"tools.set_active_tools","time":1784600304800}
+{"type":"context.append_message","message":{"role":"user","content":"Now add tests.","origin":{"kind":"user"}},"time":1784600306000}
+{"type":"turn.steer","input":[{"type":"text","text":"Now add tests."}],"origin":{"kind":"user"},"time":1784600306100}
+{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"step-2","turnId":"1","step":1},"time":1784600307000}
+{"type":"context.append_loop_event","event":{"type":"content.part","uuid":"part-3","turnId":"1","step":1,"stepUuid":"step-2","part":{"type":"text","text":"Done."}},"time":1784600308000}
