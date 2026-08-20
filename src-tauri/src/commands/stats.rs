@@ -2880,8 +2880,12 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                     return project.name;
                 }
             }
+            // Both stores answer to this provider id, so strip either
+            // scheme — otherwise a kimi-code workspace falls through and the
+            // whole `kimi-code://…` URI is shown as the project name.
             project_path
-                .strip_prefix("kimi://")
+                .strip_prefix(providers::kimi_code::SCHEME)
+                .or_else(|| project_path.strip_prefix("kimi://"))
                 .and_then(|p| {
                     PathBuf::from(p)
                         .file_name()
@@ -6054,6 +6058,10 @@ mod tests {
             StatsProvider::Kimi
         );
         assert_eq!(
+            detect_project_provider("kimi-code:///Users/jack/.kimi-code/sessions/wd_demo_abc123"),
+            StatsProvider::Kimi
+        );
+        assert_eq!(
             detect_project_provider("copilot-cli:///Users/jack/workspace"),
             StatsProvider::Copilot
         );
@@ -6597,6 +6605,20 @@ mod tests {
         assert_eq!(
             resolve_provider_project_name_from_session(StatsProvider::Kimi, session_path),
             "project-hash"
+        );
+    }
+
+    #[test]
+    fn test_kimi_code_project_name_falls_back_to_workspace_directory() {
+        // When the store is not scannable (no ~/.kimi-code on this machine,
+        // or the workspace was removed), the name falls back to the last
+        // path segment — which requires stripping the kimi-code scheme.
+        assert_eq!(
+            resolve_provider_project_name(
+                StatsProvider::Kimi,
+                "kimi-code:///tmp/.kimi-code/sessions/wd_demo_abc123"
+            ),
+            "wd_demo_abc123"
         );
     }
 
