@@ -242,7 +242,9 @@ pub(crate) fn load_messages_from_root(
         .map(|name| name.to_string_lossy().to_string())
         .ok_or("Kimi Code session path has no directory name")?;
 
-    let wire = main_wire_path(&session_dir);
+    let Some(wire) = main_wire_path(&session_dir) else {
+        return Ok(Vec::new());
+    };
     let fallback_ts = read_state_json(&session_dir)
         .and_then(|state| {
             state
@@ -255,9 +257,9 @@ pub(crate) fn load_messages_from_root(
 
     Ok(fold_wire_messages(
         &wire,
+        blobs_dir_for(&session_dir),
         &session_id,
         &fallback_ts,
-        BlobPolicy::Resolve,
     ))
 }
 
@@ -365,8 +367,8 @@ impl CodeSession {
 /// Fold one session directory's main wire into a `CodeSession`; `None` when
 /// the session has no readable wire or produces no viewer messages.
 fn build_session(session_dir: &Path) -> Option<CodeSession> {
-    let wire = main_wire_path(session_dir);
-    if is_symlink(&wire) || !wire.is_file() {
+    let wire = main_wire_path(session_dir)?;
+    if !wire.is_file() {
         return None;
     }
 
@@ -379,8 +381,9 @@ fn build_session(session_dir: &Path) -> Option<CodeSession> {
         .or_else(|| file_modified_iso(&wire))
         .unwrap_or_default();
 
-    // Scanning and search only read text metadata back out of the fold.
-    let messages = fold_wire_messages(&wire, &session_id, &fallback_ts, BlobPolicy::Skip);
+    // Scanning and search only read text metadata back out of the fold, so
+    // they pass no blob store and leave `blobref:` parts verbatim.
+    let messages = fold_wire_messages(&wire, None, &session_id, &fallback_ts);
     if messages.is_empty() {
         return None;
     }
@@ -475,11 +478,29 @@ fn list_session_dirs(workspace_dir: &Path) -> Vec<PathBuf> {
     dirs
 }
 
-fn main_wire_path(session_dir: &Path) -> PathBuf {
-    session_dir
-        .join(AGENTS_DIR)
-        .join(MAIN_AGENT)
-        .join(WIRE_FILE)
+/// Join `components` onto `base`, rejecting a symlink at every step.
+///
+/// Checking only the leaf is not enough: a symlinked `agents`, `main` or
+/// `blobs` directory redirects the read outside the session store while the
+/// file at the end stays a perfectly ordinary one.
+fn join_without_symlinks(base: &Path, components: &[&str]) -> Option<PathBuf> {
+    let mut path = base.to_path_buf();
+    for component in components {
+        path.push(component);
+        if is_symlink(&path) {
+            return None;
+        }
+    }
+    Some(path)
+}
+
+fn main_wire_path(session_dir: &Path) -> Option<PathBuf> {
+    join_without_symlinks(session_dir, &[AGENTS_DIR, MAIN_AGENT, WIRE_FILE])
+}
+
+/// The blob store beside a session's main wire.
+fn blobs_dir_for(session_dir: &Path) -> Option<PathBuf> {
+    join_without_symlinks(session_dir, &[AGENTS_DIR, MAIN_AGENT, BLOBS_DIR])
 }
 
 fn read_state_json(session_dir: &Path) -> Option<Value> {
@@ -611,26 +632,14 @@ impl FoldedMessage {
     }
 }
 
-/// Whether the fold inlines `blobref:` images from the session's blob store.
-///
-/// Only the viewer needs the bytes. Scanning and search fold every journal
-/// too, but read nothing back out of an image part — resolving there would
-/// read and base64-encode every blob in the store only to discard it.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum BlobPolicy {
-    Resolve,
-    Skip,
-}
-
 /// Replay state — mirrors `loopEventFold.ts`'s `FoldCtx` plus the current
 /// model alias from the latest `profile.bind`/`llm.request` record.
 struct FoldState {
     pending: Vec<String>,
     deferred: Vec<FoldedMessage>,
     model: Option<String>,
-    /// `<session>/agents/<agent>/blobs` — where `blobref:` image parts
-    /// resolve to. Sits beside the wire being folded; `None` under
-    /// `BlobPolicy::Skip`.
+    /// The session's blob store, where `blobref:` image parts resolve to.
+    /// `None` on the scan and search paths, which need no image bytes.
     blobs_dir: Option<PathBuf>,
 }
 
@@ -638,11 +647,18 @@ struct FoldState {
 ///
 /// Best-effort: malformed lines and unknown record types are skipped — a
 /// partial journal must never fail the whole session.
+/// Replay `wire.jsonl` into viewer messages.
+///
+/// `blobs_dir` is the session's blob store, or `None` to leave `blobref:`
+/// image parts verbatim. Only the viewer needs the bytes: scanning and
+/// search fold every journal too but read nothing back out of an image
+/// part, so resolving there would read and base64-encode every blob in the
+/// store only to discard the result.
 fn fold_wire_messages(
     wire_path: &Path,
+    blobs_dir: Option<PathBuf>,
     session_id: &str,
     fallback_ts: &str,
-    blobs: BlobPolicy,
 ) -> Vec<ClaudeMessage> {
     if is_symlink(wire_path) || !wire_path.is_file() {
         return Vec::new();
@@ -659,8 +675,7 @@ fn fold_wire_messages(
         pending: Vec::new(),
         deferred: Vec::new(),
         model: None,
-        blobs_dir: (blobs == BlobPolicy::Resolve)
-            .then(|| wire_path.parent().unwrap_or(Path::new("")).join(BLOBS_DIR)),
+        blobs_dir,
     };
     let mut last_ts = fallback_ts.to_string();
 
@@ -2162,6 +2177,96 @@ mod tests {
         assert_eq!(parts[0]["source"]["type"], "base64");
         assert_eq!(parts[0]["source"]["media_type"], "image/jpeg");
         assert_eq!(parts[0]["source"]["data"], "QUJD");
+    }
+
+    /// Rejecting only the `wire.jsonl` leaf is not enough: a symlinked
+    /// `agents` or `main` directory redirects the read outside the store
+    /// while the journal itself is a perfectly ordinary file.
+    #[test]
+    fn symlinked_journal_directories_are_rejected() {
+        use std::os::unix::fs as unix_fs;
+
+        for link_at in [AGENTS_DIR, MAIN_AGENT] {
+            let temp = TempDir::new().expect("temp dir");
+            let root = code_root(&temp);
+            let session_dir = root.join(SESSIONS_DIR).join("wd_a").join("session_x");
+            fs::create_dir_all(&session_dir).expect("create session dir");
+            fs::write(session_dir.join(STATE_FILE), default_state()).expect("write state");
+
+            // A real journal planted outside the store.
+            let outside = temp.path().join("outside");
+            let (link_src, link_dst) = if link_at == AGENTS_DIR {
+                fs::create_dir_all(outside.join(MAIN_AGENT)).expect("create outside");
+                fs::write(
+                    outside.join(MAIN_AGENT).join(WIRE_FILE),
+                    full_turn_wire().join("\n"),
+                )
+                .expect("write outside wire");
+                (outside.clone(), session_dir.join(AGENTS_DIR))
+            } else {
+                fs::create_dir_all(&outside).expect("create outside");
+                fs::write(outside.join(WIRE_FILE), full_turn_wire().join("\n"))
+                    .expect("write outside wire");
+                fs::create_dir_all(session_dir.join(AGENTS_DIR)).expect("create agents");
+                (
+                    outside.clone(),
+                    session_dir.join(AGENTS_DIR).join(MAIN_AGENT),
+                )
+            };
+            unix_fs::symlink(&link_src, &link_dst).expect("create symlink");
+
+            let messages = load_messages_from_root(&root, &session_dir.to_string_lossy())
+                .expect("load messages");
+            assert!(
+                messages.is_empty(),
+                "a symlinked `{link_at}` directory must not be traversed"
+            );
+            assert!(
+                scan_projects_from_root(&sessions_root(&root)).is_empty(),
+                "scanning must skip a session behind a symlinked `{link_at}`"
+            );
+        }
+    }
+
+    /// Same for the blob store: the leaf check misses a symlinked `blobs`
+    /// directory pointing at arbitrary files.
+    #[test]
+    fn symlinked_blob_directory_is_not_followed() {
+        use std::os::unix::fs as unix_fs;
+
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        sessions_root(&root);
+        let session_dir = write_session(
+            &root,
+            "wd_demo_abc123",
+            "session_blob_link",
+            &default_state(),
+            &[
+                r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"image_url","imageUrl":{"url":"blobref:image/png;deadbeef"}}],"origin":{"kind":"user"},"id":"msg_u1"},"time":1786959458516}"#,
+            ],
+        );
+
+        let outside = temp.path().join("outside-blobs");
+        fs::create_dir_all(&outside).expect("create outside blobs");
+        fs::write(outside.join("deadbeef"), [0x89u8, 0x50, 0x4e, 0x47]).expect("write blob");
+        unix_fs::symlink(
+            &outside,
+            session_dir.join(AGENTS_DIR).join(MAIN_AGENT).join("blobs"),
+        )
+        .expect("create symlink");
+
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+        let parts = messages[0]
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .expect("content array");
+        assert_eq!(
+            parts[0]["type"], "image_url",
+            "a symlinked blob store must not be read"
+        );
     }
 
     #[test]
