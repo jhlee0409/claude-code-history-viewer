@@ -20,8 +20,8 @@ describe("normalizeEntrypoint", () => {
   });
 
   it("maps kimi entrypoint values derived from kimi-code state", () => {
-    expect(normalizeEntrypoint("kimi-cli")).toBe("cli");
-    expect(normalizeEntrypoint("kimi-vscode")).toBe("vscode");
+    expect(normalizeEntrypoint("kimi-code-cli")).toBe("cli");
+    expect(normalizeEntrypoint("kimi-code-vscode")).toBe("vscode");
   });
 
   it("degrades unknown and missing values to null", () => {
@@ -42,14 +42,14 @@ describe("normalizeEntrypoint", () => {
 
 describe("matchesEntrypointFilter", () => {
   it("passes everything under the all filter", () => {
-    expect(matchesEntrypointFilter("kimi-vscode", "all")).toBe(true);
+    expect(matchesEntrypointFilter("kimi-code-vscode", "all")).toBe(true);
     expect(matchesEntrypointFilter(null, "all")).toBe(true);
   });
 
   it("matches kimi values against their normalized category", () => {
-    expect(matchesEntrypointFilter("kimi-vscode", "vscode")).toBe(true);
-    expect(matchesEntrypointFilter("kimi-vscode", "cli")).toBe(false);
-    expect(matchesEntrypointFilter("kimi-cli", "cli")).toBe(true);
+    expect(matchesEntrypointFilter("kimi-code-vscode", "vscode")).toBe(true);
+    expect(matchesEntrypointFilter("kimi-code-vscode", "cli")).toBe(false);
+    expect(matchesEntrypointFilter("kimi-code-cli", "cli")).toBe(true);
   });
 
   it("excludes sessions without an entrypoint from category filters", () => {

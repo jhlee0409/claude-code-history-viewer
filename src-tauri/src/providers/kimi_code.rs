@@ -402,9 +402,9 @@ fn build_session(session_dir: &Path) -> Option<CodeSession> {
         .and_then(|custom| custom.get("vscode_legacy_approval"))
         .is_some()
     {
-        "kimi-vscode"
+        "kimi-code-vscode"
     } else {
-        "kimi-cli"
+        "kimi-code-cli"
     };
 
     Some(CodeSession {
@@ -1368,7 +1368,7 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].session_id, "session_one");
         // default_state carries no vscode custom marker → CLI entrypoint.
-        assert_eq!(sessions[0].entrypoint.as_deref(), Some("kimi-cli"));
+        assert_eq!(sessions[0].entrypoint.as_deref(), Some("kimi-code-cli"));
         assert_eq!(
             sessions[0].message_count, 4,
             "user + assistant + tool + assistant"
@@ -1404,9 +1404,12 @@ mod tests {
         let by_id = |id: &str| sessions.iter().find(|s| s.session_id == id).unwrap();
         assert_eq!(
             by_id("session_vs").entrypoint.as_deref(),
-            Some("kimi-vscode")
+            Some("kimi-code-vscode")
         );
-        assert_eq!(by_id("session_cli").entrypoint.as_deref(), Some("kimi-cli"));
+        assert_eq!(
+            by_id("session_cli").entrypoint.as_deref(),
+            Some("kimi-code-cli")
+        );
     }
 
     #[test]
