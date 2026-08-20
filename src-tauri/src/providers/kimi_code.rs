@@ -253,7 +253,12 @@ pub(crate) fn load_messages_from_root(
         .or_else(|| file_modified_iso(&wire))
         .unwrap_or_default();
 
-    Ok(fold_wire_messages(&wire, &session_id, &fallback_ts))
+    Ok(fold_wire_messages(
+        &wire,
+        &session_id,
+        &fallback_ts,
+        BlobPolicy::Resolve,
+    ))
 }
 
 pub(crate) fn search_from_root(
@@ -374,7 +379,8 @@ fn build_session(session_dir: &Path) -> Option<CodeSession> {
         .or_else(|| file_modified_iso(&wire))
         .unwrap_or_default();
 
-    let messages = fold_wire_messages(&wire, &session_id, &fallback_ts);
+    // Scanning and search only read text metadata back out of the fold.
+    let messages = fold_wire_messages(&wire, &session_id, &fallback_ts, BlobPolicy::Skip);
     if messages.is_empty() {
         return None;
     }
@@ -605,6 +611,17 @@ impl FoldedMessage {
     }
 }
 
+/// Whether the fold inlines `blobref:` images from the session's blob store.
+///
+/// Only the viewer needs the bytes. Scanning and search fold every journal
+/// too, but read nothing back out of an image part — resolving there would
+/// read and base64-encode every blob in the store only to discard it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BlobPolicy {
+    Resolve,
+    Skip,
+}
+
 /// Replay state — mirrors `loopEventFold.ts`'s `FoldCtx` plus the current
 /// model alias from the latest `profile.bind`/`llm.request` record.
 struct FoldState {
@@ -612,18 +629,20 @@ struct FoldState {
     deferred: Vec<FoldedMessage>,
     model: Option<String>,
     /// `<session>/agents/<agent>/blobs` — where `blobref:` image parts
-    /// resolve to. Sits beside the wire being folded.
-    blobs_dir: PathBuf,
+    /// resolve to. Sits beside the wire being folded; `None` under
+    /// `BlobPolicy::Skip`.
+    blobs_dir: Option<PathBuf>,
 }
 
 /// Replay `wire.jsonl` into viewer messages.
 ///
 /// Best-effort: malformed lines and unknown record types are skipped — a
 /// partial journal must never fail the whole session.
-pub(crate) fn fold_wire_messages(
+fn fold_wire_messages(
     wire_path: &Path,
     session_id: &str,
     fallback_ts: &str,
+    blobs: BlobPolicy,
 ) -> Vec<ClaudeMessage> {
     if is_symlink(wire_path) || !wire_path.is_file() {
         return Vec::new();
@@ -640,7 +659,8 @@ pub(crate) fn fold_wire_messages(
         pending: Vec::new(),
         deferred: Vec::new(),
         model: None,
-        blobs_dir: wire_path.parent().unwrap_or(Path::new("")).join(BLOBS_DIR),
+        blobs_dir: (blobs == BlobPolicy::Resolve)
+            .then(|| wire_path.parent().unwrap_or(Path::new("")).join(BLOBS_DIR)),
     };
     let mut last_ts = fallback_ts.to_string();
 
@@ -773,7 +793,7 @@ fn fold_append_message(
     let content = match message.get("content") {
         Some(Value::Array(items)) => items
             .iter()
-            .map(|part| normalize_content_part(part, &state.blobs_dir))
+            .map(|part| normalize_content_part(part, state.blobs_dir.as_deref()))
             .collect::<Vec<_>>(),
         Some(Value::String(text)) => vec![json!({ "type": "text", "text": text })],
         _ => Vec::new(),
@@ -835,7 +855,7 @@ fn fold_loop_event(
         }
         "content.part" => {
             if let Some(part) = event.get("part") {
-                let normalized = normalize_content_part(part, &state.blobs_dir);
+                let normalized = normalize_content_part(part, state.blobs_dir.as_deref());
                 if let Some(open) = history.iter_mut().rev().find(|m| m.partial) {
                     open.content.push(normalized);
                 }
@@ -1149,7 +1169,7 @@ fn convert_folded_message(
 
 /// Normalize a wire content part for the viewer: `think` → the viewer's
 /// `thinking` shape (same mapping as the old CLI reader).
-fn normalize_content_part(part: &Value, blobs_dir: &Path) -> Value {
+fn normalize_content_part(part: &Value, blobs_dir: Option<&Path>) -> Value {
     match part.get("type").and_then(Value::as_str) {
         Some("think") => json!({
             "type": "thinking",
@@ -1174,8 +1194,10 @@ fn normalize_content_part(part: &Value, blobs_dir: &Path) -> Value {
 /// Three forms occur: `blobref:<media-type>;<sha256>` (the persisted form —
 /// bytes live in the session's blob store), an inline `data:` URL, and a
 /// plain remote URL.
-fn image_source_from_url(url: &str, blobs_dir: &Path) -> Option<Value> {
+fn image_source_from_url(url: &str, blobs_dir: Option<&Path>) -> Option<Value> {
     if let Some(rest) = url.strip_prefix("blobref:") {
+        // Under `BlobPolicy::Skip` the part is left verbatim.
+        let blobs_dir = blobs_dir?;
         let (media_type, digest) = rest.split_once(';')?;
         // Content-addressed: the digest is the file name, so reject anything
         // that could escape the blob store.
@@ -1186,8 +1208,8 @@ fn image_source_from_url(url: &str, blobs_dir: &Path) -> Option<Value> {
         if is_symlink(&blob) {
             return None;
         }
-        // Guard peak memory: scanning folds every session, and base64 adds
-        // another third on top of the file itself.
+        // Guard peak memory on the viewer path: a session's messages are
+        // held at once and base64 adds another third on top of each file.
         let too_large = fs::metadata(&blob).is_ok_and(|meta| meta.len() > MAX_INLINE_BLOB_BYTES);
         if too_large {
             return None;
@@ -2063,6 +2085,53 @@ mod tests {
         assert_eq!(parts[3]["type"], "image");
         assert_eq!(parts[3]["source"]["type"], "url");
         assert_eq!(parts[3]["source"]["url"], "https://example.com/a.png");
+    }
+
+    /// Scanning and search fold every session's journal but only read text
+    /// metadata out of it, so they must not pay for reading and encoding
+    /// image blobs whose result is discarded.
+    #[test]
+    fn scan_and_search_paths_leave_blobrefs_unresolved() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        let sessions = sessions_root(&root);
+        let session_dir = write_session(
+            &root,
+            "wd_demo_abc123",
+            "session_img_scan",
+            &default_state(),
+            &[
+                r#"{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"needle"},{"type":"image_url","imageUrl":{"url":"blobref:image/png;deadbeef"}},{"type":"image_url","imageUrl":{"url":"data:image/jpeg;base64,QUJD"}}],"origin":{"kind":"user"},"id":"msg_u1"},"time":1786959458516}"#,
+            ],
+        );
+        let blobs = session_dir.join(AGENTS_DIR).join(MAIN_AGENT).join("blobs");
+        fs::create_dir_all(&blobs).expect("create blobs dir");
+        fs::write(blobs.join("deadbeef"), [0x89u8, 0x50, 0x4e, 0x47]).expect("write blob");
+
+        let hits = search_from_root(&sessions, "needle", 10);
+        let parts = hits[0]
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .expect("content array");
+        assert_eq!(
+            parts[1]["type"], "image_url",
+            "search must not read the blob store"
+        );
+        // Forms that need no disk access still normalize everywhere.
+        assert_eq!(parts[2]["type"], "image");
+        assert_eq!(parts[2]["source"]["data"], "QUJD");
+
+        // Opening the session is the path that pays for the blob.
+        let messages =
+            load_messages_from_root(&root, &session_dir.to_string_lossy()).expect("load messages");
+        let parts = messages[0]
+            .content
+            .as_ref()
+            .and_then(Value::as_array)
+            .expect("content array");
+        assert_eq!(parts[1]["type"], "image");
+        assert_eq!(parts[1]["source"]["data"], "iVBORw==");
     }
 
     /// Inline data URLs carry the bytes directly — no blob lookup needed.
