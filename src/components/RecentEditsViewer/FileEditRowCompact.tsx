@@ -81,7 +81,14 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
   const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
 
   return (
-    <div className="group relative border-b border-border/60 last:border-b-0">
+    <div className="group border-b border-border/60 last:border-b-0">
+      {/*
+        `relative` wraps the header only, not the whole row. On the row it would
+        stretch the full-bleed button below over the expansion too, so a click
+        anywhere in the diff would collapse the row, and the expansion's own
+        content would fight it for pointer events.
+      */}
+      <div className="relative">
       {/*
         The click target is a full-bleed button behind the content rather than a
         wrapper around it, so the row is one native button (keyboard operable,
@@ -210,9 +217,10 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
           </div>
         </div>
       </div>
+      </div>
 
       {actions.restoreError && (
-        <div className="relative mx-2 mb-1 rounded bg-destructive/10 px-1.5 py-1 text-px11 text-destructive">
+        <div className="mx-2 mb-1 rounded bg-destructive/10 px-1.5 py-1 text-px11 text-destructive">
           {t("recentEdits.restoreError")}: {actions.restoreError}
         </div>
       )}
@@ -253,16 +261,14 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
       )}
 
       {isExpanded && (
-        <div className="relative">
-          <FileEditExpansion
+        <FileEditExpansion
             edit={edit}
             isDarkMode={isDarkMode}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             onJumpToMessage={onJumpToMessage}
-            jumpTargetsLatest={grouping === "file"}
-          />
-        </div>
+          jumpTargetsLatest={grouping === "file"}
+        />
       )}
     </div>
   );

@@ -108,6 +108,25 @@ describe("FileEditRowCompact", () => {
     expect(screen.getByText(edit.file_path)).toBeTruthy();
   });
 
+  it("keeps the click target off the expansion", () => {
+    // The full-bleed expand button is positioned against its own wrapper. If
+    // that wrapper were the whole row, the invisible target would stretch over
+    // the expanded diff, so a click anywhere in the code view would collapse
+    // the row and the expansion's own content would fight it for pointer
+    // events. Real-render verification caught exactly that.
+    const edit = makeEdit();
+    render(
+      <FileEditRowCompact edit={edit} isDarkMode={false} projectCwd={PROJECT} />
+    );
+
+    const row = screen.getByRole("button", { name: "HISTORY.md" });
+    fireEvent.click(row);
+
+    const fullPath = screen.getByText(edit.file_path);
+    expect(row.parentElement).toBeTruthy();
+    expect(row.parentElement?.contains(fullPath)).toBe(false);
+  });
+
   it("leads with Restore when the file is missing on disk", () => {
     render(
       <FileEditRowCompact
