@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-08-15T17:10:04.379Z
- * 총 키 개수: 1887
+ * 생성 시간: 2026-08-22T05:28:17.182Z
+ * 총 키 개수: 1912
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (183개)
+ * common namespace의 번역 키 (184개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -48,6 +48,7 @@ export type CommonKeys =
   | 'common.a11y.skipToMain'
   | 'common.a11y.skipToNavigator'
   | 'common.a11y.skipToProjects'
+  | 'common.a11y.skipToRecentEdits'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -1958,7 +1959,7 @@ export type FeedbackKeys =
   | 'feedback.types.other';
 
 /**
- * recentEdits namespace의 번역 키 (29개)
+ * recentEdits namespace의 번역 키 (53개)
  * 파일: locales/{lang}/recentEdits.json
  */
 export type RecentEditsKeys =
@@ -1967,30 +1968,54 @@ export type RecentEditsKeys =
   | 'recentEdits.confirmRestoreMessage'
   | 'recentEdits.confirmRestoreTitle'
   | 'recentEdits.copyContent'
+  | 'recentEdits.copyError'
   | 'recentEdits.created'
+  | 'recentEdits.densityCompact'
+  | 'recentEdits.densityFull'
   | 'recentEdits.description'
   | 'recentEdits.diff'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
+  | 'recentEdits.groupBy'
+  | 'recentEdits.groupByEdit'
+  | 'recentEdits.groupByFile'
+  | 'recentEdits.jumpToLatestEdit'
+  | 'recentEdits.jumpToMessage'
   | 'recentEdits.lines'
+  | 'recentEdits.loadMore'
   | 'recentEdits.loading'
+  | 'recentEdits.missingOnDisk'
   | 'recentEdits.noEdits'
   | 'recentEdits.noEditsDescription'
   | 'recentEdits.noLinesToShow'
+  | 'recentEdits.noMissingFiles'
   | 'recentEdits.noSearchResults'
+  | 'recentEdits.panelOptions'
   | 'recentEdits.restoreError'
   | 'recentEdits.restoreFile'
   | 'recentEdits.revealError'
   | 'recentEdits.revealInExplorer'
   | 'recentEdits.revealInFinder'
   | 'recentEdits.revealInFolder'
+  | 'recentEdits.scopeNeedsSession'
+  | 'recentEdits.scopeProject'
+  | 'recentEdits.scopeSession'
   | 'recentEdits.searchPlaceholder'
   | 'recentEdits.showAddedLines'
+  | 'recentEdits.showAll'
   | 'recentEdits.showDiff'
+  | 'recentEdits.showFilter'
+  | 'recentEdits.showMissingOnly'
   | 'recentEdits.showMore'
   | 'recentEdits.showRemovedLines'
   | 'recentEdits.stats'
-  | 'recentEdits.title';
+  | 'recentEdits.timeDaysShort'
+  | 'recentEdits.timeHoursShort'
+  | 'recentEdits.timeMinutesShort'
+  | 'recentEdits.timeNowShort'
+  | 'recentEdits.title'
+  | 'recentEdits.undockToPage'
+  | 'recentEdits.viewContent';
 
 /**
  * 모든 번역 키의 유니온 타입
@@ -2303,6 +2328,7 @@ export type TranslationKey =
   | 'common.a11y.skipToMain'
   | 'common.a11y.skipToNavigator'
   | 'common.a11y.skipToProjects'
+  | 'common.a11y.skipToRecentEdits'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -2823,30 +2849,54 @@ export type TranslationKey =
   | 'recentEdits.confirmRestoreMessage'
   | 'recentEdits.confirmRestoreTitle'
   | 'recentEdits.copyContent'
+  | 'recentEdits.copyError'
   | 'recentEdits.created'
+  | 'recentEdits.densityCompact'
+  | 'recentEdits.densityFull'
   | 'recentEdits.description'
   | 'recentEdits.diff'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
+  | 'recentEdits.groupBy'
+  | 'recentEdits.groupByEdit'
+  | 'recentEdits.groupByFile'
+  | 'recentEdits.jumpToLatestEdit'
+  | 'recentEdits.jumpToMessage'
   | 'recentEdits.lines'
+  | 'recentEdits.loadMore'
   | 'recentEdits.loading'
+  | 'recentEdits.missingOnDisk'
   | 'recentEdits.noEdits'
   | 'recentEdits.noEditsDescription'
   | 'recentEdits.noLinesToShow'
+  | 'recentEdits.noMissingFiles'
   | 'recentEdits.noSearchResults'
+  | 'recentEdits.panelOptions'
   | 'recentEdits.restoreError'
   | 'recentEdits.restoreFile'
   | 'recentEdits.revealError'
   | 'recentEdits.revealInExplorer'
   | 'recentEdits.revealInFinder'
   | 'recentEdits.revealInFolder'
+  | 'recentEdits.scopeNeedsSession'
+  | 'recentEdits.scopeProject'
+  | 'recentEdits.scopeSession'
   | 'recentEdits.searchPlaceholder'
   | 'recentEdits.showAddedLines'
+  | 'recentEdits.showAll'
   | 'recentEdits.showDiff'
+  | 'recentEdits.showFilter'
+  | 'recentEdits.showMissingOnly'
   | 'recentEdits.showMore'
   | 'recentEdits.showRemovedLines'
   | 'recentEdits.stats'
+  | 'recentEdits.timeDaysShort'
+  | 'recentEdits.timeHoursShort'
+  | 'recentEdits.timeMinutesShort'
+  | 'recentEdits.timeNowShort'
   | 'recentEdits.title'
+  | 'recentEdits.undockToPage'
+  | 'recentEdits.viewContent'
   | 'redactedThinkingRenderer.description'
   | 'redactedThinkingRenderer.title'
   | 'rendererLabels.blockedBy'

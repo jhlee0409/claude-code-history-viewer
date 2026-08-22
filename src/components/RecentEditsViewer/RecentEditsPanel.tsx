@@ -177,7 +177,7 @@ export const RecentEditsPanel: React.FC = () => {
                 ) : (
                   <ChevronDown className="h-3 w-3" aria-hidden="true" />
                 )}
-                {t("common.loadMore", "Load more")}
+                {t("recentEdits.loadMore", "Load more")}
               </button>
             )}
           </>
