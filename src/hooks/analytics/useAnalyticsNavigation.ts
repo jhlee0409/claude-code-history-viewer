@@ -164,7 +164,7 @@ export function useAnalyticsNavigation() {
     const hasCachedRecentEdits =
       analytics.recentEdits &&
       analytics.recentEdits.files.length > 0 &&
-      analytics.recentEdits.project_cwd === project.path;
+      analytics.recentEdits.requestedProjectPath === project.path;
 
     if (hasCachedRecentEdits) {
       return;
@@ -179,6 +179,7 @@ export function useAnalyticsNavigation() {
         total_edits_count: result.total_edits_count,
         unique_files_count: result.unique_files_count,
         project_cwd: result.project_cwd,
+        requestedProjectPath: project.path,
       });
 
       useAppStore.setState((state) => ({

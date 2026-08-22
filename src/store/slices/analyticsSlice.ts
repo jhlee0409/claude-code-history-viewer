@@ -245,6 +245,7 @@ export const createAnalyticsSlice: StateCreator<
             total_edits_count: result.total_edits_count,
             unique_files_count: result.unique_files_count,
             project_cwd: result.project_cwd,
+            requestedProjectPath: projectPath,
           },
           recentEditsPagination: {
             totalEditsCount: result.total_edits_count,

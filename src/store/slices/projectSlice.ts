@@ -609,6 +609,7 @@ export const createProjectSlice: StateCreator<
           total_edits_count: recentEdits.total_edits_count,
           unique_files_count: recentEdits.unique_files_count,
           project_cwd: recentEdits.project_cwd,
+          requestedProjectPath: refreshedProject.path,
         });
       } else if (refreshedState.analytics.currentView === "board") {
         refreshedState.clearBoard();
