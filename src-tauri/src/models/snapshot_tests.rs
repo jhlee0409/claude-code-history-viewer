@@ -534,6 +534,12 @@ mod edit_snapshots {
             lines_added: 3,
             lines_removed: 1,
             cwd: Some("/path/to".to_string()),
+            // Both new fields are `skip_serializing_if = "Option::is_none"`, so
+            // leaving them unset keeps the existing snapshot byte-identical.
+            // That is the point: the additions do not change any payload that
+            // does not carry them.
+            message_uuid: None,
+            exists_on_disk: None,
         };
 
         assert_json_snapshot!("recent_file_edit", edit);
@@ -552,6 +558,8 @@ mod edit_snapshots {
                 lines_added: 5,
                 lines_removed: 2,
                 cwd: Some("/project".to_string()),
+                message_uuid: None,
+                exists_on_disk: None,
             }],
             total_edits_count: 10,
             unique_files_count: 3,

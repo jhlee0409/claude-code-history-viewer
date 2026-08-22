@@ -150,6 +150,12 @@ pub struct RecentEditsParams {
     pub offset: Option<usize>,
     #[serde(default)]
     pub limit: Option<usize>,
+    /// Narrow the scan to a single session's JSONL file.
+    #[serde(default)]
+    pub session_file_path: Option<String>,
+    /// "file" (default) for one row per file, "edit" for one row per edit.
+    #[serde(default)]
+    pub grouping: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -556,7 +562,14 @@ handler_json!(
     get_recent_edits,
     RecentEditsParams,
     |p: RecentEditsParams| async move {
-        commands::session::get_recent_edits(p.project_path, p.offset, p.limit).await
+        commands::session::get_recent_edits(
+            p.project_path,
+            p.offset,
+            p.limit,
+            p.session_file_path,
+            p.grouping,
+        )
+        .await
     }
 );
 
