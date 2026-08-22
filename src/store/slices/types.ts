@@ -193,6 +193,16 @@ export interface AppStoreState {
   // Navigator state
   isNavigatorOpen: boolean;
 
+  // Recent Edits panel state
+  recentEditsMode: import('./recentEditsPanelSlice').RecentEditsMode;
+  recentEditsDensityPage: import('./recentEditsPanelSlice').RecentEditsDensity;
+  recentEditsDensityDock: import('./recentEditsPanelSlice').RecentEditsDensity;
+  recentEditsScope: import('./recentEditsPanelSlice').RecentEditsScope;
+  recentEditsGroupingProject: import('./recentEditsPanelSlice').RecentEditsGrouping;
+  recentEditsGroupingSession: import('./recentEditsPanelSlice').RecentEditsGrouping;
+  recentEditsMissingOnly: boolean;
+  isRecentEditsDockOpen: boolean;
+
   // Provider state
   providers: ProviderInfo[];
   activeProviders: ProviderId[];
@@ -383,6 +393,21 @@ export interface AppStoreActions {
   // Navigator actions
   toggleNavigator: () => void;
   setNavigatorOpen: (open: boolean) => void;
+
+  // Recent Edits panel actions
+  setRecentEditsMode: (mode: import('./recentEditsPanelSlice').RecentEditsMode) => void;
+  setRecentEditsDensity: (
+    mode: import('./recentEditsPanelSlice').RecentEditsMode,
+    density: import('./recentEditsPanelSlice').RecentEditsDensity
+  ) => void;
+  setRecentEditsScope: (scope: import('./recentEditsPanelSlice').RecentEditsScope) => void;
+  setRecentEditsGrouping: (
+    scope: import('./recentEditsPanelSlice').RecentEditsScope,
+    grouping: import('./recentEditsPanelSlice').RecentEditsGrouping
+  ) => void;
+  setRecentEditsMissingOnly: (missingOnly: boolean) => void;
+  setRecentEditsDockOpen: (open: boolean) => void;
+  toggleRecentEditsDock: () => void;
 
   // Provider actions
   detectProviders: () => Promise<boolean>;

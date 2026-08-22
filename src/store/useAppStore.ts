@@ -59,6 +59,10 @@ import {
   createNavigatorSlice,
 } from "./slices/navigatorSlice";
 import {
+  type RecentEditsPanelSlice,
+  createRecentEditsPanelSlice,
+} from "./slices/recentEditsPanelSlice";
+import {
   type ProviderSlice,
   createProviderSlice,
 } from "./slices/providerSlice";
@@ -103,6 +107,7 @@ export type AppStore = ProjectSlice &
   NavigationSlice &
   WatcherSlice &
   NavigatorSlice &
+  RecentEditsPanelSlice &
   ProviderSlice &
   ArchiveSlice &
   SessionPickerSlice &
@@ -127,6 +132,7 @@ export const useAppStore = create<AppStore>()((...args) => ({
   ...createNavigationSlice(...args),
   ...createWatcherSlice(...args),
   ...createNavigatorSlice(...args),
+  ...createRecentEditsPanelSlice(...args),
   ...createProviderSlice(...args),
   ...createArchiveSlice(...args),
   ...createSessionPickerSlice(...args),
