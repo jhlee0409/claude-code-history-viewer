@@ -49,6 +49,8 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     isRefreshingAllConversations,
     refreshAllConversations,
     refreshCurrentSession,
+    recentEditsMode,
+    toggleRecentEditsDock,
   } = useAppStore();
 
   const computed = analyticsComputed;
@@ -79,6 +81,15 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
 
   const handleLoadRecentEdits = async () => {
     if (!selectedProject) return;
+
+    // The button routes on mode. In "docked" mode it toggles the side panel
+    // beside the transcript; in "page" mode it keeps today's behaviour of
+    // taking over the content area.
+    if (recentEditsMode === "docked" && selectedSession) {
+      toggleRecentEditsDock();
+      return;
+    }
+
     try {
       await analyticsActions.switchToRecentEdits();
     } catch (error) {
@@ -249,7 +260,10 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
                 isActive={computed.isRecentEditsView}
                 isLoading={computed.isLoadingRecentEdits}
                 onClick={() => {
-                  if (computed.isRecentEditsView) {
+                  if (
+                    computed.isRecentEditsView &&
+                    recentEditsMode !== "docked"
+                  ) {
                     analyticsActions.switchToMessages();
                   } else {
                     handleLoadRecentEdits();

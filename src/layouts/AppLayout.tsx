@@ -19,6 +19,8 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ProjectTree } from "@/components/ProjectTree";
 import { MessageViewer } from "@/components/MessageViewer";
 import { MessageNavigator } from "@/components/MessageNavigator";
+import { PanelDock } from "@/components/PanelDock";
+import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { RecentEditsViewer } from "@/components/RecentEditsViewer";
@@ -105,6 +107,11 @@ export interface AppLayoutProps {
   handleNavigatorResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
   isNavigatorOpen: boolean;
   toggleNavigator: () => void;
+  recentEditsDockWidth: number;
+  isRecentEditsDockResizing: boolean;
+  handleRecentEditsDockResizeStart: (
+    e: React.MouseEvent<HTMLElement>
+  ) => void;
 
   // Grouping
   groupingMode: GroupingMode;
@@ -143,6 +150,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   // Loaded window may be partial under message pagination — used to render
   // the "+" suffix on the message count.
   const hasMoreMessages = useAppStore((s) => s.pagination.hasMore);
+  // The dock is panel state, not layout state, so it is read from the store
+  // rather than threaded through props like the navigator's older toggle.
+  const isRecentEditsDockOpen = useAppStore((s) => s.isRecentEditsDockOpen);
   const {
     projects,
     sessions,
@@ -187,6 +197,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     handleNavigatorResizeStart,
     isNavigatorOpen,
     toggleNavigator,
+    recentEditsDockWidth,
+    isRecentEditsDockResizing,
+    handleRecentEditsDockResizeStart,
     groupingMode,
     worktreeGroups,
     directoryGroups,
@@ -261,6 +274,16 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               defaultValue: "Skip to main content",
             })}
           </a>
+          {!isMobile && isRecentEditsDockOpen && selectedSession && (
+            <a
+              href="#recent-edits-dock"
+              className="absolute left-[35rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+            >
+              {t("common.a11y.skipToRecentEdits", {
+                defaultValue: "Skip to recent edits",
+              })}
+            </a>
+          )}
           {!isMobile && isNavigatorOpen && selectedSession && (
             <a
               href="#message-navigator"
@@ -594,6 +617,31 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                       onBack={() => analyticsActions.switchToBoard()}
                     />
                   </div>
+                  {!isMobile && isRecentEditsDockOpen && (
+                    <div className="hidden md:block">
+                      <PanelDock
+                        asideId="recent-edits-dock"
+                        isResizing={isRecentEditsDockResizing}
+                        onResizeStart={(_group, event) =>
+                          handleRecentEditsDockResizeStart(event)
+                        }
+                        groups={[
+                          {
+                            tabs: ["recentEdits"],
+                            activeTab: "recentEdits",
+                            size: recentEditsDockWidth,
+                          },
+                        ]}
+                        panels={{
+                          recentEdits: {
+                            id: "recentEdits",
+                            title: t("recentEdits.title"),
+                            render: () => <RecentEditsPanel />,
+                          },
+                        }}
+                      />
+                    </div>
+                  )}
                   <div className="hidden md:block">
                     <MessageNavigator
                       messages={messages}
