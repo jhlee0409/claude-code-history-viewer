@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  elideProjectRoot,
   getCompactParentPath,
   getDisplayPathParts,
   getPathLeaf,
@@ -78,5 +79,72 @@ describe("path display utilities", () => {
     expect(isProjectPathUnavailable({ path_status: "unavailable" })).toBe(true);
     expect(isProjectPathUnavailable({})).toBe(false);
     expect(isProjectPathUnavailable(null)).toBe(false);
+  });
+});
+
+describe("elideProjectRoot", () => {
+  it("strips the project root from a Unix path", () => {
+    expect(
+      elideProjectRoot(
+        "/Users/alex/Projects/my-app/skills/deliver-prd/TEMPLATE.md",
+        "/Users/alex/Projects/my-app"
+      )
+    ).toBe("skills/deliver-prd/TEMPLATE.md");
+  });
+
+  it("strips the project root from a Windows path and normalizes separators", () => {
+    expect(
+      elideProjectRoot(
+        "E:\\Projects\\my-app\\skills\\deliver-prd\\TEMPLATE.md",
+        "E:\\Projects\\my-app"
+      )
+    ).toBe("skills/deliver-prd/TEMPLATE.md");
+  });
+
+  it("ignores case on Windows paths, including the drive letter", () => {
+    // Measured on real data: scan_projects can report `e:\Projects\...` while the
+    // session logs record `E:\Projects\...` for the same project.
+    expect(
+      elideProjectRoot(
+        "E:\\Projects\\My-App\\src\\main.ts",
+        "e:\\projects\\my-app"
+      )
+    ).toBe("src/main.ts");
+  });
+
+  it("keeps case significant on Unix paths", () => {
+    expect(
+      elideProjectRoot("/Users/alex/Projects/My-App/src/main.ts", "/users/alex/projects/my-app")
+    ).toBe("/Users/alex/Projects/My-App/src/main.ts");
+  });
+
+  it("returns the path unchanged when it is not under the root", () => {
+    expect(
+      elideProjectRoot("/Users/alex/elsewhere/notes.md", "/Users/alex/Projects/my-app")
+    ).toBe("/Users/alex/elsewhere/notes.md");
+  });
+
+  it("does not treat a name-prefixed sibling directory as a child", () => {
+    expect(
+      elideProjectRoot("/Users/alex/Projects/my-app-docs/README.md", "/Users/alex/Projects/my-app")
+    ).toBe("/Users/alex/Projects/my-app-docs/README.md");
+  });
+
+  it("returns the path unchanged when there is no root", () => {
+    const path = "/Users/alex/Projects/my-app/src/main.ts";
+    expect(elideProjectRoot(path, undefined)).toBe(path);
+    expect(elideProjectRoot(path, "")).toBe(path);
+  });
+
+  it("returns an empty string when the path is the root itself", () => {
+    expect(
+      elideProjectRoot("/Users/alex/Projects/my-app", "/Users/alex/Projects/my-app")
+    ).toBe("");
+  });
+
+  it("tolerates a trailing separator on the root", () => {
+    expect(
+      elideProjectRoot("/Users/alex/Projects/my-app/src/main.ts", "/Users/alex/Projects/my-app/")
+    ).toBe("src/main.ts");
   });
 });

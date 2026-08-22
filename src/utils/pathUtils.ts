@@ -78,6 +78,57 @@ export function getPathLeaf(path: string): string {
 }
 
 /**
+ * Whether a path should be compared case-insensitively.
+ *
+ * Windows paths are case-insensitive, and the backend applies exactly that rule
+ * when filtering edits to the project directory (`edits.rs:465`, gated on
+ * `target_os = "windows"`). The frontend cannot read that cfg flag, so it infers
+ * the platform from the shape of the path instead. POSIX paths stay
+ * case-sensitive, where two files genuinely can differ only by case.
+ */
+function isWindowsStylePath(path: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(path) || path.includes("\\");
+}
+
+/**
+ * Strip the project root off a file path, for compact display.
+ *
+ * Returns the remainder joined with forward slashes, so
+ * `E:\Projects\my-app\skills\deliver-prd\TEMPLATE.md` under root
+ * `E:\Projects\my-app` becomes `skills/deliver-prd/TEMPLATE.md`.
+ *
+ * Returns the path unchanged when there is no root to strip or the path does not
+ * sit under it, and an empty string when the path *is* the root.
+ *
+ * Comparison is segment-wise rather than a plain `startsWith`, so a sibling
+ * directory that merely shares a name prefix (`.../foobar` against root
+ * `.../foo`) is not mistaken for a child.
+ */
+export function elideProjectRoot(
+  filePath: string,
+  projectCwd?: string
+): string {
+  if (!projectCwd) return filePath;
+
+  const rootParts = splitPathParts(projectCwd);
+  if (rootParts.length === 0) return filePath;
+
+  const pathParts = splitPathParts(filePath);
+  if (pathParts.length < rootParts.length) return filePath;
+
+  const ignoreCase =
+    isWindowsStylePath(projectCwd) || isWindowsStylePath(filePath);
+  const matches = (a: string, b: string) =>
+    ignoreCase ? a.toLowerCase() === b.toLowerCase() : a === b;
+
+  for (let i = 0; i < rootParts.length; i += 1) {
+    if (!matches(pathParts[i] ?? "", rootParts[i] ?? "")) return filePath;
+  }
+
+  return pathParts.slice(rootParts.length).join("/");
+}
+
+/**
  * Return user-facing path parts for compact sidebar display.
  */
 export function getDisplayPathParts(path: string): string[] {
