@@ -265,3 +265,129 @@ describe("recentEditsPanelSlice dock fetch", () => {
     expect(store.getState().isLoadingRecentEditsDock).toBe(false);
   });
 });
+
+describe("recentEditsPanelSlice dock fetch: regressions from adversarial review", () => {
+  const page = (paths, hasMore, offset) => ({
+    files: paths.map((file_path) => ({
+      file_path,
+      timestamp: "2026-08-21T10:00:00Z",
+      session_id: "s1",
+      operation_type: "edit",
+      content_after_change: "after",
+      lines_added: 1,
+      lines_removed: 0,
+    })),
+    total_edits_count: 100,
+    unique_files_count: 100,
+    project_cwd: "/project",
+    offset,
+    limit: 20,
+    has_more: hasMore,
+  });
+
+  const twenty = (prefix) =>
+    Array.from({ length: 20 }, (_, i) => `/project/${prefix}${i}.ts`);
+
+  const request = {
+    projectPath: "/storage/project",
+    scope: "project",
+    grouping: "file",
+    sessionFilePath: "/storage/project/session-a.jsonl",
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchRecentEdits.mockReset();
+  });
+
+  it("walks pages without skipping one (B2)", async () => {
+    // The original arithmetic added the last page's own offset to the
+    // cumulative row count, so page three asked for 60 instead of 40 and rows
+    // 40-59 were never fetched. One load-more passed; two did not.
+    fetchRecentEdits
+      .mockResolvedValueOnce(page(twenty("a"), true, 0))
+      .mockResolvedValueOnce(page(twenty("b"), true, 20))
+      .mockResolvedValueOnce(page(twenty("c"), false, 40));
+
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+    await store.getState().loadMoreRecentEditsDock(request);
+    await store.getState().loadMoreRecentEditsDock(request);
+
+    const offsets = fetchRecentEdits.mock.calls.map((c) => c[1]?.offset);
+    expect(offsets).toEqual([0, 20, 40]);
+    expect(store.getState().recentEditsDock?.files.length).toBe(60);
+  });
+
+  it("reclaims the request slot on a cache hit (B1)", async () => {
+    // K1 cached, switch to K2, switch back to K1 before K2 lands. K2 must not
+    // land on top of the rows the user is actually looking at.
+    let resolveK2;
+    fetchRecentEdits.mockResolvedValueOnce(page(["/project/k1.ts"], false, 0));
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveK2 = resolve))
+    );
+    const k2 = store
+      .getState()
+      .loadRecentEditsDock({ ...request, grouping: "edit" });
+
+    await store.getState().loadRecentEditsDock(request);
+    resolveK2?.(page(["/project/k2.ts"], false, 0));
+    await k2;
+
+    expect(
+      store.getState().recentEditsDock?.files.map((f) => f.file_path)
+    ).toEqual(["/project/k1.ts"]);
+  });
+
+  it("ignores a late load-more failure from an abandoned request (B3)", async () => {
+    let rejectSlow;
+    fetchRecentEdits.mockResolvedValueOnce(page(["/project/a.ts"], true, 0));
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => (rejectSlow = reject))
+    );
+    const slow = store.getState().loadMoreRecentEditsDock(request);
+
+    fetchRecentEdits.mockResolvedValueOnce(page(["/project/fresh.ts"], false, 0));
+    await store.getState().loadRecentEditsDock({ ...request, grouping: "edit" });
+
+    rejectSlow?.(new Error("abandoned request failed"));
+    await slow;
+
+    expect(store.getState().recentEditsDockError).toBeNull();
+    expect(
+      store.getState().recentEditsDock?.files.map((f) => f.file_path)
+    ).toEqual(["/project/fresh.ts"]);
+  });
+
+  it("keeps requests distinct when a path contains the key separator (B4)", async () => {
+    // `|` is legal in a POSIX path, so a joined key could collide.
+    const a = {
+      projectPath: "/p",
+      scope: "session",
+      grouping: "file",
+      sessionFilePath: "/p/a|project|file|",
+    };
+    const b = {
+      projectPath: "/p|session|file|/p/a",
+      scope: "project",
+      grouping: "file",
+      sessionFilePath: undefined,
+    };
+
+    expect(recentEditsDockRequestKey(a)).not.toBe(recentEditsDockRequestKey(b));
+
+    fetchRecentEdits.mockResolvedValue(page(["/project/x.ts"], false, 0));
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(a);
+    await store.getState().loadRecentEditsDock(b);
+
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(2);
+  });
+});

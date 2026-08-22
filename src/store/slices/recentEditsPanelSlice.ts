@@ -103,16 +103,22 @@ export interface RecentEditsDockRequest {
   sessionFilePath?: string;
 }
 
-/** Stable identity for a dock request. Order matters, so build it in one place. */
+/**
+ * Stable identity for a dock request. Order matters, so build it in one place.
+ *
+ * Serialized rather than joined on a separator: every separator character is
+ * legal somewhere in a POSIX path, so a joined key can collide across genuinely
+ * different requests and hand one of them the other's rows.
+ */
 export const recentEditsDockRequestKey = (
   request: RecentEditsDockRequest
 ): string =>
-  [
+  JSON.stringify([
     request.projectPath,
     request.scope,
     request.grouping,
     request.scope === "session" ? (request.sessionFilePath ?? "") : "",
-  ].join("|");
+  ]);
 
 export interface RecentEditsPanelSliceState {
   /** Whether Recent Edits renders as the full page or as a docked panel. */
@@ -291,7 +297,14 @@ export const createRecentEditsPanelSlice: StateCreator<
     const current = get().recentEditsDock;
     // Identity match on the request that produced the data, so a repeat visit
     // with unchanged scope and grouping does not re-walk the project.
-    if (current?.requestKey === key && current.files.length > 0) return;
+    if (current?.requestKey === key && current.files.length > 0) {
+      // Claim the key even though nothing is fetched. Switching away and back
+      // while another request is in flight would otherwise leave that request
+      // still owning the slot, and its response would land on top of the rows
+      // being shown.
+      set({ recentEditsDockRequestedKey: key, isLoadingRecentEditsDock: false });
+      return;
+    }
 
     set({
       isLoadingRecentEditsDock: true,
@@ -332,7 +345,10 @@ export const createRecentEditsPanelSlice: StateCreator<
     set({ isLoadingMoreRecentEditsDock: true });
     try {
       const result = await fetchRecentEdits(request.projectPath, {
-        offset: current.offset + current.files.length,
+        // Every page starts from offset 0, so the rows already held ARE the
+        // next offset. Adding the last page's own offset double-counts it and
+        // skips a whole page from the third request onward.
+        offset: current.files.length,
         limit: DOCK_PAGE_SIZE,
         grouping: request.grouping,
         sessionFilePath:
@@ -344,6 +360,10 @@ export const createRecentEditsPanelSlice: StateCreator<
       if (!latest || latest.requestKey !== key) return;
       set({ recentEditsDock: toDockResult(key, result, latest.files) });
     } catch (error) {
+      // Same ownership rule as the success path. A late failure from a request
+      // the user has already moved on from must not paint an error over rows
+      // that loaded fine.
+      if (get().recentEditsDockRequestedKey !== key) return;
       set({
         recentEditsDockError:
           error instanceof Error ? error.message : String(error),
