@@ -161,10 +161,16 @@ export function useAnalyticsNavigation() {
     setAnalyticsCurrentView("recentEdits");
     clearAnalyticsErrors();
 
+    // Read the cache at call time rather than from the render closure.
+    // `refreshAnalytics` clears it and then calls this in the same tick, so a
+    // closed-over value is a render behind and reports a hit on data that no
+    // longer exists, leaving the view empty. That was survivable only while the
+    // guard never held.
+    const cached = useAppStore.getState().analytics.recentEdits;
     const hasCachedRecentEdits =
-      analytics.recentEdits &&
-      analytics.recentEdits.files.length > 0 &&
-      analytics.recentEdits.requestedProjectPath === project.path;
+      cached &&
+      cached.files.length > 0 &&
+      cached.requestedProjectPath === project.path;
 
     if (hasCachedRecentEdits) {
       return;
@@ -173,6 +179,13 @@ export function useAnalyticsNavigation() {
     try {
       setAnalyticsLoadingRecentEdits(true);
       const result = await loadRecentEdits(project.path);
+
+      // The user may have switched projects while this was in flight. Writing
+      // anyway would show one project's edits under another's identity, and the
+      // cache guard would then treat that as a valid hit indefinitely.
+      if (useAppStore.getState().selectedProject?.path !== project.path) {
+        return;
+      }
 
       setAnalyticsRecentEdits({
         files: result.files,
@@ -204,11 +217,14 @@ export function useAnalyticsNavigation() {
       console.error("Failed to load recent edits:", error);
       throw error;
     } finally {
-      setAnalyticsLoadingRecentEdits(false);
+      // Only the request that still owns the selection clears the flag, so a
+      // late loser cannot report a newer request as finished.
+      if (useAppStore.getState().selectedProject?.path === project.path) {
+        setAnalyticsLoadingRecentEdits(false);
+      }
     }
   }, [
     t,
-    analytics.recentEdits,
     setAnalyticsCurrentView,
     clearAnalyticsErrors,
     setAnalyticsLoadingRecentEdits,

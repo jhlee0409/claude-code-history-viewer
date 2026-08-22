@@ -141,6 +141,92 @@ describe("switchToRecentEdits cache", () => {
     expect(fetchRecentEdits).toHaveBeenCalledTimes(1);
   });
 
+  it("refetches after a refresh clears the cache (C1)", async () => {
+    // `refreshAnalytics` clears the cache and calls switchToRecentEdits in the
+    // same tick. Reading the cache from the render closure sees the pre-clear
+    // value, reports a hit, and leaves the view empty. This only became
+    // reachable once the guard started actually holding.
+    const p = project("alpha");
+    fetchRecentEdits.mockResolvedValue(payload(p.actual_path));
+    useAppStore.setState({ selectedProject: p });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.refreshAnalytics();
+    });
+
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(2);
+    expect(useAppStore.getState().analytics.recentEdits?.files.length).toBe(1);
+  });
+
+  it("does not write a result for a project that is no longer selected (C3)", async () => {
+    const a = project("alpha");
+    const b = project("beta");
+    let resolveA;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveA = resolve))
+    );
+
+    useAppStore.setState({ selectedProject: a });
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    const pending = result.current.switchToRecentEdits();
+
+    await act(async () => {
+      useAppStore.setState({ selectedProject: b });
+    });
+
+    await act(async () => {
+      resolveA?.(payload(a.actual_path));
+      await pending;
+    });
+
+    // A landed last but B is selected, so A must not install itself as the
+    // cache under its own key.
+    expect(
+      useAppStore.getState().analytics.recentEdits?.requestedProjectPath
+    ).not.toBe(a.path);
+  });
+
+  it("refuses to extend a cache entry from another project (C2)", async () => {
+    const a = project("alpha");
+    const b = project("beta");
+    fetchRecentEdits.mockResolvedValue(payload(a.actual_path));
+    useAppStore.setState({ selectedProject: a });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    useAppStore.setState({
+      analytics: {
+        ...useAppStore.getState().analytics,
+        recentEditsPagination: {
+          totalEditsCount: 100,
+          uniqueFilesCount: 100,
+          offset: 0,
+          limit: 20,
+          hasMore: true,
+          isLoadingMore: false,
+        },
+      },
+    });
+    const callsBefore = fetchRecentEdits.mock.calls.length;
+
+    await act(async () => {
+      await useAppStore.getState().loadMoreRecentEdits(b.path);
+    });
+
+    // Appending B's page onto A's rows would tag the mixture with B's identity
+    // and the guard would then accept it forever.
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(callsBefore);
+  });
+
   it("records the requested project path on the cached result", async () => {
     const p = project("alpha");
     fetchRecentEdits.mockResolvedValue(payload(p.actual_path));

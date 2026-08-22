@@ -214,6 +214,18 @@ export const createAnalyticsSlice: StateCreator<
       return;
     }
 
+    // The cached rows and the pagination cursor may belong to a different
+    // project than the one being asked for. Appending here would staple one
+    // project's page onto another's rows and then tag the mixture with a
+    // request identity that looks valid to the cache guard.
+    if (
+      recentEdits &&
+      recentEdits.requestedProjectPath !== undefined &&
+      recentEdits.requestedProjectPath !== projectPath
+    ) {
+      return;
+    }
+
     // Set loading state
     set((state) => ({
       analytics: {
