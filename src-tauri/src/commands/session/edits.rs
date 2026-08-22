@@ -30,6 +30,13 @@ fn detect_project_provider(project_path: &str) -> EditsProvider {
     }
 }
 
+/// Page size when the caller does not ask for one.
+const DEFAULT_PAGE_LIMIT: usize = 20;
+
+/// Upper bound on a caller-supplied page size. Each returned row costs one
+/// `fs::metadata` call, so the page size bounds the syscall cost of a request.
+const MAX_PAGE_LIMIT: usize = 200;
+
 /// How the raw edit stream is reduced before pagination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum EditsGrouping {
@@ -489,6 +496,38 @@ fn collect_provider_recent_edits_from_messages(
     edits
 }
 
+/// Split a path into comparison-ready components, resolving `.` and `..` textually
+/// and folding case on Windows.
+///
+/// The edit paths come out of session logs, not from the filesystem walk, so they
+/// can contain traversal segments. A raw `starts_with` on the string form accepts
+/// `/repo/../secret` as being inside `/repo`, and also accepts `/repository/x`
+/// because `/repo` is a character prefix of it.
+fn comparable_path_parts(path: &str) -> Vec<String> {
+    let mut parts: Vec<String> = Vec::new();
+    for raw in path.split(['/', '\\']) {
+        match raw {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            segment => {
+                #[cfg(target_os = "windows")]
+                parts.push(segment.to_lowercase());
+                #[cfg(not(target_os = "windows"))]
+                parts.push(segment.to_string());
+            }
+        }
+    }
+    parts
+}
+
+/// Whether `file_path` sits inside the directory described by `root_parts`.
+fn path_is_within(file_path: &str, root_parts: &[String]) -> bool {
+    let parts = comparable_path_parts(file_path);
+    parts.len() > root_parts.len() && parts.starts_with(root_parts)
+}
+
 fn paginate_recent_edits(
     all_edits: Vec<RecentFileEdit>,
     project_cwd: Option<String>,
@@ -496,24 +535,13 @@ fn paginate_recent_edits(
     limit: usize,
     grouping: EditsGrouping,
 ) -> PaginatedRecentEdits {
-    // Filter edits to only include files within the project directory
-    // Use case-insensitive comparison on Windows for path matching
+    // Filter edits to only include files within the project directory.
     let filtered_edits: Vec<RecentFileEdit> = if let Some(ref cwd) = project_cwd {
-        #[cfg(target_os = "windows")]
-        let cwd_normalized = cwd.to_lowercase();
-        #[cfg(not(target_os = "windows"))]
-        let cwd_normalized = cwd.clone();
+        let cwd_parts = comparable_path_parts(cwd);
 
         all_edits
             .into_iter()
-            .filter(|edit| {
-                #[cfg(target_os = "windows")]
-                let file_path_normalized = edit.file_path.to_lowercase();
-                #[cfg(not(target_os = "windows"))]
-                let file_path_normalized = edit.file_path.clone();
-
-                file_path_normalized.starts_with(&cwd_normalized)
-            })
+            .filter(|edit| path_is_within(&edit.file_path, &cwd_parts))
             .collect()
     } else {
         all_edits
@@ -521,9 +549,18 @@ fn paginate_recent_edits(
 
     let total_edits_count = filtered_edits.len();
 
-    // Sort by timestamp descending (newest first)
+    // Sort by timestamp descending (newest first), breaking ties on the path so
+    // the order is total. With only the timestamp as key, edits sharing an
+    // instant (one tool call writing several files) tie in `HashMap` iteration
+    // order, which differs between requests: page 2 could then repeat a row
+    // from page 1 and silently drop another.
     let mut sorted_edits = filtered_edits;
-    sorted_edits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    sorted_edits.sort_by(|a, b| {
+        b.timestamp
+            .cmp(&a.timestamp)
+            .then_with(|| a.file_path.cmp(&b.file_path))
+            .then_with(|| a.message_uuid.cmp(&b.message_uuid))
+    });
 
     // Reported in both groupings, so a caller can always say how many distinct
     // files a session or project touched.
@@ -545,7 +582,12 @@ fn paginate_recent_edits(
                 latest_by_file.entry(edit.file_path.clone()).or_insert(edit);
             }
             let mut files: Vec<RecentFileEdit> = latest_by_file.into_values().collect();
-            files.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            // Same total order as above; `into_values()` yields hash order.
+            files.sort_by(|a, b| {
+                b.timestamp
+                    .cmp(&a.timestamp)
+                    .then_with(|| a.file_path.cmp(&b.file_path))
+            });
             files
         }
     };
@@ -586,6 +628,7 @@ fn get_provider_recent_edits(
     offset: usize,
     limit: usize,
     grouping: EditsGrouping,
+    session_file_path: Option<&str>,
 ) -> Result<PaginatedRecentEdits, String> {
     let project_cwd = resolve_provider_project_cwd(provider, project_path);
 
@@ -596,6 +639,17 @@ fn get_provider_recent_edits(
         EditsProvider::Claude => {
             return Err("Claude provider should use legacy edits path".to_string())
         }
+    };
+
+    // Session scope applies to providers too. Without this the panel would show
+    // the whole project while its header said "Session", and would pay for the
+    // full scan as well.
+    let sessions: Vec<_> = match session_file_path {
+        Some(wanted) => sessions
+            .into_iter()
+            .filter(|session| session.file_path == wanted)
+            .collect(),
+        None => sessions,
     };
 
     let mut all_edits = Vec::new();
@@ -654,6 +708,16 @@ fn validate_session_file_in_project(
         }
     }
 
+    // Reject a symlink outright, matching the policy `decode_project_path_verified`
+    // already applies to project directories. `canonicalize` would happily follow
+    // one out of the project and then report the resolved name as fine.
+    if fs::symlink_metadata(candidate)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("Invalid session file path: symlinks are not allowed".to_string());
+    }
+
     let project_root = fs::canonicalize(project_path)
         .map_err(|e| format!("Failed to resolve project path: {e}"))?;
     let resolved = fs::canonicalize(candidate)
@@ -663,6 +727,12 @@ fn validate_session_file_in_project(
         return Err("Invalid session file path: outside the project directory".to_string());
     }
 
+    // Residual risk, accepted and recorded rather than silently ignored: the
+    // caller reopens this path by name, so an entry swapped between here and
+    // `File::open` would not be caught. Closing that fully means handing an open
+    // handle down to `process_session_file_for_edits`, which is a larger change
+    // than this belongs to. The remaining window needs a local attacker with
+    // write access to the user's own session directory.
     Ok(resolved)
 }
 
@@ -689,12 +759,23 @@ pub async fn get_recent_edits(
     grouping: Option<String>,
 ) -> Result<PaginatedRecentEdits, String> {
     let offset = offset.unwrap_or(0);
-    let limit = limit.unwrap_or(20);
+    // Clamped because each returned row costs an `fs::metadata` call for
+    // `exists_on_disk`. An unbounded caller-supplied limit turns one request
+    // into an unbounded synchronous stat loop, which stalls the app and is a
+    // remote stall vector under `--serve`.
+    let limit = limit.unwrap_or(DEFAULT_PAGE_LIMIT).min(MAX_PAGE_LIMIT);
     let grouping = EditsGrouping::from_param(grouping.as_deref());
     let provider = detect_project_provider(&project_path);
 
     if provider != EditsProvider::Claude {
-        return get_provider_recent_edits(provider, &project_path, offset, limit, grouping);
+        return get_provider_recent_edits(
+            provider,
+            &project_path,
+            offset,
+            limit,
+            grouping,
+            session_file_path.as_deref(),
+        );
     }
 
     // Phase 1: Collect the session files to scan
@@ -918,6 +999,97 @@ mod tests {
                 .iter()
                 .all(|edit| !edit.file_path.ends_with("gamma.txt")),
             "session scope leaked an edit from another session"
+        );
+    }
+
+    // ---- regressions from the Codex adversarial review ----
+
+    #[test]
+    fn test_containment_rejects_traversal_and_sibling_prefixes() {
+        // A raw string prefix accepts both of these. The edit paths come from
+        // session logs rather than a filesystem walk, so they can contain
+        // traversal segments, and `/repository` starts with `/repo`.
+        let root = comparable_path_parts("/repo");
+
+        assert!(path_is_within("/repo/src/main.rs", &root));
+        assert!(!path_is_within("/repo/../secret.json", &root));
+        assert!(!path_is_within("/repository/secret.json", &root));
+        assert!(
+            !path_is_within("/repo", &root),
+            "the root is not inside itself"
+        );
+
+        // Windows separators and drive-letter case fold together.
+        let win_root = comparable_path_parts(r"C:\repo");
+        assert!(path_is_within(r"c:\repo\src\main.rs", &win_root));
+        assert!(!path_is_within(r"C:\repo\..\secret.json", &win_root));
+    }
+
+    #[tokio::test]
+    async fn test_equal_timestamps_paginate_without_repeating_or_dropping() {
+        // Ties used to fall back on `HashMap` iteration order, which differs
+        // between requests, so page 2 could repeat a row from page 1 and lose
+        // another. One tool call writing several files produces exactly this.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        let lines: Vec<String> = (0..25)
+            .map(|i| {
+                write_record(
+                    &format!("u{i}"),
+                    "sa",
+                    "2026-08-21T10:00:00Z",
+                    &root,
+                    &root.join(format!("file-{i:02}.txt")),
+                )
+            })
+            .collect();
+        create_test_jsonl_file(
+            &dir,
+            "tied.jsonl",
+            &lines.join(
+                "
+",
+            ),
+        );
+        let path = root.to_string_lossy().to_string();
+
+        let mut seen: Vec<String> = Vec::new();
+        for offset in [0usize, 20usize] {
+            let page = get_recent_edits(path.clone(), Some(offset), Some(20), None, None)
+                .await
+                .unwrap();
+            seen.extend(page.files.iter().map(|e| e.file_path.clone()));
+        }
+
+        let unique: HashSet<&String> = seen.iter().collect();
+        assert_eq!(seen.len(), 25, "both pages together must cover every file");
+        assert_eq!(
+            unique.len(),
+            25,
+            "no file may appear on two pages: {seen:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_limit_is_clamped() {
+        // Each returned row costs a stat call, so an unbounded caller-supplied
+        // limit is an unbounded synchronous syscall loop.
+        let (dir, _a, _b) = project_with_two_sessions();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            Some(usize::MAX),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            result.limit <= MAX_PAGE_LIMIT,
+            "limit {} was not clamped",
+            result.limit
         );
     }
 
