@@ -105,7 +105,7 @@ One row. The file count was dropped because the controls need the width.
 
 - **Scope** is text. No icon reads as "this session versus the whole project" without a label,
   and this is the control whose meaning matters most.
-- **Density** is icon-only with `aria-label` plus tooltip: `AlignJustify` for compact, `Rows2`
+- **Density** is icon-only with `aria-label` plus tooltip: `AlignJustify` for compact, `Rows`
   for full cards. No density icon existed in the codebase; all 164 imported lucide icons were
   reviewed before choosing. `List` versus `LayoutList` was rejected as indistinguishable at 13px.
 - **Options** is a `...` menu holding a **Group edits by** radio (`File (latest state)` /
@@ -194,7 +194,7 @@ at 280px: the path elides from the left while filename and counts hold.
 | Density default | compact when docked, standard on the full page, persisted separately |
 | Header | one row: text scope toggle, icon density toggle, options menu. no file count |
 | Control style | reuse `src/components/ui/MetricModeToggle.tsx` |
-| Density icons | `AlignJustify` compact, `Rows2` full |
+| Density icons | `AlignJustify` compact, `Rows` full |
 | Grouping and filters | options menu via `DropdownMenuRadioGroup`, not app settings |
 | Timestamps | relative per-file, clock time per-edit |
 | Container | `PanelDock`, groups array, one group and no tab strip at launch |
