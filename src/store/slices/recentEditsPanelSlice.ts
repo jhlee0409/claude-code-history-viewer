@@ -302,7 +302,16 @@ export const createRecentEditsPanelSlice: StateCreator<
       // while another request is in flight would otherwise leave that request
       // still owning the slot, and its response would land on top of the rows
       // being shown.
-      set({ recentEditsDockRequestedKey: key, isLoadingRecentEditsDock: false });
+      //
+      // The error has to go with it. The panel renders an error in preference
+      // to rows, and the error is only otherwise cleared when a fetch starts,
+      // which a cache hit never does: a failure from the request being
+      // abandoned would sit over these perfectly good rows indefinitely.
+      set({
+        recentEditsDockRequestedKey: key,
+        isLoadingRecentEditsDock: false,
+        recentEditsDockError: null,
+      });
       return;
     }
 

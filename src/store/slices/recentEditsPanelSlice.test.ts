@@ -366,6 +366,28 @@ describe("recentEditsPanelSlice dock fetch: regressions from adversarial review"
     ).toEqual(["/project/fresh.ts"]);
   });
 
+  it("clears a stale error when returning to cached rows (B5)", async () => {
+    // Second-pass finding: the cached-hit early return added for B1 claims the
+    // request slot but never cleared the error. The panel renders the error in
+    // preference to the rows, and the error is only cleared when a fetch
+    // starts, which a cache hit never does. The stale failure would sit over
+    // perfectly good cached rows indefinitely.
+    fetchRecentEdits.mockResolvedValueOnce(page(["/project/k1.ts"], false, 0));
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+
+    fetchRecentEdits.mockRejectedValueOnce(new Error("backend exploded"));
+    await store.getState().loadRecentEditsDock({ ...request, grouping: "edit" });
+    expect(store.getState().recentEditsDockError).toBe("backend exploded");
+
+    await store.getState().loadRecentEditsDock(request);
+
+    expect(store.getState().recentEditsDockError).toBeNull();
+    expect(
+      store.getState().recentEditsDock?.files.map((f) => f.file_path)
+    ).toEqual(["/project/k1.ts"]);
+  });
+
   it("keeps requests distinct when a path contains the key separator (B4)", async () => {
     // `|` is legal in a POSIX path, so a joined key could collide.
     const a = {
