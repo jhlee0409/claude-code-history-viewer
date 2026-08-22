@@ -1,5 +1,9 @@
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
+import type { RecentFileEdit } from "../../types";
+import { fetchRecentEdits } from "../../services/analyticsApi";
+
+const DOCK_PAGE_SIZE = 20;
 
 /** Where the Recent Edits view is shown. */
 export type RecentEditsMode = "page" | "docked";
@@ -69,6 +73,47 @@ const write = (key: string, value: string): void => {
   }
 };
 
+/**
+ * What the docked panel is currently showing, plus the request that produced it.
+ *
+ * The dock keeps its own result rather than sharing `analytics.recentEdits`.
+ * The page view is always project-wide and grouped by file; the dock can be
+ * session-scoped and chronological. Sharing one cache would mean each view
+ * silently overwriting the other's data whenever both are open.
+ */
+export interface RecentEditsDockResult {
+  files: RecentFileEdit[];
+  totalEditsCount: number;
+  uniqueFilesCount: number;
+  projectCwd?: string;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  /**
+   * The exact request this answers. Compared by identity, never re-derived from
+   * the response, which is the mistake the page view's cache guard made.
+   */
+  requestKey: string;
+}
+
+export interface RecentEditsDockRequest {
+  projectPath: string;
+  scope: RecentEditsScope;
+  grouping: RecentEditsGrouping;
+  sessionFilePath?: string;
+}
+
+/** Stable identity for a dock request. Order matters, so build it in one place. */
+export const recentEditsDockRequestKey = (
+  request: RecentEditsDockRequest
+): string =>
+  [
+    request.projectPath,
+    request.scope,
+    request.grouping,
+    request.scope === "session" ? (request.sessionFilePath ?? "") : "",
+  ].join("|");
+
 export interface RecentEditsPanelSliceState {
   /** Whether Recent Edits renders as the full page or as a docked panel. */
   recentEditsMode: RecentEditsMode;
@@ -88,6 +133,18 @@ export interface RecentEditsPanelSliceState {
   /** Show only files that no longer exist on disk. */
   recentEditsMissingOnly: boolean;
   isRecentEditsDockOpen: boolean;
+
+  // Dock fetch state. Not persisted: it is data, not preference.
+  recentEditsDock: RecentEditsDockResult | null;
+  /**
+   * The request the panel most recently asked for. A response is only accepted
+   * while it still matches, so switching scope mid-flight cannot land stale
+   * rows on top of the newer request.
+   */
+  recentEditsDockRequestedKey: string | null;
+  isLoadingRecentEditsDock: boolean;
+  isLoadingMoreRecentEditsDock: boolean;
+  recentEditsDockError: string | null;
 }
 
 export interface RecentEditsPanelSliceActions {
@@ -106,6 +163,9 @@ export interface RecentEditsPanelSliceActions {
   setRecentEditsMissingOnly: (missingOnly: boolean) => void;
   setRecentEditsDockOpen: (open: boolean) => void;
   toggleRecentEditsDock: () => void;
+  /** No-ops when the current result already answers this exact request. */
+  loadRecentEditsDock: (request: RecentEditsDockRequest) => Promise<void>;
+  loadMoreRecentEditsDock: (request: RecentEditsDockRequest) => Promise<void>;
 }
 
 export type RecentEditsPanelSlice = RecentEditsPanelSliceState &
@@ -141,6 +201,34 @@ const initialRecentEditsPanelState = (): RecentEditsPanelSliceState => ({
   ),
   recentEditsMissingOnly: readBool(STORAGE_KEYS.missingOnly, false),
   isRecentEditsDockOpen: readBool(STORAGE_KEYS.dockOpen, false),
+  recentEditsDock: null,
+  recentEditsDockRequestedKey: null,
+  isLoadingRecentEditsDock: false,
+  isLoadingMoreRecentEditsDock: false,
+  recentEditsDockError: null,
+});
+
+const toDockResult = (
+  requestKey: string,
+  result: {
+    files: RecentFileEdit[];
+    total_edits_count: number;
+    unique_files_count: number;
+    project_cwd?: string;
+    offset: number;
+    limit: number;
+    has_more: boolean;
+  },
+  previousFiles: RecentFileEdit[] = []
+): RecentEditsDockResult => ({
+  files: [...previousFiles, ...result.files],
+  totalEditsCount: result.total_edits_count,
+  uniqueFilesCount: result.unique_files_count,
+  projectCwd: result.project_cwd,
+  offset: result.offset,
+  limit: result.limit,
+  hasMore: result.has_more,
+  requestKey,
 });
 
 export const createRecentEditsPanelSlice: StateCreator<
@@ -148,7 +236,7 @@ export const createRecentEditsPanelSlice: StateCreator<
   [],
   [],
   RecentEditsPanelSlice
-> = (set) => ({
+> = (set, get) => ({
   ...initialRecentEditsPanelState(),
 
   setRecentEditsMode: (mode) => {
@@ -197,6 +285,73 @@ export const createRecentEditsPanelSlice: StateCreator<
       write(STORAGE_KEYS.dockOpen, String(next));
       return { isRecentEditsDockOpen: next };
     }),
+
+  loadRecentEditsDock: async (request) => {
+    const key = recentEditsDockRequestKey(request);
+    const current = get().recentEditsDock;
+    // Identity match on the request that produced the data, so a repeat visit
+    // with unchanged scope and grouping does not re-walk the project.
+    if (current?.requestKey === key && current.files.length > 0) return;
+
+    set({
+      isLoadingRecentEditsDock: true,
+      recentEditsDockError: null,
+      recentEditsDockRequestedKey: key,
+    });
+    try {
+      const result = await fetchRecentEdits(request.projectPath, {
+        offset: 0,
+        limit: DOCK_PAGE_SIZE,
+        grouping: request.grouping,
+        sessionFilePath:
+          request.scope === "session" ? request.sessionFilePath : undefined,
+      });
+      // Scope or grouping may have changed while this was in flight. Only the
+      // answer to the question still being asked is allowed to land.
+      if (get().recentEditsDockRequestedKey !== key) return;
+      set({ recentEditsDock: toDockResult(key, result) });
+    } catch (error) {
+      if (get().recentEditsDockRequestedKey !== key) return;
+      set({
+        recentEditsDockError:
+          error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      if (get().recentEditsDockRequestedKey === key) {
+        set({ isLoadingRecentEditsDock: false });
+      }
+    }
+  },
+
+  loadMoreRecentEditsDock: async (request) => {
+    const key = recentEditsDockRequestKey(request);
+    const current = get().recentEditsDock;
+    if (!current || current.requestKey !== key || !current.hasMore) return;
+    if (get().isLoadingMoreRecentEditsDock) return;
+
+    set({ isLoadingMoreRecentEditsDock: true });
+    try {
+      const result = await fetchRecentEdits(request.projectPath, {
+        offset: current.offset + current.files.length,
+        limit: DOCK_PAGE_SIZE,
+        grouping: request.grouping,
+        sessionFilePath:
+          request.scope === "session" ? request.sessionFilePath : undefined,
+      });
+      const latest = get().recentEditsDock;
+      // Appending onto a different request's rows would interleave two result
+      // sets, so a scope change mid-flight discards this page.
+      if (!latest || latest.requestKey !== key) return;
+      set({ recentEditsDock: toDockResult(key, result, latest.files) });
+    } catch (error) {
+      set({
+        recentEditsDockError:
+          error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      set({ isLoadingMoreRecentEditsDock: false });
+    }
+  },
 });
 
 /**

@@ -9,14 +9,16 @@
  * virtualizes because it renders every message in a session; this does not.
  */
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, FileEdit, Loader2 } from "lucide-react";
 import { useTheme } from "@/contexts/theme";
 import { useAppStore } from "@/store/useAppStore";
 import {
+  recentEditsDockRequestKey,
   selectRecentEditsDensity,
   selectRecentEditsGrouping,
+  type RecentEditsDockRequest,
 } from "@/store/slices/recentEditsPanelSlice";
 import { FileEditItem } from "./FileEditItem";
 import { FileEditRowCompact } from "./FileEditRowCompact";
@@ -30,11 +32,18 @@ export const RecentEditsPanel: React.FC = () => {
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
 
-  const analytics = useAppStore((s) => s.analytics);
   const selectedSession = useAppStore((s) => s.selectedSession);
   const selectedProject = useAppStore((s) => s.selectedProject);
-  const loadMoreRecentEdits = useAppStore((s) => s.loadMoreRecentEdits);
   const navigateToMessage = useAppStore((s) => s.navigateToMessage);
+
+  const recentEdits = useAppStore((s) => s.recentEditsDock);
+  const isLoading = useAppStore((s) => s.isLoadingRecentEditsDock);
+  const isLoadingMore = useAppStore((s) => s.isLoadingMoreRecentEditsDock);
+  const error = useAppStore((s) => s.recentEditsDockError);
+  const loadRecentEditsDock = useAppStore((s) => s.loadRecentEditsDock);
+  const loadMoreRecentEditsDock = useAppStore(
+    (s) => s.loadMoreRecentEditsDock
+  );
 
   const recentEditsMode = useAppStore((s) => s.recentEditsMode);
   const recentEditsScope = useAppStore((s) => s.recentEditsScope);
@@ -51,13 +60,29 @@ export const RecentEditsPanel: React.FC = () => {
   const density = useAppStore(selectRecentEditsDensity);
   const grouping = useAppStore(selectRecentEditsGrouping);
 
-  const recentEdits = analytics.recentEdits;
-  const pagination = analytics.recentEditsPagination;
-  const isLoading = analytics.isLoadingRecentEdits;
-  const error = analytics.recentEditsError;
-
   // With no session selected, session scope has nothing to point at.
   const canScopeToSession = Boolean(selectedSession);
+  const effectiveScope = canScopeToSession ? recentEditsScope : "project";
+
+  const request: RecentEditsDockRequest | null = selectedProject
+    ? {
+        projectPath: selectedProject.path,
+        scope: effectiveScope,
+        grouping,
+        sessionFilePath: selectedSession?.file_path,
+      }
+    : null;
+
+  // Keyed on the request identity rather than the object, so the effect reruns
+  // exactly when the question being asked changes.
+  const requestKey = request ? recentEditsDockRequestKey(request) : null;
+
+  useEffect(() => {
+    if (!request) return;
+    void loadRecentEditsDock(request);
+    // `requestKey` is the whole of `request` in comparable form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestKey, loadRecentEditsDock]);
 
   const files = useMemo(() => {
     const all = recentEdits?.files ?? [];
@@ -73,12 +98,8 @@ export const RecentEditsPanel: React.FC = () => {
   };
 
   const handleLoadMore = () => {
-    if (
-      selectedProject &&
-      pagination?.hasMore &&
-      !pagination?.isLoadingMore
-    ) {
-      void loadMoreRecentEdits(selectedProject.path);
+    if (request && recentEdits?.hasMore && !isLoadingMore) {
+      void loadMoreRecentEditsDock(request);
     }
   };
 
@@ -86,7 +107,7 @@ export const RecentEditsPanel: React.FC = () => {
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-1.5 border-b border-border/50 px-2 py-1.5">
         <RecentEditsScopeToggle
-          value={canScopeToSession ? recentEditsScope : "project"}
+          value={effectiveScope}
           onChange={setRecentEditsScope}
           disabled={!canScopeToSession}
         />
@@ -98,10 +119,7 @@ export const RecentEditsPanel: React.FC = () => {
           <RecentEditsOptionsMenu
             grouping={grouping}
             onGroupingChange={(next) =>
-              setRecentEditsGrouping(
-                canScopeToSession ? recentEditsScope : "project",
-                next
-              )
+              setRecentEditsGrouping(effectiveScope, next)
             }
             missingOnly={recentEditsMissingOnly}
             onMissingOnlyChange={setRecentEditsMissingOnly}
@@ -136,7 +154,7 @@ export const RecentEditsPanel: React.FC = () => {
                   key={`${edit.file_path}-${index}`}
                   edit={edit}
                   isDarkMode={isDarkMode}
-                  projectCwd={recentEdits?.project_cwd}
+                  projectCwd={recentEdits?.projectCwd}
                   grouping={grouping}
                   onJumpToMessage={navigateToMessage}
                 />
@@ -147,14 +165,14 @@ export const RecentEditsPanel: React.FC = () => {
               )
             )}
 
-            {pagination?.hasMore && (
+            {recentEdits?.hasMore && (
               <button
                 type="button"
                 onClick={handleLoadMore}
-                disabled={pagination?.isLoadingMore}
+                disabled={isLoadingMore}
                 className="flex w-full items-center justify-center gap-1.5 border-t border-border/50 py-2 text-px11 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
               >
-                {pagination?.isLoadingMore ? (
+                {isLoadingMore ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
                   <ChevronDown className="h-3 w-3" aria-hidden="true" />

@@ -1,8 +1,15 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { create } from "zustand";
 import type { StateCreator } from "zustand";
+
+const fetchRecentEdits = vi.fn();
+vi.mock("../../services/analyticsApi", () => ({
+  fetchRecentEdits: (...args: unknown[]) => fetchRecentEdits(...args),
+}));
+
 import {
   createRecentEditsPanelSlice,
+  recentEditsDockRequestKey,
   selectRecentEditsDensity,
   selectRecentEditsGrouping,
   type RecentEditsPanelSlice,
@@ -138,5 +145,123 @@ describe("recentEditsPanelSlice", () => {
 
     expect(selectRecentEditsDensity(store.getState())).toBe("compact");
     expect(selectRecentEditsGrouping(store.getState())).toBe("file");
+  });
+});
+
+describe("recentEditsPanelSlice dock fetch", () => {
+  const page = (paths: string[], hasMore = false) => ({
+    files: paths.map((file_path) => ({
+      file_path,
+      timestamp: "2026-08-21T10:00:00Z",
+      session_id: "s1",
+      operation_type: "edit" as const,
+      content_after_change: "after",
+      lines_added: 1,
+      lines_removed: 0,
+    })),
+    total_edits_count: paths.length,
+    unique_files_count: paths.length,
+    project_cwd: "/project",
+    offset: 0,
+    limit: 20,
+    has_more: hasMore,
+  });
+
+  const request = {
+    projectPath: "/storage/project",
+    scope: "project" as const,
+    grouping: "file" as const,
+    sessionFilePath: "/storage/project/session-a.jsonl",
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchRecentEdits.mockReset();
+    fetchRecentEdits.mockResolvedValue(page(["/project/a.ts"]));
+  });
+
+  it("does not refetch when the request is unchanged", async () => {
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+    await store.getState().loadRecentEditsDock(request);
+
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(1);
+    expect(store.getState().recentEditsDock?.requestKey).toBe(
+      recentEditsDockRequestKey(request)
+    );
+  });
+
+  it("refetches when the scope changes", async () => {
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+    await store
+      .getState()
+      .loadRecentEditsDock({ ...request, scope: "session" });
+
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(2);
+    // Session scope passes the file path through; project scope must not.
+    expect(fetchRecentEdits.mock.calls[0]?.[1]?.sessionFilePath).toBeUndefined();
+    expect(fetchRecentEdits.mock.calls[1]?.[1]?.sessionFilePath).toBe(
+      request.sessionFilePath
+    );
+  });
+
+  it("refetches when the grouping changes", async () => {
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+    await store.getState().loadRecentEditsDock({ ...request, grouping: "edit" });
+
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(2);
+    expect(fetchRecentEdits.mock.calls[1]?.[1]?.grouping).toBe("edit");
+  });
+
+  it("discards a response whose request is no longer the one being asked", async () => {
+    // A slow project-scope request must not land on top of a session-scope one
+    // the user has already switched to.
+    let resolveSlow: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveSlow = resolve))
+    );
+    fetchRecentEdits.mockResolvedValueOnce(page(["/project/session-only.ts"]));
+
+    const store = makeStore();
+    const slow = store.getState().loadRecentEditsDock(request);
+    const fast = store
+      .getState()
+      .loadRecentEditsDock({ ...request, scope: "session" });
+    await fast;
+
+    resolveSlow?.(page(["/project/stale.ts"]));
+    await slow;
+
+    const files = store.getState().recentEditsDock?.files ?? [];
+    expect(files.map((f) => f.file_path)).toEqual([
+      "/project/session-only.ts",
+    ]);
+  });
+
+  it("appends a further page onto the same request", async () => {
+    fetchRecentEdits.mockResolvedValueOnce(page(["/project/a.ts"], true));
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+
+    fetchRecentEdits.mockResolvedValueOnce(page(["/project/b.ts"], false));
+    await store.getState().loadMoreRecentEditsDock(request);
+
+    expect(store.getState().recentEditsDock?.files.map((f) => f.file_path)).toEqual([
+      "/project/a.ts",
+      "/project/b.ts",
+    ]);
+  });
+
+  it("records an error without wiping the previous rows", async () => {
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+
+    fetchRecentEdits.mockRejectedValueOnce(new Error("backend exploded"));
+    await store.getState().loadRecentEditsDock({ ...request, grouping: "edit" });
+
+    expect(store.getState().recentEditsDockError).toBe("backend exploded");
+    expect(store.getState().isLoadingRecentEditsDock).toBe(false);
   });
 });

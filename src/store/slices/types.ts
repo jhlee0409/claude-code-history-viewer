@@ -202,6 +202,11 @@ export interface AppStoreState {
   recentEditsGroupingSession: import('./recentEditsPanelSlice').RecentEditsGrouping;
   recentEditsMissingOnly: boolean;
   isRecentEditsDockOpen: boolean;
+  recentEditsDock: import('./recentEditsPanelSlice').RecentEditsDockResult | null;
+  recentEditsDockRequestedKey: string | null;
+  isLoadingRecentEditsDock: boolean;
+  isLoadingMoreRecentEditsDock: boolean;
+  recentEditsDockError: string | null;
 
   // Provider state
   providers: ProviderInfo[];
@@ -408,6 +413,12 @@ export interface AppStoreActions {
   setRecentEditsMissingOnly: (missingOnly: boolean) => void;
   setRecentEditsDockOpen: (open: boolean) => void;
   toggleRecentEditsDock: () => void;
+  loadRecentEditsDock: (
+    request: import('./recentEditsPanelSlice').RecentEditsDockRequest
+  ) => Promise<void>;
+  loadMoreRecentEditsDock: (
+    request: import('./recentEditsPanelSlice').RecentEditsDockRequest
+  ) => Promise<void>;
 
   // Provider actions
   detectProviders: () => Promise<boolean>;
