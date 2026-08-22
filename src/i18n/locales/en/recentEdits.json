@@ -10,6 +10,7 @@
   "recentEdits.densityFull": "Full cards",
   "recentEdits.description": "Recover accidentally deleted files by viewing the latest content after changes",
   "recentEdits.diff": "Diff",
+  "recentEdits.dockToPanel": "Dock beside transcript",
   "recentEdits.edited": "Edited",
   "recentEdits.footerInfo": "Showing the latest content for each file. Click +/−/Diff to view changes, or restore to write the file back to disk.",
   "recentEdits.groupBy": "Group edits by",

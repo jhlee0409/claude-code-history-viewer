@@ -10,6 +10,7 @@
   "recentEdits.densityFull": "カード表示",
   "recentEdits.description": "変更後の最新コンテンツを確認して、誤って削除されたファイルを復元",
   "recentEdits.diff": "Diff",
+  "recentEdits.dockToPanel": "会話の横にドック",
   "recentEdits.edited": "編集済み",
   "recentEdits.footerInfo": "各ファイルの最新コンテンツを表示しています。+/−/Diffをクリックすると変更内容を確認でき、復元をクリックするとファイルをディスクに書き戻します。",
   "recentEdits.groupBy": "編集のグループ化",

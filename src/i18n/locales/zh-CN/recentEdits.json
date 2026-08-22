@@ -10,6 +10,7 @@
   "recentEdits.densityFull": "完整卡片",
   "recentEdits.description": "查看更改后的最新内容，恢复意外删除的文件",
   "recentEdits.diff": "Diff",
+  "recentEdits.dockToPanel": "停靠在对话旁",
   "recentEdits.edited": "已编辑",
   "recentEdits.footerInfo": "显示每个文件的最新内容。点击 +/−/Diff 查看改动，点击「恢复文件」将内容写回磁盘。",
   "recentEdits.groupBy": "编辑分组方式",

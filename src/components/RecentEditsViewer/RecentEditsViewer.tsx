@@ -9,7 +9,15 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { FileEdit, Search, File, ChevronDown, Loader2 } from "lucide-react";
+import {
+  FileEdit,
+  Search,
+  File,
+  ChevronDown,
+  Loader2,
+  PanelRight,
+} from "lucide-react";
+import { useAppStore } from "@/store/useAppStore";
 import { useTheme } from "@/contexts/theme";
 import { layout } from "@/components/renderers";
 import { LoadingState } from "@/components/ui/loading";
@@ -27,6 +35,22 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+
+  // The only way into docked mode. Its counterpart, "Undock to full page",
+  // lives in the docked panel's options menu.
+  const selectedSession = useAppStore((s) => s.selectedSession);
+  const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
+  const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
+  const switchToMessages = useAppStore(
+    (s) => s.setAnalyticsCurrentView
+  );
+
+  const handleDock = () => {
+    setRecentEditsMode("docked");
+    setRecentEditsDockOpen(true);
+    // The dock only renders beside a transcript, so go back to it.
+    switchToMessages("messages");
+  };
 
   // Sync internal state when external prop changes (e.g. navigation from Board)
   React.useEffect(() => {
@@ -115,6 +139,20 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            {selectedSession && (
+              <button
+                type="button"
+                onClick={handleDock}
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-px11 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label={t("recentEdits.dockToPanel", "Dock beside transcript")}
+                title={t("recentEdits.dockToPanel", "Dock beside transcript")}
+              >
+                <PanelRight className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden md:inline">
+                  {t("recentEdits.dockToPanel", "Dock beside transcript")}
+                </span>
+              </button>
+            )}
             <span className="text-px11 text-muted-foreground font-mono">
               {recentEdits?.files?.length ?? 0} / {totalUniqueFiles}
             </span>

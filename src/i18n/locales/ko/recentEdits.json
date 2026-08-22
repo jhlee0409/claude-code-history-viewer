@@ -10,6 +10,7 @@
   "recentEdits.densityFull": "전체 카드",
   "recentEdits.description": "변경 후 최신 콘텐츠를 확인하여 실수로 삭제된 파일 복구",
   "recentEdits.diff": "Diff",
+  "recentEdits.dockToPanel": "대화 옆에 도킹",
   "recentEdits.edited": "편집됨",
   "recentEdits.footerInfo": "각 파일의 최신 콘텐츠를 표시합니다. +/−/Diff를 클릭하면 변경 내용을 볼 수 있고, 복원을 클릭하면 파일을 디스크에 다시 기록합니다.",
   "recentEdits.groupBy": "편집 묶는 기준",
