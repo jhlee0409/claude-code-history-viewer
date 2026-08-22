@@ -192,6 +192,35 @@ describe("switchToRecentEdits cache", () => {
     ).not.toBe(a.path);
   });
 
+  it("does not strand the loading flag when its project is deselected (C4)", async () => {
+    // Second-pass finding. The C3 ownership guard made the finally clear the
+    // flag only when the requesting project is still selected. If the user
+    // switches away and never opens Recent Edits for the new project, nothing
+    // else clears it: `resetAnalytics` runs in `clearProjectSelection`, not on a
+    // project switch, so the page view keeps a spinner up forever.
+    const a = project("alpha");
+    const b = project("beta");
+    let resolveA;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveA = resolve))
+    );
+
+    useAppStore.setState({ selectedProject: a });
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    const pending = result.current.switchToRecentEdits();
+    expect(useAppStore.getState().analytics.isLoadingRecentEdits).toBe(true);
+
+    await act(async () => {
+      useAppStore.setState({ selectedProject: b });
+    });
+    await act(async () => {
+      resolveA?.(payload(a.actual_path));
+      await pending;
+    });
+
+    expect(useAppStore.getState().analytics.isLoadingRecentEdits).toBe(false);
+  });
+
   it("refuses to extend a cache entry from another project (C2)", async () => {
     const a = project("alpha");
     const b = project("beta");

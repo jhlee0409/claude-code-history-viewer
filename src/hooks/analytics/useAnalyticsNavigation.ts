@@ -4,6 +4,15 @@ import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
 import { AppErrorType, type MetricMode, type StatsMode } from "../../types";
 
+/**
+ * Sequence number for Recent Edits fetches, so a request can tell whether it is
+ * still the most recent one.
+ *
+ * Module scope rather than a ref: several components mount this hook, and a
+ * per-instance ref would let two of them each believe they are the latest.
+ */
+let recentEditsRequestSeq = 0;
+
 export function useAnalyticsNavigation() {
   const { t } = useTranslation();
   const {
@@ -176,6 +185,8 @@ export function useAnalyticsNavigation() {
       return;
     }
 
+    const requestId = ++recentEditsRequestSeq;
+
     try {
       setAnalyticsLoadingRecentEdits(true);
       const result = await loadRecentEdits(project.path);
@@ -217,9 +228,13 @@ export function useAnalyticsNavigation() {
       console.error("Failed to load recent edits:", error);
       throw error;
     } finally {
-      // Only the request that still owns the selection clears the flag, so a
-      // late loser cannot report a newer request as finished.
-      if (useAppStore.getState().selectedProject?.path === project.path) {
+      // Clear on the *latest* request rather than on the selected project.
+      // Keying this to the selection stranded the flag: a request whose project
+      // was deselected would never clear it, and nothing else does, because
+      // `resetAnalytics` runs in `clearProjectSelection` rather than on a
+      // project switch. Keying it to the sequence still stops a late loser from
+      // reporting a newer request as finished.
+      if (recentEditsRequestSeq === requestId) {
         setAnalyticsLoadingRecentEdits(false);
       }
     }
