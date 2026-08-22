@@ -373,6 +373,14 @@ fn strip_windows_extended_prefix(path: &Path) -> PathBuf {
 /// Normalize only the representation used for the allowlist boundary check.
 /// Windows paths are case-insensitive for normal filesystem access, while
 /// Unix paths retain their case-sensitive semantics.
+///
+/// The `return` in the Windows arm reads as needless to clippy, which only sees
+/// one arm at a time: on Windows the `cfg(not(windows))` tail is compiled away,
+/// so the block looks like it could just be the tail expression. Keeping the
+/// explicit `return` keeps the two arms symmetrical and independent of which
+/// one happens to come last. The lint only fires when compiling for Windows,
+/// which is why CI does not see it.
+#[allow(clippy::needless_return)]
 fn normalize_path_for_comparison(path: &Path) -> PathBuf {
     let stripped = strip_windows_extended_prefix(path);
 
