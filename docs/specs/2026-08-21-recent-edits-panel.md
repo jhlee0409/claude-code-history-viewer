@@ -303,16 +303,25 @@ Steps 1 to 5 are visible without any backend work. Tests come first for steps 6 
 
 ## Decisions taken without an explicit call
 
-Implemented as stated unless overruled.
+Proposed in this spec rather than settled in review, then **confirmed 2026-08-21**. Each is
+recorded with the alternative that was considered, so a later reader can tell what was weighed
+rather than assumed.
 
-1. The dock appears in the transcript view only, not over Analytics, Token Stats or Board. This
-   avoids having to define what session scope means with no session selected.
-2. Desktop only. Mobile keeps the full page view via `BottomTabBar`, matching `MessageNavigator`.
-   Compact density is still available on the page.
-3. With no session selected the scope toggle is disabled with a tooltip
-   (`recentEdits.scopeNeedsSession`) and forced to project scope, rather than hidden.
-4. The cache fix is its own small PR landing first, since it is a one-line change with a
-   measurable before and after.
+1. **The dock appears in the transcript view only**, not over Analytics, Token Stats or Board.
+   *Alternative:* allow it everywhere. Rejected because those views have no selected session, so
+   session scope has nothing to point at and would need its own defined behaviour.
+2. **Desktop only.** Mobile keeps the full page view via `BottomTabBar`, matching
+   `MessageNavigator`. Compact density is still available on the page.
+   *Alternative:* a slide-up sheet on mobile. Rejected because a 340px panel on a phone leaves
+   nothing for the transcript, and the app already sets this precedent.
+3. **With no session selected the scope toggle is disabled** with a tooltip
+   (`recentEdits.scopeNeedsSession`) and forced to project scope.
+   *Alternative:* hide it entirely. Rejected because a disabled control advertises that session
+   scoping exists and what unlocks it; a hidden one teaches nothing.
+4. **The cache fix ships as its own small PR, landing first.**
+   *Alternative:* fold it into the panel PR. Rejected because it is a one-line fix to an existing
+   bug, unrelated to this feature, and if the suspected bug turns out not to exist that finding
+   should land separately rather than muddying the feature PR.
 
 ## Risks
 
