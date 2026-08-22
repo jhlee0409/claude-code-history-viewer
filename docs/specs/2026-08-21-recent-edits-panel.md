@@ -77,16 +77,29 @@ Three gaps:
 
 ## Prerequisite (separate PR, lands first)
 
-**Suspected always-miss on the recent-edits cache.** `useAnalyticsNavigation.ts` guards the fetch
-with `analytics.recentEdits.project_cwd === project.path`. `project.path` is the encoded Claude
+**Always-miss on the recent-edits cache. Confirmed by measurement 2026-08-21.**
+`useAnalyticsNavigation.ts` guarded the fetch with
+`analytics.recentEdits.project_cwd === project.path`. `project.path` is the encoded Claude
 storage path (`~/.claude/projects/-E--Projects-...`, per the doc comment at
 `src/types/session.types.ts:41`); `project_cwd` is the most frequent filesystem `cwd` observed in
-the logs (`edits.rs:609`). Those should never be equal, which would mean every visit re-walks and
-re-parses every JSONL in the project. `project.actual_path` looks like the intended comparand.
+the logs (`edits.rs:609`). They are never equal, so every visit re-walked and re-parsed every
+JSONL in the project.
 
-This is inferred from reading, **not** from running. Step 0 is to log both values at runtime,
-confirm, and only then change it. A docked panel is opened far more often than a full-page view,
-so this wants settling first.
+Measured by running the real `scan_projects` and `get_recent_edits` through the `--serve` binary
+against a real `~/.claude` folder: **the guard held 0 out of 28 sampled projects.** In a real
+rendered view, two visits to Recent Edits issued 2 backend fetches before the fix and 1 after.
+
+**The comparand was not changed to `project.actual_path`.** That is what this spec originally
+proposed, and the same measurement rejected it: `project_cwd === project.actual_path` held on
+only 25 of 28 projects. It failed three separate ways, for a moved project, for a drive-letter
+case difference on Windows, and for a project whose sessions mostly ran in a subdirectory. It is
+also wrong by construction for ForgeCode and OpenCode, where `project_cwd` is deliberately `None`
+(`edits.rs:206-229`). A fix that looks correct while still always-missing for a minority of
+projects is worse than an obvious bug.
+
+What shipped instead is request identity: `RecentEditsResult` carries `requestedProjectPath`, the
+`project.path` the cached result was fetched for, and the guard compares that. Set by all three
+writers of the cache entry. See `scratch/recent-edits/t0-pr-body.md` for the full evidence.
 
 ## Design (approved over three review rounds)
 
@@ -261,7 +274,7 @@ Reused unchanged: `recentEdits.title`, `.diff`, `.created`, `.edited`, `.restore
 
 | # | Step | Surface |
 |---|---|---|
-| 0 | Verify then fix the cache comparison. **Separate PR, lands first.** | store |
+| 0 | ~~Verify then fix the cache comparison.~~ Done, separate PR. | store |
 | 1 | `recentEditsPanelSlice` plus persistence plus tests | frontend |
 | 2 | Path elision helper, Windows-safe, plus tests | frontend |
 | 3 | Compact row: two lines, line-1 alignment, hover actions, expansion | frontend |
@@ -325,9 +338,8 @@ rather than assumed.
 
 ## Risks
 
-- The cache always-miss is inferred from reading, not measured. If step 0 shows the comparison
-  somehow holds, the performance premise for prioritising it disappears, though the panel still
-  works.
+- ~~The cache always-miss is inferred from reading, not measured.~~ Resolved: measured at 0 / 28,
+  fixed by caching on the requested `project.path`. See the Prerequisite section.
 - Whether a Claude session's JSONL contains only edits belonging to that session is assumed, not
   proven. Scanning by file path sidesteps id drift but inherits whatever the file contains. Verify
   against a resumed session during step 6.
