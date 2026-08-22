@@ -340,9 +340,11 @@ rather than assumed.
 
 - ~~The cache always-miss is inferred from reading, not measured.~~ Resolved: measured at 0 / 28,
   fixed by caching on the requested `project.path`. See the Prerequisite section.
-- Whether a Claude session's JSONL contains only edits belonging to that session is assumed, not
-  proven. Scanning by file path sidesteps id drift but inherits whatever the file contains. Verify
-  against a resumed session during step 6.
+- ~~Whether a Claude session's JSONL contains only edits belonging to that session is assumed, not
+  proven.~~ Partly resolved. The id-drift half is now pinned by a regression test: a fixture whose
+  `sessionId` changes mid-file returns both halves under `session_file_path` scoping, which id
+  matching would have dropped. The converse (a file containing edits that belong to some *other*
+  session) remains an inherited property of the file, not something the scan can detect.
 - `exists_on_disk` adds filesystem stats, which can be slow on network or cloud-synced drives.
   Bounded to `limit` rows per request, and it can be made lazy if profiling shows a problem.
 - Two panels plus the sidebar is a width squeeze below 1440px. The dock caps growth at two rails

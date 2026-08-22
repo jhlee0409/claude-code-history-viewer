@@ -922,6 +922,76 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_session_file_path_survives_a_session_id_change_mid_file() {
+        // A resumed session can write a different `sessionId` partway through
+        // the same JSONL. `actual_session_id` only ever reports the first id in
+        // the file, so filtering by id would silently drop everything after the
+        // change. Scanning by file path is immune to that, and this pins it.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+
+        let resumed = create_test_jsonl_file(
+            &dir,
+            "resumed.jsonl",
+            &[
+                write_record(
+                    "u1",
+                    "session-before-resume",
+                    "2026-08-21T10:00:00Z",
+                    &root,
+                    &root.join("before.txt"),
+                ),
+                write_record(
+                    "u2",
+                    "session-after-resume",
+                    "2026-08-21T11:00:00Z",
+                    &root,
+                    &root.join("after.txt"),
+                ),
+            ]
+            .join(
+                "
+",
+            ),
+        );
+
+        let result = get_recent_edits(
+            root.to_string_lossy().to_string(),
+            None,
+            None,
+            Some(resumed.to_string_lossy().to_string()),
+            None,
+        )
+        .await
+        .unwrap();
+
+        let names: Vec<&str> = result
+            .files
+            .iter()
+            .map(|edit| edit.file_path.as_str())
+            .collect();
+        assert_eq!(
+            result.files.len(),
+            2,
+            "both halves of a resumed session must survive: {names:?}"
+        );
+        assert!(names.iter().any(|p| p.ends_with("before.txt")));
+        assert!(names.iter().any(|p| p.ends_with("after.txt")));
+
+        // The ids really did differ, so this is not a vacuous assertion.
+        let ids: HashSet<&str> = result
+            .files
+            .iter()
+            .map(|edit| edit.session_id.as_str())
+            .collect();
+        assert_eq!(
+            ids.len(),
+            2,
+            "fixture must contain two distinct session ids"
+        );
+    }
+
+    #[tokio::test]
     async fn test_session_file_path_outside_the_project_is_rejected() {
         let (dir, _a, _b) = project_with_two_sessions();
         let outside = TempDir::new().unwrap();
