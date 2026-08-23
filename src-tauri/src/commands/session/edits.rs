@@ -1019,10 +1019,18 @@ mod tests {
             "the root is not inside itself"
         );
 
-        // Windows separators and drive-letter case fold together.
+        // Windows separators split on every platform, so these two hold
+        // everywhere.
         let win_root = comparable_path_parts(r"C:\repo");
-        assert!(path_is_within(r"c:\repo\src\main.rs", &win_root));
+        assert!(path_is_within(r"C:\repo\src\main.rs", &win_root));
         assert!(!path_is_within(r"C:\repo\..\secret.json", &win_root));
+
+        // Case folding is Windows-only: `comparable_path_parts` lowercases
+        // under `cfg(target_os = "windows")` because POSIX paths are
+        // case-sensitive. Asserting it unconditionally passes locally on
+        // Windows and fails on CI's Linux, which is exactly what happened.
+        #[cfg(target_os = "windows")]
+        assert!(path_is_within(r"c:\repo\src\main.rs", &win_root));
     }
 
     #[tokio::test]
