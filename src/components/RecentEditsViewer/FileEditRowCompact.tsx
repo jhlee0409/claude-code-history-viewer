@@ -25,6 +25,14 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { elideProjectRoot, getPathLeaf } from "@/utils/pathUtils";
 import { useFileEditActions } from "./useFileEditActions";
 import { FileEditExpansion } from "./FileEditExpansion";
@@ -228,40 +236,44 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
         </div>
       )}
 
-      {actions.isConfirmingRestore && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={actions.cancelRestore}
-        >
-          <div
-            className="mx-4 max-w-md rounded-lg bg-background p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="mb-2 text-lg font-semibold text-foreground">
-              {t("recentEdits.confirmRestoreTitle")}
-            </h3>
-            <p className="mb-4 text-sm text-muted-foreground">
+      {/*
+        The repo's Dialog rather than a hand-rolled overlay. Restore writes a
+        file to disk, so the confirmation is exactly the control that must be
+        reachable without a pointer: Radix supplies role="dialog", aria-modal,
+        the focus trap, focus restoration and Escape, none of which the previous
+        bare div had.
+      */}
+      <Dialog
+        open={actions.isConfirmingRestore}
+        onOpenChange={(open) => {
+          if (!open) actions.cancelRestore();
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("recentEdits.confirmRestoreTitle")}</DialogTitle>
+            <DialogDescription className="whitespace-pre-line">
               {t("recentEdits.confirmRestoreMessage", { path: edit.file_path })}
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={actions.cancelRestore}
-                className="rounded-md bg-muted px-4 py-2 text-sm text-foreground hover:bg-muted/80"
-              >
-                {t("recentEdits.cancel")}
-              </button>
-              <button
-                type="button"
-                onClick={actions.confirmRestore}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-              >
-                {t("recentEdits.confirmRestore")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={actions.cancelRestore}
+              className="rounded-md bg-muted px-4 py-2 text-sm text-foreground hover:bg-muted/80"
+            >
+              {t("recentEdits.cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={actions.confirmRestore}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            >
+              {t("recentEdits.confirmRestore")}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {isExpanded && (
         <FileEditExpansion

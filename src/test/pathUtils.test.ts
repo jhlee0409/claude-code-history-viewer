@@ -160,6 +160,23 @@ describe("elideProjectRoot", () => {
     ).toBe("src/a.ts");
   });
 
+  it("matches an extended UNC path against its plain UNC root (P3-B6)", () => {
+    // Stripping the generic extended-length prefix alone left `UNC\\server...`,
+    // which no longer reads as a UNC path, so the roots never matched.
+    expect(
+      elideProjectRoot(
+        "\\\\?\\UNC\\server\\share\\repo\\src\\a.ts",
+        "\\\\server\\share\\repo"
+      )
+    ).toBe("src/a.ts");
+  });
+
+  it("treats / as a valid POSIX project root (P3-B7)", () => {
+    // `splitPathParts("/")` is empty, which the guard read as "no root" rather
+    // than "the root", so a project rooted at / could never elide.
+    expect(elideProjectRoot("/tmp/a.ts", "/")).toBe("tmp/a.ts");
+  });
+
   it("tolerates a trailing separator on the root", () => {
     expect(
       elideProjectRoot("/Users/alex/Projects/my-app/src/main.ts", "/Users/alex/Projects/my-app/")

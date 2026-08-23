@@ -522,6 +522,12 @@ fn comparable_path_parts(path: &str) -> Vec<String> {
     parts
 }
 
+/// Identity of a file for grouping and counting, folding away separator and
+/// (on Windows) case differences so one file cannot appear as two rows.
+fn file_identity(path: &str) -> String {
+    comparable_path_parts(path).join("/")
+}
+
 /// Whether `file_path` sits inside the directory described by `root_parts`.
 fn path_is_within(file_path: &str, root_parts: &[String]) -> bool {
     let parts = comparable_path_parts(file_path);
@@ -564,9 +570,13 @@ fn paginate_recent_edits(
 
     // Reported in both groupings, so a caller can always say how many distinct
     // files a session or project touched.
+    //
+    // Keyed on the same platform-aware identity that `path_is_within` uses, not
+    // the raw string. On Windows `C:\Repo\a.rs` and `c:/repo/a.rs` are one file;
+    // keying on the string counted them twice and produced two rows for it.
     let unique_files_count = sorted_edits
         .iter()
-        .map(|edit| edit.file_path.as_str())
+        .map(|edit| file_identity(&edit.file_path))
         .collect::<HashSet<_>>()
         .len();
 
@@ -577,9 +587,13 @@ fn paginate_recent_edits(
         // Latest state: keep only the newest edit per file. `sorted_edits` is
         // already newest-first, so the first entry seen per path wins.
         EditsGrouping::File => {
+            // Keyed on the normalized identity for the same reason as the count
+            // above, while each row keeps its own `file_path` for display.
             let mut latest_by_file: HashMap<String, RecentFileEdit> = HashMap::new();
             for edit in sorted_edits {
-                latest_by_file.entry(edit.file_path.clone()).or_insert(edit);
+                latest_by_file
+                    .entry(file_identity(&edit.file_path))
+                    .or_insert(edit);
             }
             let mut files: Vec<RecentFileEdit> = latest_by_file.into_values().collect();
             // Same total order as above; `into_values()` yields hash order.
@@ -708,6 +722,14 @@ fn validate_session_file_in_project(
         }
     }
 
+    // Require the same extension the directory walk requires. Without this any
+    // file inside the project can be mmapped and scanned line by line: the
+    // parsed result is harmless, but a multi-GB file costs a full read, and
+    // under `--serve` a remote caller chooses the target.
+    if candidate.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+        return Err("Invalid session file path: expected a .jsonl file".to_string());
+    }
+
     // Reject a symlink outright, matching the policy `decode_project_path_verified`
     // already applies to project directories. `canonicalize` would happily follow
     // one out of the project and then report the resolved name as fine.
@@ -784,6 +806,9 @@ pub async fn get_recent_edits(
         None => WalkDir::new(&project_path)
             .into_iter()
             .filter_map(std::result::Result::ok)
+            // Same symlink policy as the single-file path above. Without it the
+            // two entry points disagree about what is in the project.
+            .filter(|e| !e.path_is_symlink())
             .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
             .map(|e| e.path().to_path_buf())
             .collect(),
@@ -1051,14 +1076,7 @@ mod tests {
                 )
             })
             .collect();
-        create_test_jsonl_file(
-            &dir,
-            "tied.jsonl",
-            &lines.join(
-                "
-",
-            ),
-        );
+        create_test_jsonl_file(&dir, "tied.jsonl", &lines.join("\n"));
         let path = root.to_string_lossy().to_string();
 
         let mut seen: Vec<String> = Vec::new();
@@ -1129,10 +1147,7 @@ mod tests {
                     &root.join("after.txt"),
                 ),
             ]
-            .join(
-                "
-",
-            ),
+            .join("\n"),
         );
 
         let result = get_recent_edits(
@@ -1168,6 +1183,45 @@ mod tests {
             ids.len(),
             2,
             "fixture must contain two distinct session ids"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_session_file_path_requires_a_jsonl_extension() {
+        // The directory walk filters on the extension; the single-file path did
+        // not, so any file in the project could be mmapped and scanned line by
+        // line. Harmless output, unbounded cost, and remotely chosen under
+        // `--serve`.
+        let (dir, _a, _b) = project_with_two_sessions();
+        let other = dir.path().join("notes.txt");
+        fs::write(&other, "not a session file").unwrap();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            Some(other.to_string_lossy().to_string()),
+            None,
+        )
+        .await;
+
+        assert!(result.is_err(), "a non-jsonl file must be refused");
+    }
+
+    #[test]
+    fn test_file_identity_folds_separator_and_windows_case() {
+        // Grouping keyed on the raw string counted one file twice whenever two
+        // records spelled the same path differently.
+        assert_eq!(
+            file_identity("/repo/src/a.rs"),
+            file_identity(r"/repo/src/a.rs")
+        );
+        assert_eq!(file_identity("/repo/src/a.rs"), "repo/src/a.rs");
+
+        #[cfg(target_os = "windows")]
+        assert_eq!(
+            file_identity(r"C:\Repo\src\a.rs"),
+            file_identity("c:/repo/src/a.rs")
         );
     }
 

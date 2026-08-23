@@ -123,6 +123,29 @@ describe("FileEditRowCompact", () => {
     expect(screen.getByText(edit.file_path)).toBeTruthy();
   });
 
+  it("opens the restore confirmation as a real dialog (B1)", () => {
+    // Restore writes a file to disk, so its confirmation is exactly the control
+    // that must work without a pointer. The previous hand-rolled overlay had no
+    // role, no accessible name, no focus trap and no Escape handling.
+    render(
+      <FileEditRowCompact
+        edit={makeEdit({ exists_on_disk: false })}
+        isDarkMode={false}
+        projectCwd={PROJECT}
+      />
+    );
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getAllByLabelText("recentEdits.restoreFile")[0]!);
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeTruthy();
+    // An accessible name is what CLAUDE.md's a11y checklist requires.
+    expect(
+      screen.getByText("recentEdits.confirmRestoreTitle")
+    ).toBeTruthy();
+  });
+
   it("keeps the click target off the expansion", () => {
     // The full-bleed expand button is positioned against its own wrapper. If
     // that wrapper were the whole row, the invisible target would stretch over

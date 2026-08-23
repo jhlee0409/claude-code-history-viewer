@@ -86,7 +86,15 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     // The button routes on mode. In "docked" mode it toggles the side panel
     // beside the transcript; in "page" mode it keeps today's behaviour of
     // taking over the content area.
-    if (recentEditsMode === "docked" && selectedSession) {
+    // The dock is CSS-gated at the `xl` breakpoint, so a docked-mode preference
+    // carried over from a wide window (or restored on a narrow one) would
+    // otherwise toggle state that nothing can render. Read the width at click
+    // time rather than holding reactive state for it.
+    const dockCanRender =
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1280px)").matches;
+
+    if (recentEditsMode === "docked" && selectedSession && dockCanRender) {
       // The dock only renders inside the transcript branch of the layout, so
       // from any other view (Analytics, Board, Settings) a plain toggle just
       // flips invisible state and looks like a dead button. Go to the

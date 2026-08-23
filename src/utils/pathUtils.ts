@@ -79,6 +79,11 @@ export function getPathLeaf(path: string): string {
 
 /** `\\?\C:\x` and `C:\x` name the same file; the prefix is a Win32 API escape. */
 function stripExtendedLengthPrefix(path: string): string {
+  // The extended UNC form names the same share as the plain UNC form, so it
+  // has to become a UNC path again rather than the bare `UNC/server...` that
+  // stripping the generic prefix alone would leave.
+  const unc = path.replace(/^[\\/]{2}\?[\\/]UNC[\\/]/i, "\\\\");
+  if (unc !== path) return unc;
   return path.replace(/^[\\/]{2}\?[\\/]/, "");
 }
 
@@ -134,7 +139,12 @@ export function elideProjectRoot(
   }
 
   const rootParts = splitPathParts(normalizedRoot);
-  if (rootParts.length === 0) return filePath;
+  // A POSIX root of `/` splits to no parts, which is a real root rather than an
+  // absent one: bailing out here meant a project rooted at `/` could never
+  // elide anything.
+  if (rootParts.length === 0 && !isAbsolutePath(normalizedRoot)) {
+    return filePath;
+  }
 
   const pathParts = splitPathParts(normalizedPath);
   if (pathParts.length < rootParts.length) return filePath;
