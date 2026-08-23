@@ -44,6 +44,8 @@ export interface FileEditRowCompactProps {
    */
   grouping?: "file" | "edit";
   onJumpToMessage?: (messageUuid: string) => void;
+  /** Called after a successful restore, so the list can clear the missing flag. */
+  onRestored?: (filePath: string) => void;
 }
 
 export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
@@ -52,11 +54,12 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
   projectCwd,
   grouping = "file",
   onJumpToMessage,
+  onRestored,
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<EditViewMode>("content");
-  const actions = useFileEditActions(edit);
+  const actions = useFileEditActions(edit, { onRestored });
 
   const fileName = getPathLeaf(edit.file_path);
   const directory = elideProjectRoot(

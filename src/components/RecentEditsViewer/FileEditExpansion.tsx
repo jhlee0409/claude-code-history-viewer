@@ -131,7 +131,17 @@ export const FileEditExpansion: React.FC<FileEditExpansionProps> = ({
 
       {viewMode === "diff" && (
         <div className="p-2">
-          <ExpandKeyProvider value={`recent-edits-compact:${edit.file_path}`}>
+          {/*
+            Keyed per edit, not per file. In edit grouping the same file appears
+            as several distinct rows, and a path-only key made them share one
+            registry entry, so expanding the advanced diff in one row silently
+            toggled it in the others.
+          */}
+          <ExpandKeyProvider
+            value={`recent-edits-compact:${edit.file_path}:${
+              edit.message_uuid ?? edit.timestamp
+            }`}
+          >
             <EnhancedDiffViewer
               oldText={edit.original_content ?? ""}
               newText={edit.content_after_change}

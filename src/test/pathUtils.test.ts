@@ -142,6 +142,24 @@ describe("elideProjectRoot", () => {
     ).toBe("");
   });
 
+  it("does not treat a relative path as living under a UNC root (P2-12)", () => {
+    // Splitting on separators alone threw away what kind of root each path had,
+    // so these two unrelated paths looked like parent and child.
+    expect(
+      elideProjectRoot(
+        "server/share/repo/src/a.ts",
+        "\\\\server\\share\\repo"
+      )
+    ).toBe("server/share/repo/src/a.ts");
+  });
+
+  it("matches an extended-length path against its plain drive root (P2-12)", () => {
+    // `\\?\C:` and `C:` name the same volume; the prefix is a Win32 escape.
+    expect(
+      elideProjectRoot("\\\\?\\C:\\repo\\src\\a.ts", "C:\\repo")
+    ).toBe("src/a.ts");
+  });
+
   it("tolerates a trailing separator on the root", () => {
     expect(
       elideProjectRoot("/Users/alex/Projects/my-app/src/main.ts", "/Users/alex/Projects/my-app/")

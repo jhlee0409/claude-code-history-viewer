@@ -109,7 +109,17 @@ export const getCompactRelativeTime = (
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return "";
 
+    // Clamp rather than let a negative diff fall through every threshold into
+    // the "now" branch. Clock skew and imported logs both produce timestamps in
+    // the future, and labelling tomorrow as "now" is worse than saying nothing
+    // useful: show the date instead.
     const diffMs = Date.now() - date.getTime();
+    if (diffMs < 0) {
+      return date.toLocaleDateString(undefined, {
+        month: "numeric",
+        day: "numeric",
+      });
+    }
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);

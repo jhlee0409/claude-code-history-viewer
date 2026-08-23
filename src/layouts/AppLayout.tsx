@@ -277,7 +277,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           {!isMobile && isRecentEditsDockOpen && selectedSession && (
             <a
               href="#recent-edits-dock"
-              className="absolute left-[35rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+              className="absolute left-[35rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
             >
               {t("common.a11y.skipToRecentEdits", {
                 defaultValue: "Skip to recent edits",
@@ -617,8 +617,15 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                       onBack={() => analyticsActions.switchToBoard()}
                     />
                   </div>
+                  {/*
+                    Gated at xl (1280px), not md. The sidebar (256) plus the
+                    navigator (280) plus this dock (340) is 876px of fixed
+                    chrome: at md (768) that leaves the transcript nothing at
+                    all. 1280 leaves it ~404px, which is the narrowest width
+                    this layout was actually reviewed at.
+                  */}
                   {!isMobile && isRecentEditsDockOpen && (
-                    <div className="hidden md:block">
+                    <div className="hidden xl:block">
                       <PanelDock
                         asideId="recent-edits-dock"
                         isResizing={isRecentEditsDockResizing}

@@ -77,6 +77,16 @@ export function getPathLeaf(path: string): string {
   return parts.length > 0 ? (parts[parts.length - 1] ?? path) : path;
 }
 
+/** `\\?\C:\x` and `C:\x` name the same file; the prefix is a Win32 API escape. */
+function stripExtendedLengthPrefix(path: string): string {
+  return path.replace(/^[\\/]{2}\?[\\/]/, "");
+}
+
+/** A UNC path (`\\server\share`) has a different root kind from `C:\` or `/`. */
+function isUncPath(path: string): boolean {
+  return /^[\\/]{2}[^\\/]/.test(path);
+}
+
 /**
  * Whether a path should be compared case-insensitively.
  *
@@ -110,10 +120,23 @@ export function elideProjectRoot(
 ): string {
   if (!projectCwd) return filePath;
 
-  const rootParts = splitPathParts(projectCwd);
+  // Compare like with like. Splitting on separators throws away what kind of
+  // root a path had, so a relative `server/share/x` looked like a child of the
+  // UNC root for the same names, and an extended-length path looked unrelated
+  // to the plain drive path naming the same file.
+  const normalizedRoot = stripExtendedLengthPrefix(projectCwd);
+  const normalizedPath = stripExtendedLengthPrefix(filePath);
+  if (isAbsolutePath(normalizedPath) !== isAbsolutePath(normalizedRoot)) {
+    return filePath;
+  }
+  if (isUncPath(normalizedPath) !== isUncPath(normalizedRoot)) {
+    return filePath;
+  }
+
+  const rootParts = splitPathParts(normalizedRoot);
   if (rootParts.length === 0) return filePath;
 
-  const pathParts = splitPathParts(filePath);
+  const pathParts = splitPathParts(normalizedPath);
   if (pathParts.length < rootParts.length) return filePath;
 
   const ignoreCase =

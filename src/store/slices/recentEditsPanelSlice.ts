@@ -172,6 +172,11 @@ export interface RecentEditsPanelSliceActions {
   /** No-ops when the current result already answers this exact request. */
   loadRecentEditsDock: (request: RecentEditsDockRequest) => Promise<void>;
   loadMoreRecentEditsDock: (request: RecentEditsDockRequest) => Promise<void>;
+  /**
+   * Mark one row as present on disk again after a successful restore, without
+   * refetching the page and scrolling the list out from under the user.
+   */
+  markRecentEditsDockFileRestored: (filePath: string) => void;
 }
 
 export type RecentEditsPanelSlice = RecentEditsPanelSliceState &
@@ -344,6 +349,22 @@ export const createRecentEditsPanelSlice: StateCreator<
       }
     }
   },
+
+  markRecentEditsDockFileRestored: (filePath) =>
+    set((state) => {
+      const current = state.recentEditsDock;
+      if (!current) return {};
+      return {
+        recentEditsDock: {
+          ...current,
+          files: current.files.map((edit) =>
+            edit.file_path === filePath
+              ? { ...edit, exists_on_disk: true }
+              : edit
+          ),
+        },
+      };
+    }),
 
   loadMoreRecentEditsDock: async (request) => {
     const key = recentEditsDockRequestKey(request);

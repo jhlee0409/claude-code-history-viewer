@@ -51,6 +51,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     refreshCurrentSession,
     recentEditsMode,
     toggleRecentEditsDock,
+    setRecentEditsDockOpen,
   } = useAppStore();
 
   const computed = analyticsComputed;
@@ -86,6 +87,15 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     // beside the transcript; in "page" mode it keeps today's behaviour of
     // taking over the content area.
     if (recentEditsMode === "docked" && selectedSession) {
+      // The dock only renders inside the transcript branch of the layout, so
+      // from any other view (Analytics, Board, Settings) a plain toggle just
+      // flips invisible state and looks like a dead button. Go to the
+      // transcript and open the dock instead of toggling it shut.
+      if (!analyticsComputed.isMessagesView) {
+        setRecentEditsDockOpen(true);
+        analyticsActions.switchToMessages();
+        return;
+      }
       toggleRecentEditsDock();
       return;
     }

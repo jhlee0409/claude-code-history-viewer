@@ -223,7 +223,17 @@ export async function fetchRecentEdits(
   // panel and the full page can be mounted at once, asking for different scopes;
   // a key that omitted them would collapse those into one request and hand one
   // caller the other's data.
-  const key = `recentEdits:${projectPath}:${offset}:${limit}:${sessionFilePath ?? ""}:${grouping ?? "file"}`;
+  // Serialized, not joined: `:` is legal in a POSIX path, so a joined key can
+  // collide across genuinely different requests and hand one of them the
+  // other's in-flight promise. Same defect, and same fix, as the dock's request
+  // key in `recentEditsPanelSlice`.
+  const key = `recentEdits:${JSON.stringify([
+    projectPath,
+    offset,
+    limit,
+    sessionFilePath ?? "",
+    grouping ?? "file",
+  ])}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 

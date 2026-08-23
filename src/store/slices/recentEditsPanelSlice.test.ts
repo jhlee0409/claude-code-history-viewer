@@ -366,6 +366,30 @@ describe("recentEditsPanelSlice dock fetch: regressions from adversarial review"
     ).toEqual(["/project/fresh.ts"]);
   });
 
+  it("clears the missing flag on a restored row (P2-7)", async () => {
+    // `exists_on_disk` is resolved when the page is fetched, so without this a
+    // just-restored file stays red, stays inside the Missing Only filter, and
+    // offers Restore again once the success state times out.
+    const missing = {
+      ...page(["/project/gone.ts"], false, 0),
+      files: [
+        {
+          ...page(["/project/gone.ts"], false, 0).files[0],
+          exists_on_disk: false,
+        },
+      ],
+    };
+    fetchRecentEdits.mockResolvedValueOnce(missing);
+
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+    expect(store.getState().recentEditsDock?.files[0]?.exists_on_disk).toBe(false);
+
+    store.getState().markRecentEditsDockFileRestored("/project/gone.ts");
+
+    expect(store.getState().recentEditsDock?.files[0]?.exists_on_disk).toBe(true);
+  });
+
   it("clears a stale error when returning to cached rows (B5)", async () => {
     // Second-pass finding: the cached-hit early return added for B1 claims the
     // request slot but never cleared the error. The panel renders the error in

@@ -74,6 +74,21 @@ describe("FileEditRowCompact", () => {
     expect(screen.queryByText(makeEdit().file_path)).toBeNull();
   });
 
+  it("does not label a future timestamp as now (P2-11)", () => {
+    // A negative elapsed time used to fall through every threshold into the
+    // "now" branch, so clock skew or an imported log rendered tomorrow as now.
+    const tomorrow = new Date(Date.now() + 24 * 3600 * 1000);
+    render(
+      <FileEditRowCompact
+        edit={makeEdit({ timestamp: tomorrow.toISOString() })}
+        isDarkMode={false}
+        projectCwd={PROJECT}
+      />
+    );
+
+    expect(screen.queryByText("now")).toBeNull();
+  });
+
   it("shows clock time instead of relative time in edit grouping", () => {
     const at = new Date();
     at.setHours(14, 22, 0, 0);

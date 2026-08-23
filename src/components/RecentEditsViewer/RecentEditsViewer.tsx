@@ -143,7 +143,10 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
               <button
                 type="button"
                 onClick={handleDock}
-                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-px11 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                // Hidden below the dock's own breakpoint, not just its label:
+                // the dock cannot render there, so tapping this on a phone
+                // would leave the full page for a panel that never appears.
+                className="hidden items-center gap-1.5 rounded-lg px-2 py-1.5 text-px11 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground xl:flex"
                 aria-label={t("recentEdits.dockToPanel", "Dock beside transcript")}
                 title={t("recentEdits.dockToPanel", "Dock beside transcript")}
               >

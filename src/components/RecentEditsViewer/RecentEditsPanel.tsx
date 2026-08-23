@@ -44,6 +44,9 @@ export const RecentEditsPanel: React.FC = () => {
   const loadMoreRecentEditsDock = useAppStore(
     (s) => s.loadMoreRecentEditsDock
   );
+  const markRecentEditsDockFileRestored = useAppStore(
+    (s) => s.markRecentEditsDockFileRestored
+  );
 
   const recentEditsMode = useAppStore((s) => s.recentEditsMode);
   const recentEditsScope = useAppStore((s) => s.recentEditsScope);
@@ -56,6 +59,7 @@ export const RecentEditsPanel: React.FC = () => {
     (s) => s.setRecentEditsMissingOnly
   );
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
+  const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
 
   const density = useAppStore(selectRecentEditsDensity);
   const grouping = useAppStore(selectRecentEditsGrouping);
@@ -95,12 +99,25 @@ export const RecentEditsPanel: React.FC = () => {
   const handleUndock = () => {
     setRecentEditsMode("page");
     setRecentEditsDockOpen(false);
+    // Mode is a preference; `analytics.currentView` is what actually decides
+    // what renders. Without this the dock just disappears and the user is left
+    // on the transcript, which is not what "Undock to full page" promises.
+    setAnalyticsCurrentView("recentEdits");
   };
 
   const handleLoadMore = () => {
     if (request && recentEdits?.hasMore && !isLoadingMore) {
       void loadMoreRecentEditsDock(request);
     }
+  };
+
+  // `exists_on_disk` was resolved when the page was fetched, so a row the user
+  // has just restored still reports itself missing: it stays red, stays inside
+  // the Missing Only filter, and offers Restore again once the success state
+  // times out. Patch that one row rather than refetching the page, which would
+  // scroll the list out from under them.
+  const handleRestored = (filePath: string) => {
+    markRecentEditsDockFileRestored(filePath);
   };
 
   return (
@@ -137,17 +154,18 @@ export const RecentEditsPanel: React.FC = () => {
           <div className="flex items-center justify-center py-10 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
           </div>
-        ) : files.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
-            <FileEdit className="h-6 w-6 opacity-40" aria-hidden="true" />
-            <p className="px-4 text-center text-px11">
-              {recentEditsMissingOnly
-                ? t("recentEdits.noMissingFiles", "No missing files")
-                : t("recentEdits.noEdits")}
-            </p>
-          </div>
         ) : (
           <>
+            {files.length === 0 && (
+              <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+                <FileEdit className="h-6 w-6 opacity-40" aria-hidden="true" />
+                <p className="px-4 text-center text-px11">
+                  {recentEditsMissingOnly
+                    ? t("recentEdits.noMissingFiles", "No missing files")
+                    : t("recentEdits.noEdits")}
+                </p>
+              </div>
+            )}
             {files.map((edit, index) =>
               density === "compact" ? (
                 <FileEditRowCompact
@@ -157,6 +175,7 @@ export const RecentEditsPanel: React.FC = () => {
                   projectCwd={recentEdits?.projectCwd}
                   grouping={grouping}
                   onJumpToMessage={navigateToMessage}
+                  onRestored={handleRestored}
                 />
               ) : (
                 <div key={`${edit.file_path}-${index}`} className="p-2">

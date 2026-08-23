@@ -8,7 +8,7 @@
  * status). Rendering stays entirely with the callers, which look nothing alike.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { api } from "@/services/api";
@@ -41,13 +41,32 @@ export interface FileEditActions {
   cancelRestore: () => void;
 }
 
-export function useFileEditActions(edit: RecentFileEdit): FileEditActions {
+export function useFileEditActions(
+  edit: RecentFileEdit,
+  options: { onRestored?: (filePath: string) => void } = {}
+): FileEditActions {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<RestoreStatus>("idle");
   const [isConfirmingRestore, setIsConfirmingRestore] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
+  // Timers are held so a second click replaces the first rather than inheriting
+  // its countdown: copying twice 1.9s apart used to let the first timer clear
+  // the second click's success state almost immediately. Cleared on unmount too,
+  // so a row scrolled out of the list does not set state on a dead component.
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      if (restoreTimer.current) clearTimeout(restoreTimer.current);
+    },
+    []
+  );
+
+  const { onRestored } = options;
   const filePath = edit.file_path;
   const content = edit.content_after_change;
 
@@ -55,7 +74,8 @@ export function useFileEditActions(edit: RecentFileEdit): FileEditActions {
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
-      setTimeout(() => setCopied(false), TRANSIENT_MS);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), TRANSIENT_MS);
     } catch (err) {
       console.error("Failed to copy:", err);
       toast.error(t("recentEdits.copyError", "Failed to copy file content"));
@@ -95,17 +115,25 @@ export function useFileEditActions(edit: RecentFileEdit): FileEditActions {
       setRestoreStatus("loading");
       await api("restore_file", { filePath, content });
       setRestoreStatus("success");
-      setTimeout(() => setRestoreStatus("idle"), TRANSIENT_MS);
+      // The row's `exists_on_disk` was resolved when the page was fetched, so
+      // without telling anyone the row keeps reporting itself missing.
+      onRestored?.(filePath);
+      if (restoreTimer.current) clearTimeout(restoreTimer.current);
+      restoreTimer.current = setTimeout(
+        () => setRestoreStatus("idle"),
+        TRANSIENT_MS
+      );
     } catch (err) {
       console.error("Failed to restore file:", err);
       setRestoreError(err instanceof Error ? err.message : String(err));
       setRestoreStatus("error");
-      setTimeout(() => {
+      if (restoreTimer.current) clearTimeout(restoreTimer.current);
+      restoreTimer.current = setTimeout(() => {
         setRestoreStatus("idle");
         setRestoreError(null);
       }, ERROR_MS);
     }
-  }, [filePath, content]);
+  }, [filePath, content, onRestored]);
 
   return {
     copied,
