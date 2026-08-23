@@ -207,6 +207,12 @@ export const createAnalyticsSlice: StateCreator<
   },
 
   loadMoreRecentEdits: async (projectPath: string) => {
+    // Required parameters are guarded at the top, per the repo checklist. An
+    // empty path would otherwise reach the backend as an invalid argument.
+    if (!projectPath.trim()) {
+      return;
+    }
+
     const { analytics } = get();
     const { recentEditsPagination, recentEdits } = analytics;
 
@@ -245,8 +251,33 @@ export const createAnalyticsSlice: StateCreator<
         limit: RECENT_EDITS_PAGE_SIZE,
       });
 
+      // The pre-await guard above only proves ownership at the moment the
+      // request started. The other two cache writers already re-check after
+      // their await; this one did not, so a page fetched for project A could
+      // still land after the user selected B, under B's pagination state.
+      const latest = get();
+      if (
+        latest.selectedProject?.path !== projectPath ||
+        (latest.analytics.recentEdits?.requestedProjectPath !== undefined &&
+          latest.analytics.recentEdits.requestedProjectPath !== projectPath)
+      ) {
+        // Clear the flag on the way out. Only one load-more can be in flight
+        // (the guard above plus `canLoadMore`), so leaving it set would block
+        // every future page for the project the user actually switched to.
+        set((state) => ({
+          analytics: {
+            ...state.analytics,
+            recentEditsPagination: {
+              ...state.analytics.recentEditsPagination,
+              isLoadingMore: false,
+            },
+          },
+        }));
+        return;
+      }
+
       // Append new files to existing list
-      const existingFiles = recentEdits?.files ?? [];
+      const existingFiles = latest.analytics.recentEdits?.files ?? [];
       const newFiles = [...existingFiles, ...result.files];
 
       set((state) => ({

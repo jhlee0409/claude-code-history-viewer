@@ -176,10 +176,12 @@ export function useAnalyticsNavigation() {
     // longer exists, leaving the view empty. That was survivable only while the
     // guard never held.
     const cached = useAppStore.getState().analytics.recentEdits;
+    // No `files.length` condition: with request identity on the entry, an empty
+    // result is a valid answer ("this project has no edits") rather than an
+    // absent one. Requiring a non-empty list made such a project miss the cache
+    // on every visit and re-walk its whole JSONL set forever.
     const hasCachedRecentEdits =
-      cached &&
-      cached.files.length > 0 &&
-      cached.requestedProjectPath === project.path;
+      cached && cached.requestedProjectPath === project.path;
 
     if (hasCachedRecentEdits) {
       return;

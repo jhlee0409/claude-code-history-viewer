@@ -256,6 +256,106 @@ describe("switchToRecentEdits cache", () => {
     expect(fetchRecentEdits).toHaveBeenCalledTimes(callsBefore);
   });
 
+  it("caches a legitimately empty result (A1)", async () => {
+    // `files.length > 0` made a project with no edits miss the cache on every
+    // visit and re-walk its whole JSONL set. With request identity on the entry,
+    // an empty list is a valid answer rather than an absent one.
+    const p = project("empty");
+    fetchRecentEdits.mockResolvedValue({
+      ...payload(p.actual_path),
+      files: [],
+      total_edits_count: 0,
+      unique_files_count: 0,
+    });
+    useAppStore.setState({ selectedProject: p });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a blank project path on load-more (A2)", async () => {
+    // Pagination has to be loadable, or `canLoadMore` returns early and the
+    // test passes without ever reaching the guard under test.
+    useAppStore.setState((state) => ({
+      analytics: {
+        ...state.analytics,
+        recentEditsPagination: {
+          totalEditsCount: 100,
+          uniqueFilesCount: 100,
+          offset: 0,
+          limit: 20,
+          hasMore: true,
+          isLoadingMore: false,
+        },
+      },
+    }));
+
+    await act(async () => {
+      await useAppStore.getState().loadMoreRecentEdits("");
+    });
+
+    expect(fetchRecentEdits).not.toHaveBeenCalled();
+  });
+
+  it("does not land a load-more page for a deselected project (A3)", async () => {
+    // The pre-await guard only proves ownership when the request starts. Without
+    // a post-await check, project A's page lands under B's pagination state.
+    const a = project("alpha");
+    const b = project("beta");
+    fetchRecentEdits.mockResolvedValueOnce(payload(a.actual_path));
+    useAppStore.setState({ selectedProject: a });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    useAppStore.setState((state) => ({
+      analytics: {
+        ...state.analytics,
+        recentEditsPagination: {
+          totalEditsCount: 100,
+          uniqueFilesCount: 100,
+          offset: 0,
+          limit: 20,
+          hasMore: true,
+          isLoadingMore: false,
+        },
+      },
+    }));
+
+    let resolveMore;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveMore = resolve))
+    );
+    const pending = useAppStore.getState().loadMoreRecentEdits(a.path);
+
+    await act(async () => {
+      useAppStore.setState({ selectedProject: b });
+    });
+    await act(async () => {
+      resolveMore?.({
+        ...payload(a.actual_path),
+        files: [{ ...payload(a.actual_path).files[0], file_path: "late.ts" }],
+      });
+      await pending;
+    });
+
+    const files = useAppStore.getState().analytics.recentEdits?.files ?? [];
+    expect(files.some((f) => f.file_path === "late.ts")).toBe(false);
+    // And the flag must not be stranded, or every future page is blocked.
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(false);
+  });
+
   it("records the requested project path on the cached result", async () => {
     const p = project("alpha");
     fetchRecentEdits.mockResolvedValue(payload(p.actual_path));
