@@ -799,7 +799,17 @@ pub async fn get_recent_edits(
     // `exists_on_disk`. An unbounded caller-supplied limit turns one request
     // into an unbounded synchronous stat loop, which stalls the app and is a
     // remote stall vector under `--serve`.
-    let limit = limit.unwrap_or(DEFAULT_PAGE_LIMIT).min(MAX_PAGE_LIMIT);
+    //
+    // Zero is rejected rather than clamped into range. It yields an empty page
+    // while `has_more` keeps counting the population against the offset, so a
+    // caller paging by `files.len()` never advances and re-requests the same
+    // empty page forever. Coercing it to 1 would paper over that caller bug
+    // silently; the same untrusted-input reasoning as the clamp says to name it.
+    let limit = match limit {
+        Some(0) => return Err("Invalid limit: must be greater than zero".to_string()),
+        Some(requested) => requested.min(MAX_PAGE_LIMIT),
+        None => DEFAULT_PAGE_LIMIT,
+    };
     let grouping = EditsGrouping::from_param(grouping.as_deref());
     let provider = detect_project_provider(&project_path);
 
@@ -1130,6 +1140,34 @@ mod tests {
             result.limit <= MAX_PAGE_LIMIT,
             "limit {} was not clamped",
             result.limit
+        );
+    }
+
+    #[tokio::test]
+    async fn test_zero_limit_is_rejected() {
+        // R10. A zero limit returns no rows, but `has_more` counts the
+        // population against the offset rather than the page, so it stays true
+        // while the page is empty. A caller that advances by `files.len()`
+        // advances by nothing and re-requests the same empty page forever.
+        //
+        // Rejected rather than coerced: the clamp above already treats a
+        // caller-supplied limit as untrusted input under `--serve`, and a
+        // silent coercion would hide the caller's bug instead of naming it.
+        let (dir, _a, _b) = project_with_two_sessions();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            Some(0),
+            None,
+            None,
+        )
+        .await;
+
+        let message = result.expect_err("a zero limit was accepted");
+        assert!(
+            message.contains("limit"),
+            "error should name the offending parameter, got {message}"
         );
     }
 
