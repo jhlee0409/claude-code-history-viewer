@@ -26,7 +26,11 @@ import {
 import { toast } from "sonner";
 import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
-import { isAbsolutePath } from "@/utils/pathUtils";
+import {
+  isAbsolutePath,
+  elideProjectRoot,
+  getPathLeaf,
+} from "@/utils/pathUtils";
 import { isTauri, isMacOS, isWindows } from "@/utils/platform";
 import { layout } from "@/components/renderers";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
@@ -44,7 +48,12 @@ import {
   getTokenContainerStyles,
 } from "@/utils/prismStyles";
 
-export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) => {
+export const FileEditItem: React.FC<FileEditItemProps> = ({
+  edit,
+  isDarkMode,
+  dense = false,
+  projectCwd,
+}) => {
   const { t } = useTranslation();
   const { t: tCommon } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -55,7 +64,16 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const language = getLanguageFromPath(edit.file_path);
-  const fileName = edit.file_path.replace(/\\/g, "/").split("/").pop() || edit.file_path;
+  const fileName = getPathLeaf(edit.file_path);
+  /*
+    Dense shows the elided directory the list rows show. Full width keeps the
+    absolute path, which is readable there and is mostly shared prefix once the
+    card is squeezed into a panel.
+  */
+  const directory = elideProjectRoot(
+    edit.file_path.slice(0, edit.file_path.length - fileName.length),
+    projectCwd
+  );
   const lines = edit.content_after_change.split("\n");
 
   // Clicking the active control again collapses; otherwise expand into that view
@@ -153,7 +171,8 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
             the dock is a resizable panel, so its width is independent of the
             viewport and Tailwind's breakpoints do not describe it.
           */
-          "relative flex flex-wrap items-center justify-between gap-y-2 p-4 cursor-pointer transition-all duration-300",
+          "relative flex flex-wrap items-center justify-between gap-y-2 cursor-pointer transition-all duration-300",
+          dense ? "p-2" : "p-4",
           edit.operation_type === "write"
             ? "bg-gradient-to-r from-green-50 to-emerald-50/50 dark:from-green-950/40 dark:to-emerald-950/20"
             : "bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-950/40 dark:to-indigo-950/20",
@@ -175,38 +194,93 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
           width. The floor makes the stats group wrap instead. The name box
           inside keeps `min-w-0` so it can still truncate within this group.
         */}
-        <div className="flex items-center space-x-3 min-w-[10rem] flex-1">
+        <div
+          className={cn(
+            "flex items-center flex-1",
+            dense ? "gap-2 min-w-[8rem]" : "space-x-3 min-w-[10rem]"
+          )}
+        >
           {/* Expand/Collapse icon */}
+          {/*
+            A tinted control at full width, a bare glyph in the list scale. The
+            boxed version reads as a button, which is right on a page of cards
+            and too heavy beside rows a third of its height.
+          */}
           <div
             className={cn(
-              "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300",
-              isExpanded ? "bg-accent/20 text-accent" : "bg-muted/50 text-muted-foreground"
+              "flex items-center justify-center transition-all duration-300",
+              dense
+                ? "h-3 w-3 shrink-0 text-muted-foreground"
+                : cn(
+                    "w-6 h-6 rounded-md",
+                    isExpanded
+                      ? "bg-accent/20 text-accent"
+                      : "bg-muted/50 text-muted-foreground"
+                  )
             )}
           >
-            {isExpanded ? <span title="Collapse"><ChevronDown className="w-4 h-4" /></span> : <span title="Expand"><ChevronRight className="w-4 h-4" /></span>}
+            {isExpanded ? (
+              <span title="Collapse">
+                <ChevronDown className={dense ? "h-3 w-3" : "w-4 h-4"} />
+              </span>
+            ) : (
+              <span title="Expand">
+                <ChevronRight className={dense ? "h-3 w-3" : "w-4 h-4"} />
+              </span>
+            )}
           </div>
 
-          {/* Operation type icon */}
-          <div
-            className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center",
-              edit.operation_type === "write"
-                ? "bg-success/20 text-success"
-                : "bg-info/20 text-info"
-            )}
-          >
-            {edit.operation_type === "write" ? (
-              <span title="File Created"><FilePlus className="w-4 h-4" /></span>
-            ) : (
-              <span title="File Edited"><FileEdit className="w-4 h-4" /></span>
-            )}
-          </div>
+          {/*
+            Operation type. A tile at full width; in the list scale the same
+            distinction is carried by the dot the compact rows use, since a 32px
+            tile beside a 17px line box dominates the name it is meant to label.
+            The left accent bar already repeats the colour, so nothing is lost.
+          */}
+          {dense ? (
+            <span
+              title={
+                edit.operation_type === "write" ? "File Created" : "File Edited"
+              }
+              className={cn(
+                "h-[7px] w-[7px] shrink-0 rounded-full",
+                edit.operation_type === "write" ? "bg-success" : "bg-info"
+              )}
+            />
+          ) : (
+            <div
+              className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center",
+                edit.operation_type === "write"
+                  ? "bg-success/20 text-success"
+                  : "bg-info/20 text-info"
+              )}
+            >
+              {edit.operation_type === "write" ? (
+                <span title="File Created"><FilePlus className="w-4 h-4" /></span>
+              ) : (
+                <span title="File Edited"><FileEdit className="w-4 h-4" /></span>
+              )}
+            </div>
+          )}
 
           {/* File name and path */}
           <div className="min-w-0 flex-1">
-            <div className="font-semibold truncate text-foreground">{fileName}</div>
-            <div className={`${layout.smallText} truncate text-muted-foreground mt-0.5`}>
-              {edit.file_path}
+            <div
+              className={cn(
+                "font-semibold truncate text-foreground",
+                dense && layout.bodyText
+              )}
+            >
+              {fileName}
+            </div>
+            <div
+              className={cn(
+                "truncate text-muted-foreground mt-0.5",
+                dense ? "text-px11" : layout.smallText
+              )}
+              title={edit.file_path}
+            >
+              {dense ? directory : edit.file_path}
             </div>
           </div>
         </div>

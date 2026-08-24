@@ -189,7 +189,17 @@ export const RecentEditsPanel: React.FC = () => {
                 />
               ) : (
                 <div key={`${edit.file_path}-${index}`} className="p-2">
-                  <FileEditItem edit={edit} isDarkMode={isDarkMode} />
+                  {/*
+                    `dense` here and nowhere else: this is the only place a card
+                    renders inside the dock, and the full-page list wants the
+                    larger scale it already has.
+                  */}
+                  <FileEditItem
+                    edit={edit}
+                    isDarkMode={isDarkMode}
+                    dense
+                    projectCwd={recentEdits?.projectCwd}
+                  />
                 </div>
               )
             )}

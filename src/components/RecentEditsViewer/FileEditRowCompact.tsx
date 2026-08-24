@@ -156,7 +156,14 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
         reviewed and rejected because it drifts the glyphs down between the two
         lines. Do not "tidy" these away.
       */}
-      <div className="pointer-events-none relative flex items-start gap-1.5 px-2 py-1">
+      {/*
+        `py-2` rather than `py-1`. At the tighter value the two text lines of one
+        row sat about as close to the next row's name as to each other, so the
+        list read as continuous text instead of as discrete entries. The extra
+        padding is what separates the rows: the divider marks the boundary but
+        cannot create the space around it.
+      */}
+      <div className="pointer-events-none relative flex items-start gap-1.5 px-2.5 py-2">
         <ChevronIcon
           className="h-3 w-3 shrink-0 text-muted-foreground"
           style={{ marginTop: "3.5px" }}
