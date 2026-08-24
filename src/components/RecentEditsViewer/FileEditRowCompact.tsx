@@ -37,6 +37,7 @@ import { elideProjectRoot, getPathLeaf } from "@/utils/pathUtils";
 import { useFileEditActions } from "./useFileEditActions";
 import { FileEditDirectoryLink } from "./FileEditDirectoryLink";
 import { FileEditExpansion } from "./FileEditExpansion";
+import { RestoreDiffPreview } from "./RestoreDiffPreview";
 import { getCompactRelativeTime, formatClockTime, formatTimestamp } from "./utils";
 import type { EditViewMode } from "./types";
 import type { RecentFileEdit } from "../../types";
@@ -308,6 +309,20 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
               {t("recentEdits.confirmRestoreMessage", { path: edit.file_path })}
             </DialogDescription>
           </DialogHeader>
+
+          {/*
+            Rendered only while the dialog is open, so the file is read at the
+            moment of the decision rather than when the row rendered. Restore
+            overwrites without a backup, and a path alone cannot say whether
+            that costs nothing or costs an afternoon.
+          */}
+          {actions.isConfirmingRestore && (
+            <RestoreDiffPreview
+              filePath={edit.file_path}
+              restoreContent={edit.content_after_change}
+              existsOnDisk={edit.exists_on_disk}
+            />
+          )}
           <DialogFooter>
             <button
               type="button"

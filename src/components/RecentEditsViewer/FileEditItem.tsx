@@ -37,6 +37,7 @@ import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { FileEditDirectoryLink } from "./FileEditDirectoryLink";
 import { FilteredDiffLines } from "./FilteredDiffLines";
+import { RestoreDiffPreview } from "./RestoreDiffPreview";
 import type { FileEditItemProps, RestoreStatus, EditViewMode } from "./types";
 import { getLanguageFromPath, formatTimestamp, getRelativeTime } from "./utils";
 import { extractAddedLines, extractRemovedLines } from "./diffUtils";
@@ -470,9 +471,23 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             <h3 className="text-lg font-semibold mb-2 text-foreground">
               {t("recentEdits.confirmRestoreTitle")}
             </h3>
-            <p className={`${layout.bodyText} mb-4 text-muted-foreground`}>
+            <p className={`${layout.bodyText} mb-2 text-muted-foreground`}>
               {t("recentEdits.confirmRestoreMessage", { path: edit.file_path })}
             </p>
+
+            {/*
+              The same preview the compact row shows. Restore is equally
+              destructive from either density, so the confirmation must tell the
+              user the same thing in both.
+            */}
+            <div className="mb-4">
+              <RestoreDiffPreview
+                filePath={edit.file_path}
+                restoreContent={edit.content_after_change}
+                existsOnDisk={edit.exists_on_disk}
+              />
+            </div>
+
             <div className="flex justify-end space-x-3">
               <button
                 onClick={handleRestoreCancel}

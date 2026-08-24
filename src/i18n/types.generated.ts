@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-08-24T22:24:16.424Z
- * 총 키 개수: 1920
+ * 생성 시간: 2026-08-24T22:33:36.622Z
+ * 총 키 개수: 1925
  * Namespace 수: 11
  */
 
@@ -1959,7 +1959,7 @@ export type FeedbackKeys =
   | 'feedback.types.other';
 
 /**
- * recentEdits namespace의 번역 키 (61개)
+ * recentEdits namespace의 번역 키 (66개)
  * 파일: locales/{lang}/recentEdits.json
  */
 export type RecentEditsKeys =
@@ -1994,6 +1994,11 @@ export type RecentEditsKeys =
   | 'recentEdits.panelOptions'
   | 'recentEdits.restoreError'
   | 'recentEdits.restoreFile'
+  | 'recentEdits.restorePreviewCreating'
+  | 'recentEdits.restorePreviewHeading'
+  | 'recentEdits.restorePreviewIdentical'
+  | 'recentEdits.restorePreviewLoading'
+  | 'recentEdits.restorePreviewUnreadable'
   | 'recentEdits.revealError'
   | 'recentEdits.revealInExplorer'
   | 'recentEdits.revealInFinder'
@@ -2883,6 +2888,11 @@ export type TranslationKey =
   | 'recentEdits.panelOptions'
   | 'recentEdits.restoreError'
   | 'recentEdits.restoreFile'
+  | 'recentEdits.restorePreviewCreating'
+  | 'recentEdits.restorePreviewHeading'
+  | 'recentEdits.restorePreviewIdentical'
+  | 'recentEdits.restorePreviewLoading'
+  | 'recentEdits.restorePreviewUnreadable'
   | 'recentEdits.revealError'
   | 'recentEdits.revealInExplorer'
   | 'recentEdits.revealInFinder'
