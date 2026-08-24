@@ -429,3 +429,141 @@ describe("switchToRecentEdits request identity", () => {
     );
   });
 });
+
+/**
+ * Round 4. The load-more commit proved *whose* project a page belonged to but
+ * not *which version* of the list it was fetched against, so a refresh landing
+ * mid-flight let a later page append onto a list it did not continue.
+ */
+describe("loadMoreRecentEdits generation", () => {
+  const rows = (names: string[]) =>
+    names.map((file_path) => ({
+      file_path,
+      timestamp: "2026-08-21T00:00:00.000Z",
+      session_id: "s1",
+      operation_type: "edit" as const,
+      content_after_change: "after",
+      lines_added: 1,
+      lines_removed: 0,
+    }));
+
+  const pageOf = (names: string[], offset: number, hasMore: boolean) => ({
+    files: rows(names),
+    total_edits_count: 100,
+    unique_files_count: 100,
+    project_cwd: "E:\\Projects\\alpha",
+    offset,
+    limit: 20,
+    has_more: hasMore,
+  });
+
+  /** Load page 1 for `p` and leave the cursor open. */
+  const seedFirstPage = async (p: ReturnType<typeof project>) => {
+    fetchRecentEdits.mockResolvedValueOnce(pageOf(["a.ts", "b.ts"], 0, true));
+    useAppStore.setState({ selectedProject: p });
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+  };
+
+  beforeEach(() => {
+    fetchRecentEdits.mockReset();
+    useAppStore.setState({ selectedProject: null, selectedSession: null });
+    useAppStore.getState().resetAnalytics();
+  });
+
+  it("discards a page whose list was replaced while it was in flight (R2)", async () => {
+    // The replacement has the same length and the same owner, so neither the
+    // ownership guard nor a length comparison can catch it. Only a generation
+    // can.
+    const p = project("alpha");
+    await seedFirstPage(p);
+
+    let resolveMore: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveMore = resolve))
+    );
+    const pending = useAppStore.getState().loadMoreRecentEdits(p.path);
+
+    await act(async () => {
+      useAppStore.getState().setAnalyticsRecentEdits({
+        files: rows(["fresh-a.ts", "fresh-b.ts"]),
+        total_edits_count: 100,
+        unique_files_count: 100,
+        project_cwd: "E:\\Projects\\alpha",
+        requestedProjectPath: p.path,
+      });
+    });
+
+    await act(async () => {
+      resolveMore?.(pageOf(["late.ts"], 2, true));
+      await pending;
+    });
+
+    expect(
+      (useAppStore.getState().analytics.recentEdits?.files ?? []).map(
+        (f) => f.file_path
+      )
+    ).toEqual(["fresh-a.ts", "fresh-b.ts"]);
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(false);
+  });
+
+  it("does not rebuild a cleared cache out of a later page (R3)", async () => {
+    // A page landing on a cleared cache used to append onto nothing and claim
+    // the result as the whole list. If the refresh that cleared the cache then
+    // failed, that later-page-only list passed the cache-hit test forever.
+    const p = project("alpha");
+    await seedFirstPage(p);
+
+    let resolveMore: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveMore = resolve))
+    );
+    const pending = useAppStore.getState().loadMoreRecentEdits(p.path);
+
+    await act(async () => {
+      useAppStore.getState().setAnalyticsRecentEdits(null);
+    });
+
+    await act(async () => {
+      resolveMore?.(pageOf(["late.ts"], 2, true));
+      await pending;
+    });
+
+    expect(useAppStore.getState().analytics.recentEdits).toBeNull();
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(false);
+  });
+
+  it("asks for the page after the rows it holds, not after the stored cursor (R4)", async () => {
+    // A refresh that replaces the list without resetting the cursor leaves the
+    // two disagreeing. Deriving the offset from the rows actually held cannot
+    // desync, which is the same rule the dock panel already follows.
+    const p = project("alpha");
+    await seedFirstPage(p);
+
+    useAppStore.setState((state) => ({
+      analytics: {
+        ...state.analytics,
+        recentEditsPagination: {
+          ...state.analytics.recentEditsPagination,
+          offset: 60,
+        },
+      },
+    }));
+
+    fetchRecentEdits.mockResolvedValueOnce(pageOf(["c.ts"], 2, false));
+    await act(async () => {
+      await useAppStore.getState().loadMoreRecentEdits(p.path);
+    });
+
+    expect(fetchRecentEdits).toHaveBeenLastCalledWith(
+      p.path,
+      expect.objectContaining({ offset: 2 })
+    );
+  });
+});

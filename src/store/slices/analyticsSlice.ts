@@ -18,7 +18,7 @@ import type { StateCreator } from "zustand";
 import { toast } from "sonner";
 import type { FullAppStore } from "./types";
 import { fetchRecentEdits } from "../../services/analyticsApi";
-import { canLoadMore, getNextOffset } from "../../utils/pagination";
+import { canLoadMore } from "../../utils/pagination";
 
 const RECENT_EDITS_PAGE_SIZE = 20;
 
@@ -168,6 +168,10 @@ export const createAnalyticsSlice: StateCreator<
       analytics: {
         ...state.analytics,
         recentEdits: edits,
+        // Bumping here, rather than at each call site, is what makes the
+        // generation true for all three writers of the cache without any of
+        // them having to remember.
+        recentEditsGeneration: state.analytics.recentEditsGeneration + 1,
       },
     }));
   },
@@ -224,11 +228,12 @@ export const createAnalyticsSlice: StateCreator<
     // project than the one being asked for. Appending here would staple one
     // project's page onto another's rows and then tag the mixture with a
     // request identity that looks valid to the cache guard.
-    if (
-      recentEdits &&
-      recentEdits.requestedProjectPath !== undefined &&
-      recentEdits.requestedProjectPath !== projectPath
-    ) {
+    //
+    // An exact match, rather than "not some other owner": an absent cache is
+    // not something to extend either, because there is no page to continue.
+    // Every writer records the path it fetched for, so a legitimate caller
+    // always has one.
+    if (recentEdits?.requestedProjectPath !== projectPath) {
       return;
     }
 
@@ -243,8 +248,16 @@ export const createAnalyticsSlice: StateCreator<
       },
     }));
 
+    // The version of the list this page is being fetched to continue.
+    const generation = analytics.recentEditsGeneration;
+
     try {
-      const nextOffset = getNextOffset(recentEditsPagination);
+      // The rows already held ARE the next offset. A stored cursor is a second
+      // copy of that fact, and the two desync the moment the list is replaced
+      // without the cursor being reset, which `setAnalyticsRecentEdits` cannot
+      // do because it does not own the cursor. The dock panel already derives
+      // its offset this way.
+      const nextOffset = recentEdits.files.length;
 
       const result = await fetchRecentEdits(projectPath, {
         offset: nextOffset,
@@ -256,10 +269,14 @@ export const createAnalyticsSlice: StateCreator<
       // their await; this one did not, so a page fetched for project A could
       // still land after the user selected B, under B's pagination state.
       const latest = get();
+      // Ownership answers "whose list is this". The generation answers "which
+      // version of it", which ownership cannot: a refresh can replace the list
+      // with one of the same length under the same owner, and this page does
+      // not continue that one.
       if (
         latest.selectedProject?.path !== projectPath ||
-        (latest.analytics.recentEdits?.requestedProjectPath !== undefined &&
-          latest.analytics.recentEdits.requestedProjectPath !== projectPath)
+        latest.analytics.recentEdits?.requestedProjectPath !== projectPath ||
+        latest.analytics.recentEditsGeneration !== generation
       ) {
         // Clear the flag on the way out. Only one load-more can be in flight
         // (the guard above plus `canLoadMore`), so leaving it set would block
@@ -276,8 +293,9 @@ export const createAnalyticsSlice: StateCreator<
         return;
       }
 
-      // Append new files to existing list
-      const existingFiles = latest.analytics.recentEdits?.files ?? [];
+      // Append new files to existing list. The guard above has already proven
+      // this cache is present, owned and current.
+      const existingFiles = latest.analytics.recentEdits.files;
       const newFiles = [...existingFiles, ...result.files];
 
       set((state) => ({
@@ -290,6 +308,9 @@ export const createAnalyticsSlice: StateCreator<
             project_cwd: result.project_cwd,
             requestedProjectPath: projectPath,
           },
+          // This write is a new version of the list too, so a second page
+          // racing this one cannot also commit.
+          recentEditsGeneration: state.analytics.recentEditsGeneration + 1,
           recentEditsPagination: {
             totalEditsCount: result.total_edits_count,
             uniqueFilesCount: result.unique_files_count,
