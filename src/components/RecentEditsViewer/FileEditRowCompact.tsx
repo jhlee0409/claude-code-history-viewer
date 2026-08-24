@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { elideProjectRoot, getPathLeaf } from "@/utils/pathUtils";
 import { useFileEditActions } from "./useFileEditActions";
+import { FileEditDirectoryLink } from "./FileEditDirectoryLink";
 import { FileEditExpansion } from "./FileEditExpansion";
 import { getCompactRelativeTime, formatClockTime, formatTimestamp } from "./utils";
 import type { EditViewMode } from "./types";
@@ -212,9 +213,19 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
 
           {/* Line 2: elided directory, with actions revealed on hover. */}
           <div className="flex items-center gap-2 leading-[17px]">
-            <span className="min-w-0 flex-1 truncate text-px11 text-muted-foreground">
-              {directory}
-            </span>
+            <FileEditDirectoryLink
+              directory={directory}
+              fullPath={edit.file_path}
+              /*
+                Same rule as the icon beside it: a file that is not on disk has
+                nothing to reveal, so the path stays plain text rather than
+                offering to open a folder for something that is not there.
+              */
+              canReveal={actions.canReveal && !isMissing}
+              onReveal={actions.reveal}
+              revealLabel={actions.revealLabel}
+              className="min-w-0 flex-1 text-px11 text-muted-foreground"
+            />
             <div
               className={cn(
                 "pointer-events-auto flex shrink-0 items-center gap-0.5 transition-opacity",

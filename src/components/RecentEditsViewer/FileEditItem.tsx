@@ -35,6 +35,7 @@ import { isTauri, isMacOS, isWindows } from "@/utils/platform";
 import { layout } from "@/components/renderers";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
+import { FileEditDirectoryLink } from "./FileEditDirectoryLink";
 import { FilteredDiffLines } from "./FilteredDiffLines";
 import type { FileEditItemProps, RestoreStatus, EditViewMode } from "./types";
 import { getLanguageFromPath, formatTimestamp, getRelativeTime } from "./utils";
@@ -273,14 +274,18 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             >
               {fileName}
             </div>
-            <div
-              className={cn(
-                "truncate text-muted-foreground mt-0.5",
-                dense ? "text-px11" : layout.smallText
-              )}
-              title={edit.file_path}
-            >
-              {dense ? directory : edit.file_path}
+            <div className="mt-0.5 flex min-w-0">
+              <FileEditDirectoryLink
+                directory={dense ? directory : edit.file_path}
+                fullPath={edit.file_path}
+                canReveal={canReveal}
+                onReveal={handleReveal}
+                revealLabel={revealLabel}
+                className={cn(
+                  "min-w-0 flex-1 text-muted-foreground",
+                  dense ? "text-px11" : layout.smallText
+                )}
+              />
             </div>
           </div>
         </div>

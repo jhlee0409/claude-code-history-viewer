@@ -53,8 +53,11 @@
   "recentEdits.timeNowShort": "さっき",
   "recentEdits.title": "最近の編集",
   "recentEdits.undockToPage": "全画面表示に戻す",
+  "recentEdits.viewAdded": "追加",
   "recentEdits.viewAsPage": "ページ",
   "recentEdits.viewAsSidebar": "サイドバー",
   "recentEdits.viewContent": "内容",
-  "recentEdits.viewModeLabel": "表示"
+  "recentEdits.viewModeGroup": "表示モード",
+  "recentEdits.viewModeLabel": "表示",
+  "recentEdits.viewRemoved": "削除"
 }
