@@ -262,8 +262,32 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     transcript nothing at all. 1280 leaves it ~404px, which is the narrowest
     width this layout was actually reviewed at.
   */
-  const recentEditsDock =
-    !isMobile && isRecentEditsDockOpen ? (
+  /*
+    The dock renders in the transcript branch only, with a session or without
+    one, so the skip link has to track exactly that condition. Keying the link
+    to `selectedSession` was wrong in both directions once the dock stopped
+    needing a session: it hid the link while the panel was on screen, and it
+    left the link pointing at `#recent-edits-dock` on the views that never
+    render a dock at all.
+
+    Derived once and read by both, so the anchor and its target cannot drift
+    apart again. Matching the branch itself rather than testing for the messages
+    view, because global stats renders the analytics branch through a flag of
+    its own rather than through `currentView`.
+  */
+  const isTranscriptView = !(
+    computed.isArchiveView ||
+    computed.isSettingsView ||
+    computed.isBoardView ||
+    computed.isRecentEditsView ||
+    computed.isAnalyticsView ||
+    isViewingGlobalStats ||
+    computed.isTokenStatsView
+  );
+  const showRecentEditsDock =
+    !isMobile && isRecentEditsDockOpen && isTranscriptView;
+
+  const recentEditsDock = showRecentEditsDock ? (
       <div className="hidden xl:block">
         <PanelDock
           asideId="recent-edits-dock"
@@ -313,7 +337,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               defaultValue: "Skip to main content",
             })}
           </a>
-          {!isMobile && isRecentEditsDockOpen && selectedSession && (
+          {showRecentEditsDock && (
             <a
               href="#recent-edits-dock"
               className="absolute left-[35rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
