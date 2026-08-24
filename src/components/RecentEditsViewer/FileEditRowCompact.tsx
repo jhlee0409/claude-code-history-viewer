@@ -91,8 +91,42 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
 
   const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
 
+  /*
+    The same accent the card density uses, at compact scale: a coloured rule down
+    the left edge and a tint that fades out to the right. Carrying it here means
+    the two densities read as the same list at two sizes rather than as two
+    different components, which is what they looked like with only a dot to tell
+    created from edited.
+
+    The tint fades rather than filling: at this row height a flat wash competes
+    with the file name, while a fade reads as an edge marker.
+  */
+  const accent = isMissing
+    ? { bar: "bg-destructive", tint: "from-destructive/[0.07]" }
+    : edit.operation_type === "write"
+      ? { bar: "bg-success", tint: "from-success/[0.07]" }
+      : { bar: "bg-info", tint: "from-info/[0.07]" };
+
   return (
-    <div className="group border-b border-border/60 last:border-b-0">
+    <div
+      className={cn(
+        "group relative border-b border-border/60 last:border-b-0",
+        "bg-gradient-to-r to-transparent",
+        accent.tint
+      )}
+    >
+      {/*
+        Spans the whole row, expansion included, so an open row stays visibly
+        one item. Decorative: the same state is already named in the dot's
+        accessible label, so a screen reader is not told twice.
+      */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute bottom-0 left-0 top-0 w-1",
+          accent.bar
+        )}
+      />
       {/*
         `relative` wraps the header only, not the whole row. On the row it would
         stretch the full-bleed button below over the expansion too, so a click

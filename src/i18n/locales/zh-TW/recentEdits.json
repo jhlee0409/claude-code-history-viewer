@@ -38,6 +38,7 @@
   "recentEdits.scopeProject": "專案",
   "recentEdits.scopeSession": "工作階段",
   "recentEdits.searchPlaceholder": "按檔案路徑或內容搜尋...",
+  "recentEdits.selectProjectFirst": "請先選擇一個專案",
   "recentEdits.showAddedLines": "只看新增的行",
   "recentEdits.showAll": "全部檔案",
   "recentEdits.showDiff": "查看完整Diff",

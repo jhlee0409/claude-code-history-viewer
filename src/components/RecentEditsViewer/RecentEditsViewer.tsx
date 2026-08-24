@@ -38,7 +38,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
 
   // Entry into docked mode. The same toggle renders in the docked panel's
   // header for the return trip, so both directions read as one control.
-  const selectedSession = useAppStore((s) => s.selectedSession);
+  const selectedProject = useAppStore((s) => s.selectedProject);
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
   const switchToMessages = useAppStore(
@@ -157,17 +157,22 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
               Hidden entirely below the dock's own breakpoint rather than merely
               disabled: the dock cannot render there at all, so offering the
               choice on a phone would send the user to a panel that never
-              appears. Above it, sidebar is disabled without a session, which
-              says the mode exists and what unlocks it.
+              appears.
+
+              Gated on a project, not a session. The dock defaults to project
+              scope and renders perfectly well beside the "select a session"
+              placeholder, so requiring a session refused a mode that works: the
+              user had to open a session they did not want in order to reach a
+              view that never needed one.
             */}
             <div className="hidden xl:block">
               <RecentEditsViewToggle
                 value="page"
                 onChange={(next) => next === "sidebar" && handleDock()}
-                sidebarDisabled={!selectedSession}
+                sidebarDisabled={!selectedProject}
                 sidebarDisabledHint={t(
-                  "recentEdits.scopeNeedsSession",
-                  "Select a session to scope edits to it"
+                  "recentEdits.selectProjectFirst",
+                  "Select a project first"
                 )}
               />
             </div>

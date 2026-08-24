@@ -38,6 +38,7 @@
   "recentEdits.scopeProject": "Project",
   "recentEdits.scopeSession": "Session",
   "recentEdits.searchPlaceholder": "Search by file path or content...",
+  "recentEdits.selectProjectFirst": "Select a project first",
   "recentEdits.showAddedLines": "Show only added lines",
   "recentEdits.showAll": "All files",
   "recentEdits.showDiff": "Show full diff",

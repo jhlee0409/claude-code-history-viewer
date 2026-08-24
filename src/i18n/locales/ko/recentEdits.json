@@ -38,6 +38,7 @@
   "recentEdits.scopeProject": "프로젝트",
   "recentEdits.scopeSession": "세션",
   "recentEdits.searchPlaceholder": "파일 경로 또는 내용으로 검색...",
+  "recentEdits.selectProjectFirst": "먼저 프로젝트를 선택하세요",
   "recentEdits.showAddedLines": "추가된 줄만 보기",
   "recentEdits.showAll": "모든 파일",
   "recentEdits.showDiff": "전체 Diff 보기",

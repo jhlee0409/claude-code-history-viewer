@@ -38,6 +38,7 @@
   "recentEdits.scopeProject": "プロジェクト",
   "recentEdits.scopeSession": "セッション",
   "recentEdits.searchPlaceholder": "ファイルパスまたは内容で検索...",
+  "recentEdits.selectProjectFirst": "先にプロジェクトを選択してください",
   "recentEdits.showAddedLines": "追加された行のみ表示",
   "recentEdits.showAll": "すべてのファイル",
   "recentEdits.showDiff": "完全なDiffを表示",
