@@ -534,6 +534,20 @@ fn path_is_within(file_path: &str, root_parts: &[String]) -> bool {
     parts.len() > root_parts.len() && parts.starts_with(root_parts)
 }
 
+/// Whether a file is on disk, as far as one `stat` can tell.
+///
+/// `None` means unknown, which the frontend renders differently from absent.
+/// A permission error, a disconnected network drive or any transient I/O
+/// failure is not evidence that the file was deleted, and reporting one as
+/// absent hides a file that exists behind the missing-only filter.
+fn existence_from_metadata(probe: std::io::Result<fs::Metadata>) -> Option<bool> {
+    match probe {
+        Ok(_) => Some(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some(false),
+        Err(_) => None,
+    }
+}
+
 fn paginate_recent_edits(
     all_edits: Vec<RecentFileEdit>,
     project_cwd: Option<String>,
@@ -620,7 +634,7 @@ fn paginate_recent_edits(
     // of 20 that is 20 stat calls rather than one per raw edit, which matters
     // on a network or cloud-synced drive.
     for edit in &mut paginated_files {
-        edit.exists_on_disk = Some(fs::metadata(&edit.file_path).is_ok());
+        edit.exists_on_disk = existence_from_metadata(fs::metadata(&edit.file_path));
     }
 
     let has_more = offset + paginated_files.len() < population;
@@ -1391,6 +1405,30 @@ mod tests {
         // so exactly the returned row carries a resolved value.
         assert_eq!(result.files.len(), 1);
         assert!(result.files[0].exists_on_disk.is_some());
+    }
+
+    #[test]
+    fn test_existence_is_unknown_when_a_file_cannot_be_read() {
+        let dir = TempDir::new().unwrap();
+        let present = dir.path().join("present.txt");
+        fs::write(&present, "x").unwrap();
+        assert_eq!(existence_from_metadata(fs::metadata(&present)), Some(true));
+
+        // NotFound is the only error that actually means "not there".
+        assert_eq!(
+            existence_from_metadata(Err(std::io::Error::from(std::io::ErrorKind::NotFound))),
+            Some(false)
+        );
+
+        // Everything else is unknown. Reporting a permission error as absent
+        // told the user a file had been deleted and hid it behind the
+        // missing-only filter.
+        assert_eq!(
+            existence_from_metadata(Err(std::io::Error::from(
+                std::io::ErrorKind::PermissionDenied
+            ))),
+            None
+        );
     }
 
     // Test restore_file security validations
