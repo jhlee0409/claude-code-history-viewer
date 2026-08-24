@@ -773,6 +773,31 @@ mod tests {
     use axum::body::Body;
     use tower::ServiceExt;
 
+    /// The write side of the allowlist, which for a long while had no guard at
+    /// all while `read_text_file` beside it enforced one. Over `--serve` a
+    /// request could overwrite any reachable file while being refused
+    /// permission to read that same path.
+    #[test]
+    fn test_restore_write_is_unrestricted_only_on_loopback() {
+        use crate::server::handlers::restore_write_allowed;
+
+        // Somewhere no allowlist would ever cover.
+        let outside = std::env::temp_dir().join("ccv-restore-gate-probe.txt");
+
+        assert!(
+            restore_write_allowed(true, &outside).is_ok(),
+            "on loopback the caller is this machine, so restoring anywhere is \
+             what the desktop app already does"
+        );
+
+        let refused = restore_write_allowed(false, &outside);
+        assert!(
+            refused.is_err(),
+            "bound to a routable address the caller is someone else, so the \
+             same allowlist the read path uses must apply"
+        );
+    }
+
     fn test_state(auth_token: Option<&str>) -> Arc<AppState> {
         let (event_tx, _rx) =
             tokio::sync::broadcast::channel::<crate::commands::watcher::FileWatchEvent>(1);
@@ -786,6 +811,7 @@ mod tests {
                 })
                 .unwrap_or(AuthState::Disabled),
             read_only: false,
+            loopback_bind: false,
             event_tx,
         })
     }
@@ -803,6 +829,7 @@ mod tests {
                 false,
             ))),
             read_only: false,
+            loopback_bind: false,
             event_tx,
         })
     }
@@ -815,6 +842,7 @@ mod tests {
             start_time: std::time::Instant::now(),
             auth: AuthState::Disabled,
             read_only: true,
+            loopback_bind: false,
             event_tx,
         })
     }

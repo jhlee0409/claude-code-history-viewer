@@ -21,6 +21,17 @@ pub struct AppState {
     pub auth: AuthState,
     /// Whether mutating `WebUI` API endpoints should be rejected.
     pub read_only: bool,
+    /// Whether the server is bound to a loopback address.
+    ///
+    /// The trust boundary for filesystem writes. On loopback the caller and the
+    /// server are the same machine, so writing outside the export allowlist is
+    /// no more dangerous than the desktop app doing it. Bound to a routable
+    /// address it is a different machine, and an authenticated request should
+    /// not be able to write anywhere on this one.
+    ///
+    /// Deliberately `false` when unknown: a construction site that forgets this
+    /// field gets the restrictive behaviour, not the permissive one.
+    pub loopback_bind: bool,
     /// Broadcast channel for file-change events (SSE consumers subscribe here).
     pub event_tx: broadcast::Sender<FileWatchEvent>,
 }

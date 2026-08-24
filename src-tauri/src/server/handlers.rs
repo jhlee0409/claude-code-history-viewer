@@ -7,7 +7,7 @@ use axum::extract::State;
 use axum::Json;
 use serde::Deserialize;
 use serde_json::Value;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::state::AppState;
@@ -560,11 +560,51 @@ handler_json!(
     }
 );
 
-handler_json!(
-    restore_file,
-    RestoreFileParams,
-    |p: RestoreFileParams| async move { commands::session::restore_file(p.file_path, p.content).await }
-);
+/// Where a `WebUI` restore may write, given how this server is bound.
+///
+/// Named rather than inlined so the decision can be tested without standing up
+/// a router, the same reason `is_read_only_allowed_path` is its own function.
+pub(crate) fn restore_write_allowed(loopback_bind: bool, path: &Path) -> Result<(), String> {
+    if loopback_bind {
+        return Ok(());
+    }
+    commands::claude_settings::is_safe_path(path)
+}
+
+/// Write a file back to disk from a recorded edit.
+///
+/// Stateful rather than a `handler_json!` because the allowlist decision depends
+/// on how this server is bound.
+///
+/// `read_text_file` above enforces the export allowlist unconditionally, and for
+/// a long while this, its write-side counterpart, enforced nothing: over
+/// `--serve` a request could overwrite any file the process could reach while
+/// being refused permission to *read* that same path. Writing is strictly the
+/// more dangerous of the two, so the guard belonged here first.
+///
+/// The gate is the bind address rather than a blanket allowlist. On loopback the
+/// caller is this machine, so restoring a file anywhere is exactly what the
+/// desktop app already does through the OS dialog, and forcing the allowlist
+/// there would break restoring a file in your own project for no safety gained.
+/// Bound to a routable address the caller is someone else, and the same
+/// allowlist the read path uses applies.
+///
+/// Command-level validation (absolute path, no null bytes, no `..`, atomic
+/// write) still runs underneath in both cases; this only decides *where*.
+pub async fn restore_file(
+    State(state): State<Arc<AppState>>,
+    Json(p): Json<RestoreFileParams>,
+) -> Result<Json<Value>, ApiError> {
+    restore_write_allowed(state.loopback_bind, Path::new(&p.file_path))?;
+
+    commands::session::restore_file(p.file_path, p.content)
+        .await
+        .map_err(ApiError::from)?;
+    // The command yields `()`, which is the `null` the macro-generated handlers
+    // serialize for the other mutating endpoints. Written out rather than bound
+    // to a variable first, which would be a unit-valued binding.
+    Ok(Json(Value::Null))
+}
 
 handler_json!(get_preset, IdParam, |p: IdParam| async move {
     commands::settings::get_preset(p.id).await

@@ -460,6 +460,10 @@ fn run_server(args: &[String]) {
         start_time: std::time::Instant::now(),
         auth: resolved_auth.auth.clone(),
         read_only,
+        // Computed from the resolved bind host, the same predicate the auth
+        // startup checks use, so "is this machine talking to itself" has one
+        // definition in this binary rather than two.
+        loopback_bind: is_loopback_bind_host(&host),
         event_tx,
     });
 
