@@ -33,6 +33,7 @@ import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "@/layouts/Header/SettingDropdown/ModalContainer";
 import { DesktopOnly } from "@/contexts/platform";
+import { useIsXlUp } from "@/hooks/useMediaQuery";
 import {
   AppErrorType,
   type ClaudeMessage,
@@ -227,6 +228,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     liveStatusMessage,
   } = props;
 
+  // Called before the early returns below, as hook order must not vary.
+  const isXlUp = useIsXlUp();
+
   // Error State
   if (error && error.type !== AppErrorType.CLAUDE_FOLDER_NOT_FOUND) {
     return (
@@ -284,8 +288,23 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     isViewingGlobalStats ||
     computed.isTokenStatsView
   );
+  /*
+    Gated on `xl` in JavaScript, not merely in CSS. The wrapper below is
+    `hidden xl:block`, but a hidden wrapper still mounts its children, so
+    between 768 and 1279 the panel used to mount, run its effect and fetch a
+    page for a dock nobody could see. `useIsMobile` only reaches to 767, so it
+    was never the right gate for an `xl` surface.
+
+    Gated on a selected project too. Without one the panel issues no request,
+    but it still reads the store, so it would render the previous project's
+    edits in a view where no project is selected. That only became reachable
+    once the dock stopped requiring a session.
+  */
   const showRecentEditsDock =
-    !isMobile && isRecentEditsDockOpen && isTranscriptView;
+    isXlUp &&
+    Boolean(selectedProject) &&
+    isRecentEditsDockOpen &&
+    isTranscriptView;
 
   const recentEditsDock = showRecentEditsDock ? (
       <div className="hidden xl:block">
