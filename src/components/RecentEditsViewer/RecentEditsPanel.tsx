@@ -122,7 +122,17 @@ export const RecentEditsPanel: React.FC = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-1.5 border-b border-border/50 px-2 py-1.5">
+      {/*
+        Wraps rather than overflows. The scope toggle carries localized labels
+        and stops shrinking around 296px, so below that the options trigger was
+        pushed past the panel's right edge: at the configured minimum width of
+        260 it was not merely clipped but unhittable, leaving grouping and
+        density unreachable for anyone who dragged the panel that narrow.
+        Wrapping is used instead of a larger minimum width because the labels
+        differ per locale, and a width tuned to English would not hold in ko,
+        ja, zh-CN or zh-TW.
+      */}
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-border/50 px-2 py-1.5">
         <RecentEditsScopeToggle
           value={effectiveScope}
           onChange={setRecentEditsScope}
