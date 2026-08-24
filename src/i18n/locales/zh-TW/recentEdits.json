@@ -52,5 +52,8 @@
   "recentEdits.timeNowShort": "剛剛",
   "recentEdits.title": "最近編輯",
   "recentEdits.undockToPage": "切換為整頁顯示",
-  "recentEdits.viewContent": "內容"
+  "recentEdits.viewAsPage": "頁面",
+  "recentEdits.viewAsSidebar": "側邊欄",
+  "recentEdits.viewContent": "內容",
+  "recentEdits.viewModeLabel": "檢視"
 }

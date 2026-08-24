@@ -15,7 +15,6 @@ import {
   File,
   ChevronDown,
   Loader2,
-  PanelRight,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useTheme } from "@/contexts/theme";
@@ -23,6 +22,7 @@ import { layout } from "@/components/renderers";
 import { LoadingState } from "@/components/ui/loading";
 import type { RecentEditsViewerProps } from "./types";
 import { FileEditItem } from "./FileEditItem";
+import { RecentEditsViewToggle } from "./RecentEditsViewToggle";
 
 export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   recentEdits,
@@ -36,8 +36,8 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   const { isDarkMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
 
-  // The only way into docked mode. Its counterpart, "Undock to full page",
-  // lives in the docked panel's options menu.
+  // Entry into docked mode. The same toggle renders in the docked panel's
+  // header for the return trip, so both directions read as one control.
   const selectedSession = useAppStore((s) => s.selectedSession);
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
@@ -139,23 +139,24 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
-            {selectedSession && (
-              <button
-                type="button"
-                onClick={handleDock}
-                // Hidden below the dock's own breakpoint, not just its label:
-                // the dock cannot render there, so tapping this on a phone
-                // would leave the full page for a panel that never appears.
-                className="hidden items-center gap-1.5 rounded-lg px-2 py-1.5 text-px11 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground xl:flex"
-                aria-label={t("recentEdits.dockToPanel", "Dock beside transcript")}
-                title={t("recentEdits.dockToPanel", "Dock beside transcript")}
-              >
-                <PanelRight className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden md:inline">
-                  {t("recentEdits.dockToPanel", "Dock beside transcript")}
-                </span>
-              </button>
-            )}
+            {/*
+              Hidden entirely below the dock's own breakpoint rather than merely
+              disabled: the dock cannot render there at all, so offering the
+              choice on a phone would send the user to a panel that never
+              appears. Above it, sidebar is disabled without a session, which
+              says the mode exists and what unlocks it.
+            */}
+            <div className="hidden xl:block">
+              <RecentEditsViewToggle
+                value="page"
+                onChange={(next) => next === "sidebar" && handleDock()}
+                sidebarDisabled={!selectedSession}
+                sidebarDisabledHint={t(
+                  "recentEdits.scopeNeedsSession",
+                  "Select a session to scope edits to it"
+                )}
+              />
+            </div>
             <span className="text-px11 text-muted-foreground font-mono">
               {recentEdits?.files?.length ?? 0} / {totalUniqueFiles}
             </span>

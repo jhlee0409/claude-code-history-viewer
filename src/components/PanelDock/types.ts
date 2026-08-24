@@ -20,6 +20,18 @@ export interface PanelDefinition {
   id: PanelId;
   /** Shown in the tab strip, and used as the aside's accessible name. */
   title: string;
+  /**
+   * Shown beside the title when this panel is docked on its own. Supplied by
+   * the panel rather than chosen here, so the dock stays generic while each
+   * panel still matches the identity it has elsewhere in the app.
+   */
+  icon?: ReactNode;
+  /**
+   * Rendered at the far end of the single-panel heading row. For controls that
+   * belong to the panel as a whole rather than to its contents, such as the
+   * view toggle that sends it back to a full page.
+   */
+  headerAction?: ReactNode;
   render: () => ReactNode;
 }
 

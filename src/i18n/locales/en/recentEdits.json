@@ -52,5 +52,8 @@
   "recentEdits.timeNowShort": "now",
   "recentEdits.title": "Recent Edits",
   "recentEdits.undockToPage": "Undock to full page",
-  "recentEdits.viewContent": "Content"
+  "recentEdits.viewAsPage": "Page",
+  "recentEdits.viewAsSidebar": "Sidebar",
+  "recentEdits.viewContent": "Content",
+  "recentEdits.viewModeLabel": "View"
 }

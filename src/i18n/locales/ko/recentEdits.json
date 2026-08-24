@@ -52,5 +52,8 @@
   "recentEdits.timeNowShort": "방금",
   "recentEdits.title": "최근 편집",
   "recentEdits.undockToPage": "전체 페이지로 전환",
-  "recentEdits.viewContent": "내용"
+  "recentEdits.viewAsPage": "페이지",
+  "recentEdits.viewAsSidebar": "사이드바",
+  "recentEdits.viewContent": "내용",
+  "recentEdits.viewModeLabel": "보기"
 }

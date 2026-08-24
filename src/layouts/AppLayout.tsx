@@ -21,6 +21,7 @@ import { MessageViewer } from "@/components/MessageViewer";
 import { MessageNavigator } from "@/components/MessageNavigator";
 import { PanelDock } from "@/components/PanelDock";
 import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
+import { RecentEditsViewToggle } from "@/components/RecentEditsViewer/RecentEditsViewToggle";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { RecentEditsViewer } from "@/components/RecentEditsViewer";
@@ -230,6 +231,21 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
 
   // Called before the early returns below, as hook order must not vary.
   const isXlUp = useIsXlUp();
+  const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
+  const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
+  const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
+
+  /*
+    The return trip out of the dock. Mode is only a preference; what actually
+    decides what renders is `analytics.currentView`, so without the third call
+    the panel would simply vanish and leave the user on the transcript, which is
+    not what choosing "Page" promises.
+  */
+  const handleUndockRecentEdits = () => {
+    setRecentEditsMode("page");
+    setRecentEditsDockOpen(false);
+    setAnalyticsCurrentView("recentEdits");
+  };
 
   // Error State
   if (error && error.type !== AppErrorType.CLAUDE_FOLDER_NOT_FOUND) {
@@ -325,6 +341,22 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
             recentEdits: {
               id: "recentEdits",
               title: t("recentEdits.title"),
+              /*
+                The same mark the full page uses, scaled to a panel header.
+                Without it the dock read as anonymous text where every other
+                surface in the app leads with an icon in a tinted tile.
+              */
+              icon: (
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-accent/20">
+                  <FileEdit className="h-3 w-3 text-accent" aria-hidden="true" />
+                </span>
+              ),
+              headerAction: (
+                <RecentEditsViewToggle
+                  value="sidebar"
+                  onChange={(next) => next === "page" && handleUndockRecentEdits()}
+                />
+              ),
               render: () => <RecentEditsPanel />,
             },
           }}

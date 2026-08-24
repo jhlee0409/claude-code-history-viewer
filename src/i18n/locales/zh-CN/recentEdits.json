@@ -52,5 +52,8 @@
   "recentEdits.timeNowShort": "刚刚",
   "recentEdits.title": "最近编辑",
   "recentEdits.undockToPage": "切换为整页显示",
-  "recentEdits.viewContent": "内容"
+  "recentEdits.viewAsPage": "页面",
+  "recentEdits.viewAsSidebar": "侧边栏",
+  "recentEdits.viewContent": "内容",
+  "recentEdits.viewModeLabel": "视图"
 }

@@ -87,13 +87,19 @@ export const PanelDock: React.FC<PanelDockProps> = ({
               so a sighted user had nothing telling them what the panel was.
             */}
             {!hasTabStrip && (
-              <div className="flex items-center border-b border-border/50 px-3 py-1.5">
+              <div className="flex items-center gap-2 border-b border-border/50 px-2 py-1.5">
+                {active.icon}
                 <h2
                   id={headingId}
-                  className="truncate text-px11 font-medium text-muted-foreground"
+                  className="truncate text-xs font-semibold tracking-tight text-foreground"
                 >
                   {active.title}
                 </h2>
+                {active.headerAction && (
+                  <div className="ml-auto flex shrink-0 items-center">
+                    {active.headerAction}
+                  </div>
+                )}
               </div>
             )}
 

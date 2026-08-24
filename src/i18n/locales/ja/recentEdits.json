@@ -52,5 +52,8 @@
   "recentEdits.timeNowShort": "さっき",
   "recentEdits.title": "最近の編集",
   "recentEdits.undockToPage": "全画面表示に戻す",
-  "recentEdits.viewContent": "内容"
+  "recentEdits.viewAsPage": "ページ",
+  "recentEdits.viewAsSidebar": "サイドバー",
+  "recentEdits.viewContent": "内容",
+  "recentEdits.viewModeLabel": "表示"
 }
