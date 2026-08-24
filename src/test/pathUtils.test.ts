@@ -182,4 +182,34 @@ describe("elideProjectRoot", () => {
       elideProjectRoot("/Users/alex/Projects/my-app/src/main.ts", "/Users/alex/Projects/my-app/")
     ).toBe("src/main.ts");
   });
+  // A UNC path is absolute however it is spelled, but `isAbsolutePath` only
+  // recognises the forward-slash spelling, so the "compare like with like"
+  // bail fired on any separator-style mismatch between path and root. Three of
+  // the six spellings failed, not just the extended-length one.
+  it("matches an extended UNC path against a forward-slash UNC root (R4-4)", () => {
+    expect(
+      elideProjectRoot(
+        "\\\\?\\UNC\\server\\share\\repo\\src\\a.ts",
+        "//server/share/repo"
+      )
+    ).toBe("src/a.ts");
+  });
+
+  it("matches a backslash UNC path against a forward-slash UNC root (R4-4)", () => {
+    expect(
+      elideProjectRoot(
+        "\\\\server\\share\\repo\\src\\a.ts",
+        "//server/share/repo"
+      )
+    ).toBe("src/a.ts");
+  });
+
+  it("matches a forward-slash UNC path against a backslash UNC root (R4-4)", () => {
+    expect(
+      elideProjectRoot(
+        "//server/share/repo/src/a.ts",
+        "\\\\server\\share\\repo"
+      )
+    ).toBe("src/a.ts");
+  });
 });

@@ -131,10 +131,22 @@ export function elideProjectRoot(
   // to the plain drive path naming the same file.
   const normalizedRoot = stripExtendedLengthPrefix(projectCwd);
   const normalizedPath = stripExtendedLengthPrefix(filePath);
-  if (isAbsolutePath(normalizedPath) !== isAbsolutePath(normalizedRoot)) {
+
+  // Settle the UNC question first and let it answer the absolute one. A UNC
+  // path is absolute however it is spelled, but `isAbsolutePath` only
+  // recognises the forward-slash spelling, so asking it about `\server` and
+  // `//server` reports two different kinds of root for the same share and the
+  // comparison below bails. Widening `isAbsolutePath` itself would reach seven
+  // call sites, one of them a validation gate in front of a native rename.
+  const rootIsUnc = isUncPath(normalizedRoot);
+  const pathIsUnc = isUncPath(normalizedPath);
+  if (pathIsUnc !== rootIsUnc) {
     return filePath;
   }
-  if (isUncPath(normalizedPath) !== isUncPath(normalizedRoot)) {
+  if (
+    !pathIsUnc &&
+    isAbsolutePath(normalizedPath) !== isAbsolutePath(normalizedRoot)
+  ) {
     return filePath;
   }
 
