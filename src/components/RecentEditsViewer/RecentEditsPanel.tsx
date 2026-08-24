@@ -199,6 +199,7 @@ export const RecentEditsPanel: React.FC = () => {
                     isDarkMode={isDarkMode}
                     dense
                     projectCwd={recentEdits?.projectCwd}
+                    onRestored={handleRestored}
                   />
                 </div>
               )

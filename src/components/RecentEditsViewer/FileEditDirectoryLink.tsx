@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 export interface FileEditDirectoryLinkProps {
@@ -38,10 +39,25 @@ export const FileEditDirectoryLink: React.FC<FileEditDirectoryLinkProps> = ({
   revealLabel,
   className,
 }) => {
+  const { t } = useTranslation();
+  /*
+    `elideProjectRoot` returns an empty string for a file sitting directly in the
+    project root, because there is nothing left after the root is removed. Passed
+    straight through, that rendered a blank line - and where reveal is available,
+    a clickable control with no content and no name.
+
+    Shown as "." because the rest of the column is relative paths and that is
+    what a relative path to the root looks like. The accessible name says it in
+    words instead: "." read aloud is not a location.
+  */
+  const isRoot = directory.trim() === "";
+  const shown = isRoot ? "." : directory;
+  const spoken = isRoot ? t("recentEdits.projectRoot", "Project root") : directory;
+
   if (!canReveal) {
     return (
       <span className={cn("truncate", className)} title={fullPath}>
-        {directory}
+        {shown}
       </span>
     );
   }
@@ -62,7 +78,7 @@ export const FileEditDirectoryLink: React.FC<FileEditDirectoryLinkProps> = ({
         controls sharing one accessible name is ambiguous to anyone navigating
         by name: "which of these two is the one I want" has no answer.
       */
-      aria-label={`${revealLabel}: ${directory}`}
+      aria-label={`${revealLabel}: ${spoken}`}
       className={cn(
         "pointer-events-auto truncate text-left underline decoration-dotted underline-offset-2",
         "transition-colors hover:text-foreground hover:decoration-solid",
@@ -70,7 +86,7 @@ export const FileEditDirectoryLink: React.FC<FileEditDirectoryLinkProps> = ({
         className
       )}
     >
-      {directory}
+      {shown}
     </button>
   );
 };

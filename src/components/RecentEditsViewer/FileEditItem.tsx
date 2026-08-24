@@ -55,6 +55,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
   isDarkMode,
   dense = false,
   projectCwd,
+  onRestored,
 }) => {
   const { t } = useTranslation();
   const { t: tCommon } = useTranslation();
@@ -139,6 +140,10 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
         content: edit.content_after_change,
       });
       setRestoreStatus("success");
+      // Clears the missing flag on this row. Without it a file just written
+      // back still reports itself absent, so it stays red and the Missing Only
+      // filter hides the file the user has only just recovered.
+      onRestored?.(edit.file_path);
       setTimeout(() => setRestoreStatus("idle"), 2000);
     } catch (err) {
       console.error("Failed to restore file:", err);
@@ -222,11 +227,11 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             )}
           >
             {isExpanded ? (
-              <span title="Collapse">
+              <span title={tCommon("common.collapse", "Collapse")}>
                 <ChevronDown className={dense ? "h-3 w-3" : "w-4 h-4"} />
               </span>
             ) : (
-              <span title="Expand">
+              <span title={tCommon("common.expand", "Expand")}>
                 <ChevronRight className={dense ? "h-3 w-3" : "w-4 h-4"} />
               </span>
             )}
@@ -241,7 +246,9 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           {dense ? (
             <span
               title={
-                edit.operation_type === "write" ? "File Created" : "File Edited"
+                edit.operation_type === "write"
+                  ? t("recentEdits.created", "Created")
+                  : t("recentEdits.edited", "Edited")
               }
               className={cn(
                 "h-[7px] w-[7px] shrink-0 rounded-full",
@@ -258,9 +265,9 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
               )}
             >
               {edit.operation_type === "write" ? (
-                <span title="File Created"><FilePlus className="w-4 h-4" /></span>
+                <span title={t("recentEdits.created", "Created")}><FilePlus className="w-4 h-4" /></span>
               ) : (
-                <span title="File Edited"><FileEdit className="w-4 h-4" /></span>
+                <span title={t("recentEdits.edited", "Edited")}><FileEdit className="w-4 h-4" /></span>
               )}
             </div>
           )}
@@ -379,7 +386,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           <div
             className={`flex items-center space-x-1.5 ${layout.smallText} text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg`}
           >
-            <span title="Timestamp"><Clock className="w-3 h-3" /></span>
+            <span title={t("recentEdits.timestamp", "Timestamp")}><Clock className="w-3 h-3" /></span>
             <span title={formatTimestamp(edit.timestamp)}>
               {getRelativeTime(edit.timestamp, tCommon)}
             </span>

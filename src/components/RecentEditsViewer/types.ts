@@ -30,6 +30,17 @@ export interface FileEditItemProps {
    * part every row has in common.
    */
   projectCwd?: string;
+  /**
+   * Called with the path after a successful restore, so the list can clear the
+   * missing flag on that row.
+   *
+   * `exists_on_disk` was resolved when the page was fetched, so a file that has
+   * just been written back still reports itself absent: it stays red and stays
+   * inside the Missing Only filter, which then hides the very file the user
+   * just recovered. The compact row has always had this; the card did not, so
+   * the same restore behaved differently depending on the density.
+   */
+  onRestored?: (filePath: string) => void;
 }
 
 export type RestoreStatus = "idle" | "loading" | "success" | "error";
