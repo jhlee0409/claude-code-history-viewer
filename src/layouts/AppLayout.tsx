@@ -250,6 +250,45 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     );
   }
 
+  /*
+    Built once and rendered from two places: beside a transcript, and beside the
+    "select a session" placeholder. The panel already degrades on its own -
+    `effectiveScope` falls back to "project" with no session, and its request is
+    keyed on the selected project alone - so a project's recent edits stay
+    readable while the user is still choosing which session to open.
+
+    Gated at xl (1280px), not md. The sidebar (256) plus the navigator (280)
+    plus this dock (340) is 876px of fixed chrome: at md (768) that leaves the
+    transcript nothing at all. 1280 leaves it ~404px, which is the narrowest
+    width this layout was actually reviewed at.
+  */
+  const recentEditsDock =
+    !isMobile && isRecentEditsDockOpen ? (
+      <div className="hidden xl:block">
+        <PanelDock
+          asideId="recent-edits-dock"
+          isResizing={isRecentEditsDockResizing}
+          onResizeStart={(_group, event) =>
+            handleRecentEditsDockResizeStart(event)
+          }
+          groups={[
+            {
+              tabs: ["recentEdits"],
+              activeTab: "recentEdits",
+              size: recentEditsDockWidth,
+            },
+          ]}
+          panels={{
+            recentEdits: {
+              id: "recentEdits",
+              title: t("recentEdits.title"),
+              render: () => <RecentEditsPanel />,
+            },
+          }}
+        />
+      </div>
+    ) : null;
+
   return (
     <TooltipProvider>
       <div className="h-screen flex flex-col bg-background">
@@ -617,38 +656,6 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                       onBack={() => analyticsActions.switchToBoard()}
                     />
                   </div>
-                  {/*
-                    Gated at xl (1280px), not md. The sidebar (256) plus the
-                    navigator (280) plus this dock (340) is 876px of fixed
-                    chrome: at md (768) that leaves the transcript nothing at
-                    all. 1280 leaves it ~404px, which is the narrowest width
-                    this layout was actually reviewed at.
-                  */}
-                  {!isMobile && isRecentEditsDockOpen && (
-                    <div className="hidden xl:block">
-                      <PanelDock
-                        asideId="recent-edits-dock"
-                        isResizing={isRecentEditsDockResizing}
-                        onResizeStart={(_group, event) =>
-                          handleRecentEditsDockResizeStart(event)
-                        }
-                        groups={[
-                          {
-                            tabs: ["recentEdits"],
-                            activeTab: "recentEdits",
-                            size: recentEditsDockWidth,
-                          },
-                        ]}
-                        panels={{
-                          recentEdits: {
-                            id: "recentEdits",
-                            title: t("recentEdits.title"),
-                            render: () => <RecentEditsPanel />,
-                          },
-                        }}
-                      />
-                    </div>
-                  )}
                   <div className="hidden md:block">
                     <MessageNavigator
                       messages={messages}
@@ -660,21 +667,37 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                       asideId="message-navigator"
                     />
                   </div>
+                  {/*
+                    Outermost on the right, after the navigator rather than
+                    before it. The navigator is an outline OF the transcript, so
+                    it belongs against the transcript it indexes; the dock is a
+                    separate surface about the project and sits outside it.
+                  */}
+                  {recentEditsDock}
                 </div>
               ) : (
-                /* Empty State */
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center max-w-sm mx-auto">
-                    <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
-                      <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+                /*
+                  Empty State. The dock stays mounted here: a project is already
+                  chosen at this point, only a session is not, and the panel
+                  scopes itself to the project on its own. Unmounting it meant a
+                  refresh that cleared the session also blanked the one surface
+                  still able to say what the project had been touching.
+                */
+                <div className="h-full flex">
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center max-w-sm mx-auto">
+                      <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
+                        <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+                      </div>
+                      <h3 className="text-lg font-medium text-foreground mb-2">
+                        {t("session.select")}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {t("session.selectDescription")}
+                      </p>
                     </div>
-                    <h3 className="text-lg font-medium text-foreground mb-2">
-                      {t("session.select")}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {t("session.selectDescription")}
-                    </p>
                   </div>
+                  {recentEditsDock}
                 </div>
               )}
             </div>
