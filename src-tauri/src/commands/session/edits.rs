@@ -528,6 +528,23 @@ fn file_identity(path: &str) -> String {
     comparable_path_parts(path).join("/")
 }
 
+/// Whether a loaded provider session is the one the caller asked to scope to.
+///
+/// Compared on the same normalized identity that grouping and containment
+/// already use, not on the raw string. Inside the app both sides come from the
+/// same provider loader and agree byte for byte, but under `--serve` the caller
+/// spells the path itself: a separator difference, or a case difference on
+/// Windows, otherwise returned an empty page instead of that session's edits.
+///
+/// Widening is safe here because this only ever selects among sessions the
+/// loader already returned for this project. It cannot reach a file outside it.
+///
+/// Named rather than inlined so the decision can be tested directly, the same
+/// reason `existence_from_metadata` is its own function.
+fn session_path_matches(candidate: &str, wanted: &str) -> bool {
+    file_identity(candidate) == file_identity(wanted)
+}
+
 /// Whether `file_path` sits inside the directory described by `root_parts`.
 fn path_is_within(file_path: &str, root_parts: &[String]) -> bool {
     let parts = comparable_path_parts(file_path);
@@ -675,7 +692,7 @@ fn get_provider_recent_edits(
     let sessions: Vec<_> = match session_file_path {
         Some(wanted) => sessions
             .into_iter()
-            .filter(|session| session.file_path == wanted)
+            .filter(|session| session_path_matches(&session.file_path, wanted))
             .collect(),
         None => sessions,
     };
@@ -1275,6 +1292,34 @@ mod tests {
             file_identity(r"C:\Repo\src\a.rs"),
             file_identity("c:/repo/src/a.rs")
         );
+    }
+
+    #[test]
+    fn test_session_scope_matches_across_separator_spellings() {
+        // R11. The provider scope filter compared the loaded session's path to
+        // the requested one with raw `==`. Inside the app both sides come from
+        // the same loader and agree, but a caller under `--serve` spells the
+        // path itself, and a separator difference returned an empty page rather
+        // than that session's edits.
+        assert!(session_path_matches(
+            "/proj/sessions/a.jsonl",
+            r"\proj\sessions\a.jsonl"
+        ));
+
+        // Still a filter, so a genuinely different session must not match.
+        assert!(!session_path_matches(
+            "/proj/sessions/a.jsonl",
+            "/proj/sessions/b.jsonl"
+        ));
+
+        // Case folds only where the filesystem folds it. Asserting the Windows
+        // behaviour everywhere would require matching the wrong file on Linux,
+        // where `a.jsonl` and `A.jsonl` are two different sessions.
+        #[cfg(target_os = "windows")]
+        assert!(session_path_matches(
+            r"C:\Proj\Sessions\A.jsonl",
+            "c:/proj/sessions/a.jsonl"
+        ));
     }
 
     #[tokio::test]
