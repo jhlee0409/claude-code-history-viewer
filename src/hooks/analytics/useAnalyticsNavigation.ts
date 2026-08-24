@@ -196,7 +196,15 @@ export function useAnalyticsNavigation() {
       // The user may have switched projects while this was in flight. Writing
       // anyway would show one project's edits under another's identity, and the
       // cache guard would then treat that as a valid hit indefinitely.
-      if (useAppStore.getState().selectedProject?.path !== project.path) {
+      //
+      // The sequence check is the other half of the same rule. A project path
+      // cannot tell two requests for the *same* project apart, so refreshing
+      // while the first load was still running let the slower of the two land
+      // last and overwrite the newer result, cursor included.
+      if (
+        recentEditsRequestSeq !== requestId ||
+        useAppStore.getState().selectedProject?.path !== project.path
+      ) {
         return;
       }
 

@@ -374,3 +374,58 @@ describe("switchToRecentEdits cache", () => {
     expect(cached?.project_cwd).not.toBe(p.path);
   });
 });
+
+/**
+ * Round 4. `switchToRecentEdits` guarded its commit on the selected project,
+ * which cannot tell two requests for the *same* project apart. The request
+ * sequence it already keeps was consulted only in the `finally`.
+ */
+describe("switchToRecentEdits request identity", () => {
+  beforeEach(() => {
+    fetchRecentEdits.mockReset();
+    useAppStore.setState({ selectedProject: null, selectedSession: null });
+    useAppStore.getState().resetAnalytics();
+  });
+
+  it("does not let a slow load overwrite a newer one for the same project (R1)", async () => {
+    // Refreshing while the first load is still in flight starts a second
+    // request for the same project. The project-path guard passes for both, so
+    // the slower one used to land last and win.
+    const p = project("alpha");
+    useAppStore.setState({ selectedProject: p });
+
+    let resolveFirst: ((value: unknown) => void) | undefined;
+    let resolveSecond: ((value: unknown) => void) | undefined;
+    fetchRecentEdits
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveFirst = resolve))
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveSecond = resolve))
+      );
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+
+    let first: Promise<void> | undefined;
+    let second: Promise<void> | undefined;
+    await act(async () => {
+      first = result.current.switchToRecentEdits();
+      second = result.current.switchToRecentEdits();
+    });
+
+    // The newer request answers first.
+    await act(async () => {
+      resolveSecond?.(payload("FRESH"));
+      await second;
+    });
+    // The older one answers late, for the project that is still selected.
+    await act(async () => {
+      resolveFirst?.(payload("STALE"));
+      await first;
+    });
+
+    expect(useAppStore.getState().analytics.recentEdits?.project_cwd).toBe(
+      "FRESH"
+    );
+  });
+});
