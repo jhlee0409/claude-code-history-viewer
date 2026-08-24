@@ -142,7 +142,18 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
       <div
         data-testid="file-edit-header"
         className={cn(
-          "relative flex items-center justify-between p-4 cursor-pointer transition-all duration-300",
+          /*
+            Wraps to a second line rather than letting the name collapse. The
+            stats group on the right is `shrink-0`, so at dock widths it took
+            the whole row and the name box - `flex-1 min-w-0` - shrank to zero,
+            leaving `truncate` with nothing to show. The file name is the one
+            thing a row must never lose.
+
+            Driven by a min-width plus `flex-wrap`, not by a `sm:`/`md:` prefix:
+            the dock is a resizable panel, so its width is independent of the
+            viewport and Tailwind's breakpoints do not describe it.
+          */
+          "relative flex flex-wrap items-center justify-between gap-y-2 p-4 cursor-pointer transition-all duration-300",
           edit.operation_type === "write"
             ? "bg-gradient-to-r from-green-50 to-emerald-50/50 dark:from-green-950/40 dark:to-emerald-950/20"
             : "bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-950/40 dark:to-indigo-950/20",
@@ -158,7 +169,13 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
           )}
         />
 
-        <div className="flex items-center space-x-3 min-w-0 flex-1">
+        {/*
+          A floor of 10rem, not `min-w-0`. `min-w-0` is what lets a flex child
+          shrink past its content, which is exactly how the name reached zero
+          width. The floor makes the stats group wrap instead. The name box
+          inside keeps `min-w-0` so it can still truncate within this group.
+        */}
+        <div className="flex items-center space-x-3 min-w-[10rem] flex-1">
           {/* Expand/Collapse icon */}
           <div
             className={cn(
@@ -194,8 +211,16 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
           </div>
         </div>
 
-        {/* Right side info */}
-        <div className="flex items-center space-x-3 shrink-0 ml-2">
+        {/*
+          Right side info. Wraps and shrinks rather than staying rigid: once the
+          header wrapped, this group still sat on one line at its full width and
+          clipped its own trailing timestamp against the card's `overflow-hidden`.
+
+          `gap-x-3` rather than `space-x-3`, because the margin-based spacing
+          utilities apply to every child after the first, including the first on
+          a wrapped line, which indents each new line by one gap.
+        */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 ml-2 min-w-0">
           {/* Diff stats — clickable filters for added/removed-only views */}
           <div className={`flex items-center space-x-2 ${layout.smallText} font-mono`}>
             {edit.lines_added > 0 && (

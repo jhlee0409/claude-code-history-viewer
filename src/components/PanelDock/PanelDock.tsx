@@ -48,13 +48,21 @@ export const PanelDock: React.FC<PanelDockProps> = ({
         // One group keeps the stable id the skip link points at; a future
         // split gives later groups their own.
         const id = groupIndex === 0 ? asideId : `${asideId}-${groupIndex}`;
+        const headingId = `${id}-title`;
 
         return (
           <aside
             key={id}
             id={id}
             role="complementary"
-            aria-label={active.title}
+            /*
+              With a tab strip the tabs name the panel, so the landmark carries
+              its own label. With a single panel the heading below is the name,
+              so the landmark points at it rather than repeating the string,
+              which would otherwise be announced twice.
+            */
+            aria-label={hasTabStrip ? active.title : undefined}
+            aria-labelledby={hasTabStrip ? undefined : headingId}
             tabIndex={-1}
             className={cn(
               "relative flex h-full flex-col border-l border-border/50 bg-sidebar",
@@ -71,6 +79,23 @@ export const PanelDock: React.FC<PanelDockProps> = ({
               className="absolute left-0 top-0 bottom-0 z-10 w-1 cursor-col-resize hover:bg-accent/30 active:bg-accent/50"
               onMouseDown={(event) => onResizeStart?.(groupIndex, event)}
             />
+
+            {/*
+              A single panel gets a plain heading where a group of panels gets
+              its tab strip. Without this the dock opened with no visible name
+              at all: the title existed only as the landmark's accessible name,
+              so a sighted user had nothing telling them what the panel was.
+            */}
+            {!hasTabStrip && (
+              <div className="flex items-center border-b border-border/50 px-3 py-1.5">
+                <h2
+                  id={headingId}
+                  className="truncate text-px11 font-medium text-muted-foreground"
+                >
+                  {active.title}
+                </h2>
+              </div>
+            )}
 
             {hasTabStrip && (
               <div
