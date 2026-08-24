@@ -324,11 +324,31 @@ export const createAnalyticsSlice: StateCreator<
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("Failed to load more recent edits:", error);
-      toast.error(`Failed to load more edits: ${message}`);
+
+      // The same predicate the success path uses. Reporting a failure is a
+      // write to state shared with whatever is on screen now, so a request the
+      // user has already navigated away from must not do it.
+      const latest = get();
+      const stillOwns =
+        latest.selectedProject?.path === projectPath &&
+        latest.analytics.recentEdits?.requestedProjectPath === projectPath &&
+        latest.analytics.recentEditsGeneration === generation;
+
+      if (stillOwns) {
+        toast.error(`Failed to load more edits: ${message}`);
+      }
+
+      // The flag clears either way. It is global, only one load-more can be in
+      // flight, and a cache hit returns without resetting pagination, so
+      // leaving it set strands Show More for whatever is selected next. A
+      // duplicate request unlocked this way cannot corrupt the list: its
+      // commit fails the generation check.
       set((state) => ({
         analytics: {
           ...state.analytics,
-          recentEditsError: `Failed to load more edits: ${message}`,
+          ...(stillOwns
+            ? { recentEditsError: `Failed to load more edits: ${message}` }
+            : {}),
           recentEditsPagination: {
             ...state.analytics.recentEditsPagination,
             isLoadingMore: false,

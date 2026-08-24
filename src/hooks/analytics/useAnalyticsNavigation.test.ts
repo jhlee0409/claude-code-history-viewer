@@ -33,6 +33,7 @@ vi.mock("../../services/analyticsApi", async (importOriginal) => {
   return { ...actual, fetchRecentEdits: (...args: unknown[]) => fetchRecentEdits(...args) };
 });
 
+import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
 import { useAnalyticsNavigation } from "./useAnalyticsNavigation";
 import type { ClaudeProject } from "../../types";
@@ -565,5 +566,88 @@ describe("loadMoreRecentEdits generation", () => {
       p.path,
       expect.objectContaining({ offset: 2 })
     );
+  });
+});
+
+/**
+ * Round 4. Both fetch paths validated ownership before writing a *result* and
+ * neither validated it before writing a *failure*, so a late rejection could
+ * paint an error over a view the user had already moved to.
+ */
+describe("recent-edits failures respect ownership", () => {
+  beforeEach(() => {
+    fetchRecentEdits.mockReset();
+    vi.mocked(toast.error).mockClear();
+    useAppStore.setState({ selectedProject: null, selectedSession: null });
+    useAppStore.getState().resetAnalytics();
+  });
+
+  it("does not paint a stale load-more failure over the current view (R5)", async () => {
+    const a = project("alpha");
+    const b = project("beta");
+    fetchRecentEdits.mockResolvedValueOnce({
+      ...payload(a.actual_path),
+      has_more: true,
+      total_edits_count: 100,
+      unique_files_count: 100,
+    });
+    useAppStore.setState({ selectedProject: a });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    let rejectMore: ((reason: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => (rejectMore = reject))
+    );
+    const pending = useAppStore.getState().loadMoreRecentEdits(a.path);
+
+    await act(async () => {
+      useAppStore.setState({ selectedProject: b });
+    });
+    await act(async () => {
+      rejectMore?.(new Error("backend went away"));
+      await pending;
+    });
+
+    expect(useAppStore.getState().analytics.recentEditsError).toBeNull();
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+    // The flag still has to clear, or the next project's Show More is dead.
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(false);
+  });
+
+  it("does not paint a stale first-load failure over the current view (R6)", async () => {
+    const a = project("alpha");
+    const b = project("beta");
+    useAppStore.setState({ selectedProject: a });
+
+    let rejectFirst: ((reason: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => (rejectFirst = reject))
+    );
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    let settled: string | undefined;
+    let pending: Promise<unknown> | undefined;
+    await act(async () => {
+      pending = result.current
+        .switchToRecentEdits()
+        .catch(() => (settled = "rejected"));
+    });
+
+    await act(async () => {
+      useAppStore.setState({ selectedProject: b });
+    });
+    await act(async () => {
+      rejectFirst?.(new Error("backend went away"));
+      await pending;
+    });
+
+    expect(settled).toBe("rejected");
+    expect(useAppStore.getState().analytics.recentEditsError).toBeNull();
   });
 });

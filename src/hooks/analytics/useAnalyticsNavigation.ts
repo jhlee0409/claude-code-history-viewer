@@ -188,6 +188,13 @@ export function useAnalyticsNavigation() {
     }
 
     const requestId = ++recentEditsRequestSeq;
+    // One predicate for both outcomes. A late failure is every bit as capable
+    // of writing over a newer request's state as a late success is, and the
+    // two paths disagreeing about what ownership means is how that gets
+    // missed.
+    const stillOwnsRecentEdits = () =>
+      recentEditsRequestSeq === requestId &&
+      useAppStore.getState().selectedProject?.path === project.path;
 
     try {
       setAnalyticsLoadingRecentEdits(true);
@@ -201,10 +208,7 @@ export function useAnalyticsNavigation() {
       // cannot tell two requests for the *same* project apart, so refreshing
       // while the first load was still running let the slower of the two land
       // last and overwrite the newer result, cursor included.
-      if (
-        recentEditsRequestSeq !== requestId ||
-        useAppStore.getState().selectedProject?.path !== project.path
-      ) {
+      if (!stillOwnsRecentEdits()) {
         return;
       }
 
@@ -234,7 +238,9 @@ export function useAnalyticsNavigation() {
         error instanceof Error
           ? error.message
           : t("common.hooks.recentEditsLoadFailed");
-      setAnalyticsRecentEditsError(errorMessage);
+      if (stillOwnsRecentEdits()) {
+        setAnalyticsRecentEditsError(errorMessage);
+      }
       console.error("Failed to load recent edits:", error);
       throw error;
     } finally {
