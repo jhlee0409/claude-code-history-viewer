@@ -231,6 +231,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
 
   // Called before the early returns below, as hook order must not vary.
   const isXlUp = useIsXlUp();
+  const recentEditsDockStats = useAppStore((s) => s.recentEditsDock);
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
   const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
@@ -347,10 +348,22 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 surface in the app leads with an icon in a tinted tile.
               */
               icon: (
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-accent/20">
-                  <FileEdit className="h-3 w-3 text-accent" aria-hidden="true" />
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/20">
+                  <FileEdit className="h-4 w-4 text-accent" aria-hidden="true" />
                 </span>
               ),
+              /*
+                The same summary the full page shows, from the same counts, so
+                switching between the two shapes does not change what the header
+                tells you. Omitted until a result arrives rather than rendered as
+                zeroes, which would read as "this project has no edits".
+              */
+              subtitle: recentEditsDockStats
+                ? t("recentEdits.stats", {
+                    files: recentEditsDockStats.uniqueFilesCount,
+                    edits: recentEditsDockStats.totalEditsCount,
+                  })
+                : undefined,
               headerAction: (
                 <RecentEditsViewToggle
                   value="sidebar"

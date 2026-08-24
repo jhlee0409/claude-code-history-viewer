@@ -27,6 +27,12 @@ export interface PanelDefinition {
    */
   icon?: ReactNode;
   /**
+   * Second line of the heading, under the title. Lets a docked panel carry the
+   * same summary its full-page form shows, so the two read as one surface in
+   * two shapes rather than as two different screens.
+   */
+  subtitle?: ReactNode;
+  /**
    * Rendered at the far end of the single-panel heading row. For controls that
    * belong to the panel as a whole rather than to its contents, such as the
    * view toggle that sends it back to a full page.

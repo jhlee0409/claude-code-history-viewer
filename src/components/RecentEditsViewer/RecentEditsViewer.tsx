@@ -139,7 +139,21 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            <span className="text-px11 text-muted-foreground font-mono">
+              {recentEdits?.files?.length ?? 0} / {totalUniqueFiles}
+            </span>
+            <div
+              className={`flex items-center gap-2 ${layout.bodyText} text-accent bg-accent/10 px-2.5 py-1 md:px-3 md:py-1.5 rounded-full`}
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              <span className="font-medium">{stats.totalEditsCount} edits</span>
+            </div>
             {/*
+              Last in the row, matching where the docked header puts it. The
+              counts describe the list and belong beside it; the toggle changes
+              which shape the whole surface takes, so it sits at the outside
+              edge in both and does not appear to move when the shape changes.
+
               Hidden entirely below the dock's own breakpoint rather than merely
               disabled: the dock cannot render there at all, so offering the
               choice on a phone would send the user to a panel that never
@@ -156,15 +170,6 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
                   "Select a session to scope edits to it"
                 )}
               />
-            </div>
-            <span className="text-px11 text-muted-foreground font-mono">
-              {recentEdits?.files?.length ?? 0} / {totalUniqueFiles}
-            </span>
-            <div
-              className={`flex items-center gap-2 ${layout.bodyText} text-accent bg-accent/10 px-2.5 py-1 md:px-3 md:py-1.5 rounded-full`}
-            >
-              <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-              <span className="font-medium">{stats.totalEditsCount} edits</span>
             </div>
           </div>
         </div>

@@ -87,14 +87,27 @@ export const PanelDock: React.FC<PanelDockProps> = ({
               so a sighted user had nothing telling them what the panel was.
             */}
             {!hasTabStrip && (
-              <div className="flex items-center gap-2 border-b border-border/50 px-2 py-1.5">
+              <div className="flex flex-wrap items-center gap-2 border-b border-border/50 px-2 py-2">
                 {active.icon}
-                <h2
-                  id={headingId}
-                  className="truncate text-xs font-semibold tracking-tight text-foreground"
-                >
-                  {active.title}
-                </h2>
+                {/*
+                  A floor rather than `min-w-0`. `min-w-0` lets a flex child
+                  shrink past its content, which would collapse the title to
+                  nothing and leave the action sitting alone on the row. With a
+                  floor the action wraps instead, and the title truncates.
+                */}
+                <div className="min-w-[7rem] flex-1">
+                  <h2
+                    id={headingId}
+                    className="truncate text-sm font-bold tracking-tight text-foreground"
+                  >
+                    {active.title}
+                  </h2>
+                  {active.subtitle && (
+                    <p className="truncate text-px11 text-muted-foreground">
+                      {active.subtitle}
+                    </p>
+                  )}
+                </div>
                 {active.headerAction && (
                   <div className="ml-auto flex shrink-0 items-center">
                     {active.headerAction}
