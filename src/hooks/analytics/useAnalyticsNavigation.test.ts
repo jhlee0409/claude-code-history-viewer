@@ -607,6 +607,64 @@ describe("loadMoreRecentEdits generation", () => {
       )
     ).toEqual(["fresh-a.ts", "fresh-b.ts"]);
   });
+
+  it("does not let a superseded page clear a newer one's loading flag (R8)", async () => {
+    // The flag is global. A late request clearing it re-enables Show More while
+    // a newer request is still running, and the extra click costs a full walk
+    // of the project's logs even though the generation check throws its rows
+    // away.
+    const a = project("alpha");
+    const b = project("beta");
+    await seedFirstPage(a);
+
+    let resolveA: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveA = resolve))
+    );
+    const pendingA = useAppStore.getState().loadMoreRecentEdits(a.path);
+
+    // The user moves to another project and its first page lands, which
+    // rewrites pagination and leaves Show More available again.
+    fetchRecentEdits.mockResolvedValueOnce(pageOf(["b1.ts", "b2.ts"], 0, true));
+    useAppStore.setState({ selectedProject: b });
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    let resolveB: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveB = resolve))
+    );
+    const pendingB = useAppStore.getState().loadMoreRecentEdits(b.path);
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(true);
+
+    await act(async () => {
+      resolveA?.(pageOf(["late.ts"], 2, true));
+      await pendingA;
+    });
+
+    // Still loading: the request that owns the flag has not finished.
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(true);
+
+    await act(async () => {
+      resolveB?.(pageOf(["b3.ts"], 2, false));
+      await pendingB;
+    });
+
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(false);
+    expect(
+      (useAppStore.getState().analytics.recentEdits?.files ?? []).map(
+        (f) => f.file_path
+      )
+    ).toEqual(["b1.ts", "b2.ts", "b3.ts"]);
+  });
 });
 
 /**

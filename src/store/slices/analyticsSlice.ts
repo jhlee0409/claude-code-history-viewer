@@ -22,6 +22,13 @@ import { canLoadMore } from "../../utils/pagination";
 
 const RECENT_EDITS_PAGE_SIZE = 20;
 
+/**
+ * Identifies the newest load-more request. Deliberately module state rather
+ * than store state: it is not something any view renders, and the navigation
+ * hook keeps its own request sequence the same way.
+ */
+let recentEditsLoadMoreSeq = 0;
+
 // ============================================================================
 // State Interface
 // ============================================================================
@@ -238,6 +245,7 @@ export const createAnalyticsSlice: StateCreator<
     }
 
     // Set loading state
+    const requestId = ++recentEditsLoadMoreSeq;
     set((state) => ({
       analytics: {
         ...state.analytics,
@@ -247,6 +255,27 @@ export const createAnalyticsSlice: StateCreator<
         },
       },
     }));
+
+    // Only the newest request may release the flag. It is global, so a
+    // superseded request clearing it re-enables Show More while a newer one is
+    // still running, and the extra click costs a full walk of the project's
+    // logs even though the generation check would discard its rows.
+    //
+    // Ownership here is "newest", not "same project". A request nobody has
+    // superseded still releases the flag on its way out, which is what keeps
+    // it from being stranded when its own project is deselected.
+    const releaseLoadingFlag = () => {
+      if (recentEditsLoadMoreSeq !== requestId) return;
+      set((state) => ({
+        analytics: {
+          ...state.analytics,
+          recentEditsPagination: {
+            ...state.analytics.recentEditsPagination,
+            isLoadingMore: false,
+          },
+        },
+      }));
+    };
 
     // The version of the list this page is being fetched to continue.
     const generation = analytics.recentEditsGeneration;
@@ -274,22 +303,12 @@ export const createAnalyticsSlice: StateCreator<
       // with one of the same length under the same owner, and this page does
       // not continue that one.
       if (
+        recentEditsLoadMoreSeq !== requestId ||
         latest.selectedProject?.path !== projectPath ||
         latest.analytics.recentEdits?.requestedProjectPath !== projectPath ||
         latest.analytics.recentEditsGeneration !== generation
       ) {
-        // Clear the flag on the way out. Only one load-more can be in flight
-        // (the guard above plus `canLoadMore`), so leaving it set would block
-        // every future page for the project the user actually switched to.
-        set((state) => ({
-          analytics: {
-            ...state.analytics,
-            recentEditsPagination: {
-              ...state.analytics.recentEditsPagination,
-              isLoadingMore: false,
-            },
-          },
-        }));
+        releaseLoadingFlag();
         return;
       }
 
@@ -330,31 +349,22 @@ export const createAnalyticsSlice: StateCreator<
       // user has already navigated away from must not do it.
       const latest = get();
       const stillOwns =
+        recentEditsLoadMoreSeq === requestId &&
         latest.selectedProject?.path === projectPath &&
         latest.analytics.recentEdits?.requestedProjectPath === projectPath &&
         latest.analytics.recentEditsGeneration === generation;
 
       if (stillOwns) {
         toast.error(`Failed to load more edits: ${message}`);
+        set((state) => ({
+          analytics: {
+            ...state.analytics,
+            recentEditsError: `Failed to load more edits: ${message}`,
+          },
+        }));
       }
 
-      // The flag clears either way. It is global, only one load-more can be in
-      // flight, and a cache hit returns without resetting pagination, so
-      // leaving it set strands Show More for whatever is selected next. A
-      // duplicate request unlocked this way cannot corrupt the list: its
-      // commit fails the generation check.
-      set((state) => ({
-        analytics: {
-          ...state.analytics,
-          ...(stillOwns
-            ? { recentEditsError: `Failed to load more edits: ${message}` }
-            : {}),
-          recentEditsPagination: {
-            ...state.analytics.recentEditsPagination,
-            isLoadingMore: false,
-          },
-        },
-      }));
+      releaseLoadingFlag();
     }
   },
 
