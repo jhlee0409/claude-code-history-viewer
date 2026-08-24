@@ -665,6 +665,64 @@ describe("loadMoreRecentEdits generation", () => {
       )
     ).toEqual(["b1.ts", "b2.ts", "b3.ts"]);
   });
+
+  it("keeps a newer same-project request's loading state intact (R9)", async () => {
+    // The cross-project version of this is R8. The same-project one reaches
+    // the identical exit through a different door: a refresh rewrites
+    // pagination, which frees Show More for a second request against the very
+    // same project while the first is still in flight.
+    const p = project("alpha");
+    await seedFirstPage(p);
+
+    let resolveFirst: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveFirst = resolve))
+    );
+    const first = useAppStore.getState().loadMoreRecentEdits(p.path);
+
+    // A refresh of the same project: clear, then reload page 1.
+    fetchRecentEdits.mockResolvedValueOnce(
+      pageOf(["fresh-a.ts", "fresh-b.ts"], 0, true)
+    );
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      useAppStore.getState().setAnalyticsRecentEdits(null);
+      await result.current.switchToRecentEdits();
+    });
+
+    let resolveSecond: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveSecond = resolve))
+    );
+    const second = useAppStore.getState().loadMoreRecentEdits(p.path);
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(true);
+
+    await act(async () => {
+      resolveFirst?.(pageOf(["stale.ts"], 2, true));
+      await first;
+    });
+
+    // The older request settled, but it does not own the flag any more.
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(true);
+
+    await act(async () => {
+      resolveSecond?.(pageOf(["fresh-c.ts"], 2, false));
+      await second;
+    });
+
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(false);
+    expect(
+      (useAppStore.getState().analytics.recentEdits?.files ?? []).map(
+        (f) => f.file_path
+      )
+    ).toEqual(["fresh-a.ts", "fresh-b.ts", "fresh-c.ts"]);
+  });
 });
 
 /**
