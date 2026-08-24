@@ -567,6 +567,46 @@ describe("loadMoreRecentEdits generation", () => {
       expect.objectContaining({ offset: 2 })
     );
   });
+
+  it("does not reuse a generation across a reset (R7)", async () => {
+    // `resetAnalytics` restored the whole initial state, generation included,
+    // so the counter went back to 0 and its values became reusable. Clearing
+    // the selection and choosing the same project again then rebuilt the list
+    // under a generation a request already in flight had captured.
+    const p = project("alpha");
+    await seedFirstPage(p);
+
+    let resolveMore: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveMore = resolve))
+    );
+    const pending = useAppStore.getState().loadMoreRecentEdits(p.path);
+
+    await act(async () => {
+      useAppStore.setState({ selectedProject: null });
+      useAppStore.getState().resetAnalytics();
+    });
+
+    fetchRecentEdits.mockResolvedValueOnce(
+      pageOf(["fresh-a.ts", "fresh-b.ts"], 0, true)
+    );
+    useAppStore.setState({ selectedProject: p });
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    await act(async () => {
+      resolveMore?.(pageOf(["late.ts"], 2, true));
+      await pending;
+    });
+
+    expect(
+      (useAppStore.getState().analytics.recentEdits?.files ?? []).map(
+        (f) => f.file_path
+      )
+    ).toEqual(["fresh-a.ts", "fresh-b.ts"]);
+  });
 });
 
 /**

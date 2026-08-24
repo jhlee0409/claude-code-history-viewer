@@ -359,7 +359,16 @@ export const createAnalyticsSlice: StateCreator<
   },
 
   resetAnalytics: () => {
-    set({ analytics: initialAnalyticsState });
+    // Everything else goes back to its initial value, but the generation is a
+    // counter rather than a value: restoring it to 0 makes its numbers
+    // reusable, and a request in flight that captured the old 1 would then be
+    // accepted by the new 1. It only ever moves forward.
+    set((state) => ({
+      analytics: {
+        ...initialAnalyticsState,
+        recentEditsGeneration: state.analytics.recentEditsGeneration + 1,
+      },
+    }));
   },
 
   clearAnalyticsErrors: () => {
