@@ -771,8 +771,52 @@ fn validate_session_file_in_project(
         return Err("Invalid session file path: symlinks are not allowed".to_string());
     }
 
+    // The check above reports on the final component only: `symlink_metadata`
+    // resolves the intermediate directories before it stats the last one. So
+    // `project/link/session.jsonl` passed while the directory walk in
+    // `get_recent_edits` skipped that very file, because `walkdir` does not
+    // descend a symlinked directory. Containment held either way; what differed
+    // was the policy, and the two entry points now agree.
+    //
+    // Deliberately bounded at the project root. Walking every component up to
+    // `/` would reject legitimate paths whenever an ancestor of the project is
+    // itself a symlink, which is the ordinary case on macOS where `/var` links
+    // to `/private/var`. Components above the root are not the caller's to
+    // choose: the project path comes from the app's own scan, while everything
+    // below it can be named by a `--serve` caller.
+    //
+    // This closes the policy gap, not the TOCTOU recorded below. The path is
+    // still reopened by name afterwards.
     let project_root = fs::canonicalize(project_path)
         .map_err(|e| format!("Failed to resolve project path: {e}"))?;
+
+    // The boundary is compared on normalized parts, never on the raw string. A
+    // lexical prefix test over caller-supplied bytes is fail-open: a different
+    // separator, or a different case on Windows, makes the test false, skips
+    // every symlink check below, and then still satisfies the containment test
+    // at the end once both sides are canonicalized. That hands the policy back
+    // to the exact caller it defends against. Refusing a spelling that cannot be
+    // placed under the root fails closed instead, and reuses the same
+    // normalization `path_is_within` and `file_identity` already apply.
+    let root_parts = comparable_path_parts(project_path);
+    let candidate_parts = comparable_path_parts(&candidate.to_string_lossy());
+    if candidate_parts.len() <= root_parts.len() || !candidate_parts.starts_with(&root_parts) {
+        return Err("Invalid session file path: outside the project directory".to_string());
+    }
+
+    // Walked downward from the resolved root, one component at a time, so each
+    // intermediate directory is stat'd as itself rather than through the
+    // resolution of the whole path.
+    let mut walked = project_root.clone();
+    for part in &candidate_parts[root_parts.len()..] {
+        walked.push(part);
+        if fs::symlink_metadata(&walked)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            return Err("Invalid session file path: symlinks are not allowed".to_string());
+        }
+    }
     let resolved = fs::canonicalize(candidate)
         .map_err(|e| format!("Failed to resolve session file path: {e}"))?;
 
@@ -1363,6 +1407,138 @@ mod tests {
         .await;
 
         assert!(result.is_err(), "a traversal segment must be refused");
+    }
+
+    // Unix-gated the same way the other symlink tests in this repo are: creating
+    // one on Windows needs a privilege ordinary test runs do not have. CI's
+    // ubuntu job runs it.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_session_file_path_through_a_symlinked_directory_is_rejected() {
+        // R12. `symlink_metadata` resolves the intermediate components before
+        // reporting on the final one, so a symlinked directory mid-path passed
+        // the single check while `walkdir` refused to descend that same
+        // directory. Both entry points must agree on what is in the project.
+        let (dir, session_a, _b) = project_with_two_sessions();
+
+        let real = dir.path().join("real");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::copy(&session_a, real.join("s.jsonl")).unwrap();
+
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            Some(link.join("s.jsonl").to_string_lossy().to_string()),
+            None,
+        )
+        .await;
+
+        let message = result.expect_err("a path through a symlinked directory was accepted");
+        assert!(
+            message.contains("symlink"),
+            "expected the symlink policy to refuse it, got {message}"
+        );
+    }
+
+    #[cfg(unix)]
+    const ONE_EDIT_LINE: &str = r#"{"uuid":"u1","sessionId":"s1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","cwd":"/test/project","toolUse":{"name":"Write","input":{"file_path":"/test/project/a.rs","content":"x"}}}"#;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_a_symlinked_project_root_is_tolerated() {
+        // The project root itself being a symlink is fine: the walk starts at
+        // its resolved form, so the link is never one of the components it
+        // inspects. Distinct from the ancestor case below, which was what an
+        // earlier version of this test claimed to cover and did not.
+        let outer = TempDir::new().unwrap();
+        let real_root = outer.path().join("real_root");
+        std::fs::create_dir_all(&real_root).unwrap();
+        std::fs::write(real_root.join("s.jsonl"), ONE_EDIT_LINE).unwrap();
+
+        let linked_root = outer.path().join("linked_root");
+        std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
+
+        let result = get_recent_edits(
+            linked_root.to_string_lossy().to_string(),
+            None,
+            None,
+            Some(linked_root.join("s.jsonl").to_string_lossy().to_string()),
+            None,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "a symlinked project root must not be refused: {:?}",
+            result.err()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_a_symlinked_ancestor_above_the_project_is_tolerated() {
+        // A genuine ancestor: `link` is above the project root, and the root
+        // itself is an ordinary directory reached through it. This is the macOS
+        // shape, where `/var` links to `/private/var`. Walking to `/` would
+        // refuse it and break session scoping for those users entirely.
+        let outer = TempDir::new().unwrap();
+        let real = outer.path().join("real");
+        let real_proj = real.join("proj");
+        std::fs::create_dir_all(&real_proj).unwrap();
+        std::fs::write(real_proj.join("s.jsonl"), ONE_EDIT_LINE).unwrap();
+
+        let link = outer.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let project = link.join("proj");
+        let result = get_recent_edits(
+            project.to_string_lossy().to_string(),
+            None,
+            None,
+            Some(project.join("s.jsonl").to_string_lossy().to_string()),
+            None,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "a symlinked ancestor above the project root must not be refused: {:?}",
+            result.err()
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[tokio::test]
+    async fn test_a_differently_cased_spelling_stays_under_the_policy() {
+        // The boundary that bounds the symlink walk is compared on normalized
+        // parts. Were it a raw lexical prefix test, this spelling would fail it,
+        // skip the walk entirely, and still pass containment once canonicalized
+        // - handing the policy back to the caller it defends against. Now it is
+        // placed under the root and validated like any other spelling.
+        let (dir, session_a, _b) = project_with_two_sessions();
+        // Lowercased, not uppercased: the extension gate above requires a
+        // literal `jsonl`, so uppercasing would test that gate instead of this
+        // boundary.
+        let recased = session_a.to_string_lossy().to_lowercase();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            Some(recased),
+            None,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "a differently cased spelling must still resolve under the project: {:?}",
+            result.err()
+        );
     }
 
     #[tokio::test]
