@@ -86,17 +86,13 @@ describe("RecentEditsOptionsMenu", () => {
     expect(onMissingOnlyChange).toHaveBeenCalledWith(true);
   });
 
-  it("offers undocking only when a handler is supplied", () => {
-    const onUndock = vi.fn();
-    const { unmount } = render(<RecentEditsOptionsMenu {...defaults} />);
+  it("does not offer undocking, which the header toggle owns", () => {
+    // Undocking moved to the Page/Sidebar toggle in the panel header. Two
+    // controls for one state, in two vocabularies and only one of them showing
+    // the current value, is worse than one.
+    render(<RecentEditsOptionsMenu {...defaults} />);
     open();
+
     expect(screen.queryByText("Undock to full page")).toBeNull();
-    unmount();
-
-    render(<RecentEditsOptionsMenu {...defaults} onUndock={onUndock} />);
-    open();
-    fireEvent.click(screen.getByText("Undock to full page"));
-
-    expect(onUndock).toHaveBeenCalled();
   });
 });

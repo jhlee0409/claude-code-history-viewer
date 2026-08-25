@@ -51,15 +51,12 @@ export const RecentEditsPanel: React.FC = () => {
   const recentEditsMode = useAppStore((s) => s.recentEditsMode);
   const recentEditsScope = useAppStore((s) => s.recentEditsScope);
   const recentEditsMissingOnly = useAppStore((s) => s.recentEditsMissingOnly);
-  const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsScope = useAppStore((s) => s.setRecentEditsScope);
   const setRecentEditsDensity = useAppStore((s) => s.setRecentEditsDensity);
   const setRecentEditsGrouping = useAppStore((s) => s.setRecentEditsGrouping);
   const setRecentEditsMissingOnly = useAppStore(
     (s) => s.setRecentEditsMissingOnly
   );
-  const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
-  const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
 
   const density = useAppStore(selectRecentEditsDensity);
   const grouping = useAppStore(selectRecentEditsGrouping);
@@ -95,15 +92,6 @@ export const RecentEditsPanel: React.FC = () => {
     // `false` counts as missing.
     return all.filter((edit) => edit.exists_on_disk === false);
   }, [recentEdits?.files, recentEditsMissingOnly]);
-
-  const handleUndock = () => {
-    setRecentEditsMode("page");
-    setRecentEditsDockOpen(false);
-    // Mode is a preference; `analytics.currentView` is what actually decides
-    // what renders. Without this the dock just disappears and the user is left
-    // on the transcript, which is not what "Undock to full page" promises.
-    setAnalyticsCurrentView("recentEdits");
-  };
 
   const handleLoadMore = () => {
     if (request && recentEdits?.hasMore && !isLoadingMore) {
@@ -150,7 +138,6 @@ export const RecentEditsPanel: React.FC = () => {
             }
             missingOnly={recentEditsMissingOnly}
             onMissingOnlyChange={setRecentEditsMissingOnly}
-            onUndock={handleUndock}
           />
         </div>
       </div>

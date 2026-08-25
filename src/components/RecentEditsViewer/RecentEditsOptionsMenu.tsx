@@ -1,7 +1,7 @@
 /**
  * The `...` menu in the Recent Edits panel header.
  *
- * Holds grouping, the missing-on-disk filter, and undocking. These live here
+ * Holds grouping and the missing-on-disk filter. These live here
  * rather than in `SettingsManager`, which covers MCP servers, presets and paths
  * and has no appearance section. Grouping also changes what you are looking at,
  * so changing it should not mean leaving the view.
@@ -9,11 +9,10 @@
 
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { MoreHorizontal, PanelRightClose } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -31,8 +30,6 @@ export interface RecentEditsOptionsMenuProps {
   onGroupingChange: (grouping: RecentEditsGrouping) => void;
   missingOnly: boolean;
   onMissingOnlyChange: (missingOnly: boolean) => void;
-  /** Omitted when the view is already the full page, where undocking is a no-op. */
-  onUndock?: () => void;
   className?: string;
 }
 
@@ -41,7 +38,6 @@ export const RecentEditsOptionsMenu: React.FC<RecentEditsOptionsMenuProps> = ({
   onGroupingChange,
   missingOnly,
   onMissingOnlyChange,
-  onUndock,
   className,
 }) => {
   const { t } = useTranslation();
@@ -98,18 +94,15 @@ export const RecentEditsOptionsMenu: React.FC<RecentEditsOptionsMenuProps> = ({
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
 
-        {onUndock && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onUndock}>
-              <PanelRightClose
-                className="mr-2 h-4 w-4 text-foreground"
-                aria-hidden="true"
-              />
-              <span>{t("recentEdits.undockToPage", "Undock to full page")}</span>
-            </DropdownMenuItem>
-          </>
-        )}
+        {/*
+          Undocking used to live here. It moved to the Page/Sidebar toggle in
+          the panel header, which names both destinations and is visible without
+          opening anything. Leaving a second route in this menu would mean two
+          controls for one state, in two vocabularies, only one of which showed
+          the current value.
+
+          This menu is now only about how the list is grouped and filtered.
+        */}
       </DropdownMenuContent>
     </DropdownMenu>
   );
