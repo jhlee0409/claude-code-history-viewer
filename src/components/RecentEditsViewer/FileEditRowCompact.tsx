@@ -189,7 +189,18 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
         <div className="min-w-0 flex-1">
           {/* Line 1: filename, then counts and time, right aligned. */}
           <div className="flex items-baseline gap-2 leading-[19px]">
-            <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
+            {/*
+              An explicit size, because the default is not one. With no class
+              here the name inherited 16px while every other thing in the panel
+              was 11px, so each row shouted its file name at the metadata beside
+              it and the panel read as a different design language from the
+              navigator next to it, which runs 11/12.
+
+              13px rather than 12: the line box above is `leading-[19px]`, which
+              is sized for roughly this. At 16px the text nearly filled it,
+              which is what made the rows feel cramped as well as loud.
+            */}
+            <span className="min-w-0 flex-1 truncate text-px13 font-semibold text-foreground">
               {fileName}
             </span>
             <span className="shrink-0 font-mono text-px11 text-muted-foreground">
