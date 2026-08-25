@@ -80,19 +80,30 @@ export const RecentEditsScopeToggle: React.FC<RecentEditsScopeToggleProps> = ({
       className={cn("inline-flex", className)}
       title={disabled ? disabledHint : undefined}
     >
-      <div className={cn(TRACK_CLASS, disabled && "opacity-50")}>
+      <div className={TRACK_CLASS}>
         {SCOPES.map((scope) => {
           const active = value === scope.id;
+          /*
+            Only session scope needs a session. Project scope works with a
+            project alone, and is what the panel falls back to, so disabling the
+            whole control dimmed and blocked the option the user was already
+            looking at. It read as the panel being broken rather than as one
+            mode being unavailable.
+          */
+          const scopeDisabled = disabled && scope.id === "session";
           return (
             <button
               key={scope.id}
               type="button"
               aria-pressed={active}
-              disabled={disabled}
+              disabled={scopeDisabled}
               onClick={() => onChange(scope.id)}
               className={buttonClass(
                 active,
-                cn("px-3 py-1.5", disabled && "cursor-not-allowed")
+                cn(
+                  "px-3 py-1.5",
+                  scopeDisabled && "cursor-not-allowed opacity-50"
+                )
               )}
             >
               {t(scope.labelKey, scope.fallback)}

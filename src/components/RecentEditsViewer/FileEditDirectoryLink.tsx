@@ -79,9 +79,17 @@ export const FileEditDirectoryLink: React.FC<FileEditDirectoryLinkProps> = ({
         by name: "which of these two is the one I want" has no answer.
       */
       aria-label={`${revealLabel}: ${spoken}`}
+      /*
+        No underline. At this size, under a bold file name, a rule through the
+        path competed with the name for attention on every row at once, and the
+        folder icon beside it is already the obvious affordance. Hover carries
+        it instead: the colour lifts to foreground and the cursor changes, which
+        is enough for a control that is a secondary route to an action already
+        on the row.
+      */
       className={cn(
-        "pointer-events-auto truncate text-left underline decoration-dotted underline-offset-2",
-        "transition-colors hover:text-foreground hover:decoration-solid",
+        "pointer-events-auto cursor-pointer truncate text-left",
+        "transition-colors hover:text-foreground",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/60 rounded-sm",
         className
       )}
