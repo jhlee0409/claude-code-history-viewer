@@ -93,6 +93,14 @@ describe("RecentEditsOptionsMenu", () => {
     render(<RecentEditsOptionsMenu {...defaults} />);
     open();
 
+    // Anchor first. Without it this test passes when the menu fails to open at
+    // all, proving "nothing rendered" rather than "the undock item is gone" -
+    // a negative assertion is only as good as the evidence that there was
+    // something to look in.
+    expect(
+      screen.getByRole("menuitemradio", { name: "Edit (chronological)" })
+    ).toBeTruthy();
+
     expect(screen.queryByText("Undock to full page")).toBeNull();
   });
 });
