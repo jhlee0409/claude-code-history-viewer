@@ -385,14 +385,22 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
             defaultValue: "Skip navigation",
           })}
         >
-          <a
-            href="#project-explorer"
-            className="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
-          >
-            {t("common.a11y.skipToProjects", {
-              defaultValue: "Skip to project explorer",
-            })}
-          </a>
+          {/*
+            Same rule, second instance. The desktop `ProjectTree` that owns
+            `#project-explorer` renders under `!isMobile`; on mobile the id
+            exists only inside the navigation drawer, and only while it is open.
+            So on mobile with the drawer shut this link resolved to nothing.
+          */}
+          {!isMobile && (
+            <a
+              href="#project-explorer"
+              className="absolute left-2 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+            >
+              {t("common.a11y.skipToProjects", {
+                defaultValue: "Skip to project explorer",
+              })}
+            </a>
+          )}
           <a
             href="#main-content"
             className="absolute left-52 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
@@ -411,7 +419,15 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               })}
             </a>
           )}
-          {!isMobile && isNavigatorOpen && selectedSession && (
+          {/*
+            `isTranscriptView` and not just a selected session: `MessageNavigator`
+            renders only in the transcript branch, while `selectedSession`
+            survives switching to analytics, token stats, board, settings or
+            archive. The link was keyed to the proxy, so on those views it stayed
+            in the tab order pointing at an id that was not in the document
+            (#518). Same treatment the recent-edits link above already has.
+          */}
+          {!isMobile && isTranscriptView && isNavigatorOpen && selectedSession && (
             <a
               href="#message-navigator"
               className="absolute left-[23rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"

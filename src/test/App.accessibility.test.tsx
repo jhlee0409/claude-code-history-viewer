@@ -184,20 +184,34 @@ vi.mock("@/hooks/useAnalytics", () => ({
       switchToAnalytics: vi.fn(),
       switchToSettings: vi.fn(),
     },
-    computed: {
-      isMessagesView: true,
-      isTokenStatsView: false,
-      isAnalyticsView: false,
-      isRecentEditsView: false,
-      isSettingsView: false,
-      isBoardView: false,
-      isAnyLoading: false,
-      isLoadingAnalytics: false,
-      isLoadingTokenStats: false,
-      isLoadingRecentEdits: false,
-    },
+    computed: computedMock,
   }),
 }));
+
+/**
+ * The view flags a test wants to vary. Hoisted and mutated in place rather than
+ * re-mocked per test, because `vi.mock` is hoisted above the test bodies.
+ */
+const { computedMock, resetComputedMock } = vi.hoisted(() => {
+  const defaults = {
+    isMessagesView: true,
+    isTokenStatsView: false,
+    isAnalyticsView: false,
+    isRecentEditsView: false,
+    isSettingsView: false,
+    isBoardView: false,
+    isArchiveView: false,
+    isAnyLoading: false,
+    isLoadingAnalytics: false,
+    isLoadingTokenStats: false,
+    isLoadingRecentEdits: false,
+  };
+  const mock = { ...defaults };
+  return {
+    computedMock: mock,
+    resetComputedMock: () => Object.assign(mock, defaults),
+  };
+});
 
 vi.mock("@/hooks/useUpdater", () => ({
   useUpdater: () => ({
@@ -273,6 +287,7 @@ describe("App accessibility smoke", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/");
     vi.clearAllMocks();
+    resetComputedMock();
   });
 
   it("renders skip links and landmark targets", () => {
@@ -295,6 +310,65 @@ describe("App accessibility smoke", () => {
     expect(document.getElementById("main-content")).not.toBeNull();
     expect(document.getElementById("message-navigator")).not.toBeNull();
     expect(document.getElementById("app-settings-button")).not.toBeNull();
+  });
+
+  /**
+   * #518. A skip link whose target is not in the document is worse than an
+   * absent one: it takes a tab stop and then silently does nothing, which reads
+   * as the page being broken rather than the link being inapplicable.
+   *
+   * The rule these pin is that each link is gated on its target's real render
+   * condition, not on a proxy for it.
+   */
+  it.each([
+    ["settings", { isSettingsView: true }],
+    ["analytics", { isAnalyticsView: true }],
+    ["token stats", { isTokenStatsView: true }],
+    ["board", { isBoardView: true }],
+    // Archive is left out: its branch reads archive state this mock does not
+    // carry, so including it would test the fixture rather than the gating.
+    // It is covered by `isTranscriptView` all the same.
+    ["recent edits", { isRecentEditsView: true }],
+  ])(
+    "drops the message-navigator skip link in the %s view, where the navigator does not render",
+    (_label, flags) => {
+      // The navigator only renders in the transcript branch, but its link was
+      // keyed to `selectedSession` — which survives switching views.
+      Object.assign(computedMock, { isMessagesView: false }, flags);
+
+      render(<App />);
+
+      expect(document.getElementById("message-navigator")).toBeNull();
+      expect(
+        screen.queryByRole("link", { name: "Skip to message navigator" })
+      ).toBeNull();
+    }
+  );
+
+  it("keeps every rendered skip link pointing at a target that exists", () => {
+    // The general invariant, asserted across the view states rather than for
+    // one link: whatever the nav offers must resolve.
+    for (const flags of [
+      { isMessagesView: true },
+      { isMessagesView: false, isSettingsView: true },
+      { isMessagesView: false, isBoardView: true },
+    ]) {
+      resetComputedMock();
+      Object.assign(computedMock, flags);
+      const view = render(<App />);
+
+      const links = screen.getAllByRole("link");
+      for (const link of links) {
+        const href = link.getAttribute("href") ?? "";
+        if (!href.startsWith("#")) continue;
+        expect(
+          document.getElementById(href.slice(1)),
+          `${link.textContent} points at ${href}, which is not in the document`
+        ).not.toBeNull();
+      }
+
+      view.unmount();
+    }
   });
 
   it("replays a WebUI message link from browser history", async () => {
