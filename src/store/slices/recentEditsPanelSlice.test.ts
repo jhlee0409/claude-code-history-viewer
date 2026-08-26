@@ -504,6 +504,35 @@ describe("recentEditsPanelSlice dock reset", () => {
     ).toEqual(["/project/a.ts"]);
   });
 
+  it("discards a load-more page that arrives after the reset", async () => {
+    // Pins the observable contract rather than the mechanism: after a reset,
+    // a load-more page that lands late must neither repopulate the panel nor
+    // surface an error. Two things currently deliver that - the `!latest`
+    // ownership guard, and the catch's `recentEditsDockRequestedKey` check
+    // that swallows the null dereference if the guard is ever removed - so
+    // this asserts the outcome and stays true whichever one holds.
+    fetchRecentEdits.mockResolvedValueOnce({
+      ...page(["/project/a.ts"]),
+      has_more: true,
+    });
+    const store = makeStore();
+    await store.getState().loadRecentEditsDock(request);
+
+    let resolveSlow: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveSlow = resolve))
+    );
+    const slow = store.getState().loadMoreRecentEditsDock(request);
+    store.getState().clearRecentEditsDock();
+
+    resolveSlow?.(page(["/project/b.ts"]));
+    await expect(slow).resolves.toBeUndefined();
+
+    expect(store.getState().recentEditsDock).toBeNull();
+    expect(store.getState().recentEditsDockError).toBeNull();
+    expect(store.getState().isLoadingMoreRecentEditsDock).toBe(false);
+  });
+
   it("discards a response that arrives after the reset", async () => {
     // Deselecting mid-flight must not repopulate the panel a moment later.
     let resolveSlow: ((value: unknown) => void) | undefined;
