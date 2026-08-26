@@ -454,8 +454,29 @@ pub fn apply_search_filters(
         .collect()
 }
 
+/// Search messages across a Claude storage directory.
+///
+/// Walks and scans every session file synchronously, so it runs on the blocking
+/// pool. Search is the one command a user is most likely to fire repeatedly,
+/// and holding the runtime meant each keystroke-triggered search froze
+/// everything else until it finished.
 #[tauri::command]
 pub async fn search_messages(
+    claude_path: String,
+    query: String,
+    filters: serde_json::Value,
+    limit: Option<usize>,
+) -> Result<Vec<ClaudeMessage>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        search_messages_blocking(claude_path, query, filters, limit)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// The search itself. Separate from the command so the body stays at one indent
+/// level and the wrapper above is the only thing that had to change.
+fn search_messages_blocking(
     claude_path: String,
     query: String,
     filters: serde_json::Value,

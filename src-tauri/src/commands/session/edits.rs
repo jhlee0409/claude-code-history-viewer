@@ -847,8 +847,30 @@ fn validate_session_file_in_project(
 ///
 /// `grouping` selects the reduction: "file" (default) for one row per file,
 /// "edit" for one row per edit event.
+///
+/// The work is entirely synchronous — a `WalkDir` over the project, then an
+/// mmap and line scan of every JSONL file — so it runs on the blocking pool
+/// rather than holding the async runtime for the duration of a project scan.
+/// Under `--serve` the caller chooses when that happens, which made it a remote
+/// stall vector as well as a local one.
 #[tauri::command]
 pub async fn get_recent_edits(
+    project_path: String,
+    offset: Option<usize>,
+    limit: Option<usize>,
+    session_file_path: Option<String>,
+    grouping: Option<String>,
+) -> Result<PaginatedRecentEdits, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        get_recent_edits_blocking(project_path, offset, limit, session_file_path, grouping)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// The scan itself. Separate from the command so the whole body stays at one
+/// indent level and the wrapper above is the only thing that had to change.
+fn get_recent_edits_blocking(
     project_path: String,
     offset: Option<usize>,
     limit: Option<usize>,

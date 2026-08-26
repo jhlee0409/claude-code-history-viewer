@@ -157,14 +157,33 @@ pub async fn detect_claude_config_dir() -> Result<Option<String>, String> {
     }
 }
 
+/// Scan the Claude storage directory for projects.
+///
+/// The body walks every project directory and reads their session files, all
+/// synchronously, so it runs on the blocking pool rather than holding the async
+/// runtime for the length of a scan. On a machine with many projects that was a
+/// visible stall, and under `--serve` a remote caller decided when it happened.
 #[tauri::command]
 pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, String> {
+    tauri::async_runtime::spawn_blocking(move || scan_projects_blocking(claude_path))
+        .await
+        .map(Ok)
+        .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// The scan itself. Separate from the command so the body stays at one indent
+/// level and the wrapper above is the only thing that had to change.
+///
+/// Infallible: an unreadable project directory is skipped rather than failing
+/// the scan. The command's `Result` is the IPC contract and stays; the
+/// `#[tauri::command]` attribute was hiding this from clippy.
+fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
     let projects_path = PathBuf::from(&claude_path).join("projects");
 
     if !projects_path.exists() {
-        return Ok(vec![]);
+        return vec![];
     }
 
     let mut projects = Vec::new();
@@ -330,7 +349,7 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
         );
     }
 
-    Ok(projects)
+    projects
 }
 
 fn extract_cwd_from_session_file(file_path: &Path) -> Option<String> {
