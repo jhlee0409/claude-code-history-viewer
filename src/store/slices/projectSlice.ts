@@ -604,12 +604,18 @@ export const createProjectSlice: StateCreator<
         const recentEdits = await refreshedState.loadRecentEdits(
           refreshedProject.path
         );
-        refreshedState.setAnalyticsRecentEdits({
-          files: recentEdits.files,
-          total_edits_count: recentEdits.total_edits_count,
-          unique_files_count: recentEdits.unique_files_count,
-          project_cwd: recentEdits.project_cwd,
-        });
+        // Same ownership rule as the navigation hook: if the selection moved on
+        // while this was in flight, writing would show one project's edits
+        // under another's identity.
+        if (get().selectedProject?.path === refreshedProject.path) {
+          refreshedState.setAnalyticsRecentEdits({
+            files: recentEdits.files,
+            total_edits_count: recentEdits.total_edits_count,
+            unique_files_count: recentEdits.unique_files_count,
+            project_cwd: recentEdits.project_cwd,
+            requestedProjectPath: refreshedProject.path,
+          });
+        }
       } else if (refreshedState.analytics.currentView === "board") {
         refreshedState.clearBoard();
         await refreshedState.loadBoardSessions(get().sessions);

@@ -4,6 +4,15 @@ import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
 import { AppErrorType, type MetricMode, type StatsMode } from "../../types";
 
+/**
+ * Sequence number for Recent Edits fetches, so a request can tell whether it is
+ * still the most recent one.
+ *
+ * Module scope rather than a ref: several components mount this hook, and a
+ * per-instance ref would let two of them each believe they are the latest.
+ */
+let recentEditsRequestSeq = 0;
+
 export function useAnalyticsNavigation() {
   const { t } = useTranslation();
   const {
@@ -161,24 +170,54 @@ export function useAnalyticsNavigation() {
     setAnalyticsCurrentView("recentEdits");
     clearAnalyticsErrors();
 
+    // Read the cache at call time rather than from the render closure.
+    // `refreshAnalytics` clears it and then calls this in the same tick, so a
+    // closed-over value is a render behind and reports a hit on data that no
+    // longer exists, leaving the view empty. That was survivable only while the
+    // guard never held.
+    const cached = useAppStore.getState().analytics.recentEdits;
+    // No `files.length` condition: with request identity on the entry, an empty
+    // result is a valid answer ("this project has no edits") rather than an
+    // absent one. Requiring a non-empty list made such a project miss the cache
+    // on every visit and re-walk its whole JSONL set forever.
     const hasCachedRecentEdits =
-      analytics.recentEdits &&
-      analytics.recentEdits.files.length > 0 &&
-      analytics.recentEdits.project_cwd === project.path;
+      cached && cached.requestedProjectPath === project.path;
 
     if (hasCachedRecentEdits) {
       return;
     }
 
+    const requestId = ++recentEditsRequestSeq;
+    // One predicate for both outcomes. A late failure is every bit as capable
+    // of writing over a newer request's state as a late success is, and the
+    // two paths disagreeing about what ownership means is how that gets
+    // missed.
+    const stillOwnsRecentEdits = () =>
+      recentEditsRequestSeq === requestId &&
+      useAppStore.getState().selectedProject?.path === project.path;
+
     try {
       setAnalyticsLoadingRecentEdits(true);
       const result = await loadRecentEdits(project.path);
+
+      // The user may have switched projects while this was in flight. Writing
+      // anyway would show one project's edits under another's identity, and the
+      // cache guard would then treat that as a valid hit indefinitely.
+      //
+      // The sequence check is the other half of the same rule. A project path
+      // cannot tell two requests for the *same* project apart, so refreshing
+      // while the first load was still running let the slower of the two land
+      // last and overwrite the newer result, cursor included.
+      if (!stillOwnsRecentEdits()) {
+        return;
+      }
 
       setAnalyticsRecentEdits({
         files: result.files,
         total_edits_count: result.total_edits_count,
         unique_files_count: result.unique_files_count,
         project_cwd: result.project_cwd,
+        requestedProjectPath: project.path,
       });
 
       useAppStore.setState((state) => ({
@@ -199,15 +238,24 @@ export function useAnalyticsNavigation() {
         error instanceof Error
           ? error.message
           : t("common.hooks.recentEditsLoadFailed");
-      setAnalyticsRecentEditsError(errorMessage);
+      if (stillOwnsRecentEdits()) {
+        setAnalyticsRecentEditsError(errorMessage);
+      }
       console.error("Failed to load recent edits:", error);
       throw error;
     } finally {
-      setAnalyticsLoadingRecentEdits(false);
+      // Clear on the *latest* request rather than on the selected project.
+      // Keying this to the selection stranded the flag: a request whose project
+      // was deselected would never clear it, and nothing else does, because
+      // `resetAnalytics` runs in `clearProjectSelection` rather than on a
+      // project switch. Keying it to the sequence still stops a late loser from
+      // reporting a newer request as finished.
+      if (recentEditsRequestSeq === requestId) {
+        setAnalyticsLoadingRecentEdits(false);
+      }
     }
   }, [
     t,
-    analytics.recentEdits,
     setAnalyticsCurrentView,
     clearAnalyticsErrors,
     setAnalyticsLoadingRecentEdits,

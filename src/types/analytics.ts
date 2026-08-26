@@ -36,6 +36,12 @@ export interface AnalyticsState {
   sessionComparison: SessionComparison | null;
   recentEdits: RecentEditsResult | null;
   recentEditsPagination: RecentEditsPagination;
+  /**
+   * Bumped on every write to `recentEdits`, a clear included. A page fetched
+   * against an older generation no longer continues the list on screen, so it
+   * must not be appended to it.
+   */
+  recentEditsGeneration: number;
 
   recentEditsSearchQuery: string;
 
@@ -105,6 +111,7 @@ export const initialAnalyticsState: AnalyticsState = {
   sessionComparison: null,
   recentEdits: null,
   recentEditsPagination: initialRecentEditsPagination,
+  recentEditsGeneration: 0,
   recentEditsSearchQuery: "",
   isLoadingProjectSummary: false,
   isLoadingSessionComparison: false,
