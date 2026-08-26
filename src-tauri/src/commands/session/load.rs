@@ -1059,8 +1059,28 @@ fn clear_dropped_candidate(project_path: &str, path_str: &str) {
     }
 }
 
+/// Load one page of a project's sessions.
+///
+/// Reads and parses session files synchronously, so it runs on the blocking
+/// pool rather than holding the async runtime. This is on the path taken every
+/// time a project is selected, and again on every watcher-driven refresh.
 #[tauri::command]
 pub async fn load_project_sessions_page(
+    project_path: String,
+    exclude_sidechain: Option<bool>,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> Result<SessionPage, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        load_project_sessions_page_blocking(project_path, exclude_sidechain, offset, limit)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// The load itself. Separate from the command so the body stays at one indent
+/// level and the wrapper above is the only thing that had to change.
+fn load_project_sessions_page_blocking(
     project_path: String,
     exclude_sidechain: Option<bool>,
     offset: Option<usize>,
@@ -1333,11 +1353,34 @@ pub async fn load_project_sessions_page(
     })
 }
 
+/// Load every session in a project.
+///
+/// Same shape as the paginated variant above and the same reasoning: the work
+/// is synchronous file reading and parsing, so it belongs on the blocking pool.
+/// Unpaginated, so on a large project it is the longer of the two.
 #[tauri::command]
 pub async fn load_project_sessions(
     project_path: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<Vec<ClaudeSession>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        load_project_sessions_blocking(project_path, exclude_sidechain)
+    })
+    .await
+    .map(Ok)
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// The load itself. Separate from the command so the body stays at one indent
+/// level and the wrapper above is the only thing that had to change.
+///
+/// Infallible: a session file that cannot be read is skipped rather than
+/// failing the load. The command's `Result` is the IPC contract and stays; the
+/// `#[tauri::command]` attribute was hiding this from clippy.
+fn load_project_sessions_blocking(
+    project_path: String,
+    exclude_sidechain: Option<bool>,
+) -> Vec<ClaudeSession> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
 
@@ -1562,7 +1605,7 @@ pub async fn load_project_sessions(
         );
     }
 
-    Ok(sessions)
+    sessions
 }
 
 /// Parse a single line into `ClaudeMessage` (with line number)
