@@ -54,6 +54,7 @@ export interface AnalyticsSliceActions {
   setAnalyticsRecentEditsError: (error: string | null) => void;
   loadRecentEdits: (projectPath: string) => Promise<PaginatedRecentEdits>;
   loadMoreRecentEdits: (projectPath: string) => Promise<void>;
+  invalidateRecentEdits: (projectPath: string) => void;
   resetAnalytics: () => void;
   clearAnalyticsErrors: () => void;
 }
@@ -178,6 +179,30 @@ export const createAnalyticsSlice: StateCreator<
         // Bumping here, rather than at each call site, is what makes the
         // generation true for all three writers of the cache without any of
         // them having to remember.
+        recentEditsGeneration: state.analytics.recentEditsGeneration + 1,
+      },
+    }));
+  },
+
+  invalidateRecentEdits: (projectPath: string) => {
+    const cached = get().analytics.recentEdits;
+    // Only the entry fetched for this project is stale. An entry belonging to
+    // another project is somebody else's cache, and a `null` one has nothing
+    // to invalidate.
+    if (!cached || cached.requestedProjectPath !== projectPath) {
+      return;
+    }
+
+    set((state) => ({
+      analytics: {
+        ...state.analytics,
+        // The rows stay; only the identity that makes them reusable is
+        // dropped. Clearing the data instead would blank the panel under a
+        // user who is reading it, on nothing more than a background file
+        // event. The next visit misses the guard and refetches.
+        recentEdits: { ...cached, requestedProjectPath: undefined },
+        // Declaring the list stale has to stop a load-more that is already in
+        // flight from appending a page to it, the same way a refresh does.
         recentEditsGeneration: state.analytics.recentEditsGeneration + 1,
       },
     }));

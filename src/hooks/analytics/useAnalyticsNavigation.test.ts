@@ -807,3 +807,137 @@ describe("recent-edits failures respect ownership", () => {
     expect(useAppStore.getState().analytics.recentEditsError).toBeNull();
   });
 });
+
+/**
+ * Making the cache actually hit removed the accidental freshness the
+ * always-miss had been providing. Nothing in the watcher path invalidates it:
+ * `triggerProjectRefresh` reloads the session list through `selectProject`,
+ * which never touches analytics, and `resetAnalytics` runs only in
+ * `clearProjectSelection`. So a project could sit selected all day serving
+ * pre-edit rows, with the header refresh button the only way out.
+ */
+describe("recent-edits cache invalidation on file change", () => {
+  beforeEach(() => {
+    fetchRecentEdits.mockReset();
+    useAppStore.setState({ selectedProject: null, selectedSession: null });
+    useAppStore.getState().resetAnalytics();
+  });
+
+  it("refetches after the watcher reports the project changed", async () => {
+    const p = project("alpha");
+    fetchRecentEdits.mockResolvedValue(payload(p.actual_path));
+    useAppStore.setState({ selectedProject: p });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(1);
+
+    // Second visit with no file change still hits the cache — invalidation
+    // must not simply disable it.
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      useAppStore.getState().invalidateRecentEdits(p.path);
+    });
+
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the rows on screen while dropping the cache identity", async () => {
+    // Clearing the data instead would blank the panel under a user who is
+    // reading it, triggered by nothing but a background file event.
+    const p = project("alpha");
+    fetchRecentEdits.mockResolvedValue(payload(p.actual_path));
+    useAppStore.setState({ selectedProject: p });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    await act(async () => {
+      useAppStore.getState().invalidateRecentEdits(p.path);
+    });
+
+    const cached = useAppStore.getState().analytics.recentEdits;
+    expect(cached?.files.length).toBe(1);
+    expect(cached?.requestedProjectPath).toBeUndefined();
+  });
+
+  it("leaves another project's cache entry alone", async () => {
+    const a = project("alpha");
+    const b = project("beta");
+    fetchRecentEdits.mockResolvedValue(payload(a.actual_path));
+    useAppStore.setState({ selectedProject: a });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    // A background write under an unrelated project must not cost the
+    // selected one its cache.
+    await act(async () => {
+      useAppStore.getState().invalidateRecentEdits(b.path);
+    });
+
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+    expect(fetchRecentEdits).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops an in-flight load-more from appending to an invalidated list", async () => {
+    const p = project("alpha");
+    fetchRecentEdits.mockResolvedValueOnce(payload(p.actual_path));
+    useAppStore.setState({ selectedProject: p });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    useAppStore.setState((state) => ({
+      analytics: {
+        ...state.analytics,
+        recentEditsPagination: {
+          totalEditsCount: 100,
+          uniqueFilesCount: 100,
+          offset: 0,
+          limit: 20,
+          hasMore: true,
+          isLoadingMore: false,
+        },
+      },
+    }));
+
+    const more = Promise.withResolvers<unknown>();
+    fetchRecentEdits.mockImplementationOnce(() => more.promise);
+    const pending = useAppStore.getState().loadMoreRecentEdits(p.path);
+
+    await act(async () => {
+      useAppStore.getState().invalidateRecentEdits(p.path);
+    });
+    await act(async () => {
+      more.resolve({
+        ...payload(p.actual_path),
+        files: [{ ...payload(p.actual_path).files[0], file_path: "late.ts" }],
+      });
+      await pending;
+    });
+
+    const files = useAppStore.getState().analytics.recentEdits?.files ?? [];
+    expect(files.some((f) => f.file_path === "late.ts")).toBe(false);
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.isLoadingMore
+    ).toBe(false);
+  });
+});
