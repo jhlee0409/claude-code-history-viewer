@@ -193,6 +193,21 @@ export interface AppStoreState {
   // Navigator state
   isNavigatorOpen: boolean;
 
+  // Recent Edits panel state
+  recentEditsMode: import('./recentEditsPanelSlice').RecentEditsMode;
+  recentEditsDensityPage: import('./recentEditsPanelSlice').RecentEditsDensity;
+  recentEditsDensityDock: import('./recentEditsPanelSlice').RecentEditsDensity;
+  recentEditsScope: import('./recentEditsPanelSlice').RecentEditsScope;
+  recentEditsGroupingProject: import('./recentEditsPanelSlice').RecentEditsGrouping;
+  recentEditsGroupingSession: import('./recentEditsPanelSlice').RecentEditsGrouping;
+  recentEditsMissingOnly: boolean;
+  isRecentEditsDockOpen: boolean;
+  recentEditsDock: import('./recentEditsPanelSlice').RecentEditsDockResult | null;
+  recentEditsDockRequestedKey: string | null;
+  isLoadingRecentEditsDock: boolean;
+  isLoadingMoreRecentEditsDock: boolean;
+  recentEditsDockError: string | null;
+
   // Provider state
   providers: ProviderInfo[];
   activeProviders: ProviderId[];
@@ -384,6 +399,28 @@ export interface AppStoreActions {
   // Navigator actions
   toggleNavigator: () => void;
   setNavigatorOpen: (open: boolean) => void;
+
+  // Recent Edits panel actions
+  setRecentEditsMode: (mode: import('./recentEditsPanelSlice').RecentEditsMode) => void;
+  setRecentEditsDensity: (
+    mode: import('./recentEditsPanelSlice').RecentEditsMode,
+    density: import('./recentEditsPanelSlice').RecentEditsDensity
+  ) => void;
+  setRecentEditsScope: (scope: import('./recentEditsPanelSlice').RecentEditsScope) => void;
+  setRecentEditsGrouping: (
+    scope: import('./recentEditsPanelSlice').RecentEditsScope,
+    grouping: import('./recentEditsPanelSlice').RecentEditsGrouping
+  ) => void;
+  setRecentEditsMissingOnly: (missingOnly: boolean) => void;
+  setRecentEditsDockOpen: (open: boolean) => void;
+  toggleRecentEditsDock: () => void;
+  loadRecentEditsDock: (
+    request: import('./recentEditsPanelSlice').RecentEditsDockRequest
+  ) => Promise<void>;
+  loadMoreRecentEditsDock: (
+    request: import('./recentEditsPanelSlice').RecentEditsDockRequest
+  ) => Promise<void>;
+  markRecentEditsDockFileRestored: (filePath: string) => void;
 
   // Provider actions
   detectProviders: () => Promise<boolean>;

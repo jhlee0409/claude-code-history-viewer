@@ -26,12 +26,18 @@ import {
 import { toast } from "sonner";
 import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
-import { isAbsolutePath } from "@/utils/pathUtils";
+import {
+  isAbsolutePath,
+  elideProjectRoot,
+  getPathLeaf,
+} from "@/utils/pathUtils";
 import { isTauri, isMacOS, isWindows } from "@/utils/platform";
 import { layout } from "@/components/renderers";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
+import { FileEditDirectoryLink } from "./FileEditDirectoryLink";
 import { FilteredDiffLines } from "./FilteredDiffLines";
+import { RestoreDiffPreview } from "./RestoreDiffPreview";
 import type { FileEditItemProps, RestoreStatus, EditViewMode } from "./types";
 import { getLanguageFromPath, formatTimestamp, getRelativeTime } from "./utils";
 import { extractAddedLines, extractRemovedLines } from "./diffUtils";
@@ -44,7 +50,13 @@ import {
   getTokenContainerStyles,
 } from "@/utils/prismStyles";
 
-export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) => {
+export const FileEditItem: React.FC<FileEditItemProps> = ({
+  edit,
+  isDarkMode,
+  dense = false,
+  projectCwd,
+  onRestored,
+}) => {
   const { t } = useTranslation();
   const { t: tCommon } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -55,7 +67,16 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const language = getLanguageFromPath(edit.file_path);
-  const fileName = edit.file_path.replace(/\\/g, "/").split("/").pop() || edit.file_path;
+  const fileName = getPathLeaf(edit.file_path);
+  /*
+    Dense shows the elided directory the list rows show. Full width keeps the
+    absolute path, which is readable there and is mostly shared prefix once the
+    card is squeezed into a panel.
+  */
+  const directory = elideProjectRoot(
+    edit.file_path.slice(0, edit.file_path.length - fileName.length),
+    projectCwd
+  );
   const lines = edit.content_after_change.split("\n");
 
   // Clicking the active control again collapses; otherwise expand into that view
@@ -119,6 +140,10 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
         content: edit.content_after_change,
       });
       setRestoreStatus("success");
+      // Clears the missing flag on this row. Without it a file just written
+      // back still reports itself absent, so it stays red and the Missing Only
+      // filter hides the file the user has only just recovered.
+      onRestored?.(edit.file_path);
       setTimeout(() => setRestoreStatus("idle"), 2000);
     } catch (err) {
       console.error("Failed to restore file:", err);
@@ -142,7 +167,19 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
       <div
         data-testid="file-edit-header"
         className={cn(
-          "relative flex items-center justify-between p-4 cursor-pointer transition-all duration-300",
+          /*
+            Wraps to a second line rather than letting the name collapse. The
+            stats group on the right is `shrink-0`, so at dock widths it took
+            the whole row and the name box - `flex-1 min-w-0` - shrank to zero,
+            leaving `truncate` with nothing to show. The file name is the one
+            thing a row must never lose.
+
+            Driven by a min-width plus `flex-wrap`, not by a `sm:`/`md:` prefix:
+            the dock is a resizable panel, so its width is independent of the
+            viewport and Tailwind's breakpoints do not describe it.
+          */
+          "relative flex flex-wrap items-center justify-between gap-y-2 cursor-pointer transition-all duration-300",
+          dense ? "p-2" : "p-4",
           edit.operation_type === "write"
             ? "bg-gradient-to-r from-green-50 to-emerald-50/50 dark:from-green-950/40 dark:to-emerald-950/20"
             : "bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-950/40 dark:to-indigo-950/20",
@@ -158,44 +195,119 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
           )}
         />
 
-        <div className="flex items-center space-x-3 min-w-0 flex-1">
+        {/*
+          A floor of 10rem, not `min-w-0`. `min-w-0` is what lets a flex child
+          shrink past its content, which is exactly how the name reached zero
+          width. The floor makes the stats group wrap instead. The name box
+          inside keeps `min-w-0` so it can still truncate within this group.
+        */}
+        <div
+          className={cn(
+            "flex items-center flex-1",
+            dense ? "gap-2 min-w-[8rem]" : "space-x-3 min-w-[10rem]"
+          )}
+        >
           {/* Expand/Collapse icon */}
+          {/*
+            A tinted control at full width, a bare glyph in the list scale. The
+            boxed version reads as a button, which is right on a page of cards
+            and too heavy beside rows a third of its height.
+          */}
           <div
             className={cn(
-              "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300",
-              isExpanded ? "bg-accent/20 text-accent" : "bg-muted/50 text-muted-foreground"
+              "flex items-center justify-center transition-all duration-300",
+              dense
+                ? "h-3 w-3 shrink-0 text-muted-foreground"
+                : cn(
+                    "w-6 h-6 rounded-md",
+                    isExpanded
+                      ? "bg-accent/20 text-accent"
+                      : "bg-muted/50 text-muted-foreground"
+                  )
             )}
           >
-            {isExpanded ? <span title="Collapse"><ChevronDown className="w-4 h-4" /></span> : <span title="Expand"><ChevronRight className="w-4 h-4" /></span>}
+            {isExpanded ? (
+              <span title={tCommon("common.collapse", "Collapse")}>
+                <ChevronDown className={dense ? "h-3 w-3" : "w-4 h-4"} />
+              </span>
+            ) : (
+              <span title={tCommon("common.expand", "Expand")}>
+                <ChevronRight className={dense ? "h-3 w-3" : "w-4 h-4"} />
+              </span>
+            )}
           </div>
 
-          {/* Operation type icon */}
-          <div
-            className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center",
-              edit.operation_type === "write"
-                ? "bg-success/20 text-success"
-                : "bg-info/20 text-info"
-            )}
-          >
-            {edit.operation_type === "write" ? (
-              <span title="File Created"><FilePlus className="w-4 h-4" /></span>
-            ) : (
-              <span title="File Edited"><FileEdit className="w-4 h-4" /></span>
-            )}
-          </div>
+          {/*
+            Operation type. A tile at full width; in the list scale the same
+            distinction is carried by the dot the compact rows use, since a 32px
+            tile beside a 17px line box dominates the name it is meant to label.
+            The left accent bar already repeats the colour, so nothing is lost.
+          */}
+          {dense ? (
+            <span
+              title={
+                edit.operation_type === "write"
+                  ? t("recentEdits.created", "Created")
+                  : t("recentEdits.edited", "Edited")
+              }
+              className={cn(
+                "h-[7px] w-[7px] shrink-0 rounded-full",
+                edit.operation_type === "write" ? "bg-success" : "bg-info"
+              )}
+            />
+          ) : (
+            <div
+              className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center",
+                edit.operation_type === "write"
+                  ? "bg-success/20 text-success"
+                  : "bg-info/20 text-info"
+              )}
+            >
+              {edit.operation_type === "write" ? (
+                <span title={t("recentEdits.created", "Created")}><FilePlus className="w-4 h-4" /></span>
+              ) : (
+                <span title={t("recentEdits.edited", "Edited")}><FileEdit className="w-4 h-4" /></span>
+              )}
+            </div>
+          )}
 
           {/* File name and path */}
           <div className="min-w-0 flex-1">
-            <div className="font-semibold truncate text-foreground">{fileName}</div>
-            <div className={`${layout.smallText} truncate text-muted-foreground mt-0.5`}>
-              {edit.file_path}
+            <div
+              className={cn(
+                "font-semibold truncate text-foreground",
+                dense && layout.bodyText
+              )}
+            >
+              {fileName}
+            </div>
+            <div className="mt-0.5 flex min-w-0">
+              <FileEditDirectoryLink
+                directory={dense ? directory : edit.file_path}
+                fullPath={edit.file_path}
+                canReveal={canReveal}
+                onReveal={handleReveal}
+                revealLabel={revealLabel}
+                className={cn(
+                  "min-w-0 flex-1 text-muted-foreground",
+                  dense ? "text-px11" : layout.smallText
+                )}
+              />
             </div>
           </div>
         </div>
 
-        {/* Right side info */}
-        <div className="flex items-center space-x-3 shrink-0 ml-2">
+        {/*
+          Right side info. Wraps and shrinks rather than staying rigid: once the
+          header wrapped, this group still sat on one line at its full width and
+          clipped its own trailing timestamp against the card's `overflow-hidden`.
+
+          `gap-x-3` rather than `space-x-3`, because the margin-based spacing
+          utilities apply to every child after the first, including the first on
+          a wrapped line, which indents each new line by one gap.
+        */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 ml-2 min-w-0">
           {/* Diff stats — clickable filters for added/removed-only views */}
           <div className={`flex items-center space-x-2 ${layout.smallText} font-mono`}>
             {edit.lines_added > 0 && (
@@ -274,7 +386,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
           <div
             className={`flex items-center space-x-1.5 ${layout.smallText} text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg`}
           >
-            <span title="Timestamp"><Clock className="w-3 h-3" /></span>
+            <span title={t("recentEdits.timestamp", "Timestamp")}><Clock className="w-3 h-3" /></span>
             <span title={formatTimestamp(edit.timestamp)}>
               {getRelativeTime(edit.timestamp, tCommon)}
             </span>
@@ -366,9 +478,23 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({ edit, isDarkMode }) 
             <h3 className="text-lg font-semibold mb-2 text-foreground">
               {t("recentEdits.confirmRestoreTitle")}
             </h3>
-            <p className={`${layout.bodyText} mb-4 text-muted-foreground`}>
+            <p className={`${layout.bodyText} mb-2 text-muted-foreground`}>
               {t("recentEdits.confirmRestoreMessage", { path: edit.file_path })}
             </p>
+
+            {/*
+              The same preview the compact row shows. Restore is equally
+              destructive from either density, so the confirmation must tell the
+              user the same thing in both.
+            */}
+            <div className="mb-4">
+              <RestoreDiffPreview
+                filePath={edit.file_path}
+                restoreContent={edit.content_after_change}
+                existsOnDisk={edit.exists_on_disk}
+              />
+            </div>
+
             <div className="flex justify-end space-x-3">
               <button
                 onClick={handleRestoreCancel}

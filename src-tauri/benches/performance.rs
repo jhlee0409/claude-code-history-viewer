@@ -696,6 +696,8 @@ fn bench_get_recent_edits(c: &mut Criterion) {
                             black_box(path_str.clone()),
                             black_box(None),
                             black_box(None),
+                            black_box(None),
+                            black_box(None),
                         )
                         .await
                     })

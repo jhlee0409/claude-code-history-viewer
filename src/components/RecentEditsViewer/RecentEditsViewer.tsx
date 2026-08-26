@@ -9,12 +9,20 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { FileEdit, Search, File, ChevronDown, Loader2 } from "lucide-react";
+import {
+  FileEdit,
+  Search,
+  File,
+  ChevronDown,
+  Loader2,
+} from "lucide-react";
+import { useAppStore } from "@/store/useAppStore";
 import { useTheme } from "@/contexts/theme";
 import { layout } from "@/components/renderers";
 import { LoadingState } from "@/components/ui/loading";
 import type { RecentEditsViewerProps } from "./types";
 import { FileEditItem } from "./FileEditItem";
+import { RecentEditsViewToggle } from "./RecentEditsViewToggle";
 
 export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   recentEdits,
@@ -27,6 +35,22 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+
+  // Entry into docked mode. The same toggle renders in the docked panel's
+  // header for the return trip, so both directions read as one control.
+  const selectedProject = useAppStore((s) => s.selectedProject);
+  const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
+  const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
+  const switchToMessages = useAppStore(
+    (s) => s.setAnalyticsCurrentView
+  );
+
+  const handleDock = () => {
+    setRecentEditsMode("docked");
+    setRecentEditsDockOpen(true);
+    // The dock only renders beside a transcript, so go back to it.
+    switchToMessages("messages");
+  };
 
   // Sync internal state when external prop changes (e.g. navigation from Board)
   React.useEffect(() => {
@@ -123,6 +147,34 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
             >
               <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
               <span className="font-medium">{stats.totalEditsCount} edits</span>
+            </div>
+            {/*
+              Last in the row, matching where the docked header puts it. The
+              counts describe the list and belong beside it; the toggle changes
+              which shape the whole surface takes, so it sits at the outside
+              edge in both and does not appear to move when the shape changes.
+
+              Hidden entirely below the dock's own breakpoint rather than merely
+              disabled: the dock cannot render there at all, so offering the
+              choice on a phone would send the user to a panel that never
+              appears.
+
+              Gated on a project, not a session. The dock defaults to project
+              scope and renders perfectly well beside the "select a session"
+              placeholder, so requiring a session refused a mode that works: the
+              user had to open a session they did not want in order to reach a
+              view that never needed one.
+            */}
+            <div className="hidden xl:block">
+              <RecentEditsViewToggle
+                value="page"
+                onChange={(next) => next === "sidebar" && handleDock()}
+                sidebarDisabled={!selectedProject}
+                sidebarDisabledHint={t(
+                  "recentEdits.selectProjectFirst",
+                  "Select a project first"
+                )}
+              />
             </div>
           </div>
         </div>

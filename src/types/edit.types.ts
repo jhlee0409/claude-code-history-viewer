@@ -18,6 +18,18 @@ export interface RecentFileEdit {
   lines_added: number;
   lines_removed: number;
   cwd?: string;
+  /**
+   * UUID of the message this edit came from, used by the jump-to-message
+   * arrow. Optional: provider paths that carry no message identity leave it
+   * unset, and older cached payloads predate the field.
+   */
+  message_uuid?: string;
+  /**
+   * Whether the file is still present on disk. Optional for the same reason:
+   * the backend only started reporting it alongside the panel work, so a
+   * missing value means "unknown", not "deleted".
+   */
+  exists_on_disk?: boolean;
 }
 
 // ============================================================================

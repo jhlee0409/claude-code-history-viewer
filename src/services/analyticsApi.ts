@@ -200,6 +200,10 @@ export async function fetchSessionComparison(
 export interface FetchRecentEditsOptions {
   offset?: number;
   limit?: number;
+  /** Narrow the scan to one session's JSONL file. */
+  sessionFilePath?: string;
+  /** "file" (default) for one row per file, "edit" for one row per edit. */
+  grouping?: "file" | "edit";
 }
 
 /**
@@ -209,8 +213,27 @@ export async function fetchRecentEdits(
   projectPath: string,
   options: FetchRecentEditsOptions = {}
 ): Promise<PaginatedRecentEdits> {
-  const { offset = 0, limit = DEFAULT_PAGE_SIZE } = options;
-  const key = `recentEdits:${projectPath}:${offset}:${limit}`;
+  const {
+    offset = 0,
+    limit = DEFAULT_PAGE_SIZE,
+    sessionFilePath,
+    grouping,
+  } = options;
+  // Every parameter that changes the response has to be in this key. The docked
+  // panel and the full page can be mounted at once, asking for different scopes;
+  // a key that omitted them would collapse those into one request and hand one
+  // caller the other's data.
+  // Serialized, not joined: `:` is legal in a POSIX path, so a joined key can
+  // collide across genuinely different requests and hand one of them the
+  // other's in-flight promise. Same defect, and same fix, as the dock's request
+  // key in `recentEditsPanelSlice`.
+  const key = `recentEdits:${JSON.stringify([
+    projectPath,
+    offset,
+    limit,
+    sessionFilePath ?? "",
+    grouping ?? "file",
+  ])}`;
   return dedupeInFlight(key, async () => {
     const start = performance.now();
 
@@ -218,6 +241,8 @@ export async function fetchRecentEdits(
       projectPath,
       offset,
       limit,
+      sessionFilePath,
+      grouping,
     });
 
     if (import.meta.env.DEV) {

@@ -30,6 +30,34 @@ fn detect_project_provider(project_path: &str) -> EditsProvider {
     }
 }
 
+/// Page size when the caller does not ask for one.
+const DEFAULT_PAGE_LIMIT: usize = 20;
+
+/// Upper bound on a caller-supplied page size. Each returned row costs one
+/// `fs::metadata` call, so the page size bounds the syscall cost of a request.
+const MAX_PAGE_LIMIT: usize = 200;
+
+/// How the raw edit stream is reduced before pagination.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum EditsGrouping {
+    /// One row per file, carrying that file's latest state.
+    #[default]
+    File,
+    /// One row per edit event, chronological.
+    Edit,
+}
+
+impl EditsGrouping {
+    /// Anything other than an explicit "edit" keeps today's behaviour, so an
+    /// older client or a stale stored value cannot change what it sees.
+    fn from_param(value: Option<&str>) -> Self {
+        match value {
+            Some("edit") => Self::Edit,
+            _ => Self::File,
+        }
+    }
+}
+
 /// Intermediate result from processing a single session file (for parallel processing)
 struct SessionEditsResult {
     edits: Vec<RecentFileEdit>,
@@ -91,6 +119,8 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                         lines_added: content.lines().count(),
                         lines_removed: 0,
                         cwd: cwd.clone(),
+                        message_uuid: log_entry.uuid.clone(),
+                        exists_on_disk: None,
                     });
                 }
             }
@@ -130,6 +160,8 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 lines_added,
                                 lines_removed,
                                 cwd: cwd.clone(),
+                                message_uuid: log_entry.uuid.clone(),
+                                exists_on_disk: None,
                             });
                         }
                     } else if let (Some(old_str), Some(new_str)) = (
@@ -152,6 +184,8 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 lines_added: new_str.lines().count(),
                                 lines_removed: old_str.lines().count(),
                                 cwd: cwd.clone(),
+                                message_uuid: log_entry.uuid.clone(),
+                                exists_on_disk: None,
                             });
                         }
                     }
@@ -178,6 +212,8 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
                                 lines_added: content.lines().count(),
                                 lines_removed: 0,
                                 cwd: cwd.clone(),
+                                message_uuid: log_entry.uuid.clone(),
+                                exists_on_disk: None,
                             });
                         }
                     }
@@ -333,6 +369,7 @@ fn build_tool_use_edits(
     input: &serde_json::Value,
     timestamp: &str,
     session_id: &str,
+    message_uuid: Option<&str>,
     project_cwd: Option<&str>,
 ) -> Vec<RecentFileEdit> {
     let Some(operation_type) = infer_operation_type(tool_name) else {
@@ -368,6 +405,8 @@ fn build_tool_use_edits(
                 lines_added,
                 lines_removed,
                 cwd: project_cwd.map(str::to_string),
+                message_uuid: message_uuid.map(str::to_string),
+                exists_on_disk: None,
             })
             .collect();
     }
@@ -392,6 +431,8 @@ fn build_tool_use_edits(
         lines_added,
         lines_removed,
         cwd: project_cwd.map(str::to_string),
+        message_uuid: message_uuid.map(str::to_string),
+        exists_on_disk: None,
     }]
 }
 
@@ -427,6 +468,7 @@ fn collect_provider_recent_edits_from_messages(
                         &input,
                         timestamp,
                         &message.session_id,
+                        Some(message.uuid.as_str()),
                         project_cwd,
                     ));
                 }
@@ -444,6 +486,7 @@ fn collect_provider_recent_edits_from_messages(
                     &input,
                     timestamp,
                     &message.session_id,
+                    Some(message.uuid.as_str()),
                     project_cwd,
                 ));
             }
@@ -453,30 +496,89 @@ fn collect_provider_recent_edits_from_messages(
     edits
 }
 
+/// Split a path into comparison-ready components, resolving `.` and `..` textually
+/// and folding case on Windows.
+///
+/// The edit paths come out of session logs, not from the filesystem walk, so they
+/// can contain traversal segments. A raw `starts_with` on the string form accepts
+/// `/repo/../secret` as being inside `/repo`, and also accepts `/repository/x`
+/// because `/repo` is a character prefix of it.
+fn comparable_path_parts(path: &str) -> Vec<String> {
+    let mut parts: Vec<String> = Vec::new();
+    for raw in path.split(['/', '\\']) {
+        match raw {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            segment => {
+                #[cfg(target_os = "windows")]
+                parts.push(segment.to_lowercase());
+                #[cfg(not(target_os = "windows"))]
+                parts.push(segment.to_string());
+            }
+        }
+    }
+    parts
+}
+
+/// Identity of a file for grouping and counting, folding away separator and
+/// (on Windows) case differences so one file cannot appear as two rows.
+fn file_identity(path: &str) -> String {
+    comparable_path_parts(path).join("/")
+}
+
+/// Whether a loaded provider session is the one the caller asked to scope to.
+///
+/// Compared on the same normalized identity that grouping and containment
+/// already use, not on the raw string. Inside the app both sides come from the
+/// same provider loader and agree byte for byte, but under `--serve` the caller
+/// spells the path itself: a separator difference, or a case difference on
+/// Windows, otherwise returned an empty page instead of that session's edits.
+///
+/// Widening is safe here because this only ever selects among sessions the
+/// loader already returned for this project. It cannot reach a file outside it.
+///
+/// Named rather than inlined so the decision can be tested directly, the same
+/// reason `existence_from_metadata` is its own function.
+fn session_path_matches(candidate: &str, wanted: &str) -> bool {
+    file_identity(candidate) == file_identity(wanted)
+}
+
+/// Whether `file_path` sits inside the directory described by `root_parts`.
+fn path_is_within(file_path: &str, root_parts: &[String]) -> bool {
+    let parts = comparable_path_parts(file_path);
+    parts.len() > root_parts.len() && parts.starts_with(root_parts)
+}
+
+/// Whether a file is on disk, as far as one `stat` can tell.
+///
+/// `None` means unknown, which the frontend renders differently from absent.
+/// A permission error, a disconnected network drive or any transient I/O
+/// failure is not evidence that the file was deleted, and reporting one as
+/// absent hides a file that exists behind the missing-only filter.
+fn existence_from_metadata(probe: std::io::Result<fs::Metadata>) -> Option<bool> {
+    match probe {
+        Ok(_) => Some(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some(false),
+        Err(_) => None,
+    }
+}
+
 fn paginate_recent_edits(
     all_edits: Vec<RecentFileEdit>,
     project_cwd: Option<String>,
     offset: usize,
     limit: usize,
+    grouping: EditsGrouping,
 ) -> PaginatedRecentEdits {
-    // Filter edits to only include files within the project directory
-    // Use case-insensitive comparison on Windows for path matching
+    // Filter edits to only include files within the project directory.
     let filtered_edits: Vec<RecentFileEdit> = if let Some(ref cwd) = project_cwd {
-        #[cfg(target_os = "windows")]
-        let cwd_normalized = cwd.to_lowercase();
-        #[cfg(not(target_os = "windows"))]
-        let cwd_normalized = cwd.clone();
+        let cwd_parts = comparable_path_parts(cwd);
 
         all_edits
             .into_iter()
-            .filter(|edit| {
-                #[cfg(target_os = "windows")]
-                let file_path_normalized = edit.file_path.to_lowercase();
-                #[cfg(not(target_os = "windows"))]
-                let file_path_normalized = edit.file_path.clone();
-
-                file_path_normalized.starts_with(&cwd_normalized)
-            })
+            .filter(|edit| path_is_within(&edit.file_path, &cwd_parts))
             .collect()
     } else {
         all_edits
@@ -484,26 +586,75 @@ fn paginate_recent_edits(
 
     let total_edits_count = filtered_edits.len();
 
-    // Sort by timestamp descending (newest first)
+    // Sort by timestamp descending (newest first), breaking ties on the path so
+    // the order is total. With only the timestamp as key, edits sharing an
+    // instant (one tool call writing several files) tie in `HashMap` iteration
+    // order, which differs between requests: page 2 could then repeat a row
+    // from page 1 and silently drop another.
     let mut sorted_edits = filtered_edits;
-    sorted_edits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    sorted_edits.sort_by(|a, b| {
+        b.timestamp
+            .cmp(&a.timestamp)
+            .then_with(|| a.file_path.cmp(&b.file_path))
+            .then_with(|| a.message_uuid.cmp(&b.message_uuid))
+    });
 
-    // Group by file_path and keep only the LATEST edit for each file
-    let mut latest_by_file: HashMap<String, RecentFileEdit> = HashMap::new();
-    for edit in sorted_edits {
-        latest_by_file.entry(edit.file_path.clone()).or_insert(edit);
-    }
+    // Reported in both groupings, so a caller can always say how many distinct
+    // files a session or project touched.
+    //
+    // Keyed on the same platform-aware identity that `path_is_within` uses, not
+    // the raw string. On Windows `C:\Repo\a.rs` and `c:/repo/a.rs` are one file;
+    // keying on the string counted them twice and produced two rows for it.
+    let unique_files_count = sorted_edits
+        .iter()
+        .map(|edit| file_identity(&edit.file_path))
+        .collect::<HashSet<_>>()
+        .len();
 
-    let unique_files_count = latest_by_file.len();
+    let files: Vec<RecentFileEdit> = match grouping {
+        // Chronological: every edit event stands on its own, so a file edited
+        // three times appears three times.
+        EditsGrouping::Edit => sorted_edits,
+        // Latest state: keep only the newest edit per file. `sorted_edits` is
+        // already newest-first, so the first entry seen per path wins.
+        EditsGrouping::File => {
+            // Keyed on the normalized identity for the same reason as the count
+            // above, while each row keeps its own `file_path` for display.
+            let mut latest_by_file: HashMap<String, RecentFileEdit> = HashMap::new();
+            for edit in sorted_edits {
+                latest_by_file
+                    .entry(file_identity(&edit.file_path))
+                    .or_insert(edit);
+            }
+            let mut files: Vec<RecentFileEdit> = latest_by_file.into_values().collect();
+            // Same total order as above; `into_values()` yields hash order.
+            files.sort_by(|a, b| {
+                b.timestamp
+                    .cmp(&a.timestamp)
+                    .then_with(|| a.file_path.cmp(&b.file_path))
+            });
+            files
+        }
+    };
 
-    // Convert to Vec and sort by timestamp descending
-    let mut files: Vec<RecentFileEdit> = latest_by_file.into_values().collect();
-    files.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    // `has_more` has to count against whatever the active grouping paginates.
+    let population = match grouping {
+        EditsGrouping::Edit => total_edits_count,
+        EditsGrouping::File => unique_files_count,
+    };
 
     // Apply pagination
-    let paginated_files: Vec<RecentFileEdit> = files.into_iter().skip(offset).take(limit).collect();
+    let mut paginated_files: Vec<RecentFileEdit> =
+        files.into_iter().skip(offset).take(limit).collect();
 
-    let has_more = offset + paginated_files.len() < unique_files_count;
+    // Resolve existence only for the rows actually being returned. At a limit
+    // of 20 that is 20 stat calls rather than one per raw edit, which matters
+    // on a network or cloud-synced drive.
+    for edit in &mut paginated_files {
+        edit.exists_on_disk = existence_from_metadata(fs::metadata(&edit.file_path));
+    }
+
+    let has_more = offset + paginated_files.len() < population;
 
     PaginatedRecentEdits {
         files: paginated_files,
@@ -521,6 +672,8 @@ fn get_provider_recent_edits(
     project_path: &str,
     offset: usize,
     limit: usize,
+    grouping: EditsGrouping,
+    session_file_path: Option<&str>,
 ) -> Result<PaginatedRecentEdits, String> {
     let project_cwd = resolve_provider_project_cwd(provider, project_path);
 
@@ -531,6 +684,17 @@ fn get_provider_recent_edits(
         EditsProvider::Claude => {
             return Err("Claude provider should use legacy edits path".to_string())
         }
+    };
+
+    // Session scope applies to providers too. Without this the panel would show
+    // the whole project while its header said "Session", and would pay for the
+    // full scan as well.
+    let sessions: Vec<_> = match session_file_path {
+        Some(wanted) => sessions
+            .into_iter()
+            .filter(|session| session_path_matches(&session.file_path, wanted))
+            .collect(),
+        None => sessions,
     };
 
     let mut all_edits = Vec::new();
@@ -547,7 +711,13 @@ fn get_provider_recent_edits(
         ));
     }
 
-    Ok(paginate_recent_edits(all_edits, project_cwd, offset, limit))
+    Ok(paginate_recent_edits(
+        all_edits,
+        project_cwd,
+        offset,
+        limit,
+        grouping,
+    ))
 }
 
 /// Paginated response for recent edits
@@ -562,31 +732,172 @@ pub struct PaginatedRecentEdits {
     pub has_more: bool,
 }
 
-/// Scan all JSONL files in a project and extract recent file edits/writes
-/// Returns the LATEST content for each unique file path, sorted by timestamp descending
-/// Only includes files that belong to the project's working directory
-/// Supports pagination with offset and limit parameters
+/// Confirm a caller-supplied session file really sits inside the project it
+/// claims to belong to.
+///
+/// Modelled on `restore_file`'s validation: reject null bytes and traversal
+/// segments up front as a cheap gate, then canonicalize both sides and compare,
+/// so a symlink cannot smuggle a path out of the project either.
+fn validate_session_file_in_project(
+    session_file_path: &str,
+    project_path: &str,
+) -> Result<PathBuf, String> {
+    if session_file_path.contains('\0') {
+        return Err("Invalid session file path: contains null bytes".to_string());
+    }
+
+    let candidate = Path::new(session_file_path);
+    for component in candidate.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err("Invalid session file path: path traversal not allowed".to_string());
+        }
+    }
+
+    // Require the same extension the directory walk requires. Without this any
+    // file inside the project can be mmapped and scanned line by line: the
+    // parsed result is harmless, but a multi-GB file costs a full read, and
+    // under `--serve` a remote caller chooses the target.
+    if candidate.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+        return Err("Invalid session file path: expected a .jsonl file".to_string());
+    }
+
+    // Reject a symlink outright, matching the policy `decode_project_path_verified`
+    // already applies to project directories. `canonicalize` would happily follow
+    // one out of the project and then report the resolved name as fine.
+    if fs::symlink_metadata(candidate)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("Invalid session file path: symlinks are not allowed".to_string());
+    }
+
+    // The check above reports on the final component only: `symlink_metadata`
+    // resolves the intermediate directories before it stats the last one. So
+    // `project/link/session.jsonl` passed while the directory walk in
+    // `get_recent_edits` skipped that very file, because `walkdir` does not
+    // descend a symlinked directory. Containment held either way; what differed
+    // was the policy, and the two entry points now agree.
+    //
+    // Deliberately bounded at the project root. Walking every component up to
+    // `/` would reject legitimate paths whenever an ancestor of the project is
+    // itself a symlink, which is the ordinary case on macOS where `/var` links
+    // to `/private/var`. Components above the root are not the caller's to
+    // choose: the project path comes from the app's own scan, while everything
+    // below it can be named by a `--serve` caller.
+    //
+    // This closes the policy gap, not the TOCTOU recorded below. The path is
+    // still reopened by name afterwards.
+    let project_root = fs::canonicalize(project_path)
+        .map_err(|e| format!("Failed to resolve project path: {e}"))?;
+
+    // The boundary is compared on normalized parts, never on the raw string. A
+    // lexical prefix test over caller-supplied bytes is fail-open: a different
+    // separator, or a different case on Windows, makes the test false, skips
+    // every symlink check below, and then still satisfies the containment test
+    // at the end once both sides are canonicalized. That hands the policy back
+    // to the exact caller it defends against. Refusing a spelling that cannot be
+    // placed under the root fails closed instead, and reuses the same
+    // normalization `path_is_within` and `file_identity` already apply.
+    let root_parts = comparable_path_parts(project_path);
+    let candidate_parts = comparable_path_parts(&candidate.to_string_lossy());
+    if candidate_parts.len() <= root_parts.len() || !candidate_parts.starts_with(&root_parts) {
+        return Err("Invalid session file path: outside the project directory".to_string());
+    }
+
+    // Walked downward from the resolved root, one component at a time, so each
+    // intermediate directory is stat'd as itself rather than through the
+    // resolution of the whole path.
+    let mut walked = project_root.clone();
+    for part in &candidate_parts[root_parts.len()..] {
+        walked.push(part);
+        if fs::symlink_metadata(&walked)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            return Err("Invalid session file path: symlinks are not allowed".to_string());
+        }
+    }
+    let resolved = fs::canonicalize(candidate)
+        .map_err(|e| format!("Failed to resolve session file path: {e}"))?;
+
+    if !resolved.starts_with(&project_root) {
+        return Err("Invalid session file path: outside the project directory".to_string());
+    }
+
+    // Residual risk, accepted and recorded rather than silently ignored: the
+    // caller reopens this path by name, so an entry swapped between here and
+    // `File::open` would not be caught. Closing that fully means handing an open
+    // handle down to `process_session_file_for_edits`, which is a larger change
+    // than this belongs to. The remaining window needs a local attacker with
+    // write access to the user's own session directory.
+    Ok(resolved)
+}
+
+/// Scan a project's JSONL files and extract recent file edits/writes.
+///
+/// By default this returns the LATEST content for each unique file path, sorted
+/// by timestamp descending, limited to files inside the project's working
+/// directory, and paginated.
+///
+/// `session_file_path` narrows the scan to a single session file. That is both
+/// faster (one mmap instead of a walk over every session in the project) and
+/// more correct than filtering by session id: `actual_session_id` is only the
+/// first id found in a file, so a resumed session whose id changes mid-file
+/// would silently lose edits under id matching.
+///
+/// `grouping` selects the reduction: "file" (default) for one row per file,
+/// "edit" for one row per edit event.
 #[tauri::command]
 pub async fn get_recent_edits(
     project_path: String,
     offset: Option<usize>,
     limit: Option<usize>,
+    session_file_path: Option<String>,
+    grouping: Option<String>,
 ) -> Result<PaginatedRecentEdits, String> {
     let offset = offset.unwrap_or(0);
-    let limit = limit.unwrap_or(20);
+    // Clamped because each returned row costs an `fs::metadata` call for
+    // `exists_on_disk`. An unbounded caller-supplied limit turns one request
+    // into an unbounded synchronous stat loop, which stalls the app and is a
+    // remote stall vector under `--serve`.
+    //
+    // Zero is rejected rather than clamped into range. It yields an empty page
+    // while `has_more` keeps counting the population against the offset, so a
+    // caller paging by `files.len()` never advances and re-requests the same
+    // empty page forever. Coercing it to 1 would paper over that caller bug
+    // silently; the same untrusted-input reasoning as the clamp says to name it.
+    let limit = match limit {
+        Some(0) => return Err("Invalid limit: must be greater than zero".to_string()),
+        Some(requested) => requested.min(MAX_PAGE_LIMIT),
+        None => DEFAULT_PAGE_LIMIT,
+    };
+    let grouping = EditsGrouping::from_param(grouping.as_deref());
     let provider = detect_project_provider(&project_path);
 
     if provider != EditsProvider::Claude {
-        return get_provider_recent_edits(provider, &project_path, offset, limit);
+        return get_provider_recent_edits(
+            provider,
+            &project_path,
+            offset,
+            limit,
+            grouping,
+            session_file_path.as_deref(),
+        );
     }
 
-    // Phase 1: Collect all session files
-    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    // Phase 1: Collect the session files to scan
+    let session_files: Vec<PathBuf> = match session_file_path.as_deref() {
+        Some(path) => vec![validate_session_file_in_project(path, &project_path)?],
+        None => WalkDir::new(&project_path)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+            // Same symlink policy as the single-file path above. Without it the
+            // two entry points disagree about what is in the project.
+            .filter(|e| !e.path_is_symlink())
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+            .map(|e| e.path().to_path_buf())
+            .collect(),
+    };
 
     // Phase 2: Process files in parallel
     let file_results: Vec<SessionEditsResult> = session_files
@@ -612,7 +923,13 @@ pub async fn get_recent_edits(
         .max_by_key(|(_, count)| *count)
         .map(|(cwd, _)| cwd);
 
-    Ok(paginate_recent_edits(all_edits, project_cwd, offset, limit))
+    Ok(paginate_recent_edits(
+        all_edits,
+        project_cwd,
+        offset,
+        limit,
+        grouping,
+    ))
 }
 
 /// Restore a file by writing content to the specified path
@@ -674,6 +991,703 @@ mod tests {
         let mut file = File::create(&file_path).unwrap();
         file.write_all(content.as_bytes()).unwrap();
         file_path
+    }
+
+    // ------------------------------------------------------------------
+    // Recent Edits panel: session scoping, grouping, and the two new fields
+    // ------------------------------------------------------------------
+
+    /// One JSONL record describing a file write, built through `serde_json` so
+    /// Windows path separators are escaped correctly.
+    fn write_record(uuid: &str, session: &str, ts: &str, cwd: &Path, file: &Path) -> String {
+        serde_json::json!({
+            "uuid": uuid,
+            "sessionId": session,
+            "timestamp": ts,
+            "type": "user",
+            "cwd": cwd.to_string_lossy(),
+            "toolUseResult": {
+                "type": "create",
+                "filePath": file.to_string_lossy(),
+                "content": format!("contents written at {ts}"),
+            }
+        })
+        .to_string()
+    }
+
+    /// Two sessions in one project. Session A touches `alpha.txt` twice and
+    /// `beta.txt` once; session B touches `gamma.txt` once.
+    fn project_with_two_sessions() -> (TempDir, PathBuf, PathBuf) {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+
+        let session_a = create_test_jsonl_file(
+            &dir,
+            "session-a.jsonl",
+            &[
+                write_record(
+                    "u1",
+                    "sa",
+                    "2026-08-21T10:00:00Z",
+                    &root,
+                    &root.join("alpha.txt"),
+                ),
+                write_record(
+                    "u2",
+                    "sa",
+                    "2026-08-21T11:00:00Z",
+                    &root,
+                    &root.join("beta.txt"),
+                ),
+                write_record(
+                    "u3",
+                    "sa",
+                    "2026-08-21T12:00:00Z",
+                    &root,
+                    &root.join("alpha.txt"),
+                ),
+            ]
+            .join("\n"),
+        );
+        let session_b = create_test_jsonl_file(
+            &dir,
+            "session-b.jsonl",
+            &write_record(
+                "u4",
+                "sb",
+                "2026-08-21T13:00:00Z",
+                &root,
+                &root.join("gamma.txt"),
+            ),
+        );
+
+        (dir, session_a, session_b)
+    }
+
+    #[tokio::test]
+    async fn test_absent_params_reproduce_the_previous_shape() {
+        let (dir, _a, _b) = project_with_two_sessions();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        // 4 raw edits, deduped to 3 unique files, newest first.
+        assert_eq!(result.total_edits_count, 4);
+        assert_eq!(result.unique_files_count, 3);
+        assert_eq!(result.files.len(), 3);
+        assert!(!result.has_more);
+        assert!(result.files[0].file_path.ends_with("gamma.txt"));
+    }
+
+    #[tokio::test]
+    async fn test_session_file_path_scopes_to_one_session() {
+        let (dir, session_a, _b) = project_with_two_sessions();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            Some(session_a.to_string_lossy().to_string()),
+            None,
+        )
+        .await
+        .unwrap();
+
+        // Session A never touched gamma.txt.
+        assert_eq!(result.total_edits_count, 3);
+        assert_eq!(result.unique_files_count, 2);
+        assert!(
+            result
+                .files
+                .iter()
+                .all(|edit| !edit.file_path.ends_with("gamma.txt")),
+            "session scope leaked an edit from another session"
+        );
+    }
+
+    // ---- regressions from the Codex adversarial review ----
+
+    #[test]
+    fn test_containment_rejects_traversal_and_sibling_prefixes() {
+        // A raw string prefix accepts both of these. The edit paths come from
+        // session logs rather than a filesystem walk, so they can contain
+        // traversal segments, and `/repository` starts with `/repo`.
+        let root = comparable_path_parts("/repo");
+
+        assert!(path_is_within("/repo/src/main.rs", &root));
+        assert!(!path_is_within("/repo/../secret.json", &root));
+        assert!(!path_is_within("/repository/secret.json", &root));
+        assert!(
+            !path_is_within("/repo", &root),
+            "the root is not inside itself"
+        );
+
+        // Windows separators split on every platform, so these two hold
+        // everywhere.
+        let win_root = comparable_path_parts(r"C:\repo");
+        assert!(path_is_within(r"C:\repo\src\main.rs", &win_root));
+        assert!(!path_is_within(r"C:\repo\..\secret.json", &win_root));
+
+        // Case folding is Windows-only: `comparable_path_parts` lowercases
+        // under `cfg(target_os = "windows")` because POSIX paths are
+        // case-sensitive. Asserting it unconditionally passes locally on
+        // Windows and fails on CI's Linux, which is exactly what happened.
+        #[cfg(target_os = "windows")]
+        assert!(path_is_within(r"c:\repo\src\main.rs", &win_root));
+    }
+
+    #[tokio::test]
+    async fn test_equal_timestamps_paginate_without_repeating_or_dropping() {
+        // Ties used to fall back on `HashMap` iteration order, which differs
+        // between requests, so page 2 could repeat a row from page 1 and lose
+        // another. One tool call writing several files produces exactly this.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        let lines: Vec<String> = (0..25)
+            .map(|i| {
+                write_record(
+                    &format!("u{i}"),
+                    "sa",
+                    "2026-08-21T10:00:00Z",
+                    &root,
+                    &root.join(format!("file-{i:02}.txt")),
+                )
+            })
+            .collect();
+        create_test_jsonl_file(&dir, "tied.jsonl", &lines.join("\n"));
+        let path = root.to_string_lossy().to_string();
+
+        let mut seen: Vec<String> = Vec::new();
+        for offset in [0usize, 20usize] {
+            let page = get_recent_edits(path.clone(), Some(offset), Some(20), None, None)
+                .await
+                .unwrap();
+            seen.extend(page.files.iter().map(|e| e.file_path.clone()));
+        }
+
+        let unique: HashSet<&String> = seen.iter().collect();
+        assert_eq!(seen.len(), 25, "both pages together must cover every file");
+        assert_eq!(
+            unique.len(),
+            25,
+            "no file may appear on two pages: {seen:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_limit_is_clamped() {
+        // Each returned row costs a stat call, so an unbounded caller-supplied
+        // limit is an unbounded synchronous syscall loop.
+        let (dir, _a, _b) = project_with_two_sessions();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            Some(usize::MAX),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            result.limit <= MAX_PAGE_LIMIT,
+            "limit {} was not clamped",
+            result.limit
+        );
+    }
+
+    #[tokio::test]
+    async fn test_zero_limit_is_rejected() {
+        // R10. A zero limit returns no rows, but `has_more` counts the
+        // population against the offset rather than the page, so it stays true
+        // while the page is empty. A caller that advances by `files.len()`
+        // advances by nothing and re-requests the same empty page forever.
+        //
+        // Rejected rather than coerced: the clamp above already treats a
+        // caller-supplied limit as untrusted input under `--serve`, and a
+        // silent coercion would hide the caller's bug instead of naming it.
+        let (dir, _a, _b) = project_with_two_sessions();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            Some(0),
+            None,
+            None,
+        )
+        .await;
+
+        let message = result.expect_err("a zero limit was accepted");
+        assert!(
+            message.contains("limit"),
+            "error should name the offending parameter, got {message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_session_file_path_survives_a_session_id_change_mid_file() {
+        // A resumed session can write a different `sessionId` partway through
+        // the same JSONL. `actual_session_id` only ever reports the first id in
+        // the file, so filtering by id would silently drop everything after the
+        // change. Scanning by file path is immune to that, and this pins it.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+
+        let resumed = create_test_jsonl_file(
+            &dir,
+            "resumed.jsonl",
+            &[
+                write_record(
+                    "u1",
+                    "session-before-resume",
+                    "2026-08-21T10:00:00Z",
+                    &root,
+                    &root.join("before.txt"),
+                ),
+                write_record(
+                    "u2",
+                    "session-after-resume",
+                    "2026-08-21T11:00:00Z",
+                    &root,
+                    &root.join("after.txt"),
+                ),
+            ]
+            .join("\n"),
+        );
+
+        let result = get_recent_edits(
+            root.to_string_lossy().to_string(),
+            None,
+            None,
+            Some(resumed.to_string_lossy().to_string()),
+            None,
+        )
+        .await
+        .unwrap();
+
+        let names: Vec<&str> = result
+            .files
+            .iter()
+            .map(|edit| edit.file_path.as_str())
+            .collect();
+        assert_eq!(
+            result.files.len(),
+            2,
+            "both halves of a resumed session must survive: {names:?}"
+        );
+        assert!(names.iter().any(|p| p.ends_with("before.txt")));
+        assert!(names.iter().any(|p| p.ends_with("after.txt")));
+
+        // The ids really did differ, so this is not a vacuous assertion.
+        let ids: HashSet<&str> = result
+            .files
+            .iter()
+            .map(|edit| edit.session_id.as_str())
+            .collect();
+        assert_eq!(
+            ids.len(),
+            2,
+            "fixture must contain two distinct session ids"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_session_file_path_requires_a_jsonl_extension() {
+        // The directory walk filters on the extension; the single-file path did
+        // not, so any file in the project could be mmapped and scanned line by
+        // line. Harmless output, unbounded cost, and remotely chosen under
+        // `--serve`.
+        let (dir, _a, _b) = project_with_two_sessions();
+        let other = dir.path().join("notes.txt");
+        fs::write(&other, "not a session file").unwrap();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            Some(other.to_string_lossy().to_string()),
+            None,
+        )
+        .await;
+
+        assert!(result.is_err(), "a non-jsonl file must be refused");
+    }
+
+    #[test]
+    fn test_file_identity_folds_separator_and_windows_case() {
+        // Grouping keyed on the raw string counted one file twice whenever two
+        // records spelled the same path differently.
+        assert_eq!(
+            file_identity("/repo/src/a.rs"),
+            file_identity(r"/repo/src/a.rs")
+        );
+        assert_eq!(file_identity("/repo/src/a.rs"), "repo/src/a.rs");
+
+        #[cfg(target_os = "windows")]
+        assert_eq!(
+            file_identity(r"C:\Repo\src\a.rs"),
+            file_identity("c:/repo/src/a.rs")
+        );
+    }
+
+    #[test]
+    fn test_session_scope_matches_across_separator_spellings() {
+        // R11. The provider scope filter compared the loaded session's path to
+        // the requested one with raw `==`. Inside the app both sides come from
+        // the same loader and agree, but a caller under `--serve` spells the
+        // path itself, and a separator difference returned an empty page rather
+        // than that session's edits.
+        assert!(session_path_matches(
+            "/proj/sessions/a.jsonl",
+            r"\proj\sessions\a.jsonl"
+        ));
+
+        // Still a filter, so a genuinely different session must not match.
+        assert!(!session_path_matches(
+            "/proj/sessions/a.jsonl",
+            "/proj/sessions/b.jsonl"
+        ));
+
+        // Case folds only where the filesystem folds it. Asserting the Windows
+        // behaviour everywhere would require matching the wrong file on Linux,
+        // where `a.jsonl` and `A.jsonl` are two different sessions.
+        #[cfg(target_os = "windows")]
+        assert!(session_path_matches(
+            r"C:\Proj\Sessions\A.jsonl",
+            "c:/proj/sessions/a.jsonl"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_session_file_path_outside_the_project_is_rejected() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let outside = TempDir::new().unwrap();
+        let stray = create_test_jsonl_file(&outside, "stray.jsonl", "{}");
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            Some(stray.to_string_lossy().to_string()),
+            None,
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "a path outside the project must be refused"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_session_file_path_with_traversal_is_rejected() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let traversal = dir
+            .path()
+            .join("..")
+            .join("escape.jsonl")
+            .to_string_lossy()
+            .to_string();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            Some(traversal),
+            None,
+        )
+        .await;
+
+        assert!(result.is_err(), "a traversal segment must be refused");
+    }
+
+    // Unix-gated the same way the other symlink tests in this repo are: creating
+    // one on Windows needs a privilege ordinary test runs do not have. CI's
+    // ubuntu job runs it.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_session_file_path_through_a_symlinked_directory_is_rejected() {
+        // R12. `symlink_metadata` resolves the intermediate components before
+        // reporting on the final one, so a symlinked directory mid-path passed
+        // the single check while `walkdir` refused to descend that same
+        // directory. Both entry points must agree on what is in the project.
+        let (dir, session_a, _b) = project_with_two_sessions();
+
+        let real = dir.path().join("real");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::copy(&session_a, real.join("s.jsonl")).unwrap();
+
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            Some(link.join("s.jsonl").to_string_lossy().to_string()),
+            None,
+        )
+        .await;
+
+        let message = result.expect_err("a path through a symlinked directory was accepted");
+        assert!(
+            message.contains("symlink"),
+            "expected the symlink policy to refuse it, got {message}"
+        );
+    }
+
+    #[cfg(unix)]
+    const ONE_EDIT_LINE: &str = r#"{"uuid":"u1","sessionId":"s1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","cwd":"/test/project","toolUse":{"name":"Write","input":{"file_path":"/test/project/a.rs","content":"x"}}}"#;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_a_symlinked_project_root_is_tolerated() {
+        // The project root itself being a symlink is fine: the walk starts at
+        // its resolved form, so the link is never one of the components it
+        // inspects. Distinct from the ancestor case below, which was what an
+        // earlier version of this test claimed to cover and did not.
+        let outer = TempDir::new().unwrap();
+        let real_root = outer.path().join("real_root");
+        std::fs::create_dir_all(&real_root).unwrap();
+        std::fs::write(real_root.join("s.jsonl"), ONE_EDIT_LINE).unwrap();
+
+        let linked_root = outer.path().join("linked_root");
+        std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
+
+        let result = get_recent_edits(
+            linked_root.to_string_lossy().to_string(),
+            None,
+            None,
+            Some(linked_root.join("s.jsonl").to_string_lossy().to_string()),
+            None,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "a symlinked project root must not be refused: {:?}",
+            result.err()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_a_symlinked_ancestor_above_the_project_is_tolerated() {
+        // A genuine ancestor: `link` is above the project root, and the root
+        // itself is an ordinary directory reached through it. This is the macOS
+        // shape, where `/var` links to `/private/var`. Walking to `/` would
+        // refuse it and break session scoping for those users entirely.
+        let outer = TempDir::new().unwrap();
+        let real = outer.path().join("real");
+        let real_proj = real.join("proj");
+        std::fs::create_dir_all(&real_proj).unwrap();
+        std::fs::write(real_proj.join("s.jsonl"), ONE_EDIT_LINE).unwrap();
+
+        let link = outer.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let project = link.join("proj");
+        let result = get_recent_edits(
+            project.to_string_lossy().to_string(),
+            None,
+            None,
+            Some(project.join("s.jsonl").to_string_lossy().to_string()),
+            None,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "a symlinked ancestor above the project root must not be refused: {:?}",
+            result.err()
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[tokio::test]
+    async fn test_a_differently_cased_spelling_stays_under_the_policy() {
+        // The boundary that bounds the symlink walk is compared on normalized
+        // parts. Were it a raw lexical prefix test, this spelling would fail it,
+        // skip the walk entirely, and still pass containment once canonicalized
+        // - handing the policy back to the caller it defends against. Now it is
+        // placed under the root and validated like any other spelling.
+        let (dir, session_a, _b) = project_with_two_sessions();
+        // Lowercased, not uppercased: the extension gate above requires a
+        // literal `jsonl`, so uppercasing would test that gate instead of this
+        // boundary.
+        let recased = session_a.to_string_lossy().to_lowercase();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            Some(recased),
+            None,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "a differently cased spelling must still resolve under the project: {:?}",
+            result.err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_edit_grouping_keeps_every_edit_newest_first() {
+        let (dir, _a, _b) = project_with_two_sessions();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            Some("edit".to_string()),
+        )
+        .await
+        .unwrap();
+
+        // alpha.txt was edited twice, so it appears twice.
+        assert_eq!(result.files.len(), 4);
+        assert_eq!(
+            result.unique_files_count, 3,
+            "unique count is still reported"
+        );
+        let alpha = result
+            .files
+            .iter()
+            .filter(|e| e.file_path.ends_with("alpha.txt"))
+            .count();
+        assert_eq!(alpha, 2);
+
+        let timestamps: Vec<&str> = result.files.iter().map(|e| e.timestamp.as_str()).collect();
+        let mut sorted = timestamps.clone();
+        sorted.sort_unstable();
+        sorted.reverse();
+        assert_eq!(timestamps, sorted, "edits must be newest first");
+    }
+
+    #[tokio::test]
+    async fn test_has_more_follows_the_active_grouping() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let path = dir.path().to_string_lossy().to_string();
+
+        // 3 unique files: a page of 3 is the whole set.
+        let by_file = get_recent_edits(path.clone(), Some(0), Some(3), None, None)
+            .await
+            .unwrap();
+        assert!(!by_file.has_more);
+
+        // 4 raw edits: the same page size leaves one behind.
+        let by_edit = get_recent_edits(path, Some(0), Some(3), None, Some("edit".to_string()))
+            .await
+            .unwrap();
+        assert!(by_edit.has_more);
+    }
+
+    #[tokio::test]
+    async fn test_message_uuid_is_carried_through() {
+        let (dir, _a, _b) = project_with_two_sessions();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            Some("edit".to_string()),
+        )
+        .await
+        .unwrap();
+
+        let uuids: Vec<Option<&str>> = result
+            .files
+            .iter()
+            .map(|e| e.message_uuid.as_deref())
+            .collect();
+        assert!(
+            uuids.iter().all(Option::is_some),
+            "every Claude edit should carry the uuid of its log entry: {uuids:?}"
+        );
+        assert_eq!(result.files[0].message_uuid.as_deref(), Some("u4"));
+    }
+
+    #[tokio::test]
+    async fn test_exists_on_disk_reflects_the_filesystem() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        // alpha.txt is on disk; beta.txt and gamma.txt were never created.
+        fs::write(dir.path().join("alpha.txt"), "still here").unwrap();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        for edit in &result.files {
+            let expected = edit.file_path.ends_with("alpha.txt");
+            assert_eq!(
+                edit.exists_on_disk,
+                Some(expected),
+                "wrong exists_on_disk for {}",
+                edit.file_path
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_exists_on_disk_is_only_computed_for_returned_rows() {
+        let (dir, _a, _b) = project_with_two_sessions();
+
+        let result = get_recent_edits(
+            dir.path().to_string_lossy().to_string(),
+            Some(0),
+            Some(1),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        // The stat cost is bounded by `limit`, not by the number of raw edits,
+        // so exactly the returned row carries a resolved value.
+        assert_eq!(result.files.len(), 1);
+        assert!(result.files[0].exists_on_disk.is_some());
+    }
+
+    #[test]
+    fn test_existence_is_unknown_when_a_file_cannot_be_read() {
+        let dir = TempDir::new().unwrap();
+        let present = dir.path().join("present.txt");
+        fs::write(&present, "x").unwrap();
+        assert_eq!(existence_from_metadata(fs::metadata(&present)), Some(true));
+
+        // NotFound is the only error that actually means "not there".
+        assert_eq!(
+            existence_from_metadata(Err(std::io::Error::from(std::io::ErrorKind::NotFound))),
+            Some(false)
+        );
+
+        // Everything else is unknown. Reporting a permission error as absent
+        // told the user a file had been deleted and hid it behind the
+        // missing-only filter.
+        assert_eq!(
+            existence_from_metadata(Err(std::io::Error::from(
+                std::io::ErrorKind::PermissionDenied
+            ))),
+            None
+        );
     }
 
     // Test restore_file security validations
@@ -776,8 +1790,14 @@ mod tests {
     async fn test_get_recent_edits_empty_dir() {
         let temp_dir = TempDir::new().unwrap();
 
-        let result =
-            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result = get_recent_edits(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -794,8 +1814,14 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","cwd":"/test/project","toolUse":{"name":"Write","input":{"file_path":"/test/project/src/main.rs","content":"fn main() {}"}}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result =
-            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result = get_recent_edits(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -812,8 +1838,14 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/src/lib.rs","oldString":"old","newString":"new","originalFile":"old code here"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result =
-            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result = get_recent_edits(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -830,8 +1862,14 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/src/mod.rs","edits":[{"old_string":"old1","new_string":"new1"},{"old_string":"old2","new_string":"new2"}],"originalFile":"old1 old2"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result =
-            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result = get_recent_edits(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -848,8 +1886,14 @@ mod tests {
 {"uuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/test/project/file.txt","oldString":"v2","newString":"v3","originalFile":"v2"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result =
-            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result = get_recent_edits(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -870,8 +1914,14 @@ mod tests {
         let content = r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"/test/project","toolUseResult":{"type":"create","filePath":"/test/project/new_file.rs","content":"pub fn new() {}"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result =
-            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result = get_recent_edits(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();
@@ -893,8 +1943,14 @@ mod tests {
 {"uuid":"uuid-3","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","cwd":"/test/project","toolUseResult":{"filePath":"/other/location/file3.txt","oldString":"old","newString":"new","originalFile":"old"}}"#;
         create_test_jsonl_file(&temp_dir, "session.jsonl", content);
 
-        let result =
-            get_recent_edits(temp_dir.path().to_string_lossy().to_string(), None, None).await;
+        let result = get_recent_edits(
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
 
         assert!(result.is_ok());
         let edits_result = result.unwrap();

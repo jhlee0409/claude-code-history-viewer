@@ -12,6 +12,16 @@ pub struct RecentFileEdit {
     pub lines_added: usize,
     pub lines_removed: usize,
     pub cwd: Option<String>, // Working directory when edit was made
+    /// UUID of the log entry this edit came from, used by the frontend to jump
+    /// back to the originating message. `None` where the source record carries
+    /// no identity of its own.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_uuid: Option<String>,
+    /// Whether the file is still present on disk. `None` until resolved, which
+    /// happens after pagination so the stat cost is bounded by `limit` rather
+    /// than by the number of raw edits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exists_on_disk: Option<bool>,
 }
 
 /// Result container for recent edits query
@@ -39,6 +49,8 @@ mod tests {
             lines_added: 5,
             lines_removed: 3,
             cwd: Some("/path/to".to_string()),
+            message_uuid: Some("uuid-abc".to_string()),
+            exists_on_disk: Some(true),
         };
 
         let serialized = serde_json::to_string(&edit).unwrap();
@@ -52,6 +64,8 @@ mod tests {
             deserialized.original_content,
             Some("old content".to_string())
         );
+        assert_eq!(deserialized.message_uuid, Some("uuid-abc".to_string()));
+        assert_eq!(deserialized.exists_on_disk, Some(true));
     }
 
     #[test]
@@ -66,6 +80,8 @@ mod tests {
             lines_added: 1,
             lines_removed: 0,
             cwd: None,
+            message_uuid: None,
+            exists_on_disk: None,
         };
 
         let serialized = serde_json::to_string(&edit).unwrap();
@@ -90,6 +106,8 @@ mod tests {
                     lines_added: 1,
                     lines_removed: 0,
                     cwd: Some("/project".to_string()),
+                    message_uuid: None,
+                    exists_on_disk: None,
                 },
                 RecentFileEdit {
                     file_path: "/file2.rs".to_string(),
@@ -101,6 +119,8 @@ mod tests {
                     lines_added: 2,
                     lines_removed: 0,
                     cwd: Some("/project".to_string()),
+                    message_uuid: None,
+                    exists_on_disk: None,
                 },
             ],
             total_edits_count: 5,

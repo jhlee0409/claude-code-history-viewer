@@ -339,6 +339,21 @@ function App() {
     direction: "left",
   });
 
+  // Recent Edits dock resize (right side, sibling of the navigator).
+  // Wider than the navigator's 280 by default: the row carries a filename, line
+  // counts and a time on one line.
+  const {
+    width: recentEditsDockWidth,
+    isResizing: isRecentEditsDockResizing,
+    handleMouseDown: handleRecentEditsDockResizeStart,
+  } = useResizablePanel({
+    defaultWidth: 340,
+    minWidth: 260,
+    maxWidth: 520,
+    storageKey: "recent-edits-width",
+    direction: "left",
+  });
+
   const handleGlobalStatsClick = useCallback(() => {
     setIsViewingGlobalStats(true);
     clearProjectSelection();
@@ -539,6 +554,9 @@ function App() {
       handleNavigatorResizeStart={handleNavigatorResizeStart}
       isNavigatorOpen={isNavigatorOpen}
       toggleNavigator={toggleNavigator}
+      recentEditsDockWidth={recentEditsDockWidth}
+      isRecentEditsDockResizing={isRecentEditsDockResizing}
+      handleRecentEditsDockResizeStart={handleRecentEditsDockResizeStart}
       groupingMode={groupingMode}
       worktreeGroups={worktreeGroups}
       directoryGroups={directoryGroups}

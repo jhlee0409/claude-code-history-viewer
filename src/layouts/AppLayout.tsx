@@ -19,6 +19,9 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ProjectTree } from "@/components/ProjectTree";
 import { MessageViewer } from "@/components/MessageViewer";
 import { MessageNavigator } from "@/components/MessageNavigator";
+import { PanelDock } from "@/components/PanelDock";
+import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
+import { RecentEditsViewToggle } from "@/components/RecentEditsViewer/RecentEditsViewToggle";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { RecentEditsViewer } from "@/components/RecentEditsViewer";
@@ -31,6 +34,7 @@ import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "@/layouts/Header/SettingDropdown/ModalContainer";
 import { DesktopOnly } from "@/contexts/platform";
+import { useIsXlUp } from "@/hooks/useMediaQuery";
 import {
   AppErrorType,
   type ClaudeMessage,
@@ -105,6 +109,11 @@ export interface AppLayoutProps {
   handleNavigatorResizeStart: (e: React.MouseEvent<HTMLElement>) => void;
   isNavigatorOpen: boolean;
   toggleNavigator: () => void;
+  recentEditsDockWidth: number;
+  isRecentEditsDockResizing: boolean;
+  handleRecentEditsDockResizeStart: (
+    e: React.MouseEvent<HTMLElement>
+  ) => void;
 
   // Grouping
   groupingMode: GroupingMode;
@@ -143,6 +152,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   // Loaded window may be partial under message pagination — used to render
   // the "+" suffix on the message count.
   const hasMoreMessages = useAppStore((s) => s.pagination.hasMore);
+  // The dock is panel state, not layout state, so it is read from the store
+  // rather than threaded through props like the navigator's older toggle.
+  const isRecentEditsDockOpen = useAppStore((s) => s.isRecentEditsDockOpen);
   const {
     projects,
     sessions,
@@ -187,6 +199,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     handleNavigatorResizeStart,
     isNavigatorOpen,
     toggleNavigator,
+    recentEditsDockWidth,
+    isRecentEditsDockResizing,
+    handleRecentEditsDockResizeStart,
     groupingMode,
     worktreeGroups,
     directoryGroups,
@@ -214,6 +229,25 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     liveStatusMessage,
   } = props;
 
+  // Called before the early returns below, as hook order must not vary.
+  const isXlUp = useIsXlUp();
+  const recentEditsDockStats = useAppStore((s) => s.recentEditsDock);
+  const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
+  const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
+  const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
+
+  /*
+    The return trip out of the dock. Mode is only a preference; what actually
+    decides what renders is `analytics.currentView`, so without the third call
+    the panel would simply vanish and leave the user on the transcript, which is
+    not what choosing "Page" promises.
+  */
+  const handleUndockRecentEdits = () => {
+    setRecentEditsMode("page");
+    setRecentEditsDockOpen(false);
+    setAnalyticsCurrentView("recentEdits");
+  };
+
   // Error State
   if (error && error.type !== AppErrorType.CLAUDE_FOLDER_NOT_FOUND) {
     return (
@@ -236,6 +270,112 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
       </div>
     );
   }
+
+  /*
+    Built once and rendered from two places: beside a transcript, and beside the
+    "select a session" placeholder. The panel already degrades on its own -
+    `effectiveScope` falls back to "project" with no session, and its request is
+    keyed on the selected project alone - so a project's recent edits stay
+    readable while the user is still choosing which session to open.
+
+    Gated at xl (1280px), not md. The sidebar (256) plus the navigator (280)
+    plus this dock (340) is 876px of fixed chrome: at md (768) that leaves the
+    transcript nothing at all. 1280 leaves it ~404px, which is the narrowest
+    width this layout was actually reviewed at.
+  */
+  /*
+    The dock renders in the transcript branch only, with a session or without
+    one, so the skip link has to track exactly that condition. Keying the link
+    to `selectedSession` was wrong in both directions once the dock stopped
+    needing a session: it hid the link while the panel was on screen, and it
+    left the link pointing at `#recent-edits-dock` on the views that never
+    render a dock at all.
+
+    Derived once and read by both, so the anchor and its target cannot drift
+    apart again. Matching the branch itself rather than testing for the messages
+    view, because global stats renders the analytics branch through a flag of
+    its own rather than through `currentView`.
+  */
+  const isTranscriptView = !(
+    computed.isArchiveView ||
+    computed.isSettingsView ||
+    computed.isBoardView ||
+    computed.isRecentEditsView ||
+    computed.isAnalyticsView ||
+    isViewingGlobalStats ||
+    computed.isTokenStatsView
+  );
+  /*
+    Gated on `xl` in JavaScript, not merely in CSS. The wrapper below is
+    `hidden xl:block`, but a hidden wrapper still mounts its children, so
+    between 768 and 1279 the panel used to mount, run its effect and fetch a
+    page for a dock nobody could see. `useIsMobile` only reaches to 767, so it
+    was never the right gate for an `xl` surface.
+
+    Gated on a selected project too. Without one the panel issues no request,
+    but it still reads the store, so it would render the previous project's
+    edits in a view where no project is selected. That only became reachable
+    once the dock stopped requiring a session.
+  */
+  const showRecentEditsDock =
+    isXlUp &&
+    Boolean(selectedProject) &&
+    isRecentEditsDockOpen &&
+    isTranscriptView;
+
+  const recentEditsDock = showRecentEditsDock ? (
+      <div className="hidden xl:block">
+        <PanelDock
+          asideId="recent-edits-dock"
+          isResizing={isRecentEditsDockResizing}
+          onResizeStart={(_group, event) =>
+            handleRecentEditsDockResizeStart(event)
+          }
+          groups={[
+            {
+              tabs: ["recentEdits"],
+              activeTab: "recentEdits",
+              size: recentEditsDockWidth,
+            },
+          ]}
+          panels={{
+            recentEdits: {
+              id: "recentEdits",
+              title: t("recentEdits.title"),
+              /*
+                The same mark the full page uses, scaled to a panel header.
+                Without it the dock read as anonymous text where every other
+                surface in the app leads with an icon in a tinted tile.
+              */
+              icon: (
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/20">
+                  <FileEdit className="h-4 w-4 text-accent" aria-hidden="true" />
+                </span>
+              ),
+              /*
+                The same summary the full page shows, from the same counts, so
+                switching between the two shapes does not change what the header
+                tells you. Omitted until a result arrives rather than rendered as
+                zeroes, which would read as "this project has no edits".
+              */
+              subtitle: recentEditsDockStats
+                ? t("recentEdits.stats", {
+                    files: recentEditsDockStats.uniqueFilesCount,
+                    edits: recentEditsDockStats.totalEditsCount,
+                  })
+                : undefined,
+              headerAction: (
+                <RecentEditsViewToggle
+                  value="sidebar"
+                  onChange={(next) => next === "page" && handleUndockRecentEdits()}
+                />
+              ),
+              render: () => <RecentEditsPanel />,
+            },
+          }}
+        />
+      </div>
+    ) : null;
 
   return (
     <TooltipProvider>
@@ -261,6 +401,16 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               defaultValue: "Skip to main content",
             })}
           </a>
+          {showRecentEditsDock && (
+            <a
+              href="#recent-edits-dock"
+              className="absolute left-[35rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
+            >
+              {t("common.a11y.skipToRecentEdits", {
+                defaultValue: "Skip to recent edits",
+              })}
+            </a>
+          )}
           {!isMobile && isNavigatorOpen && selectedSession && (
             <a
               href="#message-navigator"
@@ -605,21 +755,37 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                       asideId="message-navigator"
                     />
                   </div>
+                  {/*
+                    Outermost on the right, after the navigator rather than
+                    before it. The navigator is an outline OF the transcript, so
+                    it belongs against the transcript it indexes; the dock is a
+                    separate surface about the project and sits outside it.
+                  */}
+                  {recentEditsDock}
                 </div>
               ) : (
-                /* Empty State */
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center max-w-sm mx-auto">
-                    <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
-                      <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+                /*
+                  Empty State. The dock stays mounted here: a project is already
+                  chosen at this point, only a session is not, and the panel
+                  scopes itself to the project on its own. Unmounting it meant a
+                  refresh that cleared the session also blanked the one surface
+                  still able to say what the project had been touching.
+                */
+                <div className="h-full flex">
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center max-w-sm mx-auto">
+                      <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
+                        <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+                      </div>
+                      <h3 className="text-lg font-medium text-foreground mb-2">
+                        {t("session.select")}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {t("session.selectDescription")}
+                      </p>
                     </div>
-                    <h3 className="text-lg font-medium text-foreground mb-2">
-                      {t("session.select")}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {t("session.selectDescription")}
-                    </p>
                   </div>
+                  {recentEditsDock}
                 </div>
               )}
             </div>
