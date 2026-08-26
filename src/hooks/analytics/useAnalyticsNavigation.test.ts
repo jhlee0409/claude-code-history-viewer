@@ -946,3 +946,119 @@ describe("recent-edits cache invalidation on file change", () => {
     ).toBe(false);
   });
 });
+
+/**
+ * #517. The list and the cursor that describes it were two separate writes, and
+ * `refreshAllConversations` only made the first. Replacing 60 loaded rows with
+ * page 1 while leaving the cursor at 60 meant the next "Show More" fetched from
+ * 60 and stapled that page onto rows 1-20, losing everything between.
+ *
+ * #514 removed the symptom by deriving the load-more offset from the rows
+ * actually held, so the stale cursor no longer decides where the next page
+ * starts. What was left is the cursor's own `offset` and `hasMore` describing a
+ * list that no longer exists, which ends pagination early or late.
+ *
+ * These pin the invariant rather than any one call site: a wholesale write of
+ * the list carries its cursor with it, so the two cannot be written apart.
+ */
+describe("recent-edits list and cursor are written together", () => {
+  beforeEach(() => {
+    fetchRecentEdits.mockReset();
+    useAppStore.setState({ selectedProject: null, selectedSession: null });
+    useAppStore.getState().resetAnalytics();
+  });
+
+  const twoPagesLoaded = () =>
+    useAppStore.setState((state) => ({
+      analytics: {
+        ...state.analytics,
+        recentEditsPagination: {
+          totalEditsCount: 100,
+          uniqueFilesCount: 100,
+          offset: 60,
+          limit: 20,
+          hasMore: true,
+          isLoadingMore: false,
+        },
+      },
+    }));
+
+  it("resets the cursor when the list is replaced wholesale", () => {
+    const p = project("alpha");
+    twoPagesLoaded();
+
+    useAppStore.getState().setAnalyticsRecentEdits(
+      {
+        files: payload(p.actual_path).files,
+        total_edits_count: 42,
+        unique_files_count: 40,
+        project_cwd: p.actual_path,
+        offset: 0,
+        limit: 20,
+        has_more: true,
+      },
+      p.path
+    );
+
+    const pagination = useAppStore.getState().analytics.recentEditsPagination;
+    expect(pagination.offset).toBe(0);
+    expect(pagination.hasMore).toBe(true);
+    expect(pagination.totalEditsCount).toBe(42);
+    expect(pagination.uniqueFilesCount).toBe(40);
+    // A replacement is not a load-more, so it must never leave the flag raised.
+    expect(pagination.isLoadingMore).toBe(false);
+  });
+
+  it("carries has_more=false through, so pagination ends when the page says so", () => {
+    const p = project("alpha");
+    twoPagesLoaded();
+
+    useAppStore.getState().setAnalyticsRecentEdits(
+      {
+        files: payload(p.actual_path).files,
+        total_edits_count: 1,
+        unique_files_count: 1,
+        project_cwd: p.actual_path,
+        offset: 0,
+        limit: 20,
+        has_more: false,
+      },
+      p.path
+    );
+
+    expect(
+      useAppStore.getState().analytics.recentEditsPagination.hasMore
+    ).toBe(false);
+  });
+
+  it("resets the cursor when the list is cleared", () => {
+    // `refreshAnalytics` clears the list before refetching. A cursor left
+    // pointing into the old list is as wrong here as after a replacement.
+    twoPagesLoaded();
+
+    useAppStore.getState().setAnalyticsRecentEdits(null);
+
+    const pagination = useAppStore.getState().analytics.recentEditsPagination;
+    expect(useAppStore.getState().analytics.recentEdits).toBeNull();
+    expect(pagination.offset).toBe(0);
+    expect(pagination.hasMore).toBe(false);
+    expect(pagination.totalEditsCount).toBe(0);
+  });
+
+  it("leaves the switch-to-view path writing the cursor exactly once", async () => {
+    const p = project("alpha");
+    fetchRecentEdits.mockResolvedValue(payload(p.actual_path));
+    useAppStore.setState({ selectedProject: p });
+
+    const { result } = renderHook(() => useAnalyticsNavigation());
+    await act(async () => {
+      await result.current.switchToRecentEdits();
+    });
+
+    const pagination = useAppStore.getState().analytics.recentEditsPagination;
+    expect(pagination.offset).toBe(0);
+    expect(pagination.limit).toBe(20);
+    expect(pagination.hasMore).toBe(false);
+    expect(pagination.uniqueFilesCount).toBe(1);
+  });
+});

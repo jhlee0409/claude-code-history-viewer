@@ -15,7 +15,7 @@ import type {
   SessionComparison,
   GlobalStatsSummary,
   SearchFilters,
-  RecentEditsResult,
+  PaginatedRecentEdits,
   UserMetadata,
   SessionMetadata,
   ProjectMetadata,
@@ -297,7 +297,10 @@ export interface AppStoreActions {
   setAnalyticsLoadingSessionComparison: (loading: boolean) => void;
   setAnalyticsProjectSummaryError: (error: string | null) => void;
   setAnalyticsSessionComparisonError: (error: string | null) => void;
-  setAnalyticsRecentEdits: (edits: RecentEditsResult | null) => void;
+  setAnalyticsRecentEdits: (
+    page: PaginatedRecentEdits | null,
+    requestedProjectPath?: string
+  ) => void;
   setAnalyticsRecentEditsSearchQuery: (query: string) => void;
   setAnalyticsLoadingRecentEdits: (loading: boolean) => void;
   setAnalyticsRecentEditsError: (error: string | null) => void;
