@@ -105,9 +105,23 @@ describe("providers utils", () => {
 
   it("returns the kimi resume subcommand for kimi sessions", () => {
     expect(getProviderLabel((key, fallback) => `${key}:${fallback}`, "kimi")).toBe(
-      "common.provider.kimi:Kimi CLI"
+      "common.provider.kimi:Kimi"
     );
     expect(getResumeCommand("kimi", "abc-123")).toBe("kimi -r abc-123");
+  });
+
+  it("uses the kimi-code -S resume flag for kimi-code sessions", () => {
+    // The kimi-code CLI has no `-r`; it resumes with `-S/--session`. Legacy
+    // kimi-cli sessions carry no entrypoint and keep `-r`.
+    expect(
+      getResumeCommand("kimi", "session_abc-123", undefined, "kimi-code-cli")
+    ).toBe("kimi -S session_abc-123");
+    expect(
+      getResumeCommand("kimi", "session_abc-123", undefined, "kimi-code-vscode")
+    ).toBe("kimi -S session_abc-123");
+    expect(getResumeCommand("kimi", "abc-123", undefined, undefined)).toBe(
+      "kimi -r abc-123"
+    );
   });
 
   it("returns the vibe resume flag for vibe sessions", () => {
