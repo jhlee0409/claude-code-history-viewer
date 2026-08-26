@@ -26,6 +26,7 @@
   "recentEdits.noEditsDescription": "このプロジェクトでファイルの編集や作成が見つかりません",
   "recentEdits.noLinesToShow": "表示する行がありません",
   "recentEdits.noMissingFiles": "見つからないファイルはありません",
+  "recentEdits.noProjectSelected": "プロジェクトを選択すると、その編集が表示されます",
   "recentEdits.noSearchResults": "検索に一致するファイルがありません",
   "recentEdits.panelOptions": "パネルオプション",
   "recentEdits.projectRoot": "プロジェクトルート",

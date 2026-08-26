@@ -817,6 +817,11 @@ export const createProjectSlice: StateCreator<
     get().clearTokenStats();
     get().resetAnalytics();
     get().clearBoard();
+    // The docked Recent Edits panel outlives the selection - it stays open
+    // because open-ness is the user's choice - so its rows have to be dropped
+    // here. Otherwise the panel keeps rendering the deselected project's
+    // edits.
+    get().clearRecentEditsDock();
     get().setDateFilter({ start: null, end: null });
     get().clearTargetMessage();
     get().exitSessionSelectionMode();

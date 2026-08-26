@@ -173,6 +173,18 @@ export interface RecentEditsPanelSliceActions {
   loadRecentEditsDock: (request: RecentEditsDockRequest) => Promise<void>;
   loadMoreRecentEditsDock: (request: RecentEditsDockRequest) => Promise<void>;
   /**
+   * Drop the fetched page and everything derived from it, leaving the
+   * persisted preferences alone. Called when the project selection is cleared:
+   * the dock stays open because open-ness is the user's choice, but the rows
+   * belong to a project that is no longer selected and must not be shown under
+   * the next one.
+   *
+   * Nulling the requested key also disowns any fetch still in flight, so a
+   * response that lands after the reset is discarded instead of repopulating
+   * the panel.
+   */
+  clearRecentEditsDock: () => void;
+  /**
    * Mark one row as present on disk again after a successful restore, without
    * refetching the page and scrolling the list out from under the user.
    */
@@ -348,6 +360,19 @@ export const createRecentEditsPanelSlice: StateCreator<
         set({ isLoadingRecentEditsDock: false });
       }
     }
+  },
+
+  clearRecentEditsDock: () => {
+    set({
+      recentEditsDock: null,
+      // Disowns any in-flight fetch: its response no longer matches the key
+      // the slice is holding, so it is dropped rather than landing on a panel
+      // whose project has gone away.
+      recentEditsDockRequestedKey: null,
+      isLoadingRecentEditsDock: false,
+      isLoadingMoreRecentEditsDock: false,
+      recentEditsDockError: null,
+    });
   },
 
   markRecentEditsDockFileRestored: (filePath) =>

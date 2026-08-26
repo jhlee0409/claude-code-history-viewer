@@ -312,16 +312,16 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     page for a dock nobody could see. `useIsMobile` only reaches to 767, so it
     was never the right gate for an `xl` surface.
 
-    Gated on a selected project too. Without one the panel issues no request,
-    but it still reads the store, so it would render the previous project's
-    edits in a view where no project is selected. That only became reachable
-    once the dock stopped requiring a session.
+    Deliberately NOT gated on a selected project. Clicking the selected project
+    in the tree collapses and deselects it, and gating here meant the whole rail
+    vanished on a click the user made to collapse a node - the panel is a
+    workspace fixture, so it stays put and shows its own empty state instead.
+    The stale-rows problem that gate was solving is handled at the source:
+    `clearProjectSelection` drops the dock's fetched page, so there is nothing
+    left of the old project to render.
   */
   const showRecentEditsDock =
-    isXlUp &&
-    Boolean(selectedProject) &&
-    isRecentEditsDockOpen &&
-    isTranscriptView;
+    isXlUp && isRecentEditsDockOpen && isTranscriptView;
 
   const recentEditsDock = showRecentEditsDock ? (
       <div className="hidden xl:block">

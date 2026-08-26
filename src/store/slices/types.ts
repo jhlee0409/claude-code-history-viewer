@@ -424,6 +424,7 @@ export interface AppStoreActions {
   loadMoreRecentEditsDock: (
     request: import('./recentEditsPanelSlice').RecentEditsDockRequest
   ) => Promise<void>;
+  clearRecentEditsDock: () => void;
   markRecentEditsDockFileRestored: (filePath: string) => void;
 
   // Provider actions

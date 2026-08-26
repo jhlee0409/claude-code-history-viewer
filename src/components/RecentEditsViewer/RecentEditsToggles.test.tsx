@@ -46,7 +46,11 @@ describe("RecentEditsScopeToggle", () => {
     // the panel being broken rather than as one mode being unavailable.
     const onChange = vi.fn();
     const { container } = render(
-      <RecentEditsScopeToggle value="project" onChange={onChange} disabled />
+      <RecentEditsScopeToggle
+        value="project"
+        onChange={onChange}
+        sessionDisabled
+      />
     );
 
     const session = screen.getByRole("button", { name: "Session" });
@@ -66,6 +70,37 @@ describe("RecentEditsScopeToggle", () => {
     // reliably fire the events a native tooltip needs.
     expect(
       container.querySelector('[title="Select a session to scope edits to it"]')
+    ).toBeTruthy();
+  });
+
+  it("disables both buttons when there is no project either", () => {
+    // The dock outlives the project selection, so this state is reachable:
+    // collapsing the selected project in the tree deselects it while the panel
+    // stays open. Neither scope resolves without a project, and the hint has to
+    // name the project rather than the session - telling someone to pick a
+    // session is useless advice when they have not picked a project.
+    const onChange = vi.fn();
+    const { container } = render(
+      <RecentEditsScopeToggle
+        value="project"
+        onChange={onChange}
+        sessionDisabled
+        projectDisabled
+      />
+    );
+
+    const session = screen.getByRole("button", { name: "Session" });
+    const project = screen.getByRole("button", { name: "Project" });
+
+    expect(session.hasAttribute("disabled")).toBe(true);
+    expect(project.hasAttribute("disabled")).toBe(true);
+
+    fireEvent.click(session);
+    fireEvent.click(project);
+    expect(onChange).not.toHaveBeenCalled();
+
+    expect(
+      container.querySelector('[title="Select a project first"]')
     ).toBeTruthy();
   });
 });

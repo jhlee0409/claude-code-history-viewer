@@ -26,6 +26,7 @@
   "recentEdits.noEditsDescription": "在此项目中未找到文件编辑或创建记录",
   "recentEdits.noLinesToShow": "没有可显示的行",
   "recentEdits.noMissingFiles": "没有缺失的文件",
+  "recentEdits.noProjectSelected": "选择一个项目后即可查看其编辑记录",
   "recentEdits.noSearchResults": "没有匹配搜索的文件",
   "recentEdits.panelOptions": "面板选项",
   "recentEdits.projectRoot": "项目根目录",
