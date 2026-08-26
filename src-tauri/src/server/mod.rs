@@ -773,29 +773,113 @@ mod tests {
     use axum::body::Body;
     use tower::ServiceExt;
 
+    /// Somewhere no export allowlist would ever cover.
+    #[cfg(test)]
+    fn restore_gate_probe_path() -> std::path::PathBuf {
+        std::env::temp_dir().join("ccv-restore-gate-probe.txt")
+    }
+
     /// The write side of the allowlist, which for a long while had no guard at
     /// all while `read_text_file` beside it enforced one. Over `--serve` a
     /// request could overwrite any reachable file while being refused
     /// permission to read that same path.
     #[test]
-    fn test_restore_write_is_unrestricted_only_on_loopback() {
+    fn test_restore_write_is_unrestricted_only_when_permitted() {
         use crate::server::handlers::restore_write_allowed;
 
-        // Somewhere no allowlist would ever cover.
-        let outside = std::env::temp_dir().join("ccv-restore-gate-probe.txt");
+        let outside = restore_gate_probe_path();
 
         assert!(
             restore_write_allowed(true, &outside).is_ok(),
-            "on loopback the caller is this machine, so restoring anywhere is \
-             what the desktop app already does"
+            "an authenticated loopback server is this app on this machine, so \
+             restoring anywhere is what the desktop app already does"
         );
 
         let refused = restore_write_allowed(false, &outside);
         assert!(
             refused.is_err(),
-            "bound to a routable address the caller is someone else, so the \
-             same allowlist the read path uses must apply"
+            "otherwise the caller is someone else, so the same allowlist the \
+             read path uses must apply"
         );
+    }
+
+    /// Loopback alone must not open the gate. With `--no-auth` the router
+    /// installs `allow_origin(Any)`, so any page the user has open can POST to
+    /// `127.0.0.1`; and `--no-auth` needs no extra flag on a loopback host.
+    #[test]
+    fn test_restore_write_needs_auth_as_well_as_loopback() {
+        use crate::server::handlers::restore_write_is_unrestricted;
+
+        let authenticated_loopback = state_with(true, Some("a-token"));
+        assert!(
+            restore_write_is_unrestricted(&authenticated_loopback),
+            "the case the carve-out exists for must keep working"
+        );
+
+        let open_loopback = state_with(true, None);
+        assert!(
+            !restore_write_is_unrestricted(&open_loopback),
+            "--no-auth on loopback is reachable by any web page the user has \
+             open, so it is not the person at the keyboard"
+        );
+
+        let authenticated_routable = state_with(false, Some("a-token"));
+        assert!(
+            !restore_write_is_unrestricted(&authenticated_routable),
+            "an authenticated remote caller is still a remote caller"
+        );
+
+        assert!(!restore_write_is_unrestricted(&state_with(false, None)));
+    }
+
+    /// Pins the wiring, not just the predicate. Deleting the guard from the
+    /// handler leaves both tests above green, which is the failure mode a
+    /// pure-function test cannot see.
+    #[tokio::test]
+    async fn test_restore_endpoint_refuses_a_path_outside_the_allowlist() {
+        let state = state_with(false, None);
+        let app = build_router(state, "127.0.0.1", 3727, None, "/");
+
+        let body = serde_json::json!({
+            "filePath": restore_gate_probe_path().to_string_lossy(),
+            "content": "should never be written",
+        });
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/restore_file")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_ne!(
+            response.status(),
+            StatusCode::OK,
+            "the endpoint must refuse a path no allowlist covers"
+        );
+        assert!(
+            !restore_gate_probe_path().exists(),
+            "the refusal must happen before anything reaches the disk"
+        );
+    }
+
+    /// An `AppState` differing only in the two inputs the gate reads.
+    fn state_with(loopback_bind: bool, auth_token: Option<&str>) -> Arc<AppState> {
+        let state = test_state(auth_token);
+        let (event_tx, _rx) =
+            tokio::sync::broadcast::channel::<crate::commands::watcher::FileWatchEvent>(1);
+        Arc::new(AppState {
+            metadata: Arc::clone(&state.metadata),
+            start_time: state.start_time,
+            auth: state.auth.clone(),
+            read_only: state.read_only,
+            loopback_bind,
+            event_tx,
+        })
     }
 
     fn test_state(auth_token: Option<&str>) -> Arc<AppState> {

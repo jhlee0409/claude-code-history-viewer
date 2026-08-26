@@ -564,11 +564,36 @@ handler_json!(
 ///
 /// Named rather than inlined so the decision can be tested without standing up
 /// a router, the same reason `is_read_only_allowed_path` is its own function.
-pub(crate) fn restore_write_allowed(loopback_bind: bool, path: &Path) -> Result<(), String> {
-    if loopback_bind {
+///
+/// `unrestricted` is deliberately a decided boolean rather than the raw bind
+/// flag, so the one place that decides is the call site and this stays a pure
+/// predicate.
+pub(crate) fn restore_write_allowed(unrestricted: bool, path: &Path) -> Result<(), String> {
+    if unrestricted {
         return Ok(());
     }
     commands::claude_settings::is_safe_path(path)
+}
+
+/// Whether this server may write outside the export allowlist.
+///
+/// Loopback alone is not enough. "The caller is this machine" is only the same
+/// statement as "the caller is the person at the keyboard" while something
+/// proves the request came from this app: with `--no-auth` the router installs
+/// `allow_origin(Any)` (see `build_router`), so any page the user has open can
+/// preflight and then `POST /api/restore_file` at `127.0.0.1` with a path and a
+/// body of its choosing. `~/.zshrc`, or a hook in `~/.claude/settings.json`,
+/// makes that code execution.
+///
+/// `--no-auth` is also permitted on a loopback host without
+/// `--allow-unsafe-no-auth`, so that combination is not exotic — it is the one
+/// in the project's own `--serve` instructions.
+///
+/// Requiring both keeps the case the carve-out exists for (the desktop-like
+/// local session, authenticated, restoring a file in your own project) and
+/// drops the one it never meant to cover.
+pub(crate) fn restore_write_is_unrestricted(state: &AppState) -> bool {
+    state.loopback_bind && state.auth.is_enabled()
 }
 
 /// Write a file back to disk from a recorded edit.
@@ -582,12 +607,14 @@ pub(crate) fn restore_write_allowed(loopback_bind: bool, path: &Path) -> Result<
 /// being refused permission to *read* that same path. Writing is strictly the
 /// more dangerous of the two, so the guard belonged here first.
 ///
-/// The gate is the bind address rather than a blanket allowlist. On loopback the
-/// caller is this machine, so restoring a file anywhere is exactly what the
-/// desktop app already does through the OS dialog, and forcing the allowlist
-/// there would break restoring a file in your own project for no safety gained.
-/// Bound to a routable address the caller is someone else, and the same
-/// allowlist the read path uses applies.
+/// The gate is the bind address plus authentication rather than a blanket
+/// allowlist. On an authenticated loopback server the caller is this app on
+/// this machine, so restoring a file anywhere is exactly what the desktop app
+/// already does through the OS dialog, and forcing the allowlist there would
+/// break restoring a file in your own project for no safety gained. Bound to a
+/// routable address, or with auth off, the caller is someone else — possibly a
+/// web page — and the same allowlist the read path uses applies. See
+/// `restore_write_is_unrestricted`.
 ///
 /// Command-level validation (absolute path, no null bytes, no `..`, atomic
 /// write) still runs underneath in both cases; this only decides *where*.
@@ -595,7 +622,10 @@ pub async fn restore_file(
     State(state): State<Arc<AppState>>,
     Json(p): Json<RestoreFileParams>,
 ) -> Result<Json<Value>, ApiError> {
-    restore_write_allowed(state.loopback_bind, Path::new(&p.file_path))?;
+    restore_write_allowed(
+        restore_write_is_unrestricted(&state),
+        Path::new(&p.file_path),
+    )?;
 
     commands::session::restore_file(p.file_path, p.content)
         .await
