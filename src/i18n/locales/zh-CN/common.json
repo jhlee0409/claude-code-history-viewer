@@ -80,7 +80,7 @@
   "common.provider.gemini": "Gemini CLI",
   "common.provider.goose": "Goose",
   "common.provider.grok": "Grok CLI",
-  "common.provider.kimi": "Kimi CLI",
+  "common.provider.kimi": "Kimi",
   "common.provider.kiro": "Kiro CLI",
   "common.provider.llm": "llm",
   "common.provider.ompi": "oh-my-pi",

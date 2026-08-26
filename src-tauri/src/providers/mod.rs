@@ -21,6 +21,9 @@ pub mod gemini;
 pub mod goose;
 pub mod grok;
 pub mod kimi;
+/// Kimi Code (`~/.kimi-code`) layout — surfaced through the `kimi`
+/// provider, not a separate provider id.
+pub mod kimi_code;
 pub mod kiro;
 pub mod llm;
 pub mod ompi;
@@ -178,7 +181,7 @@ impl ProviderId {
             Self::Gemini => "Gemini CLI",
             Self::Goose => "Goose",
             Self::Grok => "Grok CLI",
-            Self::Kimi => "Kimi CLI",
+            Self::Kimi => "Kimi",
             Self::ForgeCode => "ForgeCode",
             Self::Kiro => "Kiro CLI",
             Self::Llm => "llm",

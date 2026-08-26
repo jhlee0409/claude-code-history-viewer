@@ -302,6 +302,7 @@ export interface AppStoreActions {
   setAnalyticsRecentEditsError: (error: string | null) => void;
   loadRecentEdits: (projectPath: string) => Promise<import("../../types").PaginatedRecentEdits>;
   loadMoreRecentEdits: (projectPath: string) => Promise<void>;
+  invalidateRecentEdits: (projectPath: string) => void;
   resetAnalytics: () => void;
   clearAnalyticsErrors: () => void;
 

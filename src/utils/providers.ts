@@ -34,7 +34,7 @@ const PROVIDER_TRANSLATIONS: Record<
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   goose: { key: "common.provider.goose", fallback: "Goose" },
   grok: { key: "common.provider.grok", fallback: "Grok CLI" },
-  kimi: { key: "common.provider.kimi", fallback: "Kimi CLI" },
+  kimi: { key: "common.provider.kimi", fallback: "Kimi" },
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
   llm: { key: "common.provider.llm", fallback: "llm" },
   ompi: { key: "common.provider.ompi", fallback: "oh-my-pi" },
@@ -373,6 +373,15 @@ function powershellQuotePath(p: string): string {
   return `'${p.replace(/'/g, "''")}'`;
 }
 
+/**
+ * Whether a session came from the kimi-code store rather than the legacy
+ * kimi-cli one. Both surface under the `kimi` provider id, so the entrypoint
+ * stamp (set only by the kimi-code scanner) is the discriminator.
+ */
+function isKimiCodeEntrypoint(entrypoint?: string): boolean {
+  return entrypoint === "kimi-code-cli" || entrypoint === "kimi-code-vscode";
+}
+
 export function getResumeCommand(
   provider: ProviderId | string | undefined,
   sessionId: string,
@@ -415,7 +424,12 @@ export function getResumeCommand(
       resume = `forge conversation resume ${sessionId}`;
       break;
     case "kimi":
-      resume = `kimi -r ${sessionId}`;
+      // One provider id, two stores: kimi-code (`~/.kimi-code`) resumes with
+      // `-S/--session` — its CLI has no `-r` — while the legacy kimi-cli store
+      // (`~/.kimi`, whose sessions carry no entrypoint) still uses `-r`.
+      resume = isKimiCodeEntrypoint(entrypoint)
+        ? `kimi -S ${sessionId}`
+        : `kimi -r ${sessionId}`;
       break;
     case "vibe":
       resume = `vibe --resume ${sessionId}`;

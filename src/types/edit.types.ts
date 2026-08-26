@@ -41,6 +41,19 @@ export interface RecentEditsResult {
   total_edits_count: number;
   unique_files_count: number;
   project_cwd?: string;
+  /**
+   * Cache identity: the `project.path` this result was fetched for. Camel-cased
+   * because the backend never sends it; the snake_case fields above mirror the
+   * payload.
+   *
+   * Do not cache-match on `project_cwd` instead. It is the most frequent `cwd`
+   * observed in the session logs, so it never equals `project.path`, and it is
+   * not reliably equal to `project.actual_path` either: they diverge for moved
+   * projects, for drive-letter case differences on Windows, and when sessions
+   * ran in a subdirectory of the project. It is also absent for providers with
+   * virtual paths.
+   */
+  requestedProjectPath?: string;
 }
 
 /**

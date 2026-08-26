@@ -58,6 +58,11 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
     if let Some(kimi_base) = crate::providers::kimi::get_base_path() {
         allowed.push(PathBuf::from(kimi_base).join("sessions"));
     }
+    // Kimi Code (the `~/.kimi-code` rewrite) sessions — surfaced through the
+    // same `kimi` provider.
+    if let Some(kimi_code_root) = crate::providers::kimi_code::default_root() {
+        allowed.push(kimi_code_root.join("sessions"));
+    }
     if let Some(vibe_base) = crate::providers::vibe::get_base_path() {
         allowed.push(PathBuf::from(vibe_base).join("logs/session"));
     }

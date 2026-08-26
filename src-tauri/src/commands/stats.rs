@@ -420,6 +420,9 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Grok
     } else if project_path.starts_with("kimi://") {
         StatsProvider::Kimi
+    } else if project_path.starts_with("kimi-code://") {
+        // Kimi Code workspaces surface through the kimi provider.
+        StatsProvider::Kimi
     } else if project_path.starts_with("gemini://") {
         StatsProvider::Gemini
     } else if project_path.starts_with("cursor://") {
@@ -632,9 +635,14 @@ fn is_codebuddy_path_under(path: &str, home: &Path) -> bool {
 }
 
 fn is_kimi_path(path: &str) -> bool {
+    // Covers the old CLI store (`~/.kimi`) and the kimi-code rewrite's
+    // `~/.kimi-code` sessions — both surface through the kimi provider.
     providers::kimi::get_base_path()
         .map(|root| Path::new(path).starts_with(root))
         .unwrap_or(false)
+        || providers::kimi_code::default_root()
+            .map(|root| Path::new(path).starts_with(root.join("sessions")))
+            .unwrap_or(false)
 }
 
 /// Whether `path` lies under the oh-my-pi sessions store root
@@ -2872,8 +2880,12 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                     return project.name;
                 }
             }
+            // Both stores answer to this provider id, so strip either
+            // scheme — otherwise a kimi-code workspace falls through and the
+            // whole `kimi-code://…` URI is shown as the project name.
             project_path
-                .strip_prefix("kimi://")
+                .strip_prefix(providers::kimi_code::SCHEME)
+                .or_else(|| project_path.strip_prefix("kimi://"))
                 .and_then(|p| {
                     PathBuf::from(p)
                         .file_name()
@@ -3025,7 +3037,18 @@ fn resolve_provider_project_name_from_session(
         }
         StatsProvider::Kimi => {
             if let Some(project_dir) = Path::new(session_path).parent() {
-                let project_path = format!("kimi://{}", project_dir.to_string_lossy());
+                // Kimi-code session dirs live under `~/.kimi-code/sessions`
+                // and group under `kimi-code://` workspace paths; the old
+                // CLI layout uses `kimi://`.
+                let scheme = if providers::kimi_code::default_root()
+                    .map(|root| project_dir.starts_with(root.join("sessions")))
+                    .unwrap_or(false)
+                {
+                    providers::kimi_code::SCHEME
+                } else {
+                    "kimi://"
+                };
+                let project_path = format!("{scheme}{}", project_dir.to_string_lossy());
                 return resolve_provider_project_name(provider, &project_path);
             }
             "kimi".to_string()
@@ -6035,6 +6058,10 @@ mod tests {
             StatsProvider::Kimi
         );
         assert_eq!(
+            detect_project_provider("kimi-code:///Users/jack/.kimi-code/sessions/wd_demo_abc123"),
+            StatsProvider::Kimi
+        );
+        assert_eq!(
             detect_project_provider("copilot-cli:///Users/jack/workspace"),
             StatsProvider::Copilot
         );
@@ -6578,6 +6605,20 @@ mod tests {
         assert_eq!(
             resolve_provider_project_name_from_session(StatsProvider::Kimi, session_path),
             "project-hash"
+        );
+    }
+
+    #[test]
+    fn test_kimi_code_project_name_falls_back_to_workspace_directory() {
+        // When the store is not scannable (no ~/.kimi-code on this machine,
+        // or the workspace was removed), the name falls back to the last
+        // path segment — which requires stripping the kimi-code scheme.
+        assert_eq!(
+            resolve_provider_project_name(
+                StatsProvider::Kimi,
+                "kimi-code:///tmp/.kimi-code/sessions/wd_demo_abc123"
+            ),
+            "wd_demo_abc123"
         );
     }
 
