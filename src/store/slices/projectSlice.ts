@@ -609,13 +609,13 @@ export const createProjectSlice: StateCreator<
         // while this was in flight, writing would show one project's edits
         // under another's identity.
         if (get().selectedProject?.path === refreshedProject.path) {
-          refreshedState.setAnalyticsRecentEdits({
-            files: recentEdits.files,
-            total_edits_count: recentEdits.total_edits_count,
-            unique_files_count: recentEdits.unique_files_count,
-            project_cwd: recentEdits.project_cwd,
-            requestedProjectPath: refreshedProject.path,
-          });
+          // The whole page, so the cursor is replaced along with the rows.
+          // Passing only the rows is what left the cursor at 60 while the list
+          // went back to page 1 (#517).
+          refreshedState.setAnalyticsRecentEdits(
+            recentEdits,
+            refreshedProject.path
+          );
         }
       } else if (refreshedState.analytics.currentView === "board") {
         refreshedState.clearBoard();

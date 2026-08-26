@@ -7,13 +7,12 @@
 import type {
   ProjectStatsSummary,
   SessionComparison,
-  RecentEditsResult,
   PaginatedRecentEdits,
   MetricMode,
   StatsMode,
 } from "../../types";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
-import { initialAnalyticsState } from "../../types/analytics";
+import { initialAnalyticsState, initialRecentEditsPagination } from "../../types/analytics";
 import type { StateCreator } from "zustand";
 import { toast } from "sonner";
 import type { FullAppStore } from "./types";
@@ -48,7 +47,10 @@ export interface AnalyticsSliceActions {
   setAnalyticsLoadingSessionComparison: (loading: boolean) => void;
   setAnalyticsProjectSummaryError: (error: string | null) => void;
   setAnalyticsSessionComparisonError: (error: string | null) => void;
-  setAnalyticsRecentEdits: (edits: RecentEditsResult | null) => void;
+  setAnalyticsRecentEdits: (
+    page: PaginatedRecentEdits | null,
+    requestedProjectPath?: string
+  ) => void;
   setAnalyticsRecentEditsSearchQuery: (query: string) => void;
   setAnalyticsLoadingRecentEdits: (loading: boolean) => void;
   setAnalyticsRecentEditsError: (error: string | null) => void;
@@ -171,11 +173,49 @@ export const createAnalyticsSlice: StateCreator<
     }));
   },
 
-  setAnalyticsRecentEdits: (edits: RecentEditsResult | null) => {
+  /**
+   * Replace the Recent Edits list, and the cursor that describes it, together.
+   *
+   * Takes the whole page rather than just its rows so the two cannot be written
+   * apart. They used to be two writes at each call site, and
+   * `refreshAllConversations` made only the first: 60 loaded rows were replaced
+   * with page 1 while the cursor stayed at 60, so the next page was fetched
+   * from 60 and stapled onto rows 1-20 (#517). Deriving the load-more offset
+   * from the rows actually held removed that symptom, but left `offset` and
+   * `hasMore` describing a list that no longer existed, which ends pagination
+   * early or late.
+   *
+   * `null` clears both. A cursor pointing into a list that has been cleared is
+   * as wrong as one pointing into a list that has been replaced.
+   */
+  setAnalyticsRecentEdits: (
+    page: PaginatedRecentEdits | null,
+    requestedProjectPath?: string
+  ) => {
     set((state) => ({
       analytics: {
         ...state.analytics,
-        recentEdits: edits,
+        recentEdits: page
+          ? {
+              files: page.files,
+              total_edits_count: page.total_edits_count,
+              unique_files_count: page.unique_files_count,
+              project_cwd: page.project_cwd,
+              requestedProjectPath,
+            }
+          : null,
+        recentEditsPagination: page
+          ? {
+              totalEditsCount: page.total_edits_count,
+              uniqueFilesCount: page.unique_files_count,
+              offset: page.offset,
+              limit: page.limit,
+              hasMore: page.has_more,
+              // A replacement is not a load-more, so it never leaves the flag
+              // raised — a stranded flag blocks every future page.
+              isLoadingMore: false,
+            }
+          : initialRecentEditsPagination,
         // Bumping here, rather than at each call site, is what makes the
         // generation true for all three writers of the cache without any of
         // them having to remember.

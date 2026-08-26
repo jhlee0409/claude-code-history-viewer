@@ -212,27 +212,10 @@ export function useAnalyticsNavigation() {
         return;
       }
 
-      setAnalyticsRecentEdits({
-        files: result.files,
-        total_edits_count: result.total_edits_count,
-        unique_files_count: result.unique_files_count,
-        project_cwd: result.project_cwd,
-        requestedProjectPath: project.path,
-      });
-
-      useAppStore.setState((state) => ({
-        analytics: {
-          ...state.analytics,
-          recentEditsPagination: {
-            totalEditsCount: result.total_edits_count,
-            uniqueFilesCount: result.unique_files_count,
-            offset: result.offset,
-            limit: result.limit,
-            hasMore: result.has_more,
-            isLoadingMore: false,
-          },
-        },
-      }));
+      // One write. The cursor used to be a second `setState` right here, which
+      // is the shape that let `refreshAllConversations` replace the list and
+      // forget the cursor (#517).
+      setAnalyticsRecentEdits(result, project.path);
     } catch (error) {
       const errorMessage =
         error instanceof Error
