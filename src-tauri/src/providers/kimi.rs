@@ -20,24 +20,23 @@ pub fn detect() -> Option<ProviderInfo> {
     // provider; a kimi-code-only install still counts (antigravity-cli
     // pattern) and its root becomes the reported base path.
     let code_available = super::kimi_code::is_available();
-    if let Some(base) = get_base_path() {
-        let sessions_path = Path::new(&base).join(SESSIONS_DIR);
-        if !code_available && !sessions_path.is_dir() {
-            return None;
-        }
-        return Some(ProviderInfo {
-            id: PROVIDER_ID.to_string(),
-            display_name: "Kimi".to_string(),
-            base_path: base,
-            is_available: true,
-        });
-    }
-    if !code_available {
-        return None;
-    }
-    let base = super::kimi_code::default_root()?
-        .to_string_lossy()
-        .to_string();
+
+    // Only report `~/.kimi` when it actually holds sessions. A bare `~/.kimi`
+    // next to a populated `~/.kimi-code` would otherwise hand every
+    // base_path-driven consumer a root with nothing under it.
+    let legacy_base = get_base_path().filter(|base| {
+        let sessions_path = Path::new(base).join(SESSIONS_DIR);
+        !is_symlink(&sessions_path) && sessions_path.is_dir()
+    });
+
+    let base = match legacy_base {
+        Some(base) => base,
+        None if code_available => super::kimi_code::default_root()?
+            .to_string_lossy()
+            .to_string(),
+        None => return None,
+    };
+
     Some(ProviderInfo {
         id: PROVIDER_ID.to_string(),
         display_name: "Kimi".to_string(),
@@ -301,16 +300,17 @@ pub fn load_messages_from_base_path(
 }
 
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
+    // Both stores are one provider in the UI, so each gets the full `limit`
+    // and they compete on recency. Handing kimi-code only the legacy store's
+    // leftovers starved it outright once `~/.kimi` filled the page. Mirrors
+    // the merge in `scan_projects`.
     let mut results = match get_base_path() {
         Some(base) => search_from_base_path(&base, query, limit)?,
         None => Vec::new(),
     };
-    // Kimi-code conversations carry real content — search them too.
-    if results.len() < limit {
-        let remaining = limit - results.len();
-        let code_results = super::kimi_code::search(query, remaining);
-        results.extend(code_results);
-    }
+    results.extend(super::kimi_code::search(query, limit));
+    results.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    results.truncate(limit);
     Ok(results)
 }
 
@@ -789,5 +789,195 @@ mod tests {
             return;
         }
         assert!(get_base_path().is_none());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Two-store fixtures: a legacy `~/.kimi` tree and a `~/.kimi-code` tree
+    // side by side, which is what `detect` and `search` have to reconcile.
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// A legacy session whose messages all carry `epoch_seconds`.
+    fn write_legacy_session(
+        base: &Path,
+        project: &str,
+        session: &str,
+        texts: &[&str],
+        epoch_seconds: f64,
+    ) {
+        let session_dir = base.join(SESSIONS_DIR).join(project).join(session);
+        fs::create_dir_all(&session_dir).expect("create legacy session dir");
+        let context: String = texts
+            .iter()
+            .map(|text| format!(r#"{{"role":"user","content":"{text}"}}"#))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(session_dir.join(CONTEXT_FILE), context).expect("write context.jsonl");
+        fs::write(
+            session_dir.join(WIRE_FILE),
+            format!(r#"{{"timestamp":{epoch_seconds}}}"#),
+        )
+        .expect("write wire.jsonl");
+    }
+
+    /// A kimi-code session holding one user message at `epoch_millis`.
+    fn write_code_session(
+        root: &Path,
+        workspace: &str,
+        session: &str,
+        text: &str,
+        epoch_millis: u64,
+    ) {
+        let wire_dir = root
+            .join("sessions")
+            .join(workspace)
+            .join(session)
+            .join("agents")
+            .join("main");
+        fs::create_dir_all(&wire_dir).expect("create kimi-code wire dir");
+        fs::write(
+            wire_dir.join("wire.jsonl"),
+            format!(
+                r#"{{"type":"context.append_message","message":{{"role":"user","content":[{{"type":"text","text":"{text}"}}],"toolCalls":[],"origin":{{"kind":"user"}},"id":"{session}_u1"}},"time":{epoch_millis}}}"#
+            ),
+        )
+        .expect("write kimi-code wire.jsonl");
+    }
+
+    #[test]
+    #[serial]
+    fn search_merges_both_stores_and_keeps_the_newest_within_limit() {
+        let temp = TempDir::new().unwrap();
+        let legacy = temp.path().join(".kimi");
+        let code = temp.path().join(".kimi-code");
+        fs::create_dir_all(&legacy).unwrap();
+        fs::create_dir_all(&code).unwrap();
+
+        // Legacy alone can fill the whole page — 2020 timestamps.
+        write_legacy_session(
+            &legacy,
+            "proj_old",
+            "sess_old",
+            &["needle one", "needle two", "needle three"],
+            1_600_000_000.0,
+        );
+        // Kimi-code holds strictly newer matches — 2026 timestamps.
+        for (i, ms) in [1_786_959_458_516u64, 1_786_959_558_516, 1_786_959_658_516]
+            .iter()
+            .enumerate()
+        {
+            write_code_session(
+                &code,
+                "wd_demo",
+                &format!("session_{i}"),
+                "needle in kimi code",
+                *ms,
+            );
+        }
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set("KIMI_CODE_HOME", code.as_os_str().to_owned());
+
+        let results = search("needle", 3).expect("search succeeds");
+
+        // The old leftovers-only wiring returned 4 results, only one of them
+        // from kimi-code. Both stores now compete for the same three slots.
+        assert_eq!(results.len(), 3, "limit is honoured across both stores");
+        assert!(
+            results.iter().all(|m| m.session_id.starts_with("session_")),
+            "newest three are the kimi-code hits, got: {:?}",
+            results.iter().map(|m| &m.session_id).collect::<Vec<_>>()
+        );
+        let timestamps: Vec<&str> = results.iter().map(|m| m.timestamp.as_str()).collect();
+        let mut sorted = timestamps.clone();
+        sorted.sort_by(|a, b| b.cmp(a));
+        assert_eq!(timestamps, sorted, "results are newest-first");
+    }
+
+    #[test]
+    #[serial]
+    fn search_still_returns_legacy_hits_when_kimi_code_is_absent() {
+        let temp = TempDir::new().unwrap();
+        let legacy = temp.path().join(".kimi");
+        fs::create_dir_all(&legacy).unwrap();
+        write_legacy_session(
+            &legacy,
+            "proj_old",
+            "sess_old",
+            &["needle one"],
+            1_600_000_000.0,
+        );
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set(
+            "KIMI_CODE_HOME",
+            temp.path().join("absent").as_os_str().to_owned(),
+        );
+
+        let results = search("needle", 10).expect("search succeeds");
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    #[serial]
+    fn detect_reports_the_kimi_code_root_when_legacy_has_no_sessions() {
+        let temp = TempDir::new().unwrap();
+        // `~/.kimi` exists but is empty — no `sessions/` under it.
+        let legacy = temp.path().join(".kimi");
+        let code = temp.path().join(".kimi-code");
+        fs::create_dir_all(&legacy).unwrap();
+        fs::create_dir_all(&code).unwrap();
+        write_code_session(&code, "wd_demo", "session_one", "hello", 1_786_959_458_516);
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set("KIMI_CODE_HOME", code.as_os_str().to_owned());
+
+        let info = detect().expect("kimi-code-only install is still the kimi provider");
+        assert_eq!(
+            PathBuf::from(info.base_path),
+            code.canonicalize().unwrap(),
+            "base_path must point at the store that actually holds data"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn detect_prefers_the_legacy_root_when_it_holds_sessions() {
+        let temp = TempDir::new().unwrap();
+        let legacy = temp.path().join(".kimi");
+        let code = temp.path().join(".kimi-code");
+        fs::create_dir_all(&legacy).unwrap();
+        fs::create_dir_all(&code).unwrap();
+        write_legacy_session(&legacy, "proj", "sess", &["hello"], 1_600_000_000.0);
+        write_code_session(&code, "wd_demo", "session_one", "hello", 1_786_959_458_516);
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set("KIMI_CODE_HOME", code.as_os_str().to_owned());
+
+        let info = detect().expect("legacy store is detected");
+        assert_eq!(
+            PathBuf::from(info.base_path),
+            legacy.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn detect_returns_none_when_neither_store_holds_sessions() {
+        let temp = TempDir::new().unwrap();
+        let legacy = temp.path().join(".kimi");
+        fs::create_dir_all(&legacy).unwrap();
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set(
+            "KIMI_CODE_HOME",
+            temp.path().join("absent").as_os_str().to_owned(),
+        );
+
+        assert!(detect().is_none());
     }
 }
