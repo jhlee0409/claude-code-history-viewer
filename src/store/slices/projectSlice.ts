@@ -641,7 +641,15 @@ export const createProjectSlice: StateCreator<
     // projects abandons any in-progress multi-selection and any session that
     // belonged to the project being left.
     get().exitSessionSelectionMode();
-    set({ selectedSession: null });
+    // Clearing the list belongs here, not in the reload. The outgoing
+    // project's rows must not linger under the incoming project's name.
+    set({
+      selectedSession: null,
+      sessions: [],
+      sessionsTotal: project.session_count,
+      sessionsOffset: 0,
+      hasMoreSessions: false,
+    });
     await get().reloadProjectSessions(project);
   },
 
@@ -663,15 +671,22 @@ export const createProjectSlice: StateCreator<
    */
   reloadProjectSessions: async (project: ClaudeProject) => {
     const requestId = nextRequestId("selectProject");
-    set({
+    set((state) => ({
       selectedProject: project,
-      sessions: [],
-      sessionsTotal: project.session_count,
-      sessionsOffset: 0,
-      hasMoreSessions: false,
-      isLoadingSessions: true,
+      // The rows already on screen stay until the new page arrives. Blanking
+      // here made the sidebar flash on every watcher tick: measured at 18 rows
+      // -> 1 -> 18 within 29ms for a single write, and a session Claude Code is
+      // actively writing produces a tick at least every 250ms.
+      //
+      // Only a caller that is changing projects clears the list, and
+      // `selectProject` does that itself before calling this.
+      //
+      // Likewise the spinner: it means "there is nothing to look at yet", so it
+      // is only raised when the list is in fact empty. Raising it over rows the
+      // user is already reading is the same flash by another name.
+      isLoadingSessions: state.sessions.length === 0,
       isLoadingMoreSessions: false,
-    });
+    }));
     try {
       const provider = project.provider ?? "claude";
       const page = await api<SessionPage>("load_provider_sessions_page", {
