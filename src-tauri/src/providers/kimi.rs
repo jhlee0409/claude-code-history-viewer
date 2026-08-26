@@ -20,21 +20,32 @@ pub fn detect() -> Option<ProviderInfo> {
     // provider; a kimi-code-only install still counts (antigravity-cli
     // pattern) and its root becomes the reported base path.
     let code_available = super::kimi_code::is_available();
-
-    // Only report `~/.kimi` when it actually holds sessions. A bare `~/.kimi`
-    // next to a populated `~/.kimi-code` would otherwise hand every
-    // base_path-driven consumer a root with nothing under it.
-    let legacy_base = get_base_path().filter(|base| {
-        let sessions_path = Path::new(base).join(SESSIONS_DIR);
-        !is_symlink(&sessions_path) && sessions_path.is_dir()
-    });
+    let legacy_base = get_base_path();
+    let legacy_sessions_dir = legacy_base
+        .as_ref()
+        .map(|base| Path::new(base).join(SESSIONS_DIR));
+    // A present `sessions/` and one that actually holds a loadable session are
+    // different questions, and the choice of root turns on the second.
+    let legacy_dir_exists = legacy_sessions_dir
+        .as_ref()
+        .is_some_and(|dir| !is_symlink(dir) && dir.is_dir());
+    let legacy_has_sessions = legacy_dir_exists
+        && legacy_sessions_dir
+            .as_deref()
+            .is_some_and(has_any_loadable_session);
 
     let base = match legacy_base {
-        Some(base) => base,
-        None if code_available => super::kimi_code::default_root()?
+        // The legacy store holds data, so its root is the one worth reporting.
+        Some(base) if legacy_has_sessions => base,
+        // It does not and kimi-code does: report the store with the data
+        // instead of a root that scans to nothing.
+        _ if code_available => super::kimi_code::default_root()?
             .to_string_lossy()
             .to_string(),
-        None => return None,
+        // Neither holds a session. An existing, merely idle `sessions/` still
+        // surfaces the provider, exactly as it did before.
+        Some(base) if legacy_dir_exists => base,
+        _ => return None,
     };
 
     Some(ProviderInfo {
@@ -66,6 +77,36 @@ pub fn get_base_path() -> Option<String> {
     } else {
         None
     }
+}
+
+/// At least one `<sessions_root>/<project>/<session>/context.jsonl` — the same
+/// bar `scan_projects_from_path` applies, so `detect` never reports a root that
+/// would scan to nothing. Short-circuits on the first hit.
+fn has_any_loadable_session(sessions_root: &Path) -> bool {
+    let Ok(projects) = fs::read_dir(sessions_root) else {
+        return false;
+    };
+    projects.flatten().any(|project| {
+        if project
+            .file_type()
+            .map_or(true, |ft| ft.is_symlink() || !ft.is_dir())
+        {
+            return false;
+        }
+        let Ok(sessions) = fs::read_dir(project.path()) else {
+            return false;
+        };
+        sessions.flatten().any(|session| {
+            if session
+                .file_type()
+                .map_or(true, |ft| ft.is_symlink() || !ft.is_dir())
+            {
+                return false;
+            }
+            let context = session.path().join(CONTEXT_FILE);
+            !is_symlink(&context) && context.is_file()
+        })
+    })
 }
 
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
@@ -958,6 +999,69 @@ mod tests {
         let _code_home = EnvVarGuard::set("KIMI_CODE_HOME", code.as_os_str().to_owned());
 
         let info = detect().expect("legacy store is detected");
+        assert_eq!(
+            PathBuf::from(info.base_path),
+            legacy.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn detect_falls_through_to_kimi_code_when_legacy_sessions_dir_is_empty() {
+        let temp = TempDir::new().unwrap();
+        let legacy = temp.path().join(".kimi");
+        let code = temp.path().join(".kimi-code");
+        // `sessions/` is there but holds nothing — `scan_projects_from_path`
+        // would come back empty, so this root must not win.
+        fs::create_dir_all(legacy.join(SESSIONS_DIR)).unwrap();
+        fs::create_dir_all(&code).unwrap();
+        write_code_session(&code, "wd_demo", "session_one", "hello", 1_786_959_458_516);
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set("KIMI_CODE_HOME", code.as_os_str().to_owned());
+
+        let info = detect().expect("the populated kimi-code store is detected");
+        assert_eq!(PathBuf::from(info.base_path), code.canonicalize().unwrap());
+    }
+
+    #[test]
+    #[serial]
+    fn detect_falls_through_to_kimi_code_when_legacy_sessions_lack_context_files() {
+        let temp = TempDir::new().unwrap();
+        let legacy = temp.path().join(".kimi");
+        let code = temp.path().join(".kimi-code");
+        // Project and session dirs exist, but no `context.jsonl` — the same
+        // bar `extract_session_info` applies, so still nothing loadable.
+        fs::create_dir_all(legacy.join(SESSIONS_DIR).join("proj").join("sess")).unwrap();
+        fs::create_dir_all(&code).unwrap();
+        write_code_session(&code, "wd_demo", "session_one", "hello", 1_786_959_458_516);
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set("KIMI_CODE_HOME", code.as_os_str().to_owned());
+
+        let info = detect().expect("the populated kimi-code store is detected");
+        assert_eq!(PathBuf::from(info.base_path), code.canonicalize().unwrap());
+    }
+
+    #[test]
+    #[serial]
+    fn detect_keeps_the_idle_legacy_root_when_kimi_code_is_absent() {
+        let temp = TempDir::new().unwrap();
+        let legacy = temp.path().join(".kimi");
+        fs::create_dir_all(legacy.join(SESSIONS_DIR)).unwrap();
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set(
+            "KIMI_CODE_HOME",
+            temp.path().join("absent").as_os_str().to_owned(),
+        );
+
+        // Nothing to fall through to, so an idle store still surfaces the
+        // provider rather than making it vanish.
+        let info = detect().expect("an idle legacy store still surfaces the provider");
         assert_eq!(
             PathBuf::from(info.base_path),
             legacy.canonicalize().unwrap()
