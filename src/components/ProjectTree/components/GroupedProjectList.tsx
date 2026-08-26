@@ -85,18 +85,16 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     const isExpanded = isProjectExpanded(project.path);
     const showSessions = isExpanded && selectedProject?.path === project.path;
 
-    // Collapsed rows skip offscreen layout/paint entirely — with thousands of
-    // projects this is what keeps sidebar scrolling and search re-filters
-    // cheap without virtualizing the (a11y-tree-navigated, nested) list.
-    // The expanded row is excluded: content-visibility's paint containment
-    // would break the sticky selection bar and the nested virtualized
-    // session list inside it.
-    const rowStyle: React.CSSProperties | undefined = showSessions
-      ? undefined
-      : { contentVisibility: "auto", containIntrinsicSize: "auto 48px" };
+    // NOTE: collapsed rows previously used `content-visibility: auto` to skip
+    // offscreen paint (#460). Removed because WebKit (WKWebView/WebKitGTK)
+    // mis-tracks viewport intersection when the list mutates quickly — e.g.
+    // rapid provider-filter toggling — leaving some rows rendered without
+    // their chevron/folder icons until expansion forced a repaint. Collapsed
+    // rows are cheap to paint; search re-filter cost is covered by
+    // useDeferredValue, so the optimization is not worth the rendering bug.
 
     return (
-      <div key={project.path} role="none" style={rowStyle}>
+      <div key={project.path} role="none">
         <ProjectItem
           project={project}
           isExpanded={isExpanded}
