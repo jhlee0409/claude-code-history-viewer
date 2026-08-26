@@ -9,7 +9,6 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "../common";
-import { api } from "@/services/api";
 import {
   FileEdit,
   FileDiff,
@@ -23,22 +22,17 @@ import {
   RotateCcw,
   FolderOpen,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Highlight, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
-import {
-  isAbsolutePath,
-  elideProjectRoot,
-  getPathLeaf,
-} from "@/utils/pathUtils";
-import { isTauri, isMacOS, isWindows } from "@/utils/platform";
+import { elideProjectRoot, getPathLeaf } from "@/utils/pathUtils";
 import { layout } from "@/components/renderers";
 import { EnhancedDiffViewer } from "../EnhancedDiffViewer";
 import { ExpandKeyProvider } from "@/contexts/CaptureExpandContext";
 import { FileEditDirectoryLink } from "./FileEditDirectoryLink";
 import { FilteredDiffLines } from "./FilteredDiffLines";
 import { RestoreDiffPreview } from "./RestoreDiffPreview";
-import type { FileEditItemProps, RestoreStatus, EditViewMode } from "./types";
+import { useFileEditActions } from "./useFileEditActions";
+import type { FileEditItemProps, EditViewMode } from "./types";
 import { getLanguageFromPath, formatTimestamp, getRelativeTime } from "./utils";
 import { extractAddedLines, extractRemovedLines } from "./diffUtils";
 import type { DiffLineGroup } from "./diffUtils";
@@ -61,10 +55,24 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
   const { t: tCommon } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<EditViewMode>("content");
-  const [copied, setCopied] = useState(false);
-  const [restoreStatus, setRestoreStatus] = useState<RestoreStatus>("idle");
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Copy, reveal and restore live in `useFileEditActions`, shared with
+  // `FileEditRowCompact`. The card kept its own copies until now, and they had
+  // already drifted: a failed copy was swallowed instead of surfacing a toast,
+  // and neither transient timer was held, so a second click inherited the first
+  // one's countdown and an unmounted row could still set state.
+  const {
+    copied,
+    copy,
+    canReveal,
+    revealLabel,
+    reveal,
+    restoreStatus,
+    restoreError,
+    isConfirmingRestore,
+    requestRestore,
+    confirmRestore,
+    cancelRestore,
+  } = useFileEditActions(edit, { onRestored });
 
   const language = getLanguageFromPath(edit.file_path);
   const fileName = getPathLeaf(edit.file_path);
@@ -97,69 +105,6 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
       ? extractAddedLines(edit.original_content, edit.content_after_change)
       : extractRemovedLines(edit.original_content, edit.content_after_change);
   }, [isExpanded, viewMode, edit.original_content, edit.content_after_change]);
-  // revealItemInDir is a Tauri-only plugin API with no WebUI (Axum) fallback,
-  // so the button is hidden entirely in --serve mode rather than shown disabled.
-  const canReveal = isTauri() && isAbsolutePath(edit.file_path);
-  const revealLabel = isMacOS()
-    ? t("recentEdits.revealInFinder")
-    : isWindows()
-      ? t("recentEdits.revealInExplorer")
-      : t("recentEdits.revealInFolder");
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(edit.content_after_change);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
-
-  const handleReveal = async () => {
-    try {
-      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-      await revealItemInDir(edit.file_path);
-    } catch (err) {
-      console.error("Failed to reveal file:", err);
-      toast.error(t("recentEdits.revealError"));
-    }
-  };
-
-  const handleRestoreClick = () => {
-    setShowConfirmDialog(true);
-  };
-
-  const handleRestoreConfirm = async () => {
-    setShowConfirmDialog(false);
-    setErrorMessage(null);
-    try {
-      setRestoreStatus("loading");
-      await api("restore_file", {
-        filePath: edit.file_path,
-        content: edit.content_after_change,
-      });
-      setRestoreStatus("success");
-      // Clears the missing flag on this row. Without it a file just written
-      // back still reports itself absent, so it stays red and the Missing Only
-      // filter hides the file the user has only just recovered.
-      onRestored?.(edit.file_path);
-      setTimeout(() => setRestoreStatus("idle"), 2000);
-    } catch (err) {
-      console.error("Failed to restore file:", err);
-      const message = err instanceof Error ? err.message : String(err);
-      setErrorMessage(message);
-      setRestoreStatus("error");
-      setTimeout(() => {
-        setRestoreStatus("idle");
-        setErrorMessage(null);
-      }, 5000);
-    }
-  };
-
-  const handleRestoreCancel = () => {
-    setShowConfirmDialog(false);
-  };
 
   return (
     <div className="border-2 rounded-xl overflow-hidden transition-all duration-300 border-border bg-card hover:border-accent/30 hover:shadow-md">
@@ -287,7 +232,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                 directory={dense ? directory : edit.file_path}
                 fullPath={edit.file_path}
                 canReveal={canReveal}
-                onReveal={handleReveal}
+                onReveal={reveal}
                 revealLabel={revealLabel}
                 className={cn(
                   "min-w-0 flex-1 text-muted-foreground",
@@ -397,7 +342,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                handleReveal();
+                reveal();
               }}
               className="p-2 rounded-lg transition-all duration-200 hover:bg-muted text-muted-foreground hover:text-foreground"
               aria-label={revealLabel}
@@ -411,7 +356,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handleCopy();
+              copy();
             }}
             className={cn(
               "p-2 rounded-lg transition-all duration-200",
@@ -419,6 +364,10 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                 ? "bg-success/20 text-success ring-1 ring-success/30"
                 : "hover:bg-muted text-muted-foreground hover:text-foreground"
             )}
+            // The transient success state is the only externally observable
+            // signal that a copy landed, so it carries a stable hook rather
+            // than leaving tests to match on an icon's class names.
+            data-testid={copied ? "file-edit-copied" : "file-edit-copy"}
             title={t("recentEdits.copyContent")}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -429,7 +378,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               if (restoreStatus === "idle") {
-                handleRestoreClick();
+                requestRestore();
               }
             }}
             disabled={restoreStatus === "loading"}
@@ -457,19 +406,19 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
       </div>
 
       {/* Error message toast */}
-      {errorMessage && (
+      {restoreError && (
         <div
           className={`mx-3 mb-2 p-2 rounded-md bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 ${layout.smallText}`}
         >
-          {t("recentEdits.restoreError")}: {errorMessage}
+          {t("recentEdits.restoreError")}: {restoreError}
         </div>
       )}
 
       {/* Confirmation dialog */}
-      {showConfirmDialog && (
+      {isConfirmingRestore && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={handleRestoreCancel}
+          onClick={cancelRestore}
         >
           <div
             className="rounded-lg p-6 max-w-md mx-4 shadow-xl bg-background"
@@ -497,13 +446,13 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
 
             <div className="flex justify-end space-x-3">
               <button
-                onClick={handleRestoreCancel}
+                onClick={cancelRestore}
                 className={`px-4 py-2 rounded-md ${layout.bodyText} bg-muted hover:bg-muted/80 text-foreground`}
               >
                 {t("recentEdits.cancel")}
               </button>
               <button
-                onClick={handleRestoreConfirm}
+                onClick={confirmRestore}
                 className={`px-4 py-2 rounded-md ${layout.bodyText} bg-blue-600 hover:bg-blue-700 text-white`}
               >
                 {t("recentEdits.confirmRestore")}
