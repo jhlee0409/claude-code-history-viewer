@@ -919,15 +919,20 @@ describe("recent-edits cache invalidation on file change", () => {
       },
     }));
 
-    const more = Promise.withResolvers<unknown>();
-    fetchRecentEdits.mockImplementationOnce(() => more.promise);
+    // Executor form, not `Promise.withResolvers`: the jsdom realm this suite
+    // runs in on CI does not provide it. Matches every other deferred case in
+    // this file.
+    let resolveMore: ((value: unknown) => void) | undefined;
+    fetchRecentEdits.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveMore = resolve))
+    );
     const pending = useAppStore.getState().loadMoreRecentEdits(p.path);
 
     await act(async () => {
       useAppStore.getState().invalidateRecentEdits(p.path);
     });
     await act(async () => {
-      more.resolve({
+      resolveMore?.({
         ...payload(p.actual_path),
         files: [{ ...payload(p.actual_path).files[0], file_path: "late.ts" }],
       });
