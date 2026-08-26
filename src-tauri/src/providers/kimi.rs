@@ -79,9 +79,11 @@ pub fn get_base_path() -> Option<String> {
     }
 }
 
-/// At least one `<sessions_root>/<project>/<session>/context.jsonl` — the same
-/// bar `scan_projects_from_path` applies, so `detect` never reports a root that
-/// would scan to nothing. Short-circuits on the first hit.
+/// At least one session `scan_projects_from_path` would actually surface, so
+/// `detect` never reports a root that scans to nothing. Defers to
+/// `extract_session_info`, which is the bar the scan itself applies — a present
+/// but empty or unparseable `context.jsonl` does not count. Short-circuits on
+/// the first hit, so a populated store parses exactly one session.
 fn has_any_loadable_session(sessions_root: &Path) -> bool {
     let Ok(projects) = fs::read_dir(sessions_root) else {
         return false;
@@ -96,16 +98,9 @@ fn has_any_loadable_session(sessions_root: &Path) -> bool {
         let Ok(sessions) = fs::read_dir(project.path()) else {
             return false;
         };
-        sessions.flatten().any(|session| {
-            if session
-                .file_type()
-                .map_or(true, |ft| ft.is_symlink() || !ft.is_dir())
-            {
-                return false;
-            }
-            let context = session.path().join(CONTEXT_FILE);
-            !is_symlink(&context) && context.is_file()
-        })
+        sessions
+            .flatten()
+            .any(|session| extract_session_info(&session.path()).is_some())
     })
 }
 
@@ -1034,6 +1029,28 @@ mod tests {
         // Project and session dirs exist, but no `context.jsonl` — the same
         // bar `extract_session_info` applies, so still nothing loadable.
         fs::create_dir_all(legacy.join(SESSIONS_DIR).join("proj").join("sess")).unwrap();
+        fs::create_dir_all(&code).unwrap();
+        write_code_session(&code, "wd_demo", "session_one", "hello", 1_786_959_458_516);
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set("KIMI_CODE_HOME", code.as_os_str().to_owned());
+
+        let info = detect().expect("the populated kimi-code store is detected");
+        assert_eq!(PathBuf::from(info.base_path), code.canonicalize().unwrap());
+    }
+
+    #[test]
+    #[serial]
+    fn detect_falls_through_to_kimi_code_when_legacy_context_file_is_empty() {
+        let temp = TempDir::new().unwrap();
+        let legacy = temp.path().join(".kimi");
+        let code = temp.path().join(".kimi-code");
+        // `context.jsonl` is present but holds no message `extract_session_info`
+        // accepts, which is exactly what the scan drops.
+        let session_dir = legacy.join(SESSIONS_DIR).join("proj").join("sess");
+        fs::create_dir_all(&session_dir).unwrap();
+        fs::write(session_dir.join(CONTEXT_FILE), "\n{ not json\n").unwrap();
         fs::create_dir_all(&code).unwrap();
         write_code_session(&code, "wd_demo", "session_one", "hello", 1_786_959_458_516);
 
