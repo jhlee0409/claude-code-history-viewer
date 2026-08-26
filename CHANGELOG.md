@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.0] - 2026-08-27
+
+Feature and fix release: Kimi Code sessions, a dockable Recent Edits panel, and a round of correctness work on the file watcher, WebUI file writes, and async runtime behaviour.
+
+### Added
+- **Kimi Code sessions** — `~/.kimi-code` sessions are read alongside the legacy kimi-cli store, under the same **Kimi** provider. The per-agent wire journal is replayed and folded (deferred messages, interrupted tool calls, undo anchors, compaction and clear), workspaces are grouped from `workspaces.json`, and VS Code sessions are tagged so the existing source filters apply. `KIMI_CODE_HOME` overrides the root. (#513, #524)
+- **Dockable Recent Edits panel** — Recent Edits can sit beside the transcript as a resizable panel instead of taking the whole content area, with a compact row density, a session/project scope toggle, per-file or per-edit grouping, and a missing-on-disk filter. Restoring a file now previews what it will overwrite. (#515)
+
+### Fixed
+- **A session being written to no longer closes itself** — any write to an open session's `.jsonl` dropped the app back to the "select a session" empty state, making it impossible to watch a live session. The watcher's project reload also no longer blanks the sidebar on every tick. (#527, #531)
+- **WebUI file restore is no longer unrestricted** — over `--serve`, `restore_file` wrote anywhere the process could reach while `read_text_file` beside it enforced an allowlist. Writes now require the allowlist unless the server is both bound to loopback and authenticated. (#520)
+- **Recent Edits refetched on every visit** — the fetch cache compared two values that can never be equal, so opening the view re-walked and re-parsed every session file in the project. The cache is now keyed on the requested project, invalidated when the watcher reports a change, and its pagination cursor is replaced together with its rows. (#514, #517, #522)
+- **Project tree icons vanishing** — rapidly toggling the provider filter chips dropped chevron and folder icons from some rows under WebKit. (#512)
+- **Dangling skip links** — "skip to message navigator" stayed in the tab order pointing at a missing target outside the transcript view, and "skip to project explorer" did the same on mobile with the drawer closed. (#530)
+- **Star history chart** in every README language. (#504)
+
+### Performance
+- **Heavy reads no longer block the async runtime** — `scan_projects`, `load_project_sessions`, `load_project_sessions_page`, `search_messages` and `get_recent_edits` did entirely synchronous work inside `async fn`, holding the runtime for the length of a scan. They now run on the blocking pool. (#528)
+
+### Breaking
+- None.
+
 ## [1.25.0] - 2026-08-19
 
 Feature and fix release: LaTeX math in transcripts, more useful Codex global search, and a Linux WebKit crash workaround for non-AppImage builds.
