@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { create } from "zustand";
 import {
   createWatcherSlice,
@@ -31,6 +31,7 @@ type TestStore = WatcherSlice & {
   selectSession: ReturnType<typeof vi.fn>;
   selectProject: ReturnType<typeof vi.fn>;
   setError: ReturnType<typeof vi.fn>;
+  invalidateRecentEdits: Mock;
 };
 
 const createTestStore = () =>
@@ -40,6 +41,7 @@ const createTestStore = () =>
     messages: [],
     selectSession: vi.fn().mockResolvedValue(undefined),
     selectProject: vi.fn().mockResolvedValue(undefined),
+    invalidateRecentEdits: vi.fn(),
     setError: vi.fn(),
     ...createWatcherSlice(
       set as Parameters<typeof createWatcherSlice>[0],
@@ -189,5 +191,45 @@ describe("watcherSlice refresh coalescing", () => {
       type: AppErrorType.UNKNOWN,
       message: "Failed to refresh session: Error: load failed",
     });
+  });
+});
+
+describe("watcherSlice recent-edits invalidation", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-13T00:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("invalidates the Recent Edits cache for the project that changed", async () => {
+    // `selectProject` reloads the session list and never touches analytics, so
+    // this is the only place a file write can reach the cache. Without it the
+    // panel serves pre-edit rows for as long as the project stays selected.
+    const store = createTestStore();
+    store.setState({ selectedProject: { path: "/project" } });
+
+    await store.getState().triggerProjectRefresh("/project");
+
+    expect(store.getState().invalidateRecentEdits).toHaveBeenCalledWith(
+      "/project"
+    );
+  });
+
+  it("invalidates even when the changed project is not the selected one", async () => {
+    // The cache is keyed by the path it was fetched for, not by the current
+    // selection, so an entry can outlive its project being deselected and be
+    // served again on the way back.
+    const store = createTestStore();
+    store.setState({ selectedProject: { path: "/other" } });
+
+    await store.getState().triggerProjectRefresh("/project");
+
+    expect(store.getState().invalidateRecentEdits).toHaveBeenCalledWith(
+      "/project"
+    );
+    expect(store.getState().selectProject).not.toHaveBeenCalled();
   });
 });

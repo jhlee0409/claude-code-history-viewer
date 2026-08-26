@@ -274,6 +274,9 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             if let Some(paths) = extract_kimi_paths(path) {
                 return Some(paths);
             }
+            if let Some(paths) = extract_kimi_code_paths(path) {
+                return Some(paths);
+            }
             if let Some(paths) = extract_pi_family_paths(path) {
                 return Some(paths);
             }
@@ -288,6 +291,7 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
         // Kimi state files and OpenCode storage files
         "json" => extract_vibe_paths(path)
             .or_else(|| extract_kimi_paths(path))
+            .or_else(|| extract_kimi_code_paths(path))
             .or_else(|| extract_opencode_paths(path)),
         // OpenCode SQLite database change — emit broad refresh for all OpenCode projects
         "db" | "db-wal" => extract_opencode_db_event(path),
@@ -495,6 +499,43 @@ fn extract_kimi_paths(path: &Path) -> Option<(String, String)> {
 
     Some((
         format!("kimi://{}", project_path.to_string_lossy()),
+        session_path.to_string_lossy().to_string(),
+    ))
+}
+
+/// Extract Kimi Code session identifiers from files under
+/// `~/.kimi-code/sessions/{wd_workspace}/{session_id}/` — either the session
+/// `state.json` (3 path components) or an agent `wire.jsonl` journal
+/// (`agents/<id>/wire.jsonl`, 5 components).
+fn extract_kimi_code_paths(path: &Path) -> Option<(String, String)> {
+    let filename = path.file_name()?.to_str()?;
+    if !matches!(filename, "wire.jsonl" | "state.json") {
+        return None;
+    }
+
+    let sessions_root =
+        crate::providers::kimi_code::default_root().map(|base| base.join("sessions"))?;
+    // Same canonicalization rationale as `extract_kimi_paths`.
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let relative = canonical_path.strip_prefix(&sessions_root).ok()?;
+    let parts: Vec<_> = relative.components().collect();
+    let valid_depth = match filename {
+        "state.json" => parts.len() == 3,
+        _ => parts.len() == 5 && parts[2].as_os_str() == "agents",
+    };
+    if !valid_depth {
+        return None;
+    }
+
+    let project_path = sessions_root.join(parts[0].as_os_str());
+    let session_path = project_path.join(parts[1].as_os_str());
+
+    Some((
+        format!(
+            "{}{}",
+            crate::providers::kimi_code::SCHEME,
+            project_path.to_string_lossy()
+        ),
         session_path.to_string_lossy().to_string(),
     ))
 }
