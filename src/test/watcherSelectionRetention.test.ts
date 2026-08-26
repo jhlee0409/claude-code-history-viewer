@@ -127,3 +127,103 @@ describe("#508 a file write must not clear the open session", () => {
     expect(store.getState().selectedSession).toBeNull();
   });
 });
+
+/**
+ * #508, second half. The watcher's project reload blanked the session list
+ * before refetching it, so the sidebar emptied and refilled on every tick.
+ * Measured against the running app: a single write took the list from 18 rows
+ * to 1 and back within 29ms, and a session Claude Code is actively writing
+ * produces a tick at least every 250ms.
+ *
+ * That is also what defeated the "don't refresh while the user has scrolled up"
+ * deferral: the deferral guards the session refresh, but the project reload
+ * fired regardless and churned the sidebar underneath the reader. Rather than
+ * plumb the deferral through — which would hide genuinely new sessions from
+ * someone mid-read — the reload is simply no longer disruptive.
+ */
+describe("#508 a watcher reload must not blank the session list", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockedApi.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Holds the session page open so mid-flight state can be observed. */
+  const deferredPage = () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    mockedApi.mockImplementation(async (command: string) => {
+      if (command === "load_provider_sessions_page") {
+        await gate;
+        return { sessions: [SESSION], total: 1, nextOffset: 1, hasMore: false };
+      }
+      return null;
+    });
+    return { release: () => release() };
+  };
+
+  it("keeps the rows on screen while the new page is in flight", async () => {
+    const store = createStore();
+    store.setState({
+      selectedProject: PROJECT,
+      selectedSession: SESSION,
+      sessions: [SESSION],
+    });
+
+    const { release } = deferredPage();
+    const pending = store.getState().reloadProjectSessions(PROJECT);
+
+    // Mid-flight: this is the window the sidebar used to render empty in.
+    expect(store.getState().sessions).toHaveLength(1);
+    expect(store.getState().isLoadingSessions).toBe(false);
+
+    release();
+    await pending;
+    expect(store.getState().sessions).toHaveLength(1);
+  });
+
+  it("still raises the spinner when there is genuinely nothing to show", async () => {
+    // The flag means "the user has nothing to look at yet", so an empty list
+    // must still get one. Suppressing it unconditionally would trade a flash
+    // for a dead-looking sidebar on first load.
+    const store = createStore();
+    store.setState({ selectedProject: PROJECT, sessions: [] });
+
+    const { release } = deferredPage();
+    const pending = store.getState().reloadProjectSessions(PROJECT);
+
+    expect(store.getState().isLoadingSessions).toBe(true);
+
+    release();
+    await pending;
+    expect(store.getState().isLoadingSessions).toBe(false);
+  });
+
+  it("still clears the outgoing project's rows when switching projects", async () => {
+    // The clear moved into `selectProject`; it must not have been lost. The
+    // previous project's sessions must never render under the new project's
+    // name.
+    const store = createStore();
+    store.setState({
+      selectedProject: PROJECT,
+      selectedSession: SESSION,
+      sessions: [SESSION],
+    });
+
+    const { release } = deferredPage();
+    const pending = store
+      .getState()
+      .selectProject({ ...PROJECT, path: "/other", name: "other" });
+
+    expect(store.getState().sessions).toHaveLength(0);
+    expect(store.getState().selectedSession).toBeNull();
+
+    release();
+    await pending;
+  });
+});
