@@ -239,19 +239,23 @@ export const createWatcherSlice: StateCreator<
 
     triggerProjectRefresh: async (projectPath) => {
       try {
-        const { selectedProject, selectProject } = get();
+        const { selectedProject, reloadProjectSessions } = get();
 
         // A session file changed, so any Recent Edits result cached for this
-        // project describes the state before that write. `selectProject` below
-        // reloads the session list but never touches analytics, so without
+        // project describes the state before that write. The reload below
+        // refreshes the session list but never touches analytics, so without
         // this the cache — which only started actually hitting once its key
         // was fixed — would serve pre-edit rows for as long as the project
         // stays selected, with the header refresh button the only way out.
         get().invalidateRecentEdits(projectPath);
 
-        // If this is the currently selected project, reload its sessions
+        // Reload the selected project's sessions, keeping the open session
+        // open. This used to call `selectProject`, which nulls
+        // `selectedSession` because it is written for "the user picked a
+        // different project" — so every write to an open session's JSONL
+        // dropped the app to the empty state (#508).
         if (selectedProject && selectedProject.path === projectPath) {
-          await selectProject(selectedProject);
+          await reloadProjectSessions(selectedProject);
         }
       } catch (error) {
         get().setError({

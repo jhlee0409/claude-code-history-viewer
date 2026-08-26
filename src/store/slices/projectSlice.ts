@@ -59,6 +59,7 @@ export interface ProjectSliceActions {
   scanProjects: () => Promise<void>;
   refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
+  reloadProjectSessions: (project: ClaudeProject) => Promise<void>;
   loadMoreSessions: () => Promise<void>;
   clearProjectSelection: (options?: WebUINavigationOptions) => void;
   setClaudePath: (path: string) => Promise<void>;
@@ -636,17 +637,38 @@ export const createProjectSlice: StateCreator<
   },
 
   selectProject: async (project: ClaudeProject) => {
-    const requestId = nextRequestId("selectProject");
     // Selection is scoped to a single project's session list; switching
-    // projects abandons any in-progress multi-selection.
+    // projects abandons any in-progress multi-selection and any session that
+    // belonged to the project being left.
     get().exitSessionSelectionMode();
+    set({ selectedSession: null });
+    await get().reloadProjectSessions(project);
+  },
+
+  /**
+   * Load a project's first page of sessions without touching the selection.
+   *
+   * Split out of `selectProject` for the file watcher. `selectProject` nulls
+   * `selectedSession` because it is written for "the user picked a different
+   * project", and the watcher was reusing it to refresh the *current* one — so
+   * every write to an open session's JSONL dropped the app to the empty state
+   * (#508). The session refresh that would have restored it is on a 1500ms
+   * quiet period while this reload fires at 250ms, so the selection was always
+   * already gone.
+   *
+   * A matching session in the reloaded page replaces the held one, so its
+   * message count and timestamps refresh in the list. A session that is *not*
+   * in the page is left selected rather than cleared: this is only the first
+   * page, so absence means "not on page 1", not "deleted".
+   */
+  reloadProjectSessions: async (project: ClaudeProject) => {
+    const requestId = nextRequestId("selectProject");
     set({
       selectedProject: project,
       sessions: [],
       sessionsTotal: project.session_count,
       sessionsOffset: 0,
       hasMoreSessions: false,
-      selectedSession: null,
       isLoadingSessions: true,
       isLoadingMoreSessions: false,
     });
@@ -670,6 +692,16 @@ export const createProjectSlice: StateCreator<
         sessionsOffset: page.nextOffset,
         hasMoreSessions: page.hasMore,
       });
+
+      const held = get().selectedSession;
+      if (held) {
+        const refreshed = page.sessions.find(
+          (session) => session.file_path === held.file_path
+        );
+        if (refreshed) {
+          set({ selectedSession: refreshed });
+        }
+      }
 
       // Update project's session_count to match actual loaded sessions
       // (scan_projects counts files, but load_sessions filters invalid ones)
