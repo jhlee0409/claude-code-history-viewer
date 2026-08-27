@@ -2182,6 +2182,10 @@ mod tests {
     /// Rejecting only the `wire.jsonl` leaf is not enough: a symlinked
     /// `agents` or `main` directory redirects the read outside the store
     /// while the journal itself is a perfectly ordinary file.
+    // Unix-only: `std::os::unix::fs` does not exist on Windows, and without this
+    // gate the import failed to resolve, which broke compilation of the whole lib
+    // test binary rather than just skipping this one case.
+    #[cfg(unix)]
     #[test]
     fn symlinked_journal_directories_are_rejected() {
         use std::os::unix::fs as unix_fs;
@@ -2230,6 +2234,7 @@ mod tests {
 
     /// Same for the blob store: the leaf check misses a symlinked `blobs`
     /// directory pointing at arbitrary files.
+    #[cfg(unix)]
     #[test]
     fn symlinked_blob_directory_is_not_followed() {
         use std::os::unix::fs as unix_fs;
