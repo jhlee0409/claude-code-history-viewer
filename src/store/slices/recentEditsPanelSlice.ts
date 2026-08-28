@@ -153,6 +153,23 @@ export interface RecentEditsPanelSliceState {
   recentEditsDockError: string | null;
 }
 
+/**
+ * Distinguishes two requests that carry the *same* key.
+ *
+ * The key answers "which question is being asked". It cannot answer "which
+ * asking of it", and equality reads the same across a clear-and-restart: null
+ * the key, set it back to the identical value, and an in-flight response from
+ * before the reset satisfies `key === key` and lands (#538). Deselecting a
+ * project and re-selecting it is exactly that sequence, and it is one click in
+ * the project tree.
+ *
+ * Bumped when a request starts and when the dock is cleared, so a captured
+ * value identifies one attempt rather than one question. Module state, not
+ * store state: nothing renders it, matching `recentEditsLoadMoreSeq` in the
+ * analytics slice.
+ */
+let recentEditsDockGeneration = 0;
+
 export interface RecentEditsPanelSliceActions {
   setRecentEditsMode: (mode: RecentEditsMode) => void;
   /** Explicitly targets one mode's density so the other cannot be clobbered. */
@@ -332,11 +349,18 @@ export const createRecentEditsPanelSlice: StateCreator<
       return;
     }
 
+    const generation = ++recentEditsDockGeneration;
     set({
       isLoadingRecentEditsDock: true,
       recentEditsDockError: null,
       recentEditsDockRequestedKey: key,
     });
+    // Both, because they answer different questions. The key rejects an answer
+    // to a question no longer being asked; the generation rejects an answer to
+    // an earlier asking of the same one.
+    const stillOwns = () =>
+      recentEditsDockGeneration === generation &&
+      get().recentEditsDockRequestedKey === key;
     try {
       const result = await fetchRecentEdits(request.projectPath, {
         offset: 0,
@@ -345,29 +369,31 @@ export const createRecentEditsPanelSlice: StateCreator<
         sessionFilePath:
           request.scope === "session" ? request.sessionFilePath : undefined,
       });
-      // Scope or grouping may have changed while this was in flight. Only the
-      // answer to the question still being asked is allowed to land.
-      if (get().recentEditsDockRequestedKey !== key) return;
+      if (!stillOwns()) return;
       set({ recentEditsDock: toDockResult(key, result) });
     } catch (error) {
-      if (get().recentEditsDockRequestedKey !== key) return;
+      if (!stillOwns()) return;
       set({
         recentEditsDockError:
           error instanceof Error ? error.message : String(error),
       });
     } finally {
-      if (get().recentEditsDockRequestedKey === key) {
+      // Only the newest attempt may lower the spinner. A superseded one doing
+      // it would report a request that is still running as finished.
+      if (recentEditsDockGeneration === generation) {
         set({ isLoadingRecentEditsDock: false });
       }
     }
   },
 
   clearRecentEditsDock: () => {
+    // No generation bump here, deliberately. Two cases and both are already
+    // covered: if a request follows, it bumps on its way in and disowns
+    // anything older; if none follows, the null key rejects the stale response
+    // on its own. A bump here would be unfalsifiable — removing it fails no
+    // test, which is how it was noticed.
     set({
       recentEditsDock: null,
-      // Disowns any in-flight fetch: its response no longer matches the key
-      // the slice is holding, so it is dropped rather than landing on a panel
-      // whose project has gone away.
       recentEditsDockRequestedKey: null,
       isLoadingRecentEditsDock: false,
       isLoadingMoreRecentEditsDock: false,
@@ -397,6 +423,11 @@ export const createRecentEditsPanelSlice: StateCreator<
     if (!current || current.requestKey !== key || !current.hasMore) return;
     if (get().isLoadingMoreRecentEditsDock) return;
 
+    // Captured, not bumped. A page continues the request that is already in
+    // the slot rather than starting a new one, so it must be discarded by the
+    // same reset that discards that request — including a clear-and-restart
+    // where the key comes back identical (#538).
+    const generation = recentEditsDockGeneration;
     set({ isLoadingMoreRecentEditsDock: true });
     try {
       const result = await fetchRecentEdits(request.projectPath, {
@@ -412,19 +443,24 @@ export const createRecentEditsPanelSlice: StateCreator<
       const latest = get().recentEditsDock;
       // Appending onto a different request's rows would interleave two result
       // sets, so a scope change mid-flight discards this page.
+      if (recentEditsDockGeneration !== generation) return;
       if (!latest || latest.requestKey !== key) return;
       set({ recentEditsDock: toDockResult(key, result, latest.files) });
     } catch (error) {
       // Same ownership rule as the success path. A late failure from a request
       // the user has already moved on from must not paint an error over rows
       // that loaded fine.
+      if (recentEditsDockGeneration !== generation) return;
       if (get().recentEditsDockRequestedKey !== key) return;
       set({
         recentEditsDockError:
           error instanceof Error ? error.message : String(error),
       });
     } finally {
-      set({ isLoadingMoreRecentEditsDock: false });
+      // A superseded page must not lower a flag the current request owns.
+      if (recentEditsDockGeneration === generation) {
+        set({ isLoadingMoreRecentEditsDock: false });
+      }
     }
   },
 });
