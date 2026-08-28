@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-08-24T23:22:54.969Z
- * 총 키 개수: 1927
+ * 생성 시간: 2026-08-26T18:00:54.440Z
+ * 총 키 개수: 1928
  * Namespace 수: 11
  */
 
@@ -1959,7 +1959,7 @@ export type FeedbackKeys =
   | 'feedback.types.other';
 
 /**
- * recentEdits namespace의 번역 키 (68개)
+ * recentEdits namespace의 번역 키 (69개)
  * 파일: locales/{lang}/recentEdits.json
  */
 export type RecentEditsKeys =
@@ -1990,6 +1990,7 @@ export type RecentEditsKeys =
   | 'recentEdits.noEditsDescription'
   | 'recentEdits.noLinesToShow'
   | 'recentEdits.noMissingFiles'
+  | 'recentEdits.noProjectSelected'
   | 'recentEdits.noSearchResults'
   | 'recentEdits.panelOptions'
   | 'recentEdits.projectRoot'
@@ -2886,6 +2887,7 @@ export type TranslationKey =
   | 'recentEdits.noEditsDescription'
   | 'recentEdits.noLinesToShow'
   | 'recentEdits.noMissingFiles'
+  | 'recentEdits.noProjectSelected'
   | 'recentEdits.noSearchResults'
   | 'recentEdits.panelOptions'
   | 'recentEdits.projectRoot'

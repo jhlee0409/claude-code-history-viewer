@@ -26,6 +26,7 @@
   "recentEdits.noEditsDescription": "이 프로젝트에서 파일 편집이나 생성을 찾을 수 없습니다",
   "recentEdits.noLinesToShow": "표시할 줄이 없습니다",
   "recentEdits.noMissingFiles": "없어진 파일이 없습니다",
+  "recentEdits.noProjectSelected": "프로젝트를 선택하면 편집 내역이 표시됩니다",
   "recentEdits.noSearchResults": "검색과 일치하는 파일이 없습니다",
   "recentEdits.panelOptions": "패널 옵션",
   "recentEdits.projectRoot": "프로젝트 루트",

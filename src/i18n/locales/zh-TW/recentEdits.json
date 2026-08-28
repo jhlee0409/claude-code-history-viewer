@@ -26,6 +26,7 @@
   "recentEdits.noEditsDescription": "在此專案中未找到檔案編輯或建立記錄",
   "recentEdits.noLinesToShow": "沒有可顯示的行",
   "recentEdits.noMissingFiles": "沒有遺失的檔案",
+  "recentEdits.noProjectSelected": "選擇一個專案後即可檢視其編輯記錄",
   "recentEdits.noSearchResults": "沒有符合搜尋的檔案",
   "recentEdits.panelOptions": "面板選項",
   "recentEdits.projectRoot": "專案根目錄",

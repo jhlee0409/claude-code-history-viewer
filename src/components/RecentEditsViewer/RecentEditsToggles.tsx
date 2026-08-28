@@ -57,28 +57,41 @@ export interface RecentEditsScopeToggleProps {
    * disabled control advertises that session scoping exists and what unlocks
    * it, a hidden one teaches nothing.
    */
-  disabled?: boolean;
+  sessionDisabled?: boolean;
+  /**
+   * With no project selected either, neither scope resolves. Named after the
+   * button it governs, like `sessionDisabled`: one flag per button means no
+   * combination of the two can contradict itself, which a single `disabled`
+   * plus an "and also project" flag would allow.
+   */
+  projectDisabled?: boolean;
   className?: string;
 }
 
 export const RecentEditsScopeToggle: React.FC<RecentEditsScopeToggleProps> = ({
   value,
   onChange,
-  disabled = false,
+  sessionDisabled = false,
+  projectDisabled = false,
   className,
 }) => {
   const { t } = useTranslation();
-  const disabledHint = t(
-    "recentEdits.scopeNeedsSession",
-    "Select a session to scope edits to it"
-  );
+  // Nothing selected at all is the more fundamental problem, so it wins the
+  // tooltip: telling someone to pick a session is useless advice when they
+  // have not picked a project either.
+  // Reuses the page view's existing hint rather than adding a second string in
+  // the same register: both are tooltips on a control disabled for want of a
+  // project.
+  const disabledHint = projectDisabled
+    ? t("recentEdits.selectProjectFirst", "Select a project first")
+    : t("recentEdits.scopeNeedsSession", "Select a session to scope edits to it");
 
   return (
     // The title sits on the wrapper, not the buttons: a disabled button does
     // not reliably fire the mouse events a native tooltip needs.
     <span
       className={cn("inline-flex", className)}
-      title={disabled ? disabledHint : undefined}
+      title={sessionDisabled || projectDisabled ? disabledHint : undefined}
     >
       <div className={TRACK_CLASS}>
         {SCOPES.map((scope) => {
@@ -90,7 +103,8 @@ export const RecentEditsScopeToggle: React.FC<RecentEditsScopeToggleProps> = ({
             looking at. It read as the panel being broken rather than as one
             mode being unavailable.
           */
-          const scopeDisabled = disabled && scope.id === "session";
+          const scopeDisabled =
+            scope.id === "session" ? sessionDisabled : projectDisabled;
           return (
             <button
               key={scope.id}

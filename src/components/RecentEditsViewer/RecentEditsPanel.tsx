@@ -11,7 +11,7 @@
 
 import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, FileEdit, Loader2 } from "lucide-react";
+import { ChevronDown, FileEdit, FolderOpen, Loader2 } from "lucide-react";
 import { useTheme } from "@/contexts/theme";
 import { useAppStore } from "@/store/useAppStore";
 import {
@@ -64,6 +64,13 @@ export const RecentEditsPanel: React.FC = () => {
   // With no session selected, session scope has nothing to point at.
   const canScopeToSession = Boolean(selectedSession);
   const effectiveScope = canScopeToSession ? recentEditsScope : "project";
+  /*
+    The dock outlives the project selection - collapsing the selected project
+    in the tree deselects it, and the panel is a workspace fixture that should
+    not vanish under that click. So "no project" is a state the panel renders
+    rather than one its host prevents.
+  */
+  const hasProject = Boolean(selectedProject);
 
   const request: RecentEditsDockRequest | null = selectedProject
     ? {
@@ -124,7 +131,8 @@ export const RecentEditsPanel: React.FC = () => {
         <RecentEditsScopeToggle
           value={effectiveScope}
           onChange={setRecentEditsScope}
-          disabled={!canScopeToSession}
+          sessionDisabled={!canScopeToSession}
+          projectDisabled={!hasProject}
         />
         <div className="ml-auto flex items-center gap-1">
           <RecentEditsDensityToggle
@@ -143,7 +151,22 @@ export const RecentEditsPanel: React.FC = () => {
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {error ? (
+        {!hasProject ? (
+          /*
+            Distinct from "no edits" on purpose. Nothing has been asked of the
+            backend in this state, so nothing is known - reporting an empty
+            result would be asserting a fact the panel does not have.
+          */
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+            <FolderOpen className="h-6 w-6 opacity-40" aria-hidden="true" />
+            <p className="px-4 text-center text-px11">
+              {t(
+                "recentEdits.noProjectSelected",
+                "Select a project to see its edits"
+              )}
+            </p>
+          </div>
+        ) : error ? (
           <p className="px-3 py-6 text-center text-sm text-destructive">
             {error}
           </p>
