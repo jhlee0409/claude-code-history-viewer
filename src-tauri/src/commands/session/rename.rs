@@ -301,7 +301,7 @@ fn configured_claude_dirs() -> Vec<String> {
 
 /// Expand a leading `~` to the home directory, mirroring `detect_claude_config_dir`.
 fn expand_home_prefix(raw: &str) -> String {
-    let Some(home) = dirs::home_dir() else {
+    let Some(home) = crate::utils::home_dir() else {
         return raw.to_string();
     };
     if raw == "~" {
@@ -323,7 +323,7 @@ fn expand_home_prefix(raw: &str) -> String {
 fn resolve_claude_roots(configured: &[String]) -> Vec<PathBuf> {
     let mut roots = Vec::new();
 
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = crate::utils::home_dir() {
         push_root(&mut roots, home.join(".claude"));
     }
 
@@ -1017,7 +1017,7 @@ mod tests {
     /// `crate::utils::home_dir` made it say so (#540).
     fn isolated_home() -> tempfile::TempDir {
         let dir = tempfile::TempDir::new().expect("temp home");
-        std::env::set_var("CCHV_TEST_HOME", dir.path());
+        std::env::set_var("CCHV_TEST_HOME", dir.path().canonicalize().unwrap());
         dir
     }
 
@@ -1642,15 +1642,12 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_valid_path() {
-        // Sandboxed only so `configured_claude_dirs` does not read the
-        // developer's registered custom paths. `resolve_claude_roots` still
-        // resolves the default root through `dirs::home_dir()`, which is why
-        // this still scans the real `~/.claude` — and why it asserts nothing on
-        // a machine without one. Left as-is deliberately; rename.rs is outside
-        // this change and the vacuity is filed separately.
-        let _home = isolated_home();
-        // This test requires a real .jsonl file in ~/.claude to exist
-        if let Some(home) = dirs::home_dir() {
+        let home_fixture = isolated_home();
+        let (_, expected_path) = make_claude_dir(
+            &real_temp_root(&home_fixture).join(".claude"),
+            "valid-session",
+        );
+        if let Some(home) = crate::utils::home_dir() {
             let claude_projects = home.join(".claude/projects");
             if claude_projects.exists() {
                 // Try to find any .jsonl file in projects subdirectories
@@ -1667,6 +1664,7 @@ mod tests {
                                             result.is_ok(),
                                             "Validation failed for valid path {test_path}: {result:?}"
                                         );
+                                        assert_eq!(test_path, expected_path);
                                         return; // Test passed
                                     }
                                 }
@@ -1676,7 +1674,7 @@ mod tests {
                 }
             }
         }
-        // Skip test if no suitable file found
+        panic!("sandboxed session fixture was not validated");
     }
 
     #[test]
@@ -1706,6 +1704,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_accepts_registered_custom_directory() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let custom_base = real_temp_root(&temp).join(".claude-holophonix");
         fs::create_dir_all(&custom_base).unwrap();
@@ -1720,6 +1719,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_directory_that_is_not_registered() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let unregistered = real_temp_root(&temp).join(".claude-other");
         fs::create_dir_all(&unregistered).unwrap();
@@ -1736,6 +1736,7 @@ mod tests {
 
     #[test]
     fn resolve_claude_roots_skips_directory_without_projects_subdir() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let bogus = real_temp_root(&temp).join(".claude-bogus");
         fs::create_dir_all(&bogus).unwrap(); // no projects/ inside
@@ -1750,6 +1751,7 @@ mod tests {
 
     #[test]
     fn resolve_claude_roots_skips_symlinked_custom_directory() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let real_base = real_temp_root(&temp).join("real-claude");
         fs::create_dir_all(real_base.join("projects")).unwrap();
@@ -1770,8 +1772,9 @@ mod tests {
 
     #[test]
     fn resolve_claude_roots_always_includes_default_claude_dir() {
+        let _home = isolated_home();
         let roots = resolve_claude_roots(&[]);
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = crate::utils::home_dir() {
             let default_root = home.join(".claude");
             // Roots are stored as-is (not canonicalized), unless ~/.claude is a
             // symlink (then push_root drops it).
@@ -1809,6 +1812,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_non_jsonl_extension() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
         let project_dir = root.join("projects").join("-proj");
@@ -1846,6 +1850,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_accepts_symlinked_project_directory() {
+        let _home = isolated_home();
         // Mirrors the shared-sessions layout: a project directory under
         // <root>/projects is a symlink into a real directory elsewhere (e.g.
         // /Users/Shared/.claude/projects). The session file is a real file.
@@ -1876,6 +1881,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_symlink_below_project_directory() {
+        let _home = isolated_home();
         // A symlink deeper than the project directory is not allowed.
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
@@ -1903,6 +1909,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_symlinked_session_file() {
+        let _home = isolated_home();
         // The session file itself must be a real file, not a symlink.
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
@@ -1926,6 +1933,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_path_traversal_under_projects() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
         fs::create_dir_all(root.join("projects")).unwrap();
@@ -1948,7 +1956,7 @@ mod tests {
     fn test_validate_claude_path_filename_with_special_chars() {
         let _home = isolated_home();
         // Test filename validation with various invalid characters
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = crate::utils::home_dir() {
             let claude_dir = home.join(".claude/projects");
             // Filename with dot (besides extension) should fail
             let path_with_dot = claude_dir
