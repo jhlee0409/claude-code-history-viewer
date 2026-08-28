@@ -1216,8 +1216,11 @@ mod tests {
         // Build the matching CodeBuddy-style lossy encoding. We strip the
         // leading `/` and join with `-`, mirroring how CodeBuddy actually
         // names project directories on disk.
-        let real_leaf_str = real_leaf.to_string_lossy().to_string();
-        let encoded = real_leaf_str.trim_start_matches('/').replace('/', "-");
+        // Encoded with the shared rule: the inline `trim_start_matches('/')`
+        // plus `replace('/', "-")` only ever produced a Unix-shaped name, so on
+        // Windows the folder kept its backslashes and colon and nothing could
+        // decode it (#541).
+        let encoded = crate::test_utils::encode_path_claude_style(&real_leaf);
         let project_dir = projects_root.join(&encoded);
         std::fs::create_dir(&project_dir).expect("create project");
 

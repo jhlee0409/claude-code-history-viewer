@@ -373,23 +373,25 @@ pub fn make_encoded_path(root_name: &str, segments: &[&str]) -> (String, std::pa
     }
     std::fs::create_dir_all(&deep).expect("create deep tmp dir");
 
-    // Windows `canonicalize` returns a verbatim path (`\\?\C:\...`). Claude
-    // Code never sees one of those - it encodes the plain `C:\...` cwd - so
-    // encoding it here would produce `--?-C--Users-...`, a shape that
-    // exists nowhere (#548).
-    let raw = deep.to_string_lossy();
+    (encode_path_claude_style(&deep), root)
+}
+
+/// Encodes an absolute path the way Claude Code names a project folder.
+///
+/// Every separator becomes `-`. On Windows the drive colon goes too, so
+/// `C:\Temp\x` is `C--Temp-x` - drive-lettered and, unlike Unix, with no
+/// leading dash.
+///
+/// The Windows extended-length prefix is stripped first: `canonicalize` hands
+/// back `\\?\C:\...`, which Claude Code never sees, and encoding it would
+/// produce `--?-C--Users-...`, a shape that exists nowhere (#548).
+pub fn encode_path_claude_style(path: &std::path::Path) -> String {
+    let raw = path.to_string_lossy();
     let plain = raw
         .strip_prefix(r"\\?\UNC\")
         .map(|rest| format!(r"\\{rest}"))
         .unwrap_or_else(|| raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_string());
-
-    // Claude Code replaces every separator with `-`. On Windows the drive
-    // colon goes too, so `C:\Temp\x` becomes `C--Temp-x` - drive-lettered
-    // and, unlike Unix, with no leading dash. This helper used to leave the
-    // colon in place and force a leading dash, producing `-C:-Temp-x`,
-    // which is a shape Claude Code never writes (#548).
-    let encoded = plain.replace(['/', '\\', ':'], "-");
-    (encoded, root)
+    plain.replace(['/', '\\', ':'], "-")
 }
 
 #[cfg(test)]

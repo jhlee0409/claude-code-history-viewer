@@ -2903,11 +2903,20 @@ mod tests {
         std::fs::create_dir_all(&project_dir).unwrap();
         let actual_cwd = temp_dir.path().join("claude_prompt_design");
         std::fs::create_dir_all(&actual_cwd).unwrap();
-        let actual_cwd = actual_cwd.to_string_lossy();
-
+        // Built with `json!` rather than interpolated into a raw string: on
+        // Windows the cwd contains backslashes, which have to be JSON-escaped.
+        // Unescaped they made the line unparseable, so the loader returned no
+        // sessions at all and the assertion failed on the count (#541).
         let content = format!(
-            r#"{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{actual_cwd}","message":{{"role":"user","content":"Hello world"}}}}
-"#
+            "{}\n",
+            serde_json::json!({
+                "uuid": "uuid-1",
+                "sessionId": "session-1",
+                "timestamp": "2025-06-26T10:00:00Z",
+                "type": "user",
+                "cwd": actual_cwd.to_string_lossy(),
+                "message": { "role": "user", "content": "Hello world" },
+            })
         );
         let file_path = project_dir.join("test.jsonl");
         let mut file = File::create(&file_path).unwrap();

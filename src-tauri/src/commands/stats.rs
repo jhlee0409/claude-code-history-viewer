@@ -8328,22 +8328,34 @@ mod tests {
         let gemini_home_absolute = fs::canonicalize(gemini_home.path()).expect("Gemini home");
         let home = temp.path().to_string_lossy().to_string();
 
+        // Assembled with `join`, not a literal `/`: `home` is a real host path,
+        // so on Windows this mixed backslashes and forward slashes and the
+        // detector matched neither store (#541).
+        let session_under = |dot_dir: &str| {
+            temp.path()
+                .join(dot_dir)
+                .join("agent")
+                .join("sessions")
+                .join("-tmp")
+                .join("2026-08-01T00-00-00-000Z_x.jsonl")
+                .to_string_lossy()
+                .into_owned()
+        };
         assert_eq!(
-            detect_session_provider(&format!(
-                "{home}/.omp/agent/sessions/-tmp/2026-08-01T00-00-00-000Z_x.jsonl"
-            )),
+            detect_session_provider(&session_under(".omp")),
             StatsProvider::Ompi
         );
         assert_eq!(
-            detect_session_provider(&format!(
-                "{home}/.pi/agent/sessions/-tmp/2026-08-01T00-00-00-000Z_x.jsonl"
-            )),
+            detect_session_provider(&session_under(".pi")),
             StatsProvider::Pi
         );
         assert_eq!(
             detect_session_provider(
                 &gemini_home_absolute
-                    .join("tmp/abcd/chats/chat-1.jsonl")
+                    .join("tmp")
+                    .join("abcd")
+                    .join("chats")
+                    .join("chat-1.jsonl")
                     .to_string_lossy(),
             ),
             StatsProvider::Gemini
