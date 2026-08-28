@@ -37,9 +37,40 @@ pub struct PresetInput {
     pub settings: String, // JSON string of UserSettings
 }
 
+/// The home directory the presets folder hangs off.
+///
+/// Normally just `dirs::home_dir()`. Under `cfg(test)` it reads
+/// `CCHV_TEST_HOME` and panics if that is unset, for the same reason as the
+/// identical helper in `claude_settings.rs`: `env::set_var("HOME", temp_dir)`
+/// is inert on Windows, where `dirs::home_dir()` uses the known-folder API. The
+/// tests below therefore created and wrote to the real
+/// `~/.claude-history-viewer/presets` instead of a temp directory. Confirmed on
+/// this machine: that folder carries the timestamp of a `cargo test` run.
+///
+/// Less destructive than the `~/.claude` case - it pollutes a folder this app
+/// owns rather than overwriting Claude Code's config - but the same defect.
+#[cfg(not(test))]
+fn presets_home_dir() -> Option<PathBuf> {
+    dirs::home_dir()
+}
+
+#[cfg(test)]
+// Always Some or a panic under cfg(test); the Option matches the real
+// signature above so callers stay identical in both builds.
+#[allow(clippy::unnecessary_wraps)]
+fn presets_home_dir() -> Option<PathBuf> {
+    match std::env::var_os("CCHV_TEST_HOME") {
+        Some(value) => Some(PathBuf::from(value)),
+        None => panic!(
+            "a test resolved a real ~/.claude-history-viewer path without a \
+             sandbox. Call `setup_test_env()` first."
+        ),
+    }
+}
+
 /// Get the presets folder path (~/.claude-history-viewer/presets)
 fn get_presets_folder() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let home = presets_home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude-history-viewer").join("presets"))
 }
 
@@ -262,11 +293,20 @@ mod tests {
     use std::env;
     use tempfile::TempDir;
 
-    /// Sets up a test environment with a temporary HOME directory.
+    /// Sets up a test environment with a temporary home directory.
+    ///
+    /// Sets `CCHV_TEST_HOME`, which `presets_home_dir()` reads under
+    /// `cfg(test)`. `HOME` is still set because it is what works on Unix for
+    /// anything resolving through `dirs::home_dir()` directly.
+    ///
+    /// `HOME` alone was the previous mechanism and does nothing on Windows, so
+    /// these tests wrote into the real `~/.claude-history-viewer`.
+    ///
     /// NOTE: Tests using this MUST run with --test-threads=1 because
-    /// `env::set_var("HOME")` is process-global and not thread-safe.
+    /// `env::set_var` is process-global and not thread-safe.
     fn setup_test_env() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
+        env::set_var("CCHV_TEST_HOME", temp_dir.path());
         env::set_var("HOME", temp_dir.path());
         temp_dir
     }
@@ -275,9 +315,16 @@ mod tests {
     fn test_get_presets_folder() {
         let _temp = setup_test_env();
         let folder = get_presets_folder().unwrap();
+        // Compared by path components, not as a substring. The original
+        // assertion looked for the literal ".claude-history-viewer/presets",
+        // which a Windows path never contains because it separates with
+        // backslashes, so this test failed on Windows regardless of where the
+        // folder actually resolved.
+        assert!(folder.ends_with("presets"));
         assert!(folder
-            .to_string_lossy()
-            .contains(".claude-history-viewer/presets"));
+            .parent()
+            .expect("presets folder has a parent")
+            .ends_with(".claude-history-viewer"));
     }
 
     #[test]

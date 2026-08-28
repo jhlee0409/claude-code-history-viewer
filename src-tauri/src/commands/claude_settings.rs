@@ -39,21 +39,61 @@ pub struct AllMCPServers {
     pub local_claude_json: Option<serde_json::Value>,
 }
 
+/// The home directory these settings paths hang off.
+///
+/// In a normal build this is exactly `dirs::home_dir()`.
+///
+/// # Why this indirection exists
+///
+/// The tests below intended to sandbox themselves with
+/// `env::set_var("HOME", temp_dir)`. That is inert on Windows: `dirs::home_dir()`
+/// resolves through the known-folder API and consults neither `HOME` nor
+/// `USERPROFILE`. So `test_save_and_retrieve_user_settings` wrote
+/// `{"theme":"dark","fontSize":14}` straight over the developer's real
+/// `~/.claude/settings.json`, and because `save_settings` replaces rather than
+/// merges, every other key went with it. It destroyed a 22-key config twice
+/// before anyone connected it to `cargo test`, and the test reported `ok` each
+/// time.
+///
+/// Under `cfg(test)` this reads `CCHV_TEST_HOME` instead, and **panics if that
+/// variable is unset**. Falling back to the real home would leave the same
+/// landmine armed for the next test that forgets to sandbox itself; a panic
+/// turns that mistake into a loud failure instead of silent data loss.
+#[cfg(not(test))]
+fn settings_home_dir() -> Option<PathBuf> {
+    dirs::home_dir()
+}
+
+#[cfg(test)]
+// Always Some or a panic under cfg(test); the Option matches the real
+// signature above so callers stay identical in both builds.
+#[allow(clippy::unnecessary_wraps)]
+fn settings_home_dir() -> Option<PathBuf> {
+    match std::env::var_os("CCHV_TEST_HOME") {
+        Some(value) => Some(PathBuf::from(value)),
+        None => panic!(
+            "a test resolved a real ~/.claude path without a sandbox. \
+             Call `setup_test_env()` first: writing here would overwrite the \
+             developer's own settings.json."
+        ),
+    }
+}
+
 /// Get the user settings path (~/.claude/settings.json)
 fn get_user_settings_path() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let home = settings_home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude").join("settings.json"))
 }
 
 /// Get the user MCP settings path (~/.claude/.mcp.json)
 fn get_user_mcp_path() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let home = settings_home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude").join(".mcp.json"))
 }
 
 /// Get the main Claude config path (~/.claude.json) - the official config file
 fn get_claude_json_path() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let home = settings_home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude.json"))
 }
 
@@ -754,11 +794,23 @@ mod tests {
     use std::env;
     use tempfile::TempDir;
 
-    /// Sets up a test environment with a temporary HOME directory.
+    /// Sets up a test environment with a temporary home directory.
+    ///
+    /// Sets `CCHV_TEST_HOME`, which `settings_home_dir()` reads under
+    /// `cfg(test)`. It also still sets `HOME`, because other helpers reached
+    /// from these tests resolve through `dirs::home_dir()` directly and behave
+    /// correctly with it on Unix.
+    ///
+    /// `HOME` alone was the previous mechanism and is not enough: on Windows
+    /// `dirs::home_dir()` uses the known-folder API and ignores it, so the
+    /// sandbox silently did nothing and writes landed on the real
+    /// `~/.claude/settings.json`.
+    ///
     /// NOTE: Tests using this MUST run with --test-threads=1 because
-    /// `env::set_var("HOME")` is process-global and not thread-safe.
+    /// `env::set_var` is process-global and not thread-safe.
     fn setup_test_env() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
+        env::set_var("CCHV_TEST_HOME", temp_dir.path());
         env::set_var("HOME", temp_dir.path());
         temp_dir
     }
@@ -769,6 +821,34 @@ mod tests {
         let path = get_user_settings_path().unwrap();
         assert!(path.to_string_lossy().contains(".claude"));
         assert!(path.to_string_lossy().ends_with("settings.json"));
+        drop(temp);
+    }
+
+    /// The assertion the test above was missing.
+    ///
+    /// "contains `.claude`" and "ends with settings.json" were both true of the
+    /// developer's REAL settings file, so that test passed happily while the
+    /// sandbox did nothing on Windows and `test_save_and_retrieve_user_settings`
+    /// overwrote a 22-key config with `{"theme":"dark","fontSize":14}`.
+    ///
+    /// Anchoring the resolved path inside the temp directory is what actually
+    /// proves the sandbox holds. This fails on Windows without the
+    /// `CCHV_TEST_HOME` indirection, which is the point.
+    #[test]
+    fn settings_paths_stay_inside_the_sandbox() {
+        let temp = setup_test_env();
+        for path in [
+            get_user_settings_path().unwrap(),
+            get_user_mcp_path().unwrap(),
+            get_claude_json_path().unwrap(),
+        ] {
+            assert!(
+                path.starts_with(temp.path()),
+                "path escaped the test sandbox: {} is not under {}",
+                path.display(),
+                temp.path().display()
+            );
+        }
         drop(temp);
     }
 
