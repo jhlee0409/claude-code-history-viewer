@@ -284,14 +284,14 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
             return path;
         }
 
-        // Fallback: the original heuristic. It builds a `/`-rooted path, which
-        // is only ever meaningful on Unix, so it is gated on the platform
-        // rather than on the name's shape. A leading-dash test is not enough:
-        // Windows `canonicalize` hands back verbatim `\\?\C:\...` paths, whose
-        // leading separator also encodes to `-`, and the heuristic then
-        // fabricates `//?/C--Users-...` - worse than returning the storage path
-        // untouched (#548).
-        #[cfg(not(windows))]
+        // Fallback: the original heuristic, which builds a `/`-rooted path and
+        // so only applies to a Unix-shaped name. That is a property of the
+        // name, not of the host - a `-Users-jack-app` folder means a Unix path
+        // whichever OS reads it - so this stays keyed on the leading dash.
+        //
+        // A drive-lettered `D--OneDrive-...` is excluded by that test, which is
+        // the point: on Windows the heuristic would otherwise fabricate
+        // `/D--OneDrive/...` (#548).
         if encoded.starts_with('-') {
             let parts: Vec<&str> = encoded.splitn(4, '-').collect();
             if parts.len() >= 4 {
