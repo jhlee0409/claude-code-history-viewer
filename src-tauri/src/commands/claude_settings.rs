@@ -1070,7 +1070,8 @@ mod tests {
 
     #[test]
     fn test_validate_dialog_path_parent_dir_rejected() {
-        let path = Path::new("/some/path/../escape.txt");
+        let raw = crate::test_utils::abs("some/path/../escape.txt");
+        let path = Path::new(&raw);
         let result = validate_dialog_path(path);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("'..'"));
@@ -1078,7 +1079,8 @@ mod tests {
 
     #[test]
     fn test_validate_dialog_path_nonexistent_parent_rejected() {
-        let path = Path::new("/nonexistent_dir_abc123/file.txt");
+        let raw = crate::test_utils::abs("nonexistent_dir_abc123/file.txt");
+        let path = Path::new(&raw);
         let result = validate_dialog_path(path);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("does not exist"));

@@ -1730,7 +1730,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_restore_file_rejects_path_traversal() {
-        let result = restore_file("/tmp/../etc/passwd".to_string(), "content".to_string()).await;
+        let result = restore_file(
+            crate::test_utils::abs("tmp/../etc/passwd"),
+            "content".to_string(),
+        )
+        .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("path traversal"));
     }

@@ -995,7 +995,7 @@ mod tests {
     fn load_sessions_rejects_path_outside_codebuddy_root() {
         // /tmp definitely exists on macOS/Linux and is outside the codebuddy
         // root. The function checks existence first, so we need a real path.
-        let result = load_sessions("/tmp", false);
+        let result = load_sessions(&crate::test_utils::abs("tmp"), false);
         // Either errors with the "outside" message, or — if /tmp doesn't
         // canonicalize on this platform — errors with a canonicalize message.
         // Both are acceptable; what we want to guard against is `Ok(...)`.
@@ -1167,7 +1167,7 @@ mod tests {
             "role": "user",
             "sessionId": "s1",
             "timestamp": 1_700_000_000_000i64,
-            "cwd": "/Users/rassyan/WebstormProjects/claude-code-history-viewer",
+            "cwd": crate::test_utils::abs("Users/rassyan/WebstormProjects/claude-code-history-viewer"),
             "content": [{"type": "input_text", "text": "hi"}],
         });
         std::fs::write(&session, format!("{line}\n")).expect("write");
@@ -1179,7 +1179,8 @@ mod tests {
             "display name must keep the full hyphenated project leaf"
         );
         assert_eq!(
-            projects[0].actual_path, "/Users/rassyan/WebstormProjects/claude-code-history-viewer",
+            projects[0].actual_path,
+            crate::test_utils::abs("Users/rassyan/WebstormProjects/claude-code-history-viewer"),
             "actual_path must be the real cwd, not the lossy storage path"
         );
     }

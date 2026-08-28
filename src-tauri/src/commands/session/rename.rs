@@ -1808,15 +1808,31 @@ mod tests {
         );
     }
 
+    /// The expectations are case-folded on Windows because
+    /// `normalize_path_for_comparison` lowercases there, deliberately and
+    /// documented on the function: Windows filesystem access is
+    /// case-insensitive, so the allowlist boundary check has to be too.
+    ///
+    /// This asserted the mixed-case form and so had never passed on Windows -
+    /// a Windows-only test that only ever ran on Unix, where the `cfg` under
+    /// test is compiled out entirely (#541).
     #[test]
     fn normalizes_windows_verbatim_path_prefix_for_root_comparison() {
+        let expected_drive = if cfg!(windows) {
+            r"c:\users\alice\.claude"
+        } else {
+            r"C:\Users\Alice\.claude"
+        };
+        // The UNC form is already lower-case, so it reads the same either way.
+        let expected_unc = r"\\server\share\.claude";
+
         assert_eq!(
             normalize_path_for_comparison(Path::new(r"\\?\C:\Users\Alice\.claude")),
-            PathBuf::from(r"C:\Users\Alice\.claude")
+            PathBuf::from(expected_drive)
         );
         assert_eq!(
             normalize_path_for_comparison(Path::new(r"\\?\UNC\server\share\.claude")),
-            PathBuf::from(r"\\server\share\.claude")
+            PathBuf::from(expected_unc)
         );
     }
 

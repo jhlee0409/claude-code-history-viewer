@@ -370,3 +370,71 @@ mod tests {
         assert_eq!(lines.len(), 2);
     }
 }
+
+/// An absolute path on the host platform, written Unix-style.
+///
+/// `abs("tmp/session.jsonl")` is `/tmp/session.jsonl` on Unix and
+/// `C:\tmp\session.jsonl` on Windows.
+///
+/// Fixtures used to spell these inline as `"/tmp/session.jsonl"`. On Windows
+/// that string is *not* absolute — there is no drive — so code under test
+/// rejected it with "path must be absolute" long before reaching the behaviour
+/// the test was about, and the assertion failed for the wrong reason (#541).
+pub fn abs(unix_relative: &str) -> String {
+    let trimmed = unix_relative.trim_start_matches('/');
+    if cfg!(windows) {
+        format!(r"C:\{}", trimmed.replace('/', r"\"))
+    } else {
+        format!("/{trimmed}")
+    }
+}
+
+/// A directory that really exists on the host, for fixtures that need a path
+/// resolvable on disk rather than merely well-formed.
+///
+/// Unix fixtures reached for `/usr/lib`; Windows has no such directory, so the
+/// canonical temp dir stands in on both.
+pub fn existing_dir() -> PathBuf {
+    std::fs::canonicalize(std::env::temp_dir()).expect("canonicalize temp dir")
+}
+
+/// Creates a nested directory tree under the canonical temp dir, encodes it
+/// exactly the way Claude Code encodes a cwd on this platform, and returns the
+/// encoded slug plus the root for cleanup.
+///
+/// Shared so fixtures needing a folder name that decodes to a real directory
+/// stop reaching for `/usr/lib`, which does not exist on Windows (#541).
+///
+/// Original note: creates a nested directory tree under the
+/// canonical temp dir, encodes it Claude-style, and returns the encoded
+/// slug plus the root for cleanup. Canonicalization is required because
+/// the decoder rejects symlinked path components (macOS `/var` →
+/// `/private/var`).
+pub fn make_encoded_path(root_name: &str, segments: &[&str]) -> (String, std::path::PathBuf) {
+    let root = std::fs::canonicalize(std::env::temp_dir())
+        .expect("canonicalize temp dir")
+        .join(root_name);
+    let mut deep = root.clone();
+    for s in segments {
+        deep = deep.join(s);
+    }
+    std::fs::create_dir_all(&deep).expect("create deep tmp dir");
+
+    // Windows `canonicalize` returns a verbatim path (`\\?\C:\...`). Claude
+    // Code never sees one of those - it encodes the plain `C:\...` cwd - so
+    // encoding it here would produce `--?-C--Users-...`, a shape that
+    // exists nowhere (#548).
+    let raw = deep.to_string_lossy();
+    let plain = raw
+        .strip_prefix(r"\\?\UNC\")
+        .map(|rest| format!(r"\\{rest}"))
+        .unwrap_or_else(|| raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_string());
+
+    // Claude Code replaces every separator with `-`. On Windows the drive
+    // colon goes too, so `C:\Temp\x` becomes `C--Temp-x` - drive-lettered
+    // and, unlike Unix, with no leading dash. This helper used to leave the
+    // colon in place and force a leading dash, producing `-C:-Temp-x`,
+    // which is a shape Claude Code never writes (#548).
+    let encoded = plain.replace(['/', '\\', ':'], "-");
+    (encoded, root)
+}

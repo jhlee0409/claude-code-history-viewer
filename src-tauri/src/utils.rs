@@ -765,6 +765,7 @@ fn collect_workflow_agent_files(workflows_dir: &Path, files: &mut Vec<std::path:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::make_encoded_path;
 
     // ===== par_map_bounded Tests =====
 
@@ -896,40 +897,6 @@ mod tests {
         // prefix unlikely to ever exist on any developer machine.
         let result = extract_project_name("-__cchv_definitely_missing_12345__-foo-bar-leafname");
         assert_eq!(result, "bar-leafname");
-    }
-
-    /// Helper for deep-path tests: creates a nested directory tree under the
-    /// canonical temp dir, encodes it Claude-style, and returns the encoded
-    /// slug plus the root for cleanup. Canonicalization is required because
-    /// the decoder rejects symlinked path components (macOS `/var` →
-    /// `/private/var`).
-    fn make_encoded_path(root_name: &str, segments: &[&str]) -> (String, std::path::PathBuf) {
-        let root = std::fs::canonicalize(std::env::temp_dir())
-            .expect("canonicalize temp dir")
-            .join(root_name);
-        let mut deep = root.clone();
-        for s in segments {
-            deep = deep.join(s);
-        }
-        std::fs::create_dir_all(&deep).expect("create deep tmp dir");
-
-        // Windows `canonicalize` returns a verbatim path (`\\?\C:\...`). Claude
-        // Code never sees one of those - it encodes the plain `C:\...` cwd - so
-        // encoding it here would produce `--?-C--Users-...`, a shape that
-        // exists nowhere (#548).
-        let raw = deep.to_string_lossy();
-        let plain = raw
-            .strip_prefix(r"\\?\UNC\")
-            .map(|rest| format!(r"\\{rest}"))
-            .unwrap_or_else(|| raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_string());
-
-        // Claude Code replaces every separator with `-`. On Windows the drive
-        // colon goes too, so `C:\Temp\x` becomes `C--Temp-x` - drive-lettered
-        // and, unlike Unix, with no leading dash. This helper used to leave the
-        // colon in place and force a leading dash, producing `-C:-Temp-x`,
-        // which is a shape Claude Code never writes (#548).
-        let encoded = plain.replace(['/', '\\', ':'], "-");
-        (encoded, root)
     }
 
     #[test]
@@ -1129,12 +1096,21 @@ mod tests {
 
     #[test]
     fn test_decode_project_path_verified_resolves_existing_folder() {
-        // `/usr/lib` exists on macOS and Linux and contains no dashes, so the
-        // dash-decoder can resolve it against the real filesystem.
-        assert_eq!(
-            decode_project_path_verified("/Users/whoever/.claude/projects/-usr-lib"),
-            Some("/usr/lib".to_string())
-        );
+        // Built rather than borrowed: this used to point at `/usr/lib`, which
+        // exists on macOS and Linux and nowhere on Windows (#541).
+        let (encoded, root) = make_encoded_path("cchv_541_verified", &["leaf"]);
+        let storage = Path::new(".claude")
+            .join("projects")
+            .join(&encoded)
+            .to_string_lossy()
+            .into_owned();
+
+        let resolved =
+            decode_project_path_verified(&storage).and_then(|p| std::fs::canonicalize(p).ok());
+        let expected = std::fs::canonicalize(root.join("leaf")).expect("canonicalize fixture");
+        std::fs::remove_dir_all(&root).ok();
+
+        assert_eq!(resolved.as_deref(), Some(expected.as_path()));
     }
 
     #[test]

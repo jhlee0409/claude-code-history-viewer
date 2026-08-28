@@ -377,7 +377,7 @@ mod tests {
 
     #[test]
     fn test_validate_project_metadata_key_absolute_path() {
-        assert!(validate_project_metadata_key("/tmp/project").is_ok());
+        assert!(validate_project_metadata_key(&crate::test_utils::abs("tmp/project")).is_ok());
     }
 
     #[test]
