@@ -54,7 +54,15 @@ jobs:
         working-directory: src-tauri
         run: cargo fmt --all -- --check
 
-      - name: Run Clippy
+      # Both feature sets. `--all-features` alone missed an
+      # `items_after_test_module` error that only the default set reported,
+      # because the feature-gated items around it change what follows the test
+      # module. Reported by @nightcityblade on #546.
+      - name: Run Clippy (default features)
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run Clippy (all features)
         working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
 

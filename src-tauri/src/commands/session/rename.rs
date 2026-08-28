@@ -1017,7 +1017,12 @@ mod tests {
     /// `crate::utils::home_dir` made it say so (#540).
     fn isolated_home() -> tempfile::TempDir {
         let dir = tempfile::TempDir::new().expect("temp home");
-        std::env::set_var("CCHV_TEST_HOME", dir.path());
+        // Canonicalised: on macOS the temp dir is handed back as `/var/...`
+        // while anything that canonicalises sees `/private/var/...`, so an
+        // uncanonicalised sandbox root silently fails to match.
+        // Spotted by @nightcityblade in #546.
+        let canonical = dir.path().canonicalize().expect("canonicalize temp home");
+        std::env::set_var("CCHV_TEST_HOME", canonical);
         dir
     }
 
@@ -1651,7 +1656,10 @@ mod tests {
     #[test]
     fn test_validate_claude_path_valid_path() {
         let home = isolated_home();
-        let (_base, session_path) = make_claude_dir(&home.path().join(".claude"), "session-1");
+        // `real_temp_root` because the sandbox root is canonicalised - see
+        // `isolated_home`.
+        let (_base, session_path) =
+            make_claude_dir(&real_temp_root(&home).join(".claude"), "session-1");
 
         let result = validate_claude_path(&session_path);
 
@@ -1761,7 +1769,7 @@ mod tests {
         // when that home had no `.claude`, or had one behind a symlink - two
         // ways to report `ok` without checking anything (#545).
         let home = isolated_home();
-        let default_root = home.path().join(".claude");
+        let default_root = real_temp_root(&home).join(".claude");
 
         let roots = resolve_claude_roots(&[]);
 
