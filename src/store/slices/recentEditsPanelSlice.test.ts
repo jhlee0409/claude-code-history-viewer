@@ -550,3 +550,110 @@ describe("recentEditsPanelSlice dock reset", () => {
     expect(store.getState().recentEditsDock).toBeNull();
   });
 });
+
+/**
+ * #538. The in-flight guard compares request keys for equality, so a key that
+ * is cleared and then set back to the *same* value looks unchanged — an ABA.
+ *
+ * `clearRecentEditsDock` (added in #533) nulls the key on deselect, and the
+ * gesture that PR is about — clicking the selected project to collapse it —
+ * deselects and re-selects. So a quick double click restarts the request with
+ * an identical key while the first fetch is still in flight, and the stale
+ * response satisfies `key === key` and lands.
+ *
+ * Deferred promises use the executor form rather than `Promise.withResolvers`,
+ * which the jsdom realm on CI does not provide — measured, not assumed.
+ */
+describe("recentEditsPanelSlice request identity across a restart", () => {
+  const request = {
+    projectPath: "/storage/project",
+    scope: "project" as const,
+    grouping: "file" as const,
+    sessionFilePath: "/storage/project/session-a.jsonl",
+  };
+
+  const pageOf = (paths: string[]) => ({
+    files: paths.map((file_path) => ({
+      file_path,
+      timestamp: "2026-08-01T00:00:00.000Z",
+      session_id: "s1",
+      operation_type: "edit" as const,
+      content_after_change: "after",
+      lines_added: 1,
+      lines_removed: 0,
+    })),
+    total_edits_count: paths.length,
+    unique_files_count: paths.length,
+    project_cwd: "/project",
+    offset: 0,
+    limit: 20,
+    has_more: false,
+  });
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchRecentEdits.mockReset();
+  });
+
+  it("drops a stale response when the request restarts with the same key", async () => {
+    const store = makeStore();
+
+    let releaseStale: ((value: unknown) => void) | undefined;
+    fetchRecentEdits
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (releaseStale = resolve))
+      )
+      .mockResolvedValueOnce(pageOf(["/project/fresh.ts"]));
+
+    const stale = store.getState().loadRecentEditsDock(request);
+
+    // Deselect, then re-select the same project: same key, second fetch.
+    store.getState().clearRecentEditsDock();
+    await store.getState().loadRecentEditsDock(request);
+
+    expect(store.getState().recentEditsDock?.files[0]?.file_path).toBe(
+      "/project/fresh.ts"
+    );
+
+    releaseStale?.(pageOf(["/project/stale.ts"]));
+    await stale;
+
+    // The first fetch answers a question that was asked again and already
+    // answered. Its page must not replace the newer one.
+    expect(store.getState().recentEditsDock?.files[0]?.file_path).toBe(
+      "/project/fresh.ts"
+    );
+  });
+
+  it("does not let a stale failure clear the spinner or paint an error", async () => {
+    const store = makeStore();
+
+    let rejectStale: ((reason: unknown) => void) | undefined;
+    let releaseFresh: ((value: unknown) => void) | undefined;
+    fetchRecentEdits
+      .mockImplementationOnce(
+        () => new Promise((_resolve, reject) => (rejectStale = reject))
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (releaseFresh = resolve))
+      );
+
+    const stale = store.getState().loadRecentEditsDock(request);
+    store.getState().clearRecentEditsDock();
+    const fresh = store.getState().loadRecentEditsDock(request);
+
+    expect(store.getState().isLoadingRecentEditsDock).toBe(true);
+
+    rejectStale?.(new Error("the abandoned request failed"));
+    await stale;
+
+    // The second fetch is still running, so the panel is still loading and
+    // has nothing to apologise for.
+    expect(store.getState().isLoadingRecentEditsDock).toBe(true);
+    expect(store.getState().recentEditsDockError).toBeNull();
+
+    releaseFresh?.(pageOf(["/project/fresh.ts"]));
+    await fresh;
+    expect(store.getState().isLoadingRecentEditsDock).toBe(false);
+  });
+});
