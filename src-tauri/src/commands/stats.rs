@@ -7293,6 +7293,7 @@ mod tests {
 
     #[test]
     fn test_antigravity_provider_project_summary_uses_mode_adjusted_daily_tokens() {
+        let _home = isolated_home();
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let root = temp_dir.path();
         let session_dir = root
@@ -8324,25 +8325,43 @@ mod tests {
         let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp.path());
         let gemini_home = TempDir::new_in(".").expect("relative Gemini home");
         let _gemini_guard = EnvVarGuard::set("GEMINI_HOME", gemini_home.path());
-        let gemini_home_absolute = fs::canonicalize(gemini_home.path()).expect("Gemini home");
+        // Plain, not verbatim: `get_base_path` hands back the `GEMINI_HOME`
+        // value as it was set, so comparing it against a canonicalised
+        // `\\?\D:\...` never matched on Windows (#541).
+        let gemini_home_absolute =
+            std::path::PathBuf::from(crate::test_utils::strip_verbatim_prefix(
+                &fs::canonicalize(gemini_home.path()).expect("Gemini home"),
+            ));
         let home = temp.path().to_string_lossy().to_string();
 
+        // Assembled with `join`, not a literal `/`: `home` is a real host path,
+        // so on Windows this mixed backslashes and forward slashes and the
+        // detector matched neither store (#541).
+        let session_under = |dot_dir: &str| {
+            temp.path()
+                .join(dot_dir)
+                .join("agent")
+                .join("sessions")
+                .join("-tmp")
+                .join("2026-08-01T00-00-00-000Z_x.jsonl")
+                .to_string_lossy()
+                .into_owned()
+        };
         assert_eq!(
-            detect_session_provider(&format!(
-                "{home}/.omp/agent/sessions/-tmp/2026-08-01T00-00-00-000Z_x.jsonl"
-            )),
+            detect_session_provider(&session_under(".omp")),
             StatsProvider::Ompi
         );
         assert_eq!(
-            detect_session_provider(&format!(
-                "{home}/.pi/agent/sessions/-tmp/2026-08-01T00-00-00-000Z_x.jsonl"
-            )),
+            detect_session_provider(&session_under(".pi")),
             StatsProvider::Pi
         );
         assert_eq!(
             detect_session_provider(
                 &gemini_home_absolute
-                    .join("tmp/abcd/chats/chat-1.jsonl")
+                    .join("tmp")
+                    .join("abcd")
+                    .join("chats")
+                    .join("chat-1.jsonl")
                     .to_string_lossy(),
             ),
             StatsProvider::Gemini

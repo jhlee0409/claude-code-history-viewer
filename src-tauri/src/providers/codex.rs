@@ -2967,7 +2967,8 @@ mod tests {
         fs::create_dir_all(&archived_dir).expect("archived dir should be created");
         let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
 
-        let project_cwd = "/Users/jack/client/claude-code-history-viewer";
+        let project_cwd = crate::test_utils::abs("Users/jack/client/claude-code-history-viewer");
+        let project_cwd = project_cwd.as_str();
         let active_rollout = sessions_dir.join("rollout-active.jsonl");
         let archived_rollout = archived_dir.join("rollout-archived.jsonl");
         let active_lines = [
@@ -3019,10 +3020,13 @@ mod tests {
             .expect("sessions should be loaded");
 
         assert_eq!(sessions.len(), 2);
-        assert!(sessions.iter().any(|s| s.file_path.contains("/sessions/")));
+        let sep = std::path::MAIN_SEPARATOR;
         assert!(sessions
             .iter()
-            .any(|s| s.file_path.contains("/archived_sessions/")));
+            .any(|s| s.file_path.contains(&format!("{sep}sessions{sep}"))));
+        assert!(sessions.iter().any(|s| s
+            .file_path
+            .contains(&format!("{sep}archived_sessions{sep}"))));
     }
 
     #[test]
@@ -3088,7 +3092,8 @@ mod tests {
         fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
         let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
 
-        let project_cwd = "/Users/jack/client/claude-code-history-viewer";
+        let project_cwd = crate::test_utils::abs("Users/jack/client/claude-code-history-viewer");
+        let project_cwd = project_cwd.as_str();
         write_codex_rollout(
             &sessions_dir,
             "rollout-native-title.jsonl",
@@ -3130,7 +3135,7 @@ mod tests {
             &sessions_dir,
             "rollout-rename-title.jsonl",
             "rename-title-session",
-            "/Users/jack/client/claude-code-history-viewer",
+            &crate::test_utils::abs("Users/jack/client/claude-code-history-viewer"),
             "Original first prompt",
         );
         create_codex_state_db(
@@ -3192,7 +3197,7 @@ mod tests {
             &sessions_dir,
             "rollout-delete-cleanup.jsonl",
             "delete-cleanup-session",
-            "/Users/jack/client/claude-code-history-viewer",
+            &crate::test_utils::abs("Users/jack/client/claude-code-history-viewer"),
             "Original first prompt",
         );
         create_codex_state_db(

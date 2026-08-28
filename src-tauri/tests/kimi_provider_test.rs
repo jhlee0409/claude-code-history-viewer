@@ -16,7 +16,13 @@ fn kimi_provider_scans_projects_from_sessions_tree() {
     assert_eq!(project.name, "project-hash");
     assert_eq!(
         project.path,
-        format!("kimi://{}", base.join("sessions/project-hash").display())
+        // `join` per segment - a single `join("sessions/project-hash")` keeps
+        // the forward slash verbatim on Windows, while the value under test is
+        // built segment by segment (#541).
+        format!(
+            "kimi://{}",
+            base.join("sessions").join("project-hash").display()
+        )
     );
     assert_eq!(project.actual_path, "project-hash");
     assert_eq!(project.session_count, 2);

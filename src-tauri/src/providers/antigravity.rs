@@ -803,9 +803,14 @@ mod tests {
         std::fs::create_dir_all(&cli_root).expect("create cli root");
         std::fs::write(
             cli_root.join("history.jsonl"),
-            concat!(
-                "{\"display\": \"Wire the CLI layout\", \"timestamp\": 1750500000000, ",
-                "\"workspace\": \"/tmp/cli-proj\", \"conversationId\": \"conv-cli\"}\n",
+            format!(
+                "{}\n",
+                serde_json::json!({
+                    "display": "Wire the CLI layout",
+                    "timestamp": 1750500000000u64,
+                    "workspace": crate::test_utils::abs("tmp/cli-proj"),
+                    "conversationId": "conv-cli",
+                })
             ),
         )
         .expect("write history.jsonl");

@@ -111,19 +111,23 @@ mod tests {
 
     #[tokio::test]
     async fn reject_non_jsonl_extension() {
-        let err = delete_session("/tmp/session.txt".into()).await.unwrap_err();
+        let err = delete_session(crate::test_utils::abs("tmp/session.txt"))
+            .await
+            .unwrap_err();
         assert_eq!(err, "Only .jsonl session files can be deleted");
     }
 
     #[tokio::test]
     async fn reject_session_id_with_dots() {
-        let err = delete_session("/tmp/a..b.jsonl".into()).await.unwrap_err();
+        let err = delete_session(crate::test_utils::abs("tmp/a..b.jsonl"))
+            .await
+            .unwrap_err();
         assert_eq!(err, "Invalid session ID format");
     }
 
     #[tokio::test]
     async fn reject_session_id_with_spaces() {
-        let err = delete_session("/tmp/bad name.jsonl".into())
+        let err = delete_session(crate::test_utils::abs("tmp/bad name.jsonl"))
             .await
             .unwrap_err();
         assert_eq!(err, "Invalid session ID format");

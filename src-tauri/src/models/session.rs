@@ -169,7 +169,8 @@ mod tests {
 
     #[test]
     fn unavailable_project_path_is_exposed_without_hiding_the_project() {
-        let project = project_with_path("/definitely-missing-claude-project");
+        let project =
+            project_with_path(&crate::test_utils::abs("definitely-missing-claude-project"));
         let serialized = serde_json::to_value(project).unwrap();
 
         assert_eq!(

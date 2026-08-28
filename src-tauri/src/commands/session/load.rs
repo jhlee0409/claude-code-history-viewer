@@ -2903,11 +2903,20 @@ mod tests {
         std::fs::create_dir_all(&project_dir).unwrap();
         let actual_cwd = temp_dir.path().join("claude_prompt_design");
         std::fs::create_dir_all(&actual_cwd).unwrap();
-        let actual_cwd = actual_cwd.to_string_lossy();
-
+        // Built with `json!` rather than interpolated into a raw string: on
+        // Windows the cwd contains backslashes, which have to be JSON-escaped.
+        // Unescaped they made the line unparseable, so the loader returned no
+        // sessions at all and the assertion failed on the count (#541).
         let content = format!(
-            r#"{{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":"{actual_cwd}","message":{{"role":"user","content":"Hello world"}}}}
-"#
+            "{}\n",
+            serde_json::json!({
+                "uuid": "uuid-1",
+                "sessionId": "session-1",
+                "timestamp": "2025-06-26T10:00:00Z",
+                "type": "user",
+                "cwd": actual_cwd.to_string_lossy(),
+                "message": { "role": "user", "content": "Hello world" },
+            })
         );
         let file_path = project_dir.join("test.jsonl");
         let mut file = File::create(&file_path).unwrap();
@@ -2924,21 +2933,30 @@ mod tests {
     #[tokio::test]
     async fn test_load_project_sessions_prefers_verified_folder_over_stale_cwd() {
         let temp_dir = TempDir::new().unwrap();
-        // Folder name decodes to an existing directory (/usr/lib); the
-        // `.claude/projects/` marker must be present for verified decoding.
+        // The folder name must decode to a directory that really exists. This
+        // borrowed `/usr/lib`, which Windows does not have (#541); it is built
+        // now. The `.claude/projects/` marker still has to be present for
+        // verified decoding to engage.
+        let (encoded, real_root) =
+            crate::test_utils::make_encoded_path("cchv_541_load_stale", &["lib"]);
         let project_dir = temp_dir
             .path()
             .join(".claude")
             .join("projects")
-            .join("-usr-lib");
+            .join(&encoded);
         std::fs::create_dir_all(&project_dir).unwrap();
 
         // Stale embedded cwd simulates a session moved into this folder by hand.
-        let content = concat!(
-            r#"{"uuid":"uuid-1","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","#,
-            r#""type":"user","cwd":"/some/stale/Dev","#,
-            r#""message":{"role":"user","content":"Hello world"}}"#,
-            "\n"
+        let content = format!(
+            "{}\n",
+            serde_json::json!({
+                "uuid": "uuid-1",
+                "sessionId": "session-1",
+                "timestamp": "2025-06-26T10:00:00Z",
+                "type": "user",
+                "cwd": crate::test_utils::abs("some/stale/Dev"),
+                "message": { "role": "user", "content": "Hello world" },
+            })
         );
         let file_path = project_dir.join("test.jsonl");
         let mut file = File::create(&file_path).unwrap();
@@ -2947,6 +2965,7 @@ mod tests {
         let result = load_project_sessions(project_dir.to_string_lossy().to_string(), None)
             .await
             .unwrap();
+        std::fs::remove_dir_all(&real_root).ok();
 
         assert_eq!(result.len(), 1);
         // Verified folder name wins over the stale cwd.

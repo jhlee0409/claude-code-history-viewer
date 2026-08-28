@@ -537,7 +537,7 @@ mod tests {
                 "sessionId": "session-missing-worktree",
                 "timestamp": "2026-08-16T10:00:00Z",
                 "type": "user",
-                "cwd": "/tmp/deleted-worktree",
+                "cwd": crate::test_utils::abs("tmp/deleted-worktree"),
                 "message": { "role": "user", "content": "Keep this history" },
             })]),
         );
@@ -547,7 +547,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(projects.len(), 1);
-        assert_eq!(projects[0].actual_path, "/tmp/deleted-worktree");
+        assert_eq!(
+            projects[0].actual_path,
+            crate::test_utils::abs("tmp/deleted-worktree")
+        );
 
         let serialized = serde_json::to_value(&projects[0]).unwrap();
         assert_eq!(
@@ -656,8 +659,11 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let claude_dir = temp_dir.path().join(".claude");
         let projects_dir = claude_dir.join("projects");
-        // Folder name decodes to an existing directory (/usr/lib).
-        let project_dir = projects_dir.join("-usr-lib");
+        // The folder name has to decode to a directory that really exists. This
+        // used to be `-usr-lib`, borrowing `/usr/lib` from the host - a path
+        // Windows does not have (#541). Built now instead.
+        let (encoded, real_root) = crate::test_utils::make_encoded_path("cchv_541_stale", &["lib"]);
+        let project_dir = projects_dir.join(&encoded);
         fs::create_dir_all(&project_dir).unwrap();
 
         // The session's embedded cwd is stale (points elsewhere), simulating a
@@ -670,7 +676,7 @@ mod tests {
                 "sessionId": "session-1",
                 "timestamp": "2025-06-26T10:00:00Z",
                 "type": "user",
-                "cwd": "/some/stale/Dev",
+                "cwd": crate::test_utils::abs("some/stale/Dev"),
                 "message": { "role": "user", "content": "Hello" },
             })]),
         );
@@ -679,9 +685,20 @@ mod tests {
             .await
             .unwrap();
 
+        // Both canonicalized while the fixture still exists - the cleanup below
+        // would otherwise make the resolution fail rather than mismatch.
+        let expected = std::fs::canonicalize(real_root.join("lib")).expect("canonicalize fixture");
+        let actual = std::fs::canonicalize(&projects[0].actual_path).ok();
+        std::fs::remove_dir_all(&real_root).ok();
+
         assert_eq!(projects.len(), 1);
         // Verified folder name wins over the stale cwd.
-        assert_eq!(projects[0].actual_path, "/usr/lib");
+        assert_eq!(
+            actual.as_deref(),
+            Some(expected.as_path()),
+            "actual_path was {:?}",
+            projects[0].actual_path
+        );
         assert_eq!(projects[0].name, "lib");
     }
 
@@ -953,7 +970,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_git_log_invalid_path() {
-        let result = get_git_log("/nonexistent/path".to_string(), 10).await;
+        let result = get_git_log(crate::test_utils::abs("nonexistent/path"), 10).await;
         // Should fail because path doesn't exist
         assert!(result.is_err());
         assert_eq!(

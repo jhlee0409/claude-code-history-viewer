@@ -1396,9 +1396,23 @@ mod tests {
     }
 
     fn write_workspace_map(root: &Path) {
+        // Built rather than written literally: on Windows the root is
+        // `C:\tmp\demo-project` and those backslashes have to be JSON-escaped,
+        // which a raw string cannot do (#541).
         fs::write(
             root.join(WORKSPACES_FILE),
-            r#"{"version":1,"workspaces":{"wd_demo_abc123":{"root":"/tmp/demo-project","name":"demo-project","created_at":"2026-08-01T00:00:00.000Z","last_opened_at":"2026-08-02T00:00:00.000Z"}}}"#,
+            serde_json::json!({
+                "version": 1,
+                "workspaces": {
+                    "wd_demo_abc123": {
+                        "root": crate::test_utils::abs("tmp/demo-project"),
+                        "name": "demo-project",
+                        "created_at": "2026-08-01T00:00:00.000Z",
+                        "last_opened_at": "2026-08-02T00:00:00.000Z",
+                    }
+                }
+            })
+            .to_string(),
         )
         .expect("write workspaces.json");
     }
@@ -1419,8 +1433,17 @@ mod tests {
     }
 
     fn default_state() -> String {
-        r#"{"id":"session_x","version":2,"cwd":"/tmp/demo-project","archived":false,"agents":{"main":{"type":"main"}},"title":"","createdAt":1786957369672,"updatedAt":1787034652121}"#
-            .to_string()
+        serde_json::json!({
+            "id": "session_x",
+            "version": 2,
+            "cwd": crate::test_utils::abs("tmp/demo-project"),
+            "archived": false,
+            "agents": { "main": { "type": "main" } },
+            "title": "",
+            "createdAt": 1786957369672u64,
+            "updatedAt": 1787034652121u64,
+        })
+        .to_string()
     }
 
     /// A full turn: user prompt, one thinking part + a tool call, the tool
@@ -1457,8 +1480,14 @@ mod tests {
             &full_turn_wire(),
         );
         // Not in workspaces.json → falls back to state.json cwd.
-        let other_state =
-            r#"{"id":"session_y","version":2,"cwd":"/Users/jack/other","createdAt":1786957369672}"#;
+        let other_state = serde_json::json!({
+            "id": "session_y",
+            "version": 2,
+            "cwd": crate::test_utils::abs("Users/jack/other"),
+            "createdAt": 1786957369672u64,
+        })
+        .to_string();
+        let other_state = other_state.as_str();
         write_session(
             &root,
             "wd_other_zzz",
@@ -1478,14 +1507,25 @@ mod tests {
         assert_eq!(projects[0].name, "demo-project");
         assert_eq!(
             projects[0].path,
-            format!("{SCHEME}{}/sessions/wd_demo_abc123", root.display())
+            // Built with `join`, not a literal `/`: the value under test comes
+            // from `Path::join` and so uses the host separator (#541).
+            format!(
+                "{SCHEME}{}",
+                root.join("sessions").join("wd_demo_abc123").display()
+            )
         );
-        assert_eq!(projects[0].actual_path, "/tmp/demo-project");
+        assert_eq!(
+            projects[0].actual_path,
+            crate::test_utils::abs("tmp/demo-project")
+        );
         assert_eq!(projects[0].session_count, 1);
         assert_eq!(projects[0].provider.as_deref(), Some("kimi"));
         // …state.json cwd is the fallback for the unindexed one.
         assert_eq!(projects[1].name, "other");
-        assert_eq!(projects[1].actual_path, "/Users/jack/other");
+        assert_eq!(
+            projects[1].actual_path,
+            crate::test_utils::abs("Users/jack/other")
+        );
     }
 
     #[test]
