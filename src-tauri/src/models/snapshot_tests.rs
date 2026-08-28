@@ -334,8 +334,10 @@ mod project_snapshots {
     fn snapshot_claude_project() {
         let project = ClaudeProject {
             name: "my-awesome-project".to_string(),
-            path: "/Users/test/.claude/projects/-Users-test-my-awesome-project".to_string(),
-            actual_path: "/Users/test/my-awesome-project".to_string(),
+            path: crate::test_utils::abs(
+                "Users/test/.claude/projects/-Users-test-my-awesome-project",
+            ),
+            actual_path: crate::test_utils::abs("Users/test/my-awesome-project"),
             session_count: 42,
             message_count: 1337,
             last_modified: "2025-01-15T10:30:00Z".to_string(),
@@ -345,7 +347,16 @@ mod project_snapshots {
             custom_directory_label: None,
         };
 
-        assert_json_snapshot!("claude_project", project);
+        // The two path fields are redacted because their spelling is
+        // platform-specific while everything the snapshot documents - the field
+        // set, the ordering, and whether `path_status` is emitted - is not.
+        // They have to be real absolute paths, though: `project_path_status`
+        // returns `None` for a non-absolute one, so the Unix literals used here
+        // before silently dropped `path_status` from the Windows output (#541).
+        assert_json_snapshot!("claude_project", project, {
+            ".path" => "[path]",
+            ".actual_path" => "[actual_path]",
+        });
     }
 
     #[test]
@@ -372,8 +383,8 @@ mod project_snapshots {
     fn snapshot_pi_project() {
         let project = ClaudeProject {
             name: "herdr".to_string(),
-            path: "/Users/ac/.pi/agent/sessions/--Users-ac-dev-herdr--".to_string(),
-            actual_path: "/Users/ac/dev/herdr".to_string(),
+            path: crate::test_utils::abs("Users/ac/.pi/agent/sessions/--Users-ac-dev-herdr--"),
+            actual_path: crate::test_utils::abs("Users/ac/dev/herdr"),
             session_count: 2,
             message_count: 42,
             last_modified: "2026-06-08T20:32:11.000Z".to_string(),
@@ -383,7 +394,11 @@ mod project_snapshots {
             custom_directory_label: None,
         };
 
-        assert_json_snapshot!("pi_project", project);
+        // Redacted for the same reason as `claude_project` above.
+        assert_json_snapshot!("pi_project", project, {
+            ".path" => "[path]",
+            ".actual_path" => "[actual_path]",
+        });
     }
 }
 
