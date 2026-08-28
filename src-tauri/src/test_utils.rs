@@ -324,53 +324,6 @@ macro_rules! assert_contains {
     };
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_message_builder_user() {
-        let msg = MessageBuilder::user().with_text_content("Hello!").build();
-
-        assert_eq!(msg.message_type, "user");
-        assert_eq!(msg.role, Some("user".to_string()));
-    }
-
-    #[test]
-    fn test_message_builder_assistant() {
-        let msg = MessageBuilder::assistant()
-            .with_text_content("Hi there!")
-            .with_usage(100, 50)
-            .build();
-
-        assert_eq!(msg.message_type, "assistant");
-        assert_eq!(msg.model, Some("claude-opus-4-20250514".to_string()));
-        assert!(msg.usage.is_some());
-    }
-
-    #[test]
-    fn test_mock_claude_project() {
-        let mock = MockClaudeProject::new();
-        let session_path = mock.add_session("test-project", "session1", "{}");
-
-        assert!(session_path.exists());
-        assert!(mock.projects_dir.join("test-project").exists());
-    }
-
-    #[test]
-    fn test_create_jsonl_content() {
-        let messages = vec![
-            MessageBuilder::user().with_text_content("Hello"),
-            MessageBuilder::assistant().with_text_content("Hi!"),
-        ];
-
-        let content = create_jsonl_content(&messages);
-        let lines: Vec<&str> = content.lines().collect();
-
-        assert_eq!(lines.len(), 2);
-    }
-}
-
 /// An absolute path on the host platform, written Unix-style.
 ///
 /// `abs("tmp/session.jsonl")` is `/tmp/session.jsonl` on Unix and
@@ -437,4 +390,51 @@ pub fn make_encoded_path(root_name: &str, segments: &[&str]) -> (String, std::pa
     // which is a shape Claude Code never writes (#548).
     let encoded = plain.replace(['/', '\\', ':'], "-");
     (encoded, root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_message_builder_user() {
+        let msg = MessageBuilder::user().with_text_content("Hello!").build();
+
+        assert_eq!(msg.message_type, "user");
+        assert_eq!(msg.role, Some("user".to_string()));
+    }
+
+    #[test]
+    fn test_message_builder_assistant() {
+        let msg = MessageBuilder::assistant()
+            .with_text_content("Hi there!")
+            .with_usage(100, 50)
+            .build();
+
+        assert_eq!(msg.message_type, "assistant");
+        assert_eq!(msg.model, Some("claude-opus-4-20250514".to_string()));
+        assert!(msg.usage.is_some());
+    }
+
+    #[test]
+    fn test_mock_claude_project() {
+        let mock = MockClaudeProject::new();
+        let session_path = mock.add_session("test-project", "session1", "{}");
+
+        assert!(session_path.exists());
+        assert!(mock.projects_dir.join("test-project").exists());
+    }
+
+    #[test]
+    fn test_create_jsonl_content() {
+        let messages = vec![
+            MessageBuilder::user().with_text_content("Hello"),
+            MessageBuilder::assistant().with_text_content("Hi!"),
+        ];
+
+        let content = create_jsonl_content(&messages);
+        let lines: Vec<&str> = content.lines().collect();
+
+        assert_eq!(lines.len(), 2);
+    }
 }

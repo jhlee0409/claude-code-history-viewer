@@ -970,7 +970,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_git_log_invalid_path() {
-        let result = get_git_log(crate::test_utils::abs("nonexistent/path").to_string(), 10).await;
+        let result = get_git_log(crate::test_utils::abs("nonexistent/path"), 10).await;
         // Should fail because path doesn't exist
         assert!(result.is_err());
         assert_eq!(
