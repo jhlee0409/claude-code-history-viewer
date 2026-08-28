@@ -5401,6 +5401,20 @@ pub async fn get_global_stats_summary(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Points home resolution at an empty temp directory for the duration of a
+    /// test.
+    ///
+    /// These tests assert on rejection paths and want nothing from the home
+    /// directory, but the code under test reaches it — provider detection resolves it
+    /// while classifying a path, so the result depended on the developer's own
+    /// machine until the sandbox in `crate::utils::home_dir` made it say so
+    /// (#540).
+    fn isolated_home() -> tempfile::TempDir {
+        let dir = tempfile::TempDir::new().expect("temp home");
+        std::env::set_var("CCHV_TEST_HOME", dir.path());
+        dir
+    }
     use serde_json::json;
     use serial_test::serial;
     use std::ffi::OsString;
@@ -6031,6 +6045,7 @@ mod tests {
     #[test]
     /// Verify detect project provider from virtual prefix.
     fn test_detect_project_provider_from_virtual_prefix() {
+        let _home = isolated_home();
         assert_eq!(
             detect_project_provider("codex:///Users/jack/workspace"),
             StatsProvider::Codex
@@ -6100,6 +6115,7 @@ mod tests {
     #[test]
     /// Verify detect session provider from path pattern.
     fn test_detect_session_provider_from_path_pattern() {
+        let _home = isolated_home();
         assert_eq!(
             detect_session_provider("forgecode://workspace/ws-1/conversation/conv-1"),
             StatsProvider::ForgeCode
@@ -6174,6 +6190,7 @@ mod tests {
     #[test]
     #[serial]
     fn detect_session_provider_uses_copilot_cli_home_env() {
+        let _home = isolated_home();
         let tmp = TempDir::new().unwrap();
         let events_path = tmp
             .path()
@@ -7707,6 +7724,7 @@ mod tests {
     #[serial]
     /// Verify forgecode stats commands use provider paths.
     async fn test_forgecode_stats_commands_use_provider_paths() {
+        let _home = isolated_home();
         let forge_dir = TempDir::new().expect("failed to create forge temp dir");
         write_forgecode_test_db(forge_dir.path());
 

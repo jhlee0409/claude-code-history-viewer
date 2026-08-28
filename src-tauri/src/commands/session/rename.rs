@@ -1006,6 +1006,21 @@ pub async fn rename_opencode_session_title(
 mod tests {
     use super::*;
 
+    /// Points home resolution at an empty temp directory for the duration of a
+    /// test.
+    ///
+    /// These tests assert on rejection paths and want nothing from the home
+    /// directory, but the code under test reaches it — `configured_claude_dirs`
+    /// reads `~/.claude-history-viewer/user-data.json` and honours the custom
+    /// Claude paths registered there. That made the allowlist depend on the
+    /// developer's own machine, silently, until the sandbox in
+    /// `crate::utils::home_dir` made it say so (#540).
+    fn isolated_home() -> tempfile::TempDir {
+        let dir = tempfile::TempDir::new().expect("temp home");
+        std::env::set_var("CCHV_TEST_HOME", dir.path());
+        dir
+    }
+
     fn sample_rename_test_user(session_id: &str, uuid: &str, content: &str) -> String {
         serde_json::json!({
             "parentUuid": Value::Null,
@@ -1601,6 +1616,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_rejects_relative_path() {
+        let _home = isolated_home();
         let result = validate_claude_path("relative/path/file.jsonl");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("must be absolute"));
@@ -1608,6 +1624,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_rejects_invalid_filename() {
+        let _home = isolated_home();
         // Filename with dots should be rejected by regex
         let result = validate_claude_path("/etc/passwd");
         assert!(result.is_err());
@@ -1616,6 +1633,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_rejects_non_claude_directory() {
+        let _home = isolated_home();
         // Use a path with valid filename but wrong directory
         let result = validate_claude_path("/tmp/validfilename.jsonl");
         assert!(result.is_err());
@@ -1624,6 +1642,13 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_valid_path() {
+        // Sandboxed only so `configured_claude_dirs` does not read the
+        // developer's registered custom paths. `resolve_claude_roots` still
+        // resolves the default root through `dirs::home_dir()`, which is why
+        // this still scans the real `~/.claude` — and why it asserts nothing on
+        // a machine without one. Left as-is deliberately; rename.rs is outside
+        // this change and the vacuity is filed separately.
+        let _home = isolated_home();
         // This test requires a real .jsonl file in ~/.claude to exist
         if let Some(home) = dirs::home_dir() {
             let claude_projects = home.join(".claude/projects");
@@ -1656,6 +1681,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_nonexistent_file() {
+        let _home = isolated_home();
         // Nonexistent file should fail at canonicalize
         let result = validate_claude_path("/nonexistent/path/to/file.jsonl");
         assert!(result.is_err());
@@ -1920,6 +1946,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_filename_with_special_chars() {
+        let _home = isolated_home();
         // Test filename validation with various invalid characters
         if let Some(home) = dirs::home_dir() {
             let claude_dir = home.join(".claude/projects");
