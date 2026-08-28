@@ -98,15 +98,18 @@ pub fn find_line_starts(data: &[u8]) -> Vec<usize> {
 }
 
 pub fn extract_project_name(raw_project_name: &str) -> String {
-    if let Some(stripped) = raw_project_name.strip_prefix('-') {
-        // Prefer filesystem-checked decoding — handles arbitrarily deep paths
-        // and project names containing hyphens (e.g. ~/Projects/{Host}/{Org}/{Repo}).
-        if let Some(decoded) = decode_with_filesystem_check(stripped) {
-            if let Some(leaf) = Path::new(&decoded).file_name() {
-                return leaf.to_string_lossy().to_string();
-            }
+    // Prefer filesystem-checked decoding — handles arbitrarily deep paths
+    // and project names containing hyphens (e.g. ~/Projects/{Host}/{Org}/{Repo}).
+    // Passed whole: a Windows name is drive-lettered rather than dash-prefixed,
+    // so stripping first would have skipped it entirely (#548).
+    if let Some(decoded) = decode_with_filesystem_check(raw_project_name) {
+        if let Some(leaf) = Path::new(&decoded).file_name() {
+            return leaf.to_string_lossy().to_string();
         }
-        // Fallback: original heuristic for paths no longer on disk.
+    }
+    // Fallback: original heuristic for paths no longer on disk. Dash-prefixed
+    // (Unix-shaped) names only — see the note in `decode_project_path`.
+    if raw_project_name.starts_with('-') {
         let parts: Vec<&str> = raw_project_name.splitn(4, '-').collect();
         if parts.len() == 4 {
             return parts[3].to_string();
@@ -275,16 +278,17 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
     }
 
     // 2. Fallback: decode from encoded directory name
-    const MARKER: &str = ".claude/projects/";
-    if let Some(marker_pos) = session_storage_path.find(MARKER) {
-        let encoded = &session_storage_path[marker_pos + MARKER.len()..];
-        if let Some(stripped) = encoded.strip_prefix('-') {
-            // Try filesystem-based decoding (recursive)
-            if let Some(path) = decode_with_filesystem_check(stripped) {
-                return path;
-            }
+    if let Some(encoded) = encoded_folder_name(session_storage_path) {
+        // Try filesystem-based decoding (recursive)
+        if let Some(path) = decode_with_filesystem_check(encoded) {
+            return path;
+        }
 
-            // Fallback: use heuristic decoding (still uses original encoded with dash)
+        // Fallback: the original heuristic. It builds a `/`-rooted path, so it
+        // only applies to a Unix-shaped name; on Windows it would fabricate
+        // `/D--OneDrive/...` from a drive-lettered folder, which is worse than
+        // returning the storage path untouched (#548).
+        if encoded.starts_with('-') {
             let parts: Vec<&str> = encoded.splitn(4, '-').collect();
             if parts.len() >= 4 {
                 return format!("/{}/{}/{}", parts[1], parts[2], parts[3]);
@@ -334,11 +338,62 @@ pub fn decode_project_path_verified(session_storage_path: &str) -> Option<String
 
     // 2. Decode the encoded folder name, verifying each segment against the
     //    filesystem. Returns `None` if the decoded path does not exist.
-    const MARKER: &str = ".claude/projects/";
-    let marker_pos = session_storage_path.find(MARKER)?;
-    let encoded = &session_storage_path[marker_pos + MARKER.len()..];
-    let stripped = encoded.strip_prefix('-')?;
-    decode_with_filesystem_check(stripped)
+    decode_with_filesystem_check(encoded_folder_name(session_storage_path)?)
+}
+
+/// The encoded project folder name inside a session storage path, or `None` if
+/// the path is not under a Claude projects directory.
+///
+/// Matches either separator. The literal used to be `".claude/projects/"`, which
+/// `str::find` could never locate in a Windows path (#548).
+fn encoded_folder_name(session_storage_path: &str) -> Option<&str> {
+    const MARKERS: [&str; 2] = [".claude/projects/", r".claude\projects\"];
+    MARKERS.iter().find_map(|marker| {
+        session_storage_path
+            .find(marker)
+            .map(|pos| &session_storage_path[pos + marker.len()..])
+    })
+}
+
+/// Split an encoded folder name into the filesystem root it starts at and the
+/// remainder still to decode.
+///
+/// The encoding replaces every path separator with `-`, so the root is
+/// platform-shaped and has to be recovered before any segment can be checked:
+///
+/// - Unix paths start with `/`, so the name starts with `-`:
+///   `-Users-jack-app` → root `/`, rest `Users-jack-app`
+/// - Windows paths start with a drive, and both the `:` and the `\` after it
+///   become dashes, so the name starts with `X--`:
+///   `D--OneDrive-Work` → root `D:\`, rest `OneDrive-Work`
+///
+/// The leading dash is optional on Unix because some providers hand us a name
+/// that was never prefixed (see `providers::cursor_agent`).
+///
+/// The `Option` looks unnecessary to clippy, which only ever compiles one arm:
+/// on Unix a root is always recoverable, so the wrap reads as dead. On Windows
+/// a name without a drive prefix has no root to recover and this genuinely
+/// returns `None`. Same shape as the `needless_return` carve-out in
+/// `commands::session::rename`.
+#[allow(clippy::unnecessary_wraps)]
+fn split_encoded_root(encoded: &str) -> Option<(PathBuf, &str)> {
+    #[cfg(windows)]
+    {
+        let drive = encoded.as_bytes().first()?;
+        if drive.is_ascii_alphabetic() && encoded.get(1..3) == Some("--") {
+            return Some((
+                PathBuf::from(format!("{}:\\", &encoded[..1])),
+                &encoded[3..],
+            ));
+        }
+        None
+    }
+
+    #[cfg(not(windows))]
+    Some((
+        PathBuf::from("/"),
+        encoded.strip_prefix('-').unwrap_or(encoded),
+    ))
 }
 
 /// Decode path by checking filesystem existence at each possible split point
@@ -348,27 +403,27 @@ pub fn decode_project_path_verified(session_storage_path: &str) -> Option<String
 /// 2. Check `/Users/jack` (exists? continue)
 /// 3. Check `/Users/jack/client` (exists? continue)
 /// 4. Check `/Users/jack/client/claude-code-history-viewer` (exists? ✓ return this)
+///
+/// Takes the folder name as stored, including any leading dash - recovering the
+/// root is this function's job (#548).
 pub(crate) fn decode_with_filesystem_check(encoded: &str) -> Option<String> {
-    decode_recursive(encoded, "")
+    let (root, rest) = split_encoded_root(encoded)?;
+    decode_recursive_inner(rest, &root, 0).map(|p| p.to_string_lossy().into_owned())
 }
 
 /// Recursively decode hyphen-separated path segments by checking filesystem existence.
 ///
-/// For each hyphen in `encoded`, tries treating it as a `/` separator.
+/// For each hyphen in `encoded`, tries treating it as a separator.
 /// When a valid directory is found, recurses on the remaining string.
 /// This handles nested directories like "claude-code-history-viewer-src-tauri"
 /// → "claude-code-history-viewer/src-tauri".
-fn decode_recursive(encoded: &str, base_path: &str) -> Option<String> {
-    decode_recursive_inner(encoded, base_path, 0)
-}
-
-fn decode_recursive_inner(encoded: &str, base_path: &str, depth: usize) -> Option<String> {
+fn decode_recursive_inner(encoded: &str, base_path: &Path, depth: usize) -> Option<PathBuf> {
     if depth > 20 {
         return None;
     }
     if encoded.is_empty() {
-        if !base_path.is_empty() && Path::new(base_path).exists() {
-            return Some(base_path.to_string());
+        if base_path.exists() {
+            return Some(base_path.to_path_buf());
         }
         return None;
     }
@@ -386,11 +441,7 @@ fn decode_recursive_inner(encoded: &str, base_path: &str, depth: usize) -> Optio
             continue;
         }
 
-        let candidate = if base_path.is_empty() {
-            format!("/{segment}")
-        } else {
-            format!("{base_path}/{segment}")
-        };
+        let candidate = base_path.join(segment);
 
         // Use symlink_metadata to avoid following symlinks
         let is_real_dir = std::fs::symlink_metadata(&candidate)
@@ -404,7 +455,7 @@ fn decode_recursive_inner(encoded: &str, base_path: &str, depth: usize) -> Optio
             }
 
             // First try: remaining as a single leaf (no more splitting needed)
-            let full_path = format!("{candidate}/{remaining}");
+            let full_path = candidate.join(remaining);
             let full_path_is_real = std::fs::symlink_metadata(&full_path)
                 .map(|m| !m.file_type().is_symlink())
                 .unwrap_or(false);
@@ -420,11 +471,9 @@ fn decode_recursive_inner(encoded: &str, base_path: &str, depth: usize) -> Optio
     }
 
     // No hyphen worked as separator — treat entire encoded as a single segment
-    if !base_path.is_empty() {
-        let full_path = format!("{base_path}/{encoded}");
-        if Path::new(&full_path).exists() {
-            return Some(full_path);
-        }
+    let full_path = base_path.join(encoded);
+    if full_path.exists() {
+        return Some(full_path);
     }
 
     None
@@ -859,12 +908,12 @@ mod tests {
             deep = deep.join(s);
         }
         std::fs::create_dir_all(&deep).expect("create deep tmp dir");
-        // Normalize both Unix and Windows separators so the encoded slug
-        // matches Claude's leading-dash convention regardless of host OS.
-        let mut encoded = deep.to_string_lossy().replace(['/', '\\'], "-");
-        if !encoded.starts_with('-') {
-            encoded.insert(0, '-');
-        }
+        // Claude Code replaces every separator with `-`. On Windows the drive
+        // colon goes too, so `C:\Temp\x` becomes `C--Temp-x` - drive-lettered
+        // and, unlike Unix, with no leading dash. This helper used to leave the
+        // colon in place and force a leading dash, producing `-C:-Temp-x`,
+        // which is a shape Claude Code never writes (#548).
+        let encoded = deep.to_string_lossy().replace(['/', '\\', ':'], "-");
         (encoded, root)
     }
 
@@ -879,6 +928,78 @@ mod tests {
         let result = extract_project_name(&encoded);
         std::fs::remove_dir_all(&root).ok();
         assert_eq!(result, "repo");
+    }
+
+    /// #548. Pure string matching, so this fails on any host if the marker
+    /// regresses to a single hardcoded separator.
+    #[test]
+    fn encoded_folder_name_is_found_under_either_separator() {
+        assert_eq!(
+            encoded_folder_name("/Users/jack/.claude/projects/-Users-jack-app"),
+            Some("-Users-jack-app")
+        );
+        assert_eq!(
+            encoded_folder_name(r"C:\Users\jack\.claude\projects\C--Users-jack-app"),
+            Some("C--Users-jack-app")
+        );
+        assert_eq!(encoded_folder_name("/Users/jack/somewhere/else"), None);
+    }
+
+    /// #548. The root the decoder starts from is platform-shaped: a Unix name
+    /// carries a leading dash for `/`, a Windows one carries a drive letter and
+    /// `--` for `C:\`. Getting this wrong made every candidate path unresolvable
+    /// on Windows.
+    #[test]
+    fn split_encoded_root_recovers_the_platform_root() {
+        #[cfg(windows)]
+        {
+            assert_eq!(
+                split_encoded_root("D--OneDrive-Work"),
+                Some((PathBuf::from(r"D:\"), "OneDrive-Work"))
+            );
+            // A Unix-shaped name has no drive to recover.
+            assert_eq!(split_encoded_root("-Users-jack-app"), None);
+        }
+
+        #[cfg(not(windows))]
+        {
+            assert_eq!(
+                split_encoded_root("-Users-jack-app"),
+                Some((PathBuf::from("/"), "Users-jack-app"))
+            );
+            // Providers may hand over a name that was never dash-prefixed.
+            assert_eq!(
+                split_encoded_root("Users-jack-app"),
+                Some((PathBuf::from("/"), "Users-jack-app"))
+            );
+        }
+    }
+
+    /// #548 end to end: a real nested directory, encoded exactly the way Claude
+    /// Code encodes it on the host platform, must decode back to itself. On
+    /// Windows this is the assertion that could not previously pass - the
+    /// marker, the leading-dash strip and the `/`-rooted decoder each blocked
+    /// it independently.
+    #[test]
+    fn decode_project_path_resolves_a_real_folder_on_this_platform() {
+        let (encoded, root) = make_encoded_path("cchv_548_roundtrip", &["nested", "leaf-dir"]);
+        let storage = Path::new(".claude")
+            .join("projects")
+            .join(&encoded)
+            .to_string_lossy()
+            .into_owned();
+
+        let decoded = decode_project_path(&storage);
+        let verified = decode_project_path_verified(&storage);
+        std::fs::remove_dir_all(&root).ok();
+
+        let expected = root.join("nested").join("leaf-dir");
+        assert_eq!(Path::new(&decoded), expected, "decode_project_path");
+        assert_eq!(
+            verified.as_deref().map(Path::new),
+            Some(expected.as_path()),
+            "decode_project_path_verified"
+        );
     }
 
     #[test]
