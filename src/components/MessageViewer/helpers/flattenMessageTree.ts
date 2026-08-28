@@ -168,10 +168,13 @@ export function flattenMessageTree({
     taskOperationMemberUuids,
   };
 
-  // If no root messages exist, treat all messages as flat list
+  // A window with no roots at all cannot be walked as a tree, so it is
+  // rendered chronologically. Sorted explicitly rather than trusting the
+  // loader's order: the guarantee this path exists to make should not depend
+  // on how the caller happened to assemble the array.
   if (rootMessages.length === 0) {
     return flattenWithPlaceholders(
-      processedMessages,
+      [...processedMessages].sort(sortByTimestamp),
       hiddenSet,
       groups
     );
@@ -212,23 +215,37 @@ export function flattenMessageTree({
     traverse(root);
   }
 
-  // Fallback: If tree traversal resulted in significantly fewer messages,
-  // add remaining unvisited messages (sorted by timestamp)
-  if (orderedMessages.length < processedMessages.length * 0.9) {
+  // The same situation, reached a different way. A `compact_boundary` carries
+  // no `parentUuid` - its parent link is `logicalParentUuid` - so it counts as
+  // a root and the check above passes even though most of the window is
+  // unreachable. What the walk found from the boundary is then a fragment, and
+  // rendering that fragment first pins it above everything older (#535).
+  //
+  // Two things were wrong here before. The recovery appended the orphans after
+  // the walked fragment instead of ordering the whole set, which is what
+  // hoisted the boundary and its neighbours above earlier messages. And it only
+  // ran below a 0.9 coverage threshold, so a window that was 90-99% reachable
+  // skipped recovery altogether and the remainder was dropped - no placeholder,
+  // no warning outside DEV.
+  //
+  // Both go away by treating any incomplete walk as what it is: a partial
+  // window, ordered by time. `visited` rather than `orderedMessages.length` is
+  // the right measure, because the walk deliberately omits messages hidden by a
+  // hidden parent, and those are not orphans.
+  //
+  // The complete-walk case keeps DFS order, which is meaningful there: a branch
+  // whose reply is slower than its sibling still belongs under its own parent.
+  if (visited.size < processedMessages.length) {
     if (import.meta.env.DEV) {
       console.warn(
-        `[flattenMessageTree] Tree traversal found ${orderedMessages.length}/${processedMessages.length} messages. Adding orphaned messages.`
+        `[flattenMessageTree] Tree walk reached ${visited.size}/${processedMessages.length} messages; rendering the window chronologically.`
       );
     }
-    // Collect and sort orphaned messages by timestamp
-    const orphanedMessages = processedMessages
-      .filter((msg) => !visited.has(msg.uuid))
-      .sort(sortByTimestamp);
-
-    for (const msg of orphanedMessages) {
-      orderedMessages.push(msg);
-      visited.add(msg.uuid);
-    }
+    return flattenWithPlaceholders(
+      [...processedMessages].sort(sortByTimestamp),
+      hiddenSet,
+      groups
+    );
   }
 
   // Now flatten with placeholders
