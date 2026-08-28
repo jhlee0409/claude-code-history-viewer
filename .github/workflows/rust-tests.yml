@@ -59,14 +59,24 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
   # Main test job - runs in parallel with lint
-  # PR: Ubuntu only, Main: Ubuntu + macOS
+  #
+  # Windows is in the matrix because it was absent, and its absence was not
+  # theoretical: two `use std::os::unix` imports landed in a test module and the
+  # entire lib test binary stopped compiling on Windows for days (#536). Nothing
+  # noticed, because nothing built it. The same blind spot let a test overwrite
+  # the developer's real `~/.claude/settings.json`, since the `HOME` sandbox those
+  # tests rely on is inert there.
+  #
+  # PR: Ubuntu + Windows. Windows is the platform no contributor runs locally, so
+  # it has to be a pre-merge gate rather than a post-merge discovery.
+  # Push: adds macOS for full coverage.
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest"]') }}
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest", "windows-latest"]') || fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') }}
         rust: [stable]
 
     steps:
@@ -97,8 +107,10 @@ jobs:
           workspaces: src-tauri
           cache-on-failure: true
 
-
+      # `shell: bash` because the Windows runner defaults to PowerShell, which
+      # has no `touch` and rejects `mkdir -p`. Git Bash ships on the image.
       - name: Create dist placeholder for rust-embed
+        shell: bash
         run: mkdir -p dist && touch dist/index.html
 
       - name: Run tests with nextest
