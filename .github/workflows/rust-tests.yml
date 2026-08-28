@@ -60,6 +60,10 @@ jobs:
 
   # Main test job - runs in parallel with lint
   # PR: Ubuntu only, Main: Ubuntu + macOS
+  #
+  # Windows is NOT here. It gets its own job below, because the Windows suite
+  # does not pass yet (#540, #541) and putting it in this matrix would make
+  # every PR red for reasons unrelated to the PR.
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
@@ -97,8 +101,10 @@ jobs:
           workspaces: src-tauri
           cache-on-failure: true
 
-
+      # `shell: bash` because the Windows runner defaults to PowerShell, which
+      # has no `touch` and rejects `mkdir -p`. Git Bash ships on the image.
       - name: Create dist placeholder for rust-embed
+        shell: bash
         run: mkdir -p dist && touch dist/index.html
 
       - name: Run tests with nextest
@@ -119,6 +125,58 @@ jobs:
           name: test-results-${{ matrix.os }}
           path: src-tauri/target/nextest/ci/junit.xml
           retention-days: 7
+
+  # Windows.
+  #
+  # Split into a blocking half and an informational half, because the two things
+  # we need from this platform have very different readiness.
+  #
+  # BLOCKING - does the test binary build? That is the failure that hid
+  # everything else: two `use std::os::unix` imports without a `cfg(unix)` gate
+  # meant the whole lib test binary stopped compiling, so Windows had no test
+  # coverage at all and nobody was told (#536). Compiling is cheap, it passes
+  # today, and it is the gate that keeps this platform from going dark again.
+  #
+  # INFORMATIONAL - does the suite pass? Not yet: 928 of 968, with 41 failures
+  # tracked in #540 (tests writing to the real home, one set of them mutating
+  # archives) and #541 (Unix path assumptions in assertions). Making that
+  # blocking today would redden every unrelated PR, so it reports and does not
+  # gate. Flip `continue-on-error` off once #540 and #541 are closed, and fold
+  # this job back into the matrix above.
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
+      # `shell: bash` because the runner defaults to PowerShell, which has no
+      # `touch` and rejects `mkdir -p`. Git Bash ships on the image.
+      - name: Create dist placeholder for rust-embed
+        shell: bash
+        run: mkdir -p dist && touch dist/index.html
+
+      - name: Build test binaries (blocking)
+        working-directory: src-tauri
+        run: |
+          cargo nextest run --profile ci --no-run
+          cargo nextest run --profile ci --no-run --features webui-server
+
+      - name: Run tests (informational until #540 and #541 are closed)
+        working-directory: src-tauri
+        continue-on-error: true
+        run: cargo nextest run --profile ci --retries 2 --features webui-server
 
   # Code coverage - main branch only
   coverage:
