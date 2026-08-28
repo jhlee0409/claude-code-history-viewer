@@ -133,7 +133,7 @@ pub struct ExportResult {
 
 /// Returns the archives base directory path: `~/.claude-history-viewer/archives/`
 fn get_archives_dir() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let home = crate::utils::home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude-history-viewer").join("archives"))
 }
 
@@ -1313,7 +1313,7 @@ pub async fn get_expiring_sessions(
 
         // Read cleanupPeriodDays from ~/.claude/settings.json
         let cleanup_period_days: i64 = {
-            let home = dirs::home_dir().ok_or("Could not find home directory")?;
+            let home = crate::utils::home_dir().ok_or("Could not find home directory")?;
             let settings_path = home.join(".claude").join("settings.json");
             if settings_path.exists() {
                 fs::read_to_string(&settings_path)
@@ -1500,6 +1500,10 @@ mod tests {
     fn setup_test_env() -> TempDir {
         let dir = TempDir::new().unwrap();
         env::set_var("HOME", dir.path());
+        // The one that actually holds on Windows. Without it these tests ran
+        // create/delete/rename/migrate against the real
+        // `~/.claude-history-viewer/archives` (#540).
+        env::set_var("CCHV_TEST_HOME", dir.path());
         dir
     }
 

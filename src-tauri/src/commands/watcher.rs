@@ -710,6 +710,10 @@ mod tests {
     #[test]
     fn test_to_file_watch_event_ignores_unchanged_content_signature() {
         let temp = TempDir::new().unwrap();
+        // Nothing here wants the home directory, but `to_file_watch_event`
+        // resolves it while classifying the path. Point it at this test's own
+        // temp dir so it cannot reach the developer's (#540).
+        std::env::set_var("CCHV_TEST_HOME", temp.path());
         let project_dir = temp
             .path()
             .join(".claude")

@@ -70,7 +70,7 @@ impl PiStore {
     /// Store root: `~/<dot_dir>/agent/sessions`.
     fn sessions_root(&self) -> Option<PathBuf> {
         Some(
-            dirs::home_dir()?
+            crate::utils::home_dir()?
                 .join(self.dot_dir)
                 .join("agent")
                 .join("sessions"),
@@ -864,11 +864,16 @@ mod tests {
         fn set(path: &Path) -> Self {
             let original = std::env::var("HOME").ok();
             std::env::set_var("HOME", path);
+            // `HOME` alone is inert on Windows, where `dirs::home_dir()` uses
+            // the known-folder API. `crate::utils::home_dir()` reads this
+            // instead under `cfg(test)`, and panics without it (#540).
+            std::env::set_var("CCHV_TEST_HOME", path);
             Self { original }
         }
     }
     impl Drop for HomeGuard {
         fn drop(&mut self) {
+            std::env::remove_var("CCHV_TEST_HOME");
             match self.original.as_ref() {
                 Some(v) => std::env::set_var("HOME", v),
                 None => std::env::remove_var("HOME"),

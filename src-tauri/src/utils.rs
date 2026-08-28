@@ -3,7 +3,53 @@ use chrono::{DateTime, Utc};
 use memchr::memchr_iter;
 use serde_json::Value;
 use std::fs;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
+
+/// The user's home directory, sandboxed under `cfg(test)`.
+///
+/// In a normal build this is exactly `dirs::home_dir()`.
+///
+/// # Why this indirection exists
+///
+/// Test modules across this crate sandbox themselves with
+/// `env::set_var("HOME", temp_dir)`. That is inert on Windows, where
+/// `dirs::home_dir()` resolves through the known-folder API and consults
+/// neither `HOME` nor `USERPROFILE`. The sandbox silently does nothing and the
+/// writes land on the developer's real home.
+///
+/// That is not hypothetical. It overwrote a real `~/.claude/settings.json`
+/// twice (#536) and, worse, `archive.rs`'s nine mutating tests — create,
+/// delete, rename, migrate — were running against the real
+/// `~/.claude-history-viewer/archives`, which is where a user's saved session
+/// backups live (#540). The suite reported `ok` throughout.
+///
+/// Under `cfg(test)` this reads `CCHV_TEST_HOME` and **panics when it is
+/// unset**. Falling back to the real home would leave the landmine armed for
+/// the next test that forgets to sandbox itself; a panic turns that mistake
+/// into a loud failure instead of silent data loss.
+///
+/// Shared rather than duplicated per module: `cfg(test)` is per-crate, so one
+/// definition covers every caller, and eight copies of a security-relevant
+/// branch is eight chances for one of them to drift.
+#[cfg(not(test))]
+pub(crate) fn home_dir() -> Option<PathBuf> {
+    dirs::home_dir()
+}
+
+#[cfg(test)]
+// Always `Some` or a panic; the `Option` matches the real signature above so
+// callers read identically in both builds.
+#[allow(clippy::unnecessary_wraps)]
+pub(crate) fn home_dir() -> Option<PathBuf> {
+    match std::env::var_os("CCHV_TEST_HOME") {
+        Some(value) => Some(PathBuf::from(value)),
+        None => panic!(
+            "a test resolved a real home directory without a sandbox. Set \
+             CCHV_TEST_HOME (see `setup_test_env`) before touching any path \
+             under it: writing there would hit the developer's own files."
+        ),
+    }
+}
 
 /// Estimated average bytes per JSONL line (used for capacity pre-allocation)
 /// Based on typical Claude message sizes (800-1200 bytes average)

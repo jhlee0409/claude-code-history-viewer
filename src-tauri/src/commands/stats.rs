@@ -620,7 +620,7 @@ fn is_antigravity_path(path: &str) -> bool {
 /// Whether `path` lies under `~/.codebuddy/projects/`. Anchored detection avoids
 /// false positives from arbitrary substrings (e.g. `/work/foo.codebuddy-test`).
 fn is_codebuddy_path(path: &str) -> bool {
-    let Some(home) = dirs::home_dir() else {
+    let Some(home) = crate::utils::home_dir() else {
         return false;
     };
     is_codebuddy_path_under(path, &home)
@@ -649,7 +649,7 @@ fn is_kimi_path(path: &str) -> bool {
 /// (`~/.omp/agent/sessions/`). Anchored detection avoids false positives
 /// from arbitrary substrings (e.g. `/work/foo.omp-agent-test`).
 fn is_ompi_path(path: &str) -> bool {
-    let Some(home) = dirs::home_dir() else {
+    let Some(home) = crate::utils::home_dir() else {
         return false;
     };
     is_ompi_path_under(path, &home)
@@ -665,7 +665,7 @@ fn is_ompi_path_under(path: &str, home: &Path) -> bool {
 /// Whether `path` lies under the Pi sessions store root
 /// (`~/.pi/agent/sessions/`).
 fn is_pi_path(path: &str) -> bool {
-    let Some(home) = dirs::home_dir() else {
+    let Some(home) = crate::utils::home_dir() else {
         return false;
     };
     is_pi_path_under(path, &home)
@@ -5401,6 +5401,20 @@ pub async fn get_global_stats_summary(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Points home resolution at an empty temp directory for the duration of a
+    /// test.
+    ///
+    /// These tests assert on rejection paths and want nothing from the home
+    /// directory, but the code under test reaches it — provider detection resolves it
+    /// while classifying a path, so the result depended on the developer's own
+    /// machine until the sandbox in `crate::utils::home_dir` made it say so
+    /// (#540).
+    fn isolated_home() -> tempfile::TempDir {
+        let dir = tempfile::TempDir::new().expect("temp home");
+        std::env::set_var("CCHV_TEST_HOME", dir.path());
+        dir
+    }
     use serde_json::json;
     use serial_test::serial;
     use std::ffi::OsString;
@@ -6031,6 +6045,7 @@ mod tests {
     #[test]
     /// Verify detect project provider from virtual prefix.
     fn test_detect_project_provider_from_virtual_prefix() {
+        let _home = isolated_home();
         assert_eq!(
             detect_project_provider("codex:///Users/jack/workspace"),
             StatsProvider::Codex
@@ -6100,6 +6115,7 @@ mod tests {
     #[test]
     /// Verify detect session provider from path pattern.
     fn test_detect_session_provider_from_path_pattern() {
+        let _home = isolated_home();
         assert_eq!(
             detect_session_provider("forgecode://workspace/ws-1/conversation/conv-1"),
             StatsProvider::ForgeCode
@@ -6174,6 +6190,7 @@ mod tests {
     #[test]
     #[serial]
     fn detect_session_provider_uses_copilot_cli_home_env() {
+        let _home = isolated_home();
         let tmp = TempDir::new().unwrap();
         let events_path = tmp
             .path()
@@ -6896,6 +6913,10 @@ mod tests {
     /// Verify project summary session count matches token list in conversation mode.
     async fn test_project_summary_session_count_matches_token_list_in_conversation_mode() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
+        // Nothing here wants the home directory, but the code under test
+        // resolves it while detecting providers. Point it at this test's own
+        // temp dir so it cannot reach the developer's (#540).
+        let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp_dir.path());
         let claude_path = temp_dir.path();
         let project_dir = claude_path.join("projects").join("demo-project");
         fs::create_dir_all(&project_dir).expect("failed to create project dir");
@@ -6947,6 +6968,10 @@ mod tests {
     /// Verify stats mode reconciles global project and session totals.
     async fn test_stats_mode_reconciles_global_project_and_session_totals() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
+        // Nothing here wants the home directory, but the code under test
+        // resolves it while detecting providers. Point it at this test's own
+        // temp dir so it cannot reach the developer's (#540).
+        let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp_dir.path());
         let claude_path = temp_dir.path();
         let project_dir = claude_path.join("projects").join("demo-project");
         fs::create_dir_all(&project_dir).expect("failed to create project dir");
@@ -7074,6 +7099,10 @@ mod tests {
     /// Verify session token stats respects date filter.
     async fn test_session_token_stats_respects_date_filter() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
+        // Nothing here wants the home directory, but the code under test
+        // resolves it while detecting providers. Point it at this test's own
+        // temp dir so it cannot reach the developer's (#540).
+        let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp_dir.path());
         let project_dir = temp_dir.path().join("projects").join("demo-project");
         fs::create_dir_all(&project_dir).expect("failed to create project dir");
         let session_path = project_dir.join("session-date-filter.jsonl");
@@ -7129,6 +7158,10 @@ mod tests {
     /// Verify session comparison respects date filter.
     async fn test_session_comparison_respects_date_filter() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
+        // Nothing here wants the home directory, but the code under test
+        // resolves it while detecting providers. Point it at this test's own
+        // temp dir so it cannot reach the developer's (#540).
+        let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp_dir.path());
         let project_dir = temp_dir.path().join("projects").join("demo-project");
         fs::create_dir_all(&project_dir).expect("failed to create project dir");
 
@@ -7172,6 +7205,10 @@ mod tests {
     /// Verify project summary daily session count tracks multiple sessions on same day.
     async fn test_project_summary_daily_session_count_tracks_multiple_sessions_on_same_day() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
+        // Nothing here wants the home directory, but the code under test
+        // resolves it while detecting providers. Point it at this test's own
+        // temp dir so it cannot reach the developer's (#540).
+        let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp_dir.path());
         let project_dir = temp_dir.path().join("projects").join("demo-project");
         fs::create_dir_all(&project_dir).expect("failed to create project dir");
 
@@ -7553,6 +7590,9 @@ mod tests {
         // it cannot race with other HOME-touching tests.
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", home);
+        // `HOME` is inert on Windows; this is what `crate::utils::home_dir()`
+        // reads under `cfg(test)` (#540).
+        std::env::set_var("CCHV_TEST_HOME", home);
 
         let antigravity_root = home.join(".gemini").join("antigravity");
         let rpc_session = antigravity_root
@@ -7603,6 +7643,7 @@ mod tests {
         assert_eq!(summary.token_distribution.input, 100);
         assert_eq!(summary.token_distribution.output, 50);
 
+        std::env::remove_var("CCHV_TEST_HOME");
         if let Some(value) = original_home {
             std::env::set_var("HOME", value);
         } else {
@@ -7683,6 +7724,7 @@ mod tests {
     #[serial]
     /// Verify forgecode stats commands use provider paths.
     async fn test_forgecode_stats_commands_use_provider_paths() {
+        let _home = isolated_home();
         let forge_dir = TempDir::new().expect("failed to create forge temp dir");
         write_forgecode_test_db(forge_dir.path());
 
@@ -8250,6 +8292,9 @@ mod tests {
     fn detect_project_provider_routes_new_providers() {
         let temp = TempDir::new().expect("tempdir");
         let _guard = EnvVarGuard::set("HOME", temp.path());
+        // `HOME` is inert on Windows, and a value left over from an
+        // earlier test would otherwise win here. Both, always (#540).
+        let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp.path());
         let home = temp.path().to_string_lossy().to_string();
 
         let ompi_proj = format!("{home}/.omp/agent/sessions/-tmp");
@@ -8274,6 +8319,9 @@ mod tests {
     fn detect_session_provider_routes_new_providers() {
         let temp = TempDir::new().expect("tempdir");
         let _guard = EnvVarGuard::set("HOME", temp.path());
+        // `HOME` is inert on Windows, and a value left over from an
+        // earlier test would otherwise win here. Both, always (#540).
+        let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp.path());
         let gemini_home = TempDir::new_in(".").expect("relative Gemini home");
         let _gemini_guard = EnvVarGuard::set("GEMINI_HOME", gemini_home.path());
         let gemini_home_absolute = fs::canonicalize(gemini_home.path()).expect("Gemini home");
