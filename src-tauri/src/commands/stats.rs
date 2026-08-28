@@ -8325,7 +8325,13 @@ mod tests {
         let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp.path());
         let gemini_home = TempDir::new_in(".").expect("relative Gemini home");
         let _gemini_guard = EnvVarGuard::set("GEMINI_HOME", gemini_home.path());
-        let gemini_home_absolute = fs::canonicalize(gemini_home.path()).expect("Gemini home");
+        // Plain, not verbatim: `get_base_path` hands back the `GEMINI_HOME`
+        // value as it was set, so comparing it against a canonicalised
+        // `\\?\D:\...` never matched on Windows (#541).
+        let gemini_home_absolute =
+            std::path::PathBuf::from(crate::test_utils::strip_verbatim_prefix(
+                &fs::canonicalize(gemini_home.path()).expect("Gemini home"),
+            ));
         let home = temp.path().to_string_lossy().to_string();
 
         // Assembled with `join`, not a literal `/`: `home` is a real host path,

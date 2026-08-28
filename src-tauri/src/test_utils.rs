@@ -386,12 +386,19 @@ pub fn make_encoded_path(root_name: &str, segments: &[&str]) -> (String, std::pa
 /// back `\\?\C:\...`, which Claude Code never sees, and encoding it would
 /// produce `--?-C--Users-...`, a shape that exists nowhere (#548).
 pub fn encode_path_claude_style(path: &std::path::Path) -> String {
+    strip_verbatim_prefix(path).replace(['/', '\\', ':'], "-")
+}
+
+/// The plain form of a path, without Windows' extended-length prefix.
+///
+/// `std::fs::canonicalize` returns `\\?\C:\...` on Windows. Almost nothing
+/// else produces that shape, so a fixture that canonicalises and then compares
+/// against a value built any other way will not match there (#541).
+pub fn strip_verbatim_prefix(path: &std::path::Path) -> String {
     let raw = path.to_string_lossy();
-    let plain = raw
-        .strip_prefix(r"\\?\UNC\")
+    raw.strip_prefix(r"\\?\UNC\")
         .map(|rest| format!(r"\\{rest}"))
-        .unwrap_or_else(|| raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_string());
-    plain.replace(['/', '\\', ':'], "-")
+        .unwrap_or_else(|| raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_string())
 }
 
 #[cfg(test)]
