@@ -301,7 +301,7 @@ fn configured_claude_dirs() -> Vec<String> {
 
 /// Expand a leading `~` to the home directory, mirroring `detect_claude_config_dir`.
 fn expand_home_prefix(raw: &str) -> String {
-    let Some(home) = dirs::home_dir() else {
+    let Some(home) = crate::utils::home_dir() else {
         return raw.to_string();
     };
     if raw == "~" {
@@ -323,7 +323,7 @@ fn expand_home_prefix(raw: &str) -> String {
 fn resolve_claude_roots(configured: &[String]) -> Vec<PathBuf> {
     let mut roots = Vec::new();
 
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = crate::utils::home_dir() {
         push_root(&mut roots, home.join(".claude"));
     }
 
@@ -1640,43 +1640,25 @@ mod tests {
         // Should fail on directory check or canonicalize
     }
 
+    /// The accept case, against a fixture rather than the developer's machine.
+    ///
+    /// This used to walk the real `~/.claude/projects` for any `.jsonl` and
+    /// validate the first one it found. On a machine without Claude Code
+    /// installed - CI included - every branch was skipped and it reported `ok`
+    /// having asserted nothing, which left `validate_claude_path`'s only
+    /// accept-path coverage vacuous while appearing green (#545). When it did
+    /// run, it asserted against whichever file happened to be enumerated first.
     #[test]
     fn test_validate_claude_path_valid_path() {
-        // Sandboxed only so `configured_claude_dirs` does not read the
-        // developer's registered custom paths. `resolve_claude_roots` still
-        // resolves the default root through `dirs::home_dir()`, which is why
-        // this still scans the real `~/.claude` — and why it asserts nothing on
-        // a machine without one. Left as-is deliberately; rename.rs is outside
-        // this change and the vacuity is filed separately.
-        let _home = isolated_home();
-        // This test requires a real .jsonl file in ~/.claude to exist
-        if let Some(home) = dirs::home_dir() {
-            let claude_projects = home.join(".claude/projects");
-            if claude_projects.exists() {
-                // Try to find any .jsonl file in projects subdirectories
-                if let Ok(projects) = fs::read_dir(&claude_projects) {
-                    for project in projects.flatten() {
-                        if project.path().is_dir() {
-                            if let Ok(files) = fs::read_dir(project.path()) {
-                                for file in files.flatten() {
-                                    let path = file.path();
-                                    if path.extension().and_then(|s| s.to_str()) == Some("jsonl") {
-                                        let test_path = path.to_string_lossy().to_string();
-                                        let result = validate_claude_path(&test_path);
-                                        assert!(
-                                            result.is_ok(),
-                                            "Validation failed for valid path {test_path}: {result:?}"
-                                        );
-                                        return; // Test passed
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // Skip test if no suitable file found
+        let home = isolated_home();
+        let (_base, session_path) = make_claude_dir(&home.path().join(".claude"), "session-1");
+
+        let result = validate_claude_path(&session_path);
+
+        assert!(
+            result.is_ok(),
+            "a valid session path was rejected: {result:?}"
+        );
     }
 
     #[test]
@@ -1706,6 +1688,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_accepts_registered_custom_directory() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let custom_base = real_temp_root(&temp).join(".claude-holophonix");
         fs::create_dir_all(&custom_base).unwrap();
@@ -1720,6 +1703,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_directory_that_is_not_registered() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let unregistered = real_temp_root(&temp).join(".claude-other");
         fs::create_dir_all(&unregistered).unwrap();
@@ -1736,6 +1720,7 @@ mod tests {
 
     #[test]
     fn resolve_claude_roots_skips_directory_without_projects_subdir() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let bogus = real_temp_root(&temp).join(".claude-bogus");
         fs::create_dir_all(&bogus).unwrap(); // no projects/ inside
@@ -1750,6 +1735,7 @@ mod tests {
 
     #[test]
     fn resolve_claude_roots_skips_symlinked_custom_directory() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let real_base = real_temp_root(&temp).join("real-claude");
         fs::create_dir_all(real_base.join("projects")).unwrap();
@@ -1770,21 +1756,19 @@ mod tests {
 
     #[test]
     fn resolve_claude_roots_always_includes_default_claude_dir() {
+        // Against the sandbox, so this asserts unconditionally. It used to
+        // resolve the developer's real home and skip the assertion entirely
+        // when that home had no `.claude`, or had one behind a symlink - two
+        // ways to report `ok` without checking anything (#545).
+        let home = isolated_home();
+        let default_root = home.path().join(".claude");
+
         let roots = resolve_claude_roots(&[]);
-        if let Some(home) = dirs::home_dir() {
-            let default_root = home.join(".claude");
-            // Roots are stored as-is (not canonicalized), unless ~/.claude is a
-            // symlink (then push_root drops it).
-            let is_symlink = fs::symlink_metadata(&default_root)
-                .map(|m| m.file_type().is_symlink())
-                .unwrap_or(false);
-            if !is_symlink {
-                assert!(
-                    roots.contains(&default_root),
-                    "the default ~/.claude root must always be allowed"
-                );
-            }
-        }
+
+        assert!(
+            roots.contains(&default_root),
+            "the default ~/.claude root must always be allowed, got {roots:?}"
+        );
     }
 
     #[test]
@@ -1809,6 +1793,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_non_jsonl_extension() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
         let project_dir = root.join("projects").join("-proj");
@@ -1846,6 +1831,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_accepts_symlinked_project_directory() {
+        let _home = isolated_home();
         // Mirrors the shared-sessions layout: a project directory under
         // <root>/projects is a symlink into a real directory elsewhere (e.g.
         // /Users/Shared/.claude/projects). The session file is a real file.
@@ -1876,6 +1862,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_symlink_below_project_directory() {
+        let _home = isolated_home();
         // A symlink deeper than the project directory is not allowed.
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
@@ -1903,6 +1890,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_symlinked_session_file() {
+        let _home = isolated_home();
         // The session file itself must be a real file, not a symlink.
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
@@ -1926,6 +1914,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_path_traversal_under_projects() {
+        let _home = isolated_home();
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
         fs::create_dir_all(root.join("projects")).unwrap();
