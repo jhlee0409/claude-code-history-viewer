@@ -284,10 +284,14 @@ pub fn decode_project_path(session_storage_path: &str) -> String {
             return path;
         }
 
-        // Fallback: the original heuristic. It builds a `/`-rooted path, so it
-        // only applies to a Unix-shaped name; on Windows it would fabricate
-        // `/D--OneDrive/...` from a drive-lettered folder, which is worse than
-        // returning the storage path untouched (#548).
+        // Fallback: the original heuristic. It builds a `/`-rooted path, which
+        // is only ever meaningful on Unix, so it is gated on the platform
+        // rather than on the name's shape. A leading-dash test is not enough:
+        // Windows `canonicalize` hands back verbatim `\\?\C:\...` paths, whose
+        // leading separator also encodes to `-`, and the heuristic then
+        // fabricates `//?/C--Users-...` - worse than returning the storage path
+        // untouched (#548).
+        #[cfg(not(windows))]
         if encoded.starts_with('-') {
             let parts: Vec<&str> = encoded.splitn(4, '-').collect();
             if parts.len() >= 4 {
@@ -908,12 +912,23 @@ mod tests {
             deep = deep.join(s);
         }
         std::fs::create_dir_all(&deep).expect("create deep tmp dir");
+
+        // Windows `canonicalize` returns a verbatim path (`\\?\C:\...`). Claude
+        // Code never sees one of those - it encodes the plain `C:\...` cwd - so
+        // encoding it here would produce `--?-C--Users-...`, a shape that
+        // exists nowhere (#548).
+        let raw = deep.to_string_lossy();
+        let plain = raw
+            .strip_prefix(r"\\?\UNC\")
+            .map(|rest| format!(r"\\{rest}"))
+            .unwrap_or_else(|| raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_string());
+
         // Claude Code replaces every separator with `-`. On Windows the drive
         // colon goes too, so `C:\Temp\x` becomes `C--Temp-x` - drive-lettered
         // and, unlike Unix, with no leading dash. This helper used to leave the
         // colon in place and force a leading dash, producing `-C:-Temp-x`,
         // which is a shape Claude Code never writes (#548).
-        let encoded = deep.to_string_lossy().replace(['/', '\\', ':'], "-");
+        let encoded = plain.replace(['/', '\\', ':'], "-");
         (encoded, root)
     }
 
@@ -991,14 +1006,27 @@ mod tests {
 
         let decoded = decode_project_path(&storage);
         let verified = decode_project_path_verified(&storage);
+
+        // Compare canonical forms: the decoder returns the plain path it walked,
+        // while `root` came back from `canonicalize` and is verbatim-prefixed on
+        // Windows. Both must resolve while the tree still exists.
+        let expected = std::fs::canonicalize(root.join("nested").join("leaf-dir"))
+            .expect("canonicalize fixture");
+        let decoded_real = std::fs::canonicalize(&decoded).ok();
+        let verified_real = verified
+            .as_deref()
+            .and_then(|v| std::fs::canonicalize(v).ok());
         std::fs::remove_dir_all(&root).ok();
 
-        let expected = root.join("nested").join("leaf-dir");
-        assert_eq!(Path::new(&decoded), expected, "decode_project_path");
         assert_eq!(
-            verified.as_deref().map(Path::new),
+            decoded_real.as_deref(),
             Some(expected.as_path()),
-            "decode_project_path_verified"
+            "decode_project_path returned {decoded:?}"
+        );
+        assert_eq!(
+            verified_real.as_deref(),
+            Some(expected.as_path()),
+            "decode_project_path_verified returned {verified:?}"
         );
     }
 
