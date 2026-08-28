@@ -1507,7 +1507,12 @@ mod tests {
         assert_eq!(projects[0].name, "demo-project");
         assert_eq!(
             projects[0].path,
-            format!("{SCHEME}{}/sessions/wd_demo_abc123", root.display())
+            // Built with `join`, not a literal `/`: the value under test comes
+            // from `Path::join` and so uses the host separator (#541).
+            format!(
+                "{SCHEME}{}",
+                root.join("sessions").join("wd_demo_abc123").display()
+            )
         );
         assert_eq!(
             projects[0].actual_path,

@@ -7293,6 +7293,7 @@ mod tests {
 
     #[test]
     fn test_antigravity_provider_project_summary_uses_mode_adjusted_daily_tokens() {
+        let _home = isolated_home();
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let root = temp_dir.path();
         let session_dir = root

@@ -993,11 +993,14 @@ mod tests {
     /// prevent path-traversal-style reads of arbitrary directories on disk.
     #[test]
     fn load_sessions_rejects_path_outside_codebuddy_root() {
-        // /tmp definitely exists on macOS/Linux and is outside the codebuddy
-        // root. The function checks existence first, so we need a real path.
-        let result = load_sessions(&crate::test_utils::abs("tmp"), false);
-        // Either errors with the "outside" message, or — if /tmp doesn't
-        // canonicalize on this platform — errors with a canonicalize message.
+        // The function checks existence first, so this needs a directory that
+        // really is on disk and really is outside the codebuddy root. It used
+        // to reach for `/tmp`; Windows has no such path, and a nonexistent one
+        // takes a different branch than the rejection under test (#541).
+        let outside = crate::test_utils::existing_dir();
+        let result = load_sessions(&outside.to_string_lossy(), false);
+        // Either errors with the "outside" message, or - if the directory does
+        // not canonicalize on this platform - errors with a canonicalize message.
         // Both are acceptable; what we want to guard against is `Ok(...)`.
         assert!(
             result.is_err(),
