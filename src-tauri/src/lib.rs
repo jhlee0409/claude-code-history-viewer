@@ -314,43 +314,6 @@ fn run_tauri() {
         });
 }
 
-#[cfg(test)]
-mod ime_environment_tests {
-    use super::linux_ime_environment_updates;
-
-    #[test]
-    fn linux_ime_environment_sets_missing_ibus_variables_when_ibus_is_available() {
-        let updates = linux_ime_environment_updates(None, None, Some("unix:path=/tmp/ibus"));
-
-        assert_eq!(
-            updates,
-            vec![("GTK_IM_MODULE", "ibus"), ("XMODIFIERS", "@im=ibus"),]
-        );
-    }
-
-    #[test]
-    fn linux_ime_environment_preserves_existing_values() {
-        let updates =
-            linux_ime_environment_updates(Some("custom-gtk"), Some("@im=custom"), Some("ibus"));
-
-        assert!(updates.is_empty());
-    }
-
-    #[test]
-    fn linux_ime_environment_uses_existing_ibus_values_as_signal() {
-        let updates = linux_ime_environment_updates(Some("ibus"), None, None);
-
-        assert_eq!(updates, vec![("XMODIFIERS", "@im=ibus")]);
-    }
-
-    #[test]
-    fn linux_ime_environment_does_nothing_without_ibus_signal() {
-        let updates = linux_ime_environment_updates(None, None, None);
-
-        assert!(updates.is_empty());
-    }
-}
-
 #[cfg(target_os = "linux")]
 fn configure_linux_ime_environment() {
     // configure_linux_ime_environment runs during process startup before Tauri
@@ -401,6 +364,43 @@ fn linux_ime_environment_updates(
     }
 
     updates
+}
+
+#[cfg(test)]
+mod ime_environment_tests {
+    use super::linux_ime_environment_updates;
+
+    #[test]
+    fn linux_ime_environment_sets_missing_ibus_variables_when_ibus_is_available() {
+        let updates = linux_ime_environment_updates(None, None, Some("unix:path=/tmp/ibus"));
+
+        assert_eq!(
+            updates,
+            vec![("GTK_IM_MODULE", "ibus"), ("XMODIFIERS", "@im=ibus"),]
+        );
+    }
+
+    #[test]
+    fn linux_ime_environment_preserves_existing_values() {
+        let updates =
+            linux_ime_environment_updates(Some("custom-gtk"), Some("@im=custom"), Some("ibus"));
+
+        assert!(updates.is_empty());
+    }
+
+    #[test]
+    fn linux_ime_environment_uses_existing_ibus_values_as_signal() {
+        let updates = linux_ime_environment_updates(Some("ibus"), None, None);
+
+        assert_eq!(updates, vec![("XMODIFIERS", "@im=ibus")]);
+    }
+
+    #[test]
+    fn linux_ime_environment_does_nothing_without_ibus_signal() {
+        let updates = linux_ime_environment_updates(None, None, None);
+
+        assert!(updates.is_empty());
+    }
 }
 
 /// Run the Axum-based `WebUI` server (headless mode).

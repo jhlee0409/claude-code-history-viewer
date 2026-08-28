@@ -5412,7 +5412,12 @@ mod tests {
     /// (#540).
     fn isolated_home() -> tempfile::TempDir {
         let dir = tempfile::TempDir::new().expect("temp home");
-        std::env::set_var("CCHV_TEST_HOME", dir.path());
+        // Canonicalised: on macOS the temp dir is handed back as `/var/...`
+        // while anything that canonicalises sees `/private/var/...`, so an
+        // uncanonicalised sandbox root silently fails to match.
+        // Spotted by @nightcityblade in #546.
+        let canonical = dir.path().canonicalize().expect("canonicalize temp home");
+        std::env::set_var("CCHV_TEST_HOME", canonical);
         dir
     }
     use serde_json::json;
