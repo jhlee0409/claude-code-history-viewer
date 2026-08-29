@@ -905,7 +905,7 @@ fn resolve_auth_token(args: &[String]) -> Option<(String, AuthTokenSource)> {
 /// Persist auto-generated token to a local file instead of logging the full secret.
 #[cfg(feature = "webui-server")]
 fn write_generated_token_file(token: &str) -> Option<std::path::PathBuf> {
-    let home = dirs::home_dir()?;
+    let home = crate::utils::home_dir()?;
     let dir = home.join(".claude-history-viewer");
     std::fs::create_dir_all(&dir).ok()?;
     let path = dir.join("webui-token.txt");
@@ -986,7 +986,7 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
 
     let mut paths: Vec<PathBuf> = Vec::new();
 
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = crate::utils::home_dir() {
         let claude_projects = home.join(".claude").join("projects");
         if claude_projects.is_dir() {
             paths.push(claude_projects);
