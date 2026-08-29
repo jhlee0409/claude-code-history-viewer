@@ -853,42 +853,13 @@ mod tests {
         assert_eq!(projects[0].provider.as_deref(), Some("pi"));
     }
 
-    /// Saves/restores `HOME` around a test so `sessions_root()` resolves to a
-    /// fixture store under a fresh `TempDir` rather than the real user home.
-    /// `HOME` is process-global; combined with `#[serial]` so these tests
-    /// don't race each other.
-    struct HomeGuard {
-        original: Option<String>,
-    }
-    impl HomeGuard {
-        fn set(path: &Path) -> Self {
-            let original = std::env::var("HOME").ok();
-            std::env::set_var("HOME", path);
-            // `HOME` alone is inert on Windows, where `dirs::home_dir()` uses
-            // the known-folder API. `crate::utils::home_dir()` reads this
-            // instead under `cfg(test)`, and panics without it (#540).
-            std::env::set_var("CCHV_TEST_HOME", path);
-            Self { original }
-        }
-    }
-    impl Drop for HomeGuard {
-        fn drop(&mut self) {
-            std::env::remove_var("CCHV_TEST_HOME");
-            match self.original.as_ref() {
-                Some(v) => std::env::set_var("HOME", v),
-                None => std::env::remove_var("HOME"),
-            }
-        }
-    }
-
     /// `load_messages` must work against a literal session path under the
     /// fixture store that `$HOME` is pointed at, proving the store resolution
     /// works without requiring the real `~/.pi/agent/sessions`.
     #[test]
     #[serial]
     fn load_messages_succeeds_for_fixture_path_under_home_override() {
-        let home = tempfile::tempdir().expect("tempdir");
-        let _guard = HomeGuard::set(home.path());
+        let home = crate::test_utils::SandboxHome::new();
         let dir = home
             .path()
             .join(".pi")
@@ -909,8 +880,7 @@ mod tests {
     #[test]
     #[serial]
     fn load_sessions_succeeds_for_fixture_dir_under_home_override() {
-        let home = tempfile::tempdir().expect("tempdir");
-        let _guard = HomeGuard::set(home.path());
+        let home = crate::test_utils::SandboxHome::new();
         let dir = home
             .path()
             .join(".pi")
@@ -937,7 +907,7 @@ mod tests {
         let home = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(home.path().join(".pi").join("agent").join("sessions"))
             .expect("create sessions root");
-        let _guard = HomeGuard::set(home.path());
+        let _home = crate::test_utils::SandboxHome::new();
 
         let outside = tempfile::tempdir().expect("outside tempdir");
         let dir = outside.path().join("--Users-ac-dev-fixture--");
