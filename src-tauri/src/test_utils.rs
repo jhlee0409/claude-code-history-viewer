@@ -429,7 +429,14 @@ pub struct SandboxHome {
 impl SandboxHome {
     pub fn new() -> Self {
         let dir = TempDir::new().expect("temp home");
-        let canonical = dir.path().canonicalize().expect("canonicalize temp home");
+        // Canonicalised so macOS `/var/...` resolves to `/private/var/...`, then
+        // stripped of the Windows extended-length prefix that canonicalising
+        // adds there. Leaving the `\\?\` form in place exports a home that
+        // code comparing plain paths cannot match - the antigravity CLI root
+        // went missing on Windows for exactly that reason.
+        let canonical = PathBuf::from(strip_verbatim_prefix(
+            &dir.path().canonicalize().expect("canonicalize temp home"),
+        ));
         let previous_home = std::env::var_os("HOME");
         let previous_test_home = std::env::var_os("CCHV_TEST_HOME");
         std::env::set_var("HOME", &canonical);
