@@ -41,12 +41,12 @@ pub struct AllMCPServers {
 
 /// The home directory these settings paths hang off.
 ///
-/// In a normal build this is exactly `dirs::home_dir()`.
+/// In a normal build this is exactly `crate::utils::home_dir()`.
 ///
 /// # Why this indirection exists
 ///
 /// The tests below intended to sandbox themselves with
-/// `env::set_var("HOME", temp_dir)`. That is inert on Windows: `dirs::home_dir()`
+/// `env::set_var("HOME", temp_dir)`. That is inert on Windows: `crate::utils::home_dir()`
 /// resolves through the known-folder API and consults neither `HOME` nor
 /// `USERPROFILE`. So `test_save_and_retrieve_user_settings` wrote
 /// `{"theme":"dark","fontSize":14}` straight over the developer's real
@@ -61,7 +61,7 @@ pub struct AllMCPServers {
 /// turns that mistake into a loud failure instead of silent data loss.
 #[cfg(not(test))]
 fn settings_home_dir() -> Option<PathBuf> {
-    dirs::home_dir()
+    crate::utils::home_dir()
 }
 
 #[cfg(test)]
@@ -633,6 +633,29 @@ pub(crate) fn validate_dialog_path(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// A user folder from the OS, or `None` under `cfg(test)`.
+///
+/// Production uses the known-folder APIs so Windows folder redirection - a
+/// Downloads moved into `OneDrive`, say - is honoured. Those APIs read the
+/// account's real profile and consult neither `HOME` nor `CCHV_TEST_HOME`,
+/// which is deliberate but leaves `is_safe_path` untestable: the allowlist
+/// would name the developer's own Downloads, and the only way to exercise the
+/// accept path would be to write there. That is exactly the mistake #536 and
+/// #540 were about.
+///
+/// Returning `None` under test collapses each entry to its home-relative
+/// fallback, so the whole allowlist derives from the sandboxed home and the
+/// accept path becomes testable. The redirection branch itself is an OS call
+/// with nothing to assert about (#541).
+#[cfg(feature = "webui-server")]
+fn known_folder(lookup: fn() -> Option<PathBuf>) -> Option<PathBuf> {
+    if cfg!(test) {
+        None
+    } else {
+        lookup()
+    }
+}
+
 /// Validate that a path is within allowed directories.
 ///
 /// Used by `WebUI` HTTP handlers to restrict file operations to safe directories.
@@ -645,17 +668,15 @@ pub(crate) fn validate_dialog_path(path: &Path) -> Result<(), String> {
 /// `Ok(())` if path is safe, error message if not
 #[cfg(feature = "webui-server")]
 pub(crate) fn is_safe_path(path: &Path) -> Result<(), String> {
-    let home_raw = dirs::home_dir().ok_or("Could not find home directory")?;
+    let home_raw = crate::utils::home_dir().ok_or("Could not find home directory")?;
     // Canonicalize home to resolve symlinks (e.g. macOS /var → /private/var)
     let home = home_raw.canonicalize().unwrap_or_else(|_| home_raw.clone());
     let home = strip_windows_prefix(&home);
-    // Use known-folder APIs to support Windows folder redirection (e.g. OneDrive).
-    // Fall back to home-relative paths when the API returns None.
     let mut allowed_dirs = vec![home.join(".claude-history-viewer").join("exports")];
     for (api_dir, fallback_name) in [
-        (dirs::download_dir(), "Downloads"),
-        (dirs::document_dir(), "Documents"),
-        (dirs::desktop_dir(), "Desktop"),
+        (known_folder(dirs::download_dir), "Downloads"),
+        (known_folder(dirs::document_dir), "Documents"),
+        (known_folder(dirs::desktop_dir), "Desktop"),
     ] {
         let resolved = api_dir.unwrap_or_else(|| home.join(fallback_name));
         let resolved =

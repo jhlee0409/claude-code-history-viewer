@@ -67,7 +67,7 @@ pub struct UnifiedPresetInput {
 
 /// Get the unified presets folder path
 fn get_presets_folder() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let home = crate::utils::home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude-history-viewer").join("unified-presets"))
 }
 
