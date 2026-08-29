@@ -1937,10 +1937,12 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_filename_with_special_chars() {
-        let _home = crate::test_utils::SandboxHome::new();
+        // The guard's home, not `dirs::home_dir()` - the latter is the real one
+        // on Windows, so the fixture would sit outside the sandbox.
+        let home = crate::test_utils::SandboxHome::new();
         // Test filename validation with various invalid characters
-        if let Some(home) = dirs::home_dir() {
-            let claude_dir = home.join(".claude/projects");
+        {
+            let claude_dir = home.path().join(".claude").join("projects");
             // Filename with dot (besides extension) should fail
             let path_with_dot = claude_dir
                 .join("test.file.jsonl")
