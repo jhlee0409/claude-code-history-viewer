@@ -244,3 +244,50 @@ describe("FileEditRowCompact", () => {
     expect(onJumpToMessage).toHaveBeenCalledWith("msg-1");
   });
 });
+
+describe("FileEditRowCompact restore authorisation (#525)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const confirmRestore = () => {
+    fireEvent.click(screen.getAllByLabelText("recentEdits.restoreFile")[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "recentEdits.confirmRestore" }));
+  };
+
+  it("sends the project that recorded the edit, and the session it was scoped to", async () => {
+    const { api } = await import("@/services/api");
+    render(
+      <FileEditRowCompact
+        edit={makeEdit()}
+        isDarkMode={false}
+        projectCwd={PROJECT}
+        restoreScope={{
+          projectPath: "/encoded/project/path",
+          sessionFilePath: "/encoded/project/path/session-a.jsonl",
+        }}
+      />
+    );
+
+    confirmRestore();
+
+    expect(api).toHaveBeenCalledWith(
+      "restore_file",
+      expect.objectContaining({
+        projectPath: "/encoded/project/path",
+        sessionFilePath: "/encoded/project/path/session-a.jsonl",
+      })
+    );
+  });
+
+  /// Without a project there is nothing to authorise against, so the call must
+  /// not be made at all rather than be sent and refused by the backend.
+  it("does not call the backend when the originating project is unknown", async () => {
+    const { api } = await import("@/services/api");
+    render(<FileEditRowCompact edit={makeEdit()} isDarkMode={false} projectCwd={PROJECT} />);
+
+    confirmRestore();
+
+    expect(api).not.toHaveBeenCalledWith("restore_file", expect.anything());
+  });
+});

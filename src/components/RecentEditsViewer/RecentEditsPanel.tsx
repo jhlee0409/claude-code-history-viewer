@@ -85,6 +85,21 @@ export const RecentEditsPanel: React.FC = () => {
   // exactly when the question being asked changes.
   const requestKey = request ? recentEditsDockRequestKey(request) : null;
 
+  // Taken from the request the rows on screen answer, not from `request` above.
+  // The two differ whenever the dock outlives the selection - deselecting a
+  // project keeps the panel open on the previous one (#533) - and restore is
+  // authorised against the project that recorded the edit (#525), so
+  // authorising against the live selection would be authorising against a
+  // project these rows did not come from.
+  const answered = recentEdits?.request;
+  const restoreScope = answered
+    ? {
+        projectPath: answered.projectPath,
+        sessionFilePath:
+          answered.scope === "session" ? answered.sessionFilePath : undefined,
+      }
+    : undefined;
+
   useEffect(() => {
     if (!request) return;
     void loadRecentEditsDock(request);
@@ -196,6 +211,7 @@ export const RecentEditsPanel: React.FC = () => {
                   grouping={grouping}
                   onJumpToMessage={navigateToMessage}
                   onRestored={handleRestored}
+                  restoreScope={restoreScope}
                 />
               ) : (
                 <div key={`${edit.file_path}-${index}`} className="p-2">
@@ -210,6 +226,7 @@ export const RecentEditsPanel: React.FC = () => {
                     dense
                     projectCwd={recentEdits?.projectCwd}
                     onRestored={handleRestored}
+                    restoreScope={restoreScope}
                   />
                 </div>
               )

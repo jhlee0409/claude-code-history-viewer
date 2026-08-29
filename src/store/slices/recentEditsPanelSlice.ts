@@ -94,6 +94,15 @@ export interface RecentEditsDockResult {
    * the response, which is the mistake the page view's cache guard made.
    */
   requestKey: string;
+  /**
+   * The request itself, so a row can name the project that produced it.
+   *
+   * Restore is authorised against the project's recorded edits (#525), and the
+   * rows on screen may outlive the current selection - deselecting a project
+   * leaves the dock showing the previous one (#533). Reading the live selection
+   * would authorise against a project these rows did not come from.
+   */
+  request: RecentEditsDockRequest;
 }
 
 export interface RecentEditsDockRequest {
@@ -249,7 +258,7 @@ const initialRecentEditsPanelState = (): RecentEditsPanelSliceState => ({
 });
 
 const toDockResult = (
-  requestKey: string,
+  request: RecentEditsDockRequest,
   result: {
     files: RecentFileEdit[];
     total_edits_count: number;
@@ -268,7 +277,8 @@ const toDockResult = (
   offset: result.offset,
   limit: result.limit,
   hasMore: result.has_more,
-  requestKey,
+  requestKey: recentEditsDockRequestKey(request),
+  request,
 });
 
 export const createRecentEditsPanelSlice: StateCreator<
@@ -370,7 +380,7 @@ export const createRecentEditsPanelSlice: StateCreator<
           request.scope === "session" ? request.sessionFilePath : undefined,
       });
       if (!stillOwns()) return;
-      set({ recentEditsDock: toDockResult(key, result) });
+      set({ recentEditsDock: toDockResult(request, result) });
     } catch (error) {
       if (!stillOwns()) return;
       set({
@@ -445,7 +455,7 @@ export const createRecentEditsPanelSlice: StateCreator<
       // sets, so a scope change mid-flight discards this page.
       if (recentEditsDockGeneration !== generation) return;
       if (!latest || latest.requestKey !== key) return;
-      set({ recentEditsDock: toDockResult(key, result, latest.files) });
+      set({ recentEditsDock: toDockResult(request, result, latest.files) });
     } catch (error) {
       // Same ownership rule as the success path. A late failure from a request
       // the user has already moved on from must not paint an error over rows

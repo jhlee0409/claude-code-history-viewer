@@ -41,6 +41,13 @@ export interface FileEditItemProps {
    * the same restore behaved differently depending on the density.
    */
   onRestored?: (filePath: string) => void;
+  /**
+   * The project these rows came from, and the session they were scoped to.
+   * Restore is authorised against that project's recorded edits (#525), so the
+   * caller has to name it - and it must be the request that produced the row,
+   * not the live selection, which can have moved on.
+   */
+  restoreScope?: { projectPath: string; sessionFilePath?: string };
 }
 
 export type RestoreStatus = "idle" | "loading" | "success" | "error";

@@ -780,59 +780,44 @@ mod tests {
         std::env::temp_dir().join("ccv-restore-gate-probe.txt")
     }
 
-    /// The write side of the allowlist, which for a long while had no guard at
-    /// all while `read_text_file` beside it enforced one. Over `--serve` a
-    /// request could overwrite any reachable file while being refused
-    /// permission to read that same path.
-    #[test]
+    /// #525. The bind-address carve-out is gone: an authenticated loopback
+    /// server - the case the old gate existed to permit - must now be refused
+    /// just the same when the project has no recorded edit for the path. The
+    /// socket is no longer an input to a filesystem decision.
+    #[tokio::test]
     #[serial]
-    fn test_restore_write_is_unrestricted_only_when_permitted() {
+    async fn test_restore_refuses_unrecorded_path_even_on_authenticated_loopback() {
         let _home = crate::test_utils::SandboxHome::new();
-        use crate::server::handlers::restore_write_allowed;
+        let project = tempfile::tempdir().expect("project dir");
+        let state = state_with(true, Some("a-token"));
+        let app = build_router(state, "127.0.0.1", 3728, None, "/");
 
-        let outside = restore_gate_probe_path();
+        let body = serde_json::json!({
+            "filePath": restore_gate_probe_path().to_string_lossy(),
+            "content": "should never be written",
+            "projectPath": project.path().to_string_lossy(),
+        });
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/restore_file")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
-        assert!(
-            restore_write_allowed(true, &outside).is_ok(),
-            "an authenticated loopback server is this app on this machine, so \
-             restoring anywhere is what the desktop app already does"
+        assert_ne!(
+            response.status(),
+            StatusCode::OK,
+            "loopback plus auth no longer authorises a path the project never edited"
         );
-
-        let refused = restore_write_allowed(false, &outside);
         assert!(
-            refused.is_err(),
-            "otherwise the caller is someone else, so the same allowlist the \
-             read path uses must apply"
+            !restore_gate_probe_path().exists(),
+            "the refusal must happen before anything reaches the disk"
         );
-    }
-
-    /// Loopback alone must not open the gate. With `--no-auth` the router
-    /// installs `allow_origin(Any)`, so any page the user has open can POST to
-    /// `127.0.0.1`; and `--no-auth` needs no extra flag on a loopback host.
-    #[test]
-    fn test_restore_write_needs_auth_as_well_as_loopback() {
-        use crate::server::handlers::restore_write_is_unrestricted;
-
-        let authenticated_loopback = state_with(true, Some("a-token"));
-        assert!(
-            restore_write_is_unrestricted(&authenticated_loopback),
-            "the case the carve-out exists for must keep working"
-        );
-
-        let open_loopback = state_with(true, None);
-        assert!(
-            !restore_write_is_unrestricted(&open_loopback),
-            "--no-auth on loopback is reachable by any web page the user has \
-             open, so it is not the person at the keyboard"
-        );
-
-        let authenticated_routable = state_with(false, Some("a-token"));
-        assert!(
-            !restore_write_is_unrestricted(&authenticated_routable),
-            "an authenticated remote caller is still a remote caller"
-        );
-
-        assert!(!restore_write_is_unrestricted(&state_with(false, None)));
     }
 
     /// Pins the wiring, not just the predicate. Deleting the guard from the
@@ -845,9 +830,11 @@ mod tests {
         let state = state_with(false, None);
         let app = build_router(state, "127.0.0.1", 3727, None, "/");
 
+        let project = tempfile::tempdir().expect("project dir");
         let body = serde_json::json!({
             "filePath": restore_gate_probe_path().to_string_lossy(),
             "content": "should never be written",
+            "projectPath": project.path().to_string_lossy(),
         });
         let response = app
             .oneshot(
