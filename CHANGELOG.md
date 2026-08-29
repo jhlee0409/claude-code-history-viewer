@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.1] - 2026-08-28
+
+Patch release: correctness fixes for message ordering, Windows project paths, and the Recent Edits dock.
+
+### Fixed
+- **Messages could appear out of order, and older ones appear lost** — opening a session that is only partially loaded sorted the visible window by tree position rather than by time, so a reply could render above the message it answered. Worst observed case put a message twelve days out of place, and the very oldest turns looked absent until the rest of the session loaded. The window is now ordered chronologically. (#535, #542)
+- **Windows: project paths shown as their raw storage folder** — the folder-name decoder could not run on Windows at all. Its marker was the literal `.claude/projects/`, which never matches a `…\.claude\projects\…` path; it required a leading dash, which a drive-lettered name does not have; and it rooted every candidate at `/`. With all three, a project whose `sessions-index.json` was missing or stale surfaced as `…\projects\D--OneDrive---…`, and a project that had been moved kept showing its old path. (#548, #549)
+- **Recent Edits dock showing stale rows** — deselecting and quickly reselecting the same project produced two requests carrying the same key, and the in-flight guard compared keys for equality, so the first response landed on top of the second. (#538, #543)
+- **Recent Edits dock closing on deselect** — clicking the already-selected project in the tree collapsed it, and the dock was gated on a project being selected, so the whole panel unmounted. It is a workspace fixture and now stays put. (#534, #533) — thanks @jprisant
+
+### Breaking
+- None.
+
 ## [1.26.0] - 2026-08-27
 
 Feature and fix release: Kimi Code sessions, a dockable Recent Edits panel, and a round of correctness work on the file watcher, WebUI file writes, and async runtime behaviour.
