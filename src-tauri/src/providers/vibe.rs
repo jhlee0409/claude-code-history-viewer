@@ -39,7 +39,7 @@ pub fn get_base_path() -> Option<String> {
         }
     }
 
-    let default = dirs::home_dir()?.join(".vibe");
+    let default = crate::utils::home_dir()?.join(".vibe");
     if default.exists() {
         let normalized = default.canonicalize().unwrap_or(default);
         Some(normalized.to_string_lossy().to_string())

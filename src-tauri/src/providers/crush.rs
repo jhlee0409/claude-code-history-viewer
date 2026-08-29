@@ -282,7 +282,7 @@ fn search_one_db(
 /// Common code roots to scan (mirrors the Aider provider).
 fn search_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = crate::utils::home_dir() {
         for subdir in ["client", "projects", "code", "src", "dev", "work", "repos"] {
             let d = home.join(subdir);
             if d.is_dir() {

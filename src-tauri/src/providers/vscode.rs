@@ -69,7 +69,7 @@ pub fn get_base_paths() -> Vec<PathBuf> {
 }
 
 fn get_user_data_roots() -> Vec<UserDataRoot> {
-    let Some(home) = dirs::home_dir() else {
+    let Some(home) = crate::utils::home_dir() else {
         return Vec::new();
     };
 

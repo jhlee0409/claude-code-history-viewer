@@ -236,7 +236,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 
 fn get_search_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = crate::utils::home_dir() {
         for subdir in ["client", "projects", "code", "src", "dev", "work", "repos"] {
             let d = home.join(subdir);
             if d.is_dir() {

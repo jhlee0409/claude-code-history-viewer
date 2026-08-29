@@ -168,6 +168,7 @@ mod tests {
     #[test]
     #[serial]
     fn accepts_session_under_symlinked_claude_root() {
+        let _home = crate::test_utils::SandboxHome::new();
         let tmp = tempfile::tempdir().expect("tempdir");
         let home = tmp.path();
         let store_projects = home.join(".claude-store").join("projects").join("proj");
@@ -192,6 +193,7 @@ mod tests {
     #[test]
     #[serial]
     fn rejects_session_outside_allowlist() {
+        let _home = crate::test_utils::SandboxHome::new();
         let tmp = tempfile::tempdir().expect("tempdir");
         let home = tmp.path();
         std::fs::create_dir_all(home.join(".claude").join("projects")).expect("mk claude");
@@ -211,11 +213,13 @@ mod tests {
     #[test]
     #[serial]
     fn test_safe_session_path_allows_kimi_sessions() {
-        let temp = TempDir::new().unwrap();
-        let old_home = std::env::var_os("HOME");
-        std::env::set_var("HOME", temp.path());
+        // The guard owns `HOME`; the fixture goes inside it. This used to
+        // save/restore `HOME` around its own `TempDir`, which leaves
+        // `CCHV_TEST_HOME` pointing somewhere else entirely - the path the
+        // code under test actually resolves.
+        let home = crate::test_utils::SandboxHome::new();
 
-        let session_dir = temp
+        let session_dir = home
             .path()
             .join(".kimi")
             .join("sessions")
@@ -227,18 +231,13 @@ mod tests {
 
         let result = is_safe_session_path(&session_file);
 
-        if let Some(home) = old_home {
-            std::env::set_var("HOME", home);
-        } else {
-            std::env::remove_var("HOME");
-        }
-
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "kimi session rejected: {result:?}");
     }
 
     #[test]
     #[serial]
     fn test_safe_session_path_allows_custom_kimi_home() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp = TempDir::new().unwrap();
         let old_kimi_home = std::env::var_os("KIMI_HOME");
         std::env::set_var("KIMI_HOME", temp.path());
@@ -288,6 +287,7 @@ mod tests {
     #[test]
     #[serial]
     fn safe_session_path_allows_codex_home_sessions() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp = tempfile::tempdir().unwrap();
         let codex_home = temp.path().join("custom-codex");
         let sessions = codex_home.join("sessions");
@@ -303,6 +303,7 @@ mod tests {
     #[test]
     #[serial]
     fn safe_session_path_allows_codex_home_archived_sessions() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp = tempfile::tempdir().unwrap();
         let codex_home = temp.path().join("custom-codex");
         let archived_sessions = codex_home.join("archived_sessions");

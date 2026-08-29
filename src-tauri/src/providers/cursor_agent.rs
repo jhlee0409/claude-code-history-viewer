@@ -57,7 +57,7 @@ pub fn detect() -> Option<ProviderInfo> {
 
 /// Base path for Cursor Agent transcripts: `~/.cursor/projects`.
 pub fn get_base_path() -> Option<String> {
-    let home = dirs::home_dir()?;
+    let home = crate::utils::home_dir()?;
     let projects = home.join(".cursor").join("projects");
     if projects.is_dir() {
         Some(projects.to_string_lossy().to_string())

@@ -42,7 +42,7 @@ fn candidate_db_paths() -> Vec<PathBuf> {
             paths.push(PathBuf::from(xdg).join("goose/sessions/sessions.db"));
         }
     }
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = crate::utils::home_dir() {
         // XDG default (Linux, and macOS under Goose's etcetera strategy).
         paths.push(home.join(".local/share/goose/sessions/sessions.db"));
         // macOS Apple-strategy fallback.

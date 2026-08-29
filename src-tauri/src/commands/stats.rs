@@ -6621,7 +6621,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_kimi_project_name_resolves_from_session_parent_directory() {
+        let _home = crate::test_utils::SandboxHome::new();
         let session_path = "/tmp/kimi/sessions/project-hash/session-1";
 
         assert_eq!(
@@ -6631,7 +6633,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_kimi_code_project_name_falls_back_to_workspace_directory() {
+        let _home = crate::test_utils::SandboxHome::new();
         // When the store is not scannable (no ~/.kimi-code on this machine,
         // or the workspace was removed), the name falls back to the last
         // path segment — which requires stripping the kimi-code scheme.

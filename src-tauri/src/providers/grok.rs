@@ -40,7 +40,7 @@ pub fn get_base_path() -> Option<String> {
         }
     }
 
-    let default = dirs::home_dir()?.join(".grok");
+    let default = crate::utils::home_dir()?.join(".grok");
     if default.exists() {
         let normalized = default.canonicalize().unwrap_or(default);
         Some(normalized.to_string_lossy().to_string())
