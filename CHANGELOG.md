@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.2] - 2026-08-29
+
+Patch release: database-backed providers work again over `--serve`.
+
+### Fixed
+- **`--serve` rejected every session that is not a file** — providers that keep sessions in a database rather than on disk identify them with a URI (`opencode://…`, `zed://…`, `forgecode-db://…`, and fourteen more). The WebUI path guard treated those as filesystem paths, failed to resolve a parent directory that does not exist, and answered `Invalid path`. That broke five endpoints for every such provider: the SubAgent panel, session delete, session rename, resetting a native name, and — with some irony — renaming an OpenCode session title. Desktop was unaffected, which is why it went unnoticed. (#560, #561) — reported with a full source diagnosis by @GoldenStain
+- **OpenCode subagents never appeared** — OpenCode has no sidechain files; a Task run is a child row in its `session` table. The SubAgent panel scanned the parent's directory for `agent-*.jsonl`, found nothing, and showed an error. It now reads child sessions from the database, and clicking one opens it. (#560, #561)
+
+### Internal
+- The Rust suite passes on Windows for the first time and now gates CI, both feature sets. It was 41 failures when the platform was added in #539 — including a lib test binary that had stopped compiling there entirely, so the platform had no coverage at all and nothing said so. (#540, #541, #548, #551, #559)
+
+### Breaking
+- None.
+
 ## [1.26.1] - 2026-08-28
 
 Patch release: correctness fixes for message ordering, Windows project paths, and the Recent Edits dock.
