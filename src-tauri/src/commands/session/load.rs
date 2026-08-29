@@ -2009,10 +2009,53 @@ fn workflow_run_id_for(sa_path: &Path) -> Option<String> {
     run_dir.file_name().map(|n| n.to_string_lossy().to_string())
 }
 
+/// Subagent rows for an `opencode://<project_id>/<session_id>` parent.
+///
+/// Each child becomes a `SubagentSession` addressed by its own
+/// `opencode://` id, so clicking one in the panel opens it through the same
+/// path the project list already uses. `file_size` is 0 - there is no file -
+/// and `tool_use_id` is `None`, which the frontend already handles by falling
+/// back to progress messages.
+fn opencode_subagents(session_path: &str) -> Vec<SubagentSession> {
+    let Some(rest) = session_path.strip_prefix("opencode://") else {
+        return Vec::new();
+    };
+    let Some((project_id, session_id)) = rest.split_once('/') else {
+        return Vec::new();
+    };
+    if !crate::utils::is_safe_storage_id(project_id)
+        || !crate::utils::is_safe_storage_id(session_id)
+    {
+        return Vec::new();
+    }
+
+    crate::providers::opencode::load_child_sessions(project_id, session_id)
+        .into_iter()
+        .map(|child| SubagentSession {
+            file_path: format!("opencode://{project_id}/{}", child.id),
+            agent_id: child.id,
+            message_count: child.message_count,
+            file_size: 0,
+            first_message_time: Some(child.created_at),
+            last_message_time: Some(child.updated_at),
+            summary: (!child.title.trim().is_empty()).then_some(child.title),
+            tool_use_id: None,
+            workflow_run_id: None,
+        })
+        .collect()
+}
+
 /// Returns subagent sessions for a given parent session file.
 #[tauri::command]
 pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
     use crate::utils::find_subagent_files;
+
+    // OpenCode keeps subagent runs as child rows in SQLite rather than as
+    // sidechain files beside the parent, so the file scan below has nothing to
+    // find and the absolute-path check would reject the URI outright (#560).
+    if session_path.starts_with("opencode://") {
+        return Ok(opencode_subagents(&session_path));
+    }
 
     let path = PathBuf::from(&session_path);
     if !path.is_absolute() {
