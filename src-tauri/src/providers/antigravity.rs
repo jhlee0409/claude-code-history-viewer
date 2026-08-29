@@ -830,20 +830,26 @@ mod tests {
         // CLI layout next to it.
         write_cli_fixture(home.path());
 
+        // Derived from the same value the fixture writes. Hardcoding
+        // `/tmp/cli-proj` here left the expectation Unix-shaped while the
+        // fixture had already moved to a host-appropriate absolute path, so
+        // this looked like a missing project on Windows (#541).
+        let cli_workspace = format!(
+            "antigravity-cli://{}",
+            crate::test_utils::abs("tmp/cli-proj")
+        );
+
         let projects = scan_projects().expect("scan projects");
         assert!(
             projects.iter().any(|p| p.name == "Antigravity"),
             "desktop project missing from {projects:?}"
         );
         assert!(
-            projects
-                .iter()
-                .any(|p| p.path == "antigravity-cli:///tmp/cli-proj"),
+            projects.iter().any(|p| p.path == cli_workspace),
             "cli project missing from {projects:?}"
         );
 
-        let cli_sessions =
-            load_sessions("antigravity-cli:///tmp/cli-proj", false).expect("cli sessions");
+        let cli_sessions = load_sessions(&cli_workspace, false).expect("cli sessions");
         assert_eq!(cli_sessions.len(), 1);
         assert_eq!(cli_sessions[0].session_id, "conv-cli");
         assert_eq!(cli_sessions[0].provider.as_deref(), Some("antigravity"));
