@@ -2240,14 +2240,17 @@ mod tests {
     /// Extract workspace display name prefers cwd basename and ignores home dir.
     #[serial]
     fn extract_workspace_display_name_prefers_cwd_basename_and_ignores_home_dir() {
-        let _home = crate::test_utils::SandboxHome::new();
+        // The "home" entry has to be the home the code under test resolves, so
+        // it comes from the guard. `dirs::home_dir()` was the real one on
+        // Windows, which is not the home being ignored (#551).
+        let home = crate::test_utils::SandboxHome::new();
         let context = json!({
             "messages": [
                 {
                     "message": {
                         "tool": {
                             "arguments": {
-                                "cwd": dirs::home_dir().unwrap().to_string_lossy().to_string()
+                                "cwd": home.path().to_string_lossy().to_string()
                             }
                         }
                     }
@@ -2256,7 +2259,7 @@ mod tests {
                     "message": {
                         "tool": {
                             "arguments": {
-                                "cwd": "/Users/christian/projects/banana-prompting-service"
+                                "cwd": crate::test_utils::abs("Users/christian/projects/banana-prompting-service")
                             }
                         }
                     }
