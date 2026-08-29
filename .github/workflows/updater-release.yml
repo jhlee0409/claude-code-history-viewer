@@ -5,6 +5,16 @@ on:
   push:
     tags:
       - "v*"
+  # Recovery path. The tag-push event is the only thing that normally starts
+  # this, so a dropped event - GitHub was mid-incident when v1.26.0 was tagged
+  # (#532) - left no way to run it except deleting the tag and pushing it
+  # again. That is surgery on a published tag, and it is avoidable.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release, e.g. v1.26.1"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,10 +24,39 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create-release.outputs.result }}
+      tag: ${{ steps.resolve-tag.outputs.tag }}
 
     steps:
-      - name: get version from tag
-        run: echo "PACKAGE_VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+      # One source of truth for the tag. Everything downstream reads this
+      # output rather than `github.ref_name`, which is the branch name - not a
+      # tag - on a manual run.
+      - name: resolve tag
+        id: resolve-tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-${GITHUB_REF_NAME}}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::'$TAG' is not a vX.Y.Z tag"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "PACKAGE_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+          echo "Releasing $TAG"
+
+      # Fail before creating anything if a manual run names a tag that is not
+      # pushed. Otherwise the release is created against a tag that does not
+      # exist and the build silently checks out the default branch.
+      - name: verify the tag exists
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.resolve-tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${{ github.repository }}/git/ref/tags/${TAG}" >/dev/null \
+            || { echo "::error::tag ${TAG} does not exist on the remote"; exit 1; }
 
       - name: create or get release
         id: create-release
@@ -71,7 +110,12 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
+      # The tag, not the ref the run started from: a manual run starts on a
+      # branch, and building the branch head would ship something other than
+      # what the tag names (#532).
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-release.outputs.tag }}
 
       - name: install just
         uses: extractions/setup-just@v2
@@ -134,9 +178,9 @@ jobs:
         shell: pwsh
         run: |
           # Derive version from git tag (same source as create-release job)
-          $version = "${{ github.ref_name }}" -replace '^v', ''
+          $version = "${{ needs.create-release.outputs.tag }}" -replace '^v', ''
           if (-not $version) {
-            Write-Error "Could not determine version from github.ref_name"
+            Write-Error "Could not determine version from the resolved tag"
             exit 1
           }
 
@@ -168,7 +212,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          gh release upload "${{ github.ref_name }}" `
+          gh release upload "${{ needs.create-release.outputs.tag }}" `
             "${{ env.PORTABLE_ZIP_PATH }}" `
             --repo "${{ github.repository }}" `
             --clobber
@@ -246,7 +290,7 @@ jobs:
 
           # Find all Linux bundle artifacts
           BUNDLE_DIR="src-tauri/target/release/bundle"
-          RELEASE_TAG="${GITHUB_REF_NAME}"
+          RELEASE_TAG="${{ needs.create-release.outputs.tag }}"
 
           # Upload AppImage + re-sign
           APPIMAGE=$(find "$BUNDLE_DIR/appimage" -name '*.AppImage' -not -name '*.sig' | head -1)
@@ -335,7 +379,7 @@ jobs:
 
             // Construct public download URL (will be valid after publish)
             const getPublicUrl = (filename) =>
-              `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${{ github.ref_name }}/${filename}`;
+              `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${{ needs.create-release.outputs.tag }}/${filename}`;
 
             // macOS - Universal Binary (supports both Apple Silicon and Intel)
             const macUniversal = findAssetPair(/_universal\.app\.tar\.gz$/, /_universal\.app\.tar\.gz\.sig$/);
@@ -363,7 +407,7 @@ jobs:
 
             const latestJson = {
               version,
-              notes: `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${{ github.ref_name }}`,
+              notes: `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${{ needs.create-release.outputs.tag }}`,
               pub_date: pubDate,
               platforms
             };
@@ -555,7 +599,7 @@ jobs:
             const { data: generatedNotes } = await github.rest.repos.generateReleaseNotes({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: '${{ github.ref_name }}',
+              tag_name: '${{ needs.create-release.outputs.tag }}',
             });
 
             await github.rest.repos.updateRelease({
