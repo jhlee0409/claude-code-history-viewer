@@ -816,15 +816,12 @@ mod tests {
     #[test]
     #[serial]
     fn get_base_path_returns_none_when_default_dir_absent() {
+        // The sandbox guarantees the default dir is absent, so the assertion
+        // always runs - the old bail-out when `~/.kimi` existed made this pass
+        // by doing nothing on a machine that had it (#551).
         let _home = crate::test_utils::SandboxHome::new();
         let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
         let _home_env = EnvVarGuard::remove("KIMI_HOME");
-        if dirs::home_dir()
-            .map(|h| h.join(".kimi").exists())
-            .unwrap_or(false)
-        {
-            return;
-        }
         assert!(get_base_path().is_none());
     }
 
