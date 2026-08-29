@@ -667,14 +667,11 @@ fn paginate_recent_edits(
     }
 }
 
-fn get_provider_recent_edits(
+fn collect_provider_edits(
     provider: EditsProvider,
     project_path: &str,
-    offset: usize,
-    limit: usize,
-    grouping: EditsGrouping,
     session_file_path: Option<&str>,
-) -> Result<PaginatedRecentEdits, String> {
+) -> Result<(Vec<RecentFileEdit>, Option<String>), String> {
     let project_cwd = resolve_provider_project_cwd(provider, project_path);
 
     let sessions = match provider {
@@ -711,13 +708,7 @@ fn get_provider_recent_edits(
         ));
     }
 
-    Ok(paginate_recent_edits(
-        all_edits,
-        project_cwd,
-        offset,
-        limit,
-        grouping,
-    ))
+    Ok((all_edits, project_cwd))
 }
 
 /// Paginated response for recent edits
@@ -894,23 +885,37 @@ fn get_recent_edits_blocking(
         None => DEFAULT_PAGE_LIMIT,
     };
     let grouping = EditsGrouping::from_param(grouping.as_deref());
-    let provider = detect_project_provider(&project_path);
+    let (all_edits, project_cwd) =
+        collect_all_recent_edits(&project_path, session_file_path.as_deref())?;
 
+    Ok(paginate_recent_edits(
+        all_edits,
+        project_cwd,
+        offset,
+        limit,
+        grouping,
+    ))
+}
+
+/// Every edit recorded for a project, before pagination, with the project's
+/// most common `cwd`.
+///
+/// Shared by the paginated command and by [`is_recorded_edit_target`], so the
+/// set the panel shows and the set restore will authorise are the same set by
+/// construction rather than by two implementations agreeing.
+fn collect_all_recent_edits(
+    project_path: &str,
+    session_file_path: Option<&str>,
+) -> Result<(Vec<RecentFileEdit>, Option<String>), String> {
+    let provider = detect_project_provider(project_path);
     if provider != EditsProvider::Claude {
-        return get_provider_recent_edits(
-            provider,
-            &project_path,
-            offset,
-            limit,
-            grouping,
-            session_file_path.as_deref(),
-        );
+        return collect_provider_edits(provider, project_path, session_file_path);
     }
 
     // Phase 1: Collect the session files to scan
-    let session_files: Vec<PathBuf> = match session_file_path.as_deref() {
-        Some(path) => vec![validate_session_file_in_project(path, &project_path)?],
-        None => WalkDir::new(&project_path)
+    let session_files: Vec<PathBuf> = match session_file_path {
+        Some(path) => vec![validate_session_file_in_project(path, project_path)?],
+        None => WalkDir::new(project_path)
             .into_iter()
             .filter_map(std::result::Result::ok)
             // Same symlink policy as the single-file path above. Without it the
@@ -945,13 +950,35 @@ fn get_recent_edits_blocking(
         .max_by_key(|(_, count)| *count)
         .map(|(cwd, _)| cwd);
 
-    Ok(paginate_recent_edits(
-        all_edits,
-        project_cwd,
-        offset,
-        limit,
-        grouping,
-    ))
+    Ok((all_edits, project_cwd))
+}
+
+/// Whether `file_path` is recorded as an edit target in this project's history.
+///
+/// This is the authorisation boundary for restore, replacing the question "is
+/// this path inside a directory we allow?" with "did this project actually
+/// edit this file?" (#525).
+///
+/// The distinction matters because containment is not a boundary here. The
+/// allowlist matches by prefix, and a project root is not a leaf: run `claude`
+/// once in your home directory and the recorded root is `~`, which would admit
+/// `~/.ssh/authorized_keys` and `~/.aws/credentials` along with it. Membership
+/// derived from recorded history admits neither, because Claude never wrote
+/// them.
+///
+/// Compared on `file_identity` rather than on the raw string, for the same
+/// separator and Windows-case reasons the grouping code already handles: under
+/// `--serve` the caller spells the path itself.
+pub(crate) fn is_recorded_edit_target(
+    project_path: &str,
+    session_file_path: Option<&str>,
+    file_path: &str,
+) -> Result<bool, String> {
+    let wanted = file_identity(file_path);
+    let (edits, _) = collect_all_recent_edits(project_path, session_file_path)?;
+    Ok(edits
+        .iter()
+        .any(|edit| file_identity(&edit.file_path) == wanted))
 }
 
 /// Restore a file by writing content to the specified path
@@ -959,9 +986,18 @@ fn get_recent_edits_blocking(
 /// Uses atomic write pattern: writes to a temporary file first, then renames.
 /// This prevents data loss if the write operation fails midway.
 ///
-/// Security: Validates path to prevent path traversal attacks
+/// Authorised against the project's recorded edit history, not against a
+/// directory allowlist: the only paths this will write are ones the project's
+/// session logs name as edit targets (#525). `project_path` is therefore
+/// required, and `session_file_path` narrows the scan the same way the panel's
+/// session scope does.
 #[tauri::command]
-pub async fn restore_file(file_path: String, content: String) -> Result<(), String> {
+pub async fn restore_file(
+    file_path: String,
+    content: String,
+    project_path: String,
+    session_file_path: Option<String>,
+) -> Result<(), String> {
     use std::fs;
     use std::path::Path;
 
@@ -981,6 +1017,24 @@ pub async fn restore_file(file_path: String, content: String) -> Result<(), Stri
         if let std::path::Component::ParentDir = component {
             return Err("Invalid file path: path traversal not allowed".to_string());
         }
+    }
+
+    // Authorisation. Runs before `create_dir_all` below, which is itself a
+    // write: an unauthorised path must not leave directories behind.
+    //
+    // Scoped to the session when the caller names one, so the common case
+    // reads one JSONL rather than walking the project. The scan costs what a
+    // panel refresh costs, and restores are rare and user-initiated.
+    let authorised = tauri::async_runtime::spawn_blocking({
+        let project_path = project_path.clone();
+        let file_path = file_path.clone();
+        move || is_recorded_edit_target(&project_path, session_file_path.as_deref(), &file_path)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    if !authorised {
+        return Err("Refusing to restore a file this project has no recorded edit for".to_string());
     }
 
     // Create parent directories if they don't exist
@@ -1084,6 +1138,86 @@ mod tests {
         );
 
         (dir, session_a, session_b)
+    }
+
+    // ------------------------------------------------------------------
+    // #525: restore is authorised by recorded edit history, not containment
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn recorded_edit_target_admits_only_files_the_project_edited() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let project = root.to_string_lossy().to_string();
+
+        for edited in ["alpha.txt", "beta.txt", "gamma.txt"] {
+            let target = root.join(edited).to_string_lossy().to_string();
+            assert!(
+                is_recorded_edit_target(&project, None, &target).unwrap(),
+                "{edited} is an edit target in this project"
+            );
+        }
+
+        // Containment is not the rule. A sibling inside the very same directory
+        // is refused because nothing ever edited it - which is the whole point:
+        // a project rooted at `~` must not thereby authorise `~/.ssh/...`.
+        let neighbour = root.join("never-edited.txt").to_string_lossy().to_string();
+        assert!(!is_recorded_edit_target(&project, None, &neighbour).unwrap());
+    }
+
+    #[test]
+    fn recorded_edit_target_respects_session_scope() {
+        let (dir, session_a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let project = root.to_string_lossy().to_string();
+        let scope = session_a.to_string_lossy().to_string();
+        let gamma = root.join("gamma.txt").to_string_lossy().to_string();
+        let alpha = root.join("alpha.txt").to_string_lossy().to_string();
+
+        // `gamma.txt` belongs to session B, so scoping to A excludes it.
+        assert!(is_recorded_edit_target(&project, None, &gamma).unwrap());
+        assert!(!is_recorded_edit_target(&project, Some(&scope), &gamma).unwrap());
+        assert!(is_recorded_edit_target(&project, Some(&scope), &alpha).unwrap());
+    }
+
+    #[tokio::test]
+    async fn restore_refuses_a_file_the_project_never_edited() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let project = root.to_string_lossy().to_string();
+        let target = root.join("never-edited.txt");
+
+        let result = restore_file(
+            target.to_string_lossy().to_string(),
+            "should never be written".to_string(),
+            project,
+            None,
+        )
+        .await;
+
+        assert!(result.is_err(), "unauthorised restore must be refused");
+        assert!(
+            !target.exists(),
+            "the refusal must land before anything reaches the disk"
+        );
+    }
+
+    #[tokio::test]
+    async fn restore_writes_a_recorded_edit_target() {
+        let (dir, _a, _b) = project_with_two_sessions();
+        let root = dir.path();
+        let target = root.join("alpha.txt");
+
+        restore_file(
+            target.to_string_lossy().to_string(),
+            "restored".to_string(),
+            root.to_string_lossy().to_string(),
+            None,
+        )
+        .await
+        .expect("a recorded edit target must be restorable");
+
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "restored");
     }
 
     #[tokio::test]
@@ -1712,18 +1846,44 @@ mod tests {
         );
     }
 
+    /// A project whose session log records one edit to `name`, so restore is
+    /// authorised for it. Tests below that only care about the write mechanics
+    /// still have to satisfy the #525 authorisation gate to reach it.
+    fn project_recording_edit_to(name: &str) -> (TempDir, PathBuf) {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        let target = root.join(name);
+        create_test_jsonl_file(
+            &dir,
+            "session.jsonl",
+            &write_record("u1", "s1", "2026-08-21T10:00:00Z", &root, &target),
+        );
+        (dir, target)
+    }
+
     // Test restore_file security validations
     #[tokio::test]
     async fn test_restore_file_rejects_null_bytes() {
-        let result = restore_file("/tmp/test\0file.txt".to_string(), "content".to_string()).await;
+        let result = restore_file(
+            "/tmp/test\0file.txt".to_string(),
+            "content".to_string(),
+            "/tmp".to_string(),
+            None,
+        )
+        .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("null bytes"));
     }
 
     #[tokio::test]
     async fn test_restore_file_rejects_relative_path() {
-        let result =
-            restore_file("relative/path/file.txt".to_string(), "content".to_string()).await;
+        let result = restore_file(
+            "relative/path/file.txt".to_string(),
+            "content".to_string(),
+            "/tmp".to_string(),
+            None,
+        )
+        .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("absolute path"));
     }
@@ -1733,6 +1893,8 @@ mod tests {
         let result = restore_file(
             crate::test_utils::abs("tmp/../etc/passwd"),
             "content".to_string(),
+            crate::test_utils::abs("tmp"),
+            None,
         )
         .await;
         assert!(result.is_err());
@@ -1741,12 +1903,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_restore_file_success() {
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("test_restore.txt");
+        let (temp_dir, file_path) = project_recording_edit_to("test_restore.txt");
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
             "restored content".to_string(),
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
         )
         .await;
 
@@ -1759,13 +1922,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_restore_file_atomic_write_no_temp_file_left() {
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("atomic_test.txt");
+        let (temp_dir, file_path) = project_recording_edit_to("atomic_test.txt");
         let temp_path = temp_dir.path().join("atomic_test.tmp.restore");
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
             "atomic content".to_string(),
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
         )
         .await;
 
@@ -1779,8 +1943,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_restore_file_overwrites_existing() {
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("existing.txt");
+        let (temp_dir, file_path) = project_recording_edit_to("existing.txt");
 
         // Create existing file
         fs::write(&file_path, "old content").unwrap();
@@ -1788,6 +1951,8 @@ mod tests {
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
             "new content".to_string(),
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
         )
         .await;
 
@@ -1798,16 +1963,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_restore_file_creates_parent_dirs() {
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("nested/dir/file.txt");
+        let (temp_dir, file_path) = project_recording_edit_to("nested/dir/file.txt");
 
         let result = restore_file(
             file_path.to_string_lossy().to_string(),
             "content".to_string(),
+            temp_dir.path().to_string_lossy().to_string(),
+            None,
         )
         .await;
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "{result:?}");
         assert!(file_path.exists());
     }
 

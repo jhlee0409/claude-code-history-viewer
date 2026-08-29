@@ -56,6 +56,13 @@ export interface FileEditRowCompactProps {
   onJumpToMessage?: (messageUuid: string) => void;
   /** Called after a successful restore, so the list can clear the missing flag. */
   onRestored?: (filePath: string) => void;
+  /**
+   * The project these rows came from, and the session they were scoped to.
+   * Restore is authorised against that project's recorded edits (#525), so the
+   * caller has to name it - and it must be the request that produced the row,
+   * not the live selection, which can have moved on.
+   */
+  restoreScope?: { projectPath: string; sessionFilePath?: string };
 }
 
 export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
@@ -65,11 +72,12 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
   grouping = "file",
   onJumpToMessage,
   onRestored,
+  restoreScope,
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<EditViewMode>("content");
-  const actions = useFileEditActions(edit, { onRestored });
+  const actions = useFileEditActions(edit, { onRestored, restoreScope });
 
   const fileName = getPathLeaf(edit.file_path);
   const directory = elideProjectRoot(

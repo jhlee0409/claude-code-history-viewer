@@ -39,6 +39,14 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   // Entry into docked mode. The same toggle renders in the docked panel's
   // header for the return trip, so both directions read as one control.
   const selectedProject = useAppStore((s) => s.selectedProject);
+
+  // The project the rows were fetched for, not the current selection: restore
+  // is authorised against the project that recorded the edit (#525), and the
+  // cache is keyed on the requested path for the same reason (#514). This view
+  // has no session scope, so the whole project authorises.
+  const restoreScope = recentEdits?.requestedProjectPath
+    ? { projectPath: recentEdits.requestedProjectPath }
+    : undefined;
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
   const switchToMessages = useAppStore(
@@ -208,7 +216,12 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
         ) : (
           <>
             {displayedFiles.map((edit, index) => (
-              <FileEditItem key={`${edit.file_path}-${index}`} edit={edit} isDarkMode={isDarkMode} />
+              <FileEditItem
+                key={`${edit.file_path}-${index}`}
+                edit={edit}
+                isDarkMode={isDarkMode}
+                restoreScope={restoreScope}
+              />
             ))}
 
             {/* Show More Button */}

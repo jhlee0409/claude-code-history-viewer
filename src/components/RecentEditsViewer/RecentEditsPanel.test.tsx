@@ -82,7 +82,16 @@ describe("RecentEditsPanel with no project selected", () => {
 
   it("still reports a genuinely empty project as having no edits", () => {
     state = baseState({
-      recentEditsDock: { files: [], requestKey: "k", hasMore: false },
+      recentEditsDock: {
+        files: [],
+        requestKey: "k",
+        hasMore: false,
+        request: {
+          projectPath: "/tmp/project",
+          scope: "project" as const,
+          grouping: "file" as const,
+        },
+      },
     });
 
     render(<RecentEditsPanel />);

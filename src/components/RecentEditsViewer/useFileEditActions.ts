@@ -43,7 +43,11 @@ export interface FileEditActions {
 
 export function useFileEditActions(
   edit: RecentFileEdit,
-  options: { onRestored?: (filePath: string) => void } = {}
+  options: {
+    onRestored?: (filePath: string) => void;
+    /** See `restoreScope` on the row props - required for restore to be offered. */
+    restoreScope?: { projectPath: string; sessionFilePath?: string };
+  } = {}
 ): FileEditActions {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -113,7 +117,18 @@ export function useFileEditActions(
     setRestoreError(null);
     try {
       setRestoreStatus("loading");
-      await api("restore_file", { filePath, content });
+      // The project is what authorises the write, so a row without one cannot
+      // restore. Guarded here rather than only in the UI so the call is never
+      // made without it.
+      if (!options.restoreScope) {
+        throw new Error("Cannot restore without the originating project");
+      }
+      await api("restore_file", {
+        filePath,
+        content,
+        projectPath: options.restoreScope.projectPath,
+        sessionFilePath: options.restoreScope.sessionFilePath,
+      });
       setRestoreStatus("success");
       // The row's `exists_on_disk` was resolved when the page was fetched, so
       // without telling anyone the row keeps reporting itself missing.

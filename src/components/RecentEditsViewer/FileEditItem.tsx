@@ -50,6 +50,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
   dense = false,
   projectCwd,
   onRestored,
+  restoreScope,
 }) => {
   const { t } = useTranslation();
   const { t: tCommon } = useTranslation();
@@ -72,7 +73,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
     requestRestore,
     confirmRestore,
     cancelRestore,
-  } = useFileEditActions(edit, { onRestored });
+  } = useFileEditActions(edit, { onRestored, restoreScope });
 
   const language = getLanguageFromPath(edit.file_path);
   const fileName = getPathLeaf(edit.file_path);
