@@ -24,6 +24,25 @@ pub use rename::*;
 pub use resume::*;
 pub use search::*;
 
+/// Split a provider URI into its scheme and remainder, or `None` if the value
+/// is an ordinary path.
+///
+/// Deliberately structural rather than a list of known schemes: those live as
+/// per-module constants across seventeen providers, and a copy kept here would
+/// silently fall behind the next one added — the failure mode being a provider
+/// that works on desktop and is rejected over `--serve`.
+#[cfg(feature = "webui-server")]
+fn uri_parts(path: &std::path::Path) -> Option<(String, String)> {
+    let raw = path.to_string_lossy();
+    let (scheme, rest) = raw.split_once("://")?;
+    let valid = !scheme.is_empty()
+        && scheme.starts_with(|c: char| c.is_ascii_lowercase())
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '+');
+    valid.then(|| (scheme.to_string(), rest.to_string()))
+}
+
 /// Reject session file paths that fall outside the on-disk roots used by
 /// the supported providers. Defends `WebUI` handlers (which accept untrusted
 /// HTTP input) against being pointed at arbitrary `.jsonl` files on the host.
@@ -33,6 +52,28 @@ pub use search::*;
 #[cfg(feature = "webui-server")]
 pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String> {
     use std::path::PathBuf;
+
+    // A provider URI is not a filesystem path. Several providers keep their
+    // sessions in a database rather than in files - OpenCode's SQLite store,
+    // Zed, Trae, ForgeCode and a dozen others - and mint identifiers of the
+    // form `scheme://…` for them. There is no file for an allowlist to
+    // confine, and the command that receives one resolves it against its own
+    // provider root, exactly as it does on desktop where this guard does not
+    // run at all.
+    //
+    // Treating them as paths meant canonicalising a parent that does not
+    // exist, so every guarded WebUI endpoint rejected them as "Invalid path"
+    // under `--serve` (#560).
+    //
+    // Traversal is still refused: a URI is waved past the filesystem check, so
+    // it must not be able to smuggle one through.
+    if let Some((scheme, rest)) = uri_parts(path) {
+        return if rest.split(['/', '\\']).any(|seg| seg == "..") {
+            Err(format!("Invalid {scheme} session id"))
+        } else {
+            Ok(())
+        };
+    }
 
     fn strip_windows_prefix(p: &std::path::Path) -> PathBuf {
         let s = p.to_string_lossy();
@@ -209,6 +250,43 @@ mod tests {
             res.is_err(),
             "a path outside every provider root must be rejected"
         );
+    }
+
+    /// #560. Several providers mint session paths that are provider URIs, not
+    /// filesystem paths - `OpenCode`'s `SQLite` store is one, and a dozen others do
+    /// the same. The guard treated them as paths, failed to canonicalise a
+    /// parent that does not exist, and rejected them as "Invalid path", which
+    /// broke every guarded `WebUI` endpoint for those providers under `--serve`.
+    #[test]
+    #[serial]
+    fn accepts_provider_uri_session_paths() {
+        let _home = crate::test_utils::SandboxHome::new();
+
+        for uri in [
+            "opencode://proj-1/ses_abc123",
+            "kimi-code://wd_demo/session_1",
+            "forgecode-db://workspace/conv-1",
+            "zed://thread-7",
+        ] {
+            let res = is_safe_session_path(&std::path::PathBuf::from(uri));
+            assert!(res.is_ok(), "provider URI {uri} was rejected: {res:?}");
+        }
+    }
+
+    /// A URI is waved past the filesystem allowlist, so it must not be able to
+    /// smuggle a traversal through it.
+    #[test]
+    #[serial]
+    fn rejects_traversal_inside_a_provider_uri() {
+        let _home = crate::test_utils::SandboxHome::new();
+
+        for uri in [
+            "opencode://../../etc/passwd",
+            "zed://thread/../../../root/.ssh/id_rsa",
+        ] {
+            let res = is_safe_session_path(&std::path::PathBuf::from(uri));
+            assert!(res.is_err(), "traversal inside {uri} was accepted");
+        }
     }
 
     // Kimi sessions live under ~/.kimi/sessions (or $KIMI_HOME) — #349.

@@ -444,6 +444,64 @@ pub fn load_sessions(
     Ok(sessions)
 }
 
+/// Child sessions of `session_id`, i.e. the subagent runs it spawned.
+///
+/// `OpenCode` has no sidechain files. A Task run is a row in `session` whose
+/// `parent_id` points at its parent, so the parent→child link the `SubAgent`
+/// panel draws has to come from the database (#560).
+///
+/// Newest first. Empty when the store is file-backed or the session has no
+/// children.
+pub struct ChildSession {
+    pub id: String,
+    pub title: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub message_count: usize,
+}
+
+pub fn load_child_sessions(project_id: &str, session_id: &str) -> Vec<ChildSession> {
+    let Some(base_path) = get_base_path() else {
+        return Vec::new();
+    };
+    load_child_sessions_from_db(&base_path, project_id, session_id)
+}
+
+/// [`load_child_sessions`] against an explicit store root, matching
+/// `scan_projects_from_db` and friends so it can be exercised on a fixture.
+pub fn load_child_sessions_from_db(
+    base_path: &str,
+    project_id: &str,
+    session_id: &str,
+) -> Vec<ChildSession> {
+    let Some(conn) = open_db(base_path) else {
+        return Vec::new();
+    };
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT s.id, s.title, s.time_created, s.time_updated,
+                (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count
+         FROM session s
+         WHERE s.parent_id = ?1 AND s.project_id = ?2
+         ORDER BY s.time_created DESC",
+    ) else {
+        return Vec::new();
+    };
+
+    let Ok(rows) = stmt.query_map(rusqlite::params![session_id, project_id], |row| {
+        Ok(ChildSession {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            created_at: epoch_ms_to_rfc3339(row.get::<_, u64>(2)?),
+            updated_at: epoch_ms_to_rfc3339(row.get::<_, u64>(3)?),
+            message_count: row.get(4)?,
+        })
+    }) else {
+        return Vec::new();
+    };
+
+    rows.filter_map(std::result::Result::ok).collect()
+}
+
 /// Load messages for an `OpenCode` session
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
@@ -1850,6 +1908,42 @@ mod tests {
 
     fn project_ref(project_id: &str) -> OpenCodeProjectRef {
         OpenCodeProjectRef::parse(&format!("opencode://{project_id}")).unwrap()
+    }
+
+    /// #560. A subagent run is a `session` row whose `parent_id` points at its
+    /// parent, not a sidechain file, so the panel's parent→child link can only
+    /// come from here.
+    #[test]
+    fn sqlite_load_child_sessions_reads_subagent_rows() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        seed_test_data(&conn);
+        for (id, title, created) in [
+            ("ses_child_a", "Search the codebase", 1_700_000_200_000_i64),
+            ("ses_child_b", "Write the migration", 1_700_000_300_000_i64),
+        ] {
+            conn.execute(
+                "INSERT INTO session (id, project_id, title, time_created, time_updated, parent_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![id, "proj1", title, created, created, "ses_001"],
+            )
+            .unwrap();
+        }
+        drop(conn);
+
+        let base = tmp.path().to_string_lossy().to_string();
+        let children = load_child_sessions_from_db(&base, "proj1", "ses_001");
+
+        // Newest first.
+        assert_eq!(
+            children.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            vec!["ses_child_b", "ses_child_a"]
+        );
+        assert_eq!(children[0].title, "Write the migration");
+
+        // A session with no children yields nothing rather than erroring, and
+        // children are not claimed by a sibling parent.
+        assert!(load_child_sessions_from_db(&base, "proj1", "ses_child_a").is_empty());
     }
 
     #[test]
