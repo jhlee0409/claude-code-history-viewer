@@ -768,34 +768,6 @@ mod tests {
     use std::io::Write;
     use tempfile::TempDir;
 
-    /// Saves/restores `HOME` around a test so both the desktop root and the
-    /// CLI root resolve under a fresh `TempDir` rather than the real user
-    /// home. `HOME` is process-global; combined with `#[serial]` so these
-    /// tests don't race other HOME-touching tests.
-    struct HomeGuard {
-        original: Option<String>,
-    }
-    impl HomeGuard {
-        fn set(path: &std::path::Path) -> Self {
-            let original = std::env::var("HOME").ok();
-            std::env::set_var("HOME", path);
-            // `HOME` alone is inert on Windows, where `dirs::home_dir()` uses
-            // the known-folder API. `crate::utils::home_dir()` reads this
-            // instead under `cfg(test)`, and panics without it (#540).
-            std::env::set_var("CCHV_TEST_HOME", path);
-            Self { original }
-        }
-    }
-    impl Drop for HomeGuard {
-        fn drop(&mut self) {
-            std::env::remove_var("CCHV_TEST_HOME");
-            match self.original.as_ref() {
-                Some(v) => std::env::set_var("HOME", v),
-                None => std::env::remove_var("HOME"),
-            }
-        }
-    }
-
     /// Writes a minimal antigravity-cli fixture (index + one transcript)
     /// under `<home>/.gemini/antigravity-cli` and returns the session dir.
     fn write_cli_fixture(home: &std::path::Path) -> std::path::PathBuf {
@@ -839,11 +811,12 @@ mod tests {
     /// store: `scan_projects` must surface both layouts, without id
     /// collisions between their sessions.
     fn scan_projects_merges_desktop_and_cli_layouts() {
-        let temp = TempDir::new().expect("temp dir");
-        let _guard = HomeGuard::set(temp.path());
+        // Fixtures go inside the sandbox root, not a second temp dir - the
+        // code under test resolves them through the home the guard exports.
+        let home = crate::test_utils::SandboxHome::new();
 
         // Desktop layout: one rpc-cache session with a usage record.
-        let desktop_session = temp
+        let desktop_session = home
             .path()
             .join(".gemini")
             .join("antigravity")
@@ -855,7 +828,16 @@ mod tests {
         make_usage_file(&desktop_session, "session-desktop", "claude-opus-4-5");
 
         // CLI layout next to it.
-        write_cli_fixture(temp.path());
+        write_cli_fixture(home.path());
+
+        // Derived from the same value the fixture writes. Hardcoding
+        // `/tmp/cli-proj` here left the expectation Unix-shaped while the
+        // fixture had already moved to a host-appropriate absolute path, so
+        // this looked like a missing project on Windows (#541).
+        let cli_workspace = format!(
+            "antigravity-cli://{}",
+            crate::test_utils::abs("tmp/cli-proj")
+        );
 
         let projects = scan_projects().expect("scan projects");
         assert!(
@@ -863,14 +845,11 @@ mod tests {
             "desktop project missing from {projects:?}"
         );
         assert!(
-            projects
-                .iter()
-                .any(|p| p.path == "antigravity-cli:///tmp/cli-proj"),
+            projects.iter().any(|p| p.path == cli_workspace),
             "cli project missing from {projects:?}"
         );
 
-        let cli_sessions =
-            load_sessions("antigravity-cli:///tmp/cli-proj", false).expect("cli sessions");
+        let cli_sessions = load_sessions(&cli_workspace, false).expect("cli sessions");
         assert_eq!(cli_sessions.len(), 1);
         assert_eq!(cli_sessions[0].session_id, "conv-cli");
         assert_eq!(cli_sessions[0].provider.as_deref(), Some("antigravity"));
@@ -882,9 +861,8 @@ mod tests {
     /// `~/.gemini/antigravity-cli/brain/`) to the transcript parser instead
     /// of the desktop usage.jsonl reader.
     fn load_messages_routes_cli_session_paths() {
-        let temp = TempDir::new().expect("temp dir");
-        let _guard = HomeGuard::set(temp.path());
-        let session_dir = write_cli_fixture(temp.path());
+        let home = crate::test_utils::SandboxHome::new();
+        let session_dir = write_cli_fixture(home.path());
 
         let messages = load_messages(&session_dir.to_string_lossy()).expect("load cli messages");
 
@@ -900,9 +878,8 @@ mod tests {
     /// Content search must cover CLI transcripts too — the desktop layout
     /// only matches session metadata.
     fn search_covers_cli_transcript_content() {
-        let temp = TempDir::new().expect("temp dir");
-        let _guard = HomeGuard::set(temp.path());
-        write_cli_fixture(temp.path());
+        let home = crate::test_utils::SandboxHome::new();
+        write_cli_fixture(home.path());
 
         let results = search("wire the cli", 10).expect("search");
         assert_eq!(results.len(), 1);
@@ -1189,7 +1166,9 @@ mod tests {
 
     #[test]
     /// Direct `<session_path>/usage.jsonl` is returned when it exists.
+    #[serial]
     fn test_resolve_usage_jsonl_path_prefers_in_session_file() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
         let root = temp_dir.path();
         std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();
@@ -1216,7 +1195,9 @@ mod tests {
     /// antigravity root must NOT resolve to a readable `usage.jsonl`. Pre-fix
     /// behaviour: `dir.join("usage.jsonl")` would follow the symlink and read
     /// the attacker-controlled target.
+    #[serial]
     fn test_resolve_usage_jsonl_path_rejects_symlink_escaping_root() {
+        let _home = crate::test_utils::SandboxHome::new();
         // "Inside" tree — a legitimate antigravity root.
         let inside = TempDir::new().unwrap();
         std::fs::create_dir_all(
@@ -1258,7 +1239,9 @@ mod tests {
     /// A symlinked `usage.jsonl` (file-level, not directory-level) inside a
     /// legitimate session directory must be rejected. `Path::exists()` would
     /// follow the symlink — `admit_usage_jsonl` does not.
+    #[serial]
     fn test_resolve_usage_jsonl_path_rejects_symlinked_usage_jsonl() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
         let root = temp_dir.path();
         std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();
@@ -1285,7 +1268,9 @@ mod tests {
     /// The same symlink-file defense must apply to the rpc-cache fallback so
     /// a symlinked `usage.jsonl` dropped into `<root>/.token-monitor/...`
     /// cannot redirect the read.
+    #[serial]
     fn test_resolve_usage_jsonl_path_rejects_symlinked_usage_jsonl_in_rpc_cache() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
         let root = temp_dir.path();
         let rpc_session = root
@@ -1314,7 +1299,9 @@ mod tests {
     /// When `<session_path>/usage.jsonl` is absent, fall back to the rpc-cache
     /// location — matching what `load_messages` already does for brain/-only
     /// sessions.
+    #[serial]
     fn test_resolve_usage_jsonl_path_falls_back_to_rpc_cache() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
         let root = temp_dir.path();
         let rpc_v1 = root.join(".token-monitor").join("rpc-cache").join("v1");
@@ -1338,7 +1325,9 @@ mod tests {
     #[test]
     /// Returns `None` when neither the in-session nor the rpc-cache file
     /// exists — callers should treat this as "no records".
+    #[serial]
     fn test_resolve_usage_jsonl_path_returns_none_when_missing_everywhere() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
         let root = temp_dir.path();
         std::fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1")).unwrap();

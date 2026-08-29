@@ -9,7 +9,7 @@ use crate::models::*;
 use serde_json::json;
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 // Re-export commonly used test utilities
@@ -399,6 +399,82 @@ pub fn strip_verbatim_prefix(path: &std::path::Path) -> String {
     raw.strip_prefix(r"\\?\UNC\")
         .map(|rest| format!(r"\\{rest}"))
         .unwrap_or_else(|| raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_string())
+}
+
+/// A temporary home directory, exported to the process for the lifetime of the
+/// value and restored on drop.
+///
+/// Sets both `HOME` and `CCHV_TEST_HOME`: the first is what `dirs::home_dir()`
+/// reads on Unix, the second is what `crate::utils::home_dir()` reads under
+/// `cfg(test)` and what works on Windows, where the known-folder API ignores
+/// `HOME` entirely.
+///
+/// Two things this does that the per-module guards it replaces did not:
+///
+/// - the path is canonicalised, because on macOS the temp dir is handed back as
+///   `/var/...` while anything resolving it sees `/private/var/...`
+/// - the previous values are *restored*, not dropped. Leaving `CCHV_TEST_HOME`
+///   set leaks the sandbox into every later test in the same process, which is
+///   precisely what hid nine unsandboxed tests until CI ran them under nextest
+///   with a process each (#544).
+///
+/// Both env vars are process-global, so tests holding one need `#[serial]`.
+pub struct SandboxHome {
+    dir: TempDir,
+    canonical: PathBuf,
+    previous_home: Option<std::ffi::OsString>,
+    previous_test_home: Option<std::ffi::OsString>,
+}
+
+impl SandboxHome {
+    pub fn new() -> Self {
+        let dir = TempDir::new().expect("temp home");
+        // Canonicalised so macOS `/var/...` resolves to `/private/var/...`, then
+        // stripped of the Windows extended-length prefix that canonicalising
+        // adds there. Leaving the `\\?\` form in place exports a home that
+        // code comparing plain paths cannot match - the antigravity CLI root
+        // went missing on Windows for exactly that reason.
+        let canonical = PathBuf::from(strip_verbatim_prefix(
+            &dir.path().canonicalize().expect("canonicalize temp home"),
+        ));
+        let previous_home = std::env::var_os("HOME");
+        let previous_test_home = std::env::var_os("CCHV_TEST_HOME");
+        std::env::set_var("HOME", &canonical);
+        std::env::set_var("CCHV_TEST_HOME", &canonical);
+        Self {
+            dir,
+            canonical,
+            previous_home,
+            previous_test_home,
+        }
+    }
+
+    /// The sandbox root, canonicalised — compare fixtures against this, not
+    /// against a `TempDir::path()` captured elsewhere.
+    pub fn path(&self) -> &Path {
+        &self.canonical
+    }
+}
+
+impl Default for SandboxHome {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for SandboxHome {
+    fn drop(&mut self) {
+        let _ = &self.dir;
+        for (key, previous) in [
+            ("HOME", &self.previous_home),
+            ("CCHV_TEST_HOME", &self.previous_test_home),
+        ] {
+            match previous {
+                Some(v) => std::env::set_var(key, v),
+                None => std::env::remove_var(key),
+            }
+        }
+    }
 }
 
 #[cfg(test)]

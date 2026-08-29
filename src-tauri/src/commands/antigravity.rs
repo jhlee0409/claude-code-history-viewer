@@ -35,7 +35,10 @@ static MODEL_ALIAS_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(||
 
 /// 定位 antigravity 根目录：`~/.gemini/antigravity`
 pub fn get_antigravity_root() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".gemini").join("antigravity"))
+    // Sandboxed helper, not `dirs::home_dir()`: on Windows the latter goes to
+    // the known-folder API and ignores `HOME`, so a test pointing `HOME` at a
+    // fixture was silently scanning the developer's real one (#551).
+    crate::utils::home_dir().map(|h| h.join(".gemini").join("antigravity"))
 }
 
 /// Resolves the antigravity root directory, with fallback discovery logic.
@@ -110,7 +113,7 @@ pub fn get_antigravity_rpc_cache_root(root: &Path) -> PathBuf {
 fn discover_external_state_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let bases = if cfg!(target_os = "macos") {
-        dirs::home_dir()
+        crate::utils::home_dir()
             .map(|home| vec![home.join("Library").join("Application Support")])
             .unwrap_or_default()
     } else if cfg!(target_os = "windows") {
@@ -120,7 +123,7 @@ fn discover_external_state_dirs() -> Vec<PathBuf> {
         if let Some(config_dir) = dirs::config_dir() {
             candidates.push(config_dir);
         }
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = crate::utils::home_dir() {
             let fallback = home.join(".config");
             if !candidates.iter().any(|candidate| candidate == &fallback) {
                 candidates.push(fallback);
@@ -986,6 +989,7 @@ mod tests {
     use crate::models::{
         PersistedSessionState, SessionLifecycle, SessionLifecycleStatus, SessionTotals,
     };
+    use serial_test::serial;
     use tempfile::TempDir;
 
     fn make_session(
@@ -1183,7 +1187,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_antigravity_state_impl_missing_dir() {
+        let _home = crate::test_utils::SandboxHome::new();
         let state = load_antigravity_state_impl(Path::new("/nonexistent/path/xyz")).unwrap();
         assert!(state.sessions.is_empty());
     }
@@ -1231,7 +1237,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_antigravity_root_from_path_returns_none_when_marker_absent() {
+        let _home = crate::test_utils::SandboxHome::new();
         // A temp directory that has none of the antigravity layout
         // (no `.token-monitor/rpc-cache/v1`) and is outside the default
         // root must NOT resolve to anything — the function used to fall
@@ -1249,7 +1257,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_antigravity_root_from_path_finds_marker_in_parent() {
+        let _home = crate::test_utils::SandboxHome::new();
         // Sanity check that the happy path (the supplied path lives
         // under a directory that has the `.token-monitor/rpc-cache/v1`
         // marker) still resolves to that root.
@@ -1345,7 +1355,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_antigravity_project_summary_uses_explicit_root_path() {
+        let _home = crate::test_utils::SandboxHome::new();
         let dir = TempDir::new().unwrap();
         let root = dir.path();
         let rpc_dir = root
