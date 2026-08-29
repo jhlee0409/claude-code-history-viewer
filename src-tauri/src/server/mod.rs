@@ -771,6 +771,7 @@ mod tests {
     };
     use axum::body::to_bytes;
     use axum::body::Body;
+    use serial_test::serial;
     use tower::ServiceExt;
 
     /// Somewhere no export allowlist would ever cover.
@@ -784,7 +785,9 @@ mod tests {
     /// request could overwrite any reachable file while being refused
     /// permission to read that same path.
     #[test]
+    #[serial]
     fn test_restore_write_is_unrestricted_only_when_permitted() {
+        let _home = crate::test_utils::SandboxHome::new();
         use crate::server::handlers::restore_write_allowed;
 
         let outside = restore_gate_probe_path();
@@ -836,7 +839,9 @@ mod tests {
     /// handler leaves both tests above green, which is the failure mode a
     /// pure-function test cannot see.
     #[tokio::test]
+    #[serial]
     async fn test_restore_endpoint_refuses_a_path_outside_the_allowlist() {
+        let _home = crate::test_utils::SandboxHome::new();
         let state = state_with(false, None);
         let app = build_router(state, "127.0.0.1", 3727, None, "/");
 

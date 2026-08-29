@@ -56,7 +56,7 @@ pub struct MCPPresetInput {
 
 /// Get the MCP presets folder path (~/.claude-history-viewer/mcp-presets)
 fn get_mcp_presets_folder() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let home = crate::utils::home_dir().ok_or("Could not find home directory")?;
     Ok(home.join(".claude-history-viewer").join("mcp-presets"))
 }
 

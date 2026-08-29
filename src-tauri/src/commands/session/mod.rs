@@ -41,7 +41,7 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
             .unwrap_or_else(|| p.to_path_buf())
     }
 
-    let home_raw = dirs::home_dir().ok_or("Could not find home directory")?;
+    let home_raw = crate::utils::home_dir().ok_or("Could not find home directory")?;
     let home = home_raw.canonicalize().unwrap_or_else(|_| home_raw.clone());
     let home = strip_windows_prefix(&home);
 
@@ -168,9 +168,11 @@ mod tests {
     #[test]
     #[serial]
     fn accepts_session_under_symlinked_claude_root() {
-        let _home = crate::test_utils::SandboxHome::new();
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let home = tmp.path();
+        // Built inside the guard's home. It used to create its own `TempDir`
+        // and point `HOME` at it via `with_home`, which leaves
+        // `CCHV_TEST_HOME` - the path actually resolved - somewhere else.
+        let sandbox = crate::test_utils::SandboxHome::new();
+        let home = sandbox.path();
         let store_projects = home.join(".claude-store").join("projects").join("proj");
         std::fs::create_dir_all(&store_projects).expect("mk store");
         symlink(home.join(".claude-store"), home.join(".claude")).expect("symlink .claude");
@@ -183,7 +185,7 @@ mod tests {
             .join("projects")
             .join("proj")
             .join("session.jsonl");
-        let res = with_home(home, || is_safe_session_path(&via_symlink));
+        let res = is_safe_session_path(&via_symlink);
         assert!(
             res.is_ok(),
             "session under a symlinked .claude root should be allowed: {res:?}"

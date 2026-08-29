@@ -39,10 +39,10 @@ pub struct PresetInput {
 
 /// The home directory the presets folder hangs off.
 ///
-/// Normally just `dirs::home_dir()`. Under `cfg(test)` it reads
+/// Normally just `crate::utils::home_dir()`. Under `cfg(test)` it reads
 /// `CCHV_TEST_HOME` and panics if that is unset, for the same reason as the
 /// identical helper in `claude_settings.rs`: `env::set_var("HOME", temp_dir)`
-/// is inert on Windows, where `dirs::home_dir()` uses the known-folder API. The
+/// is inert on Windows, where `crate::utils::home_dir()` uses the known-folder API. The
 /// tests below therefore created and wrote to the real
 /// `~/.claude-history-viewer/presets` instead of a temp directory. Confirmed on
 /// this machine: that folder carries the timestamp of a `cargo test` run.
@@ -51,7 +51,7 @@ pub struct PresetInput {
 /// owns rather than overwriting Claude Code's config - but the same defect.
 #[cfg(not(test))]
 fn presets_home_dir() -> Option<PathBuf> {
-    dirs::home_dir()
+    crate::utils::home_dir()
 }
 
 #[cfg(test)]
