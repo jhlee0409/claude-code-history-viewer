@@ -433,7 +433,14 @@ jobs:
               data: JSON.stringify(latestJson, null, 2)
             });
 
+      # Never blocks the release. The tap lives in another repository and this
+      # step is a plain API round-trip, so a transient 5xx there skipped
+      # "Publish release" below and left a fully built, fully signed release
+      # sitting as a draft - which is exactly what happened on v1.26.1. The
+      # cask can be re-synced by re-running the job; the release should not
+      # be held hostage to it.
       - name: Sync Homebrew tap cask
+        continue-on-error: true
         uses: actions/github-script@v7
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
