@@ -40,7 +40,7 @@ pub fn get_base_path() -> Option<String> {
         }
     }
 
-    let default = dirs::home_dir()?.join(".grok");
+    let default = crate::utils::home_dir()?.join(".grok");
     if default.exists() {
         let normalized = default.canonicalize().unwrap_or(default);
         Some(normalized.to_string_lossy().to_string())
@@ -944,13 +944,12 @@ mod tests {
     #[test]
     #[serial]
     fn get_base_path_returns_none_when_default_dir_absent() {
+        // The sandbox guarantees the default dir is absent, so the assertion
+        // always runs. This used to bail out when the developer happened to
+        // have `~/.grok`, which made it pass by doing nothing on their machine
+        // and reach the real home on CI (#551).
+        let _home = crate::test_utils::SandboxHome::new();
         let _env = EnvVarGuard::remove("GROK_HOME");
-        if dirs::home_dir()
-            .map(|h| h.join(".grok").exists())
-            .unwrap_or(false)
-        {
-            return;
-        }
         assert!(get_base_path().is_none());
     }
 

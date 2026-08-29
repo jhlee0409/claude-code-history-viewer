@@ -1007,25 +1007,6 @@ mod tests {
     use super::*;
 
     /// Points home resolution at an empty temp directory for the duration of a
-    /// test.
-    ///
-    /// These tests assert on rejection paths and want nothing from the home
-    /// directory, but the code under test reaches it — `configured_claude_dirs`
-    /// reads `~/.claude-history-viewer/user-data.json` and honours the custom
-    /// Claude paths registered there. That made the allowlist depend on the
-    /// developer's own machine, silently, until the sandbox in
-    /// `crate::utils::home_dir` made it say so (#540).
-    fn isolated_home() -> tempfile::TempDir {
-        let dir = tempfile::TempDir::new().expect("temp home");
-        // Canonicalised: on macOS the temp dir is handed back as `/var/...`
-        // while anything that canonicalises sees `/private/var/...`, so an
-        // uncanonicalised sandbox root silently fails to match.
-        // Spotted by @nightcityblade in #546.
-        let canonical = dir.path().canonicalize().expect("canonicalize temp home");
-        std::env::set_var("CCHV_TEST_HOME", canonical);
-        dir
-    }
-
     fn sample_rename_test_user(session_id: &str, uuid: &str, content: &str) -> String {
         serde_json::json!({
             "parentUuid": Value::Null,
@@ -1621,7 +1602,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_rejects_relative_path() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let result = validate_claude_path("relative/path/file.jsonl");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("must be absolute"));
@@ -1629,7 +1610,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_rejects_invalid_filename() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         // Filename with dots should be rejected by regex
         let result = validate_claude_path("/etc/passwd");
         assert!(result.is_err());
@@ -1638,7 +1619,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_rejects_non_claude_directory() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         // Use a path with valid filename but wrong directory
         let result = validate_claude_path("/tmp/validfilename.jsonl");
         assert!(result.is_err());
@@ -1655,11 +1636,8 @@ mod tests {
     /// run, it asserted against whichever file happened to be enumerated first.
     #[test]
     fn test_validate_claude_path_valid_path() {
-        let home = isolated_home();
-        // `real_temp_root` because the sandbox root is canonicalised - see
-        // `isolated_home`.
-        let (_base, session_path) =
-            make_claude_dir(&real_temp_root(&home).join(".claude"), "session-1");
+        let home = crate::test_utils::SandboxHome::new();
+        let (_base, session_path) = make_claude_dir(&home.path().join(".claude"), "session-1");
 
         let result = validate_claude_path(&session_path);
 
@@ -1671,7 +1649,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_nonexistent_file() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         // Nonexistent file should fail at canonicalize
         let result = validate_claude_path("/nonexistent/path/to/file.jsonl");
         assert!(result.is_err());
@@ -1696,7 +1674,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_accepts_registered_custom_directory() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let temp = tempfile::TempDir::new().unwrap();
         let custom_base = real_temp_root(&temp).join(".claude-holophonix");
         fs::create_dir_all(&custom_base).unwrap();
@@ -1711,7 +1689,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_directory_that_is_not_registered() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let temp = tempfile::TempDir::new().unwrap();
         let unregistered = real_temp_root(&temp).join(".claude-other");
         fs::create_dir_all(&unregistered).unwrap();
@@ -1728,7 +1706,7 @@ mod tests {
 
     #[test]
     fn resolve_claude_roots_skips_directory_without_projects_subdir() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let temp = tempfile::TempDir::new().unwrap();
         let bogus = real_temp_root(&temp).join(".claude-bogus");
         fs::create_dir_all(&bogus).unwrap(); // no projects/ inside
@@ -1743,7 +1721,7 @@ mod tests {
 
     #[test]
     fn resolve_claude_roots_skips_symlinked_custom_directory() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let temp = tempfile::TempDir::new().unwrap();
         let real_base = real_temp_root(&temp).join("real-claude");
         fs::create_dir_all(real_base.join("projects")).unwrap();
@@ -1768,8 +1746,8 @@ mod tests {
         // resolve the developer's real home and skip the assertion entirely
         // when that home had no `.claude`, or had one behind a symlink - two
         // ways to report `ok` without checking anything (#545).
-        let home = isolated_home();
-        let default_root = real_temp_root(&home).join(".claude");
+        let home = crate::test_utils::SandboxHome::new();
+        let default_root = home.path().join(".claude");
 
         let roots = resolve_claude_roots(&[]);
 
@@ -1801,7 +1779,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_non_jsonl_extension() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
         let project_dir = root.join("projects").join("-proj");
@@ -1855,7 +1833,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_accepts_symlinked_project_directory() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         // Mirrors the shared-sessions layout: a project directory under
         // <root>/projects is a symlink into a real directory elsewhere (e.g.
         // /Users/Shared/.claude/projects). The session file is a real file.
@@ -1886,7 +1864,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_symlink_below_project_directory() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         // A symlink deeper than the project directory is not allowed.
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
@@ -1914,7 +1892,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_symlinked_session_file() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         // The session file itself must be a real file, not a symlink.
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
@@ -1938,7 +1916,7 @@ mod tests {
 
     #[test]
     fn validate_claude_path_rejects_path_traversal_under_projects() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let temp = tempfile::TempDir::new().unwrap();
         let root = real_temp_root(&temp).join(".claude");
         fs::create_dir_all(root.join("projects")).unwrap();
@@ -1959,7 +1937,7 @@ mod tests {
 
     #[test]
     fn test_validate_claude_path_filename_with_special_chars() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         // Test filename validation with various invalid characters
         if let Some(home) = dirs::home_dir() {
             let claude_dir = home.join(".claude/projects");

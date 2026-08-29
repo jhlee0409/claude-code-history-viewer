@@ -169,7 +169,7 @@ pub fn get_base_path() -> Option<String> {
     }
 
     // Default: ~/.local/share/opencode
-    let home = dirs::home_dir()?;
+    let home = crate::utils::home_dir()?;
     let opencode_path = home.join(".local").join("share").join("opencode");
     if opencode_path.exists() {
         Some(opencode_path.to_string_lossy().to_string())

@@ -91,7 +91,7 @@ pub(crate) fn default_root() -> Option<PathBuf> {
         }
         return None;
     }
-    let default = dirs::home_dir()?.join(".kimi-code");
+    let default = crate::utils::home_dir()?.join(".kimi-code");
     default
         .exists()
         .then(|| default.canonicalize().unwrap_or(default))

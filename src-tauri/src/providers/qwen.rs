@@ -41,7 +41,7 @@ fn runtime_base() -> Option<PathBuf> {
             }
         }
     }
-    Some(dirs::home_dir()?.join(".qwen"))
+    Some(crate::utils::home_dir()?.join(".qwen"))
 }
 
 fn projects_dir() -> Option<PathBuf> {

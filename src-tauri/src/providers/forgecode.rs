@@ -74,7 +74,7 @@ pub fn get_base_path() -> Option<String> {
         }
     }
 
-    let home = dirs::home_dir()?;
+    let home = crate::utils::home_dir()?;
     let default_path = home.join(".forge");
     if default_path.exists() {
         Some(default_path.to_string_lossy().to_string())
@@ -1476,7 +1476,7 @@ fn extract_workspace_display_name_from_context_json(context_json: &str) -> Optio
 
 /// Extract a workspace display name from a JSON value.
 fn extract_workspace_display_name_from_value(value: &Value) -> Option<String> {
-    let home_dir = dirs::home_dir();
+    let home_dir = crate::utils::home_dir();
     let home_dir = home_dir.as_deref();
     let mut cwd_votes: BTreeMap<String, usize> = BTreeMap::new();
     collect_workspace_display_name_votes(value, home_dir, &mut cwd_votes);
@@ -1575,7 +1575,7 @@ fn collect_cwd_votes(value: &Value, cwd_votes: &mut BTreeMap<String, usize>) {
 
 /// Picks the most-voted cwd, filtering out home directories.
 fn choose_best_cwd(cwd_votes: &BTreeMap<String, usize>) -> Option<String> {
-    let home_dir = dirs::home_dir();
+    let home_dir = crate::utils::home_dir();
     cwd_votes
         .iter()
         .filter(|(path, _)| {
@@ -1802,6 +1802,7 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use rusqlite::params;
+    use serial_test::serial;
     use tempfile::TempDir;
 
     /// RAII guard that restores a process-wide env var when dropped.
@@ -2046,7 +2047,9 @@ mod tests {
 
     #[test]
     /// Verify `SQLite` scan projects groups rows by workspace.
+    #[serial]
     fn sqlite_scan_projects_groups_rows_by_workspace() {
+        let _home = crate::test_utils::SandboxHome::new();
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
         seed_test_data(&conn);
@@ -2075,7 +2078,9 @@ mod tests {
 
     #[test]
     /// Verify `SQLite` load sessions filters null context and preserves virtual ids.
+    #[serial]
     fn sqlite_load_sessions_filters_null_context_and_preserves_virtual_ids() {
+        let _home = crate::test_utils::SandboxHome::new();
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(&tmp);
         seed_test_data(&conn);
@@ -2233,14 +2238,19 @@ mod tests {
 
     #[test]
     /// Extract workspace display name prefers cwd basename and ignores home dir.
+    #[serial]
     fn extract_workspace_display_name_prefers_cwd_basename_and_ignores_home_dir() {
+        // The "home" entry has to be the home the code under test resolves, so
+        // it comes from the guard. `dirs::home_dir()` was the real one on
+        // Windows, which is not the home being ignored (#551).
+        let home = crate::test_utils::SandboxHome::new();
         let context = json!({
             "messages": [
                 {
                     "message": {
                         "tool": {
                             "arguments": {
-                                "cwd": dirs::home_dir().unwrap().to_string_lossy().to_string()
+                                "cwd": home.path().to_string_lossy().to_string()
                             }
                         }
                     }
@@ -2249,7 +2259,7 @@ mod tests {
                     "message": {
                         "tool": {
                             "arguments": {
-                                "cwd": "/Users/christian/projects/banana-prompting-service"
+                                "cwd": crate::test_utils::abs("Users/christian/projects/banana-prompting-service")
                             }
                         }
                     }

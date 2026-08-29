@@ -30,7 +30,7 @@ fn home_dir() -> Option<PathBuf> {
             return if p.exists() { Some(p) } else { None };
         }
     }
-    let p = dirs::home_dir()?.join(".openinterpreter");
+    let p = crate::utils::home_dir()?.join(".openinterpreter");
     if p.exists() {
         Some(p)
     } else {

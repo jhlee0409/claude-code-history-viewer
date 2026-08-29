@@ -264,7 +264,7 @@ fn get_all_base_paths() -> Vec<(PathBuf, String)> {
         ("Codium", "VSCodium"),
     ];
 
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = crate::utils::home_dir() {
         let app_support = home.join("Library/Application Support");
 
         for (editor_dir, editor_label) in editors {

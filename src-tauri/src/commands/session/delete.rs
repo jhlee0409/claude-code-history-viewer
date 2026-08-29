@@ -97,6 +97,7 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
     use tempfile::TempDir;
@@ -162,7 +163,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn trash_valid_jsonl_file() {
+        let _home = crate::test_utils::SandboxHome::new();
         let dir = TempDir::new().unwrap();
         let file = dir.path().join("abc-123.jsonl");
         fs::write(&file, "{}\n").unwrap();
@@ -172,7 +175,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn trash_jsonl_and_associated_directory() {
+        let _home = crate::test_utils::SandboxHome::new();
         let dir = TempDir::new().unwrap();
         let file = dir.path().join("session-1.jsonl");
         let assoc_dir = dir.path().join("session-1");

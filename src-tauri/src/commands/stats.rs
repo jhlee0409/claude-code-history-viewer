@@ -5410,16 +5410,6 @@ mod tests {
     /// while classifying a path, so the result depended on the developer's own
     /// machine until the sandbox in `crate::utils::home_dir` made it say so
     /// (#540).
-    fn isolated_home() -> tempfile::TempDir {
-        let dir = tempfile::TempDir::new().expect("temp home");
-        // Canonicalised: on macOS the temp dir is handed back as `/var/...`
-        // while anything that canonicalises sees `/private/var/...`, so an
-        // uncanonicalised sandbox root silently fails to match.
-        // Spotted by @nightcityblade in #546.
-        let canonical = dir.path().canonicalize().expect("canonicalize temp home");
-        std::env::set_var("CCHV_TEST_HOME", canonical);
-        dir
-    }
     use serde_json::json;
     use serial_test::serial;
     use std::ffi::OsString;
@@ -6050,7 +6040,7 @@ mod tests {
     #[test]
     /// Verify detect project provider from virtual prefix.
     fn test_detect_project_provider_from_virtual_prefix() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         assert_eq!(
             detect_project_provider("codex:///Users/jack/workspace"),
             StatsProvider::Codex
@@ -6120,7 +6110,7 @@ mod tests {
     #[test]
     /// Verify detect session provider from path pattern.
     fn test_detect_session_provider_from_path_pattern() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         assert_eq!(
             detect_session_provider("forgecode://workspace/ws-1/conversation/conv-1"),
             StatsProvider::ForgeCode
@@ -6195,7 +6185,7 @@ mod tests {
     #[test]
     #[serial]
     fn detect_session_provider_uses_copilot_cli_home_env() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let tmp = TempDir::new().unwrap();
         let events_path = tmp
             .path()
@@ -6621,7 +6611,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_kimi_project_name_resolves_from_session_parent_directory() {
+        let _home = crate::test_utils::SandboxHome::new();
         let session_path = "/tmp/kimi/sessions/project-hash/session-1";
 
         assert_eq!(
@@ -6631,7 +6623,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_kimi_code_project_name_falls_back_to_workspace_directory() {
+        let _home = crate::test_utils::SandboxHome::new();
         // When the store is not scannable (no ~/.kimi-code on this machine,
         // or the workspace was removed), the name falls back to the last
         // path segment — which requires stripping the kimi-code scheme.
@@ -7300,7 +7294,7 @@ mod tests {
 
     #[test]
     fn test_antigravity_provider_project_summary_uses_mode_adjusted_daily_tokens() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let root = temp_dir.path();
         let session_dir = root
@@ -7736,7 +7730,7 @@ mod tests {
     #[serial]
     /// Verify forgecode stats commands use provider paths.
     async fn test_forgecode_stats_commands_use_provider_paths() {
-        let _home = isolated_home();
+        let _home = crate::test_utils::SandboxHome::new();
         let forge_dir = TempDir::new().expect("failed to create forge temp dir");
         write_forgecode_test_db(forge_dir.path());
 

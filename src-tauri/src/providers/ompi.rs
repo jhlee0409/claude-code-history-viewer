@@ -58,7 +58,6 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use std::fs;
-    use std::path::Path;
 
     const SESSION: &str = concat!(
         r#"{"type":"session","version":3,"id":"omp-1","timestamp":"2026-06-03T14:57:13.623Z","cwd":"/Users/ac/dev/omp-fixture"}"#,
@@ -71,38 +70,13 @@ mod tests {
         "\n",
     );
 
-    struct HomeGuard {
-        original: Option<String>,
-    }
-    impl HomeGuard {
-        fn set(path: &Path) -> Self {
-            let original = std::env::var("HOME").ok();
-            std::env::set_var("HOME", path);
-            // `HOME` alone is inert on Windows, where `dirs::home_dir()` uses
-            // the known-folder API. `crate::utils::home_dir()` reads this
-            // instead under `cfg(test)`, and panics without it (#540).
-            std::env::set_var("CCHV_TEST_HOME", path);
-            Self { original }
-        }
-    }
-    impl Drop for HomeGuard {
-        fn drop(&mut self) {
-            std::env::remove_var("CCHV_TEST_HOME");
-            match self.original.as_ref() {
-                Some(v) => std::env::set_var("HOME", v),
-                None => std::env::remove_var("HOME"),
-            }
-        }
-    }
-
     /// The full pipeline resolves against `~/.omp/agent/sessions` and stamps
     /// the `ompi` provider id — the only two things this thin module adds
     /// over the shared Pi core.
     #[test]
     #[serial]
     fn ompi_reads_omp_store_and_stamps_provider_id() {
-        let home = tempfile::tempdir().expect("tempdir");
-        let _guard = HomeGuard::set(home.path());
+        let home = crate::test_utils::SandboxHome::new();
         let dir = home
             .path()
             .join(".omp")
