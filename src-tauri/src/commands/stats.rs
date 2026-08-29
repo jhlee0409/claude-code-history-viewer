@@ -6645,7 +6645,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_antigravity_conversation_breakdown_uses_chat_message_tokens() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         // resolve_usage_jsonl_path validates the canonical session_path is
         // under a marker-rooted antigravity root before reading. Create the
@@ -7390,7 +7392,9 @@ mod tests {
     /// `providers::antigravity::load_messages` so a brain/-only session whose
     /// `usage.jsonl` lives in the rpc-cache contributes records (and therefore
     /// tokens) to per-session / project / global stats.
+    #[serial]
     fn test_load_antigravity_usage_records_falls_back_to_rpc_cache() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let root = temp_dir.path();
         let rpc_v1 = root
@@ -7444,7 +7448,9 @@ mod tests {
     #[test]
     /// When neither in-session nor rpc-cache `usage.jsonl` exists, the helper
     /// returns `Ok(vec![])` (legacy behaviour preserved).
+    #[serial]
     fn test_load_antigravity_usage_records_returns_empty_when_missing() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let root = temp_dir.path();
         fs::create_dir_all(root.join(".token-monitor").join("rpc-cache").join("v1"))
