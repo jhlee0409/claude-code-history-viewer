@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.3] - 2026-08-29
+
+Patch release: restore is authorised by what the project actually edited.
+
+### Changed
+- **Restore now checks the project's edit history instead of the bind address** — restoring a file used to be permitted outright when the server was on loopback *and* authenticated, and otherwise held to the export allowlist, which does not cover project directories. The socket is no longer part of the decision. The only paths restore will write are ones the project's session logs record as edit targets, which is the same set the panel shows you. A project you happened to start Claude in from your home directory therefore grants nothing extra — only the files Claude actually edited there. (#525, #562)
+
+### Breaking
+- **`POST /api/restore_file` requires `projectPath`.** Only affects scripts calling the WebUI HTTP API directly; the app and the WebUI frontend pass it themselves. Requests without it are refused, as are paths the named project has no recorded edit for. Add `"projectPath"` — and `"sessionFilePath"` if you want the check narrowed to one session — alongside `filePath` and `content`.
+
 ## [1.26.2] - 2026-08-29
 
 Patch release: database-backed providers work again over `--serve`.
