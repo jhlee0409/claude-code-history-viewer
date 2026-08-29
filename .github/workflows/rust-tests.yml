@@ -136,21 +136,19 @@ jobs:
 
   # Windows.
   #
-  # Split into a blocking half and an informational half, because the two things
-  # we need from this platform have very different readiness.
+  # Kept as its own job rather than folded into the matrix above only because
+  # it needs the `shell: bash` dist placeholder below; it runs on every PR and
+  # every push, same as Ubuntu.
   #
-  # BLOCKING - does the test binary build? That is the failure that hid
-  # everything else: two `use std::os::unix` imports without a `cfg(unix)` gate
-  # meant the whole lib test binary stopped compiling, so Windows had no test
-  # coverage at all and nobody was told (#536). Compiling is cheap, it passes
-  # today, and it is the gate that keeps this platform from going dark again.
+  # This was informational for a while. When the platform entered CI in #539 it
+  # reported 41 failures - the lib test binary had stopped compiling on Windows
+  # entirely (#536), so nothing had run there for long enough to accumulate
+  # that. Blocking on it then would have reddened every unrelated PR.
   #
-  # INFORMATIONAL - does the suite pass? Not yet: 928 of 968, with 41 failures
-  # tracked in #540 (tests writing to the real home, one set of them mutating
-  # archives) and #541 (Unix path assumptions in assertions). Making that
-  # blocking today would redden every unrelated PR, so it reports and does not
-  # gate. Flip `continue-on-error` off once #540 and #541 are closed, and fold
-  # this job back into the matrix above.
+  # It is 1010/1010 now (#540, #541, #548, #551), so it gates. The build step
+  # stays separate: it is cheap and it is the specific failure that made the
+  # platform go dark unnoticed, so it should fail on its own terms rather than
+  # inside a test run.
   windows:
     name: Windows
     runs-on: windows-latest
@@ -175,15 +173,22 @@ jobs:
         shell: bash
         run: mkdir -p dist && touch dist/index.html
 
-      - name: Build test binaries (blocking)
+      - name: Build test binaries
         working-directory: src-tauri
         run: |
           cargo nextest run --profile ci --no-run
           cargo nextest run --profile ci --no-run --features webui-server
 
-      - name: Run tests (informational until #540 and #541 are closed)
+      # Both feature sets, matching Ubuntu. The default set is not a subset:
+      # `grok::get_base_path_returns_none_when_default_dir_absent` only runs
+      # there, and it was the one that caught a test skipping itself based on
+      # the developer's home (#551).
+      - name: Run tests with nextest
         working-directory: src-tauri
-        continue-on-error: true
+        run: cargo nextest run --profile ci --retries 2
+
+      - name: Run tests with nextest (webui-server feature)
+        working-directory: src-tauri
         run: cargo nextest run --profile ci --retries 2 --features webui-server
 
   # Code coverage - main branch only
