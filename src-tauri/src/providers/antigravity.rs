@@ -370,6 +370,10 @@ pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeS
         None => return Ok(vec![]),
     };
     let state = load_antigravity_state_impl(&root)?;
+    // Titles, step counts and the latest agent message come from Antigravity's
+    // own editor storage; the rpc-cache knows only token counters, which is why
+    // sessions used to render as bare UUIDs (#564).
+    let trajectories = super::antigravity_state_sync::load();
     let mut sessions = Vec::new();
 
     for (session_id, session_state) in state.sessions {
@@ -389,9 +393,18 @@ pub fn load_sessions(path: &str, _exclude_sidechain: bool) -> Result<Vec<ClaudeS
             ms_to_rfc3339(session_state.latest.last_modified_ms)
         };
 
+        let trajectory = trajectories.get(&session_id);
+        let label = trajectory
+            .map(|t| t.title.clone())
+            .filter(|title| !title.is_empty())
+            .unwrap_or_else(|| session_state.latest.label.clone());
+        let step_count = trajectory.map_or(step_count, |t| {
+            usize::try_from(t.step_count).unwrap_or(step_count)
+        });
+
         let display_label = format!(
             "{} ({} calls · {} steps · in={} out={} total={})",
-            session_state.latest.label,
+            label,
             session_state
                 .latest
                 .message_count
@@ -480,7 +493,49 @@ pub(crate) fn resolve_usage_jsonl_path(session_path: &str) -> Option<PathBuf> {
     )
 }
 
+/// Recovers the conversation text Antigravity's editor storage still holds for
+/// a session: the last task boundary it recorded and the last message the agent
+/// sent the user, in that order (their step indices are adjacent, task first).
+///
+/// This is all that survives: the transcripts under `conversations/` are
+/// encrypted, and the state sync store snapshots only the most recent steps —
+/// so a session shows its tail, not its full history (#564).
+fn state_sync_messages(session_id: &str) -> Vec<ClaudeMessage> {
+    let summaries = super::antigravity_state_sync::load();
+    let Some(summary) = summaries.get(session_id) else {
+        return vec![];
+    };
+
+    let timestamp = ms_to_rfc3339(summary.updated_ms);
+    let mut messages = Vec::new();
+
+    for (kind, text) in [
+        ("task", &summary.last_task),
+        ("message", &summary.last_message),
+    ] {
+        let Some(text) = text else {
+            continue;
+        };
+        messages.push(crate::utils::build_provider_message(
+            "antigravity",
+            format!("{session_id}-state-sync-{kind}"),
+            session_id,
+            timestamp.clone(),
+            "assistant",
+            Some("assistant"),
+            Some(json!([{ "type": "text", "text": text }])),
+            None,
+        ));
+    }
+
+    messages
+}
+
 /// Map each usage record in a session's `usage.jsonl` to a pair of `ClaudeMessages`.
+///
+/// When the rpc-cache holds no usage records — the common case for a
+/// brain-only desktop session — falls back to whatever the editor's state sync
+/// store still has for the session, so the conversation view is not blank.
 ///
 /// Session paths under the antigravity-cli store (`<cli-root>/brain/<uuid>`)
 /// route to the transcript parser instead.
@@ -494,7 +549,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         .unwrap_or_default();
 
     let Some(usage_path) = resolve_usage_jsonl_path(session_path) else {
-        return Ok(vec![]);
+        return Ok(state_sync_messages(&session_id));
     };
 
     let content = std::fs::read_to_string(&usage_path)
@@ -605,6 +660,12 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
             compact_metadata: None,
             microcompact_metadata: None,
         });
+    }
+
+    // A `usage.jsonl` that exists but holds no usage records leaves the same
+    // blank view as a missing one, so it takes the same fallback.
+    if messages.is_empty() {
+        return Ok(state_sync_messages(&session_id));
     }
 
     let tool_names = load_antigravity_tool_names(&session_id);
@@ -814,6 +875,89 @@ mod tests {
         assert_eq!(cli_sessions.len(), 1);
         assert_eq!(cli_sessions[0].session_id, "conv-cli");
         assert_eq!(cli_sessions[0].provider.as_deref(), Some("antigravity"));
+    }
+
+    /// Points Antigravity's editor storage at a sandbox `User` dir holding one
+    /// trajectory summary. The env var is process-global, so every caller is
+    /// `#[serial]` and clears it at the end.
+    fn with_state_sync(user_dir: &std::path::Path, session_id: &str, trajectory: &[u8]) {
+        use crate::providers::antigravity_state_sync::test_support::{build_value, write_state_db};
+        write_state_db(user_dir, &build_value(session_id, trajectory));
+        std::env::set_var("ANTIGRAVITY_USER_DIR", user_dir);
+    }
+
+    #[test]
+    #[serial]
+    /// Desktop sessions used to render as bare UUIDs with `0 steps`, because
+    /// the rpc-cache holds only token counters — the title and step count live
+    /// in Antigravity's own editor storage (#564).
+    fn desktop_sessions_are_labelled_from_the_editor_state_store() {
+        use crate::providers::antigravity_state_sync::test_support::trajectory_with_message;
+        let home = crate::test_utils::SandboxHome::new();
+        let root = home.path().join(".gemini").join("antigravity");
+        let rpc_session = get_antigravity_rpc_cache_root(&root).join("session-titled");
+        std::fs::create_dir_all(&rpc_session).expect("create rpc session");
+        make_usage_file(&rpc_session, "session-titled", "gemini-3-pro-high");
+
+        with_state_sync(
+            &home.path().join("AntigravityUser"),
+            "session-titled",
+            &trajectory_with_message("Fixing Step Sync Interval", 18, "Done."),
+        );
+
+        let sessions =
+            load_sessions(&root.to_string_lossy(), false).expect("load desktop sessions");
+        let session = sessions
+            .iter()
+            .find(|s| s.session_id == "session-titled")
+            .expect("session missing");
+        let summary = session.summary.as_deref().unwrap_or_default();
+        assert!(
+            summary.starts_with("Fixing Step Sync Interval ("),
+            "expected the editor title, got {summary:?}"
+        );
+        assert!(
+            summary.contains("18 steps"),
+            "expected the editor step count, got {summary:?}"
+        );
+
+        std::env::remove_var("ANTIGRAVITY_USER_DIR");
+    }
+
+    #[test]
+    #[serial]
+    /// A brain-only desktop session has no `usage.jsonl` at all, so the
+    /// conversation view was empty. The last agent message recovered from the
+    /// editor state store is rendered instead of nothing (#564).
+    fn brain_only_sessions_render_the_recovered_agent_message() {
+        use crate::providers::antigravity_state_sync::test_support::trajectory_with_message;
+        let home = crate::test_utils::SandboxHome::new();
+        let root = home.path().join(".gemini").join("antigravity");
+        std::fs::create_dir_all(get_antigravity_rpc_cache_root(&root)).expect("create marker");
+        let session_dir = root.join("brain").join("session-brain");
+        std::fs::create_dir_all(&session_dir).expect("create brain session");
+        std::fs::write(session_dir.join("task.md"), "# Brain session\n").expect("write task");
+
+        with_state_sync(
+            &home.path().join("AntigravityUser"),
+            "session-brain",
+            &trajectory_with_message("Undo Last Git Push", 6, "Reverted the push."),
+        );
+
+        let messages = load_messages(&session_dir.to_string_lossy()).expect("load brain messages");
+        let texts: Vec<String> = messages
+            .iter()
+            .filter_map(|m| m.content.as_ref())
+            .filter_map(|c| c.as_array())
+            .flatten()
+            .filter_map(|block| block["text"].as_str().map(str::to_string))
+            .collect();
+        assert!(
+            texts.iter().any(|t| t == "Reverted the push."),
+            "recovered agent message missing from {texts:?}"
+        );
+
+        std::env::remove_var("ANTIGRAVITY_USER_DIR");
     }
 
     #[test]

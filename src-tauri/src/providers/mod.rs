@@ -6,6 +6,10 @@ pub mod antigravity;
 /// Antigravity CLI (`~/.gemini/antigravity-cli`) layout — surfaced through the
 /// `antigravity` provider, not a separate provider id.
 pub mod antigravity_cli;
+/// Antigravity desktop trajectory summaries from the editor's own
+/// `state.vscdb` — titles and latest-step text the encrypted `.pb`
+/// transcripts cannot provide.
+pub mod antigravity_state_sync;
 pub mod claude;
 pub mod cline;
 pub mod codebuddy;

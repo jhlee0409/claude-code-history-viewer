@@ -187,10 +187,27 @@ mod integration_tests {
         println!("messages={}", messages.len());
         println!("tool_use_blocks={tool_use_blocks}");
 
-        assert!(
-            !messages.is_empty(),
-            "antigravity load_provider_messages should return at least one message"
-        );
+        // A desktop session yields messages from `usage.jsonl`, or — when the
+        // rpc-cache never recorded one — from the agent message recovered out
+        // of Antigravity's editor state store. A session with neither (the
+        // store keeps only metadata for some trajectories) has nothing to
+        // render, and asserting otherwise just fails on whichever session
+        // happens to sort first (#564).
+        let recoverable = providers::antigravity_state_sync::load()
+            .get(&session.session_id)
+            .is_some_and(|summary| summary.last_message.is_some() || summary.last_task.is_some());
+        let has_usage = std::path::Path::new(&session.file_path)
+            .join("usage.jsonl")
+            .is_file();
+
+        if recoverable || has_usage {
+            assert!(
+                !messages.is_empty(),
+                "session has usage records or recovered text but rendered nothing"
+            );
+        } else {
+            println!("session carries only metadata in the state store; nothing to render");
+        }
     }
 
     #[tokio::test]
@@ -330,6 +347,61 @@ mod integration_tests {
                 "top_tool={} usage={} success_rate={}",
                 tool.tool_name, tool.usage_count, tool.success_rate
             );
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "requires local Antigravity desktop data; run with --ignored"]
+    async fn test_antigravity_desktop_sessions_carry_titles_and_recovered_text() {
+        // The desktop layout's `conversations/*.pb` transcripts are encrypted,
+        // so sessions used to list as bare UUIDs with an empty conversation
+        // (#564). Titles and the latest agent message are recovered from
+        // Antigravity's own `state.vscdb`; this probe asserts that against the
+        // real store on the developer's machine.
+        let summaries = providers::antigravity_state_sync::load();
+        if summaries.is_empty() {
+            println!("No Antigravity state sync summaries found, skipping");
+            return;
+        }
+        println!("trajectory summaries: {}", summaries.len());
+
+        let project = providers::antigravity::scan_projects()
+            .expect("scan_projects failed")
+            .into_iter()
+            .find(|p| p.name == "Antigravity")
+            .expect("expected desktop Antigravity project");
+
+        let sessions = providers::antigravity::load_sessions(&project.path, false)
+            .expect("load_sessions failed");
+        let recovered = sessions
+            .iter()
+            .filter(|s| summaries.contains_key(&s.session_id))
+            .count();
+        println!("sessions={} recovered={recovered}", sessions.len());
+
+        for session in sessions
+            .iter()
+            .filter(|s| summaries.contains_key(&s.session_id))
+        {
+            let title = &summaries[&session.session_id].title;
+            let summary = session.summary.as_deref().unwrap_or_default();
+            println!("  {} → {summary}", session.session_id);
+            assert!(
+                summary.starts_with(title),
+                "session {} should be labelled with its title {title:?}, got {summary:?}",
+                session.session_id
+            );
+
+            let messages = providers::antigravity::load_messages(&session.file_path)
+                .expect("load_messages failed");
+            println!("    messages={}", messages.len());
+            if summaries[&session.session_id].last_message.is_some() {
+                assert!(
+                    !messages.is_empty(),
+                    "session {} has a recovered agent message but rendered nothing",
+                    session.session_id
+                );
+            }
         }
     }
 
