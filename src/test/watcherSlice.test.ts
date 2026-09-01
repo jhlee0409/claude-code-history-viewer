@@ -32,6 +32,7 @@ type TestStore = WatcherSlice & {
   selectProject: ReturnType<typeof vi.fn>;
   setError: ReturnType<typeof vi.fn>;
   invalidateRecentEdits: Mock;
+  reloadProjectSessions: Mock;
 };
 
 const createTestStore = () =>
@@ -42,6 +43,7 @@ const createTestStore = () =>
     selectSession: vi.fn().mockResolvedValue(undefined),
     selectProject: vi.fn().mockResolvedValue(undefined),
     invalidateRecentEdits: vi.fn(),
+    reloadProjectSessions: vi.fn().mockResolvedValue(undefined),
     setError: vi.fn(),
     ...createWatcherSlice(
       set as Parameters<typeof createWatcherSlice>[0],
@@ -231,5 +233,66 @@ describe("watcherSlice recent-edits invalidation", () => {
       "/project"
     );
     expect(store.getState().selectProject).not.toHaveBeenCalled();
+  });
+});
+
+describe("watcherSlice wildcard events", () => {
+  // OpenCode stores sessions in SQLite, so the backend watcher cannot attribute
+  // a write to one project/session and emits `opencode://*` instead. Strict
+  // equality against the selection dropped every such event, leaving the WebUI
+  // frozen until a manual refresh (#566).
+  const opencodeSession: ClaudeSession = {
+    ...selectedSession,
+    file_path: "opencode://hash/session-id",
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-13T00:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("refreshes the selected OpenCode session and its project list", async () => {
+    const store = createTestStore();
+    store.setState({
+      selectedSession: opencodeSession,
+      selectedProject: { path: "opencode://hash" },
+    });
+
+    void store
+      .getState()
+      .triggerSessionRefresh("opencode://*", "opencode://*");
+
+    await vi.advanceTimersByTimeAsync(2000);
+    await flushMicrotasks();
+
+    expect(store.getState().reloadProjectSessions).toHaveBeenCalledWith({
+      path: "opencode://hash",
+    });
+    expect(store.getState().selectSession).toHaveBeenCalledWith(
+      opencodeSession
+    );
+    expect(Object.keys(store.getState().lastUpdateTime)).toEqual([
+      "opencode://hash",
+    ]);
+  });
+
+  it("ignores a wildcard from another provider", async () => {
+    const store = createTestStore();
+    store.setState({
+      selectedSession: opencodeSession,
+      selectedProject: { path: "opencode://hash" },
+    });
+
+    void store.getState().triggerSessionRefresh("codex://*", "codex://*");
+
+    await vi.advanceTimersByTimeAsync(2000);
+    await flushMicrotasks();
+
+    expect(store.getState().selectSession).not.toHaveBeenCalled();
+    expect(store.getState().reloadProjectSessions).not.toHaveBeenCalled();
   });
 });

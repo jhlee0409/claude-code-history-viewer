@@ -45,6 +45,25 @@ const PROJECT_UPDATE_DEBOUNCE_MS = 250;
 const SESSION_REFRESH_QUIET_MS = 1500;
 const SESSION_REFRESH_MIN_INTERVAL_MS = 5000;
 
+/**
+ * DB-backed providers (OpenCode's SQLite store) cannot attribute a write to a
+ * single project/session at the filesystem level, so the watcher emits a
+ * wildcard such as `opencode://*` meaning "refresh all OpenCode data"
+ * (`src-tauri/src/commands/watcher.rs`). Strict-equality matching against the
+ * selection discarded every one of those events (#566), so resolve a wildcard
+ * to the current selection when it falls under the same prefix.
+ */
+const resolveWildcard = (
+  pattern: string,
+  selected: string | undefined
+): string => {
+  if (!pattern.endsWith("/*")) {
+    return pattern;
+  }
+  const prefix = pattern.slice(0, -1);
+  return selected && selected.startsWith(prefix) ? selected : pattern;
+};
+
 // ============================================================================
 // Slice Creator
 // ============================================================================
@@ -268,7 +287,12 @@ export const createWatcherSlice: StateCreator<
       }
     },
 
-    triggerSessionRefresh: async (projectPath, sessionPath) =>
-      scheduleSessionRefresh(projectPath, sessionPath),
+    triggerSessionRefresh: async (projectPath, sessionPath) => {
+      const { selectedProject, selectedSession } = get();
+      return scheduleSessionRefresh(
+        resolveWildcard(projectPath, selectedProject?.path),
+        resolveWildcard(sessionPath, selectedSession?.file_path)
+      );
+    },
   };
 };
