@@ -241,46 +241,6 @@ fn tool_name_from_overlay_display(display: &str) -> Option<&'static str> {
     }
 }
 
-/// Extracts tool names from a protobuf session file using low-false-positive heuristics.
-fn extract_pb_tool_names(pb_path: &Path) -> Vec<String> {
-    let Ok(bytes) = std::fs::read(pb_path) else {
-        return vec![];
-    };
-
-    let clean_bytes: Vec<u8> = bytes
-        .into_iter()
-        .map(|byte| {
-            if (32..=126).contains(&byte) || byte == b'\n' || byte == b'\r' || byte == b'\t' {
-                byte
-            } else {
-                b' '
-            }
-        })
-        .collect();
-    let text = String::from_utf8_lossy(&clean_bytes).to_lowercase();
-    let mut tool_names = Vec::new();
-
-    // Heuristic only: current public Antigravity logs do not expose a schema for
-    // conversation .pb files, so we only accept clear, low-false-positive phrases.
-    const TOOL_PATTERNS: [(&str, &str); 6] = [
-        ("opening url", "BrowserOpenUrl"),
-        ("getting dom", "BrowserGetDom"),
-        ("getting console logs", "BrowserGetConsoleLogs"),
-        ("clicking", "BrowserClick"),
-        ("taking screenshot", "BrowserScreenshot"),
-        ("scrolling mouse wheel", "BrowserScrollMouseWheel"),
-    ];
-
-    for (pattern, tool_name) in TOOL_PATTERNS {
-        let count = text.match_indices(pattern).count();
-        for _ in 0..count {
-            tool_names.push(tool_name.to_string());
-        }
-    }
-
-    tool_names
-}
-
 /// Extracts tool names from an Antigravity log file by parsing
 /// `window.updateActuationOverlay` calls for a given session ID.
 fn extract_log_tool_names(log_path: &Path, session_id: &str) -> Vec<String> {
@@ -322,15 +282,16 @@ fn extract_log_tool_names(log_path: &Path, session_id: &str) -> Vec<String> {
     tool_names
 }
 
-/// Loads tool names for a session by scanning both the protobuf conversation
-/// file and the Antigravity log directory.
-fn load_antigravity_tool_names(session_path: &str, session_id: &str) -> Vec<String> {
+/// Loads tool names for a session from the Antigravity log directory.
+///
+/// This used to also byte-scrape `conversations/<session_id>.pb` for overlay
+/// phrases ("opening url", "taking screenshot", ...). Current Antigravity
+/// desktop builds encrypt those files — measured byte entropy is 8.00/8.00
+/// with no container magic — so the scan could only ever return an empty
+/// vector while implying the transcript was readable (#564). The log parser
+/// above is the only source that works against a documented plaintext format.
+fn load_antigravity_tool_names(session_id: &str) -> Vec<String> {
     let mut tool_names = Vec::new();
-
-    if let Some(root) = antigravity_root_from_path(session_path) {
-        let pb_path = root.join("conversations").join(format!("{session_id}.pb"));
-        tool_names.extend(extract_pb_tool_names(&pb_path));
-    }
 
     if let Some(logs_root) = antigravity_logs_root() {
         let Ok(entries) = std::fs::read_dir(&logs_root) else {
@@ -646,7 +607,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         });
     }
 
-    let tool_names = load_antigravity_tool_names(session_path, &session_id);
+    let tool_names = load_antigravity_tool_names(&session_id);
     Ok(merge_tool_names_into_messages(
         messages,
         &session_id,
