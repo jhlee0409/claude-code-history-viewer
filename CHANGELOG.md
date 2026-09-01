@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-09-01
+
+Minor release: Antigravity desktop sessions have titles and a conversation again, and live refresh works for database-backed providers.
+
+### Added
+- **Antigravity desktop sessions now show their real title, step count and last agent message** — the desktop app encrypts its transcripts (`~/.gemini/antigravity/conversations/<uuid>.pb`, byte entropy 8.00/8.00 with no container magic), so the only thing the rpc-cache scan could surface was token counters. Sessions listed as a wall of UUIDs with `0 steps` and opened to a blank conversation. Antigravity also keeps a plaintext mirror of the same sessions in its editor storage, and that is now read: the human title, the true step count, created/updated timestamps, the workspace folder and git remote, and a snapshot of the most recent steps — including the last message the agent sent you and the task it was working on. A session that used to render as `a19930c6-… (0 calls · 0 steps · …)` now reads `Fixing Step Sync Interval (0 calls · 18 steps · …)`. Note the limits: that store keeps only the newest steps, so what you get is the tail of the conversation, not the full history, and a session it holds only metadata for still shows no messages. The rest stays unreadable for as long as Antigravity encrypts it. (#564) — reported by @Bloodborne
+
+### Fixed
+- **Live refresh never fired for OpenCode** — OpenCode keeps sessions in SQLite, so a database write cannot be attributed to one project or session and the watcher broadcasts `opencode://*`, meaning "refresh all OpenCode data". The frontend compared that against the selected project and session for exact equality, matched nothing, and dropped every event. Neither the open conversation nor the session list updated while a session was being written to; the header refresh button was the only way to see new messages. Wildcards now resolve against the current selection, and the existing debounce, quiet-period and near-bottom deferral still apply, so a streaming session does not thrash. Provider-agnostic, so any future database-backed provider gets it too. (#566) — reported with a full source diagnosis by @GoldenStain
+- **Subagents opened empty for every non-Claude provider** — clicking a subagent or parallel-task chip built a session for the subagent file without carrying the provider over, so the request went out as Claude, looked for the file under the Claude directory, and came back with nothing. (#565) — fixed by @1bosh
+
+### Internal
+- Dependencies updated to clear every `pnpm audit` advisory, including rollup's path traversal in output filename generation (CVE-2026-27606, rollup < 4.59.0 → 4.63.1) plus vite 7.3.6, vitest 4.1.11 and the postcss, nanoid, brace-expansion, minimatch, picomatch, js-yaml, flatted, form-data, ws, yaml, ajv, diff and @babel/core chains. (#563) — reported by @begininvoke
+- Removed the conversation `.pb` tool-name scan. It byte-scraped encrypted data for overlay phrases, so it could only ever return nothing while implying the transcript was readable — which made the empty Antigravity conversation view look like a parsing bug. The log-based parser, which has a documented plaintext format, is unchanged. (#564)
+
+### Breaking
+- None.
+
 ## [1.26.3] - 2026-08-29
 
 Patch release: restore is authorised by what the project actually edited.
