@@ -1168,6 +1168,11 @@ export const createMessageSlice: StateCreator<
       has_tool_use: false,
       has_errors: false,
       summary: subagent.summary ?? subagent.agent_id,
+      // Subagent files live under the parent session's provider storage, so
+      // they inherit its provider; leaving this unset would make selectSession
+      // fall back to "claude" and load an empty message list for other
+      // providers (codex, opencode, gemini, ...).
+      provider: currentSession.provider ?? "claude",
     };
 
     isSubagentNav = true;
