@@ -228,6 +228,7 @@ const asPage = (
 
 type PaginatedArgs = {
   sessionPath: string;
+  provider?: string;
   offset?: number;
   limit?: number;
   excludeSidechain?: boolean;
@@ -636,6 +637,60 @@ describe("messageSlice — navigate guards & error branches", () => {
     expect(store.getState().parentSessionStack[0]?.file_path).toBe(
       "/tmp/parent.jsonl",
     );
+  });
+
+  it("navigateToSubagent carries the parent session's provider into the synthetic session", async () => {
+    const store = createTestStore();
+    const parent = makeSession({
+      file_path: "/tmp/parent.jsonl",
+      provider: "codex",
+    });
+    store.setState({ selectedSession: parent });
+
+    const seenProviders: (string | undefined)[] = [];
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (cmd === "load_provider_messages_paginated") {
+        seenProviders.push(args.provider);
+        return Promise.resolve(asPage([makeUserMessage("sub-1", true)], args));
+      }
+      if (cmd === "get_session_subagents") return Promise.resolve([]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    await store
+      .getState()
+      .navigateToSubagent(makeSubagent("agent-1", "/tmp/sub.jsonl"));
+
+    // The synthetic session must keep the parent's provider, both in state
+    // and in the API call that loads the subagent's messages.
+    expect(store.getState().selectedSession?.file_path).toBe("/tmp/sub.jsonl");
+    expect(store.getState().selectedSession?.provider).toBe("codex");
+    expect(seenProviders).toEqual(["codex"]);
+    expect(store.getState().messages.map((m) => m.uuid)).toEqual(["sub-1"]);
+  });
+
+  it("navigateToSubagent falls back to claude provider when the parent has none", async () => {
+    const store = createTestStore();
+    // Legacy data shape: parent session without a provider field
+    const parent = makeSession({ file_path: "/tmp/parent.jsonl" });
+    store.setState({ selectedSession: parent });
+
+    const seenProviders: (string | undefined)[] = [];
+    mockApi.mockImplementation((cmd: string, args: PaginatedArgs) => {
+      if (cmd === "load_provider_messages_paginated") {
+        seenProviders.push(args.provider);
+        return Promise.resolve(asPage([], args));
+      }
+      if (cmd === "get_session_subagents") return Promise.resolve([]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    await store
+      .getState()
+      .navigateToSubagent(makeSubagent("agent-1", "/tmp/sub.jsonl"));
+
+    expect(store.getState().selectedSession?.provider).toBe("claude");
+    expect(seenProviders).toEqual(["claude"]);
   });
 
   it("selectSession suppresses stale failure when user navigated away mid-flight", async () => {
