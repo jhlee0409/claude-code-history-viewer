@@ -339,6 +339,9 @@ function flattenWithPlaceholders(
         };
         result.push(placeholder);
         pendingHiddenUuids = [];
+        // A hidden run breaks the visual "same turn" read; the next row
+        // shows its header again.
+        prevVisible = null;
       }
 
       // Insert date divider if date changed

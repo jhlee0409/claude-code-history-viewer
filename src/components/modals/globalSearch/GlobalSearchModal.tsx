@@ -43,6 +43,11 @@ interface GlobalSearchModalProps {
 // footer says so, so the user knows to narrow the query.
 const MAX_RESULTS = 250;
 
+// Conversation titles per project, shared across modal opens. Keyed by
+// path + last_modified so a rescan that touched the project refetches.
+const sessionTitleCache = new Map<string, Record<string, string>>();
+const titleCacheKey = (project: ClaudeProject) => `${project.path}@${project.last_modified}`;
+const TITLE_FETCH_CONCURRENCY = 3;
 /**
  * Every string a result can be matched on, in display order. Mirrors the
  * backend scope (`search_in_value` walks message content, toolUse and
@@ -114,7 +119,8 @@ export const GlobalSearchModal = ({
     // sessionId / actual_session_id → summary, filled lazily per project so
     // results can show the conversation title instead of an id prefix.
     const [sessionTitles, setSessionTitles] = useState<Record<string, string>>({});
-    const requestedTitleProjectsRef = useRef<Set<string>>(new Set());
+    // Bumped when the modal closes or results change; abandons a title sweep.
+    const titleSweepTokenRef = useRef(0);
     const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
     const inputRef = useRef<HTMLInputElement>(null);
     const resultsContainerRef = useRef<HTMLDivElement>(null);
@@ -165,37 +171,62 @@ export const GlobalSearchModal = ({
         return groups;
     }, [projects, results, t]);
 
-    // Resolve conversation titles for the projects that have results. One
-    // sessions request per project, cached for the modal's lifetime.
+    // Resolve conversation titles for the projects that have results.
+    // Sessions are fetched per project at most once per project version
+    // (module cache keyed by path + last_modified), a few at a time, and the
+    // sweep is abandoned when the modal closes or the result set changes.
     useEffect(() => {
+        const token = ++titleSweepTokenRef.current;
         const { excludeSidechain } = useAppStore.getState();
+        const pending: ClaudeProject[] = [];
+        const cached: Record<string, string> = {};
         for (const group of groupedResults.values()) {
             const project = group.project;
-            if (!project || requestedTitleProjectsRef.current.has(project.path)) continue;
-            requestedTitleProjectsRef.current.add(project.path);
+            if (!project) continue;
+            const hit = sessionTitleCache.get(titleCacheKey(project));
+            if (hit) Object.assign(cached, hit);
+            else if (!pending.some((p) => p.path === project.path)) pending.push(project);
+        }
+        if (Object.keys(cached).length > 0) {
+            setSessionTitles((prev) => ({ ...prev, ...cached }));
+        }
+        if (pending.length === 0) return;
+
+        const loadOne = async (project: ClaudeProject) => {
             const provider = project.provider ?? "claude";
-            api<ClaudeSession[]>(
+            const projectSessions = await api<ClaudeSession[]>(
                 provider !== "claude" ? "load_provider_sessions" : "load_project_sessions",
                 provider !== "claude"
                     ? { provider, projectPath: project.path, excludeSidechain }
                     : { projectPath: project.path, excludeSidechain },
-            )
-                .then((projectSessions) => {
-                    const next: Record<string, string> = {};
-                    for (const s of projectSessions) {
-                        const title = s.summary?.trim();
-                        if (!title) continue;
-                        next[s.session_id] = title;
-                        if (s.actual_session_id) next[s.actual_session_id] = title;
-                    }
-                    if (Object.keys(next).length > 0) {
-                        setSessionTitles((prev) => ({ ...prev, ...next }));
-                    }
-                })
-                .catch((error) => {
-                    console.error(`Failed to load session titles for ${project.name}:`, error);
+            );
+            const titles: Record<string, string> = {};
+            for (const s of projectSessions) {
+                const title = s.summary?.trim();
+                if (!title) continue;
+                titles[s.session_id] = title;
+                if (s.actual_session_id) titles[s.actual_session_id] = title;
+            }
+            sessionTitleCache.set(titleCacheKey(project), titles);
+            return titles;
+        };
+
+        void (async () => {
+            for (let i = 0; i < pending.length; i += TITLE_FETCH_CONCURRENCY) {
+                if (token !== titleSweepTokenRef.current) return;
+                const batch = pending.slice(i, i + TITLE_FETCH_CONCURRENCY);
+                const settled = await Promise.allSettled(batch.map(loadOne));
+                if (token !== titleSweepTokenRef.current) return;
+                const merged: Record<string, string> = {};
+                settled.forEach((outcome, idx) => {
+                    if (outcome.status === "fulfilled") Object.assign(merged, outcome.value);
+                    else console.error(`Failed to load session titles for ${batch[idx]!.name}:`, outcome.reason);
                 });
-        }
+                if (Object.keys(merged).length > 0) {
+                    setSessionTitles((prev) => ({ ...prev, ...merged }));
+                }
+            }
+        })();
     }, [groupedResults]);
 
     // Flatten grouped results for keyboard navigation
@@ -462,7 +493,7 @@ export const GlobalSearchModal = ({
             setSelectedProjectPath("all");
             setMessageTypeFilter("all");
             setSessionTitles({});
-            requestedTitleProjectsRef.current.clear();
+            titleSweepTokenRef.current++;
         }
     }, [isOpen]);
 
@@ -485,10 +516,19 @@ export const GlobalSearchModal = ({
         };
     }, []);
 
+    // Searchable text per result, computed once per result set rather than on
+    // every keystroke/arrow re-render (250 rows × deep tool payload walks).
+    const searchableTextByResult = useMemo(() => {
+        const map = new WeakMap<GlobalSearchResult, string>();
+        for (const result of results) map.set(result, collectSearchableText(result));
+        return map;
+    }, [results]);
+
     // Get preview text centered around the search term
     const getPreviewText = (message: GlobalSearchResult): string => {
-        const fullText = collectSearchableText(message);
+        const fullText = searchableTextByResult.get(message) ?? collectSearchableText(message);
         if (!fullText) return t("globalSearch.noPreview");
+
 
         // Find search term position and show surrounding context
         const trimmedQuery = query.trim().toLowerCase();

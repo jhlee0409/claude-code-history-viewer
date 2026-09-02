@@ -24,6 +24,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { formatTimeAgo as formatTimeAgoUtil } from "../../utils/time";
+import { isProjectTemporary } from "../../utils/pathUtils";
 import { ProjectContextMenu } from "../ProjectContextMenu";
 import { useProjectTreeState } from "./hooks/useProjectTreeState";
 import { GroupedProjectList } from "./components/GroupedProjectList";
@@ -477,6 +478,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
     if (selectedProject.path_status === "unavailable") {
       return "group:unavailable-projects";
+    }
+    // Temporary-location projects render under their own bucket in every
+    // grouping mode, so that bucket (not the directory group) must open.
+    if (isProjectTemporary(selectedProject)) {
+      return "group:temporary-projects";
     }
 
     if (groupingMode === "directory") {
@@ -1187,6 +1193,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           onHide={onHideProject}
           onUnhide={onUnhideProject}
           isHidden={isProjectHidden(contextMenu.project.actual_path)}
+          providerSiblings={contextMenu.providerSiblings}
+          onSelectProject={handleProjectClick}
         />
       )}
     </aside>

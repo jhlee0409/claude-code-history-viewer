@@ -80,7 +80,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
           </TooltipContent>
         </Tooltip>
         {message.isSidechain && (
-          <span className="px-1.5 py-0.5 text-xs font-mono bg-warning/20 text-warning-foreground rounded-full">
+          <span className="px-1.5 py-0.5 text-xs font-mono bg-warning/20 text-warning rounded-full">
             {t("messageViewer.branch")}
           </span>
         )}

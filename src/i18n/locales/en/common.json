@@ -197,5 +197,8 @@
   "common.dateFilter.clear": "Clear date filter",
   "common.settings.tools": "Claude Code",
   "common.settings.claudeOnly": "{{name}} (Claude only)",
-  "header.views": "Views"
+  "header.views": "Views",
+  "common.dateFilter.start": "Start date",
+  "common.dateFilter.end": "End date",
+  "common.a11y.skipToSessions": "Skip to sessions"
 }

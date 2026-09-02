@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-09-02T14:04:30.033Z
- * 총 키 개수: 1959
+ * 생성 시간: 2026-09-02T16:33:29.166Z
+ * 총 키 개수: 1961
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (199개)
+ * common namespace의 번역 키 (202개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -49,6 +49,7 @@ export type CommonKeys =
   | 'common.a11y.skipToNavigator'
   | 'common.a11y.skipToProjects'
   | 'common.a11y.skipToRecentEdits'
+  | 'common.a11y.skipToSessions'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -65,8 +66,10 @@ export type CommonKeys =
   | 'common.dash'
   | 'common.dateFilter.allTime'
   | 'common.dateFilter.clear'
+  | 'common.dateFilter.end'
   | 'common.dateFilter.label'
   | 'common.dateFilter.pickRange'
+  | 'common.dateFilter.start'
   | 'common.delete'
   | 'common.duplicate'
   | 'common.edit'
@@ -439,7 +442,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (260개)
+ * session namespace의 번역 키 (259개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -649,7 +652,6 @@ export type SessionKeys =
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
   | 'session.pane.title'
-  | 'session.refresh'
   | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'
@@ -2382,6 +2384,7 @@ export type TranslationKey =
   | 'common.a11y.skipToNavigator'
   | 'common.a11y.skipToProjects'
   | 'common.a11y.skipToRecentEdits'
+  | 'common.a11y.skipToSessions'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -2398,8 +2401,10 @@ export type TranslationKey =
   | 'common.dash'
   | 'common.dateFilter.allTime'
   | 'common.dateFilter.clear'
+  | 'common.dateFilter.end'
   | 'common.dateFilter.label'
   | 'common.dateFilter.pickRange'
+  | 'common.dateFilter.start'
   | 'common.delete'
   | 'common.duplicate'
   | 'common.edit'
@@ -3202,7 +3207,6 @@ export type TranslationKey =
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
   | 'session.pane.title'
-  | 'session.refresh'
   | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'

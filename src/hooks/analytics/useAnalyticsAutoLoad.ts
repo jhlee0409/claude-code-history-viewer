@@ -200,8 +200,11 @@ export function useAnalyticsAutoLoad(computed: {
     const isStaleRequest = () =>
       requestSeq !== dateFilterRequestSeqRef.current;
 
+    // Global stats may be open with a project still selected (the overview
+    // no longer clears the selection), so ask the flag, not the selection.
     const isGlobalScope =
-      !selectedProjectPath && analytics.currentView === "analytics";
+      (useAppStore.getState().isViewingGlobalStats || !selectedProjectPath) &&
+      analytics.currentView === "analytics";
 
     const update = async () => {
       try {

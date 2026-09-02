@@ -57,14 +57,20 @@ export function useProjectTreeState(groupingMode: GroupingMode) {
   );
 
   const handleContextMenu = useCallback(
-    (e: React.MouseEvent, project: ClaudeProject) => {
+    (e: React.MouseEvent, project: ClaudeProject, providerSiblings?: ClaudeProject[]) => {
       e.preventDefault();
       const boundary = e.currentTarget
         .closest<HTMLElement>("[data-menu-boundary]")
         ?.getBoundingClientRect() ?? null;
+      // Keyboard-opened menus (ContextMenu key / Shift+F10) carry no pointer
+      // position; anchor them to the row instead.
+      const anchor = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX || anchor.left + 24;
+      const y = e.clientY || anchor.bottom;
       setContextMenu({
         project,
-        position: { x: e.clientX, y: e.clientY, boundary },
+        providerSiblings,
+        position: { x, y, boundary },
       });
     },
     []

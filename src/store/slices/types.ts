@@ -148,6 +148,7 @@ export interface AppStoreState {
   globalSummary: GlobalStatsSummary | null;
   globalConversationSummary: GlobalStatsSummary | null;
   isLoadingGlobalStats: boolean;
+  isViewingGlobalStats: boolean;
 
   // Metadata state
   userMetadata: UserMetadata;
@@ -329,6 +330,7 @@ export interface AppStoreActions {
   // Global stats actions
   loadGlobalStats: () => Promise<void>;
   clearGlobalStats: () => void;
+  setViewingGlobalStats: (value: boolean) => void;
 
   // Metadata actions
   loadMetadata: () => Promise<void>;

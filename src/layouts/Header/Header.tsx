@@ -219,7 +219,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             back from any analytics view is always visible. */}
         {selectedProject && (
           <div
-            role="tablist"
+            role="group"
             aria-label={t("header.views", "Views")}
             className="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
           >
@@ -328,8 +328,7 @@ interface ViewTabProps {
 const ViewTab = ({ icon: Icon, label, isActive, isLoading, onClick, disabled }: ViewTabProps) => {
   return (
     <TooltipButton
-      role="tab"
-      aria-selected={isActive}
+      aria-pressed={isActive}
       onClick={onClick}
       disabled={disabled}
       className={cn(

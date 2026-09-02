@@ -28,7 +28,7 @@ interface GroupedProjectListProps {
   setExpandedProjects: React.Dispatch<React.SetStateAction<Set<string>>>;
   isProjectExpanded: (path: string) => boolean;
   handleProjectClick: (project: ClaudeProject) => void;
-  handleContextMenu: (e: React.MouseEvent, project: ClaudeProject) => void;
+  handleContextMenu: (e: React.MouseEvent, project: ClaudeProject, providerSiblings?: ClaudeProject[]) => void;
   onSessionSelect: (session: ClaudeSession) => void;
   onSessionHover?: (session: ClaudeSession) => void;
   onLoadMoreSessions?: () => void;
@@ -105,11 +105,12 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           ariaLevel={ariaLevel}
           onToggle={() => handleProjectClick(project)}
           onClick={() => handleProjectClick(project)}
-          onContextMenu={(e) => handleContextMenu(e, project)}
+          onContextMenu={(e) => handleContextMenu(e, project, providerSiblings)}
           variant={variant}
           showProviderBadge={showProviderBadge}
           providerSiblings={providerSiblings}
           onSelectSibling={handleProjectClick}
+          hasInlineChildren={inlineSessions}
         />
         {showSessions && (
           <div role="none">

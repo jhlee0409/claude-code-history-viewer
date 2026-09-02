@@ -41,11 +41,10 @@ export const DatePickerHeader = ({
     const { t } = useTranslation();
     const hasFilter = !!(dateFilter.start || dateFilter.end);
     const [isEditing, setIsEditing] = useState(hasFilter);
-
-    // A filter set elsewhere (e.g. calendar click) must open the inputs; a
-    // cleared filter returns to the "All time" pill.
+    // A filter set elsewhere (e.g. calendar click) opens the inputs; a filter
+    // cleared elsewhere (project switch, timeline reset) returns to "All time".
     useEffect(() => {
-        if (hasFilter) setIsEditing(true);
+        setIsEditing(hasFilter);
     }, [hasFilter]);
 
     const handleDateChange = (type: 'start' | 'end', value: string) => {
@@ -92,7 +91,7 @@ export const DatePickerHeader = ({
                 <div className="flex items-center gap-1.5">
                     <input
                         type="date"
-                        aria-label={t("common.dateFilter.pickRange")}
+                        aria-label={t("common.dateFilter.start")}
                         className={INPUT_CLASS}
                         value={formatDateForInput(dateFilter.start)}
                         max={formatDateForInput(dateFilter.end)}
@@ -101,7 +100,7 @@ export const DatePickerHeader = ({
                     <span className="text-muted-foreground text-px10">-</span>
                     <input
                         type="date"
-                        aria-label={t("common.dateFilter.pickRange")}
+                        aria-label={t("common.dateFilter.end")}
                         className={INPUT_CLASS}
                         value={formatDateForInput(dateFilter.end)}
                         min={formatDateForInput(dateFilter.start)}

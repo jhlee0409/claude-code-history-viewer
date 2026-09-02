@@ -70,13 +70,15 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
   switch (toolName) {
     case "Bash":      return <BashCard toolUse={toolUse} toolResults={toolResults} />;
     case "Read":      return <ReadCard toolUse={toolUse} toolResults={toolResults} />;
-    case "Edit":      return <EditCard toolUse={toolUse} toolResults={toolResults} />;
+    case "Edit":
+    case "MultiEdit": return <EditCard toolUse={toolUse} toolResults={toolResults} />;
     case "Write":     return <WriteCard toolUse={toolUse} toolResults={toolResults} />;
     case "Grep":      return <GrepCard toolUse={toolUse} toolResults={toolResults} />;
     case "Glob":      return <GlobCard toolUse={toolUse} toolResults={toolResults} />;
     case "WebSearch": return <WebSearchCard toolUse={toolUse} toolResults={toolResults} />;
     case "WebFetch":  return <WebFetchCard toolUse={toolUse} toolResults={toolResults} />;
-    case "Agent":     return <AgentCard toolUse={toolUse} toolResults={toolResults} onViewSubagent={onViewSubagent} />;
+    case "Agent":
+    case "Task":      return <AgentCard toolUse={toolUse} toolResults={toolResults} onViewSubagent={onViewSubagent} />;
     case "Workflow":  return <WorkflowCard toolUse={toolUse} toolResults={toolResults} />;
     case "AskUserQuestion":
       return (

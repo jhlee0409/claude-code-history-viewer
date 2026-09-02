@@ -29,6 +29,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   showProviderBadge = true,
   providerSiblings = [],
   onSelectSibling,
+  hasInlineChildren = true,
 }) => {
   const { t } = useTranslation();
 
@@ -64,7 +65,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
       data-project-path={project.path}
       aria-level={ariaLevel}
       aria-selected={isSelected}
-      aria-expanded={isExpandable ? isExpanded : undefined}
+      aria-expanded={isExpandable && hasInlineChildren ? isExpanded : undefined}
       tabIndex={-1}
       onClick={onClick}
       onKeyDown={(e) => {
@@ -74,6 +75,10 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
         } else if (e.key === "ArrowLeft" && isExpandable && isExpanded) {
           e.preventDefault();
           onToggle();
+        } else if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+          // Keyboard route to the row menu (hide, copy path, switch provider).
+          e.preventDefault();
+          onContextMenu(e as unknown as React.MouseEvent);
         }
       }}
       onContextMenu={onContextMenu}
@@ -181,7 +186,10 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             </span>
             {providerSiblings.map((sibling) => {
               const siblingProvider = getProviderId(sibling.provider);
-              const siblingLabel = getProviderLabel((key, fallback) => t(key, fallback), siblingProvider);
+              const siblingBase = getProviderLabel((key, fallback) => t(key, fallback), siblingProvider);
+              const siblingLabel = sibling.custom_directory_label
+                ? `${siblingBase} (${sibling.custom_directory_label})`
+                : siblingBase;
               return (
                 <span
                   key={sibling.path}

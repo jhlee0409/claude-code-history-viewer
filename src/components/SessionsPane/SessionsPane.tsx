@@ -72,7 +72,8 @@ export function SessionsPane({
     <aside
       id="sessions-pane"
       aria-label={t("session.pane.title")}
-      className="flex shrink-0 h-full"
+      tabIndex={-1}
+      className="flex shrink-0 h-full outline-none"
     >
       <div
         className="flex flex-col min-w-0 h-full bg-sidebar border-r border-border/50"

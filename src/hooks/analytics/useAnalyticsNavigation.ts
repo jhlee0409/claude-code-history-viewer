@@ -338,7 +338,7 @@ export function useAnalyticsNavigation() {
       const currentView = state.analytics.currentView;
       const isGlobalScope =
         options?.isViewingGlobalStats ??
-        (!project && currentView === "analytics");
+        ((state.isViewingGlobalStats || !project) && currentView === "analytics");
 
       try {
         if (isGlobalScope) {

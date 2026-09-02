@@ -197,5 +197,8 @@
   "common.dateFilter.clear": "기간 필터 해제",
   "common.settings.tools": "Claude Code",
   "common.settings.claudeOnly": "{{name}} (Claude 전용)",
-  "header.views": "보기"
+  "header.views": "보기",
+  "common.dateFilter.start": "시작일",
+  "common.dateFilter.end": "종료일",
+  "common.a11y.skipToSessions": "세션 목록으로 건너뛰기"
 }

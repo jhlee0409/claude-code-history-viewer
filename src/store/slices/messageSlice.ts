@@ -416,7 +416,7 @@ export const createMessageSlice: StateCreator<
     const epoch = ++sessionLoadEpoch;
     // Subagent intent를 await 전에 캡처하여 async race 차단.
     // - isSubagentNav: navigateToSubagent가 세팅한 1회성 플래그
-    // - isInPlaceReload: filter toggle/refreshCurrentSession에서 같은 세션을 재로드하는 경우
+    // - isInPlaceReload: filter toggle/refreshAllConversations에서 같은 세션을 재로드하는 경우
     //   이때 parentSessionStack이 비어있지 않다면 유저는 서브에이전트를 보고 있던 상태.
     // 이 값을 이후 로직 전체에서 참조해야 await 중 stack 변이로 인한 blank 화면·sidechain leak 방지.
     const isInPlaceReload = get().selectedSession?.file_path === session.file_path;

@@ -428,9 +428,17 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               })}
             </a>
           )}
+          {showSessionsPane && (
+            <a
+              href="#sessions-pane"
+              className="absolute left-[13rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+            >
+              {t("common.a11y.skipToSessions", { defaultValue: "Skip to sessions" })}
+            </a>
+          )}
           <a
             href="#main-content"
-            className="absolute left-52 top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+            className="absolute left-[24rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
           >
             {t("common.a11y.skipToMain", {
               defaultValue: "Skip to main content",
@@ -439,7 +447,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           {showRecentEditsDock && (
             <a
               href="#recent-edits-dock"
-              className="absolute left-[35rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
+              className="absolute left-[47rem] top-[-40px] z-[700] hidden rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2 xl:block"
             >
               {t("common.a11y.skipToRecentEdits", {
                 defaultValue: "Skip to recent edits",
@@ -457,7 +465,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           {!isMobile && isTranscriptView && isNavigatorOpen && selectedSession && (
             <a
               href="#message-navigator"
-              className="absolute left-[23rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
+              className="absolute left-[35rem] top-[-40px] z-[700] rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all focus:top-2"
             >
               {t("common.a11y.skipToNavigator", {
                 defaultValue: "Skip to message navigator",

@@ -229,7 +229,6 @@
   "session.nativeRename.warningCodex": "此操作会更新 Codex CLI 线程元数据。更改可以撤销。",
   "session.nativeRename.warningForgeCode": "此操作会更新 Forge 数据库中存储的 ForgeCode 对话标题。",
   "session.nativeRename.warningOpenCode": "此操作会修改 OpenCode 会话元数据文件。更改可以撤销。",
-  "session.refresh": "刷新会话",
   "session.refreshAllConversations": "刷新所有对话",
   "session.rename": "重命名会话",
   "session.renameAction": "重命名会话",

@@ -197,5 +197,8 @@
   "common.dateFilter.clear": "期間フィルターをクリア",
   "common.settings.tools": "Claude Code",
   "common.settings.claudeOnly": "{{name}}（Claude のみ）",
-  "header.views": "表示"
+  "header.views": "表示",
+  "common.dateFilter.start": "開始日",
+  "common.dateFilter.end": "終了日",
+  "common.a11y.skipToSessions": "セッション一覧へスキップ"
 }

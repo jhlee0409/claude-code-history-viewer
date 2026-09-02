@@ -1,13 +1,14 @@
 // src/components/ProjectContextMenu.tsx
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { EyeOff, Eye, Copy } from "lucide-react";
+import { EyeOff, Eye, Copy, ArrowRightLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { ClaudeProject } from "../types";
 import { computeMenuPosition, type Boundary } from "@/utils/contextMenu";
 import { isProjectPathUnavailable } from "@/utils/pathUtils";
+import { getProviderId, getProviderLabel } from "@/utils/providers";
 
 interface ProjectContextMenuProps {
   project: ClaudeProject;
@@ -16,6 +17,9 @@ interface ProjectContextMenuProps {
   onHide: (projectPath: string) => void;
   onUnhide: (projectPath: string) => void;
   isHidden: boolean;
+  /** Same folder as seen by other providers; keyboard-reachable switch. */
+  providerSiblings?: ClaudeProject[];
+  onSelectProject?: (project: ClaudeProject) => void;
 }
 
 export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
@@ -25,6 +29,8 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   onHide,
   onUnhide,
   isHidden,
+  providerSiblings = [],
+  onSelectProject,
 }) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -145,6 +151,34 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
         <div className="px-2 py-1.5 text-xs text-muted-foreground truncate border-b border-border mb-1">
           {project.name}
         </div>
+
+        {/* Same folder under another provider */}
+        {providerSiblings.map((sibling) => {
+          const label = getProviderLabel(
+            (key, fallback) => t(key, fallback),
+            getProviderId(sibling.provider)
+          );
+          return (
+            <button
+              key={sibling.path}
+              onClick={() => {
+                onSelectProject?.(sibling);
+                onClose();
+              }}
+              className={menuItemClass}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              <span>
+                {t("project.switchProvider", {
+                  provider: sibling.custom_directory_label
+                    ? `${label} (${sibling.custom_directory_label})`
+                    : label,
+                  count: sibling.session_count,
+                })}
+              </span>
+            </button>
+          );
+        })}
 
         {/* Copy path option */}
         <button

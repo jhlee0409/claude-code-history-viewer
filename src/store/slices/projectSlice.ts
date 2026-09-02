@@ -533,6 +533,9 @@ export const createProjectSlice: StateCreator<
 
     const previouslySelectedProject = get().selectedProject;
     const previouslySelectedSession = get().selectedSession;
+    // Global stats can be open with a project still selected; the flag, not
+    // the selection, says what is on screen.
+    const wasViewingGlobalStats = get().isViewingGlobalStats;
 
     set({ isRefreshingAllConversations: true, error: null });
 
@@ -582,7 +585,12 @@ export const createProjectSlice: StateCreator<
       }
 
       const refreshedState = get();
-      if (refreshedState.analytics.currentView === "tokenStats") {
+      if (wasViewingGlobalStats && refreshedState.analytics.currentView === "analytics") {
+        // Re-selecting the session above cleared the flag (App exits global
+        // stats on session change); restore it and reload the overview.
+        refreshedState.setViewingGlobalStats(true);
+        await refreshedState.loadGlobalStats();
+      } else if (refreshedState.analytics.currentView === "tokenStats") {
         await refreshedState.loadProjectTokenStats(refreshedProject.path);
         if (refreshedSession) {
           await refreshedState.loadSessionTokenStats(refreshedSession.file_path);

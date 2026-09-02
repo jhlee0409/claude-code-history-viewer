@@ -518,7 +518,7 @@ describe("SessionList", () => {
       const { container } = render(<SessionList {...defaultProps} variant="worktree" />);
 
       expect(container.querySelector(".ml-4")).toBeInTheDocument();
-      expect(container.querySelector(".border-emerald-500\\/30")).toBeInTheDocument();
+      expect(container.querySelector(".border-success\\/30")).toBeInTheDocument();
     });
 
     it("should render with main variant", () => {

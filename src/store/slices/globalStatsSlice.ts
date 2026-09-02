@@ -21,11 +21,18 @@ export interface GlobalStatsSliceState {
   globalSummary: GlobalStatsSummary | null;
   globalConversationSummary: GlobalStatsSummary | null;
   isLoadingGlobalStats: boolean;
+  /**
+   * Whether the analytics view is showing the cross-project overview. Lives
+   * in the store (not App state) so refresh and date-filter reloads can tell
+   * global scope apart from "a project happens to be selected".
+   */
+  isViewingGlobalStats: boolean;
 }
 
 export interface GlobalStatsSliceActions {
   loadGlobalStats: () => Promise<void>;
   clearGlobalStats: () => void;
+  setViewingGlobalStats: (value: boolean) => void;
 }
 
 export type GlobalStatsSlice = GlobalStatsSliceState & GlobalStatsSliceActions;
@@ -38,6 +45,7 @@ const initialGlobalStatsState: GlobalStatsSliceState = {
   globalSummary: null,
   globalConversationSummary: null,
   isLoadingGlobalStats: false,
+  isViewingGlobalStats: false,
 };
 
 // ============================================================================
@@ -150,5 +158,9 @@ export const createGlobalStatsSlice: StateCreator<
       globalConversationSummary: null,
       isLoadingGlobalStats: false,
     });
+  },
+
+  setViewingGlobalStats: (value: boolean) => {
+    if (get().isViewingGlobalStats !== value) set({ isViewingGlobalStats: value });
   },
 });

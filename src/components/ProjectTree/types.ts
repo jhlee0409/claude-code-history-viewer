@@ -7,6 +7,8 @@ import type { Boundary } from "../../utils/contextMenu";
 export interface ContextMenuState {
   project: ClaudeProject;
   position: { x: number; y: number; boundary?: Boundary | null };
+  /** Other providers' projects for the same folder (merged row). */
+  providerSiblings?: ClaudeProject[];
 }
 
 export interface ProjectTreeProps {
@@ -68,6 +70,8 @@ export interface ProjectItemProps {
    */
   providerSiblings?: ClaudeProject[];
   onSelectSibling?: (project: ClaudeProject) => void;
+  /** False when sessions render in the SessionsPane rather than under the row. */
+  hasInlineChildren?: boolean;
 }
 
 export interface SessionListProps {

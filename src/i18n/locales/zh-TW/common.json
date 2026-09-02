@@ -197,5 +197,8 @@
   "common.dateFilter.clear": "清除日期篩選",
   "common.settings.tools": "Claude Code",
   "common.settings.claudeOnly": "{{name}}（僅限 Claude）",
-  "header.views": "檢視"
+  "header.views": "檢視",
+  "common.dateFilter.start": "開始日期",
+  "common.dateFilter.end": "結束日期",
+  "common.a11y.skipToSessions": "跳至會話列表"
 }

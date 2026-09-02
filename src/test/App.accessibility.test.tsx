@@ -52,6 +52,8 @@ const { useAppStoreMock } = vi.hoisted(() => {
     goToPrevMatch: vi.fn(),
     clearSessionSearch: vi.fn(),
     loadGlobalStats: vi.fn(async () => {}),
+    isViewingGlobalStats: false,
+    setViewingGlobalStats: vi.fn(),
     setAnalyticsCurrentView: vi.fn(),
     loadMoreProjectTokenStats: vi.fn(async () => {}),
     loadMoreRecentEdits: vi.fn(async () => {}),

@@ -247,7 +247,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   const borderClass = isPane
     ? ""
     : isWorktree
-      ? "border-l border-emerald-500/30"
+      ? "border-l border-success/30"
       : isMain
         ? "border-l border-accent/30"
         : "border-l-2 border-accent/20";
