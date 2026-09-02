@@ -88,7 +88,7 @@ describe("GroupedProjectList", () => {
   }
 
   it("routes chevron toggle through project click handler in flat mode", () => {
-    const project = createProject("/tmp/project-a", "project-a");
+    const project = createProject("/work/project-a", "project-a");
     const handleProjectClick = vi.fn();
 
     renderList({
@@ -104,12 +104,12 @@ describe("GroupedProjectList", () => {
   });
 
   it("routes chevron toggle through project click handler in directory mode", () => {
-    const project = createProject("/tmp/project-a", "project-a");
+    const project = createProject("/work/project-a", "project-a");
     const handleProjectClick = vi.fn();
     const directoryGroup: DirectoryGroup = {
-      name: "tmp",
-      path: "/tmp",
-      displayPath: "/tmp",
+      name: "work",
+      path: "/work",
+      displayPath: "/work",
       projects: [project],
     };
 
@@ -129,7 +129,7 @@ describe("GroupedProjectList", () => {
   });
 
   it("routes chevron toggle through project click handler in worktree mode", () => {
-    const project = createProject("/tmp/project-a", "project-a");
+    const project = createProject("/work/project-a", "project-a");
     const handleProjectClick = vi.fn();
     const worktreeGroup: WorktreeGroup = {
       parent: project,
@@ -153,7 +153,7 @@ describe("GroupedProjectList", () => {
 
   it("keeps unavailable projects in a collapsed, expandable group", () => {
     const project = {
-      ...createProject("/tmp/deleted-worktree", "deleted-worktree"),
+      ...createProject("/work/deleted-worktree", "deleted-worktree"),
       path_status: "unavailable" as const,
     };
 
@@ -172,7 +172,7 @@ describe("GroupedProjectList", () => {
 
   it("shows unavailable projects after expanding the status group", () => {
     const project = {
-      ...createProject("/tmp/deleted-worktree", "deleted-worktree"),
+      ...createProject("/work/deleted-worktree", "deleted-worktree"),
       path_status: "unavailable" as const,
     };
 

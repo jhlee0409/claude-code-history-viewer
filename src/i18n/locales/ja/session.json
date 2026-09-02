@@ -256,5 +256,6 @@
   "sessionPicker.subtitle": "「{{value}}」に一致するセッションが{{count}}件",
   "sessionPicker.empty": "一致するセッションがありません",
   "sessionPicker.cancelled": "起動時のセッションヒントをキャンセルしました",
-  "session.pane.title": "セッション"
+  "session.pane.title": "セッション",
+  "project.temporaryGroup": "一時的な場所"
 }

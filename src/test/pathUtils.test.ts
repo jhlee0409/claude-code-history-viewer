@@ -5,7 +5,40 @@ import {
   getDisplayPathParts,
   getPathLeaf,
   isProjectPathUnavailable,
+  isProjectTemporary,
+  isTemporaryPath,
 } from "../utils/pathUtils";
+
+describe("temporary path detection", () => {
+  it.each([
+    "/tmp/translate-en-abc",
+    "/private/tmp/x",
+    "/var/folders/w8/00lvq9d54kgfsglphmf91l_h0000gn/T/translate-en-r3irmeu9",
+    "/private/var/folders/w8/xx/T/job",
+    "/Users/jack/Library/Caches/foo",
+    "/home/jack/.cache/agent",
+    "C:\\Users\\jack\\AppData\\Local\\Temp\\job",
+  ])("flags %s as temporary", (path) => {
+    expect(isTemporaryPath(path)).toBe(true);
+  });
+
+  it.each([
+    "/Users/jack/client/claude-code-history-viewer",
+    "/home/jack/tmp-notes",
+    "/work/tmp",
+    "/var/www/site",
+    "",
+  ])("keeps %s as a regular project", (path) => {
+    expect(isTemporaryPath(path)).toBe(false);
+  });
+
+  it("never buckets an unavailable project as temporary", () => {
+    expect(
+      isProjectTemporary({ actual_path: "/tmp/gone", path_status: "unavailable" })
+    ).toBe(false);
+    expect(isProjectTemporary({ actual_path: "/tmp/here" })).toBe(true);
+  });
+});
 
 describe("path display utilities", () => {
   it("returns the leaf segment for a deep Unix path", () => {

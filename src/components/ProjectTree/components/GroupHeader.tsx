@@ -18,25 +18,32 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
   const { t } = useTranslation();
   const variantColors = {
     directory: {
-      text: "text-blue-600 dark:text-blue-400",
-      bg: "bg-blue-500/20",
-      border: "border-l-blue-500/50",
-      badge: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-      expandIcon: "text-blue-500",
+      text: "text-info",
+      bg: "bg-info/20",
+      border: "border-l-info/50",
+      badge: "bg-info/15 text-info",
+      expandIcon: "text-info",
     },
     worktree: {
-      text: "text-emerald-600 dark:text-emerald-400",
-      bg: "bg-emerald-500/20",
-      border: "border-l-emerald-500/50",
-      badge: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-      expandIcon: "text-emerald-500",
+      text: "text-success",
+      bg: "bg-success/20",
+      border: "border-l-success/50",
+      badge: "bg-success/15 text-success",
+      expandIcon: "text-success",
     },
     unavailable: {
-      text: "text-amber-700 dark:text-amber-300",
-      bg: "bg-amber-500/20",
-      border: "border-l-amber-500/50",
-      badge: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-      expandIcon: "text-amber-500",
+      text: "text-warning",
+      bg: "bg-warning/20",
+      border: "border-l-warning/50",
+      badge: "bg-warning/15 text-warning",
+      expandIcon: "text-warning",
+    },
+    temporary: {
+      text: "text-muted-foreground",
+      bg: "bg-muted",
+      border: "border-l-border",
+      badge: "bg-muted text-muted-foreground",
+      expandIcon: "text-muted-foreground",
     },
   };
 

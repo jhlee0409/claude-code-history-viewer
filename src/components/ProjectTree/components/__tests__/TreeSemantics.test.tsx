@@ -39,7 +39,7 @@ function createProject(path: string, name: string): ClaudeProject {
 
 describe("ProjectTree tree semantics", () => {
   it("renders project item as treeitem with aria-level", () => {
-    const project = createProject("/tmp/project-a", "project-a");
+    const project = createProject("/work/project-a", "project-a");
 
     render(
       <ProjectItem
@@ -59,7 +59,7 @@ describe("ProjectTree tree semantics", () => {
 
   it("keeps an unavailable project selectable and exposes its location status", () => {
     const project = {
-      ...createProject("/tmp/deleted-worktree", "deleted-worktree"),
+      ...createProject("/work/deleted-worktree", "deleted-worktree"),
       path_status: "unavailable" as const,
     };
 
@@ -101,11 +101,11 @@ describe("ProjectTree tree semantics", () => {
   });
 
   it("renders nested group container for expanded directory groups", () => {
-    const project = createProject("/tmp/project-a", "project-a");
+    const project = createProject("/work/project-a", "project-a");
     const directoryGroup: DirectoryGroup = {
-      name: "tmp",
-      path: "/tmp",
-      displayPath: "/tmp",
+      name: "work",
+      path: "/work",
+      displayPath: "/work",
       projects: [project],
     };
 

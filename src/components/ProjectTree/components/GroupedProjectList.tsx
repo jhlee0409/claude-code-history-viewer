@@ -1,6 +1,6 @@
 // src/components/ProjectTree/components/GroupedProjectList.tsx
 import React from "react";
-import { AlertCircle, FolderTree, GitBranch } from "lucide-react";
+import { AlertCircle, FolderTree, GitBranch, Timer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ClaudeProject, ClaudeSession } from "../../../types";
 import type { WorktreeGroup, DirectoryGroup } from "../../../utils/worktreeUtils";
@@ -8,7 +8,7 @@ import type { GroupingStrategy } from "../types";
 import { ProjectItem } from "./ProjectItem";
 import { SessionList } from "./SessionList";
 import { GroupHeader } from "./GroupHeader";
-import { isProjectPathUnavailable } from "../../../utils/pathUtils";
+import { isProjectPathUnavailable, isProjectTemporary } from "../../../utils/pathUtils";
 
 interface GroupedProjectListProps {
   groupingMode: GroupingStrategy;
@@ -33,6 +33,7 @@ interface GroupedProjectListProps {
   onSessionHover?: (session: ClaudeSession) => void;
   onLoadMoreSessions?: () => void;
   formatTimeAgo: (date: string) => string;
+  inlineSessions?: boolean;
 }
 
 export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
@@ -58,6 +59,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   onSessionHover,
   onLoadMoreSessions = () => {},
   formatTimeAgo,
+  inlineSessions = true,
 }) => {
   const { t } = useTranslation();
 
@@ -83,7 +85,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     ariaLevel = 1
   ) => {
     const isExpanded = isProjectExpanded(project.path);
-    const showSessions = isExpanded && selectedProject?.path === project.path;
+    const showSessions = inlineSessions && isExpanded && selectedProject?.path === project.path;
 
     // NOTE: collapsed rows previously used `content-visibility: auto` to skip
     // offscreen paint (#460). Removed because WebKit (WKWebView/WebKitGTK)
@@ -127,44 +129,71 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
     );
   };
 
-  const renderUnavailableGroup = (unavailableProjects: ClaudeProject[]) => {
-    if (unavailableProjects.length === 0) return null;
+  /**
+   * Collapsed-by-default bucket for projects the user rarely wants in the main
+   * list (unavailable working directories, OS temp locations). One header row
+   * instead of N rows of noise.
+   */
+  const renderBucketGroup = (
+    kind: "unavailable" | "temporary",
+    bucketProjects: ClaudeProject[]
+  ) => {
+    if (bucketProjects.length === 0) return null;
 
-    const groupKey = "group:unavailable-projects";
+    const groupKey = `group:${kind}-projects`;
     const isGroupExpanded = expandedProjects.has(groupKey);
+    const isTemporary = kind === "temporary";
 
     return (
-      <div className="space-y-0.5" role="none" data-testid="unavailable-projects-group">
+      <div className="space-y-0.5" role="none" data-testid={`${kind}-projects-group`}>
         <GroupHeader
           groupKey={groupKey}
-          label={t("project.pathUnavailableGroup", "Unavailable locations")}
-          icon={<AlertCircle className="w-3.5 h-3.5" />}
-          count={unavailableProjects.length}
+          label={
+            isTemporary
+              ? t("project.temporaryGroup", "Temporary locations")
+              : t("project.pathUnavailableGroup", "Unavailable locations")
+          }
+          icon={
+            isTemporary ? <Timer className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />
+          }
+          count={bucketProjects.length}
           isExpanded={isGroupExpanded}
           ariaLevel={1}
-          onToggle={() => toggleGroup(groupKey, unavailableProjects)}
-          variant="unavailable"
+          onToggle={() => toggleGroup(groupKey, bucketProjects)}
+          variant={kind}
         />
         {isGroupExpanded && (
-          <div role="group" className="ml-4 pl-3 border-l-2 border-amber-500/20 space-y-0.5">
-            {unavailableProjects.map((project) =>
-              renderProjectWithSessions(project, "default", 2)
-            )}
+          <div
+            role="group"
+            className={
+              isTemporary
+                ? "ml-4 pl-3 border-l-2 border-border space-y-0.5"
+                : "ml-4 pl-3 border-l-2 border-warning/20 space-y-0.5"
+            }
+          >
+            {bucketProjects.map((project) => renderProjectWithSessions(project, "default", 2))}
           </div>
         )}
       </div>
     );
   };
 
+  /** Split projects into main list / temporary bucket / unavailable bucket. */
+  const partition = (list: ClaudeProject[]) => ({
+    main: list.filter((p) => !isProjectPathUnavailable(p) && !isProjectTemporary(p)),
+    temporary: list.filter(isProjectTemporary),
+    unavailable: list.filter(isProjectPathUnavailable),
+  });
+
   // Strategy 1: Directory Grouping
   if (groupingMode === "directory") {
-    const unavailableProjects = directoryGroups.flatMap((group) =>
-      group.projects.filter(isProjectPathUnavailable)
-    );
+    const allDirectoryProjects = directoryGroups.flatMap((group) => group.projects);
+    const { temporary: temporaryProjects, unavailable: unavailableProjects } =
+      partition(allDirectoryProjects);
     const availableDirectoryGroups = directoryGroups
       .map((group) => ({
         ...group,
-        projects: group.projects.filter((project) => !isProjectPathUnavailable(project)),
+        projects: partition(group.projects).main,
       }))
       .filter((group) => group.projects.length > 0);
 
@@ -187,14 +216,15 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
                 variant="directory"
               />
               {isGroupExpanded && (
-                <div role="group" className="ml-4 pl-3 border-l-2 border-blue-500/20 space-y-0.5">
+                <div role="group" className="ml-4 pl-3 border-l-2 border-info/20 space-y-0.5">
                   {group.projects.map((project) => renderProjectWithSessions(project, "default", 2))}
                 </div>
               )}
             </div>
           );
         })}
-        {renderUnavailableGroup(unavailableProjects)}
+        {renderBucketGroup("temporary", temporaryProjects)}
+        {renderBucketGroup("unavailable", unavailableProjects)}
       </>
     );
   }
@@ -205,10 +235,11 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
       worktreeGroups.flatMap((group) => [group.parent.path, ...group.children.map((child) => child.path)])
     );
     const displayProjects = ungroupedProjects ?? projects.filter((project) => !groupedPaths.has(project.path));
-    const availableDisplayProjects = displayProjects.filter(
-      (project) => !isProjectPathUnavailable(project)
-    );
-    const unavailableDisplayProjects = displayProjects.filter(isProjectPathUnavailable);
+    const {
+      main: availableDisplayProjects,
+      temporary: temporaryDisplayProjects,
+      unavailable: unavailableDisplayProjects,
+    } = partition(displayProjects);
 
     return (
       <>
@@ -230,7 +261,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
                 variant="worktree"
               />
               {isGroupExpanded && (
-                <div role="group" className="ml-4 pl-3 border-l-2 border-emerald-500/20 space-y-0.5">
+                <div role="group" className="ml-4 pl-3 border-l-2 border-success/20 space-y-0.5">
                   {allGroupProjects.map((project, idx) =>
                     renderProjectWithSessions(project, idx === 0 ? "main" : "worktree", 2)
                   )}
@@ -240,19 +271,21 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           );
         })}
         {availableDisplayProjects.map((project) => renderProjectWithSessions(project, "default", 1))}
-        {renderUnavailableGroup(unavailableDisplayProjects)}
+        {renderBucketGroup("temporary", temporaryDisplayProjects)}
+        {renderBucketGroup("unavailable", unavailableDisplayProjects)}
       </>
     );
   }
 
   // Strategy 3: No Grouping (Flat List)
-  const availableProjects = projects.filter((project) => !isProjectPathUnavailable(project));
-  const unavailableProjects = projects.filter(isProjectPathUnavailable);
+  const { main: availableProjects, temporary: temporaryProjects, unavailable: unavailableProjects } =
+    partition(projects);
 
   return (
     <>
       {availableProjects.map((project) => renderProjectWithSessions(project, "default", 1))}
-      {renderUnavailableGroup(unavailableProjects)}
+      {renderBucketGroup("temporary", temporaryProjects)}
+      {renderBucketGroup("unavailable", unavailableProjects)}
     </>
   );
 };

@@ -93,8 +93,8 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
           : "hover:bg-accent/8 hover:pl-5 border-l-2 border-transparent",
         !isGrouped && isExpanded && "bg-accent/10 border-l-accent pl-5",
         isGrouped && isMain && "hover:bg-accent/10",
-        isGrouped && isWorktree && "hover:bg-emerald-500/10",
-        isGrouped && isExpanded && (isMain ? "bg-accent/15" : "bg-emerald-500/15")
+        isGrouped && isWorktree && "hover:bg-success/10",
+        isGrouped && isExpanded && (isMain ? "bg-accent/15" : "bg-success/15")
       )}
     >
       {/* Expand Icon */}
@@ -104,7 +104,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
           "transition-all duration-200 p-0.5 -m-0.5 rounded",
           isExpanded
             ? isWorktree
-              ? "text-emerald-500"
+              ? "text-success"
               : "text-accent"
             : "text-muted-foreground"
         )}
@@ -128,7 +128,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             <GitBranch
               className={cn(
                 "w-3.5 h-3.5 transition-colors",
-                isExpanded ? "text-emerald-500" : "text-emerald-600/60 dark:text-emerald-400/60"
+                isExpanded ? "text-success" : "text-success/60"
               )}
             />
           </span>
@@ -155,7 +155,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             isGrouped ? "text-xs" : "text-sm",
             isExpanded
               ? isWorktree
-                ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                ? "text-success font-medium"
                 : isGrouped
                   ? "text-accent font-medium"
                   : "text-accent font-semibold"
@@ -194,7 +194,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             path: actualPath,
             defaultValue: "Last-known location is unavailable: {{path}}",
           })}
-          className="flex-shrink-0 text-amber-600 dark:text-amber-400"
+          className="flex-shrink-0 text-warning"
         >
           <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
         </span>

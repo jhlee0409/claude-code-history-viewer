@@ -256,5 +256,6 @@
   "sessionPicker.subtitle": "{{count}} 个会话匹配 \"{{value}}\"",
   "sessionPicker.empty": "没有匹配的会话",
   "sessionPicker.cancelled": "启动会话提示已取消",
-  "session.pane.title": "会话"
+  "session.pane.title": "会话",
+  "project.temporaryGroup": "临时位置"
 }
