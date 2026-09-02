@@ -531,5 +531,9 @@
   "settings.wsl.scanning": "WSLをスキャン中...",
   "settings.wsl.slowWarning": "WSLファイルアクセスはネイティブより遅い場合があります",
   "settings.wsl.defaultBadge": "デフォルト",
-  "settings.wsl.detectError": "WSLディストリビューションの検出に失敗しました"
+  "settings.wsl.detectError": "WSLディストリビューションの検出に失敗しました",
+  "settingsManager.errors.mcpSaveFailed": "MCP サーバーの更新に失敗しました: {{detail}}",
+  "settingsManager.errors.folderSelectFailed": "フォルダー選択ダイアログを開けませんでした: {{detail}}",
+  "settingsManager.errors.directoryScanFailed": "プロジェクトの再スキャンに失敗しました: {{detail}}",
+  "settingsManager.errors.wslToggleFailed": "WSL 設定の更新に失敗しました: {{detail}}"
 }

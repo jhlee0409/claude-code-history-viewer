@@ -8,6 +8,7 @@
 import * as React from "react";
 import { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   Collapsible,
   CollapsibleContent,
@@ -85,10 +86,10 @@ const scopeToSource: Record<SaveLocation, MCPSource> = {
 
 // Scope badge colors
 const scopeColors: Record<SettingsScope, string> = {
-  user: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  project: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
-  local: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  managed: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  user: "bg-info/10 text-info border-info/30",
+  project: "bg-success/10 text-success border-success/30",
+  local: "bg-warning/10 text-warning border-warning/30",
+  managed: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
 };
 
 // ============================================================================
@@ -162,7 +163,7 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
         />
         <div className="flex items-center gap-1 justify-end">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleSave} aria-label={t("common.save")}>
-            <Check className="w-4 h-4 text-green-600" />
+            <Check className="w-4 h-4 text-success" />
           </Button>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleCancel} aria-label={t("common.cancel")}>
             <X className="w-4 h-4 text-muted-foreground" />
@@ -176,7 +177,7 @@ const ServerRow: React.FC<ServerRowProps> = React.memo(({
     <div className="group relative rounded-lg border border-border/50 hover:border-border bg-card/50 hover:bg-muted/40 transition-all duration-150 px-3 py-2.5">
       {/* Top row: icon + server name + scope badge + hover actions */}
       <div className="flex items-center gap-2">
-        <Server className="w-3.5 h-3.5 text-emerald-500/70 shrink-0" />
+        <Server className="w-3.5 h-3.5 text-success/70 shrink-0" />
         <span className="text-xs font-semibold truncate flex-1">{server.name}</span>
         <Badge variant="outline" className={`text-px10 shrink-0 ${scopeColors[server.scope]}`}>
           {scopeLabel[server.scope]}
@@ -297,6 +298,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
       setIsAddOpen(false);
     } catch (error) {
       console.error("Failed to add MCP server:", error);
+      toast.error(t("settingsManager.errors.mcpSaveFailed", { detail: String(error) }));
     }
   };
 
@@ -319,6 +321,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
       );
     } catch (error) {
       console.error("Failed to delete MCP server:", error);
+      toast.error(t("settingsManager.errors.mcpSaveFailed", { detail: String(error) }));
     } finally {
       setServerToDelete(null);
     }
@@ -339,6 +342,7 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
       );
     } catch (error) {
       console.error("Failed to edit MCP server:", error);
+      toast.error(t("settingsManager.errors.mcpSaveFailed", { detail: String(error) }));
     }
   };
 
@@ -509,19 +513,19 @@ export const MCPServersSection: React.FC<MCPServersSectionProps> = React.memo(({
                     <SelectContent>
                       <SelectItem value="user">
                         <span className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-blue-500" />
+                          <span className="w-2 h-2 rounded-full bg-info" />
                           {t("settingsManager.mcp.location.user")}
                         </span>
                       </SelectItem>
                       <SelectItem value="project" disabled={!projectPath}>
                         <span className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-green-500" />
+                          <span className="w-2 h-2 rounded-full bg-success" />
                           {t("settingsManager.mcp.location.project")}
                         </span>
                       </SelectItem>
                       <SelectItem value="local">
                         <span className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-amber-500" />
+                          <span className="w-2 h-2 rounded-full bg-warning" />
                           {t("settingsManager.mcp.location.local")}
                         </span>
                       </SelectItem>

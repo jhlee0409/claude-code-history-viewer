@@ -531,5 +531,9 @@
   "settings.wsl.scanning": "正在掃描 WSL...",
   "settings.wsl.slowWarning": "WSL 檔案存取可能比本機慢",
   "settings.wsl.defaultBadge": "預設",
-  "settings.wsl.detectError": "偵測 WSL 發行版失敗"
+  "settings.wsl.detectError": "偵測 WSL 發行版失敗",
+  "settingsManager.errors.mcpSaveFailed": "更新 MCP 伺服器失敗：{{detail}}",
+  "settingsManager.errors.folderSelectFailed": "無法開啟資料夾選擇器：{{detail}}",
+  "settingsManager.errors.directoryScanFailed": "重新掃描專案失敗：{{detail}}",
+  "settingsManager.errors.wslToggleFailed": "更新 WSL 設定失敗：{{detail}}"
 }

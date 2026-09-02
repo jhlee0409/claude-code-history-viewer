@@ -531,5 +531,9 @@
   "settings.wsl.scanning": "正在扫描 WSL...",
   "settings.wsl.slowWarning": "WSL 文件访问可能比本地慢",
   "settings.wsl.defaultBadge": "默认",
-  "settings.wsl.detectError": "检测 WSL 发行版失败"
+  "settings.wsl.detectError": "检测 WSL 发行版失败",
+  "settingsManager.errors.mcpSaveFailed": "更新 MCP 服务器失败：{{detail}}",
+  "settingsManager.errors.folderSelectFailed": "无法打开文件夹选择器：{{detail}}",
+  "settingsManager.errors.directoryScanFailed": "重新扫描项目失败：{{detail}}",
+  "settingsManager.errors.wslToggleFailed": "更新 WSL 设置失败：{{detail}}"
 }

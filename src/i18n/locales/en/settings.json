@@ -531,5 +531,9 @@
   "settings.wsl.scanning": "Scanning WSL...",
   "settings.wsl.slowWarning": "WSL file access may be slower than native",
   "settings.wsl.defaultBadge": "default",
-  "settings.wsl.detectError": "Failed to detect WSL distributions"
+  "settings.wsl.detectError": "Failed to detect WSL distributions",
+  "settingsManager.errors.mcpSaveFailed": "Failed to update MCP servers: {{detail}}",
+  "settingsManager.errors.folderSelectFailed": "Failed to open folder picker: {{detail}}",
+  "settingsManager.errors.directoryScanFailed": "Failed to rescan projects: {{detail}}",
+  "settingsManager.errors.wslToggleFailed": "Failed to update WSL settings: {{detail}}"
 }

@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   Collapsible,
   CollapsibleContent,
@@ -89,6 +90,7 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
       await setWslEnabled(checked);
     } catch (err) {
       console.error("Failed to toggle WSL enabled:", err);
+      toast.error(t("settingsManager.errors.wslToggleFailed", { detail: String(err) }));
     }
   };
 
@@ -97,6 +99,7 @@ function WslSectionInner({ isExpanded, onToggle, readOnly = false }: WslSectionP
       await toggleWslDistro(distroName);
     } catch (err) {
       console.error("Failed to toggle WSL distro:", err);
+      toast.error(t("settingsManager.errors.wslToggleFailed", { detail: String(err) }));
     }
   };
 

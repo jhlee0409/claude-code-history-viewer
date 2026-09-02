@@ -7,6 +7,7 @@
 
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   Collapsible,
   CollapsibleContent,
@@ -93,6 +94,7 @@ export function CustomDirectoriesSection({
       }
     } catch (err) {
       console.error("Folder selection failed:", err);
+      toast.error(t("settingsManager.errors.folderSelectFailed", { detail: String(err) }));
     }
   };
 
@@ -144,7 +146,7 @@ export function CustomDirectoriesSection({
       // Auto-rescan to remove projects from the deleted directory
       await useAppStore.getState().scanProjects();
     } catch (err) {
-      setAddError(String(err));
+      toast.error(t("settingsManager.errors.directoryScanFailed", { detail: String(err) }));
     }
   };
 
@@ -162,7 +164,7 @@ export function CustomDirectoriesSection({
       // Rescan to update ProjectTree badges
       await useAppStore.getState().scanProjects();
     } catch (err) {
-      setAddError(String(err));
+      toast.error(t("settingsManager.errors.directoryScanFailed", { detail: String(err) }));
     }
   };
 

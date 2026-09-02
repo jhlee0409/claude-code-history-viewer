@@ -179,6 +179,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
         });
         await loadSettings();
       } catch (err) {
+        // Callers (editor pane, preset panel) render the failure inline.
         console.error("Failed to save settings:", err);
         throw err;
       }
