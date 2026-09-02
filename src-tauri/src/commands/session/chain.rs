@@ -81,6 +81,8 @@ struct BoundaryClassifier {
     uuid: Option<String>,
     #[serde(rename = "logicalParentUuid")]
     logical_parent_uuid: Option<String>,
+    #[serde(rename = "isSidechain")]
+    is_sidechain: Option<bool>,
 }
 
 /// Scan a session file for the first `compact_boundary` event whose
@@ -155,6 +157,37 @@ fn find_file_containing_uuid(
     None
 }
 
+/// Whether the predecessor kept producing main-conversation turns after the
+/// UUID referenced by a continuation boundary. A true result means the newer
+/// file is a branch from the predecessor, not a replacement for it.
+fn has_main_conversation_after_uuid(path: &Path, target_uuid: &str) -> bool {
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    let reader = BufReader::new(file);
+    let mut found_target = false;
+
+    for line in reader.lines() {
+        let Ok(line) = line else { continue };
+        let Ok(entry) = serde_json::from_str::<BoundaryClassifier>(line.trim()) else {
+            continue;
+        };
+
+        if found_target
+            && !entry.is_sidechain.unwrap_or(false)
+            && matches!(entry.message_type.as_str(), "user" | "assistant")
+        {
+            return true;
+        }
+
+        if entry.uuid.as_deref() == Some(target_uuid) {
+            found_target = true;
+        }
+    }
+
+    false
+}
+
 /// Resolve the full chain of session files that make up one logical
 /// conversation, oldest first, ending with `session_path` itself. For a
 /// session with no cross-file continuation this is just `[session_path]`.
@@ -210,30 +243,45 @@ pub fn resolve_session_chain(session_path: &Path) -> Vec<PathBuf> {
     chain
 }
 
-/// Every file in `project_root` that is a non-final link in some OTHER
-/// file's resolved chain — i.e. an earlier half of a conversation that a
-/// newer session file already supersedes. The session list hides these by
-/// default so a Claude Code auto-continuation shows as one entry, not two;
-/// as a chain grows another hop, the file that used to be the leaf becomes
-/// superseded in turn and drops out on the next list refresh.
+/// Every file in `project_root` that is unambiguously replaced by one direct
+/// continuation. A predecessor remains visible when multiple files branch
+/// from the same boundary, or when it keeps receiving conversation turns
+/// after the referenced UUID. Those shapes are forks, not linear automatic
+/// continuation chains.
 pub fn superseded_chain_paths(project_root: &Path) -> HashSet<PathBuf> {
-    let mut superseded = HashSet::new();
+    let mut direct_successors: HashMap<PathBuf, Vec<String>> = HashMap::new();
     let Ok(entries) = fs::read_dir(project_root) else {
-        return superseded;
+        return HashSet::new();
     };
+
     for entry in entries.filter_map(Result::ok) {
         let path = entry.path();
         if path.extension().and_then(|s| s.to_str()) != Some("jsonl") {
             continue;
         }
-        let chain = resolve_session_chain(&path);
-        if chain.len() > 1 {
-            for predecessor in &chain[..chain.len() - 1] {
-                superseded.insert(predecessor.clone());
-            }
-        }
+
+        let Some(parent_uuid) = find_dangling_parent_uuid(&path) else {
+            continue;
+        };
+        let skip = HashSet::from([path]);
+        let Some(predecessor) = find_file_containing_uuid(project_root, &parent_uuid, &skip) else {
+            continue;
+        };
+        direct_successors
+            .entry(predecessor)
+            .or_default()
+            .push(parent_uuid);
     }
-    superseded
+
+    direct_successors
+        .into_iter()
+        .filter_map(|(predecessor, parent_uuids)| {
+            let parent_uuid = parent_uuids.first()?;
+            (parent_uuids.len() == 1
+                && !has_main_conversation_after_uuid(&predecessor, parent_uuid))
+            .then_some(predecessor)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -397,5 +445,98 @@ mod tests {
         assert!(superseded.contains(&older));
         assert!(!superseded.contains(&newer));
         assert!(!superseded.contains(&unrelated));
+    }
+
+    #[test]
+    fn superseded_paths_keeps_a_parent_with_multiple_direct_children() {
+        let dir = TempDir::new().unwrap();
+        let parent = write_file(
+            &dir,
+            "parent.jsonl",
+            "{\"uuid\":\"tail-uuid\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[]}}\n",
+        );
+        let first_child = write_file(
+            &dir,
+            "first-child.jsonl",
+            concat!(
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-1\",",
+                "\"logicalParentUuid\":\"tail-uuid\"}\n",
+                "{\"uuid\":\"u1\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"first\"}}\n",
+            ),
+        );
+        let second_child = write_file(
+            &dir,
+            "second-child.jsonl",
+            concat!(
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-2\",",
+                "\"logicalParentUuid\":\"tail-uuid\"}\n",
+                "{\"uuid\":\"u2\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"second\"}}\n",
+            ),
+        );
+
+        let superseded = superseded_chain_paths(dir.path());
+        assert!(!superseded.contains(&parent));
+        assert!(!superseded.contains(&first_child));
+        assert!(!superseded.contains(&second_child));
+    }
+
+    #[test]
+    fn superseded_paths_keeps_a_parent_that_continues_after_the_branch_point() {
+        let dir = TempDir::new().unwrap();
+        let parent = write_file(
+            &dir,
+            "parent.jsonl",
+            concat!(
+                "{\"uuid\":\"tail-uuid\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[]}}\n",
+                "{\"uuid\":\"later-user\",\"type\":\"user\",\"isSidechain\":false,",
+                "\"message\":{\"role\":\"user\",\"content\":\"still active\"}}\n",
+            ),
+        );
+        let child = write_file(
+            &dir,
+            "child.jsonl",
+            concat!(
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-1\",",
+                "\"logicalParentUuid\":\"tail-uuid\"}\n",
+                "{\"uuid\":\"u2\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"branch\"}}\n",
+            ),
+        );
+
+        let superseded = superseded_chain_paths(dir.path());
+        assert!(!superseded.contains(&parent));
+        assert!(!superseded.contains(&child));
+    }
+
+    #[test]
+    fn superseded_paths_still_hides_each_predecessor_in_a_linear_chain() {
+        let dir = TempDir::new().unwrap();
+        let oldest = write_file(
+            &dir,
+            "oldest.jsonl",
+            "{\"uuid\":\"old-tail\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[]}}\n",
+        );
+        let middle = write_file(
+            &dir,
+            "middle.jsonl",
+            concat!(
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-1\",",
+                "\"logicalParentUuid\":\"old-tail\"}\n",
+                "{\"uuid\":\"middle-tail\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[]}}\n",
+            ),
+        );
+        let newest = write_file(
+            &dir,
+            "newest.jsonl",
+            concat!(
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-2\",",
+                "\"logicalParentUuid\":\"middle-tail\"}\n",
+                "{\"uuid\":\"new-user\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"latest\"}}\n",
+            ),
+        );
+
+        let superseded = superseded_chain_paths(dir.path());
+        assert!(superseded.contains(&oldest));
+        assert!(superseded.contains(&middle));
+        assert!(!superseded.contains(&newest));
     }
 }
