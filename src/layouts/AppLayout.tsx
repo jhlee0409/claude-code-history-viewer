@@ -328,6 +328,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     isViewingGlobalStats ||
     computed.isTokenStatsView
   );
+  // Global stats renders inside the analytics branch; the flag can linger
+  // while Settings/Archive are open from the app menu.
+  const showsGlobalStats =
+    isViewingGlobalStats && !computed.isSettingsView && !computed.isArchiveView;
   /*
     Gated on `xl` in JavaScript, not merely in CSS. The wrapper below is
     `hidden xl:block`, but a hidden wrapper still mounts its children, so
@@ -592,11 +596,11 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               computed.isSettingsView ||
               computed.isBoardView ||
               computed.isArchiveView ||
-              (isViewingGlobalStats && !computed.isSettingsView)) && (
+              showsGlobalStats) && (
               <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
-                    {isViewingGlobalStats ? (
+                    {showsGlobalStats ? (
                       <Database className="w-5 h-5 text-accent" />
                     ) : computed.isArchiveView ? (
                       <Archive className="w-5 h-5 text-accent" />
@@ -614,7 +618,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                   </div>
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">
-                      {isViewingGlobalStats
+                      {showsGlobalStats
                         ? t("analytics.globalOverview")
                         : computed.isArchiveView
                           ? t("archive.title")
@@ -629,7 +633,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                                 : t("messages.tokenStats.title")}
                     </h2>
                     <p className="text-xs text-muted-foreground">
-                      {isViewingGlobalStats
+                      {showsGlobalStats
                         ? globalOverviewDescription
                         : computed.isArchiveView
                           ? t("archive.description")

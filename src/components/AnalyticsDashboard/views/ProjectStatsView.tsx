@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { MessageCircle, Activity, Clock, Wrench, Layers, Cpu, TrendingUp, Database, Sparkles, Bot } from "lucide-react";
 import { LoadingState } from "@/components/ui/loading";
 import type { ProjectStatsSummary, ProviderId } from "../../../types";
-import { formatDuration } from "../../../utils/time";
+import { formatDuration, formatDurationCompact } from "../../../utils/time";
 import {
   MetricCard,
   SectionCard,
@@ -83,7 +83,7 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
   return (
     <div className="space-y-6 animate-stagger">
       {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-4">
         <MetricCard
           icon={MessageCircle}
           label={t("analytics.totalMessages")}
@@ -104,7 +104,7 @@ export const ProjectStatsView: React.FC<ProjectStatsViewProps> = ({
         <MetricCard
           icon={Clock}
           label={t("analytics.totalSessionTime")}
-          value={formatDuration(projectSummary.total_session_duration)}
+          value={formatDurationCompact(projectSummary.total_session_duration)}
           subValue={`${t("analytics.avgSessionTime", "Avg Session Time")}: ${formatDuration(
             projectSummary.avg_session_duration
           )}`}

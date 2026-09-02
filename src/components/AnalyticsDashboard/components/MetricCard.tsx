@@ -67,7 +67,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         </div>
 
         {/* Value */}
-        <div className="font-mono text-xl md:text-3xl font-bold tracking-tight text-foreground mb-1 tabular-nums">
+        <div className="font-mono text-[clamp(1.125rem,2vw,1.875rem)] leading-tight font-bold tracking-tight text-foreground mb-1 tabular-nums break-words min-w-0">
           {value}
         </div>
 

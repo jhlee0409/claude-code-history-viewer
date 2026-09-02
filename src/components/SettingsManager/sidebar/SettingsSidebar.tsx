@@ -48,25 +48,25 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   return (
     <aside
       className={cn(
-        // Mobile: horizontal bar with scroll
+        // Narrow container: horizontal bar with scroll
         "w-full shrink-0 flex flex-row gap-2 overflow-x-auto pb-2 border-b border-border/40",
-        // Desktop: vertical sidebar
-        "md:w-60 md:flex-col md:gap-3 md:border-b-0 md:border-r md:pr-4 md:pb-0 md:overflow-y-auto md:min-h-0"
+        // Wide container: vertical sidebar
+        "@2xl:w-60 @2xl:flex-col @2xl:gap-3 @2xl:border-b-0 @2xl:border-r @2xl:pr-4 @2xl:pb-0 @2xl:overflow-y-auto @2xl:min-h-0"
       )}
     >
       {/* Context Selector - Always visible, not collapsible */}
       <div className="space-y-1 shrink-0 w-full">
-        <h3 className="hidden md:block text-px10 font-semibold text-muted-foreground/60 uppercase tracking-wider px-1">
+        <h3 className="hidden @2xl:block text-px10 font-semibold text-muted-foreground/60 uppercase tracking-wider px-1">
           {t("settingsManager.unified.sidebar.context") || "Context"}
         </h3>
         <ContextSelector availableScopes={availableScopes} />
       </div>
 
       {/* Divider */}
-      <div className="hidden md:block border-t border-border/40" />
+      <div className="hidden @2xl:block border-t border-border/40" />
 
       {/* Presets Section - Desktop only */}
-      <div className="hidden md:block">
+      <div className="hidden @2xl:block">
         <Collapsible open={presetsExpanded} onOpenChange={setPresetsExpanded}>
           <CollapsibleTrigger
             className={cn(
@@ -90,10 +90,10 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
       </div>
 
       {/* Divider */}
-      <div className="hidden md:block border-t border-border/40" />
+      <div className="hidden @2xl:block border-t border-border/40" />
 
       {/* Advanced Options - Desktop only */}
-      <div className="hidden md:block">
+      <div className="hidden @2xl:block">
         <Collapsible open={advancedExpanded} onOpenChange={setAdvancedExpanded}>
           <CollapsibleTrigger
             className={cn(

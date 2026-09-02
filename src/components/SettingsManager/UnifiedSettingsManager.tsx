@@ -278,9 +278,8 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
 
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4 shrink-0">
-          <h2 className="text-xl font-semibold">{t("settingsManager.title")}</h2>
+        {/* Toolbar — the page title is rendered by the layout header above. */}
+        <div className="flex flex-wrap items-center justify-end gap-2 mb-4 shrink-0">
           <div className="flex items-center gap-2">
             <Button
               variant={activePanel === "diagnostics" ? "secondary" : "ghost"}
@@ -332,7 +331,10 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             </Card>
 
             {/* Claude Code Settings */}
-            <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
+            {/* Sidebar and editor stack until the *container* is wide enough
+                (≈672px), not the viewport — the pane sits beside the explorer
+                and sessions column, so viewport breakpoints lied here. */}
+            <div className="@container flex flex-col @2xl:flex-row gap-4 flex-1 min-h-0">
               {/* Left Sidebar */}
               <SettingsSidebar availableScopes={availableScopes} />
 

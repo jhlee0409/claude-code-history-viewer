@@ -20,7 +20,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import type { GlobalStatsSummary, MetricMode } from "../../../types";
-import { formatDuration } from "../../../utils/time";
+import { formatDurationCompact } from "../../../utils/time";
 import { cn } from "@/lib/utils";
 import {
   MetricCard,
@@ -121,7 +121,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
       </p>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3 md:gap-4">
         <MetricCard
           icon={Activity}
           label={t("analytics.totalTokens")}
@@ -145,7 +145,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
         <MetricCard
           icon={Clock}
           label={t("analytics.sessionTime")}
-          value={formatDuration(totalSessionTime)}
+          value={formatDurationCompact(totalSessionTime)}
           colorVariant="green"
         />
         <MetricCard

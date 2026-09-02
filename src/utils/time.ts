@@ -151,3 +151,20 @@ export const formatDuration = (minutes: number): string => {
 
   return parts.join(" ");
 };
+
+/**
+ * Duration for a KPI card: at most two units, short suffixes
+ * ("13d 16h", "3h 49m", "12m"). The long form wraps to four lines in a
+ * 200px card.
+ */
+export const formatDurationCompact = (minutes: number): string => {
+  if (minutes < 1) return i18n.t("time.lessThanMinute");
+  const days = Math.floor(minutes / (60 * 24));
+  const hours = Math.floor((minutes % (60 * 24)) / 60);
+  const mins = Math.floor(minutes % 60);
+  const parts: string[] = [];
+  if (days > 0) parts.push(i18n.t("recentEdits.timeDaysShort", { count: days }));
+  if (hours > 0) parts.push(i18n.t("recentEdits.timeHoursShort", { count: hours }));
+  if (days === 0 && mins > 0) parts.push(i18n.t("recentEdits.timeMinutesShort", { count: mins }));
+  return parts.join(" ");
+};

@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { getAssetPath, isMacOS, isTauri } from "@/utils/platform";
 import { SettingDropdown } from "./SettingDropdown";
-import { SessionCopyMenu } from "./SessionCopyMenu";
+import { getProjectDisplayName } from "@/utils/pathUtils";
 
 interface HeaderProps {
   analyticsActions: UseAnalyticsReturn["actions"];
@@ -139,7 +139,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
       <div data-tauri-drag-region className="absolute inset-0" />
 
       {/* Left: Logo & Title */}
-      <div className="relative z-10 flex items-center gap-2.5 min-w-0 pointer-events-none">
+      <div className="relative z-10 flex items-center gap-2.5 min-w-0 flex-1 pointer-events-none">
         <img
           src={getAssetPath("app-icon.png")}
           alt="Claude Code History"
@@ -147,14 +147,14 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
         />
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-sm font-semibold text-foreground hidden md:block">
+            <h1 className="text-sm font-semibold text-foreground hidden md:block shrink-0">
               {t('common.appName')}
             </h1>
             {selectedProject && (
               <>
                 <span className="text-muted-foreground/40 hidden md:block">/</span>
-                <span className="text-sm text-muted-foreground truncate max-w-[180px]">
-                  {selectedProject.name}
+                <span className="text-sm text-muted-foreground truncate min-w-0 pointer-events-auto" title={selectedProject.actual_path}>
+                  {getProjectDisplayName(selectedProject)}
                 </span>
               </>
             )}
@@ -165,8 +165,11 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             )}
           </div>
           {selectedSession ? (
-            <p className="text-2xs text-muted-foreground truncate max-w-[280px] md:max-w-sm">
-              <span className="text-muted-foreground/60 hidden md:inline">Session:</span>{" "}
+            <p
+              className="text-2xs text-muted-foreground truncate min-w-0 max-w-[60ch] pointer-events-auto"
+              title={selectedSession.summary || undefined}
+            >
+              <span className="text-muted-foreground/60 hidden md:inline">{t("session.title")}</span>{" "}
               {selectedSession.summary ||
                 `${t("session.title")} ${selectedSession.session_id.slice(-8)}`}
             </p>
