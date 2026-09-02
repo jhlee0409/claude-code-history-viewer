@@ -390,5 +390,6 @@
   "webSearchResultRenderer.error": "Search Error",
   "webSearchResultRenderer.noResults": "No results",
   "webSearchResultRenderer.results": "results",
-  "webSearchResultRenderer.title": "Web Search Results"
+  "webSearchResultRenderer.title": "Web Search Results",
+  "globalSearch.resultsCapped": "Showing first {{count}} results — narrow the query to see more"
 }

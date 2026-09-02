@@ -18,7 +18,7 @@ import { Dialog, DialogContent, Input } from "@/components/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/useAppStore";
-import type { ClaudeMessage, ClaudeSession, ContentItem } from "@/types";
+import type { ClaudeMessage, ClaudeProject, ClaudeSession, ContentItem } from "@/types";
 import {
     getProviderLabel,
     getWslSearchableProviderIds,
@@ -27,6 +27,8 @@ import {
 } from "@/utils/providers";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { getPathLeaf, getProjectDisplayName } from "@/utils/pathUtils";
+import { getLocale } from "@/utils/time";
 
 type GlobalSearchResult = ClaudeMessage;
 
@@ -37,12 +39,65 @@ interface GlobalSearchModalProps {
     onClose: () => void;
 }
 
-const MAX_RESULTS = 100;
+// Backend has no offset paging; results are truncated at this count and the
+// footer says so, so the user knows to narrow the query.
+const MAX_RESULTS = 250;
+
+/**
+ * Every string a result can be matched on, in display order. Mirrors the
+ * backend scope (`search_in_value` walks message content, toolUse and
+ * toolUseResult), so a hit inside a tool payload still gets a snippet
+ * instead of "No preview available".
+ */
+const collectSearchableText = (message: GlobalSearchResult): string => {
+    const parts: string[] = [];
+    const pushStrings = (value: unknown, depth = 0) => {
+        if (depth > 4 || value == null) return;
+        if (typeof value === "string") {
+            if (value.trim()) parts.push(value);
+        } else if (Array.isArray(value)) {
+            for (const v of value) pushStrings(v, depth + 1);
+        } else if (typeof value === "object") {
+            for (const v of Object.values(value as Record<string, unknown>)) pushStrings(v, depth + 1);
+        }
+    };
+
+    const content = message.content;
+    if (typeof content === "string") {
+        parts.push(content);
+    } else if (Array.isArray(content)) {
+        for (const item of content as ContentItem[]) {
+            switch (item.type) {
+                case "text":
+                    if ("text" in item) parts.push(item.text as string);
+                    break;
+                case "thinking":
+                    if ("thinking" in item) parts.push((item as { thinking: string }).thinking);
+                    break;
+                case "tool_use": {
+                    const tool = item as { name?: string; input?: unknown };
+                    if (tool.name) parts.push(tool.name);
+                    pushStrings(tool.input);
+                    break;
+                }
+                case "tool_result":
+                    pushStrings((item as { content?: unknown }).content);
+                    break;
+                default:
+                    pushStrings(item);
+            }
+        }
+    }
+    pushStrings(message.toolUse);
+    pushStrings(message.toolUseResult);
+    return parts.join(" ").replace(/\s+/g, " ");
+};
 
 type SearchResultGroup = {
     label: string;
     provider?: string;
     pathUnavailable: boolean;
+    project?: ClaudeProject;
     items: GlobalSearchResult[];
 };
 
@@ -50,11 +105,15 @@ export const GlobalSearchModal = ({
     isOpen,
     onClose,
 }: GlobalSearchModalProps) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<GlobalSearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
+    // sessionId / actual_session_id → summary, filled lazily per project so
+    // results can show the conversation title instead of an id prefix.
+    const [sessionTitles, setSessionTitles] = useState<Record<string, string>>({});
+    const requestedTitleProjectsRef = useRef<Set<string>>(new Set());
     const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
     const inputRef = useRef<HTMLInputElement>(null);
     const resultsContainerRef = useRef<HTMLDivElement>(null);
@@ -75,23 +134,27 @@ export const GlobalSearchModal = ({
             const projectName =
                 result.projectName || t("globalSearch.unknownProject");
             const resultProvider = result.provider ?? "claude";
+            // The backend labels results with the store directory name; the
+            // project list may carry a decoded display name instead.
             const matchingProject = projects.find(
                 (project) =>
                     (project.provider ?? "claude") === resultProvider &&
-                    project.name === projectName
+                    (project.name === projectName || getPathLeaf(project.path) === projectName)
             );
             const providerLabel = getProviderLabel(
                 (key, fallback) => t(key, fallback),
                 result.provider,
             );
             const groupKey = `${resultProvider}::${projectName}`;
-            const groupLabel = `${projectName} (${providerLabel})`;
+            const displayName = matchingProject ? getProjectDisplayName(matchingProject) : projectName;
+            const groupLabel = `${displayName} (${providerLabel})`;
 
             if (!groups.has(groupKey)) {
                 groups.set(groupKey, {
                     label: groupLabel,
                     provider: result.provider,
                     pathUnavailable: matchingProject?.path_status === "unavailable",
+                    project: matchingProject,
                     items: [],
                 });
             }
@@ -100,6 +163,39 @@ export const GlobalSearchModal = ({
 
         return groups;
     }, [projects, results, t]);
+
+    // Resolve conversation titles for the projects that have results. One
+    // sessions request per project, cached for the modal's lifetime.
+    useEffect(() => {
+        const { excludeSidechain } = useAppStore.getState();
+        for (const group of groupedResults.values()) {
+            const project = group.project;
+            if (!project || requestedTitleProjectsRef.current.has(project.path)) continue;
+            requestedTitleProjectsRef.current.add(project.path);
+            const provider = project.provider ?? "claude";
+            api<ClaudeSession[]>(
+                provider !== "claude" ? "load_provider_sessions" : "load_project_sessions",
+                provider !== "claude"
+                    ? { provider, projectPath: project.path, excludeSidechain }
+                    : { projectPath: project.path, excludeSidechain },
+            )
+                .then((projectSessions) => {
+                    const next: Record<string, string> = {};
+                    for (const s of projectSessions) {
+                        const title = s.summary?.trim();
+                        if (!title) continue;
+                        next[s.session_id] = title;
+                        if (s.actual_session_id) next[s.actual_session_id] = title;
+                    }
+                    if (Object.keys(next).length > 0) {
+                        setSessionTitles((prev) => ({ ...prev, ...next }));
+                    }
+                })
+                .catch((error) => {
+                    console.error(`Failed to load session titles for ${project.name}:`, error);
+                });
+        }
+    }, [groupedResults]);
 
     // Flatten grouped results for keyboard navigation
     const flattenedResults = useMemo(() => {
@@ -113,12 +209,12 @@ export const GlobalSearchModal = ({
     // Get session display name for a search result
     const getSessionName = useCallback((result: GlobalSearchResult): string | undefined => {
         if (!result.sessionId || result.sessionId === "unknown-session") return undefined;
-        const name = getSessionDisplayName(result.sessionId);
+        const name = getSessionDisplayName(result.sessionId) ?? sessionTitles[result.sessionId];
         if (name) return name;
         // No custom/known name: show a short, stable conversation handle so results
         // from different conversations are still distinguishable (#420).
         return t("globalSearch.conversationId", { id: result.sessionId.slice(0, 8) });
-    }, [getSessionDisplayName, t]);
+    }, [getSessionDisplayName, sessionTitles, t]);
 
     // Debounced search
     const performSearch = useCallback(
@@ -364,6 +460,8 @@ export const GlobalSearchModal = ({
             setSelectedIndex(0);
             setSelectedProjectPath("all");
             setMessageTypeFilter("all");
+            setSessionTitles({});
+            requestedTitleProjectsRef.current.clear();
         }
     }, [isOpen]);
 
@@ -388,23 +486,7 @@ export const GlobalSearchModal = ({
 
     // Get preview text centered around the search term
     const getPreviewText = (message: GlobalSearchResult): string => {
-        if (!message.content) return t("globalSearch.noPreview");
-
-        const content = message.content;
-        let fullText = "";
-
-        if (typeof content === "string") {
-            fullText = content;
-        } else if (Array.isArray(content)) {
-            const texts: string[] = [];
-            for (const item of content as ContentItem[]) {
-                if (item.type === "text" && "text" in item) {
-                    texts.push(item.text as string);
-                }
-            }
-            fullText = texts.join(" ");
-        }
-
+        const fullText = collectSearchableText(message);
         if (!fullText) return t("globalSearch.noPreview");
 
         // Find search term position and show surrounding context
@@ -430,7 +512,7 @@ export const GlobalSearchModal = ({
     const formatTimestamp = (timestamp: string): string => {
         try {
             const date = new Date(timestamp);
-            return date.toLocaleDateString(undefined, {
+            return date.toLocaleDateString(getLocale(i18n.language || "en"), {
                 month: "short",
                 day: "numeric",
                 hour: "2-digit",
@@ -747,9 +829,9 @@ export const GlobalSearchModal = ({
                     </div>
                     {results.length > 0 && (
                         <span>
-                            {t("globalSearch.results", {
-                                count: results.length,
-                            })}
+                            {results.length >= MAX_RESULTS
+                                ? t("globalSearch.resultsCapped", { count: MAX_RESULTS })
+                                : t("globalSearch.results", { count: results.length })}
                         </span>
                     )}
                 </div>

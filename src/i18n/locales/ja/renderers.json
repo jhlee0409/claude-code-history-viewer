@@ -390,5 +390,6 @@
   "webSearchResultRenderer.error": "検索エラー",
   "webSearchResultRenderer.noResults": "結果がありません",
   "webSearchResultRenderer.results": "件",
-  "webSearchResultRenderer.title": "ウェブ検索結果"
+  "webSearchResultRenderer.title": "ウェブ検索結果",
+  "globalSearch.resultsCapped": "最初の{{count}}件のみ表示 — さらに見るには検索語を絞ってください"
 }

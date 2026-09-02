@@ -12,7 +12,7 @@ import {
 } from "../../../utils/providers";
 import {
   getCompactParentPath,
-  getPathLeaf,
+  getProjectDisplayName,
   isAbsolutePath,
   isProjectPathUnavailable,
 } from "../../../utils/pathUtils";
@@ -47,20 +47,11 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
     : baseProviderLabel;
   const shouldShowParentPath = !isGrouped && isAbsolutePath(actualPath);
   const parentPath = shouldShowParentPath ? getCompactParentPath(actualPath) : "";
-  const shouldPreferPathLeaf =
-    providerId === "claude" ||
-    project.name === project.path ||
-    project.name === actualPath ||
-    isAbsolutePath(project.name) ||
-    project.name.startsWith("-");
-
   const displayName = isMain
     ? t("project.main", "main")
     : isWorktree
       ? getWorktreeLabel(project.actual_path)
-      : shouldPreferPathLeaf
-        ? getPathLeaf(actualPath) || project.name
-        : project.name;
+      : getProjectDisplayName({ ...project, provider: providerId });
 
   return (
     <button

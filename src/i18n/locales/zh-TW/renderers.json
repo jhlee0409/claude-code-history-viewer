@@ -390,5 +390,6 @@
   "webSearchResultRenderer.error": "搜尋錯誤",
   "webSearchResultRenderer.noResults": "無結果",
   "webSearchResultRenderer.results": "筆結果",
-  "webSearchResultRenderer.title": "網頁搜尋結果"
+  "webSearchResultRenderer.title": "網頁搜尋結果",
+  "globalSearch.resultsCapped": "僅顯示前 {{count}} 筆結果 — 縮小查詢範圍以查看更多"
 }

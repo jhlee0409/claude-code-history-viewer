@@ -51,6 +51,27 @@ export function isProjectTemporary(project: {
 }
 
 /**
+ * Human label for a project row. Providers that name projects after the
+ * encoded store directory (`-Users-jack-client-foo`) or an absolute path get
+ * the leaf of the real working directory instead.
+ */
+export function getProjectDisplayName(project: {
+  name: string;
+  path: string;
+  actual_path?: string;
+  provider?: string | null;
+}): string {
+  const actualPath = project.actual_path || project.path || project.name;
+  const preferPathLeaf =
+    (project.provider ?? "claude") === "claude" ||
+    project.name === project.path ||
+    project.name === actualPath ||
+    isAbsolutePath(project.name) ||
+    project.name.startsWith("-");
+  return preferPathLeaf ? getPathLeaf(actualPath) || project.name : project.name;
+}
+
+/**
  * Detect home directory from paths (infer from /Users/xxx, /home/xxx, or Windows Users paths)
  */
 export function detectHomeDir(paths: string[]): string | null {

@@ -390,5 +390,6 @@
   "webSearchResultRenderer.error": "搜索错误",
   "webSearchResultRenderer.noResults": "无结果",
   "webSearchResultRenderer.results": "条结果",
-  "webSearchResultRenderer.title": "网页搜索结果"
+  "webSearchResultRenderer.title": "网页搜索结果",
+  "globalSearch.resultsCapped": "仅显示前 {{count}} 条结果 — 缩小查询范围以查看更多"
 }

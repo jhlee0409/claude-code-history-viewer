@@ -390,5 +390,6 @@
   "webSearchResultRenderer.error": "검색 오류",
   "webSearchResultRenderer.noResults": "결과 없음",
   "webSearchResultRenderer.results": "개 결과",
-  "webSearchResultRenderer.title": "웹 검색 결과"
+  "webSearchResultRenderer.title": "웹 검색 결과",
+  "globalSearch.resultsCapped": "처음 {{count}}개만 표시 — 더 보려면 검색어를 좁히세요"
 }
