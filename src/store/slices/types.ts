@@ -262,7 +262,6 @@ export interface AppStoreActions {
   loadMoreMessages: () => Promise<void>;
   ensureMessageLoaded: (uuid: string) => Promise<boolean>;
   fetchFullSessionMessages: () => Promise<ClaudeMessage[]>;
-  refreshCurrentSession: () => Promise<void>;
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
   loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;

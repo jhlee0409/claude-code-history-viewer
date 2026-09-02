@@ -5,10 +5,8 @@ import {
   MessageSquare,
   Activity,
   FileEdit,
-  SlidersHorizontal,
   Columns,
   Search,
-  Archive,
 } from "lucide-react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
@@ -48,7 +46,6 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     isLoadingMessages,
     isRefreshingAllConversations,
     refreshAllConversations,
-    refreshCurrentSession,
     recentEditsMode,
     toggleRecentEditsDock,
     setRecentEditsDockOpen,
@@ -214,7 +211,74 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
           <Search className="w-5 h-5" />
         </button>
 
-        {/* Global refresh */}
+        {/* Project views — one segmented control, Messages first so the way
+            back from any analytics view is always visible. */}
+        {selectedProject && (
+          <div
+            role="tablist"
+            aria-label={t("header.views", "Views")}
+            className="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
+          >
+            <ViewTab
+              icon={MessageSquare}
+              label={t("message.view")}
+              isActive={computed.isMessagesView}
+              onClick={() => {
+                if (!computed.isMessagesView) analyticsActions.switchToMessages();
+              }}
+            />
+            <ViewTab
+              icon={computed.isLoadingAnalytics ? Loader2 : BarChart3}
+              label={t("analytics.dashboard")}
+              isActive={computed.isAnalyticsView}
+              isLoading={computed.isLoadingAnalytics}
+              onClick={() => {
+                if (!computed.isAnalyticsView) handleLoadAnalytics();
+              }}
+              disabled={computed.isLoadingAnalytics}
+            />
+            <ViewTab
+              icon={computed.isLoadingTokenStats ? Loader2 : Activity}
+              label={t("messages.tokenStats.existing")}
+              isActive={computed.isTokenStatsView}
+              isLoading={computed.isLoadingTokenStats}
+              onClick={() => {
+                if (!computed.isTokenStatsView) handleLoadTokenStats();
+              }}
+              disabled={computed.isLoadingTokenStats}
+            />
+            <ViewTab
+              icon={computed.isLoadingRecentEdits ? Loader2 : FileEdit}
+              label={t("recentEdits.title")}
+              isActive={computed.isRecentEditsView}
+              isLoading={computed.isLoadingRecentEdits}
+              onClick={() => {
+                if (computed.isRecentEditsView && recentEditsMode !== "docked") {
+                  analyticsActions.switchToMessages();
+                } else {
+                  handleLoadRecentEdits();
+                }
+              }}
+              disabled={computed.isLoadingRecentEdits}
+            />
+            <ViewTab
+              icon={Columns}
+              label={
+                isClaudeProject
+                  ? t("session.board.title")
+                  : t("common.settings.claudeOnly", { name: t("session.board.title") })
+              }
+              isActive={computed.isBoardView}
+              disabled={!isClaudeProject}
+              onClick={() => {
+                if (!computed.isBoardView) handleLoadBoard();
+              }}
+            />
+          </div>
+        )}
+
+        {/* Refresh — rescans projects and reloads the selected session, so a
+            second per-session refresh button is redundant. */}
         <TooltipButton
           onClick={() => {
             void refreshAllConversations();
@@ -225,169 +289,30 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             "text-muted-foreground hover:text-foreground hover:bg-muted",
             isRefreshingConversations && "opacity-70 cursor-not-allowed"
           )}
-          content={t(
-            "session.refreshAllConversations",
-            "Refresh all conversations"
-          )}
+          content={t("session.refreshAllConversations", "Refresh all conversations")}
         >
-          <RefreshCw
-            className={cn("w-4 h-4", isRefreshingConversations && "animate-spin")}
-          />
+          <RefreshCw className={cn("w-4 h-4", isRefreshingConversations && "animate-spin")} />
         </TooltipButton>
 
-        {/* Desktop nav buttons */}
-        <div className="hidden md:flex items-center gap-1">
-          {selectedProject && (
-            <>
-              {/* Analytics */}
-              <NavButton
-                icon={computed.isLoadingAnalytics ? Loader2 : BarChart3}
-                label={t("analytics.dashboard")}
-                isActive={computed.isAnalyticsView}
-                isLoading={computed.isLoadingAnalytics}
-                onClick={() => {
-                  if (computed.isAnalyticsView) {
-                    analyticsActions.switchToMessages();
-                  } else {
-                    handleLoadAnalytics();
-                  }
-                }}
-                disabled={computed.isLoadingAnalytics}
-              />
-
-              {/* Token Stats */}
-              <NavButton
-                icon={computed.isLoadingTokenStats ? Loader2 : Activity}
-                label={t('messages.tokenStats.existing')}
-                isActive={computed.isTokenStatsView}
-                isLoading={computed.isLoadingTokenStats}
-                onClick={() => {
-                  if (computed.isTokenStatsView) {
-                    analyticsActions.switchToMessages();
-                  } else {
-                    handleLoadTokenStats();
-                  }
-                }}
-                disabled={computed.isLoadingTokenStats}
-              />
-
-              {/* Recent Edits */}
-              <NavButton
-                icon={computed.isLoadingRecentEdits ? Loader2 : FileEdit}
-                label={t("recentEdits.title")}
-                isActive={computed.isRecentEditsView}
-                isLoading={computed.isLoadingRecentEdits}
-                onClick={() => {
-                  if (
-                    computed.isRecentEditsView &&
-                    recentEditsMode !== "docked"
-                  ) {
-                    analyticsActions.switchToMessages();
-                  } else {
-                    handleLoadRecentEdits();
-                  }
-                }}
-                disabled={computed.isLoadingRecentEdits}
-              />
-
-              {/* Session Board */}
-              <NavButton
-                icon={Columns}
-                label={
-                  isClaudeProject
-                    ? t("session.board.title")
-                    : `${t("session.board.title")} (Claude only)`
-                }
-                isActive={computed.isBoardView}
-                disabled={!isClaudeProject}
-                onClick={() => {
-                  if (computed.isBoardView) {
-                    analyticsActions.switchToMessages();
-                  } else {
-                    handleLoadBoard();
-                  }
-                }}
-              />
-            </>
-          )}
-
-          {selectedSession && (
-            <>
-              {/* Divider */}
-              <div className="w-px h-6 bg-border mx-2" />
-
-              {/* Messages */}
-              <NavButton
-                icon={MessageSquare}
-                label={t("message.view")}
-                isActive={computed.isMessagesView}
-                onClick={() => {
-                  if (!computed.isMessagesView) {
-                    analyticsActions.switchToMessages();
-                  }
-                }}
-              />
-
-              {/* Refresh */}
-              <TooltipButton
-                onClick={() => refreshCurrentSession()}
-                disabled={isLoadingMessages}
-                className={cn(
-                  "p-2 rounded-md transition-colors",
-                  "text-muted-foreground hover:text-foreground hover:bg-muted"
-                )}
-                content={t("session.refresh")}
-              >
-                <RefreshCw
-                  className={cn("w-4 h-4", isLoadingMessages && "animate-spin")}
-                />
-              </TooltipButton>
-            </>
-          )}
-
-          {/* Archive Manager */}
-          <NavButton
-            icon={Archive}
-            label={
-              isClaudeProject
-                ? t("archive.title")
-                : `${t("archive.title")} (Claude only)`
-            }
-            isActive={computed.isArchiveView}
-            disabled={!isClaudeProject}
-            onClick={() => {
-              if (computed.isArchiveView) {
-                analyticsActions.switchToMessages();
-              } else {
-                analyticsActions.switchToArchive();
-              }
-            }}
-          />
-
-          {/* Settings Manager */}
-          <NavButton
-            icon={SlidersHorizontal}
-            label={t("settingsManager.title")}
-            isActive={computed.isSettingsView}
-            onClick={() => {
-              if (computed.isSettingsView) {
-                analyticsActions.switchToMessages();
-              } else {
-                analyticsActions.switchToSettings();
-              }
-            }}
-          />
-        </div>
-
-        {/* Settings Dropdown (visible on all sizes) */}
-        <SettingDropdown updater={updater} />
+        {/* App menu: preferences plus the Claude Code tools (Settings
+            Manager, Archive) that used to sit beside them as bare icons. */}
+        <SettingDropdown
+          updater={updater}
+          onOpenSettingsManager={() => {
+            if (!computed.isSettingsView) analyticsActions.switchToSettings();
+          }}
+          onOpenArchive={() => {
+            if (!computed.isArchiveView) analyticsActions.switchToArchive();
+          }}
+          archiveDisabled={!isClaudeProject}
+        />
       </div>
     </header>
   );
 };
 
-/* Navigation Button Component */
-interface NavButtonProps {
+/* Segmented view tab: icon always, label from xl up. */
+interface ViewTabProps {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   isActive?: boolean;
@@ -396,29 +321,24 @@ interface NavButtonProps {
   disabled?: boolean;
 }
 
-const NavButton = ({
-  icon: Icon,
-  label,
-  isActive,
-  isLoading,
-  onClick,
-  disabled,
-}: NavButtonProps) => {
+const ViewTab = ({ icon: Icon, label, isActive, isLoading, onClick, disabled }: ViewTabProps) => {
   return (
     <TooltipButton
+      role="tab"
+      aria-selected={isActive}
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "p-2 rounded-md transition-colors",
-        "text-muted-foreground",
+        "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors whitespace-nowrap",
         isActive
-          ? "bg-accent/10 text-accent"
-          : "hover:bg-muted hover:text-foreground",
+          ? "bg-background text-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground",
         disabled && "opacity-50 cursor-not-allowed"
       )}
       content={label}
     >
       <Icon className={cn("w-4 h-4", isLoading && "animate-spin")} />
+      <span className="hidden xl:inline">{label}</span>
     </TooltipButton>
   );
 };

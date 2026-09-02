@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { Settings, RefreshCw, MessageSquare, Folder, Loader2 } from "lucide-react";
+import { Settings, RefreshCw, MessageSquare, Folder, Loader2, Archive, SlidersHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -23,9 +23,18 @@ import { AccessibilityMenuGroup } from "./AccessibilityMenuGroup";
 
 interface SettingDropdownProps {
   updater: UseUpdaterReturn;
+  /** Claude-only tool; disabled for other providers. */
+  onOpenArchive?: () => void;
+  archiveDisabled?: boolean;
+  onOpenSettingsManager?: () => void;
 }
 
-export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
+export const SettingDropdown = ({
+  updater,
+  onOpenArchive,
+  archiveDisabled = false,
+  onOpenSettingsManager,
+}: SettingDropdownProps) => {
   const { t } = useTranslation();
   const { openModal } = useModal();
 
@@ -46,7 +55,30 @@ export const SettingDropdown = ({ updater }: SettingDropdownProps) => {
             )}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-60">
+          {(onOpenSettingsManager || onOpenArchive) && (
+            <>
+              <DropdownMenuLabel>{t("common.settings.tools", "Claude Code")}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {onOpenSettingsManager && (
+                <DropdownMenuItem onClick={onOpenSettingsManager}>
+                  <SlidersHorizontal className="mr-2 h-4 w-4 text-foreground" />
+                  <span>{t("settingsManager.title")}</span>
+                </DropdownMenuItem>
+              )}
+              {onOpenArchive && (
+                <DropdownMenuItem onClick={onOpenArchive} disabled={archiveDisabled}>
+                  <Archive className="mr-2 h-4 w-4 text-foreground" />
+                  <span>
+                    {archiveDisabled
+                      ? t("common.settings.claudeOnly", { name: t("archive.title") })
+                      : t("archive.title")}
+                  </span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuLabel>{t('common.settings.title')}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem

@@ -88,7 +88,6 @@ export interface MessageSliceActions {
    * selectSession call.
    */
   fetchFullSessionMessages: () => Promise<ClaudeMessage[]>;
-  refreshCurrentSession: () => Promise<void>;
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
   loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
@@ -651,105 +650,6 @@ export const createMessageSlice: StateCreator<
       }
     });
     return promise;
-  },
-
-  refreshCurrentSession: async () => {
-    const { selectedProject, selectedSession, analytics } = get();
-
-    if (!selectedSession) {
-      console.warn("No session selected for refresh");
-      return;
-    }
-
-    console.log("새로고침 시작:", selectedSession.session_id);
-    get().setError(null);
-
-    try {
-      // Refresh project sessions list
-      if (selectedProject) {
-        const provider = selectedProject.provider ?? "claude";
-        const sessions = provider !== "claude"
-          ? await api<ClaudeSession[]>("load_provider_sessions", {
-              provider,
-              projectPath: selectedProject.path,
-              excludeSidechain: get().excludeSidechain,
-            })
-          : await api<ClaudeSession[]>("load_project_sessions", {
-              projectPath: selectedProject.path,
-              excludeSidechain: get().excludeSidechain,
-            });
-        get().setSessions(sessions);
-      }
-
-      // Reload current session
-      await get().selectSession(selectedSession);
-
-      // Refresh analytics data if in analytics view
-      if (
-        selectedProject &&
-        (analytics.currentView === "tokenStats" ||
-          analytics.currentView === "analytics")
-      ) {
-        console.log("분석 데이터 새로고침 시작:", analytics.currentView);
-
-        if (analytics.currentView === "tokenStats") {
-          await get().loadProjectTokenStats(selectedProject.path);
-          if (selectedSession?.file_path) {
-            await get().loadSessionTokenStats(selectedSession.file_path);
-          }
-        } else if (analytics.currentView === "analytics") {
-          const dateOptions = normalizeDateFilterOptions(get().dateFilter);
-
-          const projectSummary = await fetchProjectStatsSummary(
-            selectedProject.path,
-            {
-              ...dateOptions,
-              stats_mode: "billing_total",
-            }
-          );
-          let projectConversationSummary = projectSummary;
-          if (canLoadConversationBreakdown()) {
-            projectConversationSummary = await fetchProjectStatsSummary(
-              selectedProject.path,
-              {
-                ...dateOptions,
-                stats_mode: "conversation_only",
-              }
-            ).catch((error) => {
-              console.warn(
-                "Failed to load conversation-only project summary:",
-                error
-              );
-              toast.warning(
-                "Conversation-only project summary could not be loaded. Showing billing totals only."
-              );
-              return projectSummary;
-            });
-          }
-          get().setAnalyticsProjectSummary(projectSummary);
-          get().setAnalyticsProjectConversationSummary(projectConversationSummary);
-
-          if (selectedSession) {
-            const sessionComparison = await fetchSessionComparison(
-              selectedSession.actual_session_id,
-              selectedProject.path,
-              "billing_total",
-              dateOptions
-            );
-            get().setAnalyticsSessionComparison(sessionComparison);
-          }
-        }
-
-        console.log("분석 데이터 새로고침 완료");
-      }
-
-      console.log("새로고침 완료");
-    } catch (error) {
-      console.error("새로고침 실패:", error);
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`새로고침 실패: ${message}`);
-      get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
-    }
   },
 
   loadSessionTokenStats: async (sessionPath: string) => {

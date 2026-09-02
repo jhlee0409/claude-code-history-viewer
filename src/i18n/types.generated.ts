@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-09-02T13:04:35.214Z
- * 총 키 개수: 1955
+ * 생성 시간: 2026-09-02T13:07:34.806Z
+ * 총 키 개수: 1958
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (196개)
+ * common namespace의 번역 키 (199개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -163,6 +163,7 @@ export type CommonKeys =
   | 'common.settings.changeFolder'
   | 'common.settings.checkUpdate'
   | 'common.settings.checking'
+  | 'common.settings.claudeOnly'
   | 'common.settings.filter.showSubagentMessages'
   | 'common.settings.filter.showSystemMessages'
   | 'common.settings.filter.title'
@@ -181,6 +182,7 @@ export type CommonKeys =
   | 'common.settings.theme.system'
   | 'common.settings.theme.title'
   | 'common.settings.title'
+  | 'common.settings.tools'
   | 'common.settings.updateSettings'
   | 'common.show'
   | 'common.time.daysAgo_one'
@@ -220,6 +222,7 @@ export type CommonKeys =
   | 'copyButton.copy'
   | 'copyButton.copying'
   | 'copyButton.error'
+  | 'header.views'
   | 'status.checking'
   | 'status.initializing'
   | 'status.loadingMessages'
@@ -2492,6 +2495,7 @@ export type TranslationKey =
   | 'common.settings.changeFolder'
   | 'common.settings.checkUpdate'
   | 'common.settings.checking'
+  | 'common.settings.claudeOnly'
   | 'common.settings.filter.showSubagentMessages'
   | 'common.settings.filter.showSystemMessages'
   | 'common.settings.filter.title'
@@ -2510,6 +2514,7 @@ export type TranslationKey =
   | 'common.settings.theme.system'
   | 'common.settings.theme.title'
   | 'common.settings.title'
+  | 'common.settings.tools'
   | 'common.settings.updateSettings'
   | 'common.show'
   | 'common.time.daysAgo_one'
@@ -2740,6 +2745,7 @@ export type TranslationKey =
   | 'globalSearch.tips.navigate'
   | 'globalSearch.title'
   | 'globalSearch.unknownProject'
+  | 'header.views'
   | 'imageRenderer.cannotLoadImage'
   | 'imageRenderer.close'
   | 'imageRenderer.downloadImage'
@@ -4056,6 +4062,7 @@ export type TranslationPrefix =
   | 'folderPicker'
   | 'gitWorkflowRenderer'
   | 'globalSearch'
+  | 'header'
   | 'imageRenderer'
   | 'mcpRenderer'
   | 'mcpToolResultRenderer'

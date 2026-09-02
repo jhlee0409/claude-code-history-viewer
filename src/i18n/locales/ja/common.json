@@ -194,5 +194,8 @@
   "common.dateFilter.label": "フィルター",
   "common.dateFilter.allTime": "全期間",
   "common.dateFilter.pickRange": "期間を選択",
-  "common.dateFilter.clear": "期間フィルターをクリア"
+  "common.dateFilter.clear": "期間フィルターをクリア",
+  "common.settings.tools": "Claude Code",
+  "common.settings.claudeOnly": "{{name}}（Claude のみ）",
+  "header.views": "表示"
 }

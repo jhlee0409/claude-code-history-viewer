@@ -194,5 +194,8 @@
   "common.dateFilter.label": "필터",
   "common.dateFilter.allTime": "전체 기간",
   "common.dateFilter.pickRange": "기간 선택",
-  "common.dateFilter.clear": "기간 필터 해제"
+  "common.dateFilter.clear": "기간 필터 해제",
+  "common.settings.tools": "Claude Code",
+  "common.settings.claudeOnly": "{{name}} (Claude 전용)",
+  "header.views": "보기"
 }

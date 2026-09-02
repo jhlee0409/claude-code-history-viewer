@@ -194,5 +194,8 @@
   "common.dateFilter.label": "Filter",
   "common.dateFilter.allTime": "All time",
   "common.dateFilter.pickRange": "Pick a date range",
-  "common.dateFilter.clear": "Clear date filter"
+  "common.dateFilter.clear": "Clear date filter",
+  "common.settings.tools": "Claude Code",
+  "common.settings.claudeOnly": "{{name}} (Claude only)",
+  "header.views": "Views"
 }
