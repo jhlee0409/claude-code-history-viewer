@@ -46,3 +46,8 @@ provider chips). Requires selection identity to carry `(path, provider)`; see
 Done: user-text duplication (eaaa878), global search quality (c05fb77), header consolidation (90ee4ec).
 Remaining from backlog: KPI card overflow <1000px; Settings Manager <900px layout; `max-w-[px]` sweep;
 nested Renderer shared expand key `${uuid}:renderer`; provider merge (plan 5.3).
+
+## Round 4
+Done: KPI/Settings/header reflow (85ee6fc), typecheck fix + SessionCopyMenu regression (8ad5a2a),
+per-entry expand keys (81a27a6). NOTE: use `pnpm typecheck` (tsc -b); root `tsc --noEmit` is a no-op.
+Remaining: provider merge (plan 5.3); `--muted-foreground` light contrast measurement; text-warning-foreground on bg-warning (dark).
