@@ -82,7 +82,8 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   const renderProjectWithSessions = (
     project: ClaudeProject,
     variant: "default" | "main" | "worktree" = "default",
-    ariaLevel = 1
+    ariaLevel = 1,
+    providerSiblings: ClaudeProject[] = []
   ) => {
     const isExpanded = isProjectExpanded(project.path);
     const showSessions = inlineSessions && isExpanded && selectedProject?.path === project.path;
@@ -107,6 +108,8 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
           onContextMenu={(e) => handleContextMenu(e, project)}
           variant={variant}
           showProviderBadge={showProviderBadge}
+          providerSiblings={providerSiblings}
+          onSelectSibling={handleProjectClick}
         />
         {showSessions && (
           <div role="none">
@@ -283,9 +286,42 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
 
   return (
     <>
-      {availableProjects.map((project) => renderProjectWithSessions(project, "default", 1))}
+      {mergeByFolder(availableProjects, selectedProject).map(({ lead, siblings }) =>
+        renderProjectWithSessions(lead, "default", 1, siblings)
+      )}
       {renderBucketGroup("temporary", temporaryProjects)}
       {renderBucketGroup("unavailable", unavailableProjects)}
     </>
   );
 };
+
+/**
+ * One row per working directory. Several providers (Claude Code, Codex,
+ * oh-my-pi…) record sessions for the same folder under different store
+ * paths; showing them as five rows fragments the list. The selected
+ * project leads its group so highlight and expansion follow the user;
+ * otherwise the most recent one (input order) leads.
+ */
+function mergeByFolder(
+  list: ClaudeProject[],
+  selectedProject: ClaudeProject | null
+): Array<{ lead: ClaudeProject; siblings: ClaudeProject[] }> {
+  const byFolder: Record<string, ClaudeProject[]> = {};
+  const order: string[] = [];
+  for (const project of list) {
+    const key = project.actual_path || project.path;
+    if (!byFolder[key]) {
+      byFolder[key] = [];
+      order.push(key);
+    }
+    byFolder[key]!.push(project);
+  }
+  return order.map((key) => {
+    const group = byFolder[key]!;
+    const leadIndex = selectedProject
+      ? group.findIndex((p) => p.path === selectedProject.path)
+      : -1;
+    const lead = group[leadIndex === -1 ? 0 : leadIndex]!;
+    return { lead, siblings: group.filter((p) => p !== lead) };
+  });
+}

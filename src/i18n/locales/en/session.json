@@ -257,5 +257,6 @@
   "sessionPicker.empty": "No sessions match",
   "sessionPicker.cancelled": "Startup session hint cancelled",
   "session.pane.title": "Sessions",
-  "project.temporaryGroup": "Temporary locations"
+  "project.temporaryGroup": "Temporary locations",
+  "project.switchProvider": "Open {{provider}} sessions ({{count}})"
 }

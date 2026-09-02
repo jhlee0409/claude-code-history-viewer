@@ -62,6 +62,12 @@ export interface ProjectItemProps {
   onContextMenu: (e: React.MouseEvent) => void;
   variant?: "default" | "main" | "worktree";
   showProviderBadge?: boolean;
+  /**
+   * Same working directory recorded by other providers. Rendered as chips
+   * next to this row's own provider so one folder is one row.
+   */
+  providerSiblings?: ClaudeProject[];
+  onSelectSibling?: (project: ClaudeProject) => void;
 }
 
 export interface SessionListProps {

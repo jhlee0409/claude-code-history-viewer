@@ -257,5 +257,6 @@
   "sessionPicker.empty": "일치하는 세션 없음",
   "sessionPicker.cancelled": "시작 세션 힌트가 취소됨",
   "session.pane.title": "세션",
-  "project.temporaryGroup": "임시 위치"
+  "project.temporaryGroup": "임시 위치",
+  "project.switchProvider": "{{provider}} 세션 열기 ({{count}})"
 }

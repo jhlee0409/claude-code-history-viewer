@@ -27,6 +27,8 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   onContextMenu,
   variant = "default",
   showProviderBadge = true,
+  providerSiblings = [],
+  onSelectSibling,
 }) => {
   const { t } = useTranslation();
 
@@ -35,6 +37,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
   const isGrouped = isMain || isWorktree;
   const isExpandable = project.session_count > 0;
   const isPathUnavailable = isProjectPathUnavailable(project);
+  const hasSiblings = providerSiblings.length > 0;
   const actualPath = project.actual_path || project.path || project.name;
 
   const providerId = getProviderId(project.provider);
@@ -163,10 +166,52 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             {parentPath}
           </span>
         )}
+        {/* Several providers for one folder: chips get their own line so the
+            name keeps its width. Spans, not buttons — we are inside the
+            treeitem button. */}
+        {hasSiblings && (
+          <span className="mt-1 flex flex-wrap items-center gap-1">
+            <span
+              className={cn(
+                "px-1.5 py-0.5 text-2xs font-medium rounded-full leading-none",
+                getProviderBadgeStyle(providerId)
+              )}
+            >
+              {providerLabel}
+            </span>
+            {providerSiblings.map((sibling) => {
+              const siblingProvider = getProviderId(sibling.provider);
+              const siblingLabel = getProviderLabel((key, fallback) => t(key, fallback), siblingProvider);
+              return (
+                <span
+                  key={sibling.path}
+                  role="button"
+                  tabIndex={-1}
+                  title={t("project.switchProvider", {
+                    provider: siblingLabel,
+                    count: sibling.session_count,
+                    defaultValue: "Open {{provider}} sessions ({{count}})",
+                  })}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectSibling?.(sibling);
+                  }}
+                  className={cn(
+                    "px-1.5 py-0.5 text-2xs font-medium rounded-full leading-none opacity-60 hover:opacity-100 transition-opacity",
+                    getProviderBadgeStyle(siblingProvider)
+                  )}
+                >
+                  {siblingLabel}
+                  <span className="ml-1 font-mono opacity-70">{sibling.session_count}</span>
+                </span>
+              );
+            })}
+          </span>
+        )}
       </span>
 
-      {/* Provider Badge */}
-      {showProviderBadge && (
+      {/* Single-provider folder: badge stays inline on the right */}
+      {showProviderBadge && !hasSiblings && (
         <span
           className={cn(
             "px-1.5 py-0.5 text-2xs font-medium rounded-full flex-shrink-0 leading-none",
