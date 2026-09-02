@@ -223,6 +223,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   onLoadMoreSessions = () => {},
   formatTimeAgo,
   variant = "default",
+  listHeight: paneListHeight,
 }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
@@ -242,13 +243,16 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
-  const borderClass = isWorktree
-    ? "border-l border-emerald-500/30"
-    : isMain
-      ? "border-l border-accent/30"
-      : "border-l-2 border-accent/20";
+  const isPane = variant === "pane";
+  const borderClass = isPane
+    ? ""
+    : isWorktree
+      ? "border-l border-emerald-500/30"
+      : isMain
+        ? "border-l border-accent/30"
+        : "border-l-2 border-accent/20";
 
-  const containerClass = isWorktree || isMain ? "ml-4 pl-2" : "ml-6 pl-3";
+  const containerClass = isPane ? "px-2" : isWorktree || isMain ? "ml-4 pl-2" : "ml-6 pl-3";
 
   // Filter and sort sessions
   const filteredAndSortedSessions = useMemo(() => {
@@ -452,8 +456,8 @@ export const SessionList: React.FC<SessionListProps> = ({
   // 리스트 높이 계산
   const listHeight = useMemo(() => {
     const totalHeight = filteredAndSortedSessions.length * SESSION_ITEM_HEIGHT;
-    return Math.min(totalHeight, MAX_LIST_HEIGHT);
-  }, [filteredAndSortedSessions.length]);
+    return Math.min(totalHeight, isPane && paneListHeight ? paneListHeight : MAX_LIST_HEIGHT);
+  }, [filteredAndSortedSessions.length, isPane, paneListHeight]);
 
   // Virtual scroll 사용 여부
   const useVirtualScroll = filteredAndSortedSessions.length >= VIRTUALIZATION_THRESHOLD;
@@ -476,7 +480,7 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   if (sessions.length === 0 && !hasMoreSessions) {
     return (
-      <div className={cn(containerClass, "py-2 text-2xs text-muted-foreground", isWorktree || isMain ? "ml-5" : "ml-7")}>
+      <div className={cn(containerClass, "py-2 text-2xs text-muted-foreground", isPane ? "" : isWorktree || isMain ? "ml-5" : "ml-7")}>
         {t("components:session.notFound", "No sessions")}
       </div>
     );

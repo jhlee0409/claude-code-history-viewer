@@ -302,12 +302,12 @@ function App() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // A selected session and the project-agnostic global-stats overview are
-  // mutually exclusive — entering global stats clears the project/session
-  // (clearProjectSelection). The sidebar resets this flag explicitly on
-  // session select, but the global search modal selects sessions via store
-  // actions and can't reach this local state, so it would otherwise stay in
-  // the global-stats view and hide the navigated conversation. Guarantee the
-  // exit here whenever a session becomes selected (issue #390).
+  // mutually exclusive with viewing a conversation. The sidebar resets this
+  // flag explicitly on session select, but the global search modal selects
+  // sessions via store actions and can't reach this local state, so it would
+  // otherwise stay in the global-stats view and hide the navigated
+  // conversation. Guarantee the exit here whenever a session becomes selected
+  // (issue #390).
   useEffect(() => {
     if (selectedSession) {
       setIsViewingGlobalStats(false);
@@ -354,12 +354,14 @@ function App() {
     direction: "left",
   });
 
+  // Global stats is a view, not a navigation target: keep the current
+  // project/session selected so the sidebar and sessions column retain their
+  // context and one click returns to the conversation.
   const handleGlobalStatsClick = useCallback(() => {
     setIsViewingGlobalStats(true);
-    clearProjectSelection();
     setAnalyticsCurrentView("analytics");
     void loadGlobalStats();
-  }, [clearProjectSelection, loadGlobalStats, setAnalyticsCurrentView]);
+  }, [loadGlobalStats, setAnalyticsCurrentView]);
 
   const handleToggleSidebar = useCallback(() => {
     setIsSidebarCollapsed((prev) => !prev);

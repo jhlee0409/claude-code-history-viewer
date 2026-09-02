@@ -34,7 +34,10 @@ import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
 import { Header } from "@/layouts/Header/Header";
 import { ModalContainer } from "@/layouts/Header/SettingDropdown/ModalContainer";
 import { DesktopOnly } from "@/contexts/platform";
-import { useIsXlUp } from "@/hooks/useMediaQuery";
+import { useIsLgUp, useIsXlUp } from "@/hooks/useMediaQuery";
+import { useResizablePanel } from "@/hooks/useResizablePanel";
+import { SessionsPane } from "@/components/SessionsPane/SessionsPane";
+import { formatTimeAgo } from "@/utils/time";
 import {
   AppErrorType,
   type ClaudeMessage,
@@ -231,6 +234,26 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
 
   // Called before the early returns below, as hook order must not vary.
   const isXlUp = useIsXlUp();
+  // Sessions get their own column from `lg` up; below that they stay inline in
+  // the explorer so narrow windows keep a usable transcript width. The column
+  // only exists for a selected project, and not on app-level views (Settings,
+  // Archive) where it would just steal width.
+  const showSessionsPane =
+    useIsLgUp() &&
+    !isMobile &&
+    selectedProject != null &&
+    !computed.isSettingsView &&
+    !computed.isArchiveView;
+  const {
+    width: sessionsPaneWidth,
+    isResizing: isSessionsPaneResizing,
+    handleMouseDown: handleSessionsPaneResizeStart,
+  } = useResizablePanel({
+    defaultWidth: 300,
+    minWidth: 220,
+    maxWidth: 520,
+    storageKey: "sessions-pane-width",
+  });
   const recentEditsDockStats = useAppStore((s) => s.recentEditsDock);
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
@@ -518,6 +541,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 isLoading={isLoadingProjects || isLoadingSessions}
                 isLoadingMoreSessions={isLoadingMoreSessions}
                 isViewingGlobalStats={isViewingGlobalStats}
+                inlineSessions={!showSessionsPane}
                 width={isSidebarCollapsed ? undefined : sidebarWidth}
                 isResizing={isSidebarResizing}
                 onResizeStart={handleSidebarResizeStart}
@@ -534,6 +558,25 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 asideId="project-explorer"
               />
             </div>
+          )}
+
+          {showSessionsPane && (
+            <SessionsPane
+              selectedProject={selectedProject}
+              sessions={sessions}
+              sessionsTotal={sessionsTotal}
+              hasMoreSessions={hasMoreSessions}
+              selectedSession={selectedSession}
+              isLoading={isLoadingSessions}
+              isLoadingMoreSessions={isLoadingMoreSessions}
+              onSessionSelect={handleSessionSelect}
+              onSessionHover={handleSessionHover}
+              onLoadMoreSessions={loadMoreSessions}
+              formatTimeAgo={formatTimeAgo}
+              width={sessionsPaneWidth}
+              isResizing={isSessionsPaneResizing}
+              onResizeStart={handleSessionsPaneResizeStart}
+            />
           )}
 
           {/* Main Content Area */}

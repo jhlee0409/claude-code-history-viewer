@@ -255,5 +255,6 @@
   "sessionPicker.title": "Choose a session",
   "sessionPicker.subtitle": "{{count}} sessions match \"{{value}}\"",
   "sessionPicker.empty": "No sessions match",
-  "sessionPicker.cancelled": "Startup session hint cancelled"
+  "sessionPicker.cancelled": "Startup session hint cancelled",
+  "session.pane.title": "Sessions"
 }

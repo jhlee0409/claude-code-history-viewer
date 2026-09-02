@@ -23,7 +23,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { getLocale } from "../../utils/time";
+import { formatTimeAgo as formatTimeAgoUtil } from "../../utils/time";
 import { ProjectContextMenu } from "../ProjectContextMenu";
 import { useProjectTreeState } from "./hooks/useProjectTreeState";
 import { GroupedProjectList } from "./components/GroupedProjectList";
@@ -71,6 +71,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   isLoading,
   isLoadingMoreSessions = false,
   isViewingGlobalStats,
+  inlineSessions = true,
   width,
   isResizing,
   onResizeStart,
@@ -87,7 +88,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   asideId = "project-explorer",
   onClose,
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const keyboardHelpId = `${asideId}-keyboard-help`;
   const activeProviders = useAppStore((state) => state.activeProviders);
   const detectedProviders = useAppStore((state) => state.providers);
@@ -434,34 +435,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     [providerCounts, t]
   );
 
-  const formatTimeAgo = (dateStr: string) => {
-    try {
-      const date = new Date(dateStr);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / (1000 * 60));
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-      const currentLanguage = i18n.language || "en";
-      const locale = getLocale(currentLanguage);
-
-      if (diffMins < 60) {
-        return t("common.time.minutesAgo", { count: diffMins });
-      } else if (diffHours < 24) {
-        return t("common.time.hoursAgo", { count: diffHours });
-      } else if (diffDays < 7) {
-        return t("common.time.daysAgo", { count: diffDays });
-      } else {
-        return date.toLocaleDateString(locale, {
-          month: "short",
-          day: "numeric",
-        });
-      }
-    } catch {
-      return dateStr;
-    }
-  };
+  // Re-created per render so the label follows the active language.
+  const formatTimeAgo = (dateStr: string) => formatTimeAgoUtil(dateStr);
 
   // Unified project click handler: syncs expand state with selection + accordion behavior
   const handleProjectClick = useCallback(
@@ -1173,6 +1148,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 onSessionHover={onSessionHover}
                 onLoadMoreSessions={onLoadMoreSessions}
                 formatTimeAgo={formatTimeAgo}
+                inlineSessions={inlineSessions}
               />
             </div>
           )}

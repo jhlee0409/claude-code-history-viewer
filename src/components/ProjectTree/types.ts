@@ -24,6 +24,11 @@ export interface ProjectTreeProps {
   isLoading: boolean;
   isLoadingMoreSessions?: boolean;
   isViewingGlobalStats: boolean;
+  /**
+   * Render the selected project's sessions inline under its row. Off when the
+   * layout shows them in a dedicated SessionsPane column.
+   */
+  inlineSessions?: boolean;
   width?: number;
   isResizing?: boolean;
   onResizeStart?: (e: React.MouseEvent<HTMLElement>) => void;
@@ -70,7 +75,10 @@ export interface SessionListProps {
   onSessionHover?: (session: ClaudeSession) => void;
   onLoadMoreSessions?: () => void;
   formatTimeAgo: (date: string) => string;
-  variant?: "default" | "main" | "worktree";
+  /** `pane`: standalone column (no tree indentation, virtual list fills `listHeight`). */
+  variant?: "default" | "main" | "worktree" | "pane";
+  /** Available height for the virtual list when `variant="pane"`. */
+  listHeight?: number;
 }
 
 export interface GroupHeaderProps {
@@ -81,5 +89,5 @@ export interface GroupHeaderProps {
   isExpanded: boolean;
   ariaLevel?: number;
   onToggle: () => void;
-  variant: "directory" | "worktree" | "unavailable";
+  variant: "directory" | "worktree" | "unavailable" | "temporary";
 }

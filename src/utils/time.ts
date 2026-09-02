@@ -45,6 +45,34 @@ export const formatDateCompact = (timestamp: string): string => {
 };
 
 /**
+ * Relative "N minutes ago" label for session/project rows. Falls back to a
+ * short locale date after a week. Uses the singleton i18n instance so the
+ * result matches the active UI language.
+ */
+export const formatTimeAgo = (dateStr: string): string => {
+  try {
+    const date = new Date(dateStr);
+    const diffMs = Date.now() - date.getTime();
+    if (!Number.isFinite(diffMs)) return dateStr;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return i18n.t("common.time.justNow");
+    if (diffMins < 60) return i18n.t("common.time.minutesAgo", { count: diffMins });
+    if (diffHours < 24) return i18n.t("common.time.hoursAgo", { count: diffHours });
+    if (diffDays < 7) return i18n.t("common.time.daysAgo", { count: diffDays });
+
+    return date.toLocaleDateString(getLocale(i18n.language || "en"), {
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
+/**
  * Compare whether two timestamps fall on the same calendar day.
  */
 export const isSameDay = (a: string, b: string): boolean => {

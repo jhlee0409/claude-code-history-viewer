@@ -255,5 +255,6 @@
   "sessionPicker.title": "選擇工作階段",
   "sessionPicker.subtitle": "{{count}} 個工作階段符合 \"{{value}}\"",
   "sessionPicker.empty": "沒有符合的工作階段",
-  "sessionPicker.cancelled": "啟動時的工作階段提示已取消"
+  "sessionPicker.cancelled": "啟動時的工作階段提示已取消",
+  "session.pane.title": "會話"
 }
