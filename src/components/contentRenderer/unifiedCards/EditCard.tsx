@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { FileEditRenderer } from "../../toolResultRenderer/FileEditRenderer";
 import type { Props } from "./shared";
-import { str } from "./shared";
+import { str, strAny } from "./shared";
 
 export const EditCard = memo(function EditCard({ toolUse }: Props) {
   const input = (toolUse.input as Record<string, unknown>) ?? {};
@@ -9,7 +9,7 @@ export const EditCard = memo(function EditCard({ toolUse }: Props) {
   return (
     <FileEditRenderer
       toolResult={{
-        filePath: str(input, "file_path") ?? "",
+        filePath: strAny(input, "file_path", "path") ?? "",
         oldString: str(input, "old_string") ?? "",
         newString: str(input, "new_string") ?? "",
         replaceAll: input.replace_all === true,

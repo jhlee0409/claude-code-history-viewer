@@ -33,6 +33,30 @@ import type { Props } from "./unifiedCards";
 
 export type { Props as UnifiedToolExecutionRendererProps };
 
+/**
+ * Canonical card for a tool name. Claude Code uses PascalCase names; other
+ * providers (oh-my-pi, Codex, OpenCode, Gemini) emit lowercase or snake_case
+ * variants for the same primitives. Only names whose input shape matches the
+ * target card are aliased; everything else keeps the generic DefaultCard.
+ */
+const TOOL_ALIASES: Record<string, string> = {
+  bash: "Bash",
+  shell: "Bash",
+  read: "Read",
+  read_file: "Read",
+  write: "Write",
+  write_file: "Write",
+  grep: "Grep",
+  glob: "Glob",
+  websearch: "WebSearch",
+  web_search: "WebSearch",
+  webfetch: "WebFetch",
+  web_fetch: "WebFetch",
+};
+
+const canonicalToolName = (name: string): string =>
+  TOOL_ALIASES[name.toLowerCase()] ?? name;
+
 export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRenderer({
   toolUse,
   toolResults,
@@ -41,21 +65,18 @@ export const UnifiedToolExecutionRenderer = memo(function UnifiedToolExecutionRe
   isCurrentMatch,
   currentMatchIndex,
 }: Props) {
-  const toolName = (toolUse.name as string) || "";
+  const toolName = canonicalToolName((toolUse.name as string) || "");
 
   switch (toolName) {
     case "Bash":      return <BashCard toolUse={toolUse} toolResults={toolResults} />;
     case "Read":      return <ReadCard toolUse={toolUse} toolResults={toolResults} />;
-    case "Edit":
-    case "MultiEdit": return <EditCard toolUse={toolUse} toolResults={toolResults} />;
+    case "Edit":      return <EditCard toolUse={toolUse} toolResults={toolResults} />;
     case "Write":     return <WriteCard toolUse={toolUse} toolResults={toolResults} />;
     case "Grep":      return <GrepCard toolUse={toolUse} toolResults={toolResults} />;
     case "Glob":      return <GlobCard toolUse={toolUse} toolResults={toolResults} />;
-    case "WebSearch":
-    case "web_search":return <WebSearchCard toolUse={toolUse} toolResults={toolResults} />;
+    case "WebSearch": return <WebSearchCard toolUse={toolUse} toolResults={toolResults} />;
     case "WebFetch":  return <WebFetchCard toolUse={toolUse} toolResults={toolResults} />;
-    case "Agent":
-    case "Task":      return <AgentCard toolUse={toolUse} toolResults={toolResults} onViewSubagent={onViewSubagent} />;
+    case "Agent":     return <AgentCard toolUse={toolUse} toolResults={toolResults} onViewSubagent={onViewSubagent} />;
     case "Workflow":  return <WorkflowCard toolUse={toolUse} toolResults={toolResults} />;
     case "AskUserQuestion":
       return (

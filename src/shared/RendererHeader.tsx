@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "@/components/renderers";
+import { RendererDefaultsContext } from "./rendererDefaults";
 
 const ContentContext = createContext<{
   isOpen: boolean;
@@ -24,6 +25,8 @@ type ContentProviderProps = {
   expandKey?: string;
   /** When true, force the content open (e.g. a search match lives inside). */
   autoExpand?: boolean;
+  /** Initial open state when the expand registry has no entry for this key. */
+  defaultExpanded?: boolean;
 };
 
 const ContentProvider = ({
@@ -32,8 +35,13 @@ const ContentProvider = ({
   enableToggle,
   expandKey,
   autoExpand,
+  defaultExpanded,
 }: ContentProviderProps) => {
-  const [isOpen, toggle] = useToggle(expandKey ?? "renderer");
+  const ambient = useContext(RendererDefaultsContext);
+  const [isOpen, toggle] = useToggle(
+    expandKey ?? "renderer",
+    defaultExpanded ?? ambient.defaultExpanded,
+  );
 
   // Reveal collapsed content when a search match is inside it, so the
   // highlighted term is actually visible (#429). `autoExpand` is applied as an
@@ -57,6 +65,8 @@ type RendererWrapperProps = {
   expandKey?: string;
   /** When true, force the content open (e.g. a search match lives inside). */
   autoExpand?: boolean;
+  /** Initial open state when the expand registry has no entry for this key. */
+  defaultExpanded?: boolean;
 };
 
 const RendererWrapper = ({
@@ -66,9 +76,16 @@ const RendererWrapper = ({
   enableToggle = true,
   expandKey,
   autoExpand,
+  defaultExpanded,
 }: RendererWrapperProps) => {
   return (
-    <ContentProvider hasError={hasError} enableToggle={enableToggle} expandKey={expandKey} autoExpand={autoExpand}>
+    <ContentProvider
+      hasError={hasError}
+      enableToggle={enableToggle}
+      expandKey={expandKey}
+      autoExpand={autoExpand}
+      defaultExpanded={defaultExpanded}
+    >
       <div
         className={cn(
           "mt-1.5 border border-border overflow-hidden",
@@ -88,6 +105,8 @@ type RendererHeaderProps = {
   icon: React.ReactNode;
   titleClassName?: string;
   rightContent?: React.ReactNode;
+  /** One-line preview of the payload, shown only while collapsed. */
+  summary?: string;
 };
 
 const RendererHeader = ({
@@ -95,6 +114,7 @@ const RendererHeader = ({
   icon,
   titleClassName,
   rightContent,
+  summary,
 }: RendererHeaderProps) => {
   const { isOpen, toggle, hasError, enableToggle } = useContext(ContentContext);
   const { t } = useTranslation();
@@ -165,6 +185,17 @@ const RendererHeader = ({
         >
           {`${title} ${hasError ? t('common.errorOccurred') : ""}`}
         </span>
+        {summary && !isOpen && (
+          <span
+            className={cn(
+              layout.monoText,
+              "truncate min-w-0 flex-1 text-muted-foreground opacity-80",
+            )}
+            title={summary}
+          >
+            {summary}
+          </span>
+        )}
       </button>
       {rightContent && (
         <div

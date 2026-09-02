@@ -5,13 +5,13 @@ import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
 import { getVariantStyles, layout } from "../../renderers";
 import type { Props } from "./shared";
-import { str, num, isError } from "./shared";
+import { num, strAny, isError, summarizeToolInput } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
 
 export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) {
   const input = (toolUse.input as Record<string, unknown>) ?? {};
-  const filePath = str(input, "file_path") ?? "";
+  const filePath = strAny(input, "file_path", "path") ?? "";
   const offset = num(input, "offset");
   const limit = num(input, "limit");
   const styles = getVariantStyles("code");
@@ -28,6 +28,7 @@ export const ReadCard = memo(function ReadCard({ toolUse, toolResults }: Props) 
         icon={<ToolIcon toolName="Read" className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
         rightContent={<StatusBadge results={toolResults} />}
+        summary={summarizeToolInput(input)}
       />
       <Renderer.Content>
         <div className={cn("flex items-center gap-2 mb-2 p-2 rounded border", "bg-card border-border")}>

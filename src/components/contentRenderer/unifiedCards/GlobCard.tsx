@@ -5,14 +5,15 @@ import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
 import { getVariantStyles, layout } from "../../renderers";
 import type { Props } from "./shared";
-import { str, isError } from "./shared";
+import { str, isError, summarizeToolInput } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
 
 export const GlobCard = memo(function GlobCard({ toolUse, toolResults }: Props) {
   const input = (toolUse.input as Record<string, unknown>) ?? {};
-  const pattern = str(input, "pattern") ?? "";
-  const path = str(input, "path");
+  // Claude Code: {pattern, path?}; oh-my-pi/pi: {path} where path is the glob.
+  const pattern = str(input, "pattern") ?? str(input, "path") ?? "";
+  const path = str(input, "pattern") ? str(input, "path") : null;
   const styles = getVariantStyles("file");
 
 
@@ -22,6 +23,7 @@ export const GlobCard = memo(function GlobCard({ toolUse, toolResults }: Props) 
         title="Glob"
         icon={<ToolIcon toolName="Glob" className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
+        summary={summarizeToolInput(input)}
         rightContent={<StatusBadge results={toolResults} />}
       />
       <Renderer.Content>

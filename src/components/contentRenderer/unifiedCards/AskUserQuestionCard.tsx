@@ -1,6 +1,5 @@
 import { memo } from "react";
 import type { ReactNode } from "react";
-import { useTranslation } from "react-i18next";
 import { CheckSquare, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Renderer } from "@/shared/RendererHeader";
@@ -12,6 +11,7 @@ import type { Props } from "./shared";
 import { isError } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
+import { ToolIdBadge } from "./ToolIdBadge";
 import { DefaultCard } from "./DefaultCard";
 
 interface AskOption {
@@ -72,7 +72,6 @@ export const AskUserQuestionCard = memo(function AskUserQuestionCard({
   isCurrentMatch = false,
   currentMatchIndex = 0,
 }: Props) {
-  const { t } = useTranslation();
   const questions = parseQuestions(toolUse.input);
 
   // Unknown/unexpected shape → keep the generic fallback renderer (never break
@@ -133,11 +132,14 @@ export const AskUserQuestionCard = memo(function AskUserQuestionCard({
         rightContent={
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             <StatusBadge results={toolResults} />
-            {toolId && (
-              <code className={cn(layout.monoText, "hidden md:inline px-2 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>
-                {t("common.id")}: {toolId}
-              </code>
-            )}
+            <ToolIdBadge
+              toolId={toolId}
+              searchQuery={searchQuery}
+              isCurrentMatch={isCurrentMatch}
+              currentMatchIndex={currentMatchIndex}
+              badgeClassName={styles.badge}
+              badgeTextClassName={styles.badgeText}
+            />
           </div>
         }
       />

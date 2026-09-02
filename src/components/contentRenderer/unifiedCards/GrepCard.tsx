@@ -5,7 +5,7 @@ import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
 import { getVariantStyles, layout } from "../../renderers";
 import type { Props } from "./shared";
-import { str, isError } from "./shared";
+import { str, isError, summarizeToolInput } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
 
@@ -26,6 +26,7 @@ export const GrepCard = memo(function GrepCard({ toolUse, toolResults }: Props) 
         title="Grep"
         icon={<ToolIcon toolName="Grep" className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
+        summary={summarizeToolInput(input)}
         rightContent={
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             {outputMode && (

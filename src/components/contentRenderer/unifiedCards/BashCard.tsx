@@ -6,7 +6,7 @@ import { ToolIcon } from "../../ToolIcon";
 import { getVariantStyles, layout } from "../../renderers";
 import { AnsiText } from "../../common/AnsiText";
 import type { Props } from "./shared";
-import { str, num, truncate, isError } from "./shared";
+import { str, num, truncate, isError, summarizeToolInput } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
 
@@ -33,6 +33,7 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults }: Props) 
         title={t("tools.terminal")}
         icon={<ToolIcon toolName="Bash" className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
+        summary={summarizeToolInput(input)}
         rightContent={
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             {timeout != null && (
@@ -46,7 +47,7 @@ export const BashCard = memo(function BashCard({ toolUse, toolResults }: Props) 
         {description && (
           <div className={cn(layout.smallText, "text-muted-foreground mb-2")}>{description}</div>
         )}
-        <pre className={cn(layout.monoText, "p-2 bg-zinc-800 dark:bg-zinc-900 text-zinc-100 rounded overflow-x-auto whitespace-pre-wrap")}>
+        <pre className={cn(layout.monoText, "p-2 rounded overflow-x-auto whitespace-pre-wrap bg-muted text-foreground border border-border/60")}>
           {command}
         </pre>
         {hasStructuredResult ? (

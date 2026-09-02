@@ -5,13 +5,13 @@ import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
 import { getVariantStyles, layout } from "../../renderers";
 import type { Props } from "./shared";
-import { str, truncate, isError } from "./shared";
+import { str, strAny, truncate, isError, summarizeToolInput } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
 
 export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props) {
   const input = (toolUse.input as Record<string, unknown>) ?? {};
-  const filePath = str(input, "file_path") ?? "";
+  const filePath = strAny(input, "file_path", "path") ?? "";
   const content = str(input, "content");
   const styles = getVariantStyles("success");
 
@@ -22,6 +22,7 @@ export const WriteCard = memo(function WriteCard({ toolUse, toolResults }: Props
         title="Write"
         icon={<ToolIcon toolName="Write" className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
+        summary={summarizeToolInput(input)}
         rightContent={<StatusBadge results={toolResults} />}
       />
       <Renderer.Content>

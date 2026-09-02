@@ -15,6 +15,7 @@ import type { ToolResultLike, Props } from "./shared";
 import { str, isError } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
+import { ToolIdBadge } from "./ToolIdBadge";
 
 function extractAgentResultText(results: ToolResultLike[]): string | null {
   for (const r of results) {
@@ -89,11 +90,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
               </span>
             )}
             <StatusBadge results={toolResults} />
-            {toolId && (
-              <code className={cn(layout.monoText, "hidden md:inline px-2 py-0.5", layout.rounded, taskStyles.badge, taskStyles.badgeText)}>
-                {t("common.id")}: {toolId}
-              </code>
-            )}
+            <ToolIdBadge toolId={toolId} badgeClassName={taskStyles.badge} badgeTextClassName={taskStyles.badgeText} />
           </div>
         }
       />

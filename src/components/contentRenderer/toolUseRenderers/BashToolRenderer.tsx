@@ -35,7 +35,7 @@ export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }
       rightContent={
         <>
           {input.run_in_background && (
-            <span className={cn("px-1.5 py-0.5", layout.rounded, "bg-amber-500/20 text-amber-600 dark:text-amber-400")}>
+            <span className={cn("px-1.5 py-0.5", layout.rounded, "bg-warning/20 text-warning")}>
               {t("taskOperation.background")}
             </span>
           )}
@@ -55,7 +55,7 @@ export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }
         </div>
       )}
       <div className={cn(layout.rounded, "overflow-hidden")}>
-        <div className={cn("px-3 py-1 flex items-center gap-1.5 bg-zinc-800 dark:bg-zinc-900", layout.smallText, "text-zinc-400")}>
+        <div className={cn("px-3 py-1 flex items-center gap-1.5 bg-muted", layout.smallText, "text-muted-foreground")}>
           <Play className="w-3 h-3" />
           <span>{t("taskOperation.command")}</span>
         </div>

@@ -44,11 +44,11 @@ const VARIANT_COLORS = {
     argBg: "bg-tool-search/20 text-tool-search",
   },
   system: {
-    text: "text-amber-400",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/30",
-    hover: "hover:bg-amber-500/20",
-    argBg: "bg-amber-500/15 text-amber-300",
+    text: "text-warning",
+    bg: "bg-warning/10",
+    border: "border-warning/30",
+    hover: "hover:bg-warning/20",
+    argBg: "bg-warning/15 text-warning",
   },
 } as const;
 

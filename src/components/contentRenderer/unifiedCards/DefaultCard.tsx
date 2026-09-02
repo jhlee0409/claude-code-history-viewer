@@ -6,9 +6,10 @@ import { ToolIcon } from "../../ToolIcon";
 import { getToolVariant } from "@/utils/toolIconUtils";
 import { getVariantStyles, layout } from "../../renderers";
 import type { Props } from "./shared";
-import { truncate, isError } from "./shared";
+import { truncate, isError, summarizeToolInput } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
+import { ToolIdBadge } from "./ToolIdBadge";
 import { HighlightedText } from "../../common/HighlightedText";
 
 export const DefaultCard = memo(function DefaultCard({
@@ -43,19 +44,23 @@ export const DefaultCard = memo(function DefaultCard({
         title={toolName || t("common.unknown")}
         icon={<ToolIcon toolName={toolName} className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
+        summary={summarizeToolInput(input)}
         rightContent={
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             <StatusBadge results={toolResults} />
-            {toolId && (
-              <code className={cn(layout.monoText, "hidden md:inline px-2 py-0.5", layout.rounded, styles.badge, styles.badgeText)}>
-                {t("common.id")}: {toolId}
-              </code>
-            )}
+            <ToolIdBadge
+              toolId={toolId}
+              searchQuery={searchQuery}
+              isCurrentMatch={isCurrentMatch}
+              currentMatchIndex={currentMatchIndex}
+              badgeClassName={styles.badge}
+              badgeTextClassName={styles.badgeText}
+            />
           </div>
         }
       />
       <Renderer.Content>
-        <details className="mb-2" open={inputMatchesSearch}>
+        <details className="mb-2" open>
           <summary className={cn(layout.smallText, "cursor-pointer text-muted-foreground")}>
             {t("common.input")} ({Object.keys(input).join(", ")})
           </summary>

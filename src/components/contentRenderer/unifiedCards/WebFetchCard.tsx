@@ -4,7 +4,7 @@ import { Renderer } from "@/shared/RendererHeader";
 import { ToolIcon } from "../../ToolIcon";
 import { getVariantStyles, layout } from "../../renderers";
 import type { Props } from "./shared";
-import { str, isError } from "./shared";
+import { str, isError, summarizeToolInput } from "./shared";
 import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
 
@@ -21,6 +21,7 @@ export const WebFetchCard = memo(function WebFetchCard({ toolUse, toolResults }:
         title="WebFetch"
         icon={<ToolIcon toolName="WebFetch" className={cn(layout.iconSize, styles.icon)} />}
         titleClassName={styles.title}
+        summary={summarizeToolInput(input)}
         rightContent={<StatusBadge results={toolResults} />}
       />
       <Renderer.Content>

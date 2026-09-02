@@ -1,8 +1,8 @@
 import { memo, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
 import { Renderer } from "@/shared/RendererHeader";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout, type RendererVariant } from "@/components/renderers";
+import { ToolIdBadge } from "../unifiedCards/ToolIdBadge";
 
 interface ToolUseCardProps {
   title: string;
@@ -21,7 +21,6 @@ export const ToolUseCard = memo(function ToolUseCard({
   rightContent,
   children,
 }: ToolUseCardProps) {
-  const { t } = useTranslation();
   const styles = getVariantStyles(variant);
 
   return (
@@ -34,27 +33,16 @@ export const ToolUseCard = memo(function ToolUseCard({
           <div className={cn("flex items-center gap-2", layout.smallText)}>
             {rightContent}
             {toolId && (
-              <code
-                className={cn(
-                  layout.monoText,
-                  "hidden md:inline px-2 py-0.5",
-                  layout.rounded,
-                  styles.badge,
-                  styles.badgeText
-                )}
-              >
-                {t("common.id")}: {toolId}
-              </code>
+              <ToolIdBadge
+                toolId={toolId}
+                badgeClassName={styles.badge}
+                badgeTextClassName={styles.badgeText}
+              />
             )}
           </div>
         }
       />
       <Renderer.Content>
-        {toolId && (
-          <code className={cn(layout.monoText, "block md:hidden mb-2 text-muted-foreground")}>
-            {t("common.id")}: {toolId}
-          </code>
-        )}
         {children}
       </Renderer.Content>
     </Renderer>
