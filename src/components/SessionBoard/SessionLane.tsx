@@ -222,7 +222,7 @@ export const SessionLane = ({
         switch (depth) {
             case 'deep':
                 return clsx(
-                    "w-[380px] min-w-[380px] border-slate-200/50 dark:border-slate-800/50",
+                    "w-[380px] min-w-[380px] border-border/50",
                     "bg-transparent",
                     isSelected && "ring-2 ring-inset ring-accent/50 bg-accent/5 shadow-xl shadow-accent/5"
                 );
@@ -256,7 +256,7 @@ export const SessionLane = ({
                 {zoomLevel === 0 ? (
                     <div className="flex flex-col items-center gap-1.5 text-center h-full justify-between">
                         <div className="flex gap-1">
-                            {stats?.commitCount > 0 && <span title={t("session.board.gitCommits")}><GitCommit className="w-2.5 h-2.5 text-indigo-500" /></span>}
+                            {stats?.commitCount > 0 && <span title={t("session.board.gitCommits")}><GitCommit className="w-2.5 h-2.5 text-tool-git" /></span>}
                         </div>
                         <div className="text-px10 font-bold text-muted-foreground">
                             {new Date(session.last_modified).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
@@ -277,19 +277,19 @@ export const SessionLane = ({
                                 {/* Activity Summary Row 1: Tokens & Git & Edits */}
 
                                 {stats.commitCount > 0 && (
-                                    <div className="flex items-center gap-1 text-indigo-500" title={t("session.board.gitCommits")}>
+                                    <div className="flex items-center gap-1 text-tool-git" title={t("session.board.gitCommits")}>
                                         <GitCommit className="w-3 h-3" />
                                         <span className="text-px10 font-bold">{stats.commitCount}</span>
                                     </div>
                                 )}
 
-                                <div className="flex items-center gap-1 text-emerald-500" title={t("analytics.inputTokens")}>
+                                <div className="flex items-center gap-1 text-success" title={t("analytics.inputTokens")}>
                                     <TrendingUp className="w-3 h-3" />
                                     <span className="text-px10 font-mono">{formatNumber(stats.inputTokens || 0)}</span>
                                     <span className="text-px9 opacity-60">{t("analytics.in", "in")}</span>
                                 </div>
 
-                                <div className="flex items-center gap-1 text-purple-500" title={t("analytics.outputTokens")}>
+                                <div className="flex items-center gap-1 text-tool-mcp" title={t("analytics.outputTokens")}>
                                     <Zap className="w-3 h-3" />
                                     <span className="text-px10 font-mono">{formatNumber(stats.outputTokens || 0)}</span>
                                     <span className="text-px9 opacity-60">{t("analytics.out", "out")}</span>
@@ -334,7 +334,7 @@ export const SessionLane = ({
                                     <button
                                         className={clsx(
                                             "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                            "text-sky-500",
+                                            "text-tool-terminal",
                                             activeBrush?.type === 'tool' && activeBrush.value === 'terminal' && "brush-match bg-accent/10"
                                         )}
                                         title={t("session.board.clickToFilter.shell")}
@@ -363,7 +363,7 @@ export const SessionLane = ({
                                             <button
                                                 className={clsx(
                                                     "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                                    "text-emerald-500",
+                                                    "text-tool-file",
                                                     activeBrush?.type === 'tool' && activeBrush.value === 'file' && "brush-match bg-accent/10"
                                                 )}
                                                 title={t("session.board.clickToFilter.filesCreated", { count: createdCount, total: stats.fileToolCount })}
@@ -385,7 +385,7 @@ export const SessionLane = ({
                                             <button
                                                 className={clsx(
                                                     "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                                    "text-blue-500",
+                                                    "text-tool-file",
                                                     activeBrush?.type === 'tool' && activeBrush.value === 'file' && "brush-match bg-accent/10"
                                                 )}
                                                 title={t("session.board.clickToFilter.fileOperations")}
@@ -411,7 +411,7 @@ export const SessionLane = ({
                                     <button
                                         className={clsx(
                                             "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                            "text-amber-500",
+                                            "text-tool-search",
                                             activeBrush?.type === 'tool' && activeBrush.value === 'search' && "brush-match bg-accent/10"
                                         )}
                                         title={t("session.board.clickToFilter.search")}
@@ -434,7 +434,7 @@ export const SessionLane = ({
                                     <button
                                         className={clsx(
                                             "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                            "text-sky-400",
+                                            "text-tool-web",
                                             activeBrush?.type === 'tool' && activeBrush.value === 'web' && "brush-match bg-accent/10"
                                         )}
                                         title={t("session.board.clickToFilter.web")}
@@ -457,7 +457,7 @@ export const SessionLane = ({
                                     <button
                                         className={clsx(
                                             "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                            "text-purple-500",
+                                            "text-tool-mcp",
                                             activeBrush?.type === 'tool' && activeBrush.value === 'mcp' && "brush-match bg-accent/10"
                                         )}
                                         title={t("session.board.clickToFilter.mcp")}
@@ -480,7 +480,7 @@ export const SessionLane = ({
                                     <button
                                         className={clsx(
                                             "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                            "text-orange-500",
+                                            "text-tool-git",
                                             activeBrush?.type === 'tool' && activeBrush.value === 'git' && "brush-match bg-accent/10"
                                         )}
                                         title={t("session.board.clickToFilter.git")}
@@ -503,7 +503,7 @@ export const SessionLane = ({
                                     <button
                                         className={clsx(
                                             "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                            "text-amber-500",
+                                            "text-tool-document",
                                             activeBrush?.type === 'tool' && activeBrush.value === 'document' && "brush-match bg-accent/10"
                                         )}
                                         title={t("session.board.clickToFilter.docs")}
@@ -549,7 +549,7 @@ export const SessionLane = ({
                                     <button
                                         className={clsx(
                                             "flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-1 -ml-1 transition-colors border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                                            "text-sky-500/70",
+                                            "text-tool-code/70",
                                             activeBrush?.type === 'tool' && activeBrush.value === 'code' && "brush-match bg-accent/10"
                                         )}
                                         title={t("session.board.clickToFilter.reads")}
@@ -571,9 +571,9 @@ export const SessionLane = ({
                             {/* Actual Git History (Ground Truth) */}
                             {data.gitCommits && data.gitCommits.length > 0 && (
                                 <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1 pt-1 border-t border-border/10">
-                                    <div className="text-px8 uppercase font-bold text-blue-500/70 tracking-tighter w-full">{t("session.board.gitCommits")}</div>
+                                    <div className="text-px8 uppercase font-bold text-tool-git/70 tracking-tighter w-full">{t("session.board.gitCommits")}</div>
                                     {data.gitCommits.slice(0, 2).map(commit => (
-                                        <div key={commit.hash} className="flex items-center gap-1.5 text-px9 text-blue-600/80 font-mono bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/10 max-w-full overflow-hidden" title={commit.message}>
+                                        <div key={commit.hash} className="flex items-center gap-1.5 text-px9 text-tool-git/80 font-mono bg-tool-git/5 px-1.5 py-0.5 rounded border border-tool-git/10 max-w-full overflow-hidden" title={commit.message}>
                                             <GitCommit className="w-2.5 h-2.5 shrink-0" />
                                             <span className="truncate">{commit.message}</span>
                                             <code className="text-px8 opacity-40 shrink-0">{commit.hash.substring(0, 7)}</code>

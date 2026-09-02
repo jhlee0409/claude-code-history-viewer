@@ -125,7 +125,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                 <TooltipTrigger asChild>
                   <button
                     onClick={onApplyHere}
-                    className="inline-flex items-center justify-center w-6 h-6 rounded-md text-green-600 hover:text-green-700 hover:bg-green-500/10 transition-colors"
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-md text-success hover:text-success/80 hover:bg-success/10 transition-colors"
                     aria-label={t("settingsManager.presets.applyHere")}
                   >
                     <Zap className="w-3.5 h-3.5" />
@@ -188,12 +188,12 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
           {(summary.model || summary.mcpServerCount > 0) && (
             <div className="px-3 flex items-center gap-1.5">
               {summary.model && (
-                <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-px10 font-mono font-medium text-indigo-400 whitespace-nowrap">
+                <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2 py-0.5 text-px10 font-mono font-medium text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                   {summary.model}
                 </span>
               )}
               {summary.mcpServerCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-px10 font-medium text-emerald-400 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-px10 font-medium text-success whitespace-nowrap">
                   <Server className="w-2.5 h-2.5 shrink-0" />
                   {t("settingsManager.presets.badge.mcpCount", { count: summary.mcpServerCount })}
                 </span>
@@ -688,7 +688,7 @@ export const PresetPanel: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-start h-8 text-xs text-muted-foreground hover:text-indigo-500 hover:bg-indigo-500/10 transition-colors duration-150"
+              className="w-full justify-start h-8 text-xs text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors duration-150"
               onClick={() => openDialog("create")}
             >
               <Package className="w-3.5 h-3.5 mr-2" />
@@ -1093,7 +1093,7 @@ export const PresetPanel: React.FC = () => {
             >
               {applySuccess ? (
                 <>
-                  <Check className="w-4 h-4 mr-1.5 text-green-500" />
+                  <Check className="w-4 h-4 mr-1.5 text-success" />
                   {t("settingsManager.presets.applied", { name: selectedPreset?.name })}
                 </>
               ) : isApplying ? (

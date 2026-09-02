@@ -127,8 +127,8 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           "relative flex flex-wrap items-center justify-between gap-y-2 cursor-pointer transition-all duration-300",
           dense ? "p-2" : "p-4",
           edit.operation_type === "write"
-            ? "bg-gradient-to-r from-green-50 to-emerald-50/50 dark:from-green-950/40 dark:to-emerald-950/20"
-            : "bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-950/40 dark:to-indigo-950/20",
+            ? "bg-gradient-to-r from-success/10 to-success/5"
+            : "bg-gradient-to-r from-info/10 to-info/5",
           isExpanded && "border-b border-border"
         )}
         onClick={() => toggleView("content")}
@@ -263,10 +263,10 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                   toggleView("added");
                 }}
                 className={cn(
-                  "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded transition-all",
+                  "text-success bg-success/15 px-1.5 py-0.5 rounded transition-all",
                   isExpanded && viewMode === "added"
-                    ? "ring-2 ring-green-500/70"
-                    : "hover:ring-1 hover:ring-green-500/50"
+                    ? "ring-2 ring-success/70"
+                    : "hover:ring-1 hover:ring-success/50"
                 )}
                 title={t("recentEdits.showAddedLines")}
                 aria-label={t("recentEdits.showAddedLines")}
@@ -282,10 +282,10 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                   toggleView("removed");
                 }}
                 className={cn(
-                  "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded transition-all",
+                  "text-destructive bg-destructive/15 px-1.5 py-0.5 rounded transition-all",
                   isExpanded && viewMode === "removed"
-                    ? "ring-2 ring-red-500/70"
-                    : "hover:ring-1 hover:ring-red-500/50"
+                    ? "ring-2 ring-destructive/70"
+                    : "hover:ring-1 hover:ring-destructive/50"
                 )}
                 title={t("recentEdits.showRemovedLines")}
                 aria-label={t("recentEdits.showRemovedLines")}
@@ -409,7 +409,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
       {/* Error message toast */}
       {restoreError && (
         <div
-          className={`mx-3 mb-2 p-2 rounded-md bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 ${layout.smallText}`}
+          className={`mx-3 mb-2 p-2 rounded-md bg-destructive/10 text-destructive ${layout.smallText}`}
         >
           {t("recentEdits.restoreError")}: {restoreError}
         </div>
@@ -454,7 +454,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
               </button>
               <button
                 onClick={confirmRestore}
-                className={`px-4 py-2 rounded-md ${layout.bodyText} bg-blue-600 hover:bg-blue-700 text-white`}
+                className={`px-4 py-2 rounded-md ${layout.bodyText} bg-accent hover:bg-accent/90 text-accent-foreground`}
               >
                 {t("recentEdits.confirmRestore")}
               </button>

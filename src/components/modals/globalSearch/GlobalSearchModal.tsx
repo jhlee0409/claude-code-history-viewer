@@ -459,7 +459,7 @@ export const GlobalSearchModal = ({
             highlightRegex.test(part) ? (
                 <mark
                     key={index}
-                    className="bg-yellow-300 dark:bg-yellow-500/40 text-foreground rounded-sm px-0.5"
+                    className="bg-highlight text-highlight-foreground rounded-sm px-0.5"
                 >
                     {part}
                 </mark>
@@ -643,7 +643,7 @@ export const GlobalSearchModal = ({
                                             {group.pathUnavailable && (
                                                 <Badge
                                                     size="sm"
-                                                    className="rounded px-1 py-0 text-2xs bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                                    className="rounded px-1 py-0 text-2xs bg-warning/15 text-warning"
                                                     title={t("project.pathUnavailableDescription", {
                                                         defaultValue: "Last-known location is unavailable",
                                                     })}
@@ -676,10 +676,10 @@ export const GlobalSearchModal = ({
                                                                     className={cn(
                                                                         "inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium",
                                                                         result.type === "user"
-                                                                            ? "bg-blue-500/10 text-blue-500"
+                                                                            ? "bg-info/10 text-info"
                                                                             : result.type === "assistant"
-                                                                              ? "bg-amber-500/10 text-amber-500"
-                                                                              : "bg-gray-500/10 text-gray-500"
+                                                                              ? "bg-warning/10 text-warning"
+                                                                              : "bg-muted text-muted-foreground"
                                                                     )}
                                                                 >
                                                                     {result.type === "user" && <User className="w-3 h-3" />}

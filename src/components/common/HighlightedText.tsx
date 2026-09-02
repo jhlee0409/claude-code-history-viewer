@@ -67,8 +67,8 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
           className={cn(
             "rounded px-0.5 transition-colors",
             isThisMatchActive
-              ? "bg-yellow-400 dark:bg-yellow-500 text-gray-900 ring-2 ring-yellow-500 dark:ring-yellow-400"
-              : "bg-yellow-200 dark:bg-yellow-600/50 text-gray-900 dark:text-gray-100"
+              ? "bg-highlight-current text-highlight-foreground ring-2 ring-highlight-current"
+              : "bg-highlight text-highlight-foreground"
           )}
         >
           {matchedText}

@@ -98,10 +98,10 @@ type SaveResult = {
 // ============================================================================
 
 const SCOPE_COLORS: Record<string, string> = {
-  global: "bg-amber-500 text-white border-amber-500",
-  user: "bg-blue-500 text-white border-blue-500",
-  project: "bg-emerald-500 text-white border-emerald-500",
-  local: "bg-purple-500 text-white border-purple-500",
+  global: "bg-warning text-warning-foreground border-warning",
+  user: "bg-info text-info-foreground border-info",
+  project: "bg-success text-success-foreground border-success",
+  local: "bg-purple-600 text-white border-purple-600 dark:bg-purple-500 dark:border-purple-500",
 };
 
 const SEVERITY_ORDER: Record<IssueSeverity, number> = { error: 0, warning: 1, info: 2 };
@@ -239,14 +239,14 @@ FileCard.displayName = "FileCard";
 
 const SEVERITY_ICON: Record<IssueSeverity, { Icon: typeof XCircle; className: string }> = {
   error: { Icon: XCircle, className: "text-destructive" },
-  warning: { Icon: AlertTriangle, className: "text-amber-500" },
-  info: { Icon: Info, className: "text-blue-500" },
+  warning: { Icon: AlertTriangle, className: "text-warning" },
+  info: { Icon: Info, className: "text-info" },
 };
 
 const SEVERITY_BORDER: Record<IssueSeverity, string> = {
   error: "border-destructive/30 bg-destructive/5",
-  warning: "border-amber-500/30 bg-amber-500/5",
-  info: "border-blue-500/20 bg-blue-500/5",
+  warning: "border-warning/30 bg-warning/5",
+  info: "border-info/20 bg-info/5",
 };
 
 const IssueCard = React.memo<{ issue: SettingsIssue }>(({ issue }) => {
@@ -304,12 +304,12 @@ const ProjectIssueGroup = React.memo<{
             </Badge>
           )}
           {warnings > 0 && (
-            <Badge variant="secondary" className="text-px9 h-3.5 px-1 bg-amber-500/10 text-amber-600">
+            <Badge variant="secondary" className="text-px9 h-3.5 px-1 bg-warning/10 text-warning">
               {warnings}
             </Badge>
           )}
           {infos > 0 && (
-            <Badge variant="secondary" className="text-px9 h-3.5 px-1 bg-blue-500/10 text-blue-600">
+            <Badge variant="secondary" className="text-px9 h-3.5 px-1 bg-info/10 text-info">
               {infos}
             </Badge>
           )}
@@ -345,11 +345,11 @@ const HealthBar: React.FC<{
         {isScanning ? (
           <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
         ) : total === 0 ? (
-          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+          <CheckCircle2 className="w-4 h-4 text-success" />
         ) : errors > 0 ? (
           <XCircle className="w-4 h-4 text-destructive" />
         ) : (
-          <AlertTriangle className="w-4 h-4 text-amber-500" />
+          <AlertTriangle className="w-4 h-4 text-warning" />
         )}
         <div className="flex items-center gap-1.5">
           {errors > 0 && (
@@ -358,17 +358,17 @@ const HealthBar: React.FC<{
             </Badge>
           )}
           {warnings > 0 && (
-            <Badge variant="secondary" className="text-px10 h-5 bg-amber-500/10 text-amber-600">
+            <Badge variant="secondary" className="text-px10 h-5 bg-warning/10 text-warning">
               {t("settingsManager.diagnostics.warningCount", { count: warnings })}
             </Badge>
           )}
           {infos > 0 && (
-            <Badge variant="secondary" className="text-px10 h-5 bg-blue-500/10 text-blue-600">
+            <Badge variant="secondary" className="text-px10 h-5 bg-info/10 text-info">
               {t("settingsManager.diagnostics.infoCount", { count: infos })}
             </Badge>
           )}
           {!isScanning && total === 0 && (
-            <span className="text-xs text-emerald-600">{t("settingsManager.analyzer.issues.noIssues")}</span>
+            <span className="text-xs text-success">{t("settingsManager.analyzer.issues.noIssues")}</span>
           )}
         </div>
       </div>
@@ -599,7 +599,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           >
             {t("settingsManager.diagnostics.tabs.issues")}
             {issueCounts.total > 0 && (
-              <Badge variant="secondary" className={`ml-2 text-px10 h-4 px-1.5 ${issueCounts.errors > 0 ? "bg-destructive/10 text-destructive" : "bg-amber-500/10 text-amber-600"}`}>
+              <Badge variant="secondary" className={`ml-2 text-px10 h-4 px-1.5 ${issueCounts.errors > 0 ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
                 {issueCounts.total}
               </Badge>
             )}
@@ -658,7 +658,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* All clean */}
           {!isScanning && issueCounts.total === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-3" />
+              <CheckCircle2 className="w-10 h-10 text-success mb-3" />
               <p className="text-sm font-medium">{t("settingsManager.analyzer.issues.noIssues")}</p>
             </div>
           )}
@@ -723,7 +723,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
             >
               {saveResult?.type === "success" ? (
                 <>
-                  <CheckCircle2 aria-hidden className="w-4 h-4 mr-2 text-emerald-500" />
+                  <CheckCircle2 aria-hidden className="w-4 h-4 mr-2 text-success" />
                   {saveResult.message}
                 </>
               ) : (
@@ -750,7 +750,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* Why Complex */}
           <div className="space-y-3">
             <h3 className="text-sm font-medium flex items-center gap-2">
-              <HelpCircle aria-hidden className="w-4 h-4 text-amber-500" />
+              <HelpCircle aria-hidden className="w-4 h-4 text-warning" />
               {t("settingsManager.analyzer.whyComplex.title")}
             </h3>
             <div className="bg-muted/30 rounded-lg p-4 space-y-3 text-sm text-muted-foreground">
@@ -763,7 +763,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* Recommended Structure */}
           <div className="space-y-3">
             <h3 className="text-sm font-medium flex items-center gap-2">
-              <FolderTree aria-hidden className="w-4 h-4 text-emerald-500" />
+              <FolderTree aria-hidden className="w-4 h-4 text-success" />
               {t("settingsManager.analyzer.recommended.title")}
             </h3>
             <p className="text-xs text-muted-foreground">
@@ -772,17 +772,17 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
                 : t("settingsManager.analyzer.recommended.currentMatch")}
             </p>
             <div className="bg-card border border-border/50 rounded-lg p-4 font-mono text-xs space-y-1">
-              <div className="text-muted-foreground"><span className="text-emerald-500">~/.claude/</span></div>
+              <div className="text-muted-foreground"><span className="text-success">~/.claude/</span></div>
               <div className="pl-4 flex items-center gap-2">
                 <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
                 <span>settings.json</span>
                 <Badge variant="outline" className="text-px9 h-4">{t("settingsManager.analyzer.recommended.globalSettings")}</Badge>
               </div>
               <div className="text-muted-foreground mt-3">
-                <span className="text-emerald-500">~/.claude.json</span>
+                <span className="text-success">~/.claude.json</span>
                 <Badge variant="outline" className="text-px9 h-4 ml-2">{t("settingsManager.analyzer.recommended.globalMcp")}</Badge>
               </div>
-              <div className="text-muted-foreground mt-3"><span className="text-blue-500">your-project/</span></div>
+              <div className="text-muted-foreground mt-3"><span className="text-info">your-project/</span></div>
               <div className="pl-4 flex items-center gap-2">
                 <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
                 <span>.mcp.json</span>
@@ -804,17 +804,17 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
           {/* Priority Order */}
           <div className="space-y-3">
             <h3 className="text-sm font-medium flex items-center gap-2">
-              <Info aria-hidden className="w-4 h-4 text-blue-500" />
+              <Info aria-hidden className="w-4 h-4 text-info" />
               {t("settingsManager.analyzer.priority.title")}
             </h3>
             <div className="flex items-center gap-2 text-xs">
-              <Badge variant="secondary" className="bg-purple-500/10 text-purple-600">{t("settingsManager.analyzer.scope.local")}</Badge>
+              <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 dark:text-purple-400">{t("settingsManager.analyzer.scope.local")}</Badge>
               <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
-              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600">{t("settingsManager.analyzer.scope.project")}</Badge>
+              <Badge variant="secondary" className="bg-success/10 text-success">{t("settingsManager.analyzer.scope.project")}</Badge>
               <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
-              <Badge variant="secondary" className="bg-blue-500/10 text-blue-600">{t("settingsManager.analyzer.scope.user")}</Badge>
+              <Badge variant="secondary" className="bg-info/10 text-info">{t("settingsManager.analyzer.scope.user")}</Badge>
               <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
-              <Badge variant="secondary" className="bg-amber-500/10 text-amber-600">{t("settingsManager.analyzer.scope.global")}</Badge>
+              <Badge variant="secondary" className="bg-warning/10 text-warning">{t("settingsManager.analyzer.scope.global")}</Badge>
             </div>
             <p className="text-xs text-muted-foreground">{t("settingsManager.analyzer.priority.description")}</p>
           </div>
@@ -831,19 +831,19 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
 
           <div className="space-y-3">
             <h3 className="text-sm font-medium flex items-center gap-2">
-              <Server aria-hidden className="w-4 h-4 text-purple-500" />
+              <Server aria-hidden className="w-4 h-4 text-tool-mcp" />
               {t("settingsManager.analyzer.mcp.title")}
             </h3>
             <div className="space-y-2 text-sm">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
-                <Home aria-hidden className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-warning/5 border border-warning/20">
+                <Home aria-hidden className="w-4 h-4 text-warning shrink-0 mt-0.5" />
                 <div>
                   <code className="text-xs font-mono">~/.claude.json</code>
                   <p className="text-xs text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.global")}</p>
                 </div>
               </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                <FolderTree aria-hidden className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-success/5 border border-success/20">
+                <FolderTree aria-hidden className="w-4 h-4 text-success shrink-0 mt-0.5" />
                 <div>
                   <code className="text-xs font-mono">.mcp.json</code>
                   <p className="text-xs text-muted-foreground mt-1">{t("settingsManager.analyzer.mcp.project")}</p>
@@ -867,7 +867,7 @@ export const SettingsDiagnosticsPanel: React.FC = () => {
               <p>{t("settingsManager.analyzer.mcp.perProject.desc2")}</p>
               <div className="bg-card border border-border/50 rounded p-3 font-mono">
                 <p className="text-foreground/80"># {t("settingsManager.analyzer.mcp.perProject.symlinkExample")}</p>
-                <p className="text-emerald-500">ln -s ~/.claude/project-configs/my-project .claude</p>
+                <p className="text-success">ln -s ~/.claude/project-configs/my-project .claude</p>
               </div>
               <p>{t("settingsManager.analyzer.mcp.perProject.alternative")}</p>
             </div>

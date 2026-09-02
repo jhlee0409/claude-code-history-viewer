@@ -360,6 +360,25 @@
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.4 0.16 25);
   --destructive-foreground: oklch(1 0 0);
+  /* Status / tool hues: keep hue for meaning, push lightness to ≥7:1 on white. */
+  --success: oklch(0.36 0.14 145);
+  --warning: oklch(0.40 0.15 75);
+  --info: oklch(0.36 0.14 240);
+  --tool-code: oklch(0.34 0.13 250);
+  --tool-file: oklch(0.34 0.13 160);
+  --tool-search: oklch(0.34 0.13 280);
+  --tool-task: oklch(0.38 0.15 55);
+  --tool-system: oklch(0.25 0 0);
+  --tool-git: oklch(0.34 0.14 170);
+  --tool-web: oklch(0.34 0.13 220);
+  --tool-mcp: oklch(0.34 0.13 310);
+  --tool-document: oklch(0.34 0.11 190);
+  --tool-terminal: oklch(0.2 0 0);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.06 0 0);
+  --highlight: oklch(0.92 0.16 95);
+  --highlight-current: oklch(0.80 0.2 95);
+  --highlight-foreground: oklch(0.06 0 0);
 }
 
 .dark.high-contrast {
@@ -378,6 +397,24 @@
   --accent-foreground: oklch(0.08 0 0);
   --destructive: oklch(0.78 0.18 25);
   --destructive-foreground: oklch(0.08 0 0);
+  --success: oklch(0.85 0.18 145);
+  --warning: oklch(0.88 0.18 75);
+  --info: oklch(0.84 0.16 240);
+  --tool-code: oklch(0.84 0.14 250);
+  --tool-file: oklch(0.84 0.14 160);
+  --tool-search: oklch(0.84 0.14 280);
+  --tool-task: oklch(0.86 0.16 55);
+  --tool-system: oklch(0.85 0 0);
+  --tool-git: oklch(0.84 0.14 170);
+  --tool-web: oklch(0.84 0.14 220);
+  --tool-mcp: oklch(0.84 0.14 310);
+  --tool-document: oklch(0.84 0.12 190);
+  --tool-terminal: oklch(0.9 0 0);
+  --sidebar: oklch(0.03 0 0);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --highlight: oklch(0.45 0.14 95);
+  --highlight-current: oklch(0.6 0.18 95);
+  --highlight-foreground: oklch(0.98 0 0);
 }
 
 /* === Theme inline mapping === */

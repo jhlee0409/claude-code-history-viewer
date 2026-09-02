@@ -1,7 +1,19 @@
 /* ============================================
    GLOBAL SCROLLBAR STYLES
    WebKit/Tauri Compatible
+
+   Colors come from the theme tokens in index.css so light, dark and
+   high-contrast modes all get a matching scrollbar. Handles are a muted
+   neutral (border token) that brightens toward the accent on interaction;
+   a saturated indigo handle was the single most visible non-themed element
+   in light mode.
    ============================================ */
+:root {
+  --scrollbar-track: transparent;
+  --scrollbar-handle: var(--border);
+  --scrollbar-handle-hover: var(--muted-foreground);
+  --scrollbar-handle-active: var(--accent);
+}
 
 /* ============================================
    1. OVERLAYSCROLLBARS CUSTOM THEME
@@ -13,32 +25,27 @@
   --os-padding-axis: 2px;
   --os-track-border-radius: 5px;
   --os-handle-border-radius: 5px;
-  --os-handle-bg: #6366f1;
-  --os-handle-bg-hover: #818cf8;
-  --os-handle-bg-active: #a5b4fc;
+  --os-handle-bg: var(--scrollbar-handle);
+  --os-handle-bg-hover: var(--scrollbar-handle-hover);
+  --os-handle-bg-active: var(--scrollbar-handle-active);
 }
 
 .os-theme-custom .os-scrollbar-track {
-  background: #0d0d14;
+  background: var(--scrollbar-track);
   border-radius: 5px;
 }
 
 .os-theme-custom .os-scrollbar-handle {
-  background: #6366f1;
+  background: var(--scrollbar-handle);
   border-radius: 5px;
 }
 
 .os-theme-custom .os-scrollbar-handle:hover {
-  background: #818cf8;
+  background: var(--scrollbar-handle-hover);
 }
 
 .os-theme-custom .os-scrollbar-handle:active {
-  background: #a5b4fc;
-}
-
-/* Light theme */
-:root:not(.dark) .os-theme-custom .os-scrollbar-track {
-  background: #e2e8f0;
+  background: var(--scrollbar-handle-active);
 }
 
 /* ============================================
@@ -50,30 +57,25 @@
 }
 
 *::-webkit-scrollbar-track {
-  background: #0d0d14;
+  background: var(--scrollbar-track);
   border-radius: 5px;
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #6366f1;
+  background: var(--scrollbar-handle);
   border-radius: 5px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #818cf8;
+  background: var(--scrollbar-handle-hover);
 }
 
 *::-webkit-scrollbar-thumb:active {
-  background: #a5b4fc;
+  background: var(--scrollbar-handle-active);
 }
 
 *::-webkit-scrollbar-corner {
   background: transparent;
-}
-
-/* Light theme native scrollbar */
-:root:not(.dark) *::-webkit-scrollbar-track {
-  background: #e2e8f0;
 }
 
 /* ============================================
@@ -82,10 +84,6 @@
 @supports (scrollbar-color: auto) {
   * {
     scrollbar-width: thin;
-    scrollbar-color: #6366f1 #0d0d14;
-  }
-
-  :root:not(.dark) * {
-    scrollbar-color: #6366f1 #e2e8f0;
+    scrollbar-color: var(--scrollbar-handle) var(--scrollbar-track);
   }
 }

@@ -153,14 +153,14 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-help shrink-0"
+                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-info/10 border border-info/20 hover:bg-info/20 transition-colors cursor-help shrink-0"
                 aria-label={cliSyncTitle}
               >
                 <Link2
-                  className="w-2.5 h-2.5 text-blue-400"
+                  className="w-2.5 h-2.5 text-info"
                   aria-hidden="true"
                 />
-                <span className="text-px9 font-medium text-blue-400 uppercase tracking-wide">
+                <span className="text-px9 font-medium text-info uppercase tracking-wide">
                   {t("session.cliSync.badge", "CLI")}
                 </span>
               </button>
@@ -173,7 +173,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
             </TooltipContent>
           </Tooltip>
         )}
-        <span className={cn("flex-1", isNamed ? "font-bold" : "italic opacity-70")}>
+        <span className={cn("flex-1", isNamed ? "font-bold" : "font-normal")}>
           {displayName || t("session.summaryNotFound", "No summary")}
         </span>
       </span>

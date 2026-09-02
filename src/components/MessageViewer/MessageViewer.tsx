@@ -813,8 +813,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         className={cn(
           "flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2 lg:py-2.5 border-b sticky top-0 z-10",
           "flex-wrap",
-          "bg-gradient-to-r from-zinc-900/95 via-zinc-800/95 to-zinc-900/95",
-          "backdrop-blur-sm border-zinc-700/50"
+          "bg-card/95 backdrop-blur-sm border-border"
         )}
       >
         {/* Back Button */}
@@ -824,8 +823,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             onClick={onBack}
             className={cn(
               "shrink-0 p-2 rounded-lg transition-all duration-200",
-              "bg-zinc-800/60 hover:bg-zinc-700/80 text-zinc-400 hover:text-zinc-100",
-              "border border-zinc-700/40 hover:border-zinc-600/50"
+              "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground",
+              "border border-border/60 hover:border-border"
             )}
             title={t("common.back")}
           >
@@ -834,15 +833,15 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         )}
 
         {/* Filter Toggle - Segmented control style */}
-        <div className="shrink-0 flex items-center bg-zinc-800/60 rounded-lg p-0.5 border border-zinc-700/40 order-2 lg:order-none">
+        <div className="shrink-0 flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/60 order-2 lg:order-none">
           <button
             type="button"
             onClick={() => onFilterTypeChange("content")}
             className={cn(
               "text-xs px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
               sessionSearch.filterType === "content"
-                ? "bg-zinc-600/80 text-zinc-100 shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             )}
             title={t("messageViewer.filterType")}
           >
@@ -854,8 +853,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             className={cn(
               "text-xs px-2.5 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
               sessionSearch.filterType === "toolId"
-                ? "bg-zinc-600/80 text-zinc-100 shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             )}
             title={t("messageViewer.filterType")}
           >
@@ -867,7 +866,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         <div className="relative flex-1 group order-1 lg:order-none w-full lg:w-auto">
           <Search className={cn(
             "absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4",
-            "text-zinc-500 group-focus-within:text-zinc-300 transition-colors"
+            "text-muted-foreground group-focus-within:text-foreground transition-colors"
           )} />
           <input
             ref={searchInputRef}
@@ -879,9 +878,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             aria-label={t("messageViewer.searchPlaceholder")}
             className={cn(
               "w-full pl-9 pr-9 py-2 rounded-lg text-sm",
-              "bg-zinc-800/50 border border-zinc-700/50",
-              "text-zinc-100 placeholder:text-zinc-500",
-              "focus:outline-none focus:ring-1 focus:ring-zinc-500/50 focus:border-zinc-500/70",
+              "bg-muted/50 border border-border/60",
+              "text-foreground placeholder:text-muted-foreground",
+              "focus:outline-none focus:ring-1 focus:ring-ring/50 focus:border-ring/70",
               "transition-all duration-200"
             )}
           />
@@ -897,8 +896,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 aria-label="Clear search"
                 className={cn(
                   "absolute right-2.5 top-1/2 transform -translate-y-1/2",
-                  "p-1 rounded-md text-zinc-500",
-                  "hover:bg-zinc-700/50 hover:text-zinc-300",
+                  "p-1 rounded-md text-muted-foreground",
+                  "hover:bg-muted hover:text-foreground",
                   "transition-all duration-150"
                 )}
               >
@@ -911,10 +910,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
         {/* Match Navigation - Enhanced touch targets */}
         {sessionSearch.query && sessionSearch.matches && sessionSearch.matches.length > 0 && (
           <div className="shrink-0 flex items-center gap-1.5 order-3 lg:order-none">
-            <span className="whitespace-nowrap text-xs font-mono tabular-nums text-zinc-300 bg-zinc-700/50 px-2 py-1 rounded-md border border-zinc-600/30">
+            <span className="whitespace-nowrap text-xs font-mono tabular-nums text-foreground bg-muted px-2 py-1 rounded-md border border-border/60">
               {sessionSearch.currentMatchIndex + 1}/{sessionSearch.matches.length}
             </span>
-            <div className="flex items-center gap-0.5 bg-zinc-800/60 rounded-lg p-0.5 border border-zinc-700/40">
+            <div className="flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60">
               <button
                 type="button"
                 onClick={onPrevMatch}
@@ -923,7 +922,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 title="Shift+Enter"
                 className={cn(
                   "p-1.5 rounded-md transition-all duration-150",
-                  "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60",
+                  "text-muted-foreground hover:text-foreground hover:bg-muted",
                   "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 )}
               >
@@ -937,7 +936,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                 title="Enter"
                 className={cn(
                   "p-1.5 rounded-md transition-all duration-150",
-                  "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60",
+                  "text-muted-foreground hover:text-foreground hover:bg-muted",
                   "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 )}
               >
@@ -956,9 +955,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
               className={cn(
                 "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap",
                 "transition-all duration-200",
-                "bg-zinc-700/60 hover:bg-zinc-600/70",
-                "text-zinc-300 hover:text-zinc-100",
-                "border border-zinc-600/50 hover:border-zinc-500/50",
+                "bg-muted/60 hover:bg-muted",
+                "text-foreground/80 hover:text-foreground",
+                "border border-border/60 hover:border-border",
                 "shadow-sm hover:shadow-md"
               )}
               title={t("captureMode.tooltip")}
@@ -976,9 +975,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap",
                     "transition-all duration-200",
-                    "bg-zinc-700/60 hover:bg-zinc-600/70",
-                    "text-zinc-300 hover:text-zinc-100",
-                    "border border-zinc-600/50 hover:border-zinc-500/50",
+                    "bg-muted/60 hover:bg-muted",
+                    "text-foreground/80 hover:text-foreground",
+                    "border border-border/60 hover:border-border",
                     "shadow-sm hover:shadow-md",
                     "disabled:opacity-50 disabled:cursor-not-allowed"
                   )}
@@ -1323,8 +1322,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             "px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium",
             "animate-in fade-in slide-in-from-bottom-2 duration-200",
             captureToast.type === "success"
-              ? "bg-emerald-600 text-white"
-              : "bg-red-600 text-white"
+              ? "bg-success text-success-foreground"
+              : "bg-destructive text-destructive-foreground"
           )}
         >
           {captureToast.message}

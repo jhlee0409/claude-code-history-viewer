@@ -114,7 +114,7 @@ export function HiddenBlocksIndicator({
   return (
     <>
       {/* Invisible anchor in the DOM tree */}
-      <div ref={containerRef} className="h-px bg-zinc-700/30" />
+      <div ref={containerRef} className="h-px bg-border/50" />
 
       {/* Badge + Dropdown rendered via Portal */}
       {createPortal(
@@ -130,9 +130,9 @@ export function HiddenBlocksIndicator({
             className={cn(
               "fixed px-1.5 py-0.5 rounded-r-sm",
               "text-px10 font-mono tabular-nums",
-              "bg-zinc-800 text-zinc-500",
-              "border-y border-r border-zinc-700/50",
-              "hover:bg-zinc-700 hover:text-zinc-300 cursor-pointer",
+              "bg-muted text-muted-foreground",
+              "border-y border-r border-border/60",
+              "hover:bg-muted/80 hover:text-foreground cursor-pointer",
               "transition-colors"
             )}
             style={{
@@ -152,8 +152,8 @@ export function HiddenBlocksIndicator({
               ref={dropdownRef}
               className={cn(
                 "fixed min-w-[180px] max-h-[240px] overflow-y-auto",
-                "bg-zinc-900 border border-zinc-700 rounded-md",
-                "shadow-2xl shadow-black/70",
+                "bg-popover border border-border rounded-md",
+                "shadow-2xl shadow-black/30",
                 "text-px11"
               )}
               style={{
@@ -171,8 +171,8 @@ export function HiddenBlocksIndicator({
                   }}
                   className={cn(
                     "w-full flex items-center gap-2 px-3 py-2",
-                    "text-zinc-300 hover:bg-zinc-800",
-                    "border-b border-zinc-700",
+                    "text-foreground hover:bg-muted",
+                    "border-b border-border",
                     "transition-colors"
                   )}
                 >
@@ -195,11 +195,11 @@ export function HiddenBlocksIndicator({
                   }}
                   className={cn(
                     "w-full flex items-center justify-between gap-2 px-3 py-1.5",
-                    "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
+                    "text-muted-foreground hover:bg-muted hover:text-foreground",
                     "transition-colors"
                   )}
                 >
-                  <span className="font-mono text-px10 truncate text-zinc-500">
+                  <span className="font-mono text-px10 truncate text-muted-foreground/70">
                     {uuid.slice(0, 8)}...
                   </span>
                   <RotateCcw className="w-3 h-3 shrink-0" />

@@ -108,8 +108,8 @@ export const OffScreenCaptureRenderer = forwardRef<
         }}
       >
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-          <span className="text-sm text-zinc-300">
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+          <span className="text-sm text-white/80">
             {t("captureMode.capturing")}
           </span>
         </div>

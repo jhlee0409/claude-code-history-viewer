@@ -82,10 +82,10 @@ type SaveResult = {
 // ============================================================================
 
 const SCOPE_COLORS: Record<string, string> = {
-  global: "bg-amber-500/10 text-amber-600 border-amber-500/30",
-  user: "bg-blue-500/10 text-blue-600 border-blue-500/30",
-  project: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30",
-  local: "bg-purple-500/10 text-purple-600 border-purple-500/30",
+  global: "bg-warning/10 text-warning border-warning/30",
+  user: "bg-info/10 text-info border-info/30",
+  project: "bg-success/10 text-success border-success/30",
+  local: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30",
 };
 
 // ============================================================================
@@ -180,14 +180,14 @@ FileCard.displayName = "FileCard";
 
 const SEVERITY_ICON: Record<IssueSeverity, { Icon: typeof XCircle; className: string }> = {
   error: { Icon: XCircle, className: "text-destructive" },
-  warning: { Icon: AlertTriangle, className: "text-amber-500" },
-  info: { Icon: Info, className: "text-blue-500" },
+  warning: { Icon: AlertTriangle, className: "text-warning" },
+  info: { Icon: Info, className: "text-info" },
 };
 
 const SEVERITY_BORDER: Record<IssueSeverity, string> = {
   error: "border-destructive/30 bg-destructive/5",
-  warning: "border-amber-500/30 bg-amber-500/5",
-  info: "border-blue-500/20 bg-blue-500/5",
+  warning: "border-warning/30 bg-warning/5",
+  info: "border-info/20 bg-info/5",
 };
 
 const IssueCard = React.memo<{ issue: SettingsIssue }>(({ issue }) => {
@@ -483,16 +483,16 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                   issueCounts.errors > 0
                     ? "bg-destructive/5 border-destructive/20"
                     : issueCounts.warnings > 0
-                      ? "bg-amber-500/5 border-amber-500/20"
-                      : "bg-emerald-500/5 border-emerald-500/20"
+                      ? "bg-warning/5 border-warning/20"
+                      : "bg-success/5 border-success/20"
                 }`}
               >
                 {issueCounts.total === 0 ? (
-                  <CheckCircle2 aria-hidden className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <CheckCircle2 aria-hidden className="w-5 h-5 text-success shrink-0" />
                 ) : issueCounts.errors > 0 ? (
                   <XCircle aria-hidden className="w-5 h-5 text-destructive shrink-0" />
                 ) : (
-                  <AlertTriangle aria-hidden className="w-5 h-5 text-amber-500 shrink-0" />
+                  <AlertTriangle aria-hidden className="w-5 h-5 text-warning shrink-0" />
                 )}
                 <div>
                   <p className="text-sm font-medium">
@@ -546,7 +546,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
               >
                 {saveResult?.type === "success" ? (
                   <>
-                    <CheckCircle2 aria-hidden className="w-4 h-4 mr-2 text-emerald-500" />
+                    <CheckCircle2 aria-hidden className="w-4 h-4 mr-2 text-success" />
                     {saveResult.message}
                   </>
                 ) : (
@@ -578,7 +578,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
             {/* Why Complex Section */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium flex items-center gap-2">
-                <HelpCircle aria-hidden className="w-4 h-4 text-amber-500" />
+                <HelpCircle aria-hidden className="w-4 h-4 text-warning" />
                 {t("settingsManager.analyzer.whyComplex.title")}
               </h3>
               <div className="bg-muted/30 rounded-lg p-4 space-y-3 text-sm text-muted-foreground">
@@ -591,7 +591,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
             {/* Recommended Structure with live status */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium flex items-center gap-2">
-                <FolderTree aria-hidden className="w-4 h-4 text-emerald-500" />
+                <FolderTree aria-hidden className="w-4 h-4 text-success" />
                 {t("settingsManager.analyzer.recommended.title")}
               </h3>
               <p className="text-xs text-muted-foreground">
@@ -601,7 +601,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
               </p>
               <div className="bg-card border border-border/50 rounded-lg p-4 font-mono text-xs space-y-1">
                 <div className="text-muted-foreground">
-                  <span className="text-emerald-500">~/.claude/</span>
+                  <span className="text-success">~/.claude/</span>
                 </div>
                 <div className="pl-4 flex items-center gap-2">
                   <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
@@ -611,13 +611,13 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                   </Badge>
                 </div>
                 <div className="text-muted-foreground mt-3">
-                  <span className="text-emerald-500">~/.claude.json</span>
+                  <span className="text-success">~/.claude.json</span>
                   <Badge variant="outline" className="text-px9 h-4 ml-2">
                     {t("settingsManager.analyzer.recommended.globalMcp")}
                   </Badge>
                 </div>
                 <div className="text-muted-foreground mt-3">
-                  <span className="text-blue-500">your-project/</span>
+                  <span className="text-info">your-project/</span>
                 </div>
                 <div className="pl-4 flex items-center gap-2">
                   <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground/50" />
@@ -646,23 +646,23 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
             {/* Priority Order */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium flex items-center gap-2">
-                <Info aria-hidden className="w-4 h-4 text-blue-500" />
+                <Info aria-hidden className="w-4 h-4 text-info" />
                 {t("settingsManager.analyzer.priority.title")}
               </h3>
               <div className="flex items-center gap-2 text-xs">
-                <Badge variant="secondary" className="bg-purple-500/10 text-purple-600">
+                <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 dark:text-purple-400">
                   {t("settingsManager.analyzer.scope.local")}
                 </Badge>
                 <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
-                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600">
+                <Badge variant="secondary" className="bg-success/10 text-success">
                   {t("settingsManager.analyzer.scope.project")}
                 </Badge>
                 <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
-                <Badge variant="secondary" className="bg-blue-500/10 text-blue-600">
+                <Badge variant="secondary" className="bg-info/10 text-info">
                   {t("settingsManager.analyzer.scope.user")}
                 </Badge>
                 <ChevronRight aria-hidden className="w-3 h-3 text-muted-foreground" />
-                <Badge variant="secondary" className="bg-amber-500/10 text-amber-600">
+                <Badge variant="secondary" className="bg-warning/10 text-warning">
                   {t("settingsManager.analyzer.scope.global")}
                 </Badge>
               </div>
@@ -704,12 +704,12 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
             {/* MCP Locations */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium flex items-center gap-2">
-                <Server aria-hidden className="w-4 h-4 text-purple-500" />
+                <Server aria-hidden className="w-4 h-4 text-tool-mcp" />
                 {t("settingsManager.analyzer.mcp.title")}
               </h3>
               <div className="space-y-2 text-sm">
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
-                  <Home aria-hidden className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-warning/5 border border-warning/20">
+                  <Home aria-hidden className="w-4 h-4 text-warning shrink-0 mt-0.5" />
                   <div>
                     <code className="text-xs font-mono">~/.claude.json</code>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -717,8 +717,8 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                     </p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                  <FolderTree aria-hidden className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-success/5 border border-success/20">
+                  <FolderTree aria-hidden className="w-4 h-4 text-success shrink-0 mt-0.5" />
                   <div>
                     <code className="text-xs font-mono">.mcp.json</code>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -754,7 +754,7 @@ export const SettingsAnalyzerDialog: React.FC<SettingsAnalyzerDialogProps> = ({
                   <p className="text-foreground/80">
                     # {t("settingsManager.analyzer.mcp.perProject.symlinkExample")}
                   </p>
-                  <p className="text-emerald-500">
+                  <p className="text-success">
                     ln -s ~/.claude/project-configs/my-project .claude
                   </p>
                 </div>

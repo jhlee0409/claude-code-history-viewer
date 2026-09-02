@@ -16,10 +16,10 @@ interface NavigatorEntryProps {
 }
 
 const ROLE_STYLES = {
-  user: { dot: "bg-blue-500" },
-  assistant: { dot: "bg-amber-500" },
-  system: { dot: "bg-gray-400" },
-  summary: { dot: "bg-purple-400" },
+  user: { dot: "bg-info" },
+  assistant: { dot: "bg-warning" },
+  system: { dot: "bg-muted-foreground" },
+  summary: { dot: "bg-tool-mcp" },
 } as const;
 
 export const NavigatorEntry = React.memo<NavigatorEntryProps>(({

@@ -213,12 +213,12 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
             </span>
             <span className="shrink-0 font-mono text-px11 text-muted-foreground">
               {edit.lines_added > 0 && (
-                <span className="text-green-600 dark:text-green-400">
+                <span className="text-success">
                   +{edit.lines_added}
                 </span>
               )}
               {edit.lines_removed > 0 && (
-                <span className="ml-1 text-red-600 dark:text-red-400">
+                <span className="ml-1 text-destructive">
                   -{edit.lines_removed}
                 </span>
               )}
@@ -353,7 +353,7 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
             <button
               type="button"
               onClick={actions.confirmRestore}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+              className="rounded-md bg-accent px-4 py-2 text-sm text-accent-foreground hover:bg-accent/90"
             >
               {t("recentEdits.confirmRestore")}
             </button>

@@ -18,7 +18,7 @@ function FilterToggle({ active, onClick, label, icon }: FilterToggleProps) {
         "flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs border transition-colors",
         active
           ? "bg-accent/15 text-accent border-accent/30"
-          : "bg-transparent text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-800/50"
+          : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50"
       )}
       aria-pressed={active}
       aria-label={label}
@@ -51,7 +51,7 @@ export function FilterToolbar({ totalCount, filteredCount, hasParallelTasks }: F
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 px-3 py-1 border-b border-border/30 shrink-0 min-h-[32px] overflow-x-auto",
+        "flex flex-wrap items-center gap-1.5 px-3 py-1 border-b border-border/30 shrink-0 min-h-[32px]",
         isActive && "bg-accent/5"
       )}
     >

@@ -38,7 +38,7 @@ export function CaptureModeToolbar({
     <div
       className={cn(
         "flex items-center justify-between px-4 py-2",
-        "bg-zinc-950 border-b border-zinc-800"
+        "bg-card border-b border-border"
       )}
     >
       {/* Left: Recording indicator + status */}
@@ -46,17 +46,17 @@ export function CaptureModeToolbar({
         {/* Live recording dot */}
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
           </span>
-          <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {t("captureMode.active")}
           </span>
         </div>
 
         {/* Divider */}
         {(hiddenCount > 0 || hasSelection) && (
-          <div className="h-4 w-px bg-zinc-800" />
+          <div className="h-4 w-px bg-border" />
         )}
 
         {/* Hidden count - minimal */}
@@ -65,7 +65,7 @@ export function CaptureModeToolbar({
             onClick={restoreAllMessages}
             className={cn(
               "flex items-center gap-2 group",
-              "text-zinc-500 hover:text-zinc-300 transition-colors"
+              "text-muted-foreground hover:text-foreground transition-colors"
             )}
             title={t("captureMode.restoreAll")}
           >
@@ -79,14 +79,14 @@ export function CaptureModeToolbar({
         {/* Selection info */}
         {hasSelection && (
           <>
-            {hiddenCount > 0 && <div className="h-4 w-px bg-zinc-800" />}
+            {hiddenCount > 0 && <div className="h-4 w-px bg-border" />}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono tabular-nums text-blue-400">
+              <span className="text-xs font-mono tabular-nums text-accent">
                 {t("captureMode.selectedCount", { count: selectedCount })}
               </span>
               <button
                 onClick={onClearSelection}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="text-muted-foreground hover:text-foreground transition-colors"
                 title={t("captureMode.clearSelection")}
                 aria-label={t("captureMode.clearSelection")}
               >
@@ -98,7 +98,7 @@ export function CaptureModeToolbar({
 
         {/* Selection hint with OS-specific modifier keys */}
         {!hasSelection && (
-          <span className="text-xs text-zinc-600 italic">
+          <span className="text-xs text-muted-foreground/70 italic">
             {t("captureMode.selectMessages")}
             {" · "}
             {isMacOS()
@@ -118,9 +118,9 @@ export function CaptureModeToolbar({
             className={cn(
               "flex items-center gap-2 px-3 py-1.5",
               "text-xs font-medium",
-              "bg-blue-600 hover:bg-blue-500",
-              "text-white",
-              "border border-blue-500 hover:border-blue-400",
+              "bg-accent hover:bg-accent/90",
+              "text-accent-foreground",
+              "border border-accent",
               "rounded transition-all duration-150",
               "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
@@ -145,9 +145,9 @@ export function CaptureModeToolbar({
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5",
             "text-xs font-medium",
-            "bg-zinc-800 hover:bg-zinc-700",
-            "text-zinc-300 hover:text-zinc-100",
-            "border border-zinc-700 hover:border-zinc-600",
+            "bg-muted hover:bg-muted/80",
+            "text-foreground/80 hover:text-foreground",
+            "border border-border",
             "rounded transition-all duration-150"
           )}
         >

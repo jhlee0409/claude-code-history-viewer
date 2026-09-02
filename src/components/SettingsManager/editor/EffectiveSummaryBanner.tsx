@@ -84,7 +84,7 @@ export const EffectiveSummaryBanner: React.FC<EffectiveSummaryBannerProps> = ({
             <Badge variant="secondary" className="text-xs">
               {serverCount} MCP
               {conflicts.length > 0 && (
-                <AlertTriangle className="w-3 h-3 ml-1 text-amber-500" />
+                <AlertTriangle className="w-3 h-3 ml-1 text-warning" />
               )}
             </Badge>
           )}

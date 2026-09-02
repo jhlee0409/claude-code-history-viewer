@@ -299,13 +299,13 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
             className={cn(
               "relative overflow-hidden rounded-lg border-2 transition-all duration-300",
               activeScope === "user" &&
-                "bg-blue-500/10 border-blue-500/40 hover:border-blue-500/60",
+                "bg-info/10 border-info/40 hover:border-info/60",
               activeScope === "project" &&
-                "bg-green-500/10 border-green-500/40 hover:border-green-500/60",
+                "bg-success/10 border-success/40 hover:border-success/60",
               activeScope === "local" &&
-                "bg-amber-500/10 border-amber-500/40 hover:border-amber-500/60",
+                "bg-warning/10 border-warning/40 hover:border-warning/60",
               activeScope === "managed" &&
-                "bg-red-500/10 border-red-500/40 hover:border-red-500/60"
+                "bg-destructive/10 border-destructive/40 hover:border-destructive/60"
             )}
           >
             <div className="p-3 space-y-2">
@@ -314,16 +314,16 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
                 <div
                   className={cn(
                     "p-1.5 rounded-md",
-                    activeScope === "user" && "bg-blue-500/20",
-                    activeScope === "project" && "bg-green-500/20",
-                    activeScope === "local" && "bg-amber-500/20",
-                    activeScope === "managed" && "bg-red-500/20"
+                    activeScope === "user" && "bg-info/20",
+                    activeScope === "project" && "bg-success/20",
+                    activeScope === "local" && "bg-warning/20",
+                    activeScope === "managed" && "bg-destructive/20"
                   )}
                 >
-                  {activeScope === "user" && <Globe className="w-4 h-4 text-blue-400" />}
-                  {activeScope === "project" && <FolderOpen className="w-4 h-4 text-green-400" />}
-                  {activeScope === "local" && <Lock className="w-4 h-4 text-amber-400" />}
-                  {activeScope === "managed" && <AlertTriangle className="w-4 h-4 text-red-400" />}
+                  {activeScope === "user" && <Globe className="w-4 h-4 text-info" />}
+                  {activeScope === "project" && <FolderOpen className="w-4 h-4 text-success" />}
+                  {activeScope === "local" && <Lock className="w-4 h-4 text-warning" />}
+                  {activeScope === "managed" && <AlertTriangle className="w-4 h-4 text-destructive" />}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -344,10 +344,10 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
                 <div
                   className={cn(
                     "px-2 py-0.5 rounded text-px10 font-bold uppercase tracking-wide shrink-0",
-                    activeScope === "user" && "bg-blue-500/20 text-blue-300",
-                    activeScope === "project" && "bg-green-500/20 text-green-300",
-                    activeScope === "local" && "bg-amber-500/20 text-amber-300",
-                    activeScope === "managed" && "bg-red-500/20 text-red-300"
+                    activeScope === "user" && "bg-info/20 text-info",
+                    activeScope === "project" && "bg-success/20 text-success",
+                    activeScope === "local" && "bg-warning/20 text-warning",
+                    activeScope === "managed" && "bg-destructive/20 text-destructive"
                   )}
                 >
                   {activeScope === "user" && t("settingsManager.scope.badge.global")}
@@ -418,7 +418,7 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
               {groupedProjects.map((group) => (
                 <SelectGroup key={group.path}>
                   <SelectLabel className="flex items-center gap-1.5 text-xs bg-muted/50 -mx-1 px-2 py-1">
-                    <Folder className="w-3 h-3 text-amber-500" />
+                    <Folder className="w-3 h-3 text-warning" />
                     {group.name}
                   </SelectLabel>
                   {group.projects.map((project) => (
@@ -458,8 +458,8 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
                 className={cn(
                   "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border transition-all duration-200",
                   isPrivate
-                    ? "bg-amber-500/5 border-amber-500/20"
-                    : "bg-green-500/5 border-green-500/20"
+                    ? "bg-warning/5 border-warning/20"
+                    : "bg-success/5 border-success/20"
                 )}
               >
                 <Label
@@ -468,15 +468,15 @@ export const ContextSelector: React.FC<ContextSelectorProps> = React.memo(
                 >
                   {isPrivate ? (
                     <>
-                      <Lock className="w-3.5 h-3.5 text-amber-400" />
-                      <span className="text-amber-300">
+                      <Lock className="w-3.5 h-3.5 text-warning" />
+                      <span className="text-warning">
                         {t("settingsManager.context.keepPrivate")}
                       </span>
                     </>
                   ) : (
                     <>
-                      <User className="w-3.5 h-3.5 text-green-400" />
-                      <span className="text-green-300">
+                      <User className="w-3.5 h-3.5 text-success" />
+                      <span className="text-success">
                         {t("settingsManager.context.shareWithTeam")}
                       </span>
                     </>

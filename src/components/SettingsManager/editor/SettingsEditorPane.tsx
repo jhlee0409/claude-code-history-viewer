@@ -417,10 +417,10 @@ export const SettingsEditorPane: React.FC = () => {
           <div className="px-4 pb-2">
             <Alert
               variant={saveResult.type === "error" ? "destructive" : "default"}
-              className={saveResult.type === "success" ? "border-green-500 bg-green-50 dark:bg-green-950/20" : ""}
+              className={saveResult.type === "success" ? "border-success bg-success/10" : ""}
             >
               {saveResult.type === "success" ? (
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <CheckCircle className="h-4 w-4 text-success" />
               ) : (
                 <XCircle className="h-4 w-4" />
               )}

@@ -146,25 +146,25 @@ export function ScreenshotPreviewModal({
     >
       <h2 id={titleId} className="sr-only">{t("captureMode.preview.title")}</h2>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-900/90 border-b border-zinc-800">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-popover/90 border-b border-border">
         {/* Left: dimensions */}
         <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-zinc-400">
+          <span className="text-xs font-mono text-muted-foreground">
             {t("captureMode.preview.dimensions", { width, height })}
           </span>
-          <span className="text-xs font-mono text-zinc-500">
+          <span className="text-xs font-mono text-muted-foreground">
             {t("captureMode.preview.zoomLevel", { percent: zoomPercent })}
           </span>
         </div>
 
         {/* Center: zoom controls */}
-        <div className="flex items-center gap-1 bg-zinc-800/60 rounded-lg p-0.5 border border-zinc-700/40">
+        <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-0.5 border border-border/40">
           <button
             type="button"
             onClick={zoomOut}
             className={cn(
               "p-1.5 rounded-md transition-all duration-150",
-              "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60",
+              "text-muted-foreground hover:text-foreground hover:bg-muted/60",
             )}
             aria-label={t("captureMode.preview.zoomOut")}
             title={t("captureMode.preview.zoomOut")}
@@ -176,7 +176,7 @@ export function ScreenshotPreviewModal({
             onClick={handleFitToScreen}
             className={cn(
               "p-1.5 rounded-md transition-all duration-150",
-              "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60",
+              "text-muted-foreground hover:text-foreground hover:bg-muted/60",
             )}
             aria-label={t("captureMode.preview.fitToScreen")}
             title={t("captureMode.preview.fitToScreen")}
@@ -188,7 +188,7 @@ export function ScreenshotPreviewModal({
             onClick={zoomIn}
             className={cn(
               "p-1.5 rounded-md transition-all duration-150",
-              "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60",
+              "text-muted-foreground hover:text-foreground hover:bg-muted/60",
             )}
             aria-label={t("captureMode.preview.zoomIn")}
             title={t("captureMode.preview.zoomIn")}
@@ -204,8 +204,8 @@ export function ScreenshotPreviewModal({
             onClick={onSave}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded",
-              "bg-blue-600 hover:bg-blue-500 text-white",
-              "border border-blue-500 hover:border-blue-400",
+              "bg-accent hover:bg-accent/90 text-accent-foreground",
+              "border border-accent hover:border-accent/80",
               "transition-all duration-150",
             )}
           >
@@ -217,7 +217,7 @@ export function ScreenshotPreviewModal({
             onClick={onClose}
             className={cn(
               "p-1.5 rounded-md transition-all duration-150",
-              "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60",
+              "text-muted-foreground hover:text-foreground hover:bg-muted/60",
             )}
             aria-label={t("captureMode.preview.cancel")}
             title={t("captureMode.preview.cancel")}

@@ -139,7 +139,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
             <span
               className={cn(
                 "text-xs leading-relaxed line-clamp-2 flex-1",
-                editing.isNamed ? "font-bold" : "italic opacity-70",
+                editing.isNamed ? "font-bold" : "font-normal",
                 highlighted ? "text-accent" : "text-sidebar-foreground/70"
               )}
             >

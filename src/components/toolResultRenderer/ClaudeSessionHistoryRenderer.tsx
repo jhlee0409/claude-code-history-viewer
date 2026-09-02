@@ -22,7 +22,7 @@ const ErrorFallbackDetails = ({ label, content }: { label: string; content: stri
         {label}
       </button>
       {open && (
-        <pre className={cn("mt-2 bg-gray-100 overflow-x-auto", layout.containerPadding, layout.rounded, layout.smallText)}>
+        <pre className={cn("mt-2 bg-muted overflow-x-auto", layout.containerPadding, layout.rounded, layout.smallText)}>
           {content}
         </pre>
       )}
@@ -58,12 +58,12 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
 
     if (chatMessages.length === 0) {
       return (
-        <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, "bg-gray-50 border-gray-200")}>
+        <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, "bg-muted border-border")}>
           <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
             <MessageCircle className={layout.iconSize} />
-            <span className={cn(layout.titleText, "text-gray-800")}>{t('claudeSessionHistoryRenderer.title')}</span>
+            <span className={cn(layout.titleText, "text-foreground")}>{t('claudeSessionHistoryRenderer.title')}</span>
           </div>
-          <p className={cn(layout.bodyText, "text-gray-600")}>
+          <p className={cn(layout.bodyText, "text-muted-foreground/70")}>
             {t('claudeSessionHistoryRenderer.noValidMessages')}
           </p>
         </div>
@@ -71,10 +71,10 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
     }
 
     return (
-      <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, "bg-purple-50 border-purple-200")}>
+      <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, "bg-tool-mcp/10 border-tool-mcp/30")}>
         <div className={cn("flex items-center mb-3", layout.iconSpacing)}>
           <MessageCircle className={layout.iconSize} />
-          <span className={cn(layout.titleText, "text-purple-800")}>
+          <span className={cn(layout.titleText, "text-tool-mcp")}>
             {t('claudeSessionHistoryRenderer.messageCount', { count: chatMessages.length })}
           </span>
         </div>
@@ -83,8 +83,8 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
             <div
               key={index}
               className={cn(layout.containerPadding, layout.rounded, msg.type === "user"
-                  ? "bg-blue-100 border-l-4 border-blue-400"
-                  : "bg-green-100 border-l-4 border-green-400"
+                  ? "bg-info/10 border-l-4 border-info"
+                  : "bg-success/10 border-l-4 border-success"
               )}
             >
               <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
@@ -97,7 +97,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                   {msg.type === "user" ? t('claudeSessionHistoryRenderer.user') : t('claudeSessionHistoryRenderer.claude')}
                 </span>
                 {typeof msg.timestamp === "string" && (
-                  <span className={cn(layout.smallText, "text-gray-500")}>
+                  <span className={cn(layout.smallText, "text-muted-foreground")}>
                     {formatTime(msg.timestamp)}
                   </span>
                 )}
@@ -126,7 +126,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                                 </div>
                               )}
                             {item.type === "tool_use" && (
-                              <div className={cn("bg-gray-100", layout.containerPadding, layout.rounded, layout.smallText)}>
+                              <div className={cn("bg-muted", layout.containerPadding, layout.rounded, layout.smallText)}>
                                 <span className="font-medium">
                                   <Wrench className={cn(layout.iconSize, "inline mr-1")} />
                                   {typeof item.name === "string"
@@ -152,7 +152,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                     </pre>
                   ) : null
                 ) : (
-                  <span className={cn(layout.bodyText, "text-gray-500 italic")}>{t('claudeSessionHistoryRenderer.noContent')}</span>
+                  <span className={cn(layout.bodyText, "text-muted-foreground italic")}>{t('claudeSessionHistoryRenderer.noContent')}</span>
                 )}
               </div>
               {typeof msg.message === "object" &&
@@ -160,7 +160,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                 "usage" in msg.message &&
                 typeof msg.message.usage === "object" &&
                 msg.message.usage !== null && (
-                  <div className={cn("mt-2 text-gray-600", layout.smallText)}>
+                  <div className={cn("mt-2 text-muted-foreground/70", layout.smallText)}>
                     <span>
                       {t('claudeSessionHistoryRenderer.tokenUsage')}:{" "}
                       {"input_tokens" in msg.message.usage &&
@@ -186,12 +186,12 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
     );
   } catch {
     return (
-      <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, "bg-red-50 border-red-200")}>
+      <div className={cn("mt-2 border", layout.containerPadding, layout.rounded, "bg-destructive/10 border-destructive/30")}>
         <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
-          <X className={cn(layout.iconSize, "text-red-500")} />
-          <span className={cn(layout.titleText, "text-red-800")}>{t('claudeSessionHistoryRenderer.parsingError')}</span>
+          <X className={cn(layout.iconSize, "text-destructive")} />
+          <span className={cn(layout.titleText, "text-destructive")}>{t('claudeSessionHistoryRenderer.parsingError')}</span>
         </div>
-        <p className={cn(layout.bodyText, "text-red-600")}>
+        <p className={cn(layout.bodyText, "text-destructive")}>
           {t('claudeSessionHistoryRenderer.parsingErrorDescription')}
         </p>
         <ErrorFallbackDetails label={t('claudeSessionHistoryRenderer.viewOriginalData')} content={content} />

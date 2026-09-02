@@ -63,11 +63,11 @@ const sourceLabels: Record<MCPSource, string> = {
 };
 
 const sourceColors: Record<MCPSource, string> = {
-  user_claude_json: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  local_claude_json: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  user_settings: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-  user_mcp: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-  project_mcp: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  user_claude_json: "bg-info/10 text-info border-info/30",
+  local_claude_json: "bg-warning/10 text-warning border-warning/30",
+  user_settings: "bg-muted text-muted-foreground",
+  user_mcp: "bg-muted text-muted-foreground",
+  project_mcp: "bg-success/10 text-success border-success/30",
 };
 
 // ============================================================================
@@ -162,7 +162,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
               {t("settingsManager.mcp.serverCount", { count: allServers.length })}
             </span>
             {conflicts.size > 0 && (
-              <Badge variant="outline" className="text-amber-600 border-amber-300">
+              <Badge variant="outline" className="text-warning border-warning/40">
                 <AlertTriangle className="w-3 h-3 mr-1" />
                 {conflicts.size} {t("settingsManager.overview.conflicts")}
               </Badge>
@@ -186,7 +186,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                 <div
                   key={name}
                   className={`border rounded-lg p-3 ${
-                    hasConflict ? "border-amber-300 dark:border-amber-700" : ""
+                    hasConflict ? "border-warning/40" : ""
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -199,7 +199,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                               className="inline-flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
                               aria-label={t("settingsManager.unified.mcp.conflictHint")}
                             >
-                              <AlertTriangle className="w-4 h-4 text-amber-500" />
+                              <AlertTriangle className="w-4 h-4 text-warning" />
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>
