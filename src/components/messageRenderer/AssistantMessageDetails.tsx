@@ -7,6 +7,7 @@ import {
   calculateModelPrice,
   hasExplicitModelPricing,
 } from '@/components/AnalyticsDashboard/utils/calculations';
+import { ModelLifecycleBadge } from '@/components/ModelLifecycleBadge';
 
 interface AssistantMessageDetailsProps {
   message: ClaudeMessage;
@@ -102,7 +103,10 @@ export const AssistantMessageDetails: React.FC<AssistantMessageDetailsProps> = (
 
   return (
     <div className={`flex items-center justify-start mt-1.5 ${layout.iconSpacing} ${layout.smallText} text-muted-foreground flex-wrap gap-y-1`}>
-      <span>{t('assistantMessageDetails.model')}: {model}</span>
+      <span className="flex items-center gap-1.5">
+        {t('assistantMessageDetails.model')}: {model}
+        <ModelLifecycleBadge model={model} />
+      </span>
 
       {/* Cost display (authoritative when costUSD present, otherwise estimated from pricing table) */}
       {displayCost != null && (

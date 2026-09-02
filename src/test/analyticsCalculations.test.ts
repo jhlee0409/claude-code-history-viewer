@@ -13,6 +13,8 @@ describe("MiniMax analytics pricing", () => {
   });
 
   it("calculates MiniMax-M3 pricing without an unavailable cache-write rate", () => {
+    // 0.30 input + 1.20 output + 0.06 cache read: the published effective
+    // rate after MiniMax's permanent 50% discount, not the struck-through list price.
     expect(
       calculateModelPrice(
         "MiniMax-M3",
@@ -21,7 +23,7 @@ describe("MiniMax analytics pricing", () => {
         ONE_MILLION_TOKENS,
         ONE_MILLION_TOKENS
       )
-    ).toBeCloseTo(3.12);
+    ).toBeCloseTo(1.56);
   });
 
   it("calculates MiniMax-M2.7 pricing with cache read and write rates", () => {

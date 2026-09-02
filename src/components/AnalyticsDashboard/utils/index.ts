@@ -11,6 +11,7 @@ export {
   formatCurrency,
   calculateModelPrice,
   hasExplicitModelPricing,
+  MODEL_PRICING_AUDITED_AT,
   getHeatColor,
 } from "./calculations";
 
@@ -37,6 +38,7 @@ export {
 export {
   calculateModelMetrics,
   calculateGlobalCostSummary,
+  calculateRetirementImpact,
   getRankMedal,
   hasMedal,
   type ModelDisplayMetrics,
