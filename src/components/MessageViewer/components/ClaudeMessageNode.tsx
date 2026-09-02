@@ -423,10 +423,12 @@ export const ClaudeMessageNode = React.memo(({
                     isCurrentMatch={isCurrentMatch}
                     currentMatchIndex={currentMatchIndex}
                     skipToolResults={shouldRenderLegacyToolResult}
+                    // The bubble above already shows the text block; providers
+                    // that store user turns as content arrays (pi/oh-my-pi)
+                    // would otherwise render it twice.
                     skipText={
                       (message.type === "assistant" && !messageFilter.contentTypes.text) ||
-                      (message.type === "assistant" &&
-                      !!extractClaudeMessageContent(message))
+                      !!extractClaudeMessageContent(message)
                     }
                     skipThinking={message.type === "assistant" && !messageFilter.contentTypes.thinking}
                     skipCommands={message.type === "assistant" && !messageFilter.contentTypes.commands}
