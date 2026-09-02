@@ -234,13 +234,16 @@
   --input: oklch(0.22 0.015 260);
   --ring: oklch(0.50 0.05 250);
 
-  /* === Semantic Status Colors (Dark) === */
+  /* === Semantic Status Colors (Dark) ===
+     Fills are bright in dark mode, so their foregrounds must be dark (like
+     --accent-foreground / --destructive-foreground); the old near-white
+     values measured 1.5–1.9:1. */
   --success: oklch(0.78 0.16 145);
-  --success-foreground: oklch(0.95 0.02 145);
+  --success-foreground: oklch(0.14 0.03 145);
   --warning: oklch(0.82 0.16 75);
-  --warning-foreground: oklch(0.95 0.02 75);
+  --warning-foreground: oklch(0.15 0.04 75);
   --info: oklch(0.75 0.16 240);
-  --info-foreground: oklch(0.95 0.02 240);
+  --info-foreground: oklch(0.14 0.03 240);
 
   /* === Tool-specific Colors (Dark - Industrial Luxury) === */
   --tool-code: oklch(0.78 0.14 250);

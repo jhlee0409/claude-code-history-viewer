@@ -32,7 +32,7 @@ export const SummaryMessage: React.FC<SummaryMessageProps> = ({ content, timesta
           )}
         />
         <FileText className="w-4 h-4 flex-shrink-0 text-info" />
-        <span className="text-sm font-medium text-info-foreground">
+        <span className="text-sm font-medium text-foreground">
           {t("messageViewer.priorContext")}
         </span>
         <span className="text-xs ml-auto text-info">
@@ -41,7 +41,7 @@ export const SummaryMessage: React.FC<SummaryMessageProps> = ({ content, timesta
       </button>
 
       {isExpanded && (
-        <div className="px-3 pb-3 text-sm text-info-foreground">
+        <div className="px-3 pb-3 text-sm text-foreground">
           {content}
         </div>
       )}

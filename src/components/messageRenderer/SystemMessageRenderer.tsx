@@ -58,7 +58,7 @@ const LEVEL_CONFIG = {
   },
   warning: {
     icon: AlertTriangle,
-    color: "text-warning-foreground",
+    color: "text-foreground",
     bgColor: "bg-warning/10",
     borderColor: "border-warning/30",
   },
@@ -316,7 +316,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
     if (import.meta.env.DEV) {
       return (
         <div className={`bg-warning/10 border border-warning/30 rounded-lg p-2 ${layout.smallText}`}>
-          <span className="text-warning-foreground">
+          <span className="text-foreground">
             [DEBUG] System message with no content or subtype
           </span>
         </div>
