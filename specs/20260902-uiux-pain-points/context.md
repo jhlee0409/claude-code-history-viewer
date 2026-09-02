@@ -51,3 +51,7 @@ nested Renderer shared expand key `${uuid}:renderer`; provider merge (plan 5.3).
 Done: KPI/Settings/header reflow (85ee6fc), typecheck fix + SessionCopyMenu regression (8ad5a2a),
 per-entry expand keys (81a27a6). NOTE: use `pnpm typecheck` (tsc -b); root `tsc --noEmit` is a no-op.
 Remaining: provider merge (plan 5.3); `--muted-foreground` light contrast measurement; text-warning-foreground on bg-warning (dark).
+
+## Round 5
+Done: dark status-foreground contrast + settings container fix (e6f10e9), provider merge in flat list (plan 5.3).
+Backlog is empty apart from the light `--muted-foreground` check, which measured 7.1:1 (no change needed).
