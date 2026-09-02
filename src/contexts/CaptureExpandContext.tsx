@@ -17,6 +17,11 @@ const ExpandKeyContext = createContext<string>("");
 /** Provider to set the expand key prefix (typically message UUID) */
 export const ExpandKeyProvider = ExpandKeyContext.Provider;
 
+/** Current expand-key prefix, for nesting a narrower scope under it. */
+export function useExpandKeyPrefix(): string {
+  return useContext(ExpandKeyContext);
+}
+
 /**
  * Drop-in replacement for useState<boolean> with shared state registry.
  *

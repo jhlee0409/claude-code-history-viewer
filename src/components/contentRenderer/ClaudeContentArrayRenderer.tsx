@@ -38,6 +38,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
 import { TruncatedPre } from "../common/TruncatedPre";
+import { ExpandKeyProvider, useExpandKeyPrefix } from "@/contexts/CaptureExpandContext";
 import type { SearchFilterType } from "../../store/useAppStore";
 import {
   isServerToolUseContent,
@@ -157,13 +158,16 @@ export const ClaudeContentArrayRenderer = memo(({
     [content]
   );
 
+  // Each entry gets its own expand-key scope: nested result renderers fall
+  // back to a shared "renderer" suffix, so without this every collapsible
+  // in the message toggled together.
+  const expandPrefix = useExpandKeyPrefix();
+
   if (normalizedContent.length === 0) {
     return null;
   }
 
-  return (
-    <div className="space-y-2 text-px12">
-      {normalizedContent.map((entry) => {
+  const renderEntry = (entry: NormalizedContentEntry) => {
         if (entry.kind === "toolExecution") {
           if (skipToolCalls) return null;
           return (
@@ -552,7 +556,15 @@ export const ClaudeContentArrayRenderer = memo(({
             );
           }
         }
-      })}
+  };
+
+  return (
+    <div className="space-y-2 text-px12">
+      {normalizedContent.map((entry) => (
+        <ExpandKeyProvider key={entry.key} value={`${expandPrefix}:${entry.key}`}>
+          {renderEntry(entry)}
+        </ExpandKeyProvider>
+      ))}
     </div>
   );
 });
