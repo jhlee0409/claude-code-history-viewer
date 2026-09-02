@@ -53,6 +53,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   // the provider has retired or is about to. The stable id makes repeated
   // loads update the same toast instead of stacking.
   useEffect(() => {
+    if (!isViewingGlobalStats) return;
     const models = globalSummary?.model_distribution ?? [];
     const retiring = models.filter((model) => {
       const status = getModelLifecycle(model.model_name)?.status;
@@ -66,7 +67,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       }),
       { id: "model-retirement", duration: 8000 },
     );
-  }, [globalSummary, t]);
+  }, [globalSummary, isViewingGlobalStats, t]);
 
   // Global stats or no project
   if (isViewingGlobalStats || !selectedProject) {

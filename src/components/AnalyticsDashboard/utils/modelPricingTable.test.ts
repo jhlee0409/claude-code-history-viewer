@@ -48,6 +48,15 @@ describe("model-pricing.json", () => {
     }
   });
 
+  it("every replacedBy points at a priced, non-retired model", () => {
+    for (const [key, entry] of Object.entries(pricingTable.models)) {
+      if (!("replacedBy" in entry)) continue;
+      const target = pricingTable.models[entry.replacedBy as keyof typeof pricingTable.models];
+      expect(target, `${key}.replacedBy → ${entry.replacedBy}`).toBeDefined();
+      expect("deprecatedAt" in target, `${key} is replaced by a retired model`).toBe(false);
+    }
+  });
+
   it("keeps aliases in sync with the model they point at", () => {
     const { models } = pricingTable;
     const rates = (entry: ModelPricing) => JSON.stringify([entry.input, entry.output, entry.cacheRead, entry.cacheWrite, entry.contextTiers]);

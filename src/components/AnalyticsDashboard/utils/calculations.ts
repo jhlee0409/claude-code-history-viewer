@@ -206,10 +206,12 @@ export const getModelLifecycle = (
   if (!entry) return null;
   if (!entry.deprecatedAt) return { status: "active" };
 
-  const todayIso = today.toISOString().slice(0, 10);
-  const horizonIso = new Date(today.getTime() + MODEL_RETIRING_WINDOW_DAYS * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
+  // Provider dates are calendar days; compare against the user's local day,
+  // not the UTC day, so the flip does not happen hours early west of UTC.
+  const localIsoDate = (date: Date): string =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const todayIso = localIsoDate(today);
+  const horizonIso = localIsoDate(new Date(today.getTime() + MODEL_RETIRING_WINDOW_DAYS * 86_400_000));
   const status = entry.deprecatedAt <= todayIso
     ? "retired"
     : entry.deprecatedAt <= horizonIso

@@ -253,6 +253,7 @@ export const calculateGlobalCostSummary = (
 export interface RetirementImpactRow {
   modelName: string;
   providerId?: string;
+  serviceTier?: string;
   replacedBy: string;
   lifecycle: ModelLifecycle;
   tokenCount: number;
@@ -283,6 +284,7 @@ export const calculateRetirementImpact = (
     rows.push({
       modelName: model.model_name,
       providerId: model.provider_id,
+      serviceTier: model.service_tier,
       replacedBy: lifecycle.replacedBy,
       lifecycle,
       tokenCount: model.token_count,

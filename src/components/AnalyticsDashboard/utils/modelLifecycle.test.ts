@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { getModelLifecycle } from "./calculations";
 
-const today = new Date("2026-09-02T12:00:00Z");
+// Local-time constructors: lifecycle compares against the user's calendar day.
+const today = new Date(2026, 8, 2, 12);
 
 describe("getModelLifecycle", () => {
   it("returns null for ids the table does not know", () => {
@@ -29,8 +30,8 @@ describe("getModelLifecycle", () => {
   });
 
   it("flips to retired on the shutdown date itself", () => {
-    expect(getModelLifecycle("o4-mini", new Date("2026-10-23T00:00:00Z"))?.status).toBe("retired");
-    expect(getModelLifecycle("o4-mini", new Date("2026-10-22T23:59:00Z"))?.status).toBe("retiring");
+    expect(getModelLifecycle("o4-mini", new Date(2026, 9, 23, 0, 0))?.status).toBe("retired");
+    expect(getModelLifecycle("o4-mini", new Date(2026, 9, 22, 23, 59))?.status).toBe("retiring");
   });
 
   it("ignores the billing provider gate so subscription sessions still get a status", () => {

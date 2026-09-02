@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateRetirementImpact, type ModelUsageLike } from "./globalCalculations";
 
-const today = new Date("2026-09-02T12:00:00Z");
+const today = new Date(2026, 8, 2, 12);
 const usage = (overrides: Partial<ModelUsageLike>): ModelUsageLike => ({
   model_name: "claude-sonnet-4-6",
   token_count: 2_000_000,

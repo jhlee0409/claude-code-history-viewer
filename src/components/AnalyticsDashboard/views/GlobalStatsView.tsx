@@ -333,7 +333,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
               const deltaPercent = row.currentCost > 0 ? (delta / row.currentCost) * 100 : null;
               return (
                 <div
-                  key={`${row.providerId ?? "unknown"}:${row.modelName}`}
+                  key={`${row.providerId ?? "unknown"}:${row.modelName}:${row.serviceTier ?? "standard"}`}
                   className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"
                 >
                   <span className="flex items-center gap-1.5 min-w-0 text-px12">

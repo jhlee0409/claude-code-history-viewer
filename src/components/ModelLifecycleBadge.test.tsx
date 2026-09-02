@@ -13,7 +13,7 @@ import { ModelLifecycleBadge } from "./ModelLifecycleBadge";
 describe("ModelLifecycleBadge", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-02T12:00:00Z"));
+    vi.setSystemTime(new Date(2026, 8, 2, 12));
   });
   afterEach(() => vi.useRealTimers());
 

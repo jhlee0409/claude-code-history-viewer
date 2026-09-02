@@ -178,7 +178,7 @@ function main(pricing, litellmIndex, openrouterIndex) {
   // Newly listed models on OpenRouter that none of our keys cover (prefix match
   // mirrors `matchesModelKey` in calculations.ts).
   const ourKeys = Object.keys(pricing.models).map(canonical);
-  const covered = (id) => ourKeys.some((k) => id === k || id.startsWith(`${k}-`) || id.startsWith(`${k}:`));
+  const covered = (id) => ourKeys.some((k) => id === k || id.startsWith(`${k}-`) || id.startsWith(`${k}@`) || id.startsWith(`${k}:`));
   const cutoff = Date.now() / 1000 - NEW_MODEL_WINDOW_DAYS * 86_400;
   const newModels = [];
   for (const [provider, aliases] of Object.entries(PROVIDER_ALIASES)) {
