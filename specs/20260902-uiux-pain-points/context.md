@@ -41,3 +41,8 @@ provider chips). Requires selection identity to carry `(path, provider)`; see
 - `.high-contrast` / `.dark.high-contrast` now override success/warning/info, all `--tool-*`, sidebar, highlight tokens.
 - Session titles: dropped `italic opacity-70` on auto-titled rows (kept bold for renamed).
 - Verified live in light, light+HC, dark. Known remaining: `text-warning-foreground` on `bg-warning` in dark is low contrast (token-level, pre-existing in button.tsx warning variant).
+
+## Round 3 (2026-09-02, after commit split)
+Done: user-text duplication (eaaa878), global search quality (c05fb77), header consolidation (90ee4ec).
+Remaining from backlog: KPI card overflow <1000px; Settings Manager <900px layout; `max-w-[px]` sweep;
+nested Renderer shared expand key `${uuid}:renderer`; provider merge (plan 5.3).
