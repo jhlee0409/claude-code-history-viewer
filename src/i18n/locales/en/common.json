@@ -134,10 +134,16 @@
   "common.settings.title": "Settings",
   "common.settings.updateSettings": "Update Settings",
   "common.show": "Show",
+  "common.time.daysAgo_one": "{{count}} day ago",
+  "common.time.daysAgo_other": "{{count}} days ago",
   "common.time.duration": "Duration",
   "common.time.end": "End:",
   "common.time.endTime": "End Time",
+  "common.time.hoursAgo_one": "{{count}} hour ago",
+  "common.time.hoursAgo_other": "{{count}} hours ago",
   "common.time.justNow": "just now",
+  "common.time.minutesAgo_one": "{{count}} minute ago",
+  "common.time.minutesAgo_other": "{{count}} minutes ago",
   "common.time.sessionTime": "Session Time",
   "common.time.start": "Start:",
   "common.time.startTime": "Start Time",
@@ -188,10 +194,5 @@
   "common.dateFilter.label": "Filter",
   "common.dateFilter.allTime": "All time",
   "common.dateFilter.pickRange": "Pick a date range",
-  "common.dateFilter.clear": "Clear date filter",
-  "common.time.daysAgo": "{{count}} day ago",
-  "common.time.hoursAgo": "{{count}} hour ago",
-  "common.time.minutesAgo": "{{count}} minute ago",
-  "common.update.deadline": "Update deadline: {{days}} day left",
-  "common.update.deadline_plural": "Update deadline: {{days}} days left"
+  "common.dateFilter.clear": "Clear date filter"
 }

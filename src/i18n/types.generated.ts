@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-09-02T10:13:08.450Z
- * 총 키 개수: 1944
+ * 생성 시간: 2026-09-02T11:39:20.129Z
+ * 총 키 개수: 1954
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (191개)
+ * common namespace의 번역 키 (196개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -63,6 +63,10 @@ export type CommonKeys =
   | 'common.copied'
   | 'common.copy'
   | 'common.dash'
+  | 'common.dateFilter.allTime'
+  | 'common.dateFilter.clear'
+  | 'common.dateFilter.label'
+  | 'common.dateFilter.pickRange'
   | 'common.delete'
   | 'common.duplicate'
   | 'common.edit'
@@ -179,13 +183,16 @@ export type CommonKeys =
   | 'common.settings.title'
   | 'common.settings.updateSettings'
   | 'common.show'
-  | 'common.time.daysAgo'
+  | 'common.time.daysAgo_one'
+  | 'common.time.daysAgo_other'
   | 'common.time.duration'
   | 'common.time.end'
   | 'common.time.endTime'
-  | 'common.time.hoursAgo'
+  | 'common.time.hoursAgo_one'
+  | 'common.time.hoursAgo_other'
   | 'common.time.justNow'
-  | 'common.time.minutesAgo'
+  | 'common.time.minutesAgo_one'
+  | 'common.time.minutesAgo_other'
   | 'common.time.sessionTime'
   | 'common.time.start'
   | 'common.time.startTime'
@@ -195,8 +202,6 @@ export type CommonKeys =
   | 'common.update.available'
   | 'common.update.changes'
   | 'common.update.current'
-  | 'common.update.deadline'
-  | 'common.update.deadline_plural'
   | 'common.update.download'
   | 'common.update.later'
   | 'common.update.now'
@@ -237,7 +242,7 @@ export type CommonKeys =
   | 'time.yesterday';
 
 /**
- * analytics namespace의 번역 키 (187개)
+ * analytics namespace의 번역 키 (188개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -351,7 +356,8 @@ export type AnalyticsKeys =
   | 'analytics.remaining'
   | 'analytics.retirementImpactDescription'
   | 'analytics.retirementImpactTitle'
-  | 'analytics.retirementToast'
+  | 'analytics.retirementToast_one'
+  | 'analytics.retirementToast_other'
   | 'analytics.select'
   | 'analytics.selectSessionOrLoad'
   | 'analytics.sessionCount'
@@ -430,7 +436,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (257개)
+ * session namespace의 번역 키 (259개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -470,6 +476,7 @@ export type SessionKeys =
   | 'project.resetProviderFilters'
   | 'project.searchPlaceholder'
   | 'project.selectToView'
+  | 'project.temporaryGroup'
   | 'project.title'
   | 'project.unhide'
   | 'project.worktreeGroup'
@@ -637,6 +644,7 @@ export type SessionKeys =
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
+  | 'session.pane.title'
   | 'session.refresh'
   | 'session.refreshAllConversations'
   | 'session.rename'
@@ -693,7 +701,7 @@ export type SessionKeys =
   | 'sessionPicker.title';
 
 /**
- * settings namespace의 번역 키 (533개)
+ * settings namespace의 번역 키 (537개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -855,6 +863,10 @@ export type SettingsKeys =
   | 'settingsManager.diagnostics.title'
   | 'settingsManager.diagnostics.warningCount'
   | 'settingsManager.error'
+  | 'settingsManager.errors.directoryScanFailed'
+  | 'settingsManager.errors.folderSelectFailed'
+  | 'settingsManager.errors.mcpSaveFailed'
+  | 'settingsManager.errors.wslToggleFailed'
   | 'settingsManager.exportImport.apply'
   | 'settingsManager.exportImport.applyFailed'
   | 'settingsManager.exportImport.excludeSensitive'
@@ -1351,7 +1363,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (103개)
+ * message namespace의 번역 키 (101개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1374,11 +1386,9 @@ export type MessageKeys =
   | 'message.claude'
   | 'message.conversation'
   | 'message.copy'
-  | 'message.count'
   | 'message.countWithTotal'
-  | 'message.count_plural'
-  | 'message.loadMore'
-  | 'message.loadMore_plural'
+  | 'message.count_one'
+  | 'message.count_other'
   | 'message.loading'
   | 'message.none'
   | 'message.previous'
@@ -1798,18 +1808,18 @@ export type RenderersKeys =
   | 'taskOperation.completed'
   | 'taskOperation.deleted'
   | 'taskOperation.description'
-  | 'taskOperation.editCount'
-  | 'taskOperation.editCount_plural'
+  | 'taskOperation.editCount_one'
+  | 'taskOperation.editCount_other'
   | 'taskOperation.expand'
   | 'taskOperation.inProgress'
-  | 'taskOperation.itemCount'
-  | 'taskOperation.itemCount_plural'
+  | 'taskOperation.itemCount_one'
+  | 'taskOperation.itemCount_other'
   | 'taskOperation.pending'
   | 'taskOperation.prompt'
   | 'taskOperation.subagent'
   | 'taskOperation.subject'
-  | 'taskOperation.taskCount'
-  | 'taskOperation.taskCount_plural'
+  | 'taskOperation.taskCount_one'
+  | 'taskOperation.taskCount_other'
   | 'taskOperation.taskOperations'
   | 'taskOperation.taskOutput'
   | 'taskOperation.updated'
@@ -2192,7 +2202,8 @@ export type TranslationKey =
   | 'analytics.remaining'
   | 'analytics.retirementImpactDescription'
   | 'analytics.retirementImpactTitle'
-  | 'analytics.retirementToast'
+  | 'analytics.retirementToast_one'
+  | 'analytics.retirementToast_other'
   | 'analytics.select'
   | 'analytics.selectSessionOrLoad'
   | 'analytics.sessionCount'
@@ -2380,6 +2391,10 @@ export type TranslationKey =
   | 'common.copied'
   | 'common.copy'
   | 'common.dash'
+  | 'common.dateFilter.allTime'
+  | 'common.dateFilter.clear'
+  | 'common.dateFilter.label'
+  | 'common.dateFilter.pickRange'
   | 'common.delete'
   | 'common.duplicate'
   | 'common.edit'
@@ -2496,13 +2511,16 @@ export type TranslationKey =
   | 'common.settings.title'
   | 'common.settings.updateSettings'
   | 'common.show'
-  | 'common.time.daysAgo'
+  | 'common.time.daysAgo_one'
+  | 'common.time.daysAgo_other'
   | 'common.time.duration'
   | 'common.time.end'
   | 'common.time.endTime'
-  | 'common.time.hoursAgo'
+  | 'common.time.hoursAgo_one'
+  | 'common.time.hoursAgo_other'
   | 'common.time.justNow'
-  | 'common.time.minutesAgo'
+  | 'common.time.minutesAgo_one'
+  | 'common.time.minutesAgo_other'
   | 'common.time.sessionTime'
   | 'common.time.start'
   | 'common.time.startTime'
@@ -2512,8 +2530,6 @@ export type TranslationKey =
   | 'common.update.available'
   | 'common.update.changes'
   | 'common.update.current'
-  | 'common.update.deadline'
-  | 'common.update.deadline_plural'
   | 'common.update.download'
   | 'common.update.later'
   | 'common.update.now'
@@ -2743,11 +2759,9 @@ export type TranslationKey =
   | 'message.claude'
   | 'message.conversation'
   | 'message.copy'
-  | 'message.count'
   | 'message.countWithTotal'
-  | 'message.count_plural'
-  | 'message.loadMore'
-  | 'message.loadMore_plural'
+  | 'message.count_one'
+  | 'message.count_other'
   | 'message.loading'
   | 'message.none'
   | 'message.previous'
@@ -2874,6 +2888,7 @@ export type TranslationKey =
   | 'project.resetProviderFilters'
   | 'project.searchPlaceholder'
   | 'project.selectToView'
+  | 'project.temporaryGroup'
   | 'project.title'
   | 'project.unhide'
   | 'project.worktreeGroup'
@@ -3176,6 +3191,7 @@ export type TranslationKey =
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
+  | 'session.pane.title'
   | 'session.refresh'
   | 'session.refreshAllConversations'
   | 'session.rename'
@@ -3370,6 +3386,10 @@ export type TranslationKey =
   | 'settingsManager.diagnostics.title'
   | 'settingsManager.diagnostics.warningCount'
   | 'settingsManager.error'
+  | 'settingsManager.errors.directoryScanFailed'
+  | 'settingsManager.errors.folderSelectFailed'
+  | 'settingsManager.errors.mcpSaveFailed'
+  | 'settingsManager.errors.wslToggleFailed'
   | 'settingsManager.exportImport.apply'
   | 'settingsManager.exportImport.applyFailed'
   | 'settingsManager.exportImport.excludeSensitive'
@@ -3816,18 +3836,18 @@ export type TranslationKey =
   | 'taskOperation.completed'
   | 'taskOperation.deleted'
   | 'taskOperation.description'
-  | 'taskOperation.editCount'
-  | 'taskOperation.editCount_plural'
+  | 'taskOperation.editCount_one'
+  | 'taskOperation.editCount_other'
   | 'taskOperation.expand'
   | 'taskOperation.inProgress'
-  | 'taskOperation.itemCount'
-  | 'taskOperation.itemCount_plural'
+  | 'taskOperation.itemCount_one'
+  | 'taskOperation.itemCount_other'
   | 'taskOperation.pending'
   | 'taskOperation.prompt'
   | 'taskOperation.subagent'
   | 'taskOperation.subject'
-  | 'taskOperation.taskCount'
-  | 'taskOperation.taskCount_plural'
+  | 'taskOperation.taskCount_one'
+  | 'taskOperation.taskCount_other'
   | 'taskOperation.taskOperations'
   | 'taskOperation.taskOutput'
   | 'taskOperation.updated'

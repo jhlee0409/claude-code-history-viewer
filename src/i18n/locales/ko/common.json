@@ -134,10 +134,16 @@
   "common.settings.title": "설정",
   "common.settings.updateSettings": "업데이트 설정",
   "common.show": "보기",
+  "common.time.daysAgo_one": "{{count}}일 전",
+  "common.time.daysAgo_other": "{{count}}일 전",
   "common.time.duration": "지속 시간",
   "common.time.end": "종료:",
   "common.time.endTime": "종료 시간",
+  "common.time.hoursAgo_one": "{{count}}시간 전",
+  "common.time.hoursAgo_other": "{{count}}시간 전",
   "common.time.justNow": "방금 전",
+  "common.time.minutesAgo_one": "{{count}}분 전",
+  "common.time.minutesAgo_other": "{{count}}분 전",
   "common.time.sessionTime": "세션 시간",
   "common.time.start": "시작:",
   "common.time.startTime": "시작 시간",
@@ -188,10 +194,5 @@
   "common.dateFilter.label": "필터",
   "common.dateFilter.allTime": "전체 기간",
   "common.dateFilter.pickRange": "기간 선택",
-  "common.dateFilter.clear": "기간 필터 해제",
-  "common.time.daysAgo": "{{count}}일 전",
-  "common.time.hoursAgo": "{{count}}시간 전",
-  "common.time.minutesAgo": "{{count}}분 전",
-  "common.update.deadline": "업데이트 마감일: {{days}}일 남음",
-  "common.update.deadline_plural": "업데이트 마감일: {{days}}일 남음"
+  "common.dateFilter.clear": "기간 필터 해제"
 }

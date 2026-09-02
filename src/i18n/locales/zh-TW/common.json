@@ -134,10 +134,16 @@
   "common.settings.title": "設定",
   "common.settings.updateSettings": "更新設定",
   "common.show": "顯示",
+  "common.time.daysAgo_one": "{{count}}天前",
+  "common.time.daysAgo_other": "{{count}}天前",
   "common.time.duration": "持續時間",
   "common.time.end": "結束：",
   "common.time.endTime": "結束時間",
+  "common.time.hoursAgo_one": "{{count}}小時前",
+  "common.time.hoursAgo_other": "{{count}}小時前",
   "common.time.justNow": "剛剛",
+  "common.time.minutesAgo_one": "{{count}}分鐘前",
+  "common.time.minutesAgo_other": "{{count}}分鐘前",
   "common.time.sessionTime": "會話時間",
   "common.time.start": "開始：",
   "common.time.startTime": "開始時間",
@@ -188,10 +194,5 @@
   "common.dateFilter.label": "篩選",
   "common.dateFilter.allTime": "全部時間",
   "common.dateFilter.pickRange": "選擇日期範圍",
-  "common.dateFilter.clear": "清除日期篩選",
-  "common.time.daysAgo": "{{count}}天前",
-  "common.time.hoursAgo": "{{count}}小時前",
-  "common.time.minutesAgo": "{{count}}分鐘前",
-  "common.update.deadline": "更新截止日期：剩餘{{days}}天",
-  "common.update.deadline_plural": "更新截止日期：剩餘{{days}}天"
+  "common.dateFilter.clear": "清除日期篩選"
 }
