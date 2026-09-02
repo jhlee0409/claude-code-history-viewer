@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { getAssetPath, isMacOS, isTauri } from "@/utils/platform";
 import { SettingDropdown } from "./SettingDropdown";
 import { getProjectDisplayName } from "@/utils/pathUtils";
+import { SessionCopyMenu } from "./SessionCopyMenu";
 
 interface HeaderProps {
   analyticsActions: UseAnalyticsReturn["actions"];

@@ -88,8 +88,9 @@ const collectSearchableText = (message: GlobalSearchResult): string => {
             }
         }
     }
-    pushStrings(message.toolUse);
-    pushStrings(message.toolUseResult);
+    const extra = message as { toolUse?: unknown; toolUseResult?: unknown };
+    pushStrings(extra.toolUse);
+    pushStrings(extra.toolUseResult);
     return parts.join(" ").replace(/\s+/g, " ");
 };
 

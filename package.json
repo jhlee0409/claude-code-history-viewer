@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc -b && vite build",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "lint": "eslint src",
+    "typecheck": "tsc -b",
     "preview": "vite preview",
     "test": "vitest",
     "generate:i18n-types": "node scripts/generate-i18n-types.mjs",
