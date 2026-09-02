@@ -115,6 +115,7 @@ export const VirtualizedMessageRow = forwardRef<
     agentProgressGroup,
     taskOperationGroup,
     taskRegistry,
+    isContinuation,
   } = item;
 
   // Hidden rows stay in the virtual index space for navigation/search metadata,
@@ -166,6 +167,7 @@ export const VirtualizedMessageRow = forwardRef<
         isAgentProgressGroupMember={false}
         taskOperationGroup={taskOperationGroup}
         taskRegistry={taskRegistry}
+        hideHeader={isContinuation}
         isTaskOperationGroupMember={false}
         isCaptureMode={isCaptureMode}
         onHideMessage={onHideMessage}

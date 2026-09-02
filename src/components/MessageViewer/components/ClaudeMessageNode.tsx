@@ -57,6 +57,7 @@ export const ClaudeMessageNode = React.memo(({
   onHideMessage,
   isSelected,
   onRangeSelect,
+  hideHeader = false,
 }: MessageNodeProps) => {
   const { t } = useTranslation();
   const messageFilter = useAppStore((s) => s.messageFilter);
@@ -117,13 +118,13 @@ export const ClaudeMessageNode = React.memo(({
         "flex items-center justify-center",
         "w-7 h-7 rounded-lg",
         // Glass morphism effect
-        "bg-zinc-900/80 backdrop-blur-sm",
-        "border border-zinc-700/50",
+        "bg-popover/80 backdrop-blur-sm",
+        "border border-border/60",
         // Hover state
-        "hover:bg-red-500/90 hover:border-red-400/50",
-        "hover:shadow-lg hover:shadow-red-500/20",
+        "hover:bg-destructive/90 hover:border-destructive/50",
+        "hover:shadow-lg hover:shadow-destructive/20",
         // Text/icon
-        "text-zinc-400 hover:text-white",
+        "text-muted-foreground hover:text-destructive-foreground",
         // Animation - appears on capture mode group hover only
         "opacity-0 group-hover/capture:opacity-100",
         "translate-y-1 group-hover/capture:translate-y-0",
@@ -384,7 +385,8 @@ export const ClaudeMessageNode = React.memo(({
         data-message-uuid={message.uuid}
         onClick={handleSelectionClick}
         className={cn(
-          "relative w-full px-2 md:px-4 py-2 transition-all duration-200",
+          "relative w-full px-2 md:px-4 transition-all duration-200",
+          hideHeader ? "pt-0 pb-2" : "py-2",
           message.isSidechain && !isInSubagent && "bg-muted",
           // Search highlight
           isCurrentMatch && "bg-highlight-current ring-2 ring-warning",
@@ -398,7 +400,7 @@ export const ClaudeMessageNode = React.memo(({
       >
         {CaptureHideButton}
         <div className="max-w-4xl mx-auto">
-          <MessageHeader message={message} />
+          {!hideHeader && <MessageHeader message={message} />}
 
           <div className="w-full">
             {(message.type !== "assistant" || messageFilter.contentTypes.text) && (

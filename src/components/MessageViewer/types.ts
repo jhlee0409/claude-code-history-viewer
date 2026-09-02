@@ -44,6 +44,8 @@ export interface MessageNodeProps {
   taskOperationGroup?: TaskOperation[];
   taskRegistry?: Map<string, TaskInfo>;
   isTaskOperationGroupMember?: boolean;
+  /** Omit the role/time/model header (row continues the previous assistant turn). */
+  hideHeader?: boolean;
   // Capture mode
   isCaptureMode?: boolean;
   onHideMessage?: (uuid: string) => void;
@@ -129,6 +131,12 @@ export interface FlattenedMessageItem {
   taskOperationGroup?: TaskOperation[];
   /** Global task registry for resolving task info */
   taskRegistry?: Map<string, TaskInfo>;
+  /**
+   * True when this message directly follows another assistant message of the
+   * same turn (same model/sidechain, within CONTINUATION_GAP_MS), so the row
+   * omits the repeated role/time/model header.
+   */
+  isContinuation: boolean;
 }
 
 /** Date divider item inserted when date changes between messages */

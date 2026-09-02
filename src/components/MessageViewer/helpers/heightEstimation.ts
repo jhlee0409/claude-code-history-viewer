@@ -179,11 +179,13 @@ export function estimateMessageHeight(
   }
 
   const contentExtra = estimateContentExtraHeight(item);
+  // Continuation rows omit the ~28px role/time/model header.
+  const headerAdjust = item.isContinuation ? -28 : 0;
 
   // Type-based estimation
   switch (message.type) {
     case "assistant":
-      return HEIGHT_DEFAULTS.assistant + contentExtra;
+      return HEIGHT_DEFAULTS.assistant + contentExtra + headerAdjust;
     case "user":
       return HEIGHT_DEFAULTS.user + contentExtra;
     case "system":

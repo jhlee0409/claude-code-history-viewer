@@ -299,6 +299,7 @@ function flattenWithPlaceholders(
     const result: FlattenedMessage[] = [];
     let lastTimestamp: string | null = null;
 
+    let prev: ClaudeMessage | null = null;
     for (let index = 0; index < messages.length; index++) {
       const message = messages[index]!;
 
@@ -307,7 +308,8 @@ function flattenWithPlaceholders(
         result.push(divider);
       }
 
-      result.push(createFlattenedMessage(message, 0, index, groups));
+      result.push(createFlattenedMessage(message, 0, index, groups, divider ? null : prev));
+      prev = message;
 
       if (message.timestamp) {
         lastTimestamp = message.timestamp;
@@ -321,6 +323,7 @@ function flattenWithPlaceholders(
   let pendingHiddenUuids: string[] = [];
   let visibleMessageIndex = 0;
   let lastVisibleTimestamp: string | null = null;
+  let prevVisible: ClaudeMessage | null = null;
 
   for (const message of messages) {
     if (hiddenSet.has(message.uuid)) {
@@ -350,10 +353,12 @@ function flattenWithPlaceholders(
           message,
           0,
           visibleMessageIndex,
-          groups
+          groups,
+          divider ? null : prevVisible
         )
       );
       visibleMessageIndex++;
+      prevVisible = message;
 
       if (message.timestamp) {
         lastVisibleTimestamp = message.timestamp;
@@ -374,6 +379,24 @@ function flattenWithPlaceholders(
   return result;
 }
 
+/** Max gap between two assistant messages for the second to hide its header. */
+const CONTINUATION_GAP_MS = 5 * 60 * 1000;
+
+/**
+ * Whether `message` continues the same assistant turn as `prev`: both are
+ * assistant messages from the same model on the same (side)chain, close in
+ * time. Such rows drop the repeated header to keep the transcript dense.
+ */
+function isContinuationOf(message: ClaudeMessage, prev: ClaudeMessage | null): boolean {
+  if (!prev) return false;
+  if (message.type !== "assistant" || prev.type !== "assistant") return false;
+  if ((message.model ?? null) !== (prev.model ?? null)) return false;
+  if (!!message.isSidechain !== !!prev.isSidechain) return false;
+  if (!message.timestamp || !prev.timestamp) return false;
+  const gap = new Date(message.timestamp).getTime() - new Date(prev.timestamp).getTime();
+  return Number.isFinite(gap) && gap >= 0 && gap <= CONTINUATION_GAP_MS;
+}
+
 /**
  * Create a FlattenedMessageItem object with group information.
  */
@@ -381,7 +404,8 @@ function createFlattenedMessage(
   message: ClaudeMessage,
   depth: number,
   originalIndex: number,
-  groups: GroupContext
+  groups: GroupContext,
+  prev: ClaudeMessage | null = null
 ): FlattenedMessageItem {
   const { agentTaskGroups, agentTaskMemberUuids, agentProgressGroups, agentProgressMemberUuids, taskOperationGroups, taskOperationMemberUuids } = groups;
 
@@ -414,6 +438,8 @@ function createFlattenedMessage(
   const isTaskOperationGroupMember =
     !isTaskOperationGroupLeader && taskOperationMemberUuids.has(message.uuid);
 
+  const isAnyGroupLeader = isGroupLeader || isProgressGroupLeader || isTaskOperationGroupLeader;
+
   return {
     type: "message",
     message,
@@ -429,6 +455,7 @@ function createFlattenedMessage(
     isTaskOperationGroupMember,
     taskOperationGroup: isTaskOperationGroupLeader ? taskOpGroupInfo!.operations : undefined,
     taskRegistry: isTaskOperationGroupLeader ? taskOpGroupInfo!.taskRegistry : undefined,
+    isContinuation: !isAnyGroupLeader && isContinuationOf(message, prev),
   };
 }
 

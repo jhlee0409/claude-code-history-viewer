@@ -45,6 +45,7 @@ const makeItem = (
     isProgressGroupMember: false,
     isTaskOperationGroupLeader: false,
     isTaskOperationGroupMember: false,
+    isContinuation: false,
     ...overrides,
   }) as FlattenedMessageItem;
 

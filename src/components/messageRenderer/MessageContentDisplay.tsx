@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 
-const LINE_LIMIT = 3;
+// Source lines shown before "Show more". 3 collapsed almost every reply behind
+// a click; 12 keeps typical answers fully visible and only folds long dumps.
+const LINE_LIMIT = 12;
 const TABLE_ROW_LIMIT = 2;
 
 // Get line count and preview text
