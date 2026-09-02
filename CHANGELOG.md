@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Several API cost estimates were wrong** — every rate in the analytics pricing table was re-verified against the providers' official pricing pages on 2026-09-02 (`docs/pricing-sources/`). Corrections: GPT-5.6 Sol was priced at $5/$30 instead of the published $4/$20 (cache write $5, long context $8/$30); `grok-code-fast-1`, `grok-code-fast` and `grok-code-fast-1-0825` are aliases of Grok Build 0.1 ($1/$2) and were priced as Grok 4.3 ($1.25/$2.50); MiniMax-M3 recorded the struck-through list price instead of the permanent-discount rate actually charged ($0.30/$1.20); MiniMax M2.5/M2.1 cache reads are $0.03, not $0.06; the OpenAI Daybreak aliases were keyed without their `gpt-` prefix and never matched; Claude Fable 5.1 / Mythos 5.1 fell through to the 5.0 entry and had cache reads over-priced 4x; MiniMax `-highspeed` variants fell through to the base model at half their real rate. Long-context thresholds now follow each provider's definition (xAI ≥ 200k, OpenAI ≥ 272k).
+
+### Added
+- **Fast / priority service tiers** for every OpenAI model that publishes one, Claude Opus 5 / 4.8 fast mode, and MiniMax-M3 priority, so Codex CLI sessions that report `service_tier` are priced at the rate they were billed.
+- **Retired models stay priced** at their last published rate (Claude 3.7 Sonnet, Opus 4/4.1, Sonnet 4, the GPT-5.x Codex/Chat snapshots, `grok-4`, …) with the provider's retirement date recorded; unknown ids still show "unavailable" rather than a guess.
+- The Global Overview cost strip shows the date the pricing table was last verified.
+- **Retired and soon-to-retire models are flagged** — the message header, assistant message details and the Global Overview model list show a "retired {date}" / "retires {date}" badge, with the provider's recommended replacement in the tooltip, for every model whose shutdown the provider has announced (within 90 days, or already past). Settings Manager warns when `settings.model` names such a model, and opening the Global Overview raises a single toast when the history contains any. Dates and replacements come from each provider's deprecations page and live in `model-pricing.json` (`deprecatedAt`, `replacedBy`).
+- **"Retiring models" card in the Global Overview** re-prices the usage recorded on each retiring model at the replacement's API rate, so the cost impact of migrating (e.g. Opus 4.1 → Opus 4.8: −67%, GPT-5-Codex → GPT-5.6 Sol: +~90% on output) is visible before the shutdown forces the move. Both sides use the API estimate; subscription and proxy providers are skipped because their current cost cannot be estimated.
+
+### Internal
+- The pricing table moved out of `calculations.ts` into `src/data/model-pricing.json`, with an official source URL and verification date on every entry and a test that enforces the shape.
+- `scripts/check-model-pricing.mjs` diffs the table against LiteLLM and OpenRouter feeds and lists newly listed models we do not price; `.github/workflows/pricing-watch.yml` runs it weekly and upserts a "📊 Model pricing watch" issue. Feeds are corroboration only — a maintainer confirms each finding on the official page before editing the JSON. Nothing is auto-merged.
+- `VITE_MOCK=1 pnpm dev` now serves complete project/global summaries and paged session/message responses, so the Global Overview and a session can be opened in mock mode instead of crashing on the stub shapes.
+
 ## [1.27.0] - 2026-09-01
 
 Minor release: Antigravity desktop sessions have titles and a conversation again, and live refresh works for database-backed providers.

@@ -16,6 +16,8 @@ import type { AnalyticsDashboardProps } from "./types";
 import { ProjectStatsView, SessionStatsView, GlobalStatsView } from "./views";
 import { DatePickerHeader } from "../ui/DatePickerHeader";
 import { MetricModeToggle } from "../ui/MetricModeToggle";
+import { toast } from "sonner";
+import { getModelLifecycle } from "./utils/calculations";
 
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   isViewingGlobalStats = false,
@@ -46,6 +48,25 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   useEffect(() => {
     setActiveTab("project");
   }, [selectedProject?.name]);
+
+  // One toast per global-stats load when the recorded usage includes models
+  // the provider has retired or is about to. The stable id makes repeated
+  // loads update the same toast instead of stacking.
+  useEffect(() => {
+    const models = globalSummary?.model_distribution ?? [];
+    const retiring = models.filter((model) => {
+      const status = getModelLifecycle(model.model_name)?.status;
+      return status === "retiring" || status === "retired";
+    });
+    if (retiring.length === 0) return;
+    toast.warning(
+      t("analytics.retirementToast", {
+        count: retiring.length,
+        defaultValue: "{{count}} model(s) in your history are retired or retiring soon. See the \"Retiring models\" card below for the cost of moving to the recommended replacement.",
+      }),
+      { id: "model-retirement", duration: 8000 },
+    );
+  }, [globalSummary, t]);
 
   // Global stats or no project
   if (isViewingGlobalStats || !selectedProject) {

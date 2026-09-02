@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-08-26T18:00:54.440Z
- * 총 키 개수: 1928
+ * 생성 시간: 2026-09-02T10:13:08.450Z
+ * 총 키 개수: 1944
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (184개)
+ * common namespace의 번역 키 (191개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -105,6 +105,13 @@ export type CommonKeys =
   | 'common.mobile.tab.messages'
   | 'common.mobile.tab.projects'
   | 'common.mobile.tab.settings'
+  | 'common.modelLifecycle.replacement'
+  | 'common.modelLifecycle.retired'
+  | 'common.modelLifecycle.retiredHint'
+  | 'common.modelLifecycle.retiredShort'
+  | 'common.modelLifecycle.retiring'
+  | 'common.modelLifecycle.retiringHint'
+  | 'common.modelLifecycle.retiringShort'
   | 'common.noDataAvailable'
   | 'common.ok'
   | 'common.pending'
@@ -230,7 +237,7 @@ export type CommonKeys =
   | 'time.yesterday';
 
 /**
- * analytics namespace의 번역 키 (182개)
+ * analytics namespace의 번역 키 (187개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -327,6 +334,8 @@ export type AnalyticsKeys =
   | 'analytics.percentile'
   | 'analytics.performanceInsights'
   | 'analytics.pricingCoverage'
+  | 'analytics.pricingTableAudited'
+  | 'analytics.pricingTableAuditedHint'
   | 'analytics.projectOverallAnalysis'
   | 'analytics.projectOverview'
   | 'analytics.projectSessionAnalysis'
@@ -340,6 +349,9 @@ export type AnalyticsKeys =
   | 'analytics.recentActivity'
   | 'analytics.recentActivityTrend'
   | 'analytics.remaining'
+  | 'analytics.retirementImpactDescription'
+  | 'analytics.retirementImpactTitle'
+  | 'analytics.retirementToast'
   | 'analytics.select'
   | 'analytics.selectSessionOrLoad'
   | 'analytics.sessionCount'
@@ -681,7 +693,7 @@ export type SessionKeys =
   | 'sessionPicker.title';
 
 /**
- * settings namespace의 번역 키 (529개)
+ * settings namespace의 번역 키 (533개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -889,6 +901,10 @@ export type SettingsKeys =
   | 'settingsManager.general.languagePlaceholder'
   | 'settingsManager.general.maintenance'
   | 'settingsManager.general.modelLanguage'
+  | 'settingsManager.general.modelReplacement'
+  | 'settingsManager.general.modelRetired'
+  | 'settingsManager.general.modelRetiring'
+  | 'settingsManager.general.modelSwitch'
   | 'settingsManager.general.outputStyle'
   | 'settingsManager.general.outputStyleDesc'
   | 'settingsManager.general.outputStylePlaceholder'
@@ -2159,6 +2175,8 @@ export type TranslationKey =
   | 'analytics.percentile'
   | 'analytics.performanceInsights'
   | 'analytics.pricingCoverage'
+  | 'analytics.pricingTableAudited'
+  | 'analytics.pricingTableAuditedHint'
   | 'analytics.projectOverallAnalysis'
   | 'analytics.projectOverview'
   | 'analytics.projectSessionAnalysis'
@@ -2172,6 +2190,9 @@ export type TranslationKey =
   | 'analytics.recentActivity'
   | 'analytics.recentActivityTrend'
   | 'analytics.remaining'
+  | 'analytics.retirementImpactDescription'
+  | 'analytics.retirementImpactTitle'
+  | 'analytics.retirementToast'
   | 'analytics.select'
   | 'analytics.selectSessionOrLoad'
   | 'analytics.sessionCount'
@@ -2401,6 +2422,13 @@ export type TranslationKey =
   | 'common.mobile.tab.messages'
   | 'common.mobile.tab.projects'
   | 'common.mobile.tab.settings'
+  | 'common.modelLifecycle.replacement'
+  | 'common.modelLifecycle.retired'
+  | 'common.modelLifecycle.retiredHint'
+  | 'common.modelLifecycle.retiredShort'
+  | 'common.modelLifecycle.retiring'
+  | 'common.modelLifecycle.retiringHint'
+  | 'common.modelLifecycle.retiringShort'
   | 'common.noDataAvailable'
   | 'common.ok'
   | 'common.pending'
@@ -3388,6 +3416,10 @@ export type TranslationKey =
   | 'settingsManager.general.languagePlaceholder'
   | 'settingsManager.general.maintenance'
   | 'settingsManager.general.modelLanguage'
+  | 'settingsManager.general.modelReplacement'
+  | 'settingsManager.general.modelRetired'
+  | 'settingsManager.general.modelRetiring'
+  | 'settingsManager.general.modelSwitch'
   | 'settingsManager.general.outputStyle'
   | 'settingsManager.general.outputStyleDesc'
   | 'settingsManager.general.outputStylePlaceholder'

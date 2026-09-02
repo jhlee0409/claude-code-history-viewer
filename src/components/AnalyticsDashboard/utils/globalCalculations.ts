@@ -7,7 +7,9 @@
 import {
   calculateModelPrice,
   formatNumber,
+  getModelLifecycle,
   hasExplicitModelPricing,
+  type ModelLifecycle,
 } from "./calculations";
 import type { ModelContextStats } from "../../../types";
 
@@ -242,6 +244,53 @@ export const calculateGlobalCostSummary = (
     exactModels,
     estimatedModels,
   };
+};
+
+// ============================================================================
+// Retirement Impact
+// ============================================================================
+
+export interface RetirementImpactRow {
+  modelName: string;
+  providerId?: string;
+  replacedBy: string;
+  lifecycle: ModelLifecycle;
+  tokenCount: number;
+  /** API-rate estimate for the usage as billed on the retiring model. */
+  currentCost: number;
+  /** The same usage re-priced at the recommended replacement's API rate. */
+  replacementCost: number;
+}
+
+/**
+ * For every retiring/retired model with a provider-recommended replacement,
+ * re-price the recorded usage at the replacement's rate. Both sides use the
+ * API estimate (never the source-reported cost) so the comparison is
+ * like-for-like; subscription/proxy providers are skipped because their
+ * current cost cannot be estimated.
+ */
+export const calculateRetirementImpact = (
+  models: ModelUsageLike[],
+  today: Date = new Date(),
+): RetirementImpactRow[] => {
+  const rows: RetirementImpactRow[] = [];
+  for (const model of models) {
+    const lifecycle = getModelLifecycle(model.model_name, today);
+    if (!lifecycle || lifecycle.status === "active" || !lifecycle.replacedBy) continue;
+    const currentCost = calculateContextBreakdownPrice(model.model_name, model);
+    const replacementCost = calculateContextBreakdownPrice(lifecycle.replacedBy, model);
+    if (currentCost == null || replacementCost == null) continue;
+    rows.push({
+      modelName: model.model_name,
+      providerId: model.provider_id,
+      replacedBy: lifecycle.replacedBy,
+      lifecycle,
+      tokenCount: model.token_count,
+      currentCost,
+      replacementCost,
+    });
+  }
+  return rows.sort((a, b) => b.currentCost - a.currentCost);
 };
 
 // ============================================================================

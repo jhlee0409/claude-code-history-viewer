@@ -38,9 +38,11 @@ import {
   GitCommit,
   Eye,
   FolderOpen,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings, ClaudeModel, AutoUpdatesChannel, AttributionConfig } from "@/types";
+import { getModelLifecycle } from "@/components/AnalyticsDashboard/utils/calculations";
 
 // ============================================================================
 // Types
@@ -137,6 +139,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
   if (settings.model) summaryParts.push(settings.model);
   if (settings.language) summaryParts.push(settings.language);
   if (settings.alwaysThinkingEnabled) summaryParts.push("thinking");
+  const modelLifecycle = settings.model ? getModelLifecycle(settings.model) : null;
 
   // -------------------------------------------------------------------------
   // Render
@@ -194,13 +197,15 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 {t("settingsManager.visual.model")}
               </Label>
               <Select
-                value={settings.model || ""}
+                // Radix only renders the placeholder for an empty value, so a
+                // full model id (not one of the three presets) is routed there.
+                value={settings.model === "opus" || settings.model === "sonnet" || settings.model === "haiku" ? settings.model : ""}
                 onValueChange={handleModelChange}
                 disabled={readOnly}
               >
                 <SelectTrigger id="model-select" className="w-full">
                   <SelectValue
-                    placeholder={t("settingsManager.visual.selectModel")}
+                    placeholder={settings.model || t("settingsManager.visual.selectModel")}
                   />
                 </SelectTrigger>
                 <SelectContent>
@@ -218,6 +223,53 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
               <p className="text-xs text-muted-foreground">
                 {t("settingsManager.unified.model.description")}
               </p>
+              {modelLifecycle && modelLifecycle.status !== "active" && (
+                <div
+                  role="alert"
+                  className={cn(
+                    "flex items-start gap-1.5 text-xs rounded-md px-2 py-1.5",
+                    modelLifecycle.status === "retired"
+                      ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                      : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                  )}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span className="flex-1">
+                    {modelLifecycle.status === "retired"
+                      ? t("settingsManager.general.modelRetired", {
+                          model: settings.model,
+                          date: modelLifecycle.deprecatedAt,
+                          defaultValue: "{{model}} was retired by its provider on {{date}}; requests to it will fail.",
+                        })
+                      : t("settingsManager.general.modelRetiring", {
+                          model: settings.model,
+                          date: modelLifecycle.deprecatedAt,
+                          defaultValue: "{{model}} will be retired by its provider on {{date}}.",
+                        })}
+                    {modelLifecycle.replacedBy && (
+                      <>
+                        {" "}
+                        {t("settingsManager.general.modelReplacement", {
+                          model: modelLifecycle.replacedBy,
+                          defaultValue: "Recommended replacement: {{model}}",
+                        })}
+                      </>
+                    )}
+                  </span>
+                  {modelLifecycle.replacedBy && !readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => handleModelChange(modelLifecycle.replacedBy!)}
+                      className="shrink-0 rounded border border-current/30 px-2 py-0.5 font-medium hover:bg-current/10"
+                    >
+                      {t("settingsManager.general.modelSwitch", {
+                        model: modelLifecycle.replacedBy,
+                        defaultValue: "Switch to {{model}}",
+                      })}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Language Selection */}

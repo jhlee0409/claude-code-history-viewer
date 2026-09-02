@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { formatTime, formatTimeShort } from "../../../utils/time";
 import { getShortModelName } from "../../../utils/model";
+import { ModelLifecycleBadge } from "@/components/ModelLifecycleBadge";
 import { getToolName } from "../../../utils/toolUtils";
 import { hasSystemCommandContent } from "../helpers/messageHelpers";
 import type { MessageHeaderProps } from "../types";
@@ -88,6 +89,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
       {message.type === "assistant" && message.model && (
         <div ref={tooltipRef} className="relative group flex items-center gap-1.5">
           <span className="text-muted-foreground">{getShortModelName(message.model)}</span>
+          <ModelLifecycleBadge model={message.model} compact />
           {message.usage && (
             <>
               <button

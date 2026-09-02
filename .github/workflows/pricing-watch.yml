@@ -1,0 +1,50 @@
+name: Model Pricing Watch
+
+# Weekly drift check for src/data/model-pricing.json. Compares our table with
+# public price feeds (LiteLLM, OpenRouter) and upserts a single tracking issue
+# titled "📊 Model pricing watch" when anything drifted, a model was deprecated,
+# or a new model appeared that we do not price yet.
+#
+# Deliberately NOT automated further: the numbers are shown to end users as
+# cost. A maintainer verifies each finding against the provider's official page
+# (docs/pricing-sources/) and edits the JSON by hand in a reviewed PR.
+
+on:
+  schedule:
+    - cron: "0 1 * * 1" # Mondays 01:00 UTC = 10:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Compare pricing table with feeds
+        id: report
+        run: |
+          node scripts/check-model-pricing.mjs --out pricing-report.md | tee -a "$GITHUB_OUTPUT"
+          cat pricing-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upsert tracking issue
+        if: steps.report.outputs.findings != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "📊 Model pricing watch"
+        run: |
+          existing=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title \
+            --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n1)
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file pricing-report.md
+            echo "Updated #$existing"
+          else
+            gh issue create --title "$TITLE" --label "needs-triage" --body-file pricing-report.md
+          fi

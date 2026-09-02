@@ -39,7 +39,7 @@ function makeMessage(
       ...(type === "assistant"
         ? {
             id: `msg_${uuid.slice(0, 8)}`,
-            model: "claude-sonnet-4-20250514",
+            model: MOCK_MODEL,
             stop_reason: "end_turn",
             usage: {
               input_tokens: 1200,
@@ -127,7 +127,28 @@ function generateMockMessages() {
   return messages;
 }
 
+const MOCK_MODEL = "claude-sonnet-4-20250514";
 const MOCK_MESSAGES = generateMockMessages();
+const MOCK_INPUT_TOKENS = 1200 * (MOCK_MESSAGES.length / 2);
+const MOCK_OUTPUT_TOKENS = 350 * (MOCK_MESSAGES.length / 2);
+const MOCK_TOTAL_TOKENS = MOCK_INPUT_TOKENS + MOCK_OUTPUT_TOKENS;
+const MOCK_TOKEN_DISTRIBUTION = {
+  input: MOCK_INPUT_TOKENS,
+  output: MOCK_OUTPUT_TOKENS,
+  cache_creation: 0,
+  cache_read: 0,
+  reasoning: 0,
+};
+const MOCK_MODEL_STATS = {
+  model_name: MOCK_MODEL,
+  provider_id: "claude",
+  message_count: MOCK_MESSAGES.length / 2,
+  token_count: MOCK_TOTAL_TOKENS,
+  input_tokens: MOCK_INPUT_TOKENS,
+  output_tokens: MOCK_OUTPUT_TOKENS,
+  cache_creation_tokens: 0,
+  cache_read_tokens: 0,
+};
 
 const MOCK_SESSION = {
   session_id: "mock-session-001",
@@ -162,8 +183,23 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   detect_providers: () => [{ id: "claude", name: "Claude Code", is_available: true, session_count: 1 }],
   load_project_sessions: () => [MOCK_SESSION],
   load_provider_sessions: () => [MOCK_SESSION],
+  load_provider_sessions_page: () => ({
+    sessions: [MOCK_SESSION],
+    total: 1,
+    offset: 0,
+    limit: 50,
+    nextOffset: 1,
+    hasMore: false,
+  }),
   load_session_messages: () => MOCK_MESSAGES,
   load_provider_messages: () => MOCK_MESSAGES,
+  load_provider_messages_paginated: () => ({
+    messages: MOCK_MESSAGES,
+    total_count: MOCK_MESSAGES.length,
+    has_more: false,
+    next_offset: MOCK_MESSAGES.length,
+  }),
+  get_session_subagents: () => [],
   search_messages: () => [],
   get_session_token_stats: () => ({
     total_input_tokens: 12000,
@@ -180,16 +216,46 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     page_size: 20,
   }),
   get_project_stats_summary: () => ({
+    project_name: MOCK_PROJECT.name,
     total_sessions: 1,
     total_messages: MOCK_MESSAGES.length,
-    total_input_tokens: 12000,
-    total_output_tokens: 3500,
-    date_range: { start: "2026-03-07", end: "2026-03-10" },
+    total_tokens: MOCK_TOTAL_TOKENS,
+    avg_tokens_per_session: MOCK_TOTAL_TOKENS,
+    avg_session_duration: 30,
+    total_session_duration: 30,
+    most_active_hour: 14,
+    most_used_tools: [],
+    most_used_skills: [],
+    most_used_subagents: [],
+    daily_stats: [],
+    activity_heatmap: [],
+    model_distribution: [MOCK_MODEL_STATS],
+    token_distribution: MOCK_TOKEN_DISTRIBUTION,
   }),
   get_global_stats_summary: () => ({
     total_projects: 1,
     total_sessions: 1,
     total_messages: MOCK_MESSAGES.length,
+    total_tokens: MOCK_TOTAL_TOKENS,
+    total_session_duration_minutes: 30,
+    date_range: { start: "2026-03-07", end: "2026-03-10" },
+    token_distribution: MOCK_TOKEN_DISTRIBUTION,
+    daily_stats: [],
+    activity_heatmap: [],
+    most_used_tools: [],
+    most_used_skills: [],
+    most_used_subagents: [],
+    provider_distribution: [
+      {
+        provider_id: "claude",
+        session_count: 1,
+        message_count: MOCK_MESSAGES.length,
+        tokens: MOCK_TOTAL_TOKENS,
+        token_count: MOCK_TOTAL_TOKENS,
+      },
+    ],
+    model_distribution: [MOCK_MODEL_STATS],
+    top_projects: [],
   }),
   get_session_comparison: () => [],
   get_recent_edits: () => [],
@@ -201,6 +267,12 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   load_user_metadata: () => ({ version: 1, sessions: {}, projects: {}, settings: {} }),
   save_user_metadata: () => ({}),
   load_settings: () => null,
+  get_all_settings: () => ({
+    user: JSON.stringify({ model: MOCK_MODEL }, null, 2),
+    project: null,
+    local: null,
+    managed: null,
+  }),
   save_settings: () => ({}),
   load_session_metadata: () => ({}),
   save_session_metadata: () => ({}),

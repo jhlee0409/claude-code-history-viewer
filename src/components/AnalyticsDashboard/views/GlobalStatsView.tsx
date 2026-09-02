@@ -17,6 +17,7 @@ import {
   Server,
   Sparkles,
   Bot,
+  AlertTriangle,
 } from "lucide-react";
 import type { GlobalStatsSummary, MetricMode } from "../../../types";
 import { formatDuration } from "../../../utils/time";
@@ -33,11 +34,14 @@ import {
   formatNumber,
   formatCurrency,
   calculateModelMetrics,
+  MODEL_PRICING_AUDITED_AT,
   calculateGlobalCostSummary,
+  calculateRetirementImpact,
   getRankMedal,
   hasMedal,
 } from "../utils";
 import { calculateConversationBreakdownCoverage } from "../../../utils/providers";
+import { ModelLifecycleBadge } from "../../ModelLifecycleBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 
 interface GlobalStatsViewProps {
@@ -76,6 +80,10 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
       globalConversationSummary.total_tokens
     );
   }, [conversationModelDistribution, globalConversationSummary]);
+  const retirementImpact = useMemo(
+    () => calculateRetirementImpact(modelDistribution),
+    [modelDistribution],
+  );
 
   const billingTokens = globalSummary.total_tokens;
   const billingCost = costSummary.pricedModels > 0 ? totalEstimatedCost : null;
@@ -173,6 +181,12 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
         <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-px11">
           {t("analytics.pricingCoverage", "Pricing coverage")}: {costSummary.coveragePercent.toFixed(1)}%
         </span>
+        <span
+          className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-px11"
+          title={t("analytics.pricingTableAuditedHint", "Date the API pricing table was last verified against official provider pages")}
+        >
+          {t("analytics.pricingTableAudited", "Prices verified")}: {MODEL_PRICING_AUDITED_AT}
+        </span>
         {costSummary.unpricedModels > 0 && (
           <span className="px-2 py-1 rounded-md bg-red-500/10 text-red-700 dark:text-red-300 text-px11">
             {t("analytics.unpricedModels", "Unpriced models")}: {costSummary.unpricedModels}
@@ -219,31 +233,34 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
 
                 return (
                   <div key={modelKey}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="block max-w-[60%] text-px12 font-medium text-foreground truncate text-left cursor-default"
-                          >
-                            <span className="flex items-center gap-1.5">
-                              <span>{model.model_name}</span>
-                              <span className="text-px10 text-muted-foreground/70">
-                                [{model.provider_id ?? t("analytics.unknownProvider", "unknown provider")}]
-                              </span>
-                              {model.service_tier && model.service_tier !== "standard" && (
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0 max-w-[60%]">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="block min-w-0 text-px12 font-medium text-foreground truncate text-left cursor-default"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <span>{model.model_name}</span>
                                 <span className="text-px10 text-muted-foreground/70">
-                                  [{model.service_tier}]
+                                  [{model.provider_id ?? t("analytics.unknownProvider", "unknown provider")}]
                                 </span>
-                              )}
-                            </span>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {model.provider_id ? `${model.provider_id} / ` : ""}{model.model_name}
-                          {model.service_tier ? ` (${model.service_tier})` : ""}
-                        </TooltipContent>
-                      </Tooltip>
+                                {model.service_tier && model.service_tier !== "standard" && (
+                                  <span className="text-px10 text-muted-foreground/70">
+                                    [{model.service_tier}]
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {model.provider_id ? `${model.provider_id} / ` : ""}{model.model_name}
+                            {model.service_tier ? ` (${model.service_tier})` : ""}
+                          </TooltipContent>
+                        </Tooltip>
+                        <ModelLifecycleBadge model={model.model_name} compact />
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-px12 text-muted-foreground">
                           {metricMode === "cost_estimated" ? formattedTokens : formattedPrice}
@@ -296,6 +313,61 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           <ToolUsageChart tools={globalSummary.most_used_tools} />
         </SectionCard>
       </div>
+
+      {/* Retiring models: what the same usage would cost on the provider's recommended replacement */}
+      {retirementImpact.length > 0 && (
+        <SectionCard
+          title={t("analytics.retirementImpactTitle", "Retiring models")}
+          icon={AlertTriangle}
+          colorVariant="amber"
+        >
+          <p className="text-px11 text-muted-foreground mb-3">
+            {t(
+              "analytics.retirementImpactDescription",
+              "Estimated API cost of the recorded usage, re-priced at the replacement model the provider recommends.",
+            )}
+          </p>
+          <div className="space-y-2.5">
+            {retirementImpact.map((row) => {
+              const delta = row.replacementCost - row.currentCost;
+              const deltaPercent = row.currentCost > 0 ? (delta / row.currentCost) * 100 : null;
+              return (
+                <div
+                  key={`${row.providerId ?? "unknown"}:${row.modelName}`}
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"
+                >
+                  <span className="flex items-center gap-1.5 min-w-0 text-px12">
+                    <span className="truncate font-medium text-foreground" title={row.modelName}>{row.modelName}</span>
+                    <ModelLifecycleBadge model={row.modelName} />
+                    <span className="text-muted-foreground">→</span>
+                    <span className="truncate font-medium text-foreground" title={row.replacedBy}>{row.replacedBy}</span>
+                  </span>
+                  <span className="flex items-center gap-2 font-mono text-px12">
+                    <span className="text-muted-foreground">{formatNumber(row.tokenCount)}</span>
+                    <span className="text-muted-foreground">{formatCurrency(row.currentCost)}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="font-semibold text-foreground">{formatCurrency(row.replacementCost)}</span>
+                    {deltaPercent != null && (
+                      <span
+                        className={cn(
+                          "text-px10",
+                          delta > 0
+                            ? "text-red-600 dark:text-red-400"
+                            : delta < 0
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-muted-foreground",
+                        )}
+                      >
+                        {delta > 0 ? "+" : ""}{deltaPercent.toFixed(0)}%
+                      </span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      )}
 
       {/* Skill / Subagent usage (#321) — only shown when there is data */}
       {(globalSummary.most_used_skills.length > 0 ||
