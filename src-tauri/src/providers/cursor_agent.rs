@@ -12,6 +12,15 @@
 //! There is no per-line `id`/`timestamp`/`sessionId`; the session id is the
 //! transcript file's UUID stem and times come from the file mtime.
 //!
+//! ## Session titles (`/rename`)
+//!
+//! Transcripts carry no title. The CLI stores the title it shows in its own
+//! resume picker (updated by the `/rename` slash command) under
+//! `~/.cursor/chats/<md5(cwd)>/<session-uuid>/meta.json` (`title` field,
+//! mirrored as `name` in that directory's `store.db`). The session UUID is
+//! shared with the transcript path, so [`load_sessions`] merges that stored
+//! title over the first-prompt fallback chain.
+//!
 //! ## Content-block normalisation (issue #472)
 //!
 //! Cursor agent injects several non-prose block types that must be handled
@@ -31,8 +40,9 @@ use crate::utils::{
 };
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use walkdir::{DirEntry, WalkDir};
 
 const PROVIDER_ID: &str = "cursor-agent";
@@ -64,6 +74,13 @@ pub fn get_base_path() -> Option<String> {
     } else {
         None
     }
+}
+
+/// Root of the Cursor Agent CLI chat metadata store: `~/.cursor/chats`.
+fn chats_root() -> Option<PathBuf> {
+    let home = crate::utils::home_dir()?;
+    let chats = home.join(".cursor").join("chats");
+    chats.is_dir().then_some(chats)
 }
 
 /// True if at least one `*/agent-transcripts/**/*.jsonl` exists under `base`.
@@ -179,9 +196,14 @@ pub fn load_sessions(
         .unwrap_or("Unknown")
         .to_string();
 
+    // Titles the CLI stores (and `/rename` updates), keyed by session UUID.
+    let title_index = chats_root()
+        .map(|root| load_native_title_index(&root))
+        .unwrap_or_default();
+
     let mut sessions = Vec::new();
     for entry in transcript_files(&transcripts_dir) {
-        if let Some(session) = extract_session_info(entry.path(), &project_name) {
+        if let Some(session) = extract_session_info(entry.path(), &project_name, &title_index) {
             sessions.push(session);
         }
     }
@@ -506,7 +528,39 @@ fn convert_message(
 // Session helpers
 // ============================================================================
 
-fn extract_session_info(file_path: &Path, project_name: &str) -> Option<ClaudeSession> {
+/// Build a `session UUID → stored title` map from
+/// `~/.cursor/chats/<workspace-hash>/<session-uuid>/meta.json`.
+///
+/// The CLI writes the title shown in its own resume picker to `meta.json`'s
+/// `title` field, and `/rename` updates it. The session UUID (directory name)
+/// is the same identifier used for the transcript file stem under
+/// `~/.cursor/projects`, so no workspace-hash mapping is needed to join.
+fn load_native_title_index(chats_root: &Path) -> HashMap<String, String> {
+    WalkDir::new(chats_root)
+        .min_depth(3)
+        .max_depth(3)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_name() == "meta.json")
+        .filter(|e| !is_symlink(e.path()))
+        .filter_map(|entry| {
+            let uuid = entry.path().parent()?.file_name()?.to_str()?;
+            let data = fs::read_to_string(entry.path()).ok()?;
+            let value = serde_json::from_str::<Value>(&data).ok()?;
+            let title = value.get("title")?.as_str()?.trim();
+            if title.is_empty() {
+                return None;
+            }
+            Some((uuid.to_string(), title.to_string()))
+        })
+        .collect()
+}
+
+fn extract_session_info(
+    file_path: &Path,
+    project_name: &str,
+    native_titles: &HashMap<String, String>,
+) -> Option<ClaudeSession> {
     let data = fs::read_to_string(file_path).ok()?;
 
     let mut message_count = 0usize;
@@ -539,6 +593,7 @@ fn extract_session_info(file_path: &Path, project_name: &str) -> Option<ClaudeSe
 
     let uuid = file_uuid(file_path);
     let mtime = file_mtime_rfc3339(file_path);
+    let native_title = native_titles.get(&uuid);
 
     Some(ClaudeSession {
         session_id: file_path.to_string_lossy().to_string(),
@@ -551,8 +606,10 @@ fn extract_session_info(file_path: &Path, project_name: &str) -> Option<ClaudeSe
         last_modified: mtime,
         has_tool_use: false,
         has_errors: false,
-        summary: summary.or(Some(uuid)),
-        is_renamed: false,
+        // Stored title (the CLI's resume-picker name, updated by `/rename`)
+        // wins over the first-prompt fallback, which wins over the raw UUID.
+        summary: native_title.cloned().or(summary).or(Some(uuid)),
+        is_renamed: native_title.is_some(),
         provider: Some(PROVIDER_ID.to_string()),
         storage_type: Some("json".to_string()),
         entrypoint: None,
@@ -734,7 +791,8 @@ mod tests {
             .join("uuid-1")
             .join("uuid-1.jsonl");
 
-        let session = extract_session_info(&file, "Users-jack-client-foo").unwrap();
+        let session =
+            extract_session_info(&file, "Users-jack-client-foo", &HashMap::new()).unwrap();
         assert_eq!(session.actual_session_id, "uuid-1");
         assert_eq!(session.message_count, 2);
         assert_eq!(session.provider.as_deref(), Some("cursor-agent"));
@@ -852,5 +910,117 @@ mod tests {
             "tool_result text missing"
         );
         assert!(content.contains("cargo build"), "command_output missing");
+    }
+
+    // ---------------------------------------------------------------------------
+    // Native title index (`~/.cursor/chats/<hash>/<uuid>/meta.json`)
+    // ---------------------------------------------------------------------------
+
+    fn write_meta(chats_root: &Path, workspace_hash: &str, uuid: &str, body: &str) {
+        let dir = chats_root.join(workspace_hash).join(uuid);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("meta.json"), body).unwrap();
+    }
+
+    /// The title the CLI shows in its resume picker (and that `/rename` writes)
+    /// lives in `meta.json`'s `title` field, keyed by the session UUID that is
+    /// also the transcript file stem.
+    #[test]
+    fn native_title_index_reads_titles_from_meta_json() {
+        let tmp = TempDir::new().unwrap();
+        let chats = tmp.path();
+        write_meta(
+            chats,
+            "hash-a",
+            "uuid-1",
+            r#"{"schemaVersion":1,"createdAtMs":1,"hasConversation":true,"title":"my rename","updatedAtMs":2}"#,
+        );
+        write_meta(
+            chats,
+            "hash-b",
+            "uuid-2",
+            r#"{"schemaVersion":1,"hasConversation":true,"title":"  padded  "}"#,
+        );
+
+        let index = load_native_title_index(chats);
+        assert_eq!(index.get("uuid-1").map(String::as_str), Some("my rename"));
+        // Surrounding whitespace is stripped.
+        assert_eq!(index.get("uuid-2").map(String::as_str), Some("padded"));
+    }
+
+    /// Missing/empty/malformed titles must not poison the index; non-meta files
+    /// (store.db, `prompt_history.json`) and stray layouts must be ignored.
+    #[test]
+    fn native_title_index_skips_unusable_entries() {
+        let tmp = TempDir::new().unwrap();
+        let chats = tmp.path();
+        // No `title` field (e.g. subagent sessions).
+        write_meta(
+            chats,
+            "h1",
+            "uuid-1",
+            r#"{"schemaVersion":1,"isSubagent":true}"#,
+        );
+        // Empty / whitespace-only title.
+        write_meta(chats, "h1", "uuid-2", r#"{"schemaVersion":1,"title":"  "}"#);
+        // Malformed JSON.
+        write_meta(chats, "h1", "uuid-3", "{not json");
+        // Non-string title.
+        write_meta(chats, "h1", "uuid-4", r#"{"title":42}"#);
+        // A meta.json at the wrong depth must not be picked up.
+        fs::write(chats.join("meta.json"), r#"{"title":"top-level"}"#).unwrap();
+        // store.db / prompt_history.json next to a valid title must be ignored.
+        let dir = chats.join("h1").join("uuid-5");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("store.db"), b"sqlite").unwrap();
+        fs::write(dir.join("prompt_history.json"), "[]").unwrap();
+        fs::write(dir.join("meta.json"), r#"{"title":"real title"}"#).unwrap();
+
+        let index = load_native_title_index(chats);
+        assert_eq!(index.len(), 1, "only the valid title may be indexed");
+        assert_eq!(index.get("uuid-5").map(String::as_str), Some("real title"));
+    }
+
+    /// A stored native title wins over the trimmed first prompt and marks the
+    /// session as renamed — this is the `/rename` fix.
+    #[test]
+    fn extract_session_info_prefers_native_title_over_first_prompt() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+        write_transcript(base, "Users-jack-client-foo", "uuid-1", SAMPLE);
+        let file = base
+            .join("Users-jack-client-foo")
+            .join("agent-transcripts")
+            .join("uuid-1")
+            .join("uuid-1.jsonl");
+
+        let mut index = HashMap::new();
+        index.insert("uuid-1".to_string(), "my-renamed-session".to_string());
+
+        let session = extract_session_info(&file, "Users-jack-client-foo", &index).unwrap();
+        assert_eq!(session.summary.as_deref(), Some("my-renamed-session"));
+        assert!(session.is_renamed, "native title must set is_renamed");
+    }
+
+    /// Without a stored title the current behaviour is unchanged: trimmed first
+    /// prompt, `is_renamed` false.
+    #[test]
+    fn extract_session_info_falls_back_to_first_prompt_without_native_title() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+        write_transcript(base, "Users-jack-client-foo", "uuid-1", SAMPLE);
+        let file = base
+            .join("Users-jack-client-foo")
+            .join("agent-transcripts")
+            .join("uuid-1")
+            .join("uuid-1.jsonl");
+
+        // Index present but holding only an unrelated session.
+        let mut index = HashMap::new();
+        index.insert("other-uuid".to_string(), "other title".to_string());
+
+        let session = extract_session_info(&file, "Users-jack-client-foo", &index).unwrap();
+        assert_eq!(session.summary.as_deref(), Some("fix the LOGIN bug"));
+        assert!(!session.is_renamed);
     }
 }
