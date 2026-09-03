@@ -78,9 +78,20 @@ pub fn get_base_path() -> Option<String> {
 
 /// Root of the Cursor Agent CLI chat metadata store: `~/.cursor/chats`.
 fn chats_root() -> Option<PathBuf> {
-    let home = crate::utils::home_dir()?;
+    chats_root_in(&crate::utils::home_dir()?)
+}
+
+/// `.cursor/chats` under `home`, or `None` when missing or a symlink.
+///
+/// `WalkDir` follows a symlinked traversal root by default, so reject it here
+/// rather than reading titles from an unintended location.
+fn chats_root_in(home: &Path) -> Option<PathBuf> {
     let chats = home.join(".cursor").join("chats");
-    chats.is_dir().then_some(chats)
+    if chats.is_dir() && !is_symlink(&chats) {
+        Some(chats)
+    } else {
+        None
+    }
 }
 
 /// True if at least one `*/agent-transcripts/**/*.jsonl` exists under `base`.
@@ -1022,5 +1033,33 @@ mod tests {
         let session = extract_session_info(&file, "Users-jack-client-foo", &index).unwrap();
         assert_eq!(session.summary.as_deref(), Some("fix the LOGIN bug"));
         assert!(!session.is_renamed);
+    }
+
+    /// `WalkDir` follows a symlinked traversal root by default, so a symlinked
+    /// `~/.cursor/chats` must be rejected outright. A real directory is accepted.
+    #[test]
+    fn chats_root_rejects_symlinked_chats_dir() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+
+        // A real chats directory is accepted.
+        let good = base.join("good");
+        fs::create_dir_all(good.join(".cursor").join("chats")).unwrap();
+        assert!(chats_root_in(&good).is_some());
+
+        // A symlinked chats directory is rejected.
+        let target = base.join("elsewhere");
+        fs::create_dir_all(&target).unwrap();
+        let bad = base.join("bad");
+        fs::create_dir_all(bad.join(".cursor")).unwrap();
+        let link = bad.join(".cursor").join("chats");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&target, &link).unwrap();
+        assert!(
+            chats_root_in(&bad).is_none(),
+            "symlinked chats root must be rejected"
+        );
     }
 }
