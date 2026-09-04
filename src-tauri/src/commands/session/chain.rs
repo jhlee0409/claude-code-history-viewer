@@ -21,6 +21,14 @@ use std::time::SystemTime;
 
 use once_cell::sync::Lazy;
 
+use crate::utils::is_symlink;
+
+/// A regular `.jsonl` file in the project directory. Symlinks are skipped so a
+/// planted link can't pull a file outside the project root into chain scans.
+fn is_regular_jsonl(path: &Path) -> bool {
+    path.extension().and_then(|s| s.to_str()) == Some("jsonl") && !is_symlink(path)
+}
+
 /// Hard cap on how many hops `resolve_session_chain` will follow. Guards
 /// against a pathological or corrupted `logicalParentUuid` cycle; no real
 /// Claude Code conversation should ever chain this deep.
@@ -64,7 +72,7 @@ fn project_snapshot(project_dir: &Path) -> Option<ProjectSnapshot> {
     for entry in fs::read_dir(project_dir).ok()? {
         let entry = entry.ok()?;
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("jsonl") {
+        if !is_regular_jsonl(&path) {
             continue;
         }
         snapshot.push((path.clone(), file_signature(&path)?));
@@ -144,7 +152,7 @@ fn find_file_containing_uuid(
     let entries = fs::read_dir(project_dir).ok()?;
     for entry in entries.filter_map(Result::ok) {
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("jsonl") {
+        if !is_regular_jsonl(&path) {
             continue;
         }
         if skip.contains(&path) {
@@ -256,7 +264,7 @@ pub fn superseded_chain_paths(project_root: &Path) -> HashSet<PathBuf> {
 
     for entry in entries.filter_map(Result::ok) {
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("jsonl") {
+        if !is_regular_jsonl(&path) {
             continue;
         }
 
@@ -305,6 +313,36 @@ mod tests {
         );
         let chain = resolve_session_chain(&path);
         assert_eq!(chain, vec![path]);
+    }
+
+    /// A symlinked `.jsonl` inside the project dir must never be followed:
+    /// neither as a chain predecessor nor as a superseded candidate.
+    #[cfg(unix)]
+    #[test]
+    fn chain_scans_ignore_symlinked_jsonl() {
+        let outside = TempDir::new().unwrap();
+        let real_older = write_file(
+            &outside,
+            "older.jsonl",
+            "{\"uuid\":\"tail-uuid\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[]}}\n",
+        );
+
+        let dir = TempDir::new().unwrap();
+        let link = dir.path().join("older.jsonl");
+        std::os::unix::fs::symlink(&real_older, &link).unwrap();
+        let newer = write_file(
+            &dir,
+            "newer.jsonl",
+            concat!(
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-1\",",
+                "\"logicalParentUuid\":\"tail-uuid\"}\n",
+                "{\"uuid\":\"u2\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"continuing\"}}\n",
+            ),
+        );
+
+        assert_eq!(resolve_session_chain(&newer), vec![newer.clone()]);
+        let superseded = superseded_chain_paths(dir.path());
+        assert!(superseded.is_empty(), "got {superseded:?}");
     }
 
     #[test]
