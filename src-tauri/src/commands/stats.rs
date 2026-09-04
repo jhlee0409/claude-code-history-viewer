@@ -1590,8 +1590,8 @@ fn load_stats_messages(
         StatsProvider::Kimi => providers::kimi::load_messages(session_path),
         StatsProvider::Antigravity => providers::antigravity::load_messages(session_path),
         StatsProvider::Copilot => providers::copilot::load_messages(session_path),
-        StatsProvider::Ompi => providers::ompi::load_messages(session_path),
-        StatsProvider::Pi => providers::pi::load_messages(session_path),
+        StatsProvider::Ompi => providers::ompi::load_stats_messages(session_path),
+        StatsProvider::Pi => providers::pi::load_stats_messages(session_path),
         StatsProvider::Gemini => providers::gemini::load_messages(session_path),
         StatsProvider::Cursor => providers::cursor::load_stats_messages(session_path),
         StatsProvider::Claude => Ok(Vec::new()),
@@ -6373,6 +6373,18 @@ mod tests {
             Some(false),
             false,
             StatsMode::BillingTotal
+        ));
+        assert!(should_include_stats_entry(
+            "model_usage",
+            Some(false),
+            true,
+            StatsMode::BillingTotal
+        ));
+        assert!(!should_include_stats_entry(
+            "model_usage",
+            Some(false),
+            true,
+            StatsMode::ConversationOnly
         ));
     }
 

@@ -10,6 +10,8 @@
  */
 
 import type { ContentItem } from "./tool.types";
+import type { CompactMetadata } from "./core/message";
+export type { CompactMetadata } from "./core/message";
 
 // ============================================================================
 // File History Snapshot Types
@@ -127,13 +129,13 @@ export interface RawClaudeMessage {
   sessionId: string;
   timestamp: string;
   type:
-  | "user"
-  | "assistant"
-  | "system"
-  | "summary"
-  | "file-history-snapshot"
-  | "progress"
-  | "queue-operation";
+    | "user"
+    | "assistant"
+    | "system"
+    | "summary"
+    | "file-history-snapshot"
+    | "progress"
+    | "queue-operation";
   message: MessagePayload;
   toolUse?: Record<string, unknown>;
   toolUseResult?: Record<string, unknown> | string;
@@ -190,7 +192,13 @@ export interface ClaudeAssistantMessage extends BaseClaudeMessage {
    */
   messageId?: string;
   model?: string;
-  stop_reason?: "tool_use" | "end_turn" | "max_tokens" | "customer_cancelled" | "consumer_cancelled" | string;
+  stop_reason?:
+    | "tool_use"
+    | "end_turn"
+    | "max_tokens"
+    | "customer_cancelled"
+    | "consumer_cancelled"
+    | string;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
@@ -225,8 +233,8 @@ export interface ClaudeSystemMessage extends BaseClaudeMessage {
   preventedContinuation?: boolean;
 
   // boundary fields
-  compactMetadata?: { trigger?: string; preTokens?: number };
-  microcompactMetadata?: { trigger?: string; preTokens?: number };
+  compactMetadata?: CompactMetadata;
+  microcompactMetadata?: CompactMetadata;
 }
 
 /** High level session summary */

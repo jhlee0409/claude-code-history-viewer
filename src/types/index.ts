@@ -24,6 +24,7 @@ export type {
   QueueOperationMessage,
   MessagePayload,
   MessageCategory,
+  CompactMetadata,
   RawClaudeMessage,
   ClaudeMessage,
   ClaudeAssistantMessage,
@@ -196,10 +197,7 @@ export {
 // ============================================================================
 
 // Session State
-export type {
-  AppState,
-  SubagentSession,
-} from "./session.types";
+export type { AppState, SubagentSession } from "./session.types";
 
 // Stats Types
 export type {
@@ -221,7 +219,11 @@ export type {
 } from "./stats.types";
 
 // Edit Types
-export type { RecentFileEdit, RecentEditsResult, PaginatedRecentEdits } from "./edit.types";
+export type {
+  RecentFileEdit,
+  RecentEditsResult,
+  PaginatedRecentEdits,
+} from "./edit.types";
 
 // Update Types
 export type {
@@ -258,9 +260,7 @@ export type {
 } from "./board.types";
 
 // Update Settings Types
-export type {
-  UpdateSettings,
-} from "./updateSettings";
+export type { UpdateSettings } from "./updateSettings";
 export { DEFAULT_UPDATE_SETTINGS } from "./updateSettings";
 
 // Archive Types

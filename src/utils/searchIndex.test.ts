@@ -1,9 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { linearSearchMessages, isSearchIndexReady, clearSearchIndex } from "./searchIndex";
+import {
+  linearSearchMessages,
+  isSearchIndexReady,
+  clearSearchIndex,
+} from "./searchIndex";
 import type { ClaudeMessage } from "../types";
 
 // Helper to create minimal ClaudeMessage fixtures
-function createMessage(overrides: Partial<ClaudeMessage> & { uuid: string; type: string }): ClaudeMessage {
+function createMessage(
+  overrides: Partial<ClaudeMessage> & { uuid: string; type: string },
+): ClaudeMessage {
   return {
     timestamp: "2024-01-01T00:00:00Z",
     content: "",
@@ -14,10 +20,26 @@ function createMessage(overrides: Partial<ClaudeMessage> & { uuid: string; type:
 describe("linearSearchMessages", () => {
   const messages: ClaudeMessage[] = [
     createMessage({ uuid: "msg-1", type: "user", content: "Hello world" }),
-    createMessage({ uuid: "msg-2", type: "assistant", content: "Hi there! How can I help you today?" }),
-    createMessage({ uuid: "msg-3", type: "user", content: "Find the bug in my code" }),
-    createMessage({ uuid: "msg-4", type: "assistant", content: "I found the bug. The bug was in line 42." }),
-    createMessage({ uuid: "msg-5", type: "system", content: "Session started" }),
+    createMessage({
+      uuid: "msg-2",
+      type: "assistant",
+      content: "Hi there! How can I help you today?",
+    }),
+    createMessage({
+      uuid: "msg-3",
+      type: "user",
+      content: "Find the bug in my code",
+    }),
+    createMessage({
+      uuid: "msg-4",
+      type: "assistant",
+      content: "I found the bug. The bug was in line 42.",
+    }),
+    createMessage({
+      uuid: "msg-5",
+      type: "system",
+      content: "Session started",
+    }),
   ];
 
   it("returns empty array for empty query", () => {
@@ -36,7 +58,7 @@ describe("linearSearchMessages", () => {
     const results = linearSearchMessages(messages, "bug");
     // "bug" appears twice in msg-4: "found the bug" and "The bug was"
     // Sorted newest-first with descending matchIndex, so matchIndex 1 comes first
-    const msg4Results = results.filter(r => r.messageUuid === "msg-4");
+    const msg4Results = results.filter((r) => r.messageUuid === "msg-4");
     expect(msg4Results.length).toBe(2);
     expect(msg4Results[1].matchIndex).toBe(0);
     expect(msg4Results[1].matchCount).toBe(2);
@@ -48,7 +70,7 @@ describe("linearSearchMessages", () => {
     const results = linearSearchMessages(messages, "the");
     // "the" in msg-3 ("the bug") and msg-4 ("the bug. The bug")
     expect(results.length).toBeGreaterThan(1);
-    const uuids = new Set(results.map(r => r.messageUuid));
+    const uuids = new Set(results.map((r) => r.messageUuid));
     expect(uuids.size).toBeGreaterThan(1);
   });
 
@@ -91,7 +113,11 @@ describe("linearSearchMessages", () => {
       type: "assistant",
       content: [{ type: "tool_use", id: "toolu_abc123", name: "read_file" }],
     });
-    const results = linearSearchMessages([msgWithToolUse], "toolu_abc123", "toolId");
+    const results = linearSearchMessages(
+      [msgWithToolUse],
+      "toolu_abc123",
+      "toolId",
+    );
     expect(results.length).toBe(1);
     expect(results[0].messageUuid).toBe("msg-tid");
   });
@@ -105,7 +131,9 @@ describe("linearSearchMessages", () => {
     expect(results[0].messageUuid).toBe("msg-4");
     // Results should be in descending messageIndex order
     for (let i = 1; i < results.length; i++) {
-      expect(results[i].messageIndex).toBeLessThanOrEqual(results[i - 1].messageIndex);
+      expect(results[i].messageIndex).toBeLessThanOrEqual(
+        results[i - 1].messageIndex,
+      );
     }
   });
 
@@ -130,6 +158,23 @@ describe("linearSearchMessages", () => {
     expect(resultsEmbedded.length).toBe(1);
     expect(resultsEmbedded[0].messageUuid).toBe("msg-mid");
   });
+
+  it("searches compaction warnings stored outside summary content", () => {
+    const warning = "Compaction freed too little context";
+    const compaction = createMessage({
+      uuid: "compact-warning",
+      type: "system",
+      content: "Retained context",
+      compactMetadata: {
+        trigger: "threshold",
+        warning,
+      } as ClaudeMessage["compactMetadata"] & { warning: string },
+    });
+
+    const results = linearSearchMessages([compaction], "too little");
+    expect(results).toHaveLength(1);
+    expect(results[0].messageUuid).toBe("compact-warning");
+  });
 });
 
 describe("tool_use input indexing (#429)", () => {
@@ -138,7 +183,12 @@ describe("tool_use input indexing (#429)", () => {
       uuid: "tu-1",
       type: "assistant",
       content: [
-        { type: "tool_use", id: "t1", name: "Read", input: { file_path: "/src/reflectance.ts" } },
+        {
+          type: "tool_use",
+          id: "t1",
+          name: "Read",
+          input: { file_path: "/src/reflectance.ts" },
+        },
       ],
     });
     // Searching for the tool name still works...
@@ -158,7 +208,9 @@ describe("tool_use input indexing (#429)", () => {
           type: "tool_use",
           id: "t2",
           name: "AskUserQuestion",
-          input: { questions: [{ question: "What reflectance model should we use?" }] },
+          input: {
+            questions: [{ question: "What reflectance model should we use?" }],
+          },
         },
       ],
     });
@@ -172,7 +224,12 @@ describe("tool_use input indexing (#429)", () => {
       uuid: "tu-3",
       type: "assistant",
       content: [
-        { type: "mcp_tool_use", server_name: "fs", tool_name: "grep", input: { pattern: "needle-token" } },
+        {
+          type: "mcp_tool_use",
+          server_name: "fs",
+          tool_name: "grep",
+          input: { pattern: "needle-token" },
+        },
       ],
     });
     expect(linearSearchMessages([msg], "needle-token").length).toBe(1);
