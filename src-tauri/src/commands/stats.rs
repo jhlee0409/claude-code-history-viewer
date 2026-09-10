@@ -30,6 +30,7 @@ enum StatsProvider {
     Codex,
     Continue,
     ForgeCode,
+    Kilo,
     OpenCode,
     OpenHands,
     OpenInterpreter,
@@ -89,6 +90,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Codex => "codex",
         StatsProvider::Continue => "continue",
         StatsProvider::ForgeCode => "forgecode",
+        StatsProvider::Kilo => "kilo",
         StatsProvider::OpenCode => "opencode",
         StatsProvider::OpenHands => "openhands",
         StatsProvider::OpenInterpreter => "openinterpreter",
@@ -296,6 +298,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Codex,
         StatsProvider::Continue,
         StatsProvider::ForgeCode,
+        StatsProvider::Kilo,
         StatsProvider::OpenCode,
         StatsProvider::OpenHands,
         StatsProvider::OpenInterpreter,
@@ -340,6 +343,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "codex" => Some(StatsProvider::Codex),
             "continue" => Some(StatsProvider::Continue),
             "forgecode" => Some(StatsProvider::ForgeCode),
+            "kilo" => Some(StatsProvider::Kilo),
             "opencode" => Some(StatsProvider::OpenCode),
             "openhands" => Some(StatsProvider::OpenHands),
             "openinterpreter" => Some(StatsProvider::OpenInterpreter),
@@ -414,6 +418,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Codex
     } else if project_path.starts_with("forgecode://") {
         StatsProvider::ForgeCode
+    } else if project_path.starts_with("kilo://") {
+        StatsProvider::Kilo
     } else if project_path.starts_with("opencode://") {
         StatsProvider::OpenCode
     } else if project_path.starts_with("grok://") {
@@ -515,6 +521,10 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     }
     if session_path.starts_with("opencode://") {
         return StatsProvider::OpenCode;
+    }
+
+    if session_path.starts_with("kilo://") {
+        return StatsProvider::Kilo;
     }
 
     if session_path.starts_with("cursor://") {
@@ -1497,6 +1507,7 @@ fn scan_stats_projects(
         StatsProvider::Codex => providers::codex::scan_projects(),
         StatsProvider::Continue => providers::continue_dev::scan_projects(),
         StatsProvider::ForgeCode => providers::forgecode::scan_projects(),
+        StatsProvider::Kilo => providers::kilo::scan_projects(),
         StatsProvider::OpenCode => providers::opencode::scan_projects(),
         StatsProvider::OpenHands => providers::openhands::scan_projects(),
         StatsProvider::OpenInterpreter => providers::openinterpreter::scan_projects(),
@@ -1534,6 +1545,7 @@ fn load_stats_sessions(
         StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
         StatsProvider::Continue => providers::continue_dev::load_sessions(project_path, false),
         StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
+        StatsProvider::Kilo => providers::kilo::load_sessions(project_path, false),
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
         StatsProvider::OpenHands => providers::openhands::load_sessions(project_path, false),
         StatsProvider::OpenInterpreter => {
@@ -1573,6 +1585,7 @@ fn load_stats_messages(
         StatsProvider::Codex => providers::codex::load_messages(session_path),
         StatsProvider::Continue => providers::continue_dev::load_messages(session_path),
         StatsProvider::ForgeCode => providers::forgecode::load_messages(session_path),
+        StatsProvider::Kilo => providers::kilo::load_messages(session_path),
         StatsProvider::OpenCode => providers::opencode::load_messages(session_path),
         StatsProvider::OpenHands => providers::openhands::load_messages(session_path),
         StatsProvider::OpenInterpreter => providers::openinterpreter::load_messages(session_path),
@@ -2837,6 +2850,17 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 .unwrap_or(project_path)
                 .to_string()
         }
+        StatsProvider::Kilo => {
+            if let Ok(projects) = providers::kilo::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("kilo://")
+                .unwrap_or(project_path)
+                .to_string()
+        }
         StatsProvider::OpenCode => {
             if let Ok(projects) = providers::opencode::scan_projects() {
                 if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
@@ -2993,6 +3017,14 @@ fn resolve_provider_project_name_from_session(
                 .and_then(|rest| rest.split("/conversation/").next())
                 .unwrap_or("unknown");
             let project_path = format!("forgecode://workspace/{workspace_id}");
+            resolve_provider_project_name(provider, &project_path)
+        }
+        StatsProvider::Kilo => {
+            let project_part = session_path
+                .strip_prefix("kilo://")
+                .and_then(|rest| rest.split('/').next())
+                .unwrap_or("unknown");
+            let project_path = format!("kilo://{project_part}");
             resolve_provider_project_name(provider, &project_path)
         }
         StatsProvider::OpenCode => {
@@ -6227,7 +6259,7 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
-        assert_eq!(supported.len(), 29);
+        assert_eq!(supported.len(), 30);
     }
 
     #[test]

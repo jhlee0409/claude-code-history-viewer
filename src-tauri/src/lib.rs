@@ -1081,6 +1081,15 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    // Kilo Code keeps its OpenCode-core sessions in kilo.db (no file-backed
+    // session/message storage dirs), so watching the store root covers it.
+    if let Some(kilo_base) = providers::kilo::get_base_path() {
+        let base = PathBuf::from(&kilo_base);
+        if base.join(providers::kilo::DB_FILE).is_file() {
+            paths.push(base);
+        }
+    }
+
     if let Some(codebuddy_base) = providers::codebuddy::get_base_path() {
         let codebuddy_projects = PathBuf::from(codebuddy_base);
         if codebuddy_projects.is_dir() {
