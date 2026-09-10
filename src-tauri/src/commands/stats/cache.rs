@@ -1033,6 +1033,7 @@ pub(super) fn compose_session_token(
             model_context_usage,
             model_costs,
         ),
+        subagent_stats: None,
         // The scan path emits the map unsorted; keep that shape.
         most_used_tools: tool_usage
             .into_iter()

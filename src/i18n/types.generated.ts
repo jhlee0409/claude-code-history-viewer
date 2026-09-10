@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-09-02T16:33:29.166Z
- * 총 키 개수: 1961
+ * 생성 시간: 2026-09-10T09:46:48.136Z
+ * 총 키 개수: 1966
  * Namespace 수: 11
  */
 
@@ -248,7 +248,7 @@ export type CommonKeys =
   | 'time.yesterday';
 
 /**
- * analytics namespace의 번역 키 (188개)
+ * analytics namespace의 번역 키 (193개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -376,9 +376,14 @@ export type AnalyticsKeys =
   | 'analytics.sessionStatsDetail'
   | 'analytics.sessionTime'
   | 'analytics.sessionTimeline'
+  | 'analytics.sessionTotalWithSubagents'
   | 'analytics.sessionsUnit'
   | 'analytics.showMoreSessions'
   | 'analytics.startTime'
+  | 'analytics.subagentSessions_one'
+  | 'analytics.subagentSessions_other'
+  | 'analytics.subagents'
+  | 'analytics.subagentsHelp'
   | 'analytics.successRate'
   | 'analytics.timeline.activeDays'
   | 'analytics.timeline.clearFilter'
@@ -2223,9 +2228,14 @@ export type TranslationKey =
   | 'analytics.sessionStatsDetail'
   | 'analytics.sessionTime'
   | 'analytics.sessionTimeline'
+  | 'analytics.sessionTotalWithSubagents'
   | 'analytics.sessionsUnit'
   | 'analytics.showMoreSessions'
   | 'analytics.startTime'
+  | 'analytics.subagentSessions_one'
+  | 'analytics.subagentSessions_other'
+  | 'analytics.subagents'
+  | 'analytics.subagentsHelp'
   | 'analytics.successRate'
   | 'analytics.timeline.activeDays'
   | 'analytics.timeline.clearFilter'

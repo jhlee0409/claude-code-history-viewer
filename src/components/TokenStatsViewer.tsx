@@ -22,6 +22,7 @@ import { LoadingState } from "./ui/loading";
 import { SessionStatsCard } from "./SessionStatsCard";
 import { DatePickerHeader } from "./ui/DatePickerHeader";
 import { BillingBreakdownCard } from "./AnalyticsDashboard/components/BillingBreakdownCard";
+import { SubagentRollupCard } from "./AnalyticsDashboard/components/SubagentRollupCard";
 import { calculateGlobalCostSummary } from "./AnalyticsDashboard/utils";
 import { supportsConversationBreakdown } from "../utils/providers";
 import { useAppStore } from "../store/useAppStore";
@@ -503,6 +504,12 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
               }
               showProviderLimitHelp={showProviderLimitHelp}
             />
+            {sessionStats.subagent_stats && sessionStats.subagent_stats.session_count > 0 && (
+              <SubagentRollupCard
+                stats={sessionStats}
+                subagentStats={sessionStats.subagent_stats}
+              />
+            )}
           </div>
         )}
 

@@ -3,7 +3,7 @@ use crate::models::MessageContent;
 use crate::models::{
     ActivityHeatmap, ClaudeMessage, DailyStats, GlobalStatsSummary, ModelContextStats, ModelStats,
     ProjectRanking, ProjectStatsSummary, ProviderUsageStats, RawLogEntry, SessionComparison,
-    SessionTokenStats, TokenDistribution, TokenUsage, ToolUsageStats,
+    SessionTokenStats, SubagentTokenStats, TokenDistribution, TokenUsage, ToolUsageStats,
 };
 use crate::providers;
 use crate::utils::find_line_ranges;
@@ -2545,6 +2545,7 @@ fn build_antigravity_session_token_stats(
             model_context_usage,
             model_costs,
         ),
+        subagent_stats: None,
     };
 
     Ok(Some((stats, records)))
@@ -3299,6 +3300,7 @@ fn build_session_token_stats_from_messages(
             model_context_usage,
             model_costs,
         ),
+        subagent_stats: None,
     })
 }
 
@@ -4001,14 +4003,23 @@ pub async fn get_session_token_stats(
                 .find(|candidate| candidate.actual_session_id == session_id)
                 .ok_or_else(|| "Session not found".to_string())?;
 
-            return build_antigravity_session_token_stats(
+            let mut stats = build_antigravity_session_token_stats(
                 session,
                 mode,
                 s_limit.as_ref(),
                 e_limit.as_ref(),
             )?
             .map(|(stats, _records)| stats)
-            .ok_or_else(|| "No valid messages found in session".to_string());
+            .ok_or_else(|| "No valid messages found in session".to_string())?;
+            attach_subagent_stats(
+                &mut stats,
+                provider,
+                &session_path,
+                mode,
+                s_limit.as_ref(),
+                e_limit.as_ref(),
+            );
+            return Ok(stats);
         }
 
         let messages = load_stats_messages(provider, &session_path)?;
@@ -4019,7 +4030,7 @@ pub async fn get_session_token_stats(
             .unwrap_or_else(|| session_path.clone());
         let project_name = resolve_provider_project_name_from_session(provider, &session_path);
 
-        return build_session_token_stats_from_messages(
+        let mut stats = build_session_token_stats_from_messages(
             SessionTokenStatsOptions {
                 provider,
                 session_id,
@@ -4038,7 +4049,16 @@ pub async fn get_session_token_stats(
                 e_limit.as_ref(),
             )
         })
-        .ok_or_else(|| "No valid messages found in session".to_string());
+        .ok_or_else(|| "No valid messages found in session".to_string())?;
+        attach_subagent_stats(
+            &mut stats,
+            provider,
+            &session_path,
+            mode,
+            s_limit.as_ref(),
+            e_limit.as_ref(),
+        );
+        return Ok(stats);
     }
 
     let session_path_buf = PathBuf::from(&session_path);
@@ -4065,6 +4085,105 @@ pub async fn get_session_token_stats(
     );
 
     Ok(stats)
+}
+
+/// Attach the rolled-up usage of the sessions this session spawned.
+///
+/// Only billing totals carry the roll-up; the conversation view stays
+/// main-thread only, matching the existing `stats_mode` split.
+fn attach_subagent_stats(
+    stats: &mut SessionTokenStats,
+    provider: StatsProvider,
+    session_path: &str,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) {
+    if !matches!(mode, StatsMode::BillingTotal) {
+        return;
+    }
+    stats.subagent_stats =
+        build_subagent_token_stats(provider, session_path, mode, s_limit, e_limit);
+}
+
+/// Roll up every session spawned by `session_path`.
+///
+/// Only providers that persist a subagent run as its own session row are
+/// supported (`OpenCode`'s `session.parent_id`). Providers that keep subagents
+/// inline (`Claude`'s `isSidechain`) already count them in billing mode, so
+/// they must not be rolled up again.
+fn build_subagent_token_stats(
+    provider: StatsProvider,
+    session_path: &str,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<SubagentTokenStats> {
+    if provider != StatsProvider::OpenCode {
+        return None;
+    }
+    let (project_id, session_id) = providers::opencode::parse_session_path(session_path)?;
+    let descendants = providers::opencode::load_descendant_sessions(&project_id, &session_id);
+    if descendants.is_empty() {
+        return None;
+    }
+
+    let mut messages: Vec<ClaudeMessage> = Vec::new();
+    for child in &descendants {
+        let child_path = format!("opencode://{project_id}/{}", child.id);
+        if let Ok(child_messages) = providers::opencode::load_messages(&child_path) {
+            messages.extend(child_messages);
+        }
+    }
+    if messages.is_empty() {
+        return None;
+    }
+
+    subagent_stats_from_messages(
+        provider,
+        &session_id,
+        mode,
+        descendants.len(),
+        &messages,
+        s_limit,
+        e_limit,
+    )
+}
+
+/// Aggregate descendant messages into a [`SubagentTokenStats`] using the same
+/// token-extraction and dedup rules as a normal session.
+fn subagent_stats_from_messages(
+    provider: StatsProvider,
+    session_id: &str,
+    mode: StatsMode,
+    session_count: usize,
+    messages: &[ClaudeMessage],
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<SubagentTokenStats> {
+    let stats = build_session_token_stats_from_messages(
+        SessionTokenStatsOptions {
+            provider,
+            session_id: session_id.to_string(),
+            project_name: String::new(),
+            summary: None,
+            mode,
+            start_date: s_limit.copied(),
+            end_date: e_limit.copied(),
+        },
+        messages,
+    )?;
+    Some(SubagentTokenStats {
+        session_count,
+        message_count: stats.message_count,
+        total_input_tokens: stats.total_input_tokens,
+        total_output_tokens: stats.total_output_tokens,
+        total_cache_creation_tokens: stats.total_cache_creation_tokens,
+        total_cache_read_tokens: stats.total_cache_read_tokens,
+        total_reasoning_tokens: stats.total_reasoning_tokens,
+        total_tokens: stats.total_tokens,
+        model_distribution: stats.model_distribution,
+    })
 }
 
 /// Paginated response for project token stats
@@ -4272,6 +4391,7 @@ fn scan_session_token_stats(
             model_context_usage,
             model_costs,
         ),
+        subagent_stats: None,
         most_used_tools: tool_usage
             .into_iter()
             .map(|(name, (usage, success))| ToolUsageStats {
@@ -5527,6 +5647,62 @@ mod tests {
         ]));
         track_skill_and_subagent_usage(&asst, &mut skills, &mut subagents);
         assert!(skills.is_empty());
+    }
+
+    #[test]
+    /// #577: descendant sessions roll up into one aggregate, preserving the
+    /// session count and summing tokens across every child.
+    fn test_subagent_stats_from_messages_aggregates_descendants() {
+        let usage = |input: u32, output: u32| TokenUsage {
+            input_tokens: Some(input),
+            output_tokens: Some(output),
+            ..Default::default()
+        };
+        let mut child_a = make_test_message(Some("opencode"), "assistant", Some(usage(100, 50)));
+        child_a.uuid = "a".to_string();
+        child_a.session_id = "ses_child_a".to_string();
+        let mut child_b = make_test_message(Some("opencode"), "assistant", Some(usage(10, 5)));
+        child_b.uuid = "b".to_string();
+        child_b.session_id = "ses_child_b".to_string();
+
+        let stats = subagent_stats_from_messages(
+            StatsProvider::OpenCode,
+            "ses_root",
+            StatsMode::BillingTotal,
+            2,
+            &[child_a, child_b],
+            None,
+            None,
+        )
+        .expect("aggregate should be produced");
+
+        assert_eq!(stats.session_count, 2);
+        assert_eq!(stats.message_count, 2);
+        assert_eq!(stats.total_input_tokens, 110);
+        assert_eq!(stats.total_output_tokens, 55);
+        assert_eq!(stats.total_tokens, 165);
+    }
+
+    #[test]
+    /// #577: only providers that store subagents as separate sessions get a
+    /// roll-up; inline-sidechain providers must not be double counted.
+    fn test_build_subagent_token_stats_is_opencode_only() {
+        assert!(build_subagent_token_stats(
+            StatsProvider::Claude,
+            "/tmp/session.jsonl",
+            StatsMode::BillingTotal,
+            None,
+            None,
+        )
+        .is_none());
+        assert!(build_subagent_token_stats(
+            StatsProvider::OpenCode,
+            "not-a-virtual-path",
+            StatsMode::BillingTotal,
+            None,
+            None,
+        )
+        .is_none());
     }
 
     #[test]
