@@ -19,7 +19,7 @@ export default defineConfig(async () => {
     // macOS treats as code-splitting — which the default `iife` worker format
     // rejects. ES output matches the instantiation and works everywhere.
     worker: {
-      format: "es",
+      format: "es" as const,
     },
     plugins: [
       react(),
