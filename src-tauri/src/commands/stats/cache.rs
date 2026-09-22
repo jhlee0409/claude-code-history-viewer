@@ -59,9 +59,9 @@ use super::{
     parse_timestamp_utc, should_include_stats_entry, token_usage_has_token_fields,
     token_usage_totals, track_skill_and_subagent_usage,
     track_skill_and_subagent_usage_from_global_entry, track_tool_usage,
-    track_tool_usage_from_global_entry, ModelContextUsageMap, ModelUsageAggregate,
+    track_tool_usage_from_global_entry, usage_growth, ModelContextUsageMap, ModelUsageAggregate,
     ProjectSessionFileStats, SessionComparisonStats, SessionFileStats, StatsMode, StatsProvider,
-    UNKNOWN_MODEL_NAME,
+    UsageTotals, UNKNOWN_MODEL_NAME,
 };
 use crate::models::{ClaudeMessage, DailyStats, SessionTokenStats, TokenUsage, ToolUsageStats};
 use crate::utils::find_line_ranges;
@@ -279,31 +279,38 @@ fn note_build(key: &Path) {
     }
 }
 
+/// First bucket that claimed a usage key, plus the largest usage seen for it.
+type BucketedUsage = (Option<String>, UsageTotals);
+
 /// Dedup-aware token totals that also record which bucket first claimed the
-/// usage key (#283). A duplicate landing in a different bucket than its
-/// first occurrence makes filtered composition unsound — the cold scan would
+/// usage key (#283). Repeated rows contribute only their growth over the
+/// largest usage seen for the key, so a streamed turn counts its final usage
+/// once (#575). A duplicate landing in a different bucket than its first
+/// occurrence makes filtered composition unsound — the cold scan would
 /// re-attribute the usage to the first *in-range* row — so it flips
 /// `spans_buckets` and filtered queries fall back to the full scan.
 fn bucketed_dedup_totals(
-    first_bucket_by_key: &mut HashMap<String, Option<String>>,
+    first_bucket_by_key: &mut HashMap<String, BucketedUsage>,
     dedup_key: Option<String>,
     bucket: Option<&str>,
     usage: &TokenUsage,
     spans_buckets: &mut bool,
-) -> (u64, u64, u64, u64, u64, u64) {
+) -> UsageTotals {
+    let totals = token_usage_totals(usage);
     let Some(key) = dedup_key else {
-        return token_usage_totals(usage);
+        return totals;
     };
     match first_bucket_by_key.entry(key) {
         Entry::Vacant(vacant) => {
-            vacant.insert(bucket.map(str::to_string));
-            token_usage_totals(usage)
+            vacant.insert((bucket.map(str::to_string), totals));
+            totals
         }
-        Entry::Occupied(occupied) => {
-            if occupied.get().as_deref() != bucket {
+        Entry::Occupied(mut occupied) => {
+            let (first_bucket, seen_max) = occupied.get_mut();
+            if first_bucket.as_deref() != bucket {
                 *spans_buckets = true;
             }
-            (0, 0, 0, 0, 0, 0)
+            usage_growth(seen_max, totals)
         }
     }
 }
@@ -459,7 +466,7 @@ pub(super) fn build_global_file_aggregate(
     let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
     let mut aggregate = FileAggregate::default();
-    let mut first_bucket_by_key: HashMap<String, Option<String>> = HashMap::new();
+    let mut first_bucket_by_key: HashMap<String, BucketedUsage> = HashMap::new();
     let mut first_cost_bucket_by_key: HashMap<String, Option<String>> = HashMap::new();
     let mut day_timestamps: HashMap<String, Vec<DateTime<Utc>>> = HashMap::new();
     let mut row_seq = 0u64;
@@ -562,7 +569,7 @@ pub(super) fn build_message_file_aggregate(
     let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
     let mut aggregate = FileAggregate::default();
-    let mut first_bucket_by_key: HashMap<String, Option<String>> = HashMap::new();
+    let mut first_bucket_by_key: HashMap<String, BucketedUsage> = HashMap::new();
     let mut first_cost_bucket_by_key: HashMap<String, Option<String>> = HashMap::new();
     let mut day_timestamps: HashMap<String, Vec<DateTime<Utc>>> = HashMap::new();
     let mut row_seq = 0u64;
@@ -1553,6 +1560,49 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    /// #575: streaming rows of one turn share `message.id` with growing
+    /// `output_tokens`. Cached composition and the cold scan must both count
+    /// the turn's final output once.
+    fn test_streaming_growth_counts_final_output_in_cache_and_scan() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let project_dir = temp_dir.path().join("demo-project");
+        fs::create_dir_all(&project_dir).expect("project dir");
+        let file = project_dir.join("streaming.jsonl");
+        write_session(
+            &file,
+            &[
+                asst_line("u1", "m1", "2025-03-01T10:00:00Z", 100, 3, ""),
+                asst_line("u2", "m1", "2025-03-01T10:00:01Z", 100, 40, ""),
+                asst_line("u3", "m1", "2025-03-01T10:00:02Z", 100, 95, ""),
+                asst_line("u4", "m2", "2025-03-01T10:05:00Z", 20, 7, ""),
+            ],
+        );
+        let mode = StatsMode::BillingTotal;
+
+        let global = build_global_file_aggregate(&file, mode).expect("global aggregate");
+        let composed_global =
+            match compose_global(&global, claude_session_project_name(&file), None, None) {
+                Composed::Ready(stats) => stats,
+                Composed::NeedsFullScan => panic!("unfiltered compose must be ready"),
+            };
+        let scanned_global =
+            scan_session_file_for_global_stats(&file, mode, None, None).expect("global scan");
+        assert_eq!(scanned_global.token_distribution.output, 95 + 7);
+        assert_eq!(scanned_global.token_distribution.input, 100 + 20);
+        assert_global_stats_eq(&composed_global, &scanned_global);
+
+        let message = build_message_file_aggregate(&file, mode).expect("message aggregate");
+        let composed_token =
+            match compose_session_token(&message, claude_session_project_name(&file), None, None) {
+                Composed::Ready(stats) => stats.expect("token stats"),
+                Composed::NeedsFullScan => panic!("unfiltered compose must be ready"),
+            };
+        let scanned_token = scan_session_token_stats(&file, mode, None, None).expect("token scan");
+        assert_eq!(scanned_token.total_output_tokens, 95 + 7);
+        assert_token_stats_eq(&composed_token, &scanned_token);
     }
 
     #[test]
