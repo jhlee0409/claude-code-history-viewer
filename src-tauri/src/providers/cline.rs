@@ -254,54 +254,53 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // Private helpers
 // ============================================================================
 
-fn get_all_base_paths() -> Vec<(PathBuf, String)> {
-    let mut paths = Vec::new();
+/// Editor user-data roots holding `<editor>/User/globalStorage`.
+///
+/// `dirs::config_dir()` is exactly that root on each platform:
+/// `~/Library/Application Support` (macOS), `~/.config` (Linux) and
+/// `%APPDATA%` (Windows). Windows had no branch at all before #582, so no
+/// Cline-family install was ever discoverable there.
+fn editor_data_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(config) = dirs::config_dir() {
+        roots.push(config);
+    }
+    roots
+}
 
+/// Cline-family extension directories under one editor data root.
+fn collect_base_paths_under(root: &Path) -> Vec<(PathBuf, String)> {
+    // VSCodium ships as `VSCodium` on Windows and most Linux packages, but as
+    // `Codium` in some distro builds — both are checked.
     let editors: &[(&str, &str)] = &[
         ("Code", "VS Code"),
         ("Cursor", "Cursor"),
         ("Code - Insiders", "VS Code Insiders"),
+        ("VSCodium", "VSCodium"),
         ("Codium", "VSCodium"),
     ];
 
-    if let Some(home) = crate::utils::home_dir() {
-        let app_support = home.join("Library/Application Support");
-
-        for (editor_dir, editor_label) in editors {
-            let global_storage = app_support.join(editor_dir).join("User/globalStorage");
-            if !global_storage.is_dir() {
-                continue;
-            }
-
-            for (ext_id, ext_name) in EXTENSIONS {
-                let ext_path = global_storage.join(ext_id);
-                if ext_path.is_dir() && !is_symlink(&ext_path) {
-                    let label = format!("{ext_name} ({editor_label})");
-                    paths.push((ext_path, label));
-                }
+    let mut paths = Vec::new();
+    for (editor_dir, editor_label) in editors {
+        let global_storage = root.join(editor_dir).join("User/globalStorage");
+        if !global_storage.is_dir() {
+            continue;
+        }
+        for (ext_id, ext_name) in EXTENSIONS {
+            let ext_path = global_storage.join(ext_id);
+            if ext_path.is_dir() && !is_symlink(&ext_path) {
+                paths.push((ext_path, format!("{ext_name} ({editor_label})")));
             }
         }
     }
-
-    // Linux: ~/.config/<editor>/User/globalStorage/
-    #[cfg(target_os = "linux")]
-    if let Some(config) = dirs::config_dir() {
-        for (editor_dir, editor_label) in editors {
-            let global_storage = config.join(editor_dir).join("User/globalStorage");
-            if !global_storage.is_dir() {
-                continue;
-            }
-            for (ext_id, ext_name) in EXTENSIONS {
-                let ext_path = global_storage.join(ext_id);
-                if ext_path.is_dir() && !is_symlink(&ext_path) {
-                    let label = format!("{ext_name} ({editor_label})");
-                    paths.push((ext_path, label));
-                }
-            }
-        }
-    }
-
     paths
+}
+
+fn get_all_base_paths() -> Vec<(PathBuf, String)> {
+    editor_data_roots()
+        .iter()
+        .flat_map(|root| collect_base_paths_under(root))
+        .collect()
 }
 
 /// A task's working directory. Cline names this `cwdOnTaskInitialization`; the
@@ -720,6 +719,39 @@ fn map_cline_tool_name(name: &str) -> &str {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn base_paths_are_collected_under_any_editor_data_root() {
+        // #582: the collection itself, independent of where the OS keeps its
+        // editor data — so it is exercised on every platform, not just macOS.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let cline = root.join("Code/User/globalStorage/saoudrizwan.claude-dev");
+        let roo = root.join("Cursor/User/globalStorage/rooveterinaryinc.roo-cline");
+        fs::create_dir_all(&cline).unwrap();
+        fs::create_dir_all(&roo).unwrap();
+        fs::create_dir_all(root.join("Code/User/globalStorage/unrelated.extension")).unwrap();
+
+        let found = collect_base_paths_under(root);
+        let labels: Vec<&str> = found.iter().map(|(_, label)| label.as_str()).collect();
+        assert_eq!(found.len(), 2, "only Cline-family extensions: {labels:?}");
+        assert!(found.iter().any(|(path, _)| path == &cline));
+        assert!(labels.contains(&"Cline (VS Code)"));
+        assert!(labels.contains(&"Roo Code (Cursor)"));
+    }
+
+    #[test]
+    fn editor_data_roots_cover_this_platform() {
+        // #582: before this, only macOS (unconditional `Library/Application
+        // Support`) and Linux had a branch, so Cline was undiscoverable on
+        // Windows. Every platform must contribute its editor data root.
+        let roots = editor_data_roots();
+        let config = dirs::config_dir().expect("platform config dir");
+        assert!(
+            roots.contains(&config),
+            "config dir {config:?} missing from {roots:?}"
+        );
+    }
 
     #[test]
     fn test_convert_say_text() {
