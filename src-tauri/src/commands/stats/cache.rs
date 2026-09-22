@@ -55,13 +55,13 @@
 
 use super::{
     build_model_stats, dedup_usage_key, extract_token_usage, extract_token_usage_from_global_entry,
-    merge_model_context_usage, parse_global_stats_entry_simd, parse_raw_log_entry_simd,
-    parse_timestamp_utc, should_include_stats_entry, token_usage_has_token_fields,
-    token_usage_totals, track_skill_and_subagent_usage,
+    full_usage_growth, merge_model_context_usage, parse_global_stats_entry_simd,
+    parse_raw_log_entry_simd, parse_timestamp_utc, should_include_stats_entry,
+    token_usage_has_token_fields, track_skill_and_subagent_usage,
     track_skill_and_subagent_usage_from_global_entry, track_tool_usage,
-    track_tool_usage_from_global_entry, usage_growth, ModelContextUsageMap, ModelUsageAggregate,
-    ProjectSessionFileStats, SessionComparisonStats, SessionFileStats, StatsMode, StatsProvider,
-    UsageTotals, UNKNOWN_MODEL_NAME,
+    track_tool_usage_from_global_entry, usage_context_tokens, usage_growth, ModelContextUsageMap,
+    ModelUsageAggregate, ProjectSessionFileStats, SeenUsage, SessionComparisonStats,
+    SessionFileStats, StatsMode, StatsProvider, UsageGrowth, UNKNOWN_MODEL_NAME,
 };
 use crate::models::{ClaudeMessage, DailyStats, SessionTokenStats, TokenUsage, ToolUsageStats};
 use crate::utils::find_line_ranges;
@@ -280,7 +280,7 @@ fn note_build(key: &Path) {
 }
 
 /// First bucket that claimed a usage key, plus the largest usage seen for it.
-type BucketedUsage = (Option<String>, UsageTotals);
+type BucketedUsage = (Option<String>, SeenUsage);
 
 /// Dedup-aware token totals that also record which bucket first claimed the
 /// usage key (#283). Repeated rows contribute only their growth over the
@@ -295,24 +295,17 @@ fn bucketed_dedup_totals(
     bucket: Option<&str>,
     usage: &TokenUsage,
     spans_buckets: &mut bool,
-) -> UsageTotals {
-    let totals = token_usage_totals(usage);
+) -> UsageGrowth {
     let Some(key) = dedup_key else {
-        return totals;
+        return full_usage_growth(usage);
     };
-    match first_bucket_by_key.entry(key) {
-        Entry::Vacant(vacant) => {
-            vacant.insert((bucket.map(str::to_string), totals));
-            totals
-        }
-        Entry::Occupied(mut occupied) => {
-            let (first_bucket, seen_max) = occupied.get_mut();
-            if first_bucket.as_deref() != bucket {
-                *spans_buckets = true;
-            }
-            usage_growth(seen_max, totals)
-        }
+    let (first_bucket, seen) = first_bucket_by_key
+        .entry(key)
+        .or_insert_with(|| (bucket.map(str::to_string), SeenUsage::default()));
+    if first_bucket.as_deref() != bucket {
+        *spans_buckets = true;
     }
+    usage_growth(seen, usage)
 }
 
 /// Dedup an authoritative source cost while recording whether the same
@@ -401,6 +394,7 @@ impl DayBucket {
         totals: (u64, u64, u64, u64, u64, u64),
         service_tier: Option<&str>,
         cache_creation_tokens_1h: u64,
+        context_tokens: u64,
         cost_usd: Option<f64>,
     ) {
         super::accumulate_model_usage(
@@ -412,6 +406,7 @@ impl DayBucket {
                 service_tier,
                 totals,
                 cache_creation_tokens_1h,
+                context_tokens,
                 source_cost: cost_usd,
             },
         );
@@ -492,13 +487,14 @@ pub(super) fn build_global_file_aggregate(
         let message_id = entry.message.as_ref().and_then(|m| m.id.as_deref());
         let uuid = entry.uuid.as_deref().unwrap_or("");
         let dedup_key = dedup_usage_key("", message_id, uuid);
-        let totals = bucketed_dedup_totals(
+        let growth = bucketed_dedup_totals(
             &mut first_bucket_by_key,
             dedup_key,
             date.as_deref(),
             &usage,
             &mut aggregate.dedup_spans_buckets,
         );
+        let totals = growth.totals;
         let source_cost = entry
             .cost_usd
             .or_else(|| entry.message.as_ref().and_then(|message| message.cost_usd));
@@ -537,7 +533,8 @@ pub(super) fn build_global_file_aggregate(
                 model_name,
                 totals,
                 usage.service_tier.as_deref(),
-                u64::from(usage.cache_creation_input_tokens_1h.unwrap_or(0)),
+                growth.cache_creation_tokens_1h,
+                usage_context_tokens(&usage),
                 deduped_source_cost,
             );
         }
@@ -606,13 +603,14 @@ pub(super) fn build_message_file_aggregate(
             message.message_id.as_deref(),
             &message.uuid,
         );
-        let totals = bucketed_dedup_totals(
+        let growth = bucketed_dedup_totals(
             &mut first_bucket_by_key,
             dedup_key,
             date.as_deref(),
             &usage,
             &mut aggregate.dedup_spans_buckets,
         );
+        let totals = growth.totals;
         let deduped_source_cost = bucketed_dedup_source_cost(
             &mut first_cost_bucket_by_key,
             dedup_usage_key(
@@ -645,7 +643,8 @@ pub(super) fn build_message_file_aggregate(
                 model_name,
                 totals,
                 usage.service_tier.as_deref(),
-                u64::from(usage.cache_creation_input_tokens_1h.unwrap_or(0)),
+                growth.cache_creation_tokens_1h,
+                usage_context_tokens(&usage),
                 deduped_source_cost,
             );
         }
@@ -1603,6 +1602,56 @@ mod tests {
         let scanned_token = scan_session_token_stats(&file, mode, None, None).expect("token scan");
         assert_eq!(scanned_token.total_output_tokens, 95 + 7);
         assert_token_stats_eq(&composed_token, &scanned_token);
+    }
+
+    #[test]
+    /// Streaming growth rows keep the turn's long-context tier and only their
+    /// own cache-write TTL, identically in cached composition and cold scan.
+    fn test_streaming_growth_context_and_ttl_match_between_cache_and_scan() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let project_dir = temp_dir.path().join("demo-project");
+        fs::create_dir_all(&project_dir).expect("project dir");
+        let file = project_dir.join("streaming-context.jsonl");
+        let row = |uuid: &str, ts: &str, output: u64, cache_creation: u64| {
+            format!(
+                r#"{{"uuid":"{uuid}","sessionId":"s1","timestamp":"{ts}","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"ok"}}],"id":"m1","model":"gemini-2.5-pro","usage":{{"input_tokens":250000,"output_tokens":{output},"cache_creation_input_tokens":{cache_creation},"cache_creation":{{"ephemeral_1h_input_tokens":100}}}}}}}}"#
+            )
+        };
+        write_session(
+            &file,
+            &[
+                row("u1", "2025-03-01T10:00:00Z", 10, 100),
+                row("u2", "2025-03-01T10:00:01Z", 150, 200),
+                row("u3", "2025-03-01T10:00:02Z", 222, 200),
+            ],
+        );
+        let mode = StatsMode::BillingTotal;
+        let aggregate = build_message_file_aggregate(&file, mode).expect("aggregate");
+        let composed =
+            match compose_session_token(&aggregate, claude_session_project_name(&file), None, None)
+            {
+                Composed::Ready(stats) => stats.expect("token stats"),
+                Composed::NeedsFullScan => panic!("unfiltered compose must be ready"),
+            };
+        let scanned = scan_session_token_stats(&file, mode, None, None).expect("scan");
+
+        let context = |stats: &SessionTokenStats| -> Vec<(u64, u64, u64, u64)> {
+            stats.model_distribution[0]
+                .context_breakdown
+                .iter()
+                .map(|c| {
+                    (
+                        c.min_context_tokens,
+                        c.output_tokens,
+                        c.cache_creation_tokens_1h,
+                        c.cache_creation_tokens_5m,
+                    )
+                })
+                .collect()
+        };
+        assert_eq!(context(&scanned), vec![(200_001, 222, 100, 100)]);
+        assert_eq!(context(&composed), context(&scanned));
+        assert_token_stats_eq(&composed, &scanned);
     }
 
     #[test]
