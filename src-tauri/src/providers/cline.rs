@@ -282,7 +282,17 @@ fn collect_base_paths_under(root: &Path) -> Vec<(PathBuf, String)> {
 
     let mut paths = Vec::new();
     for (editor_dir, editor_label) in editors {
-        let global_storage = root.join(editor_dir).join("User/globalStorage");
+        let editor_root = root.join(editor_dir);
+        // `is_dir()` follows symlinks, so every component below `root` is
+        // checked: a symlinked `Code`, `User` or `globalStorage` would
+        // otherwise walk wherever it points.
+        let global_storage = editor_root.join("User").join("globalStorage");
+        if [&editor_root, &editor_root.join("User"), &global_storage]
+            .iter()
+            .any(|dir| is_symlink(dir))
+        {
+            continue;
+        }
         if !global_storage.is_dir() {
             continue;
         }
@@ -738,6 +748,29 @@ mod tests {
         assert!(found.iter().any(|(path, _)| path == &cline));
         assert!(labels.contains(&"Cline (VS Code)"));
         assert!(labels.contains(&"Roo Code (Cursor)"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_ancestors_are_not_followed() {
+        // Repo rule: directory traversal must not follow symlinks. `is_dir()`
+        // does, so an editor/User/globalStorage symlink has to be rejected
+        // before it is walked.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let elsewhere = root.join("elsewhere/User/globalStorage/saoudrizwan.claude-dev");
+        fs::create_dir_all(&elsewhere).unwrap();
+        std::os::unix::fs::symlink(root.join("elsewhere"), root.join("Code")).unwrap();
+
+        assert!(
+            collect_base_paths_under(root).is_empty(),
+            "a symlinked editor directory must not be traversed"
+        );
+
+        // The same tree reached without the symlink is still discovered.
+        fs::rename(root.join("elsewhere"), root.join("Cursor")).unwrap();
+        fs::remove_file(root.join("Code")).unwrap();
+        assert_eq!(collect_base_paths_under(root).len(), 1);
     }
 
     #[test]
