@@ -172,12 +172,17 @@ const collectQwenParallelTaskUuids: CategoryCollector = (messages) =>
 const collectOpenCodeParallelTaskUuids: CategoryCollector = (messages) =>
   collectParallelToolCallUuids(messages, "opencode", OPENCODE_AGENT_TOOLS);
 
+// Kilo Code runs on the OpenCode core, so its subagent tool is the same `Task`.
+const collectKiloParallelTaskUuids: CategoryCollector = (messages) =>
+  collectParallelToolCallUuids(messages, "kilo", OPENCODE_AGENT_TOOLS);
+
 const collectParallelTaskUuids: CategoryCollector = (messages) => {
   const uuids = collectClaudeParallelTaskUuids(messages);
   for (const uuid of collectCodexParallelTaskUuids(messages)) uuids.add(uuid);
   for (const uuid of collectGeminiParallelTaskUuids(messages)) uuids.add(uuid);
   for (const uuid of collectQwenParallelTaskUuids(messages)) uuids.add(uuid);
   for (const uuid of collectOpenCodeParallelTaskUuids(messages)) uuids.add(uuid);
+  for (const uuid of collectKiloParallelTaskUuids(messages)) uuids.add(uuid);
   return uuids;
 };
 

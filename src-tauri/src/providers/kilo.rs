@@ -53,16 +53,18 @@ pub fn get_base_path() -> Option<String> {
 }
 
 /// Detect a Kilo Code installation (OpenCode-core store).
+///
+/// Unlike `OpenCode`, Kilo never had a file-backed `storage/` tree — the
+/// database is the only session store — so availability is `kilo.db` alone.
 pub fn detect() -> Option<ProviderInfo> {
     let base_path = get_base_path()?;
     let db_path = Path::new(&base_path).join(DB_FILE);
-    let storage_path = Path::new(&base_path).join("storage");
 
     Some(ProviderInfo {
         id: PROVIDER_ID.to_string(),
         display_name: DISPLAY_NAME.to_string(),
         base_path: base_path.clone(),
-        is_available: db_path.is_file() || storage_path.is_dir(),
+        is_available: db_path.is_file(),
     })
 }
 
@@ -80,6 +82,15 @@ fn to_kilo_scheme(path: &str) -> String {
     path.strip_prefix(OPENCODE_SCHEME)
         .map(|rest| format!("{SCHEME}{rest}"))
         .unwrap_or_else(|| path.to_string())
+}
+
+/// The shared reader reports failures in `OpenCode` terms (`"OpenCode base
+/// path"`, `opencode://…` paths); restate them for Kilo so users see the store
+/// they actually configured.
+fn rebrand_error(error: String) -> String {
+    error
+        .replace("OpenCode", DISPLAY_NAME)
+        .replace(OPENCODE_SCHEME, SCHEME)
 }
 
 fn rebrand_project(mut project: ClaudeProject) -> ClaudeProject {
@@ -105,6 +116,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 pub fn scan_projects_at(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
     opencode::scan_projects_from_store(base_path, DB_FILE)
         .map(|projects| projects.into_iter().map(rebrand_project).collect())
+        .map_err(rebrand_error)
 }
 
 /// Load sessions for a Kilo project (`kilo://<project_id>`).
@@ -129,6 +141,7 @@ pub fn load_sessions_at(
         exclude_sidechain,
     )
     .map(|sessions| sessions.into_iter().map(rebrand_session).collect())
+    .map_err(rebrand_error)
 }
 
 /// Load messages for a Kilo session (`kilo://<project_id>/<session_id>` or
@@ -140,15 +153,17 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 
 /// [`load_messages`] against an explicit store root.
 pub fn load_messages_at(base_path: &str, session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
-    opencode::load_messages_at(base_path, DB_FILE, &to_store_scheme(session_path)).map(|messages| {
-        messages
-            .into_iter()
-            .map(|mut message| {
-                message.provider = Some(PROVIDER_ID.to_string());
-                message
-            })
-            .collect()
-    })
+    opencode::load_messages_at(base_path, DB_FILE, &to_store_scheme(session_path))
+        .map(|messages| {
+            messages
+                .into_iter()
+                .map(|mut message| {
+                    message.provider = Some(PROVIDER_ID.to_string());
+                    message
+                })
+                .collect()
+        })
+        .map_err(rebrand_error)
 }
 
 /// Search across all Kilo sessions.
@@ -159,15 +174,17 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 
 /// [`search`] against an explicit store root.
 pub fn search_at(base_path: &str, query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
-    opencode::search_at(base_path, DB_FILE, query, limit).map(|messages| {
-        messages
-            .into_iter()
-            .map(|mut message| {
-                message.provider = Some(PROVIDER_ID.to_string());
-                message
-            })
-            .collect()
-    })
+    opencode::search_at(base_path, DB_FILE, query, limit)
+        .map(|messages| {
+            messages
+                .into_iter()
+                .map(|mut message| {
+                    message.provider = Some(PROVIDER_ID.to_string());
+                    message
+                })
+                .collect()
+        })
+        .map_err(rebrand_error)
 }
 
 /// Child sessions (subagent runs) of a Kilo session, read from `kilo.db`.
@@ -187,11 +204,14 @@ pub fn load_child_sessions_at(
     opencode::load_child_sessions_from_db(base_path, DB_FILE, project_id, session_id)
 }
 
+/// Fixture helpers for a minimal `kilo.db`, shared with stats tests that need
+/// a Kilo store behind `KILO_HOME`.
 #[cfg(test)]
-mod tests {
-    use super::*;
+pub(crate) mod test_support {
+    use super::DB_FILE;
+    use std::path::Path;
 
-    fn create_test_db(dir: &Path) -> rusqlite::Connection {
+    pub(crate) fn create_test_db(dir: &Path) -> rusqlite::Connection {
         let conn = rusqlite::Connection::open(dir.join(DB_FILE)).expect("open kilo.db");
         conn.execute_batch(
             "CREATE TABLE project (
@@ -222,7 +242,8 @@ mod tests {
         conn
     }
 
-    fn seed(conn: &rusqlite::Connection) {
+    /// One project, one session, one user text message.
+    pub(crate) fn seed(conn: &rusqlite::Connection) {
         conn.execute(
             "INSERT INTO project (id, worktree, name, time_created, time_updated)
              VALUES ('proj1', '/tmp/kilo-project', 'kilo-project', 1700000000000, 1700000100000)",
@@ -251,6 +272,35 @@ mod tests {
         )
         .unwrap();
     }
+
+    /// Add an assistant reply to `ses_001` carrying token usage, so stats
+    /// code has something to aggregate.
+    pub(crate) fn seed_assistant_usage(conn: &rusqlite::Connection, input: u32, output: u32) {
+        conn.execute(
+            "INSERT INTO message (id, session_id, time_created, time_updated, data)
+             VALUES ('msg_002', 'ses_001', 1700000020000, 1700000020000, ?1)",
+            [format!(
+                "{{\"role\":\"assistant\",\"modelID\":\"kilo-test-model\",\"providerID\":\"kilo\",\
+                 \"time\":{{\"created\":1700000020000}},\
+                 \"tokens\":{{\"input\":{input},\"output\":{output},\"reasoning\":0,\
+                 \"cache\":{{\"read\":0,\"write\":0}}}},\"cost\":0.0}}"
+            )],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+             VALUES ('prt_002', 'msg_002', 'ses_001', 1700000020000, 1700000020000,
+                     '{\"type\":\"text\",\"text\":\"Hi from the Kilo assistant\"}')",
+            [],
+        )
+        .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_support::{create_test_db, seed};
+    use super::*;
 
     #[test]
     fn scan_projects_rebrands_to_kilo_scheme() {
@@ -307,6 +357,28 @@ mod tests {
         let results = search_at(&tmp.path().to_string_lossy(), "hello from kilo", 10).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].provider.as_deref(), Some("kilo"));
+    }
+
+    #[test]
+    fn errors_are_reported_in_kilo_terms() {
+        let tmp = tempfile::tempdir().unwrap();
+        drop(create_test_db(tmp.path()));
+        let base = tmp.path().to_string_lossy().to_string();
+
+        let err = load_sessions_at(&base, "kilo://../escape", false).unwrap_err();
+        assert_eq!(err, "Invalid Kilo Code project path: kilo://../escape");
+
+        let err = load_messages_at(&base, "kilo://no-session-part").unwrap_err();
+        assert_eq!(
+            err,
+            "Invalid Kilo Code session path: kilo://no-session-part"
+        );
+
+        let err = scan_projects_at("relative/kilo").unwrap_err();
+        assert!(
+            err.contains("Kilo Code base path") && !err.contains("OpenCode"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]

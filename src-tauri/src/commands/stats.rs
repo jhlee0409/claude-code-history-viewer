@@ -5067,6 +5067,13 @@ pub async fn get_global_stats_summary(
         file_stats.extend(opencode_stats);
     }
 
+    if providers_to_include.contains(&StatsProvider::Kilo) {
+        let (kilo_stats, kilo_projects) =
+            collect_provider_global_file_stats(StatsProvider::Kilo, mode, s_ref, e_ref);
+        project_names.extend(kilo_projects);
+        file_stats.extend(kilo_stats);
+    }
+
     if providers_to_include.contains(&StatsProvider::Grok) {
         let (grok_stats, grok_projects) =
             collect_provider_global_file_stats(StatsProvider::Grok, mode, s_ref, e_ref);
@@ -7699,6 +7706,50 @@ mod tests {
         } else {
             std::env::remove_var("HOME");
         }
+    }
+
+    /// Kilo Code is wired into per-project/session stats but was missing from
+    /// `get_global_stats_summary`'s per-provider collection, so a Kilo-only
+    /// store produced an empty global summary (PR #580 review). `KILO_HOME`
+    /// points the provider at a fixture `kilo.db`.
+    #[tokio::test]
+    #[serial]
+    async fn test_global_summary_includes_kilo_store() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let kilo_home = temp_dir.path().join("kilo");
+        fs::create_dir_all(&kilo_home).expect("create KILO_HOME");
+        {
+            let conn = providers::kilo::test_support::create_test_db(&kilo_home);
+            providers::kilo::test_support::seed(&conn);
+            providers::kilo::test_support::seed_assistant_usage(&conn, 100, 50);
+        }
+        let _kilo_home = EnvVarGuard::set("KILO_HOME", &kilo_home);
+
+        // claude_path is required but the Claude projects subtree is empty —
+        // only the Kilo branch of the global summary is exercised.
+        let summary = get_global_stats_summary(
+            temp_dir.path().to_string_lossy().to_string(),
+            Some(vec!["kilo".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("failed to get global summary");
+
+        assert_eq!(summary.total_projects, 1, "Kilo project must be counted");
+        assert_eq!(summary.total_sessions, 1, "Kilo session must be counted");
+        assert_eq!(summary.token_distribution.input, 100);
+        assert_eq!(summary.token_distribution.output, 50);
+        assert!(
+            summary
+                .provider_distribution
+                .iter()
+                .any(|p| p.provider_id == "kilo"),
+            "provider_distribution must list kilo: {:?}",
+            summary.provider_distribution
+        );
     }
 
     /// Write a temporary `ForgeCode` database used by stats tests.
