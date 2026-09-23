@@ -204,6 +204,7 @@ export type {
   StatsMode,
   MetricMode,
   SessionTokenStats,
+  SubagentTokenStats,
   PaginatedTokenStats,
   DailyStats,
   ActivityHeatmap,

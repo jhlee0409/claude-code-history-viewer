@@ -26,6 +26,27 @@ export interface SessionTokenStats {
   summary?: string;
   most_used_tools: ToolUsageStats[];
   model_distribution?: ModelStats[];
+  /** Rolled-up usage of the sessions this session spawned (#577). */
+  subagent_stats?: SubagentTokenStats;
+}
+
+/**
+ * Aggregate usage of every descendant session a session spawned.
+ *
+ * Providers that model a subagent run as its own session row (OpenCode:
+ * `session.parent_id`) keep that billed usage outside the parent session;
+ * this carries the rolled-up totals.
+ */
+export interface SubagentTokenStats {
+  session_count: number;
+  message_count: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cache_creation_tokens: number;
+  total_cache_read_tokens: number;
+  total_reasoning_tokens: number;
+  total_tokens: number;
+  model_distribution?: ModelStats[];
 }
 
 /**

@@ -502,6 +502,67 @@ pub fn load_child_sessions_from_db(
     rows.filter_map(std::result::Result::ok).collect()
 }
 
+/// Split an `opencode://<project_id>/<session_id>` virtual path.
+pub fn parse_session_path(session_path: &str) -> Option<(String, String)> {
+    let rest = session_path.strip_prefix("opencode://")?;
+    let (project_id, session_id) = rest.split_once('/')?;
+    if !is_safe_storage_id(project_id) || !is_safe_storage_id(session_id) {
+        return None;
+    }
+    Some((project_id.to_string(), session_id.to_string()))
+}
+
+/// Every descendant session of `session_id` (children, grandchildren, ...),
+/// oldest first. A subagent can itself spawn subagents, so the walk is
+/// recursive rather than a single `parent_id` query.
+pub fn load_descendant_sessions_from_db(
+    base_path: &str,
+    project_id: &str,
+    session_id: &str,
+) -> Vec<ChildSession> {
+    let Some(conn) = open_db(base_path) else {
+        return Vec::new();
+    };
+    let Ok(mut stmt) = conn.prepare(
+        "WITH RECURSIVE descendants(id) AS (
+                SELECT id FROM session WHERE parent_id = ?1 AND project_id = ?2
+                UNION ALL
+                SELECT s.id FROM session s
+                JOIN descendants d ON s.parent_id = d.id
+                WHERE s.project_id = ?2
+            )
+            SELECT s.id, s.title, s.time_created, s.time_updated,
+                   (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count
+            FROM session s
+            JOIN descendants d ON s.id = d.id
+            ORDER BY s.time_created ASC",
+    ) else {
+        return Vec::new();
+    };
+
+    let Ok(rows) = stmt.query_map(rusqlite::params![session_id, project_id], |row| {
+        Ok(ChildSession {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            created_at: epoch_ms_to_rfc3339(row.get::<_, u64>(2)?),
+            updated_at: epoch_ms_to_rfc3339(row.get::<_, u64>(3)?),
+            message_count: row.get(4)?,
+        })
+    }) else {
+        return Vec::new();
+    };
+
+    rows.filter_map(std::result::Result::ok).collect()
+}
+
+/// [`load_descendant_sessions_from_db`] against the default store root.
+pub fn load_descendant_sessions(project_id: &str, session_id: &str) -> Vec<ChildSession> {
+    let Some(base_path) = get_base_path() else {
+        return Vec::new();
+    };
+    load_descendant_sessions_from_db(&base_path, project_id, session_id)
+}
+
 /// Load messages for an `OpenCode` session
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
@@ -1944,6 +2005,58 @@ mod tests {
         // A session with no children yields nothing rather than erroring, and
         // children are not claimed by a sibling parent.
         assert!(load_child_sessions_from_db(&base, "proj1", "ses_child_a").is_empty());
+    }
+
+    #[test]
+    fn sqlite_load_descendant_sessions_walks_recursively() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        seed_test_data(&conn);
+        // child -> grandchild, plus a session parented to the root in another
+        // project that must not leak into the walk.
+        for (id, parent, project, created) in [
+            ("ses_child", "ses_001", "proj1", 1_700_000_200_000_i64),
+            (
+                "ses_grandchild",
+                "ses_child",
+                "proj1",
+                1_700_000_300_000_i64,
+            ),
+            ("ses_foreign", "ses_001", "proj2", 1_700_000_400_000_i64),
+        ] {
+            conn.execute(
+                "INSERT INTO session (id, project_id, title, time_created, time_updated, parent_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![id, project, id, created, created, parent],
+            )
+            .unwrap();
+        }
+        drop(conn);
+
+        let base = tmp.path().to_string_lossy().to_string();
+        let descendants = load_descendant_sessions_from_db(&base, "proj1", "ses_001");
+
+        assert_eq!(
+            descendants
+                .iter()
+                .map(|c| c.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ses_child", "ses_grandchild"]
+        );
+
+        // The walk starts below the root, and a leaf terminates it.
+        assert!(load_descendant_sessions_from_db(&base, "proj1", "ses_grandchild").is_empty());
+    }
+
+    #[test]
+    fn parse_session_path_extracts_project_and_session() {
+        assert_eq!(
+            parse_session_path("opencode://proj1/ses_001"),
+            Some(("proj1".to_string(), "ses_001".to_string()))
+        );
+        assert_eq!(parse_session_path("opencode://proj1"), None);
+        assert_eq!(parse_session_path("/tmp/session.jsonl"), None);
+        assert_eq!(parse_session_path("opencode://../escape"), None);
     }
 
     #[test]

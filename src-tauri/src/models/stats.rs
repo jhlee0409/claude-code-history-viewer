@@ -20,6 +20,30 @@ pub struct SessionTokenStats {
     /// Per-model token/cost breakdown used by project and session billing UI.
     #[serde(default)]
     pub model_distribution: Vec<ModelStats>,
+    /// Rolled-up usage of the sessions this session spawned (subagents), when
+    /// the provider stores them as separate child sessions (issue #577).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subagent_stats: Option<SubagentTokenStats>,
+}
+
+/// Aggregate usage of every descendant session a session spawned.
+///
+/// Providers that model a subagent run as its own session row (currently
+/// `OpenCode`: `session.parent_id`) keep that billed usage outside the parent
+/// session. This carries the rolled-up totals so the UI can show the true
+/// cost of the originating session.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SubagentTokenStats {
+    pub session_count: usize,
+    pub message_count: usize,
+    pub total_input_tokens: u64,
+    pub total_output_tokens: u64,
+    pub total_cache_creation_tokens: u64,
+    pub total_cache_read_tokens: u64,
+    pub total_reasoning_tokens: u64,
+    pub total_tokens: u64,
+    #[serde(default)]
+    pub model_distribution: Vec<ModelStats>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -206,6 +230,7 @@ mod tests {
             summary: Some("Test session summary".to_string()),
             most_used_tools: Vec::new(),
             model_distribution: Vec::new(),
+            subagent_stats: None,
         };
 
         let serialized = serde_json::to_string(&stats).unwrap();
