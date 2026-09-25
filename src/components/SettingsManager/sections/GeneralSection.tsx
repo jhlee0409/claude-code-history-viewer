@@ -43,6 +43,11 @@ import {
 import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings, ClaudeModel, AutoUpdatesChannel, AttributionConfig } from "@/types";
 import { getModelLifecycle } from "@/components/AnalyticsDashboard/utils/calculations";
+import {
+  DEFAULT_CLEANUP_PERIOD_DAYS,
+  MIN_CLEANUP_PERIOD_DAYS,
+  parseCleanupPeriodInput,
+} from "@/utils/cleanupPeriod";
 
 // ============================================================================
 // Types
@@ -103,8 +108,9 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
   };
 
   const handleCleanupPeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value, 10);
-    onChange({ cleanupPeriodDays: isNaN(value) ? undefined : value });
+    // Claude Code rejects 0 and fractions, so an invalid value is dropped
+    // (Claude Code's default applies) instead of being written.
+    onChange({ cleanupPeriodDays: parseCleanupPeriodInput(e.target.value) });
   };
 
   const handleOutputStyleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -381,9 +387,8 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 <Input
                   id="cleanup-period"
                   type="number"
-                  min={0}
-                  max={365}
-                  value={settings.cleanupPeriodDays ?? 30}
+                  min={MIN_CLEANUP_PERIOD_DAYS}
+                  value={settings.cleanupPeriodDays ?? DEFAULT_CLEANUP_PERIOD_DAYS}
                   onChange={handleCleanupPeriodChange}
                   className="w-24"
                   disabled={readOnly}
