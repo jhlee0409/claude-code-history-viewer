@@ -12,6 +12,7 @@ pub mod antigravity_cli;
 pub mod antigravity_state_sync;
 pub mod claude;
 pub mod cline;
+mod cline_sdk;
 pub mod codebuddy;
 pub mod codex;
 pub mod continue_dev;

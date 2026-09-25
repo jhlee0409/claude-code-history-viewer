@@ -1,3 +1,4 @@
+use super::cline_sdk;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::ProviderInfo;
 use crate::utils::{
@@ -25,14 +26,17 @@ const EXTENSIONS: &[(&str, &str)] = &[
 /// Detect Cline/Roo Code installations
 pub fn detect() -> Option<ProviderInfo> {
     let paths = get_all_base_paths();
-    let is_available = !paths.is_empty();
+    let sdk_sessions = cline_sdk::sessions_dir();
+    let is_available = !paths.is_empty() || sdk_sessions.is_some();
 
     Some(ProviderInfo {
         id: "cline".to_string(),
         display_name: "Cline".to_string(),
         base_path: paths
             .first()
-            .map(|(p, _)| p.to_string_lossy().to_string())
+            .map(|(p, _)| p.clone())
+            .or(sdk_sessions)
+            .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default(),
         is_available,
     })
@@ -43,12 +47,18 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     // Each base path may fall back to opening its editor's global state.vscdb
     // (5s busy_timeout when the editor holds a lock), so the base paths are
     // scanned on a bounded pool instead of stacking those waits sequentially.
-    let projects = crate::utils::par_map_bounded(get_all_base_paths(), |(base_path, label)| {
-        scan_base_path(&base_path, &label)
-    })
-    .into_iter()
-    .flatten()
-    .collect();
+    let mut projects: Vec<ClaudeProject> =
+        crate::utils::par_map_bounded(get_all_base_paths(), |(base_path, label)| {
+            scan_base_path(&base_path, &label)
+        })
+        .into_iter()
+        .flatten()
+        .collect();
+
+    // Current Cline releases write to the SDK session store instead (#582).
+    if let Some(root) = cline_sdk::sessions_dir() {
+        projects.extend(cline_sdk::scan_projects_in(&root));
+    }
 
     Ok(projects)
 }
@@ -111,6 +121,11 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
+    if let Some(cwd) = project_path.strip_prefix(cline_sdk::PREFIX) {
+        return Ok(cline_sdk::sessions_dir()
+            .map(|root| cline_sdk::load_sessions_in(&root, cwd))
+            .unwrap_or_default());
+    }
     let (base_path, target_cwd) = parse_project_path(project_path)?;
     let task_history = load_task_history(&base_path);
 
@@ -171,6 +186,11 @@ pub fn load_sessions(
 
 /// Load messages from a Cline task
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
+    if let Some(id) = session_path.strip_prefix(cline_sdk::PREFIX) {
+        let root =
+            cline_sdk::sessions_dir().ok_or_else(|| "Cline session store not found".to_string())?;
+        return cline_sdk::load_messages_in(&root, id);
+    }
     let (base_path, task_id) = parse_session_path(session_path)?;
 
     let ui_path = base_path
@@ -245,6 +265,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 }
             }
         }
+    }
+
+    if let Some(root) = cline_sdk::sessions_dir() {
+        cline_sdk::search_in(&root, &query_lower, limit, &mut results);
     }
 
     Ok(results)
