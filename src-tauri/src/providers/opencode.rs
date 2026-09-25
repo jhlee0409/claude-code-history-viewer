@@ -180,6 +180,16 @@ pub fn get_base_path() -> Option<String> {
 
 /// Scan `OpenCode` projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_store(base_path, OPENCODE_DB_FILE)
+}
+
+/// Scan projects from an explicit store root and database file. Shared with
+/// the Kilo Code provider, whose store is an OpenCode-core database under a
+/// different root (`kilo.db` in `~/.local/share/kilo`).
+pub fn scan_projects_from_store(
+    base_path: &str,
+    db_file: &str,
+) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "OpenCode base path")?;
 
     let storage_path = Path::new(base_path).join("storage");
@@ -197,10 +207,10 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
     // Pre-build DB session ID set per project (single connection, reused for all projects)
     let db_sessions_by_project: std::collections::HashMap<String, HashSet<String>> =
-        build_db_session_map(base_path).unwrap_or_default();
+        build_db_session_map(base_path, db_file).unwrap_or_default();
 
     // 1. Read from SQLite (preferred, newer source)
-    if let Some(db_projects) = scan_projects_from_db(base_path) {
+    if let Some(db_projects) = scan_projects_from_db(base_path, db_file) {
         for mut p in db_projects {
             let project_ref = match OpenCodeProjectRef::parse(&p.path) {
                 Ok(project_ref) => project_ref,
@@ -326,9 +336,24 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 /// Load sessions for an `OpenCode` project
 pub fn load_sessions(
     project_path: &str,
-    _exclude_sidechain: bool,
+    exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    load_sessions_at(
+        &base_path,
+        OPENCODE_DB_FILE,
+        project_path,
+        exclude_sidechain,
+    )
+}
+
+/// [`load_sessions`] against an explicit store root and database file.
+pub fn load_sessions_at(
+    base_path: &str,
+    db_file: &str,
+    project_path: &str,
+    _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
     let storage_path = Path::new(&base_path).join("storage");
 
     let project_ref = OpenCodeProjectRef::parse(project_path)?;
@@ -338,7 +363,7 @@ pub fn load_sessions(
     let mut seen_ids: HashSet<String> = HashSet::new();
 
     // 1. Read from SQLite
-    if let Some(db_sessions) = load_sessions_from_db(&base_path, &project_ref) {
+    if let Some(db_sessions) = load_sessions_from_db(base_path, db_file, &project_ref) {
         for s in db_sessions {
             seen_ids.insert(s.actual_session_id.clone());
             sessions.push(s);
@@ -464,17 +489,18 @@ pub fn load_child_sessions(project_id: &str, session_id: &str) -> Vec<ChildSessi
     let Some(base_path) = get_base_path() else {
         return Vec::new();
     };
-    load_child_sessions_from_db(&base_path, project_id, session_id)
+    load_child_sessions_from_db(&base_path, OPENCODE_DB_FILE, project_id, session_id)
 }
 
 /// [`load_child_sessions`] against an explicit store root, matching
 /// `scan_projects_from_db` and friends so it can be exercised on a fixture.
 pub fn load_child_sessions_from_db(
     base_path: &str,
+    db_file: &str,
     project_id: &str,
     session_id: &str,
 ) -> Vec<ChildSession> {
-    let Some(conn) = open_db(base_path) else {
+    let Some(conn) = open_db(base_path, db_file) else {
         return Vec::new();
     };
     let Ok(mut stmt) = conn.prepare(
@@ -505,6 +531,15 @@ pub fn load_child_sessions_from_db(
 /// Load messages for an `OpenCode` session
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    load_messages_at(&base_path, OPENCODE_DB_FILE, session_path)
+}
+
+/// [`load_messages`] against an explicit store root and database file.
+pub fn load_messages_at(
+    base_path: &str,
+    db_file: &str,
+    session_path: &str,
+) -> Result<Vec<ClaudeMessage>, String> {
     let storage_path = Path::new(&base_path).join("storage");
 
     // Extract session info from virtual path "opencode://{project_id}/{session_id}"
@@ -525,7 +560,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     }
 
     // Try SQLite first
-    if let Some(db_messages) = load_messages_from_db(&base_path, session_id) {
+    if let Some(db_messages) = load_messages_from_db(base_path, db_file, session_id) {
         if !db_messages.is_empty() {
             return Ok(db_messages);
         }
@@ -670,6 +705,16 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 /// Search `OpenCode` sessions for a query string
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let base_path = get_base_path().ok_or_else(|| "OpenCode not found".to_string())?;
+    search_at(&base_path, OPENCODE_DB_FILE, query, limit)
+}
+
+/// [`search`] against an explicit store root and database file.
+pub fn search_at(
+    base_path: &str,
+    db_file: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<ClaudeMessage>, String> {
     let storage_path = Path::new(&base_path).join("storage");
     let session_root = storage_path.join("session");
 
@@ -678,7 +723,9 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let mut searched_sessions: HashSet<String> = HashSet::new();
 
     // 1. Search SQLite
-    if let Some((db_results, db_session_ids)) = search_from_db(&base_path, &query_lower, limit) {
+    if let Some((db_results, db_session_ids)) =
+        search_from_db(base_path, db_file, &query_lower, limit)
+    {
         searched_sessions.extend(db_session_ids);
         results.extend(db_results);
         if results.len() >= limit {
@@ -729,7 +776,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 
             let virtual_path = format!("opencode://{project_id}/{session_id}");
 
-            if let Ok(messages) = load_messages(&virtual_path) {
+            if let Ok(messages) = load_messages_at(base_path, db_file, &virtual_path) {
                 for msg in messages {
                     if results.len() >= limit {
                         return Ok(results);
@@ -771,8 +818,9 @@ fn escape_like_pattern(input: &str) -> String {
 /// Opens a single connection and queries all sessions at once.
 fn build_db_session_map(
     base_path: &str,
+    db_file: &str,
 ) -> Option<std::collections::HashMap<String, HashSet<String>>> {
-    let conn = open_db(base_path)?;
+    let conn = open_db(base_path, db_file)?;
     let mut stmt = conn.prepare("SELECT project_id, id FROM session").ok()?;
     let rows = stmt
         .query_map([], |row| {
@@ -826,9 +874,13 @@ fn count_json_sessions_excluding(
         .unwrap_or(0)
 }
 
+/// `SQLite` database file name for the `OpenCode` store. Kilo Code reuses the
+/// OpenCode-core reader against its own store root and `kilo.db`.
+pub const OPENCODE_DB_FILE: &str = "opencode.db";
+
 /// Open the `OpenCode` `SQLite` database in read-only mode.
-fn open_db(base_path: &str) -> Option<Connection> {
-    let db_path = Path::new(base_path).join("opencode.db");
+fn open_db(base_path: &str, db_file: &str) -> Option<Connection> {
+    let db_path = Path::new(base_path).join(db_file);
     let meta = fs::symlink_metadata(&db_path).ok()?;
     if !meta.file_type().is_file() {
         return None;
@@ -839,8 +891,8 @@ fn open_db(base_path: &str) -> Option<Connection> {
     Some(conn)
 }
 
-fn scan_projects_from_db(base_path: &str) -> Option<Vec<ClaudeProject>> {
-    let conn = open_db(base_path)?;
+fn scan_projects_from_db(base_path: &str, db_file: &str) -> Option<Vec<ClaudeProject>> {
+    let conn = open_db(base_path, db_file)?;
     let mut stmt = conn
         .prepare(
             "SELECT p.id, p.worktree, p.name, p.time_created, p.time_updated,
@@ -961,9 +1013,10 @@ fn scan_global_directory_projects(
 
 fn load_sessions_from_db(
     base_path: &str,
+    db_file: &str,
     project_ref: &OpenCodeProjectRef,
 ) -> Option<Vec<ClaudeSession>> {
-    let conn = open_db(base_path)?;
+    let conn = open_db(base_path, db_file)?;
     let mut stmt = conn
         .prepare(
             "SELECT s.id, s.title, s.time_created, s.time_updated, s.directory,
@@ -1025,8 +1078,12 @@ fn load_sessions_from_db(
     }
 }
 
-fn load_messages_from_db(base_path: &str, session_id: &str) -> Option<Vec<ClaudeMessage>> {
-    let conn = open_db(base_path)?;
+fn load_messages_from_db(
+    base_path: &str,
+    db_file: &str,
+    session_id: &str,
+) -> Option<Vec<ClaudeMessage>> {
+    let conn = open_db(base_path, db_file)?;
     load_messages_with_conn(&conn, session_id)
 }
 
@@ -1158,10 +1215,11 @@ fn load_messages_with_conn(conn: &Connection, session_id: &str) -> Option<Vec<Cl
 /// Returns `(matching_messages, searched_session_ids)` for dedup with JSON search.
 fn search_from_db(
     base_path: &str,
+    db_file: &str,
     query_lower: &str,
     limit: usize,
 ) -> Option<(Vec<ClaudeMessage>, HashSet<String>)> {
-    let conn = open_db(base_path)?;
+    let conn = open_db(base_path, db_file)?;
 
     let escaped = escape_like_pattern(query_lower);
     let search_pattern = format!("%{escaped}%");
@@ -1932,7 +1990,7 @@ mod tests {
         drop(conn);
 
         let base = tmp.path().to_string_lossy().to_string();
-        let children = load_child_sessions_from_db(&base, "proj1", "ses_001");
+        let children = load_child_sessions_from_db(&base, OPENCODE_DB_FILE, "proj1", "ses_001");
 
         // Newest first.
         assert_eq!(
@@ -1943,7 +2001,9 @@ mod tests {
 
         // A session with no children yields nothing rather than erroring, and
         // children are not claimed by a sibling parent.
-        assert!(load_child_sessions_from_db(&base, "proj1", "ses_child_a").is_empty());
+        assert!(
+            load_child_sessions_from_db(&base, OPENCODE_DB_FILE, "proj1", "ses_child_a").is_empty()
+        );
     }
 
     #[test]
@@ -1953,7 +2013,8 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let projects =
+            scan_projects_from_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE).unwrap();
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].name, "my-project");
         assert_eq!(projects[0].path, "opencode://proj1");
@@ -1968,8 +2029,12 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let sessions =
-            load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref("proj1")).unwrap();
+        let sessions = load_sessions_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &project_ref("proj1"),
+        )
+        .unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "ses_001");
         assert_eq!(sessions[0].summary, Some("Test session".to_string()));
@@ -1984,7 +2049,9 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let messages = load_messages_from_db(&tmp.path().to_string_lossy(), "ses_001").unwrap();
+        let messages =
+            load_messages_from_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE, "ses_001")
+                .unwrap();
         assert_eq!(messages.len(), 2);
 
         // First message: user
@@ -2007,12 +2074,18 @@ mod tests {
     fn sqlite_returns_none_when_no_db() {
         let tmp = tempfile::tempdir().unwrap();
         // No opencode.db created
-        assert!(open_db(&tmp.path().to_string_lossy()).is_none());
-        assert!(scan_projects_from_db(&tmp.path().to_string_lossy()).is_none());
+        assert!(open_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE).is_none());
+        assert!(scan_projects_from_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE).is_none());
+        assert!(load_sessions_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &project_ref("proj1")
+        )
+        .is_none());
         assert!(
-            load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref("proj1")).is_none()
+            load_messages_from_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE, "ses_001")
+                .is_none()
         );
-        assert!(load_messages_from_db(&tmp.path().to_string_lossy(), "ses_001").is_none());
     }
 
     #[test]
@@ -2022,13 +2095,23 @@ mod tests {
         seed_test_data(&conn);
         drop(conn);
 
-        let (results, session_ids) =
-            search_from_db(&tmp.path().to_string_lossy(), "hello from user", 10).unwrap();
+        let (results, session_ids) = search_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            "hello from user",
+            10,
+        )
+        .unwrap();
         assert!(!results.is_empty());
         assert!(session_ids.contains("ses_001"));
 
         // Search for non-existent text
-        let none_result = search_from_db(&tmp.path().to_string_lossy(), "nonexistent_xyz", 10);
+        let none_result = search_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            "nonexistent_xyz",
+            10,
+        );
         assert!(none_result.is_none());
     }
 
@@ -2091,7 +2174,7 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let map = build_db_session_map(&tmp.path().to_string_lossy()).unwrap();
+        let map = build_db_session_map(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE).unwrap();
         assert_eq!(map.len(), 2);
         assert!(map["proj1"].contains("ses_001"));
         assert!(map["proj2"].contains("ses_x"));
@@ -2129,7 +2212,8 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let projects =
+            scan_projects_from_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE).unwrap();
         assert!(projects.iter().all(|project| project.name != "unknown"));
 
         let project_a = projects
@@ -2173,14 +2257,20 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let projects =
+            scan_projects_from_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE).unwrap();
         let project_a = projects
             .iter()
             .find(|project| project.actual_path == "/tmp/a")
             .expect("global /tmp/a directory project should exist");
         let project_ref = OpenCodeProjectRef::parse(&project_a.path).unwrap();
 
-        let sessions = load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref).unwrap();
+        let sessions = load_sessions_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &project_ref,
+        )
+        .unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "ses_global_a");
         assert_eq!(sessions[0].file_path, "opencode://global/ses_global_a");
@@ -2212,7 +2302,8 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let projects = scan_projects_from_db(&tmp.path().to_string_lossy()).unwrap();
+        let projects =
+            scan_projects_from_db(&tmp.path().to_string_lossy(), OPENCODE_DB_FILE).unwrap();
         let empty_dir_project = projects
             .iter()
             .find(|project| {
@@ -2223,8 +2314,12 @@ mod tests {
         assert!(empty_dir_project.path.starts_with("opencode://global-dir-"));
 
         let project_ref = OpenCodeProjectRef::parse(&empty_dir_project.path).unwrap();
-        let sessions = load_sessions_from_db(&tmp.path().to_string_lossy(), &project_ref)
-            .expect("empty-directory sessions must load, not be silently dropped");
+        let sessions = load_sessions_from_db(
+            &tmp.path().to_string_lossy(),
+            OPENCODE_DB_FILE,
+            &project_ref,
+        )
+        .expect("empty-directory sessions must load, not be silently dropped");
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].actual_session_id, "ses_global_empty");
         assert_eq!(sessions[0].file_path, "opencode://global/ses_global_empty");

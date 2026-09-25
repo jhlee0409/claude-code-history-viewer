@@ -293,7 +293,8 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
             .or_else(|| extract_kimi_paths(path))
             .or_else(|| extract_kimi_code_paths(path))
             .or_else(|| extract_opencode_paths(path)),
-        // OpenCode SQLite database change — emit broad refresh for all OpenCode projects
+        // OpenCode-core SQLite database change (opencode.db / kilo.db) — emit a
+        // broad refresh for every project in that store
         "db" | "db-wal" => extract_opencode_db_event(path),
         _ => None,
     }
@@ -540,18 +541,23 @@ fn extract_kimi_code_paths(path: &Path) -> Option<(String, String)> {
     ))
 }
 
-/// Handle `OpenCode` `SQLite` database file changes.
+/// Handle `OpenCode`-core `SQLite` database file changes.
 ///
-/// Since we cannot determine which project/session changed from a DB write,
-/// emit a broad event with `"opencode://*"` so the frontend refreshes all
-/// `OpenCode` data.
+/// Covers `opencode.db` and Kilo Code's `kilo.db` (plus their `-wal`
+/// companions). Since we cannot determine which project/session changed from
+/// a DB write, emit a broad event with `"<scheme>://*"` so the frontend
+/// refreshes all data for that store (`opencode://*` or `kilo://*`).
 fn extract_opencode_db_event(path: &Path) -> Option<(String, String)> {
     let filename = path.file_name()?.to_str()?;
-    if filename.starts_with("opencode.") {
-        Some(("opencode://*".to_string(), "opencode://*".to_string()))
+    let scheme = if filename.starts_with("opencode.") {
+        "opencode"
+    } else if filename.starts_with("kilo.") {
+        "kilo"
     } else {
-        None
-    }
+        return None;
+    };
+    let wildcard = format!("{scheme}://*");
+    Some((wildcard.clone(), wildcard))
 }
 
 /// Extract `OpenCode` virtual identifiers from storage JSON files.
@@ -948,6 +954,36 @@ mod tests {
 
         assert_eq!(result.0, "opencode://project_1");
         assert_eq!(result.1, "opencode://project_1/session_1");
+    }
+
+    #[test]
+    fn test_extract_opencode_db_event_emits_opencode_wildcard() {
+        for name in ["opencode.db", "opencode.db-wal"] {
+            let path = PathBuf::from("/Users/test/.local/share/opencode").join(name);
+            let result = extract_provider_paths(&path).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(
+                result,
+                ("opencode://*".to_string(), "opencode://*".to_string())
+            );
+        }
+    }
+
+    /// Kilo Code's OpenCode-core store lives in `kilo.db`; before this branch
+    /// existed the filename fell through to `None` and live refresh never
+    /// fired for Kilo (PR #580 review).
+    #[test]
+    fn test_extract_kilo_db_event_emits_kilo_wildcard() {
+        for name in ["kilo.db", "kilo.db-wal"] {
+            let path = PathBuf::from("/Users/test/.local/share/kilo").join(name);
+            let result = extract_provider_paths(&path).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(result, ("kilo://*".to_string(), "kilo://*".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_extract_db_event_ignores_unknown_stores() {
+        let path = PathBuf::from("/Users/test/.local/share/other/other.db");
+        assert!(extract_provider_paths(&path).is_none());
     }
 
     #[test]

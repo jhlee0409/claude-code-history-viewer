@@ -2045,6 +2045,38 @@ fn opencode_subagents(session_path: &str) -> Vec<SubagentSession> {
         .collect()
 }
 
+/// Subagent rows for a `kilo://<project_id>/<session_id>` parent. Kilo Code's
+/// OpenCode-core store keeps the same child-rows-in-`SQLite` shape as
+/// `OpenCode`, addressed with the `kilo://` scheme.
+fn kilo_subagents(session_path: &str) -> Vec<SubagentSession> {
+    let Some(rest) = session_path.strip_prefix("kilo://") else {
+        return Vec::new();
+    };
+    let Some((project_id, session_id)) = rest.split_once('/') else {
+        return Vec::new();
+    };
+    if !crate::utils::is_safe_storage_id(project_id)
+        || !crate::utils::is_safe_storage_id(session_id)
+    {
+        return Vec::new();
+    }
+
+    crate::providers::kilo::load_child_sessions(project_id, session_id)
+        .into_iter()
+        .map(|child| SubagentSession {
+            file_path: format!("kilo://{project_id}/{}", child.id),
+            agent_id: child.id,
+            message_count: child.message_count,
+            file_size: 0,
+            first_message_time: Some(child.created_at),
+            last_message_time: Some(child.updated_at),
+            summary: (!child.title.trim().is_empty()).then_some(child.title),
+            tool_use_id: None,
+            workflow_run_id: None,
+        })
+        .collect()
+}
+
 /// Returns subagent sessions for a given parent session file.
 #[tauri::command]
 pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
@@ -2055,6 +2087,10 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
     // find and the absolute-path check would reject the URI outright (#560).
     if session_path.starts_with("opencode://") {
         return Ok(opencode_subagents(&session_path));
+    }
+
+    if session_path.starts_with("kilo://") {
+        return Ok(kilo_subagents(&session_path));
     }
 
     let path = PathBuf::from(&session_path);

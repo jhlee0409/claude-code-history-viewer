@@ -1081,6 +1081,28 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    // Kilo Code keeps its OpenCode-core sessions in kilo.db (no file-backed
+    // session/message storage dirs), so watching the store root covers it.
+    // Symlinked roots/databases are not registered — `is_file()` follows
+    // symlinks, and watching through one would observe paths outside the
+    // store (same hardening as the Kimi Code block above).
+    if let Some(kilo_base) = providers::kilo::get_base_path() {
+        let base = PathBuf::from(&kilo_base);
+        let is_real = |path: &std::path::Path, check: fn(&std::fs::FileType) -> bool| {
+            std::fs::symlink_metadata(path)
+                .map(|meta| check(&meta.file_type()))
+                .unwrap_or(false)
+        };
+        if is_real(&base, std::fs::FileType::is_dir)
+            && is_real(
+                &base.join(providers::kilo::DB_FILE),
+                std::fs::FileType::is_file,
+            )
+        {
+            paths.push(base);
+        }
+    }
+
     if let Some(codebuddy_base) = providers::codebuddy::get_base_path() {
         let codebuddy_projects = PathBuf::from(codebuddy_base);
         if codebuddy_projects.is_dir() {
