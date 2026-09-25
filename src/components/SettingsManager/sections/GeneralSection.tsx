@@ -90,6 +90,15 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
 }) => {
   const { t } = useTranslation();
 
+  // The cleanup-period field keeps its own draft so a transient or invalid
+  // entry (empty while retyping, `0`) never replaces the saved value — writing
+  // `undefined` would drop the key and silently reset e.g. 3650 to 30 (#587).
+  const savedCleanupPeriod = settings.cleanupPeriodDays ?? DEFAULT_CLEANUP_PERIOD_DAYS;
+  const [cleanupDraft, setCleanupDraft] = React.useState(String(savedCleanupPeriod));
+  React.useEffect(() => {
+    setCleanupDraft(String(savedCleanupPeriod));
+  }, [savedCleanupPeriod]);
+
   // -------------------------------------------------------------------------
   // Handlers
   // -------------------------------------------------------------------------
@@ -108,9 +117,18 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
   };
 
   const handleCleanupPeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Claude Code rejects 0 and fractions, so an invalid value is dropped
-    // (Claude Code's default applies) instead of being written.
-    onChange({ cleanupPeriodDays: parseCleanupPeriodInput(e.target.value) });
+    setCleanupDraft(e.target.value);
+    // Claude Code rejects 0 and fractions: only a valid period is written.
+    const value = parseCleanupPeriodInput(e.target.value);
+    if (value !== undefined) {
+      onChange({ cleanupPeriodDays: value });
+    }
+  };
+
+  const handleCleanupPeriodBlur = () => {
+    if (parseCleanupPeriodInput(cleanupDraft) === undefined) {
+      setCleanupDraft(String(savedCleanupPeriod));
+    }
   };
 
   const handleOutputStyleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -388,8 +406,9 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                   id="cleanup-period"
                   type="number"
                   min={MIN_CLEANUP_PERIOD_DAYS}
-                  value={settings.cleanupPeriodDays ?? DEFAULT_CLEANUP_PERIOD_DAYS}
+                  value={cleanupDraft}
                   onChange={handleCleanupPeriodChange}
+                  onBlur={handleCleanupPeriodBlur}
                   className="w-24"
                   disabled={readOnly}
                 />
