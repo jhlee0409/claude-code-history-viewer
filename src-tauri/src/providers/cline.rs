@@ -422,28 +422,35 @@ fn load_task_history_from_global_state(base_path: &Path) -> Option<Vec<Value>> {
     }
 }
 
+/// Split `cline://<extension dir>:<tail>` into the extension directory and
+/// the tail (a cwd for projects, a task id for sessions).
+///
+/// The separator is the `:` right after the extension id that ends the base,
+/// not the first colon: on Windows both the base (`C:\Users\…`) and a cwd
+/// (`D:\work`) carry a drive-letter colon, and splitting at the first one cut
+/// the base down to `C` (#582).
+fn parse_base_and_tail(path: &str) -> Result<(PathBuf, String), String> {
+    let rest = path.strip_prefix("cline://").unwrap_or(path);
+    let at_extension = EXTENSIONS.iter().find_map(|(ext_id, _)| {
+        let split = rest.find(&format!("{ext_id}:"))? + ext_id.len();
+        Some((PathBuf::from(&rest[..split]), rest[split + 1..].to_string()))
+    });
+    // Bases built by `collect_base_paths_under` always end in an extension
+    // id; the first-colon split only remains for anything else.
+    at_extension
+        .or_else(|| {
+            rest.split_once(':')
+                .map(|(base, tail)| (PathBuf::from(base), tail.to_string()))
+        })
+        .ok_or_else(|| format!("Invalid Cline path: {path}"))
+}
+
 fn parse_project_path(project_path: &str) -> Result<(PathBuf, String), String> {
-    let path = project_path
-        .strip_prefix("cline://")
-        .unwrap_or(project_path);
-
-    let (base, cwd) = path
-        .split_once(':')
-        .ok_or_else(|| format!("Invalid project path: {project_path}"))?;
-
-    Ok((PathBuf::from(base), cwd.to_string()))
+    parse_base_and_tail(project_path)
 }
 
 fn parse_session_path(session_path: &str) -> Result<(PathBuf, String), String> {
-    let path = session_path
-        .strip_prefix("cline://")
-        .unwrap_or(session_path);
-
-    let (base, task_id) = path
-        .split_once(':')
-        .ok_or_else(|| format!("Invalid session path: {session_path}"))?;
-
-    let base_path = PathBuf::from(base);
+    let (base_path, task_id) = parse_base_and_tail(session_path)?;
     if !base_path.is_absolute() {
         return Err("Cline base path must be absolute".to_string());
     }
@@ -453,7 +460,7 @@ fn parse_session_path(session_path: &str) -> Result<(PathBuf, String), String> {
         return Err(format!("Invalid task ID: {task_id}"));
     }
 
-    Ok((base_path, task_id.to_string()))
+    Ok((base_path, task_id))
 }
 
 /// Convert a `ClineMessage` to `ClaudeMessage`
@@ -784,6 +791,25 @@ mod tests {
             roots.contains(&config),
             "config dir {config:?} missing from {roots:?}"
         );
+    }
+
+    #[test]
+    fn windows_project_and_session_paths_round_trip() {
+        // Both the base (`C:\Users\…`) and the cwd (`D:\work\app`) carry a
+        // drive-letter colon, so splitting at the first `:` cut the base down
+        // to `C` and every Windows session failed to load.
+        let base = r"C:\Users\nikos\AppData\Roaming\Code\User\globalStorage\saoudrizwan.claude-dev";
+        let cwd = r"D:\work\app";
+
+        let (parsed_base, parsed_cwd) =
+            parse_project_path(&format!("cline://{base}:{cwd}")).unwrap();
+        assert_eq!(parsed_base, PathBuf::from(base));
+        assert_eq!(parsed_cwd, cwd);
+
+        let (parsed_base, task_id) =
+            parse_base_and_tail(&format!("cline://{base}:1789505165522")).unwrap();
+        assert_eq!(parsed_base, PathBuf::from(base));
+        assert_eq!(task_id, "1789505165522");
     }
 
     #[test]
