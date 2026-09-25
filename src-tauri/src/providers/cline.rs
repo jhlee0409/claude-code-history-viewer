@@ -431,12 +431,21 @@ fn load_task_history_from_global_state(base_path: &Path) -> Option<Vec<Value>> {
 /// the base down to `C` (#582).
 fn parse_base_and_tail(path: &str) -> Result<(PathBuf, String), String> {
     let rest = path.strip_prefix("cline://").unwrap_or(path);
-    let at_extension = EXTENSIONS.iter().find_map(|(ext_id, _)| {
-        let split = rest.find(&format!("{ext_id}:"))? + ext_id.len();
-        Some((PathBuf::from(&rest[..split]), rest[split + 1..].to_string()))
-    });
-    // Bases built by `collect_base_paths_under` always end in an extension
-    // id; the first-colon split only remains for anything else.
+    // The separator is the first colon that is not a Windows drive colon
+    // (`C:` at the very start). Bases built by `collect_base_paths_under`
+    // always end in an extension id there; only then is it trusted, so an
+    // extension id that merely appears later, inside the tail, is ignored.
+    let is_drive_colon = |i: usize| i == 1 && rest.as_bytes()[0].is_ascii_alphabetic();
+    let at_extension = rest
+        .match_indices(':')
+        .map(|(i, _)| i)
+        .find(|&i| !is_drive_colon(i))
+        .filter(|&i| {
+            EXTENSIONS
+                .iter()
+                .any(|(ext_id, _)| rest[..i].ends_with(ext_id))
+        })
+        .map(|i| (PathBuf::from(&rest[..i]), rest[i + 1..].to_string()));
     at_extension
         .or_else(|| {
             rest.split_once(':')
@@ -810,6 +819,17 @@ mod tests {
             parse_base_and_tail(&format!("cline://{base}:1789505165522")).unwrap();
         assert_eq!(parsed_base, PathBuf::from(base));
         assert_eq!(task_id, "1789505165522");
+    }
+
+    #[test]
+    fn extension_id_inside_the_tail_is_not_a_separator() {
+        // A base that doesn't end in an extension id keeps the first-colon
+        // split even when its cwd happens to contain one.
+        let (base, cwd) =
+            parse_project_path("cline:///path/to/globalStorage:/work/saoudrizwan.claude-dev:x")
+                .unwrap();
+        assert_eq!(base, PathBuf::from("/path/to/globalStorage"));
+        assert_eq!(cwd, "/work/saoudrizwan.claude-dev:x");
     }
 
     #[test]
