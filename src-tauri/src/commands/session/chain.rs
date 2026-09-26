@@ -20,6 +20,7 @@ use std::sync::Mutex;
 use std::time::SystemTime;
 
 use once_cell::sync::Lazy;
+use rayon::prelude::*;
 
 use crate::utils::is_symlink;
 
@@ -97,7 +98,13 @@ struct BoundaryClassifier {
 /// `logicalParentUuid` is NOT among this file's own message uuids. That
 /// absence is exactly what marks "this file's history starts abruptly here;
 /// the messages before it live in a different file."
+#[allow(unsafe_code)]
 fn find_dangling_parent_uuid(path: &Path) -> Option<String> {
+    {
+        let file = fs::File::open(path).ok()?;
+        let map = unsafe { memmap2::Mmap::map(&file) }.ok()?;
+        memchr::memmem::find(&map, b"compact_boundary")?;
+    }
     let file = fs::File::open(path).ok()?;
     let reader = BufReader::new(file);
 
@@ -262,15 +269,17 @@ pub fn superseded_chain_paths(project_root: &Path) -> HashSet<PathBuf> {
         return HashSet::new();
     };
 
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        if !is_regular_jsonl(&path) {
-            continue;
-        }
+    let paths: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| is_regular_jsonl(path))
+        .collect();
+    let dangling: Vec<(PathBuf, String)> = paths
+        .into_par_iter()
+        .filter_map(|path| find_dangling_parent_uuid(&path).map(|uuid| (path, uuid)))
+        .collect();
 
-        let Some(parent_uuid) = find_dangling_parent_uuid(&path) else {
-            continue;
-        };
+    for (path, parent_uuid) in dangling {
         let skip = HashSet::from([path]);
         let Some(predecessor) = find_file_containing_uuid(project_root, &parent_uuid, &skip) else {
             continue;

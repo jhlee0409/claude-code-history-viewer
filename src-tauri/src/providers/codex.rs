@@ -7,6 +7,7 @@ use crate::utils::{
 use chrono::{DateTime, Utc};
 use memchr::{memchr2_iter, memchr_iter, memmem};
 use memmap2::Mmap;
+use rayon::prelude::*;
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
 use std::cmp::Ordering;
@@ -312,53 +313,56 @@ pub fn load_sessions(
         .strip_prefix("codex://")
         .unwrap_or(project_path);
 
-    let mut sessions = Vec::new();
+    let rollout_paths: Vec<PathBuf> = session_dirs
+        .iter()
+        .flat_map(|session_dir| {
+            WalkDir::new(session_dir)
+                .min_depth(1)
+                .into_iter()
+                .filter_map(Result::ok)
+                .filter(|e| e.file_type().is_file())
+                .filter(|e| is_discoverable_rollout(e.path()))
+                .map(walkdir::DirEntry::into_path)
+        })
+        .collect();
 
-    for session_dir in session_dirs {
-        for entry in WalkDir::new(session_dir)
-            .min_depth(1)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|e| e.file_type().is_file())
-            .filter(|e| is_discoverable_rollout(e.path()))
-        {
-            let rollout_path = entry.path();
-
+    let mut sessions: Vec<ClaudeSession> = rollout_paths
+        .par_iter()
+        .filter_map(|rollout_path| {
             match extract_session_cwd(rollout_path) {
-                Ok(Some(session_cwd)) if session_cwd != target_cwd => continue,
+                Ok(Some(session_cwd)) if session_cwd != target_cwd => return None,
                 Ok(_) | Err(_) => {}
             }
 
-            if let Ok(info) = extract_session_info(rollout_path) {
-                let native_title = title_index.get(&info.session_id);
-                let session_cwd = info.cwd.as_deref().unwrap_or("unknown");
-                if session_cwd != target_cwd {
-                    continue;
-                }
-
-                sessions.push(ClaudeSession {
-                    session_id: info.file_path.clone(),
-                    actual_session_id: info.session_id,
-                    file_path: info.file_path,
-                    project_name: Path::new(target_cwd)
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_default(),
-                    message_count: info.message_count,
-                    first_message_time: info.first_message_time,
-                    last_message_time: info.last_message_time,
-                    last_modified: info.last_modified,
-                    has_tool_use: info.has_tool_use,
-                    has_errors: false,
-                    summary: native_title.cloned().or(info.summary),
-                    is_renamed: native_title.is_some(),
-                    provider: Some("codex".to_string()),
-                    storage_type: None,
-                    entrypoint: None,
-                });
+            let info = extract_session_info(rollout_path).ok()?;
+            let native_title = title_index.get(&info.session_id);
+            let session_cwd = info.cwd.as_deref().unwrap_or("unknown");
+            if session_cwd != target_cwd {
+                return None;
             }
-        }
-    }
+
+            Some(ClaudeSession {
+                session_id: info.file_path.clone(),
+                actual_session_id: info.session_id,
+                file_path: info.file_path,
+                project_name: Path::new(target_cwd)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                message_count: info.message_count,
+                first_message_time: info.first_message_time,
+                last_message_time: info.last_message_time,
+                last_modified: info.last_modified,
+                has_tool_use: info.has_tool_use,
+                has_errors: false,
+                summary: native_title.cloned().or(info.summary),
+                is_renamed: native_title.is_some(),
+                provider: Some("codex".to_string()),
+                storage_type: None,
+                entrypoint: None,
+            })
+        })
+        .collect();
 
     sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(sessions)
