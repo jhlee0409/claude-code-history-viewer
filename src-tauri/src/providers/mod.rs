@@ -47,6 +47,7 @@ pub mod qwen;
 pub mod trae;
 pub mod vibe;
 pub mod vscode;
+pub mod zcode;
 pub mod zed;
 
 /// Provider identifier
@@ -104,6 +105,8 @@ pub enum ProviderId {
     Trae,
     /// Mistral Vibe CLI (`~/.vibe/logs/session/<session>/`).
     Vibe,
+    /// Z.ai Z Code (`~/.zcode/cli/db/db.sqlite`).
+    Zcode,
 }
 
 impl ProviderId {
@@ -139,6 +142,7 @@ impl ProviderId {
             Self::Zed => "zed",
             Self::Trae => "trae",
             Self::Vibe => "vibe",
+            Self::Zcode => "zcode",
         }
     }
 
@@ -174,6 +178,7 @@ impl ProviderId {
             "zed" => Some(Self::Zed),
             "trae" => Some(Self::Trae),
             "vibe" => Some(Self::Vibe),
+            "zcode" => Some(Self::Zcode),
             _ => None,
         }
     }
@@ -210,6 +215,7 @@ impl ProviderId {
             Self::Zed => "Zed",
             Self::Trae => "Trae",
             Self::Vibe => "Mistral Vibe",
+            Self::Zcode => "Z Code",
         }
     }
 }
@@ -315,6 +321,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = vibe::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = zcode::detect() {
         providers.push(info);
     }
 

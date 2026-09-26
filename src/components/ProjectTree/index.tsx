@@ -171,6 +171,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       trae: 0,
       vibe: 0,
       zed: 0,
+      zcode: 0,
     };
 
     for (const project of projects) {

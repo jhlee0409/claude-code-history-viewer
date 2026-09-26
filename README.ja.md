@@ -70,7 +70,7 @@ Docker、VPS、systemdのセットアップは[サーバーモード](#サーバ
 
 AIコーディングアシスタントは数千もの会話メッセージを生成しますが、ツール間で履歴を振り返る方法を提供していません。CCHVがこの課題を解決します。
 
-**三十のアシスタント。一つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code 含む）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Traeのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
+**三十一のアシスタント。一つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code 含む）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Codeのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
 
 | プロバイダー | データの場所 | 取得できる情報 |
 |----------|--------------|--------------|
@@ -102,6 +102,7 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **Mistral Vibe** | `~/.vibe/logs/session/` | reasoningとツール呼び出しを含むOpenAIスタイルのチャットトランスクリプト（`VIBE_HOME`で上書き可） |
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | セッション単位のJSONLトランスクリプト（ツール呼び出し、思考プロセス、トークン使用量） |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panelスレッド — SQLite + Zstd圧縮JSON |
+| **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai の GLM コーディングエージェント — session/message/part 型 SQLite ストア（タイトル、ツール呼び出し、思考、トークン使用量） |
 | **OpenHands** | `~/.openhands/sessions/` | クラシックなイベントストア形式の会話 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | ワークスペース単位のチャット（icubeストア；実験的、リバースエンジニアリングによる対応） |
 
@@ -129,7 +130,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | 機能 | 説明 |
 |---------|-------------|
-| **マルチプロバイダー対応** | **30のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code 含む）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae — プロバイダー別フィルタリング、ツール間比較 |
+| **マルチプロバイダー対応** | **31のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code 含む）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code — プロバイダー別フィルタリング、ツール間比較 |
 | **会話ブラウザ** | プロジェクト/セッション別に会話を閲覧（ワークツリーグループ化対応） |
 | **グローバル検索** | 全プロバイダーの会話を瞬時に検索 |
 | **分析ダッシュボード** | デュアルモードトークン統計（課金 vs 会話）、コスト内訳、プロバイダー分布チャート |
@@ -411,7 +412,7 @@ GET /health
 ## 使い方
 
 1. アプリを起動
-2. 対応する全30プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
+2. 対応する全31プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
 3. 左サイドバーでプロジェクトを閲覧 — タブバーでプロバイダー別フィルタリング
 4. セッションをクリックしてメッセージを確認
 5. タブでメッセージ、分析、トークン統計、最近の編集、セッションボードを切り替え

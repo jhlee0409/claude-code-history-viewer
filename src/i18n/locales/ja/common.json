@@ -101,7 +101,7 @@
   "common.provider.saveError": "検出したプロバイダー設定を保存できませんでした。もう一度お試しください。",
   "common.provider.trae": "Trae",
   "common.provider.vibe": "Mistral Vibe",
-  "common.provider.zcode": "ZCode",
+  "common.provider.zcode": "Z Code",
   "common.provider.zed": "Zed",
   "common.refresh": "更新",
   "common.remove": "削除",

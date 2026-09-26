@@ -52,6 +52,7 @@ enum StatsProvider {
     Pi,
     Gemini,
     Cursor,
+    Zcode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,6 +113,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Pi => "pi",
         StatsProvider::Gemini => "gemini",
         StatsProvider::Cursor => "cursor",
+        StatsProvider::Zcode => "zcode",
     }
 }
 
@@ -320,6 +322,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Pi,
         StatsProvider::Gemini,
         StatsProvider::Cursor,
+        StatsProvider::Zcode,
     ]
     .into_iter()
     .collect()
@@ -349,6 +352,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "openinterpreter" => Some(StatsProvider::OpenInterpreter),
             "pearai" => Some(StatsProvider::PearAI),
             "qwen" => Some(StatsProvider::Qwen),
+            "zcode" => Some(StatsProvider::Zcode),
             "trae" => Some(StatsProvider::Trae),
             "vibe" => Some(StatsProvider::Vibe),
             "zed" => Some(StatsProvider::Zed),
@@ -414,6 +418,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Vibe
     } else if project_path.starts_with("zed://") {
         StatsProvider::Zed
+    } else if project_path.starts_with("zcode://") {
+        StatsProvider::Zcode
     } else if project_path.starts_with("codex://") {
         StatsProvider::Codex
     } else if project_path.starts_with("forgecode://") {
@@ -500,6 +506,9 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     }
     if session_path.starts_with("zed://") {
         return StatsProvider::Zed;
+    }
+    if session_path.starts_with("zcode://") {
+        return StatsProvider::Zcode;
     }
     if path_under_root(session_path, providers::cursor_agent::get_base_path()) {
         return StatsProvider::CursorAgent;
@@ -1521,6 +1530,7 @@ fn scan_stats_projects(
         StatsProvider::OpenInterpreter => providers::openinterpreter::scan_projects(),
         StatsProvider::PearAI => providers::pearai::scan_projects(),
         StatsProvider::Qwen => providers::qwen::scan_projects(),
+        StatsProvider::Zcode => providers::zcode::scan_projects(),
         StatsProvider::Trae => providers::trae::scan_projects(),
         StatsProvider::Vibe => providers::vibe::scan_projects(),
         StatsProvider::Zed => providers::zed::scan_projects(),
@@ -1561,6 +1571,7 @@ fn load_stats_sessions(
         }
         StatsProvider::PearAI => providers::pearai::load_sessions(project_path, false),
         StatsProvider::Qwen => providers::qwen::load_sessions(project_path, false),
+        StatsProvider::Zcode => providers::zcode::load_sessions(project_path, false),
         StatsProvider::Trae => providers::trae::load_sessions(project_path, false),
         StatsProvider::Vibe => providers::vibe::load_sessions(project_path, false),
         StatsProvider::Zed => providers::zed::load_sessions(project_path, false),
@@ -1599,6 +1610,7 @@ fn load_stats_messages(
         StatsProvider::OpenInterpreter => providers::openinterpreter::load_messages(session_path),
         StatsProvider::PearAI => providers::pearai::load_messages(session_path),
         StatsProvider::Qwen => providers::qwen::load_messages(session_path),
+        StatsProvider::Zcode => providers::zcode::load_messages(session_path),
         StatsProvider::Trae => providers::trae::load_messages(session_path),
         StatsProvider::Vibe => providers::vibe::load_messages(session_path),
         StatsProvider::Zed => providers::zed::load_messages(session_path),
@@ -3096,7 +3108,8 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
         | StatsProvider::CursorAgent
         | StatsProvider::Goose
         | StatsProvider::Kiro
-        | StatsProvider::Llm => fallback_provider_name(provider, project_path),
+        | StatsProvider::Llm
+        | StatsProvider::Zcode => fallback_provider_name(provider, project_path),
     }
 }
 
@@ -3105,6 +3118,21 @@ fn resolve_provider_project_name_from_session(
     provider: StatsProvider,
     session_path: &str,
 ) -> String {
+    // Z Code session pseudo-paths are `<directory>#<session_id>`; strip the
+    // session suffix so the name is the directory's last segment, not
+    // `proj#sess-1`.
+    if provider == StatsProvider::Zcode {
+        let raw = session_path
+            .strip_prefix("zcode://")
+            .unwrap_or(session_path);
+        let dir = raw.rsplit_once('#').map(|(d, _)| d).unwrap_or(raw);
+        return Path::new(dir)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| stats_provider_id(provider))
+            .to_string();
+    }
     match provider {
         StatsProvider::ForgeCode => {
             let workspace_id = session_path
@@ -3257,7 +3285,8 @@ fn resolve_provider_project_name_from_session(
         | StatsProvider::CursorAgent
         | StatsProvider::Goose
         | StatsProvider::Kiro
-        | StatsProvider::Llm => fallback_provider_name(provider, session_path),
+        | StatsProvider::Llm
+        | StatsProvider::Zcode => fallback_provider_name(provider, session_path),
         StatsProvider::Claude => "unknown".to_string(),
     }
 }
@@ -5259,6 +5288,7 @@ pub async fn get_global_stats_summary(
         StatsProvider::Trae,
         StatsProvider::Vibe,
         StatsProvider::Zed,
+        StatsProvider::Zcode,
     ] {
         if providers_to_include.contains(&provider) {
             let (provider_stats, provider_projects) =
@@ -6375,7 +6405,7 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
-        assert_eq!(supported.len(), 30);
+        assert_eq!(supported.len(), 31);
     }
 
     #[test]
@@ -8760,10 +8790,34 @@ mod tests {
             detect_session_provider(&format!("{home}/.codex/sessions/2026/rollout-x.jsonl")),
             StatsProvider::Codex
         );
+        // Z Code pseudo-paths route by scheme, not by filesystem location.
+        assert_eq!(
+            detect_session_provider("zcode:///home/jack/proj#sess-1"),
+            StatsProvider::Zcode
+        );
         // Claude files still route to Claude.
         assert_eq!(
             detect_session_provider(&format!("{home}/.claude/projects/-u/s.jsonl")),
             StatsProvider::Claude
+        );
+    }
+
+    #[test]
+    fn zcode_session_project_name_strips_session_suffix() {
+        assert_eq!(
+            resolve_provider_project_name_from_session(
+                StatsProvider::Zcode,
+                "zcode:///home/jack/proj#sess-1"
+            ),
+            "proj"
+        );
+        // No session suffix: behaves like the generic fallback.
+        assert_eq!(
+            resolve_provider_project_name_from_session(
+                StatsProvider::Zcode,
+                "zcode:///home/jack/proj"
+            ),
+            "proj"
         );
     }
 

@@ -1168,6 +1168,13 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
+    if let Some(zcode_base) = providers::zcode::get_base_path() {
+        let zcode_dir = PathBuf::from(zcode_base);
+        if zcode_dir.is_dir() {
+            paths.push(zcode_dir);
+        }
+    }
+
     if let Some(zed_base) = providers::zed::get_base_path() {
         let zed_dir = PathBuf::from(zed_base);
         if zed_dir.is_dir() {
