@@ -5,6 +5,11 @@ name: Frontend Tests
 # `update-flow-tests.yml` runs vitest for just the 4 update-flow files, so the
 # rest of the ~860 frontend tests (plus tsc/eslint/i18n) were previously
 # ungated — a broad frontend regression could land on develop unnoticed.
+# The bundle step catches build-only failures (rollup/vite config, worker
+# bundling, assets) that tsc/vitest never exercise and that otherwise surface
+# only when the release workflow runs `tauri build` after a tag push. It runs
+# on Linux, so platform-specific bundling issues (like #579's macOS x86_64
+# worker failure) can still slip through.
 on:
   push:
     branches: [main, develop]
@@ -13,6 +18,9 @@ on:
       - "scripts/**"
       - "index.html"
       - "vite.config.ts"
+      - "public/**"
+      - "tailwind.config.js"
+      - "postcss.config.js"
       - "tsconfig*.json"
       - "eslint.config.js"
       - "package.json"
@@ -61,3 +69,6 @@ jobs:
 
       - name: i18n key validation
         run: pnpm run i18n:validate
+
+      - name: Bundle (vite build)
+        run: pnpm exec vite build
