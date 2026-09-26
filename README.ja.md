@@ -79,7 +79,7 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **Gemini CLI** | `~/.gemini/history/` | ツール呼び出しを含む会話履歴 |
 | **Antigravity** | `~/.gemini/antigravity/` | `brain/`配下の会話状態と`.token-monitor/rpc-cache/v1/`配下のトークンモニターデータ |
 | **Codex CLI** | `~/.codex/sessions/` | エージェント応答を含むセッションロールアウト |
-| **Cline**（Roo Code 含む、旧 Kilo Code） | VS Code `globalStorage/<ext>/tasks/` | Clineファミリー全体のタスクベースの履歴 |
+| **Cline**（Roo Code 含む、旧 Kilo Code） | `~/.cline/data/sessions/`（最新の Cline）および VS Code `globalStorage/<ext>/tasks/`（旧バージョン） | Clineファミリー全体のタスクベースの履歴 |
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026年5月以降はOpenCodeコア。移行前のClineファミリーデータはCline側に残る |
 | **Cursor** | `~/.cursor/` | Composerとチャットの会話 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | エージェントトランスクリプト（Cursor IDEソースとは別系統） |
@@ -143,6 +143,18 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 | プロバイダー | メモ |
 |---------|-------|
 | **Antigravity** | 標準のプロバイダーパイプラインで読み込まれます。セッションはtoken monitorのキャッシュから取得され、専用UIモードを増やさずに、プロジェクト/セッション表示、トークン統計、分析、グローバル検索に参加します。 |
+
+### v1.28.0の新機能
+
+| 機能 | 説明 |
+|------|------|
+| **最新の Cline セッション** | 最新の Cline（VS Code 拡張を含む）はセッションを `~/.cline/data/sessions/` に保存します。タイトル、全文の会話、トークン・コスト統計とともに表示されるようになりました。Windows でも Cline、Roo Code、Kilo Code を検出します |
+| **Kilo Code の新しいストア** | Kilo Code の OpenCode コアデータベース（`kilo.db`）を独立したプロバイダーとして読み込み、ライブ更新とグローバル統計に対応します |
+| **正確な出力トークン** | ストリーミングされた Claude Code のターンで出力トークンが約40%少なく集計されていた問題を修正し、各ターンの最終使用量を一度だけ数えます |
+| **セッションペインとフォルダの統合** | 選択したプロジェクトのセッションがサイズ変更可能な専用列に表示され、複数のツールが使う同じフォルダはプロバイダーチップ付きの1行にまとまります |
+| **すっきりしたトランスクリプト** | 折りたたみ行にツール呼び出しの要約を表示し、続くターンの重複ヘッダーを省き、ヘッダーのビュー切り替えを1つにしました |
+| **料金表の更新** | すべての料金を公式の料金ページで再検証し、fast/priority ティアに対応し、提供終了予定のモデルを後継モデルとともに表示します |
+| **トランスクリプト保持期間** | Claude Code の `cleanupPeriodDays` に長期保持の値（例: 3650）を設定でき、Claude Code の設定であることを明示します — このアプリはセッションを削除しません |
 
 ### v1.23.0の新機能
 
@@ -399,7 +411,7 @@ GET /health
 ## 使い方
 
 1. アプリを起動
-2. 対応する全29プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
+2. 対応する全30プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
 3. 左サイドバーでプロジェクトを閲覧 — タブバーでプロバイダー別フィルタリング
 4. セッションをクリックしてメッセージを確認
 5. タブでメッセージ、分析、トークン統計、最近の編集、セッションボードを切り替え
