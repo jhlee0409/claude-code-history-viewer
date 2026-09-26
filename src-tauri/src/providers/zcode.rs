@@ -856,7 +856,10 @@ mod tests {
         // detect + base path follow ZCODE_HOME.
         let info = detect().expect("detect with ZCODE_HOME set");
         assert!(info.is_available);
-        assert!(get_base_path().expect("base path").ends_with("cli/db"));
+        // Compare path components, not a `/`-joined string: on Windows the
+        // base path is `...\cli\db`.
+        let base = get_base_path().expect("base path");
+        assert!(std::path::Path::new(&base).ends_with(std::path::Path::new("cli").join("db")));
 
         // scan -> load_sessions -> load_messages through the public fns.
         let projects = scan_projects().unwrap();

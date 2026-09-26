@@ -30,6 +30,7 @@ enum StatsProvider {
     Codex,
     Continue,
     ForgeCode,
+    Kilo,
     OpenCode,
     OpenHands,
     OpenInterpreter,
@@ -90,6 +91,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Codex => "codex",
         StatsProvider::Continue => "continue",
         StatsProvider::ForgeCode => "forgecode",
+        StatsProvider::Kilo => "kilo",
         StatsProvider::OpenCode => "opencode",
         StatsProvider::OpenHands => "openhands",
         StatsProvider::OpenInterpreter => "openinterpreter",
@@ -298,6 +300,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Codex,
         StatsProvider::Continue,
         StatsProvider::ForgeCode,
+        StatsProvider::Kilo,
         StatsProvider::OpenCode,
         StatsProvider::OpenHands,
         StatsProvider::OpenInterpreter,
@@ -343,6 +346,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "codex" => Some(StatsProvider::Codex),
             "continue" => Some(StatsProvider::Continue),
             "forgecode" => Some(StatsProvider::ForgeCode),
+            "kilo" => Some(StatsProvider::Kilo),
             "opencode" => Some(StatsProvider::OpenCode),
             "openhands" => Some(StatsProvider::OpenHands),
             "openinterpreter" => Some(StatsProvider::OpenInterpreter),
@@ -420,6 +424,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Codex
     } else if project_path.starts_with("forgecode://") {
         StatsProvider::ForgeCode
+    } else if project_path.starts_with("kilo://") {
+        StatsProvider::Kilo
     } else if project_path.starts_with("opencode://") {
         StatsProvider::OpenCode
     } else if project_path.starts_with("grok://") {
@@ -524,6 +530,10 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     }
     if session_path.starts_with("opencode://") {
         return StatsProvider::OpenCode;
+    }
+
+    if session_path.starts_with("kilo://") {
+        return StatsProvider::Kilo;
     }
 
     if session_path.starts_with("cursor://") {
@@ -1157,7 +1167,7 @@ fn scan_session_file_for_global_stats(
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
     // #283: stream entries one at a time with owned-key dedup so we never
     // buffer parsed log entries (which can carry MB-sized `content` payloads).
-    let mut seen_usage_keys: HashSet<String> = HashSet::new();
+    let mut seen_usage_keys: UsageDedupState = UsageDedupState::new();
     let mut seen_cost_keys: HashSet<String> = HashSet::new();
 
     // Use SIMD-accelerated line detection
@@ -1192,14 +1202,18 @@ fn scan_session_file_for_global_stats(
         stats.total_messages = stats.total_messages.saturating_add(1);
         let message_id = entry.message.as_ref().and_then(|m| m.id.as_deref());
         let uuid = entry.uuid.as_deref().unwrap_or("");
-        let (
-            input_tokens,
-            output_tokens,
-            cache_creation_tokens,
-            cache_read_tokens,
-            reasoning_tokens,
-            tokens,
-        ) = dedup_token_totals(&mut seen_usage_keys, "", message_id, uuid, &usage);
+        let UsageGrowth {
+            totals:
+                (
+                    input_tokens,
+                    output_tokens,
+                    cache_creation_tokens,
+                    cache_read_tokens,
+                    reasoning_tokens,
+                    tokens,
+                ),
+            ..
+        } = dedup_token_totals(&mut seen_usage_keys, "", message_id, uuid, &usage);
         let source_cost = entry
             .cost_usd
             .or_else(|| entry.message.as_ref().and_then(|message| message.cost_usd));
@@ -1359,7 +1373,7 @@ fn build_global_session_file_stats_from_messages(
 
     let mut session_timestamps: Vec<DateTime<Utc>> = Vec::new();
     // #283: counts rows but only adds usage once per (session_id, message.id).
-    let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
+    let mut seen_usage_keys: UsageDedupState = UsageDedupState::with_capacity(messages.len());
     let mut seen_cost_keys: HashSet<String> = HashSet::with_capacity(messages.len());
 
     let has_date_filter = s_limit.is_some() || e_limit.is_some();
@@ -1378,14 +1392,18 @@ fn build_global_session_file_stats_from_messages(
         }
 
         stats.total_messages = stats.total_messages.saturating_add(1);
-        let (
-            input_tokens,
-            output_tokens,
-            cache_creation_tokens,
-            cache_read_tokens,
-            reasoning_tokens,
-            tokens,
-        ) = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        let UsageGrowth {
+            totals:
+                (
+                    input_tokens,
+                    output_tokens,
+                    cache_creation_tokens,
+                    cache_read_tokens,
+                    reasoning_tokens,
+                    tokens,
+                ),
+            ..
+        } = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
         let deduped_source_cost = dedup_source_cost(
             &mut seen_cost_keys,
             &message.session_id,
@@ -1506,6 +1524,7 @@ fn scan_stats_projects(
         StatsProvider::Codex => providers::codex::scan_projects(),
         StatsProvider::Continue => providers::continue_dev::scan_projects(),
         StatsProvider::ForgeCode => providers::forgecode::scan_projects(),
+        StatsProvider::Kilo => providers::kilo::scan_projects(),
         StatsProvider::OpenCode => providers::opencode::scan_projects(),
         StatsProvider::OpenHands => providers::openhands::scan_projects(),
         StatsProvider::OpenInterpreter => providers::openinterpreter::scan_projects(),
@@ -1544,6 +1563,7 @@ fn load_stats_sessions(
         StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
         StatsProvider::Continue => providers::continue_dev::load_sessions(project_path, false),
         StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
+        StatsProvider::Kilo => providers::kilo::load_sessions(project_path, false),
         StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
         StatsProvider::OpenHands => providers::openhands::load_sessions(project_path, false),
         StatsProvider::OpenInterpreter => {
@@ -1584,6 +1604,7 @@ fn load_stats_messages(
         StatsProvider::Codex => providers::codex::load_messages(session_path),
         StatsProvider::Continue => providers::continue_dev::load_messages(session_path),
         StatsProvider::ForgeCode => providers::forgecode::load_messages(session_path),
+        StatsProvider::Kilo => providers::kilo::load_messages(session_path),
         StatsProvider::OpenCode => providers::opencode::load_messages(session_path),
         StatsProvider::OpenHands => providers::openhands::load_messages(session_path),
         StatsProvider::OpenInterpreter => providers::openinterpreter::load_messages(session_path),
@@ -1876,7 +1897,7 @@ fn scan_session_file_for_project_stats(
 
     // #283: stream entries with owned-key dedup so we never buffer parsed
     // messages (which can carry MB-sized `content` payloads).
-    let mut seen_usage_keys: HashSet<String> = HashSet::new();
+    let mut seen_usage_keys: UsageDedupState = UsageDedupState::new();
     let mut seen_cost_keys: HashSet<String> = HashSet::new();
 
     for (start, end) in line_ranges {
@@ -1902,14 +1923,18 @@ fn scan_session_file_for_project_stats(
         }
 
         stats.total_messages += 1;
-        let (
-            input_tokens,
-            output_tokens,
-            cache_creation_tokens,
-            cache_read_tokens,
-            reasoning_tokens,
-            tokens,
-        ) = dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
+        let UsageGrowth {
+            totals:
+                (
+                    input_tokens,
+                    output_tokens,
+                    cache_creation_tokens,
+                    cache_read_tokens,
+                    reasoning_tokens,
+                    tokens,
+                ),
+            cache_creation_tokens_1h,
+        } = dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
         let deduped_source_cost = dedup_source_cost(
             &mut seen_cost_keys,
             &message.session_id,
@@ -1935,9 +1960,8 @@ fn scan_session_file_for_project_stats(
                         reasoning_tokens,
                         tokens,
                     ),
-                    cache_creation_tokens_1h: u64::from(
-                        usage.cache_creation_input_tokens_1h.unwrap_or(0),
-                    ),
+                    cache_creation_tokens_1h,
+                    context_tokens: usage_context_tokens(&usage),
                     source_cost: deduped_source_cost,
                 },
             );
@@ -2213,14 +2237,101 @@ fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
     normalize_token_usage(usage)
 }
 
+/// Token totals in `token_usage_totals` order:
+/// `(input, output, cache_creation, cache_read, reasoning, total)`.
+pub(super) type UsageTotals = (u64, u64, u64, u64, u64, u64);
+
+/// Largest usage recorded so far for one dedup identity (#283, #575).
+#[derive(Debug, Default, Clone, Copy)]
+pub(super) struct SeenUsage {
+    totals: UsageTotals,
+    cache_creation_tokens_1h: u64,
+}
+
+/// What one row adds after dedup: its growth over the identity's largest
+/// usage, with the 1-hour cache-write share of that growth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct UsageGrowth {
+    pub(super) totals: UsageTotals,
+    pub(super) cache_creation_tokens_1h: u64,
+}
+
+type UsageDedupState = HashMap<String, SeenUsage>;
+
+/// 1-hour cache-write tokens of a row, bounded by its total cache writes.
+fn usage_cache_creation_tokens_1h(usage: &TokenUsage) -> u64 {
+    u64::from(usage.cache_creation_input_tokens_1h.unwrap_or(0))
+        .min(u64::from(usage.cache_creation_input_tokens.unwrap_or(0)))
+}
+
+/// Context size of a row (input plus cache reads and writes), used to pick
+/// its long-context pricing tier. Taken from the row itself rather than its
+/// dedup growth: a streamed turn repeats its input on every row, so the
+/// growth rows carry no input of their own.
+fn usage_context_tokens(usage: &TokenUsage) -> u64 {
+    u64::from(usage.input_tokens.unwrap_or(0))
+        + u64::from(usage.cache_creation_input_tokens.unwrap_or(0))
+        + u64::from(usage.cache_read_input_tokens.unwrap_or(0))
+}
+
+/// A row's full usage, for rows with no dedup identity.
+fn full_usage_growth(usage: &TokenUsage) -> UsageGrowth {
+    UsageGrowth {
+        totals: token_usage_totals(usage),
+        cache_creation_tokens_1h: usage_cache_creation_tokens_1h(usage),
+    }
+}
+
+/// Record `usage` against the per-field maximum already seen for one dedup
+/// identity and return only the growth over it (#575).
+///
+/// A streamed Claude turn is written as several JSONL rows sharing one
+/// `message.id`; `output_tokens` (and reasoning) grow row by row while the
+/// input/cache fields repeat. Summing the returned growth over every row
+/// yields the per-field maximum — the turn's final usage — exactly once,
+/// independent of row order.
+pub(super) fn usage_growth(seen: &mut SeenUsage, usage: &TokenUsage) -> UsageGrowth {
+    let next = token_usage_totals(usage);
+    let grow = |seen: &mut u64, value: u64| {
+        let delta = value.saturating_sub(*seen);
+        *seen = (*seen).max(value);
+        delta
+    };
+    let max = &mut seen.totals;
+    let input = grow(&mut max.0, next.0);
+    let output = grow(&mut max.1, next.1);
+    let cache_creation = grow(&mut max.2, next.2);
+    let cache_read = grow(&mut max.3, next.3);
+    let reasoning = grow(&mut max.4, next.4);
+    max.5 = max.0 + max.1 + max.2 + max.3 + max.4;
+    let cache_creation_tokens_1h = grow(
+        &mut seen.cache_creation_tokens_1h,
+        usage_cache_creation_tokens_1h(usage),
+    )
+    .min(cache_creation);
+    UsageGrowth {
+        totals: (
+            input,
+            output,
+            cache_creation,
+            cache_read,
+            reasoning,
+            input + output + cache_creation + cache_read + reasoning,
+        ),
+        cache_creation_tokens_1h,
+    }
+}
+
 /// Dedup-aware token totals for usage accounting (#283).
 ///
 /// Claude assistant turns split content (`thinking`, `tool_use`, `text`)
-/// across multiple JSONL rows that share the same `message.id` and embed
-/// an identical `usage` payload. Aggregators call this once per row and
-/// add the returned totals unconditionally — duplicates contribute zero
-/// while row counts (`total_messages`, `model.msg_count`, etc.) stay
-/// per-row.
+/// across multiple JSONL rows that share the same `message.id`. The rows
+/// repeat the input/cache usage, while `output_tokens` grows as the turn
+/// streams (#575). Aggregators call this once per row and add the returned
+/// totals unconditionally — each row contributes only its growth over the
+/// largest usage already seen for that identity, so the turn counts its final
+/// usage once, while row counts (`total_messages`, `model.msg_count`, etc.)
+/// stay per-row.
 ///
 /// Key precedence: `(session_id, message_id)` if `message_id` is non-empty,
 /// otherwise `(session_id, uuid)`. If both `message_id` and `uuid` are
@@ -2232,20 +2343,16 @@ fn extract_token_usage(message: &ClaudeMessage) -> TokenUsage {
 /// need to buffer their parsed entries to satisfy borrow lifetimes.
 #[inline]
 fn dedup_token_totals(
-    seen: &mut HashSet<String>,
+    seen: &mut UsageDedupState,
     session_id: &str,
     message_id: Option<&str>,
     uuid: &str,
     usage: &TokenUsage,
-) -> (u64, u64, u64, u64, u64, u64) {
+) -> UsageGrowth {
     let Some(key) = dedup_usage_key(session_id, message_id, uuid) else {
-        return token_usage_totals(usage);
+        return full_usage_growth(usage);
     };
-    if seen.insert(key) {
-        token_usage_totals(usage)
-    } else {
-        (0, 0, 0, 0, 0, 0)
-    }
+    usage_growth(seen.entry(key).or_default(), usage)
 }
 
 /// Dedup an authoritative source cost using the same identity as token usage.
@@ -2284,10 +2391,10 @@ fn dedup_usage_key(session_id: &str, message_id: Option<&str>, uuid: &str) -> Op
 /// Convenience wrapper for `ClaudeMessage`-based aggregators.
 #[inline]
 fn dedup_token_totals_msg(
-    seen: &mut HashSet<String>,
+    seen: &mut UsageDedupState,
     message: &ClaudeMessage,
     usage: &TokenUsage,
-) -> (u64, u64, u64, u64, u64, u64) {
+) -> UsageGrowth {
     dedup_token_totals(
         seen,
         &message.session_id,
@@ -2502,6 +2609,7 @@ fn build_antigravity_session_token_stats(
                     token_count,
                 ),
                 cache_creation_tokens_1h: 0,
+                context_tokens: input_tokens + cache_creation_tokens + cache_read_tokens,
                 source_cost: None,
             },
         );
@@ -2590,6 +2698,9 @@ struct ModelUsageUpdate<'a> {
     service_tier: Option<&'a str>,
     totals: (u64, u64, u64, u64, u64, u64),
     cache_creation_tokens_1h: u64,
+    /// Row context size that picks the long-context tier (see
+    /// [`usage_context_tokens`]).
+    context_tokens: u64,
     source_cost: Option<f64>,
 }
 
@@ -2604,6 +2715,7 @@ fn accumulate_model_usage(
         service_tier,
         totals,
         cache_creation_tokens_1h,
+        context_tokens,
         source_cost,
     } = update;
     let (
@@ -2625,10 +2737,7 @@ fn accumulate_model_usage(
     entry.4 += cache_creation_tokens;
     entry.5 += cache_read_tokens;
     entry.6 += reasoning_tokens;
-    let context_tier = context_tier_min_tokens(
-        model_name,
-        input_tokens + cache_creation_tokens + cache_read_tokens,
-    );
+    let context_tier = context_tier_min_tokens(model_name, context_tokens);
     let context = model_context_usage
         .entry(model_key.clone())
         .or_default()
@@ -2849,6 +2958,17 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
                 .unwrap_or(project_path)
                 .to_string()
         }
+        StatsProvider::Kilo => {
+            if let Ok(projects) = providers::kilo::scan_projects() {
+                if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
+                    return project.name;
+                }
+            }
+            project_path
+                .strip_prefix("kilo://")
+                .unwrap_or(project_path)
+                .to_string()
+        }
         StatsProvider::OpenCode => {
             if let Ok(projects) = providers::opencode::scan_projects() {
                 if let Some(project) = projects.into_iter().find(|p| p.path == project_path) {
@@ -3021,6 +3141,14 @@ fn resolve_provider_project_name_from_session(
                 .and_then(|rest| rest.split("/conversation/").next())
                 .unwrap_or("unknown");
             let project_path = format!("forgecode://workspace/{workspace_id}");
+            resolve_provider_project_name(provider, &project_path)
+        }
+        StatsProvider::Kilo => {
+            let project_part = session_path
+                .strip_prefix("kilo://")
+                .and_then(|rest| rest.split('/').next())
+                .unwrap_or("unknown");
+            let project_path = format!("kilo://{project_part}");
             resolve_provider_project_name(provider, &project_path)
         }
         StatsProvider::OpenCode => {
@@ -3216,7 +3344,7 @@ fn build_session_token_stats_from_messages(
     let mut total_reasoning_tokens = 0u64;
     let mut tool_usage: HashMap<String, (u32, u32)> = HashMap::new();
     // #283: only add usage once per (session_id, message.id).
-    let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
+    let mut seen_usage_keys: UsageDedupState = UsageDedupState::with_capacity(messages.len());
     let mut seen_cost_keys: HashSet<String> = HashSet::with_capacity(messages.len());
     let mut model_usage: HashMap<String, ModelUsageAggregate> = HashMap::new();
     let mut model_context_usage: ModelContextUsageMap = HashMap::new();
@@ -3240,14 +3368,18 @@ fn build_session_token_stats_from_messages(
 
         let usage = extract_token_usage(message);
         included_message_count += 1;
-        let (
-            input_tokens,
-            output_tokens,
-            cache_creation_tokens,
-            cache_read_tokens,
-            reasoning_tokens,
-            tokens,
-        ) = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+        let UsageGrowth {
+            totals:
+                (
+                    input_tokens,
+                    output_tokens,
+                    cache_creation_tokens,
+                    cache_read_tokens,
+                    reasoning_tokens,
+                    tokens,
+                ),
+            cache_creation_tokens_1h,
+        } = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
         let deduped_source_cost = dedup_source_cost(
             &mut seen_cost_keys,
             &message.session_id,
@@ -3272,9 +3404,8 @@ fn build_session_token_stats_from_messages(
                         reasoning_tokens,
                         tokens,
                     ),
-                    cache_creation_tokens_1h: u64::from(
-                        usage.cache_creation_input_tokens_1h.unwrap_or(0),
-                    ),
+                    cache_creation_tokens_1h,
+                    context_tokens: usage_context_tokens(&usage),
                     source_cost: deduped_source_cost,
                 },
             );
@@ -3615,7 +3746,7 @@ fn get_provider_project_stats_summary(
         let mut parsed_timestamps = Vec::new();
         let mut session_dates = HashSet::new();
         // #283: per-session dedup
-        let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
+        let mut seen_usage_keys: UsageDedupState = UsageDedupState::with_capacity(messages.len());
         let mut seen_cost_keys: HashSet<String> = HashSet::with_capacity(messages.len());
 
         for message in &messages {
@@ -3633,14 +3764,18 @@ fn get_provider_project_stats_summary(
 
             included_messages += 1;
 
-            let (
-                input_tokens,
-                output_tokens,
-                cache_creation_tokens,
-                cache_read_tokens,
-                reasoning_tokens,
-                total_tokens,
-            ) = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+            let UsageGrowth {
+                totals:
+                    (
+                        input_tokens,
+                        output_tokens,
+                        cache_creation_tokens,
+                        cache_read_tokens,
+                        reasoning_tokens,
+                        total_tokens,
+                    ),
+                cache_creation_tokens_1h,
+            } = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
             let deduped_source_cost = dedup_source_cost(
                 &mut seen_cost_keys,
                 &message.session_id,
@@ -3665,9 +3800,8 @@ fn get_provider_project_stats_summary(
                             reasoning_tokens,
                             total_tokens,
                         ),
-                        cache_creation_tokens_1h: u64::from(
-                            usage.cache_creation_input_tokens_1h.unwrap_or(0),
-                        ),
+                        cache_creation_tokens_1h,
+                        context_tokens: usage_context_tokens(&usage),
                         source_cost: deduped_source_cost,
                     },
                 );
@@ -3899,7 +4033,7 @@ fn get_provider_session_comparison(
         // #283: dedup token usage so each session's `total_tokens` reflects unique
         // assistant turns. `included_message_count` stays per-row (rows displayed)
         // — tokens-per-message in the UI is "tokens per displayed row", not per turn.
-        let mut seen_usage_keys: HashSet<String> = HashSet::with_capacity(messages.len());
+        let mut seen_usage_keys: UsageDedupState = UsageDedupState::with_capacity(messages.len());
 
         for message in &messages {
             if !should_include_stats_message(message, mode) {
@@ -3915,8 +4049,10 @@ fn get_provider_session_comparison(
             }
 
             included_message_count += 1;
-            let (_, _, _, _, _, tokens) =
-                dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
+            let UsageGrowth {
+                totals: (_, _, _, _, _, tokens),
+                ..
+            } = dedup_token_totals_msg(&mut seen_usage_keys, message, &usage);
             total_tokens += tokens;
 
             if let Some(ts) = parsed_ts {
@@ -4167,7 +4303,7 @@ fn scan_session_token_stats(
     let line_ranges = find_line_ranges(&mmap);
 
     // #283: stream entries with owned-key dedup (no per-file Vec buffering).
-    let mut seen_usage_keys: HashSet<String> = HashSet::new();
+    let mut seen_usage_keys: UsageDedupState = UsageDedupState::new();
     let mut seen_cost_keys: HashSet<String> = HashSet::new();
 
     for (start, end) in line_ranges {
@@ -4204,14 +4340,18 @@ fn scan_session_token_stats(
         message_count += 1;
         included_message_count += 1;
 
-        let (
-            input_tokens,
-            output_tokens,
-            cache_creation_tokens,
-            cache_read_tokens,
-            reasoning_tokens,
-            tokens,
-        ) = dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
+        let UsageGrowth {
+            totals:
+                (
+                    input_tokens,
+                    output_tokens,
+                    cache_creation_tokens,
+                    cache_read_tokens,
+                    reasoning_tokens,
+                    tokens,
+                ),
+            cache_creation_tokens_1h,
+        } = dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
         let deduped_source_cost = dedup_source_cost(
             &mut seen_cost_keys,
             &message.session_id,
@@ -4236,9 +4376,8 @@ fn scan_session_token_stats(
                         reasoning_tokens,
                         tokens,
                     ),
-                    cache_creation_tokens_1h: u64::from(
-                        usage.cache_creation_input_tokens_1h.unwrap_or(0),
-                    ),
+                    cache_creation_tokens_1h,
+                    context_tokens: usage_context_tokens(&usage),
                     source_cost: deduped_source_cost,
                 },
             );
@@ -4696,7 +4835,7 @@ fn scan_session_file_for_comparison(
     let line_ranges = find_line_ranges(&mmap);
 
     // #283: stream entries with owned-key dedup (no per-file Vec buffering).
-    let mut seen_usage_keys: HashSet<String> = HashSet::new();
+    let mut seen_usage_keys: UsageDedupState = UsageDedupState::new();
 
     for (start, end) in line_ranges {
         let mut line_bytes = mmap[start..end].to_vec();
@@ -4726,8 +4865,10 @@ fn scan_session_file_for_comparison(
 
         message_count += 1;
 
-        let (_, _, _, _, _, tokens) =
-            dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
+        let UsageGrowth {
+            totals: (_, _, _, _, _, tokens),
+            ..
+        } = dedup_token_totals_msg(&mut seen_usage_keys, &message, &usage);
         total_tokens += tokens;
 
         if let Some(timestamp) = parsed_ts {
@@ -5062,6 +5203,13 @@ pub async fn get_global_stats_summary(
             collect_provider_global_file_stats(StatsProvider::OpenCode, mode, s_ref, e_ref);
         project_names.extend(opencode_projects);
         file_stats.extend(opencode_stats);
+    }
+
+    if providers_to_include.contains(&StatsProvider::Kilo) {
+        let (kilo_stats, kilo_projects) =
+            collect_provider_global_file_stats(StatsProvider::Kilo, mode, s_ref, e_ref);
+        project_names.extend(kilo_projects);
+        file_stats.extend(kilo_stats);
     }
 
     if providers_to_include.contains(&StatsProvider::Grok) {
@@ -6257,7 +6405,7 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
-        assert_eq!(supported.len(), 30);
+        assert_eq!(supported.len(), 31);
     }
 
     #[test]
@@ -7699,6 +7847,50 @@ mod tests {
         }
     }
 
+    /// Kilo Code is wired into per-project/session stats but was missing from
+    /// `get_global_stats_summary`'s per-provider collection, so a Kilo-only
+    /// store produced an empty global summary (PR #580 review). `KILO_HOME`
+    /// points the provider at a fixture `kilo.db`.
+    #[tokio::test]
+    #[serial]
+    async fn test_global_summary_includes_kilo_store() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let kilo_home = temp_dir.path().join("kilo");
+        fs::create_dir_all(&kilo_home).expect("create KILO_HOME");
+        {
+            let conn = providers::kilo::test_support::create_test_db(&kilo_home);
+            providers::kilo::test_support::seed(&conn);
+            providers::kilo::test_support::seed_assistant_usage(&conn, 100, 50);
+        }
+        let _kilo_home = EnvVarGuard::set("KILO_HOME", &kilo_home);
+
+        // claude_path is required but the Claude projects subtree is empty —
+        // only the Kilo branch of the global summary is exercised.
+        let summary = get_global_stats_summary(
+            temp_dir.path().to_string_lossy().to_string(),
+            Some(vec!["kilo".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("failed to get global summary");
+
+        assert_eq!(summary.total_projects, 1, "Kilo project must be counted");
+        assert_eq!(summary.total_sessions, 1, "Kilo session must be counted");
+        assert_eq!(summary.token_distribution.input, 100);
+        assert_eq!(summary.token_distribution.output, 50);
+        assert!(
+            summary
+                .provider_distribution
+                .iter()
+                .any(|p| p.provider_id == "kilo"),
+            "provider_distribution must list kilo: {:?}",
+            summary.provider_distribution
+        );
+    }
+
     /// Write a temporary `ForgeCode` database used by stats tests.
     fn write_forgecode_test_db(base_dir: &std::path::Path) {
         let db_path = base_dir.join(".forge.db");
@@ -8105,61 +8297,63 @@ mod tests {
 
     #[test]
     fn test_dedup_token_totals_returns_full_when_first_seen() {
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen = UsageDedupState::new();
         let usage = sample_usage();
-        let result = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
+        let result =
+            dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage).totals;
         assert_eq!(result, (6, 222, 28644, 14732, 0, 6 + 222 + 28644 + 14732));
     }
 
     #[test]
     fn test_dedup_token_totals_returns_zero_when_duplicate() {
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen = UsageDedupState::new();
         let usage = sample_usage();
-        let _ = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
-        let result = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-2", &usage);
+        let _ = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage).totals;
+        let result =
+            dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-2", &usage).totals;
         assert_eq!(result, (0, 0, 0, 0, 0, 0), "duplicate by message_id");
     }
 
     #[test]
     fn test_dedup_token_totals_distinct_ids_summed_separately() {
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen = UsageDedupState::new();
         let usage = sample_usage();
-        let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
-        let r2 = dedup_token_totals(&mut seen, "sess-1", Some("msg_b"), "uuid-2", &usage);
+        let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage).totals;
+        let r2 = dedup_token_totals(&mut seen, "sess-1", Some("msg_b"), "uuid-2", &usage).totals;
         assert_eq!(r1, r2, "both should return full totals");
         assert_ne!(r1, (0, 0, 0, 0, 0, 0));
     }
 
     #[test]
     fn test_dedup_token_totals_missing_message_id_falls_back_to_uuid() {
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen = UsageDedupState::new();
         let usage = sample_usage();
         // Two distinct uuids with no message_id → both counted (distinct fallback keys).
-        let r1 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-1", &usage);
-        let r2 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-2", &usage);
+        let r1 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-1", &usage).totals;
+        let r2 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-2", &usage).totals;
         assert_eq!(r1.0, 6);
         assert_eq!(r2.0, 6);
         // Same uuid repeated → second is deduped.
-        let r3 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-1", &usage);
+        let r3 = dedup_token_totals(&mut seen, "sess-1", None, "uuid-1", &usage).totals;
         assert_eq!(r3, (0, 0, 0, 0, 0, 0));
     }
 
     #[test]
     fn test_dedup_token_totals_empty_message_id_falls_back_to_uuid() {
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen = UsageDedupState::new();
         let usage = sample_usage();
-        let r1 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage);
-        let r2 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage);
+        let r1 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage).totals;
+        let r2 = dedup_token_totals(&mut seen, "sess-1", Some(""), "uuid-1", &usage).totals;
         assert_ne!(r1, (0, 0, 0, 0, 0, 0));
         assert_eq!(r2, (0, 0, 0, 0, 0, 0));
     }
 
     #[test]
     fn test_dedup_token_totals_cross_session_isolation() {
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen = UsageDedupState::new();
         let usage = sample_usage();
-        let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage);
-        let r2 = dedup_token_totals(&mut seen, "sess-2", Some("msg_a"), "uuid-2", &usage);
+        let r1 = dedup_token_totals(&mut seen, "sess-1", Some("msg_a"), "uuid-1", &usage).totals;
+        let r2 = dedup_token_totals(&mut seen, "sess-2", Some("msg_a"), "uuid-2", &usage).totals;
         assert_ne!(r1, (0, 0, 0, 0, 0, 0));
         assert_ne!(r2, (0, 0, 0, 0, 0, 0));
     }
@@ -8169,13 +8363,191 @@ mod tests {
         // Defensive: a row with neither message_id nor uuid (malformed/legacy log)
         // has no identity to dedup by. Each such row must contribute its usage
         // rather than collapse to a shared empty key.
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen = UsageDedupState::new();
         let usage = sample_usage();
-        let r1 = dedup_token_totals(&mut seen, "", None, "", &usage);
-        let r2 = dedup_token_totals(&mut seen, "", None, "", &usage);
+        let r1 = dedup_token_totals(&mut seen, "", None, "", &usage).totals;
+        let r2 = dedup_token_totals(&mut seen, "", None, "", &usage).totals;
         assert_ne!(r1, (0, 0, 0, 0, 0, 0), "first unkeyable row counts");
         assert_ne!(r2, (0, 0, 0, 0, 0, 0), "second unkeyable row also counts");
         assert_eq!(r1, r2, "both contribute full totals");
+    }
+
+    fn usage_with_output(output: u32) -> TokenUsage {
+        TokenUsage {
+            output_tokens: Some(output),
+            ..sample_usage()
+        }
+    }
+
+    #[test]
+    fn test_dedup_token_totals_counts_streaming_growth_once() {
+        // #575: one assistant turn is written as several rows sharing
+        // `message.id`; `output_tokens` grows as the stream progresses. The
+        // turn must contribute its final (largest) usage exactly once.
+        let mut seen = UsageDedupState::new();
+        let rows = [10, 150, 222];
+        let mut sum = (0, 0, 0, 0, 0, 0);
+        for (i, output) in rows.iter().enumerate() {
+            let usage = usage_with_output(*output);
+            let r = dedup_token_totals(
+                &mut seen,
+                "sess-1",
+                Some("msg_a"),
+                &format!("uuid-{i}"),
+                &usage,
+            )
+            .totals;
+            sum = (
+                sum.0 + r.0,
+                sum.1 + r.1,
+                sum.2 + r.2,
+                sum.3 + r.3,
+                sum.4 + r.4,
+                sum.5 + r.5,
+            );
+        }
+        assert_eq!(sum, (6, 222, 28644, 14732, 0, 6 + 222 + 28644 + 14732));
+    }
+
+    #[test]
+    fn test_dedup_token_totals_ignores_smaller_later_snapshot() {
+        // Order-independent: a smaller snapshot after a larger one adds nothing.
+        let mut seen = UsageDedupState::new();
+        let r1 = dedup_token_totals(
+            &mut seen,
+            "sess-1",
+            Some("msg_a"),
+            "uuid-1",
+            &usage_with_output(222),
+        )
+        .totals;
+        let r2 = dedup_token_totals(
+            &mut seen,
+            "sess-1",
+            Some("msg_a"),
+            "uuid-2",
+            &usage_with_output(10),
+        )
+        .totals;
+        assert_eq!(r1.1, 222);
+        assert_eq!(r2, (0, 0, 0, 0, 0, 0));
+    }
+
+    #[test]
+    fn test_session_token_stats_uses_final_streaming_output() {
+        let messages: Vec<ClaudeMessage> = [(10, "uuid-1"), (150, "uuid-2"), (222, "uuid-3")]
+            .iter()
+            .enumerate()
+            .map(|(i, (output, uuid))| {
+                make_assistant_message(
+                    uuid,
+                    "sess-1",
+                    Some("msg_stream"),
+                    &format!("2026-04-27T10:00:0{i}Z"),
+                    usage_with_output(*output),
+                )
+            })
+            .collect();
+
+        let stats = build_session_token_stats_from_messages(
+            SessionTokenStatsOptions {
+                provider: StatsProvider::Claude,
+                session_id: "sess-1".to_string(),
+                project_name: "test-project".to_string(),
+                summary: None,
+                mode: StatsMode::BillingTotal,
+                start_date: None,
+                end_date: None,
+            },
+            &messages,
+        )
+        .expect("stats");
+
+        assert_eq!(stats.total_output_tokens, 222, "final streamed output");
+        assert_eq!(stats.total_input_tokens, 6, "input still counted once");
+        assert_eq!(stats.total_tokens, 6 + 222 + 28644 + 14732);
+    }
+
+    fn session_stats_for(messages: &[ClaudeMessage]) -> SessionTokenStats {
+        build_session_token_stats_from_messages(
+            SessionTokenStatsOptions {
+                provider: StatsProvider::Claude,
+                session_id: "sess-1".to_string(),
+                project_name: "test-project".to_string(),
+                summary: None,
+                mode: StatsMode::BillingTotal,
+                start_date: None,
+                end_date: None,
+            },
+            messages,
+        )
+        .expect("stats")
+    }
+
+    #[test]
+    fn test_streaming_growth_stays_in_the_turns_context_tier() {
+        // Growth rows repeat the turn's input, so their delta carries no input.
+        // The context tier must still come from the turn's context size, or the
+        // streamed output lands in the short tier (#585 review).
+        let messages: Vec<ClaudeMessage> = [10u32, 150, 222]
+            .iter()
+            .enumerate()
+            .map(|(i, output)| {
+                let mut message = make_assistant_message(
+                    &format!("uuid-{i}"),
+                    "sess-1",
+                    Some("msg_long"),
+                    &format!("2026-04-27T10:00:0{i}Z"),
+                    TokenUsage {
+                        input_tokens: Some(250_000),
+                        output_tokens: Some(*output),
+                        ..Default::default()
+                    },
+                );
+                message.model = Some("gemini-2.5-pro".to_string());
+                message
+            })
+            .collect();
+
+        let stats = session_stats_for(&messages);
+        let model = &stats.model_distribution[0];
+        assert_eq!(model.context_breakdown.len(), 1, "one tier only");
+        assert_eq!(model.context_breakdown[0].min_context_tokens, 200_001);
+        assert_eq!(model.context_breakdown[0].output_tokens, 222);
+    }
+
+    #[test]
+    fn test_streaming_cache_growth_keeps_its_own_ttl() {
+        // Only the growth's own TTL may be attributed to it: a turn whose 1h
+        // cache stays at 100 while total cache creation grows to 200 has 100
+        // tokens of 5m cache, not 200 tokens of 1h cache.
+        let messages: Vec<ClaudeMessage> = [100u32, 200]
+            .iter()
+            .enumerate()
+            .map(|(i, cache_creation)| {
+                make_assistant_message(
+                    &format!("uuid-{i}"),
+                    "sess-1",
+                    Some("msg_cache"),
+                    &format!("2026-04-27T10:00:0{i}Z"),
+                    TokenUsage {
+                        input_tokens: Some(6),
+                        output_tokens: Some(1),
+                        cache_creation_input_tokens: Some(*cache_creation),
+                        cache_creation_input_tokens_1h: Some(100),
+                        ..Default::default()
+                    },
+                )
+            })
+            .collect();
+
+        let stats = session_stats_for(&messages);
+        let context = &stats.model_distribution[0].context_breakdown;
+        let one_hour: u64 = context.iter().map(|c| c.cache_creation_tokens_1h).sum();
+        let five_minute: u64 = context.iter().map(|c| c.cache_creation_tokens_5m).sum();
+        assert_eq!(stats.total_cache_creation_tokens, 200);
+        assert_eq!(one_hour, 100, "1h cache counted once");
+        assert_eq!(five_minute, 100, "growth is 5m cache");
     }
 
     #[test]
