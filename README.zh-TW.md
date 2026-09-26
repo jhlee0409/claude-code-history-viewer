@@ -70,7 +70,7 @@ Docker、VPS、systemd 設定請參閱[伺服器模式](#伺服器模式-webui)�
 
 AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供跨工具回顧歷史的方式。CCHV 解決了這個問題。
 
-**三十個助手。一個檢視器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code 和 Kilo Code）、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code 工作階段之間無縫切換 — 比較 Token 用量、跨提供者搜尋、在一個介面中分析您的工作流程。
+**三十一個助手。一個檢視器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code 工作階段之間無縫切換 — 比較 Token 用量、跨提供者搜尋、在一個介面中分析您的工作流程。
 
 | 提供者 | 資料位置 | 取得內容 |
 |----------|--------------|--------------|
@@ -79,7 +79,8 @@ AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供�
 | **Gemini CLI** | `~/.gemini/history/` | 包含工具呼叫的對話記錄 |
 | **Antigravity** | `~/.gemini/antigravity/` | `brain/` 下的對話狀態，以及 `.token-monitor/rpc-cache/v1/` 下的 Token 監控資料 |
 | **Codex CLI** | `~/.codex/sessions/` | 包含代理回應的工作階段記錄 |
-| **Cline**（含 Roo Code、Kilo Code） | VS Code `globalStorage/<ext>/tasks/` | Cline 家族的任務式對話記錄 |
+| **Cline**（含 Roo Code；舊版 Kilo Code） | `~/.cline/data/sessions/`（新版 Cline）及 VS Code `globalStorage/<ext>/tasks/`（舊版） | Cline 家族的任務式對話記錄 |
+| **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026 年 5 月起改用 OpenCode 核心；遷移前的 Cline 家族資料仍歸 Cline |
 | **Cursor** | `~/.cursor/` | Composer 和聊天對話 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | 代理逐字稿，與 Cursor IDE 來源相互獨立 |
 | **Aider** | 專案目錄 | 聊天記錄和編輯日誌 |
@@ -129,7 +130,7 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 
 | 功能 | 說明 |
 |---------|-------------|
-| **多提供者支援** | 統一檢視 **30 個 AI 程式設計助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code 和 Kilo Code）、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code — 依提供者篩選、跨工具比較 |
+| **多提供者支援** | 統一檢視 **31 個 AI 程式設計助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code — 依提供者篩選、跨工具比較 |
 | **對話瀏覽器** | 依專案/工作階段瀏覽對話記錄，支援工作樹分組 |
 | **全域搜尋** | 即時搜尋所有提供者的對話記錄 |
 | **分析儀表板** | 雙模式 Token 統計（帳單 vs 對話）、成本明細、提供者分佈圖表 |
@@ -143,6 +144,18 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 | 提供者 | 說明 |
 |---------|-------|
 | **Antigravity** | 透過標準 provider 資料流載入。工作階段來自 token monitor 快取，可直接參與專案/工作階段瀏覽、Token 統計、分析儀表板與全域搜尋，無需另外建立專用 UI 模式。 |
+
+### v1.28.0 新增
+
+| 功能 | 說明 |
+|------|------|
+| **新版 Cline 工作階段** | 新版 Cline（包含 VS Code 擴充功能）將工作階段儲存在 `~/.cline/data/sessions/`，現在會連同標題、完整對話以及 token／費用統計一併顯示。Windows 上也能找到 Cline、Roo Code 和 Kilo Code |
+| **Kilo Code 新儲存區** | 將 Kilo Code 的 OpenCode 核心資料庫（`kilo.db`）作為獨立提供者讀取，支援即時更新與全域統計 |
+| **準確的輸出 token** | 修正串流 Claude Code 回合的輸出 token 少計約 40% 的問題，每個回合的最終用量只計算一次 |
+| **工作階段面板與資料夾合併** | 所選專案的工作階段在可調整寬度的獨立欄位中開啟；多個工具共用的同一資料夾合併為一列，並以提供者標籤顯示 |
+| **更簡潔的對話檢視** | 摺疊列中顯示工具呼叫摘要，連續回合不再重複標題，頂端只保留一個檢視切換器 |
+| **價格表更新** | 所有費率皆已對照官方定價頁面重新驗證，支援 fast／priority 等級，並標示即將停用的模型及其替代模型 |
+| **對話記錄保留期** | Claude Code 的 `cleanupPeriodDays` 可設定長期保留值（如 3650），並清楚標示為 Claude Code 的設定 — 本應用程式不會刪除任何工作階段 |
 
 ### v1.23.0 新增
 
@@ -399,7 +412,7 @@ GET /health
 ## 使用方式
 
 1. 啟動應用程式
-2. 自動掃描所有 30 個支援提供者（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 見上方提供者表格）的對話資料
+2. 自動掃描所有 31 個支援提供者（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 見上方提供者表格）的對話資料
 3. 在左側邊欄瀏覽專案 — 使用分頁列依提供者篩選
 4. 點擊工作階段檢視訊息
 5. 使用分頁切換訊息、分析、Token 統計、最近編輯和工作階段面板

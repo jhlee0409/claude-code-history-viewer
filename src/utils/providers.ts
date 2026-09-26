@@ -1,7 +1,7 @@
 import type { ProviderId } from "../types";
 import { isWindows } from "./platform";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 // WSL provider loaders use UNC-backed paths and are not interchangeable with
@@ -34,6 +34,7 @@ const PROVIDER_TRANSLATIONS: Record<
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
   goose: { key: "common.provider.goose", fallback: "Goose" },
   grok: { key: "common.provider.grok", fallback: "Grok CLI" },
+  kilo: { key: "common.provider.kilo", fallback: "Kilo Code" },
   kimi: { key: "common.provider.kimi", fallback: "Kimi" },
   kiro: { key: "common.provider.kiro", fallback: "Kiro CLI" },
   llm: { key: "common.provider.llm", fallback: "llm" },
@@ -176,6 +177,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  kilo: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   kimi: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -304,6 +312,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "gemini":
     case "goose":
     case "grok":
+    case "kilo":
     case "kimi":
     case "forgecode":
     case "kiro":
@@ -499,6 +508,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   gemini: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   goose: "bg-red-500/15 text-red-600 dark:text-red-400",
   grok: "bg-zinc-800/15 text-zinc-800 dark:text-zinc-200",
+  kilo: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
   kimi: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300",
   kiro: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
   llm: "bg-slate-500/15 text-slate-600 dark:text-slate-400",

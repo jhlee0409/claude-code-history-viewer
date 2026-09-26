@@ -70,7 +70,7 @@ Docker, VPS, systemd 설정은 [서버 모드](#서버-모드-webui)를 참고�
 
 AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 도구 간에 히스토리를 돌아볼 방법을 제공하지 않습니다. CCHV가 이를 해결합니다.
 
-**서른 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code & Kilo Code 포함), Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
+**서른한 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code 포함), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
 
 | 프로바이더 | 데이터 위치 | 제공 내용 |
 |----------|--------------|--------------|
@@ -79,7 +79,8 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 | **Gemini CLI** | `~/.gemini/history/` | 도구 호출이 포함된 대화 기록 |
 | **Antigravity** | `~/.gemini/antigravity/` | `brain/` 아래의 대화 상태와 `.token-monitor/rpc-cache/v1/` 아래의 토큰 모니터 데이터 |
 | **Codex CLI** | `~/.codex/sessions/` | 에이전트 응답이 포함된 세션 롤아웃 |
-| **Cline** (Roo Code, Kilo Code 포함) | VS Code `globalStorage/<ext>/tasks/` | Cline 계열 전반의 태스크 기반 기록 |
+| **Cline** (Roo Code 포함, 구 Kilo Code) | `~/.cline/data/sessions/` (최신 Cline) 및 VS Code `globalStorage/<ext>/tasks/` (이전 버전) | Cline 계열 전반의 태스크 기반 기록 |
+| **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | 2026년 5월부터 OpenCode 코어. 마이그레이션 전 Cline 계열 데이터는 Cline에 유지 |
 | **Cursor** | `~/.cursor/` | Composer 및 채팅 대화 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | 에이전트 트랜스크립트 (Cursor IDE 소스와 별개) |
 | **Aider** | 프로젝트 디렉토리 | 채팅 기록 및 편집 로그 |
@@ -129,7 +130,7 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 
 | 기능 | 설명 |
 |---------|-------------|
-| **멀티 프로바이더** | **30개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code & Kilo Code 포함), Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code — 프로바이더별 필터링, 도구 간 비교 |
+| **멀티 프로바이더** | **31개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code 포함), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code — 프로바이더별 필터링, 도구 간 비교 |
 | **대화 브라우저** | 프로젝트/세션별 대화 탐색 (워크트리 그룹핑 지원) |
 | **글로벌 검색** | 모든 프로바이더의 대화에서 즉시 검색 |
 | **분석 대시보드** | 듀얼 모드 토큰 통계 (빌링 vs 대화), 비용 브레이크다운, 프로바이더 분포 차트 |
@@ -143,6 +144,18 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 | 프로바이더 | 설명 |
 |---------|-------|
 | **Antigravity** | 표준 프로바이더 파이프라인으로 로드됩니다. 세션은 token monitor 캐시에서 가져오며, 별도 UI 모드 없이 프로젝트/세션 보기, 토큰 통계, 분석 대시보드, 글로벌 검색에 바로 참여합니다. |
+
+### v1.28.0 신규
+
+| 기능 | 설명 |
+|------|------|
+| **최신 Cline 세션** | 최신 Cline(VS Code 확장 포함)은 세션을 `~/.cline/data/sessions/`에 저장합니다. 이제 제목, 전체 대화, 토큰·비용 통계와 함께 표시됩니다. Windows에서도 Cline, Roo Code, Kilo Code를 찾습니다 |
+| **Kilo Code 새 저장소** | Kilo Code의 OpenCode 코어 데이터베이스(`kilo.db`)를 별도 프로바이더로 읽으며, 실시간 반영과 전체 통계를 지원합니다 |
+| **정확한 출력 토큰** | 스트리밍된 Claude Code 턴의 출력 토큰이 약 40% 적게 집계되던 문제를 고쳐, 각 턴의 최종 사용량을 한 번만 셉니다 |
+| **세션 패널 & 폴더 병합** | 선택한 프로젝트의 세션이 크기 조절 가능한 별도 열에 열리고, 여러 도구가 쓰는 같은 폴더는 프로바이더 칩과 함께 한 줄로 표시됩니다 |
+| **더 깔끔한 대화 화면** | 접힌 행에 도구 호출 요약이 표시되고, 이어지는 턴의 반복 헤더가 사라졌으며, 헤더에는 뷰 전환기가 하나만 있습니다 |
+| **가격표 갱신** | 모든 요금을 공식 가격 페이지와 재검증하고, fast/priority 등급 가격을 반영했으며, 종료 예정 모델은 대체 모델과 함께 표시됩니다 |
+| **대화 기록 보관 기간** | Claude Code의 `cleanupPeriodDays`에 장기 보관 값(예: 3650)을 넣을 수 있고, Claude Code의 설정임을 명확히 표시합니다 — 이 앱은 세션을 삭제하지 않습니다 |
 
 ### v1.23.0 신규
 
@@ -399,7 +412,7 @@ GET /health
 ## 사용법
 
 1. 앱 실행
-2. 지원하는 30개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
+2. 지원하는 31개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
 3. 좌측 사이드바에서 프로젝트 탐색 — 탭 바로 프로바이더별 필터링
 4. 세션 클릭하여 메시지 확인
 5. 탭으로 메시지, 분석, 토큰 통계, 최근 편집, 세션 보드 전환

@@ -15,6 +15,7 @@ enum EditsProvider {
     Claude,
     Codex,
     ForgeCode,
+    Kilo,
     OpenCode,
 }
 
@@ -23,6 +24,8 @@ fn detect_project_provider(project_path: &str) -> EditsProvider {
         EditsProvider::Codex
     } else if project_path.starts_with("forgecode://") {
         EditsProvider::ForgeCode
+    } else if project_path.starts_with("kilo://") {
+        EditsProvider::Kilo
     } else if project_path.starts_with("opencode://") {
         EditsProvider::OpenCode
     } else {
@@ -251,6 +254,19 @@ fn resolve_provider_project_cwd(provider: EditsProvider, project_path: &str) -> 
             } else {
                 Some(project.actual_path)
             }
+        }
+        EditsProvider::Kilo => {
+            let projects = providers::kilo::scan_projects().ok()?;
+            projects
+                .into_iter()
+                .find(|project| project.path == project_path)
+                .and_then(|project| {
+                    if project.actual_path.is_empty() {
+                        None
+                    } else {
+                        Some(project.actual_path)
+                    }
+                })
         }
         EditsProvider::OpenCode => {
             let projects = providers::opencode::scan_projects().ok()?;
@@ -677,6 +693,7 @@ fn collect_provider_edits(
     let sessions = match provider {
         EditsProvider::Codex => providers::codex::load_sessions(project_path, false)?,
         EditsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false)?,
+        EditsProvider::Kilo => providers::kilo::load_sessions(project_path, false)?,
         EditsProvider::OpenCode => providers::opencode::load_sessions(project_path, false)?,
         EditsProvider::Claude => {
             return Err("Claude provider should use legacy edits path".to_string())
@@ -699,6 +716,7 @@ fn collect_provider_edits(
         let messages = match provider {
             EditsProvider::Codex => providers::codex::load_messages(&session.file_path)?,
             EditsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path)?,
+            EditsProvider::Kilo => providers::kilo::load_messages(&session.file_path)?,
             EditsProvider::OpenCode => providers::opencode::load_messages(&session.file_path)?,
             EditsProvider::Claude => Vec::new(),
         };

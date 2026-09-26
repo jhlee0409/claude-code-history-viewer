@@ -112,6 +112,7 @@ const SOURCE_COST_ONLY_PROVIDER_IDS = new Set([
   "copilot",
   "cursor",
   "cursor-agent",
+  "kilo",
   "opencode",
 ]);
 

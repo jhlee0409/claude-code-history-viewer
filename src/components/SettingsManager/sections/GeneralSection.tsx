@@ -43,6 +43,11 @@ import {
 import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings, ClaudeModel, AutoUpdatesChannel, AttributionConfig } from "@/types";
 import { getModelLifecycle } from "@/components/AnalyticsDashboard/utils/calculations";
+import {
+  DEFAULT_CLEANUP_PERIOD_DAYS,
+  MIN_CLEANUP_PERIOD_DAYS,
+  parseCleanupPeriodInput,
+} from "@/utils/cleanupPeriod";
 
 // ============================================================================
 // Types
@@ -85,6 +90,15 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
 }) => {
   const { t } = useTranslation();
 
+  // The cleanup-period field keeps its own draft so a transient or invalid
+  // entry (empty while retyping, `0`) never replaces the saved value — writing
+  // `undefined` would drop the key and silently reset e.g. 3650 to 30 (#587).
+  const savedCleanupPeriod = settings.cleanupPeriodDays ?? DEFAULT_CLEANUP_PERIOD_DAYS;
+  const [cleanupDraft, setCleanupDraft] = React.useState(String(savedCleanupPeriod));
+  React.useEffect(() => {
+    setCleanupDraft(String(savedCleanupPeriod));
+  }, [savedCleanupPeriod]);
+
   // -------------------------------------------------------------------------
   // Handlers
   // -------------------------------------------------------------------------
@@ -103,8 +117,18 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
   };
 
   const handleCleanupPeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value, 10);
-    onChange({ cleanupPeriodDays: isNaN(value) ? undefined : value });
+    setCleanupDraft(e.target.value);
+    // Claude Code rejects 0 and fractions: only a valid period is written.
+    const value = parseCleanupPeriodInput(e.target.value);
+    if (value !== undefined) {
+      onChange({ cleanupPeriodDays: value });
+    }
+  };
+
+  const handleCleanupPeriodBlur = () => {
+    if (parseCleanupPeriodInput(cleanupDraft) === undefined) {
+      setCleanupDraft(String(savedCleanupPeriod));
+    }
   };
 
   const handleOutputStyleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -381,10 +405,10 @@ export const GeneralSection: React.FC<GeneralSectionProps> = React.memo(({
                 <Input
                   id="cleanup-period"
                   type="number"
-                  min={0}
-                  max={365}
-                  value={settings.cleanupPeriodDays ?? 30}
+                  min={MIN_CLEANUP_PERIOD_DAYS}
+                  value={cleanupDraft}
                   onChange={handleCleanupPeriodChange}
+                  onBlur={handleCleanupPeriodBlur}
                   className="w-24"
                   disabled={readOnly}
                 />

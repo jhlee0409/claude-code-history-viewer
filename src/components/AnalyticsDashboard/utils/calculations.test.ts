@@ -231,6 +231,17 @@ describe("provider pricing boundaries", () => {
         { providerId: "copilot" },
       ),
     ).toBeNull();
+    // Kilo Code routes models through its own gateway (OpenCode core).
+    expect(
+      calculateModelPrice(
+        "gpt-5.3-codex",
+        oneMillionTokens,
+        oneMillionTokens,
+        0,
+        0,
+        { providerId: "kilo" },
+      ),
+    ).toBeNull();
   });
 
   it("applies GPT-5.6 and GPT-5.4 long-context pricing", () => {

@@ -12,6 +12,7 @@ pub mod antigravity_cli;
 pub mod antigravity_state_sync;
 pub mod claude;
 pub mod cline;
+mod cline_sdk;
 pub mod codebuddy;
 pub mod codex;
 pub mod continue_dev;
@@ -24,6 +25,10 @@ pub mod forgecode;
 pub mod gemini;
 pub mod goose;
 pub mod grok;
+/// Kilo Code (`~/.local/share/kilo`) — OpenCode-core store surfaced through
+/// its own provider id; the pre-migration Cline-family store stays with
+/// `cline`.
+pub mod kilo;
 pub mod kimi;
 /// Kimi Code (`~/.kimi-code`) layout — surfaced through the `kimi`
 /// provider, not a separate provider id.
@@ -74,6 +79,9 @@ pub enum ProviderId {
     Goose,
     /// xAI Grok CLI (`~/.grok/sessions`).
     Grok,
+    /// Kilo Code (`~/.local/share/kilo`) — OpenCode-core store (`kilo.db`).
+    /// The pre-migration Cline-family store is still surfaced by `Cline`.
+    Kilo,
     Kimi,
     ForgeCode,
     Kiro,
@@ -119,6 +127,7 @@ impl ProviderId {
             Self::Gemini => "gemini",
             Self::Goose => "goose",
             Self::Grok => "grok",
+            Self::Kilo => "kilo",
             Self::Kimi => "kimi",
             Self::ForgeCode => "forgecode",
             Self::Kiro => "kiro",
@@ -154,6 +163,7 @@ impl ProviderId {
             "gemini" => Some(Self::Gemini),
             "goose" => Some(Self::Goose),
             "grok" => Some(Self::Grok),
+            "kilo" => Some(Self::Kilo),
             "kimi" => Some(Self::Kimi),
             "forgecode" => Some(Self::ForgeCode),
             "kiro" => Some(Self::Kiro),
@@ -190,6 +200,7 @@ impl ProviderId {
             Self::Gemini => "Gemini CLI",
             Self::Goose => "Goose",
             Self::Grok => "Grok CLI",
+            Self::Kilo => "Kilo Code",
             Self::Kimi => "Kimi",
             Self::ForgeCode => "ForgeCode",
             Self::Kiro => "Kiro CLI",
@@ -241,6 +252,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = grok::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = kilo::detect() {
         providers.push(info);
     }
     if let Some(info) = kimi::detect() {

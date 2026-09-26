@@ -7,20 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- **Several API cost estimates were wrong** — every rate in the analytics pricing table was re-verified against the providers' official pricing pages on 2026-09-02 (`docs/pricing-sources/`). Corrections: GPT-5.6 Sol was priced at $5/$30 instead of the published $4/$20 (cache write $5, long context $8/$30); `grok-code-fast-1`, `grok-code-fast` and `grok-code-fast-1-0825` are aliases of Grok Build 0.1 ($1/$2) and were priced as Grok 4.3 ($1.25/$2.50); MiniMax-M3 recorded the struck-through list price instead of the permanent-discount rate actually charged ($0.30/$1.20); MiniMax M2.5/M2.1 cache reads are $0.03, not $0.06; the OpenAI Daybreak aliases were keyed without their `gpt-` prefix and never matched; Claude Fable 5.1 / Mythos 5.1 fell through to the 5.0 entry and had cache reads over-priced 4x; MiniMax `-highspeed` variants fell through to the base model at half their real rate. Long-context thresholds now follow each provider's definition (xAI ≥ 200k, OpenAI ≥ 272k).
+## [1.28.0] - 2026-09-26
 
 ### Added
-- **Fast / priority service tiers** for every OpenAI model that publishes one, Claude Opus 5 / 4.8 fast mode, and MiniMax-M3 priority, so Codex CLI sessions that report `service_tier` are priced at the rate they were billed.
-- **Retired models stay priced** at their last published rate (Claude 3.7 Sonnet, Opus 4/4.1, Sonnet 4, the GPT-5.x Codex/Chat snapshots, `grok-4`, …) with the provider's retirement date recorded; unknown ids still show "unavailable" rather than a guess.
-- The Global Overview cost strip shows the date the pricing table was last verified.
-- **Retired and soon-to-retire models are flagged** — the message header, assistant message details and the Global Overview model list show a "retired {date}" / "retires {date}" badge, with the provider's recommended replacement in the tooltip, for every model whose shutdown the provider has announced (within 90 days, or already past). Settings Manager warns when `settings.model` names such a model, and opening the Global Overview raises a single toast when the history contains any. Dates and replacements come from each provider's deprecations page and live in `model-pricing.json` (`deprecatedAt`, `replacedBy`).
-- **"Retiring models" card in the Global Overview** re-prices the usage recorded on each retiring model at the replacement's API rate, so the cost impact of migrating (e.g. Opus 4.1 → Opus 4.8: −67%, GPT-5-Codex → GPT-5.6 Sol: +~90% on output) is visible before the shutdown forces the move. Both sides use the API estimate; subscription and proxy providers are skipped because their current cost cannot be estimated.
+- **Cline's current session store** — recent Cline releases (the VS Code extension included) save sessions under `~/.cline/data/sessions/` instead of the editor's `globalStorage`, so their history was invisible. Those sessions now appear under Cline with titles, full transcripts (thinking, tool calls and results), and token usage and cost in the stats views. (#582, #589)
+- **Kilo Code's OpenCode-core store** (`kilo.db`) is read as its own Kilo provider, with live refresh and global stats. Tasks from the older Cline-style Kilo store are still read. (#580)
+- **Sessions pane** — from the `lg` breakpoint up, the selected project's sessions open in their own resizable column instead of pushing the other projects out of the sidebar.
+- **One row per folder across providers** — a directory used by several tools (Claude Code, Codex, OpenCode, …) is one explorer row, with the other providers shown as chips.
+- **Temporary locations group** — projects under OS temp and cache directories collapse into a group instead of crowding the top of the list.
+- **Tool calls are summarized in the collapsed row** (command, path, pattern or intent) and expand in one click, including for providers that emit lowercase tool names.
+- Cursor Agent sessions show the title set with `/rename` in the CLI. (#571)
+
+### Changed
+- **Header:** one segmented view switcher, one refresh button, and the tools moved into the app menu, replacing eleven icon-only buttons.
+- Consecutive assistant turns from the same model no longer repeat the role/time/model header on every tool call.
+- **Pricing table:** every analytics rate was re-verified against the providers' official pricing pages. Several wrong prices were corrected (GPT-5.6 Sol, Grok Code Fast aliases, MiniMax M3/M2.x, Claude Fable/Mythos 5.1 cache reads, …).
+- **Fast / priority tiers are priced.** Retired models keep their last rate and show a "retired / retires {date}" badge with the recommended replacement. The Global Overview adds a "Retiring models" card.
+- **The Claude Code transcript-retention setting** (`cleanupPeriodDays`) is now labelled as Claude Code's own setting, and the copy states that this app never deletes sessions. (#587)
+
+### Fixed
+- **Output tokens were undercounted by roughly 40%** for Claude Code sessions. A streamed turn is written as several rows with growing `output_tokens`, and only the first row was counted. Each turn now counts its final usage once, in both live and cached stats. Long-context tiers and cache TTL splits stay correct. (#575, #585)
+- **Cline, Roo Code and Kilo Code on Windows:** the extensions were never discovered, because no Windows data path was searched. Their project paths also split at the drive-letter colon. Both are fixed. (#582, #586, #588)
+- **Transcript retention above 365 days can be set**, as Claude Code's docs recommend (e.g. 3650). A saved value above 365 is no longer shown as 30 days. `0`, which Claude Code rejects, can no longer be written. (#587, #590)
+- Plural strings render correctly in every locale ("79 messages", not "79 message").
+- User messages are no longer rendered twice for providers that store user turns as content arrays (OpenCode, pi, oh-my-pi). (#567)
+- Collapsibles inside one message no longer all toggle together.
+- Global search previews show the matched text even when the hit is inside a tool payload.
+- Analytics and Global Overview show "All time" when no date filter is set, instead of today's date.
+- MCP server, custom directory and WSL failures raise a visible error toast instead of looking like success.
+- Light-theme chrome and status colors follow theme tokens, and dark-theme status foregrounds meet contrast.
+- KPI cards, Settings Manager and header titles reflow in narrow panes.
+- Branched Claude conversations are preserved across session files (#568). Symlinked `.jsonl` files are skipped during cross-file chain scans.
+- oh-my-pi sessions parse with the current schema.
+- The search worker bundles on macOS x86_64 builds. (#579)
 
 ### Internal
-- The pricing table moved out of `calculations.ts` into `src/data/model-pricing.json`, with an official source URL and verification date on every entry and a test that enforces the shape.
-- `scripts/check-model-pricing.mjs` diffs the table against LiteLLM and OpenRouter feeds and lists newly listed models we do not price; `.github/workflows/pricing-watch.yml` runs it weekly and upserts a "📊 Model pricing watch" issue. Feeds are corroboration only — a maintainer confirms each finding on the official page before editing the JSON. Nothing is auto-merged.
-- `VITE_MOCK=1 pnpm dev` now serves complete project/global summaries and paged session/message responses, so the Global Overview and a session can be opened in mock mode instead of crashing on the stub shapes.
+- CI's frontend suite runs again: a transitive `nwsapi` bump had made a Radix dropdown test time out on every run since 2026-09-01. (#584)
+- `scripts/check-model-pricing.mjs` and a weekly `pricing-watch` workflow flag pricing drift for maintainer review.
 
 ## [1.27.0] - 2026-09-01
 

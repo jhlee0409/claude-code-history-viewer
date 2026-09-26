@@ -29,6 +29,12 @@ import { api } from '@/services/api';
 import { archiveApi } from '@/services/archiveApi';
 import type { ClaudeSession } from '@/types';
 import { toast } from 'sonner';
+import {
+  DEFAULT_CLEANUP_PERIOD_DAYS,
+  MIN_CLEANUP_PERIOD_DAYS,
+  isValidCleanupPeriod,
+  parseCleanupPeriodInput,
+} from '@/utils/cleanupPeriod';
 
 export const ArchiveOverview: React.FC = () => {
   const { t } = useTranslation();
@@ -66,22 +72,24 @@ export const ArchiveOverview: React.FC = () => {
   const [thresholdDays, setThresholdDays] = useState(() => {
     try {
       const v = parseInt(localStorage.getItem('archive.thresholdDays') ?? '', 10);
-      return !isNaN(v) && v >= 1 && v <= 365 ? v : 7;
+      return Number.isInteger(v) && v >= 1 ? v : 7;
     } catch { return 7; }
   });
   // cleanupDays: read from ~/.claude/settings.json (cleanupPeriodDays)
-  const [cleanupDays, setCleanupDays] = useState(30);
+  const [cleanupDays, setCleanupDays] = useState(DEFAULT_CLEANUP_PERIOD_DAYS);
 
   // Draft settings as strings to allow intermediate input states (empty, partial)
   const [draftThreshold, setDraftThreshold] = useState(String(7));
-  const [draftCleanup, setDraftCleanup] = useState(String(30));
+  const [draftCleanup, setDraftCleanup] = useState(String(DEFAULT_CLEANUP_PERIOD_DAYS));
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const parsedCleanup = parseInt(draftCleanup, 10);
+  // Claude Code's cleanupPeriodDays has no upper limit (#587); the threshold
+  // is only bounded by the cleanup period itself.
+  const parsedCleanup = parseCleanupPeriodInput(draftCleanup);
   const parsedThreshold = parseInt(draftThreshold, 10);
-  const isCleanupValid = !isNaN(parsedCleanup) && parsedCleanup >= 1 && parsedCleanup <= 365;
-  const isThresholdValid = !isNaN(parsedThreshold) && parsedThreshold >= 1 && parsedThreshold <= (isCleanupValid ? parsedCleanup : 365);
-  const thresholdExceedsCleanup = isCleanupValid && !isNaN(parsedThreshold) && parsedThreshold > parsedCleanup;
+  const isCleanupValid = parsedCleanup !== undefined;
+  const isThresholdValid = !isNaN(parsedThreshold) && parsedThreshold >= 1 && (parsedCleanup === undefined || parsedThreshold <= parsedCleanup);
+  const thresholdExceedsCleanup = parsedCleanup !== undefined && !isNaN(parsedThreshold) && parsedThreshold > parsedCleanup;
   const canSave = isCleanupValid && isThresholdValid && (parsedThreshold !== thresholdDays || parsedCleanup !== cleanupDays);
 
   // Auto-select sidebar project if available
@@ -120,7 +128,7 @@ export const ArchiveOverview: React.FC = () => {
         const raw = await api<string>('get_settings_by_scope', { scope: 'user' });
         const parsed = JSON.parse(raw);
         const v = parsed?.cleanupPeriodDays;
-        if (typeof v === 'number' && v >= 1 && v <= 365) {
+        if (isValidCleanupPeriod(v)) {
           setCleanupDays(v);
         }
       } catch { /* use default 30 */ }
@@ -151,7 +159,7 @@ export const ArchiveOverview: React.FC = () => {
       const raw = await api<string>('get_settings_by_scope', { scope: 'user' });
       const parsed = JSON.parse(raw);
       const v = parsed?.cleanupPeriodDays;
-      if (typeof v === 'number' && v >= 1 && v <= 365) {
+      if (isValidCleanupPeriod(v)) {
         setCleanupDays(v);
         setDraftCleanup(String(v));
       } else {
@@ -177,7 +185,7 @@ export const ArchiveOverview: React.FC = () => {
   );
 
   const handleSaveSettings = useCallback(async () => {
-    if (!canSave) return;
+    if (!canSave || parsedCleanup === undefined) return;
     try {
       // Save cleanupPeriodDays to ~/.claude/settings.json if changed
       if (parsedCleanup !== cleanupDays) {
@@ -697,8 +705,7 @@ export const ArchiveOverview: React.FC = () => {
                 <Input
                   id={`${settingsId}-cleanup`}
                   type="number"
-                  min={1}
-                  max={365}
+                  min={MIN_CLEANUP_PERIOD_DAYS}
                   value={draftCleanup}
                   onChange={(e) => setDraftCleanup(e.target.value)}
                   className="w-24"
@@ -718,7 +725,7 @@ export const ArchiveOverview: React.FC = () => {
                   id={`${settingsId}-threshold`}
                   type="number"
                   min={1}
-                  max={365}
+                  max={parsedCleanup}
                   value={draftThreshold}
                   onChange={(e) => setDraftThreshold(e.target.value)}
                   className="w-24"
