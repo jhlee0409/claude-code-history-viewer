@@ -79,7 +79,7 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **Gemini CLI** | `~/.gemini/history/` | Conversation history with tool calls |
 | **Antigravity** | `~/.gemini/antigravity/` | Conversation state under `brain/` plus token monitor data under `.token-monitor/rpc-cache/v1/` |
 | **Codex CLI** | `~/.codex/sessions/` | Session rollouts with agent responses |
-| **Cline** (incl. Roo Code; legacy Kilo Code) | VS Code `globalStorage/<ext>/tasks/` | Task-based history across the Cline family |
+| **Cline** (incl. Roo Code; legacy Kilo Code) | `~/.cline/data/sessions/` (current Cline) and VS Code `globalStorage/<ext>/tasks/` (older versions) | Task-based history across the Cline family |
 | **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | OpenCode-core store since May 2026; the pre-migration Cline-family store stays under Cline |
 | **Cursor** | `~/.cursor/` | Composer and chat conversations |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | Agent transcripts, distinct from the Cursor IDE source |
@@ -143,6 +143,18 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 | Provider | Notes |
 |---------|-------|
 | **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
+
+### New in v1.28.0
+
+| Feature | Description |
+|---------|-------------|
+| **Current Cline sessions** | Recent Cline releases (the VS Code extension included) store sessions in `~/.cline/data/sessions/`; they now appear with titles, full transcripts, and token/cost stats. Cline, Roo Code and Kilo Code are also discovered on Windows |
+| **Kilo Code's new store** | Kilo Code's OpenCode-core database (`kilo.db`) is read as its own provider, with live refresh and global stats |
+| **Accurate output tokens** | Streamed Claude Code turns were undercounted by roughly 40%; each turn now counts its final usage once |
+| **Sessions pane & merged folders** | The selected project's sessions open in their own resizable column, and a folder used by several tools is one explorer row with provider chips |
+| **Cleaner transcripts** | Tool calls are summarized in the collapsed row, repeated headers on continued turns are gone, and the header has one view switcher |
+| **Pricing refresh** | Every rate re-verified against official pricing pages, fast/priority tiers priced, and retiring models flagged with their replacement |
+| **Transcript retention** | Claude Code's `cleanupPeriodDays` accepts long retention (e.g. 3650) and is clearly labelled as Claude Code's setting — this app never deletes sessions |
 
 ### New in v1.23.0
 
@@ -399,7 +411,7 @@ GET /health
 ## Usage
 
 1. Launch the app
-2. It automatically scans for conversation data from all 29 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
+2. It automatically scans for conversation data from all 30 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
 3. Browse projects in the left sidebar — filter by provider using the tab bar
 4. Click a session to view messages
 5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board
