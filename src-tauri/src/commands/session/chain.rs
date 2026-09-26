@@ -98,8 +98,13 @@ struct BoundaryClassifier {
 /// `logicalParentUuid` is NOT among this file's own message uuids. That
 /// absence is exactly what marks "this file's history starts abruptly here;
 /// the messages before it live in a different file."
+#[allow(unsafe_code)]
 fn find_dangling_parent_uuid(path: &Path) -> Option<String> {
-    memchr::memmem::find(&fs::read(path).ok()?, b"compact_boundary")?;
+    {
+        let file = fs::File::open(path).ok()?;
+        let map = unsafe { memmap2::Mmap::map(&file) }.ok()?;
+        memchr::memmem::find(&map, b"compact_boundary")?;
+    }
     let file = fs::File::open(path).ok()?;
     let reader = BufReader::new(file);
 
