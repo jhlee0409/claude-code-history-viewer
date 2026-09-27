@@ -7,10 +7,18 @@ const PROHIBITED_SHELL_CHARS_REGEX = /[;&|$`<>\\!"'()\r\n\t]/;
 /** Valid token characters: alphanumeric, dashes, underscores, dots, equals, slashes, colons, commas, pluses. */
 const VALID_TOKEN_REGEX = /^[a-zA-Z0-9_\-./:=,+]+$/;
 
+export type ResumeArgsErrorCode =
+  | "metacharacters"
+  | "maxTokens"
+  | "tokenTooLong"
+  | "invalidCharacters";
+
 export interface ResumeArgsValidationResult {
   isValid: boolean;
   tokens: string[];
+  errorCode?: ResumeArgsErrorCode;
   error?: string;
+  errorParam?: string;
   warning?: string;
   hasDangerousFlag: boolean;
 }
@@ -65,6 +73,7 @@ export function parseResumeArgs(input: string): ResumeArgsValidationResult {
     return {
       isValid: false,
       tokens: [],
+      errorCode: "metacharacters",
       error: "Shell metacharacters (; & | $ ` < > \\ ! \" ' ( ) etc.) are not allowed.",
       hasDangerousFlag: false,
     };
@@ -76,6 +85,7 @@ export function parseResumeArgs(input: string): ResumeArgsValidationResult {
     return {
       isValid: false,
       tokens: [],
+      errorCode: "maxTokens",
       error: "Maximum 32 extra arguments allowed.",
       hasDangerousFlag: false,
     };
@@ -86,6 +96,8 @@ export function parseResumeArgs(input: string): ResumeArgsValidationResult {
       return {
         isValid: false,
         tokens: [],
+        errorCode: "tokenTooLong",
+        errorParam: token.slice(0, 20),
         error: `Argument exceeds 128 characters: "${token.slice(0, 20)}..."`,
         hasDangerousFlag: false,
       };
@@ -95,6 +107,8 @@ export function parseResumeArgs(input: string): ResumeArgsValidationResult {
       return {
         isValid: false,
         tokens: [],
+        errorCode: "invalidCharacters",
+        errorParam: token,
         error: `Argument contains invalid characters: "${token}"`,
         hasDangerousFlag: false,
       };
@@ -136,6 +150,11 @@ export function buildLivePreviewResumeCommand(
 ): string {
   const { tokens } = parseResumeArgs(extraArgsString);
   const extra = tokens.length > 0 ? tokens.join(" ") : undefined;
-  const cmd = getResumeCommand(provider, placeholderId, undefined, undefined, extra);
-  return cmd ?? `${provider} ${extra ? `${extra} ` : ""}--resume ${placeholderId}`;
+  const dummyId = "SESSION_ID_PLACEHOLDER";
+  const entrypoint = provider === "copilot" ? "copilot-cli" : undefined;
+  const cmd = getResumeCommand(provider, dummyId, undefined, entrypoint, extra);
+  if (cmd) {
+    return cmd.replace(dummyId, placeholderId);
+  }
+  return `${provider} ${extra ? `${extra} ` : ""}--resume ${placeholderId}`;
 }

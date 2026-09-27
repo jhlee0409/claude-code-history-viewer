@@ -24,6 +24,8 @@ interface SessionMultiResumeDialogProps {
   onConfirm: () => void | Promise<void>;
   /** Whether any session has dangerous flags (e.g. permission checks disabled) configured. */
   hasDangerousFlags?: boolean;
+  /** Number of sessions that have dangerous flags configured. */
+  dangerousCount?: number;
 }
 
 const MAX_PREVIEW = 5;
@@ -37,6 +39,7 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
   isResuming,
   onConfirm,
   hasDangerousFlags = false,
+  dangerousCount,
 }) => {
   const { t } = useTranslation();
   const previewNames = names.slice(0, MAX_PREVIEW);
@@ -115,7 +118,7 @@ export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> =
                 </p>
                 <p className="mt-0.5 text-amber-700 dark:text-amber-300">
                   {t("session.selection.resumeDangerousWarning", {
-                    count,
+                    count: dangerousCount ?? count,
                     defaultValue: "This will start {{count}} agents with permission checks disabled. Continue?",
                   })}
                 </p>

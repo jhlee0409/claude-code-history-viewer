@@ -202,6 +202,25 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     setPendingSettings(null);
   }, [activeScope]);
 
+  // Listen for open-settings-section events to expand and scroll to target card
+  React.useEffect(() => {
+    const handleOpenSection = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail === "session-resume") {
+        setIsSessionResumeExpanded(true);
+        setTimeout(() => {
+          document
+            .getElementById("session-resume-settings")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      }
+    };
+    window.addEventListener("open-settings-section", handleOpenSection);
+    return () => {
+      window.removeEventListener("open-settings-section", handleOpenSection);
+    };
+  }, []);
+
   // Context value
   const contextValue: SettingsManagerContextValue = React.useMemo(
     () => ({

@@ -102,16 +102,52 @@ export function SessionResumeSection({
     []
   );
 
+  const getValidationErrorMessage = useCallback(
+    (validation: ReturnType<typeof parseResumeArgs>) => {
+      if (!validation.errorCode) {
+        return (
+          validation.error ??
+          t("settings.sessionResume.errorInvalid", "Invalid CLI arguments")
+        );
+      }
+      switch (validation.errorCode) {
+        case "metacharacters":
+          return t(
+            "settings.sessionResume.errorMetacharacters",
+            "Shell metacharacters are not allowed."
+          );
+        case "maxTokens":
+          return t(
+            "settings.sessionResume.errorMaxTokens",
+            "Maximum 32 extra arguments allowed."
+          );
+        case "tokenTooLong":
+          return t("settings.sessionResume.errorTokenTooLong", {
+            defaultValue: "Argument exceeds 128 characters: \"{{param}}...\"",
+            param: validation.errorParam ?? "",
+          });
+        case "invalidCharacters":
+          return t("settings.sessionResume.errorInvalidCharacters", {
+            defaultValue: "Argument contains invalid characters: \"{{param}}\"",
+            param: validation.errorParam ?? "",
+          });
+        default:
+          return (
+            validation.error ??
+            t("settings.sessionResume.errorInvalid", "Invalid CLI arguments")
+          );
+      }
+    },
+    [t]
+  );
+
   const handleSave = useCallback(
     async (providerId: ProviderId) => {
       const rawValue = getValueForProvider(providerId);
       const validation = parseResumeArgs(rawValue);
 
       if (!validation.isValid) {
-        toast.error(
-          validation.error ??
-            t("settings.sessionResume.errorInvalid", "Invalid CLI arguments")
-        );
+        toast.error(getValidationErrorMessage(validation));
         return;
       }
 
@@ -142,7 +178,7 @@ export function SessionResumeSection({
         );
       }
     },
-    [getValueForProvider, storedArgsMap, updateUserSettings, t]
+    [getValueForProvider, storedArgsMap, updateUserSettings, t, getValidationErrorMessage]
   );
 
   const handleReset = useCallback(
@@ -154,12 +190,18 @@ export function SessionResumeSection({
       });
 
       if (storedArgsMap[providerId]) {
-        const nextArgsMap = { ...storedArgsMap };
-        delete nextArgsMap[providerId];
-        await updateUserSettings({ resumeCliArgs: nextArgsMap });
-        toast.success(
-          t("settings.sessionResume.resetSuccess", "Reset to default arguments")
-        );
+        try {
+          const nextArgsMap = { ...storedArgsMap };
+          delete nextArgsMap[providerId];
+          await updateUserSettings({ resumeCliArgs: nextArgsMap });
+          toast.success(
+            t("settings.sessionResume.resetSuccess", "Reset to default arguments")
+          );
+        } catch {
+          toast.error(
+            t("settings.sessionResume.saveFailed", "Failed to save settings")
+          );
+        }
       }
     },
     [storedArgsMap, updateUserSettings, t]
@@ -236,7 +278,7 @@ export function SessionResumeSection({
                         </span>
                       </Label>
 
-                      {isDirty && !readOnly && (
+                      {(isDirty || !!storedArgsMap[providerId]) && !readOnly && (
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
@@ -247,15 +289,17 @@ export function SessionResumeSection({
                             <RotateCcw className="h-3 w-3" />
                             <span>{t("common.reset", "Reset")}</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleSave(providerId)}
-                            disabled={!validation.isValid}
-                            className="inline-flex items-center gap-1 px-2.5 py-0.5 text-3xs font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
-                          >
-                            <CheckCircle2 className="h-3 w-3" />
-                            <span>{t("common.save", "Save")}</span>
-                          </button>
+                          {isDirty && (
+                            <button
+                              type="button"
+                              onClick={() => void handleSave(providerId)}
+                              disabled={!validation.isValid}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 text-3xs font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span>{t("common.save", "Save")}</span>
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -285,10 +329,10 @@ export function SessionResumeSection({
                       />
 
                       {/* Inline Validation Error */}
-                      {!validation.isValid && validation.error && (
+                      {!validation.isValid && (
                         <p className="flex items-center gap-1 text-3xs text-destructive">
                           <XCircle className="h-3 w-3 shrink-0" />
-                          <span>{validation.error}</span>
+                          <span>{getValidationErrorMessage(validation)}</span>
                         </p>
                       )}
 

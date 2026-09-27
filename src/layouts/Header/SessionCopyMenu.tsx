@@ -122,6 +122,13 @@ export const SessionCopyMenu = ({
               <DropdownMenuItem
                 onSelect={() => {
                   switchToSettings();
+                  setTimeout(() => {
+                    window.dispatchEvent(
+                      new CustomEvent("open-settings-section", {
+                        detail: "session-resume",
+                      })
+                    );
+                  }, 50);
                 }}
                 className="text-2xs text-muted-foreground hover:text-foreground"
               >

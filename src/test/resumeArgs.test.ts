@@ -117,6 +117,23 @@ describe("resumeArgs utility", () => {
       expect(
         buildLivePreviewResumeCommand("codex", "--model o3-mini", "test-id")
       ).toBe("codex --model o3-mini resume test-id");
+
+      // Default <id> placeholder
+      expect(
+        buildLivePreviewResumeCommand("codex", "--model o3-mini")
+      ).toBe("codex --model o3-mini resume <id>");
+
+      expect(buildLivePreviewResumeCommand("codex", "")).toBe(
+        "codex resume <id>"
+      );
+
+      expect(
+        buildLivePreviewResumeCommand("copilot", "--banner")
+      ).toBe("copilot --banner --resume <id>");
+
+      expect(buildLivePreviewResumeCommand("copilot", "")).toBe(
+        "copilot --resume <id>"
+      );
     });
   });
 });

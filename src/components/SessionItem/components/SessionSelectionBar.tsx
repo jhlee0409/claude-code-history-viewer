@@ -180,15 +180,16 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
   const userMetadata = useAppStore((state) => state.userMetadata);
   const resumeCliArgs = userMetadata?.settings?.resumeCliArgs ?? {};
 
-  const hasDangerousFlags = useMemo(
+  const dangerousCount = useMemo(
     () =>
-      resumableSessions.some((s) => {
+      resumableSessions.filter((s) => {
         const provider = s.provider ?? "claude";
         const rawArgs = resumeCliArgs[provider] ?? "";
         return hasDangerousFlag(rawArgs);
-      }),
+      }).length,
     [resumableSessions, resumeCliArgs]
   );
+  const hasDangerousFlags = dangerousCount > 0;
 
   const handleConfirmDelete = async () => {
     try {
@@ -357,6 +358,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
         isResuming={isResuming}
         onConfirm={handleConfirmResume}
         hasDangerousFlags={hasDangerousFlags}
+        dangerousCount={dangerousCount}
       />
 
       <SessionMultiDeleteDialog
