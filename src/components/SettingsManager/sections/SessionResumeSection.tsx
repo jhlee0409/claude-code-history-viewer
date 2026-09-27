@@ -57,6 +57,7 @@ export function SessionResumeSection({
     updateUserSettings,
     providers,
     activeProviders,
+    sessions,
   } = useAppStore();
 
   // Find providers that support session resume and are available on this system
@@ -81,6 +82,13 @@ export function SessionResumeSection({
   }, [providers, activeProviders]);
 
   const storedArgsMap = userMetadata?.settings?.resumeCliArgs ?? {};
+
+  const kimiEntrypoint = useMemo(() => {
+    const kimiSession = sessions.find(
+      (s) => s.provider === "kimi" && s.entrypoint
+    );
+    return kimiSession?.entrypoint;
+  }, [sessions]);
 
   // Local draft values so typing is responsive without jumping
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
@@ -256,7 +264,9 @@ export function SessionResumeSection({
                 );
                 const previewCommand = buildLivePreviewResumeCommand(
                   providerId,
-                  rawValue
+                  rawValue,
+                  "<id>",
+                  providerId === "kimi" ? kimiEntrypoint : undefined
                 );
                 const isDirty =
                   providerId in draftValues &&
@@ -311,11 +321,6 @@ export function SessionResumeSection({
                         onChange={(e) =>
                           handleInputChange(providerId, e.target.value)
                         }
-                        onBlur={() => {
-                          if (isDirty && validation.isValid && !readOnly) {
-                            void handleSave(providerId);
-                          }
-                        }}
                         disabled={readOnly}
                         placeholder={t(
                           "settings.sessionResume.placeholder",

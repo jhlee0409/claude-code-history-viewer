@@ -202,11 +202,23 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
     setPendingSettings(null);
   }, [activeScope]);
 
+// Module-level target section request for navigation before mount
+let pendingSettingsSectionRequest: string | null = null;
+
+export function requestSettingsSection(sectionId: string) {
+  pendingSettingsSectionRequest = sectionId;
+}
+
+export function consumeRequestedSettingsSection(): string | null {
+  const section = pendingSettingsSectionRequest;
+  pendingSettingsSectionRequest = null;
+  return section;
+}
+
   // Listen for open-settings-section events to expand and scroll to target card
   React.useEffect(() => {
-    const handleOpenSection = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      if (customEvent.detail === "session-resume") {
+    const handleTarget = (sectionId: string) => {
+      if (sectionId === "session-resume") {
         setIsSessionResumeExpanded(true);
         setTimeout(() => {
           document
@@ -214,6 +226,17 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             ?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 100);
       }
+    };
+
+    // Consume any pending navigation target requested before mount
+    const pending = consumeRequestedSettingsSection();
+    if (pending) {
+      handleTarget(pending);
+    }
+
+    const handleOpenSection = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      handleTarget(customEvent.detail);
     };
     window.addEventListener("open-settings-section", handleOpenSection);
     return () => {

@@ -129,10 +129,19 @@ describe("resumeArgs utility", () => {
 
       expect(
         buildLivePreviewResumeCommand("copilot", "--banner")
-      ).toBe("copilot --banner --resume <id>");
+      ).toBe("copilot --banner --resume=<id>");
 
       expect(buildLivePreviewResumeCommand("copilot", "")).toBe(
-        "copilot --resume <id>"
+        "copilot --resume=<id>"
+      );
+
+      // Kimi entrypoints: kimi-code (-S) vs legacy (-r)
+      expect(
+        buildLivePreviewResumeCommand("kimi", "--debug", "<id>", "kimi-code-cli")
+      ).toBe("kimi --debug -S <id>");
+
+      expect(buildLivePreviewResumeCommand("kimi", "", "<id>")).toBe(
+        "kimi -r <id>"
       );
     });
   });

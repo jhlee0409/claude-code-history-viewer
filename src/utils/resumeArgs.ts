@@ -146,13 +146,15 @@ export function getStoredResumeCliArgs(
 export function buildLivePreviewResumeCommand(
   provider: ProviderId | string,
   extraArgsString: string,
-  placeholderId = "<id>"
+  placeholderId = "<id>",
+  entrypoint?: string
 ): string {
   const { tokens } = parseResumeArgs(extraArgsString);
   const extra = tokens.length > 0 ? tokens.join(" ") : undefined;
   const dummyId = "SESSION_ID_PLACEHOLDER";
-  const entrypoint = provider === "copilot" ? "copilot-cli" : undefined;
-  const cmd = getResumeCommand(provider, dummyId, undefined, entrypoint, extra);
+  const effectiveEntrypoint =
+    entrypoint ?? (provider === "copilot" ? "copilot-cli" : undefined);
+  const cmd = getResumeCommand(provider, dummyId, undefined, effectiveEntrypoint, extra);
   if (cmd) {
     return cmd.replace(dummyId, placeholderId);
   }
