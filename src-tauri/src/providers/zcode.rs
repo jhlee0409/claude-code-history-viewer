@@ -248,7 +248,7 @@ fn load_messages_with_subagents_conn(
     session_id: &str,
 ) -> Result<Vec<ClaudeMessage>, String> {
     let mut messages = load_messages_conn(conn, session_id)?;
-    for child_id in descendant_subagent_ids(conn, session_id) {
+    for child_id in descendant_subagent_ids(conn, session_id)? {
         let mut child = load_messages_conn(conn, &child_id)?;
         for message in &mut child {
             message.is_sidechain = Some(true);
@@ -261,23 +261,39 @@ fn load_messages_with_subagents_conn(
 /// Ids of the `subagent_child` sessions below `session_id`, at any depth.
 /// Other rows that point at the session via `parent_id` are listed as
 /// sessions of their own and are left out so they are not counted twice.
-/// `UNION` (not `UNION ALL`) keeps a corrupted `parent_id` cycle finite, and a
-/// store without the `parent_id` column simply rolls up nothing.
-fn descendant_subagent_ids(conn: &Connection, session_id: &str) -> Vec<String> {
-    let Ok(mut stmt) = conn.prepare(
-        "WITH RECURSIVE descendants(id) AS ( \
-             SELECT id FROM session \
-              WHERE parent_id = ?1 AND task_type = 'subagent_child' \
-             UNION \
-             SELECT s.id FROM session s JOIN descendants d ON s.parent_id = d.id \
-              WHERE s.task_type = 'subagent_child' \
-         ) SELECT id FROM descendants",
-    ) else {
-        return Vec::new();
-    };
-    stmt.query_map([session_id], |row| row.get::<_, String>(0))
-        .map(|rows| rows.flatten().collect())
-        .unwrap_or_default()
+/// `UNION` (not `UNION ALL`) keeps a corrupted `parent_id` cycle finite, and
+/// the session itself is excluded even when it sits on such a cycle. A store
+/// without the `parent_id` column has nothing to roll up; any other failure
+/// is returned rather than silently under-counting.
+fn descendant_subagent_ids(conn: &Connection, session_id: &str) -> Result<Vec<String>, String> {
+    if !session_has_parent_id(conn)? {
+        return Ok(Vec::new());
+    }
+    let mut stmt = conn
+        .prepare(
+            "WITH RECURSIVE descendants(id) AS ( \
+                 SELECT id FROM session \
+                  WHERE parent_id = ?1 AND task_type = 'subagent_child' \
+                 UNION \
+                 SELECT s.id FROM session s JOIN descendants d ON s.parent_id = d.id \
+                  WHERE s.task_type = 'subagent_child' \
+             ) SELECT id FROM descendants WHERE id != ?1",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([session_id], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
+}
+
+/// Whether the `session` table has the `parent_id` column (older stores may
+/// predate it).
+fn session_has_parent_id(conn: &Connection) -> Result<bool, String> {
+    let mut stmt = conn
+        .prepare("SELECT 1 FROM pragma_table_info('session') WHERE name = 'parent_id'")
+        .map_err(|e| e.to_string())?;
+    stmt.exists([]).map_err(|e| e.to_string())
 }
 
 /// Split `zcode://<directory>#<session_id>` into its two parts.
@@ -962,9 +978,13 @@ mod tests {
             .unwrap();
         // b and c now point at each other; neither is reachable from a, and the
         // query must still return.
-        assert!(descendant_subagent_ids(&conn, "a").is_empty());
-        let from_b = descendant_subagent_ids(&conn, "b");
-        assert_eq!(from_b.len(), 2, "b and c each appear once: {from_b:?}");
+        assert!(descendant_subagent_ids(&conn, "a").unwrap().is_empty());
+        // The session itself is on the cycle but must never be its own
+        // descendant, or its messages would be counted twice.
+        assert_eq!(
+            descendant_subagent_ids(&conn, "b").unwrap(),
+            vec!["c".to_string()]
+        );
     }
 
     #[test]
@@ -978,6 +998,17 @@ mod tests {
         assistant_with_tokens(&conn, "m-parent", "parent", 100, 10);
         let messages = load_messages_with_subagents_conn(&conn, "parent").unwrap();
         assert_eq!(messages.len(), 1);
+    }
+
+    #[test]
+    fn descendant_lookup_errors_are_not_treated_as_no_subagents() {
+        // Only a missing `parent_id` column means "nothing to roll up"; any
+        // other failure must surface instead of silently under-counting.
+        let conn = test_db();
+        insert_session(&conn, "parent", "/Users/jack/proj", "main", "interactive");
+        conn.execute_batch("ALTER TABLE session RENAME COLUMN task_type TO kind")
+            .unwrap();
+        assert!(descendant_subagent_ids(&conn, "parent").is_err());
     }
 
     #[tokio::test]
