@@ -536,5 +536,15 @@
   "settingsManager.errors.mcpSaveFailed": "Failed to update MCP servers: {{detail}}",
   "settingsManager.errors.folderSelectFailed": "Failed to open folder picker: {{detail}}",
   "settingsManager.errors.directoryScanFailed": "Failed to rescan projects: {{detail}}",
-  "settingsManager.errors.wslToggleFailed": "Failed to update WSL settings: {{detail}}"
+  "settingsManager.errors.wslToggleFailed": "Failed to update WSL settings: {{detail}}",
+  "settings.sessionResume.title": "Session Resume Arguments",
+  "settings.sessionResume.description": "Configure extra CLI arguments when resuming sessions in terminal.",
+  "settings.sessionResume.placeholder": "e.g. --dangerously-skip-permissions",
+  "settings.sessionResume.livePreview": "Command preview:",
+  "settings.sessionResume.errorInvalid": "Shell metacharacters (; & | $ ` < > \\ ! \" ' ( ) etc.) and spaces inside tokens are not allowed.",
+  "settings.sessionResume.warningDangerous": "Flag disables permission checks or runs in dangerous mode.",
+  "settings.sessionResume.noProviders": "No supported CLI agent runtimes detected on this machine.",
+  "settings.sessionResume.saved": "Resume arguments saved",
+  "settings.sessionResume.saveFailed": "Failed to save settings",
+  "settings.sessionResume.resetSuccess": "Reset to default arguments"
 }

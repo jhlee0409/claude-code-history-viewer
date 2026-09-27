@@ -536,5 +536,15 @@
   "settingsManager.errors.mcpSaveFailed": "更新 MCP 伺服器失敗：{{detail}}",
   "settingsManager.errors.folderSelectFailed": "無法開啟資料夾選擇器：{{detail}}",
   "settingsManager.errors.directoryScanFailed": "重新掃描專案失敗：{{detail}}",
-  "settingsManager.errors.wslToggleFailed": "更新 WSL 設定失敗：{{detail}}"
+  "settingsManager.errors.wslToggleFailed": "更新 WSL 設定失敗：{{detail}}",
+  "settings.sessionResume.title": "Session Resume Arguments",
+  "settings.sessionResume.description": "Configure extra CLI arguments when resuming sessions in terminal.",
+  "settings.sessionResume.placeholder": "e.g. --dangerously-skip-permissions",
+  "settings.sessionResume.livePreview": "Command preview:",
+  "settings.sessionResume.errorInvalid": "Shell metacharacters (; & | $ ` < > \\ ! \" ' ( ) etc.) and spaces inside tokens are not allowed.",
+  "settings.sessionResume.warningDangerous": "Flag disables permission checks or runs in dangerous mode.",
+  "settings.sessionResume.noProviders": "No supported CLI agent runtimes detected on this machine.",
+  "settings.sessionResume.saved": "Resume arguments saved",
+  "settings.sessionResume.saveFailed": "Failed to save settings",
+  "settings.sessionResume.resetSuccess": "Reset to default arguments"
 }

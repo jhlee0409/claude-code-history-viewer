@@ -5,6 +5,7 @@ import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeSession } from "@/types";
 import { getResumeCommand } from "@/utils/providers";
+import { parseResumeArgs } from "@/utils/resumeArgs";
 
 /**
  * Run an async task over `items` with at most `limit` in flight at once.
@@ -154,18 +155,27 @@ export function useSessionBatchActions() {
     async (sessions: ClaudeSession[], cwd?: string) => {
       if (sessions.length === 0) return;
 
+      const { userMetadata } = useAppStore.getState();
+      const resumeCliArgs = userMetadata?.settings?.resumeCliArgs ?? {};
+
       const resumable = sessions
-        .map((session) => ({
-          session,
-          command: getResumeCommand(
-            session.provider ?? "claude",
-            session.actual_session_id,
-            undefined,
-            session.entrypoint
-          ),
-        }))
+        .map((session) => {
+          const provider = session.provider ?? "claude";
+          const rawArgs = resumeCliArgs[provider] ?? "";
+          const { tokens } = parseResumeArgs(rawArgs);
+          return {
+            session,
+            command: getResumeCommand(
+              provider,
+              session.actual_session_id,
+              undefined,
+              session.entrypoint
+            ),
+            extraArgs: tokens.length > 0 ? tokens : undefined,
+          };
+        })
         .filter(
-          (item): item is { session: ClaudeSession; command: string } =>
+          (item): item is { session: ClaudeSession; command: string; extraArgs?: string[] } =>
             item.command != null
         );
 
@@ -174,11 +184,11 @@ export function useSessionBatchActions() {
       setIsResuming(true);
       try {
         const results = await mapWithConcurrency<
-          { session: ClaudeSession; command: string },
+          { session: ClaudeSession; command: string; extraArgs?: string[] },
           ResumeOutcome
-        >(resumable, 4, async ({ session, command }) => {
+        >(resumable, 4, async ({ session, command, extraArgs }) => {
           try {
-            await api("open_resume_in_terminal", { command, cwd });
+            await api("open_resume_in_terminal", { command, cwd, extraArgs });
             return { session, ok: true };
           } catch (error) {
             return {

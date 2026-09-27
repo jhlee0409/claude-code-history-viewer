@@ -30,6 +30,7 @@ import { SettingsEditorPane } from "./editor/SettingsEditorPane";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
+import { SessionResumeSection } from "./sections/SessionResumeSection";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -114,6 +115,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   // Panel state
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("editor");
   const [isCustomDirsExpanded, setIsCustomDirsExpanded] = React.useState(false);
+  const [isSessionResumeExpanded, setIsSessionResumeExpanded] = React.useState(false);
   const [isWslExpanded, setIsWslExpanded] = React.useState(false);
 
   // Pending changes state (shared across components for dirty tracking)
@@ -317,6 +319,15 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <CustomDirectoriesSection
                 isExpanded={isCustomDirsExpanded}
                 onToggle={(open) => setIsCustomDirsExpanded(open)}
+                readOnly={serverReadOnly}
+              />
+            </Card>
+
+            {/* Session Resume Arguments — app-level setting, independent of Claude Code scope */}
+            <Card className="shrink-0" id="session-resume-settings">
+              <SessionResumeSection
+                isExpanded={isSessionResumeExpanded}
+                onToggle={(open) => setIsSessionResumeExpanded(open)}
                 readOnly={serverReadOnly}
               />
             </Card>

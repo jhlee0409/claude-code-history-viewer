@@ -404,7 +404,8 @@ export function getResumeCommand(
   provider: ProviderId | string | undefined,
   sessionId: string,
   cwd?: string,
-  entrypoint?: string
+  entrypoint?: string,
+  extraArgs?: string | string[]
 ): string | null {
   if (!sessionId) {
     return null;
@@ -422,35 +423,40 @@ export function getResumeCommand(
     return null;
   }
 
+  const extra = Array.isArray(extraArgs)
+    ? extraArgs.filter(Boolean).join(" ").trim()
+    : (extraArgs ?? "").trim();
+  const extraPrefix = extra ? `${extra} ` : "";
+
   let resume: string | null;
   switch (provider as ProviderId) {
     case "claude":
-      resume = `claude --resume ${sessionId}`;
+      resume = `claude ${extraPrefix}--resume ${sessionId}`;
       break;
     case "codex":
-      resume = `codex resume ${sessionId}`;
+      resume = `codex ${extraPrefix}resume ${sessionId}`;
       break;
     case "copilot":
       // Only the CLI surface has a resume command; Desktop/VS Code resume by
       // reopening the app.
       resume =
         entrypoint === "copilot-cli"
-          ? `copilot --resume=${sessionId}`
+          ? `copilot ${extraPrefix}--resume=${sessionId}`
           : null;
       break;
     case "forgecode":
-      resume = `forge conversation resume ${sessionId}`;
+      resume = `forge conversation ${extraPrefix}resume ${sessionId}`;
       break;
     case "kimi":
       // One provider id, two stores: kimi-code (`~/.kimi-code`) resumes with
       // `-S/--session` — its CLI has no `-r` — while the legacy kimi-cli store
       // (`~/.kimi`, whose sessions carry no entrypoint) still uses `-r`.
       resume = isKimiCodeEntrypoint(entrypoint)
-        ? `kimi -S ${sessionId}`
-        : `kimi -r ${sessionId}`;
+        ? `kimi ${extraPrefix}-S ${sessionId}`
+        : `kimi ${extraPrefix}-r ${sessionId}`;
       break;
     case "vibe":
-      resume = `vibe --resume ${sessionId}`;
+      resume = `vibe ${extraPrefix}--resume ${sessionId}`;
       break;
     default:
       resume = null;

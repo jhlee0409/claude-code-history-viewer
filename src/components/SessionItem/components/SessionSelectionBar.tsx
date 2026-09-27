@@ -17,6 +17,7 @@ import {
   supportsResumeCommandForSession,
   supportsSessionDeletion,
 } from "@/utils/providers";
+import { hasDangerousFlag } from "@/utils/resumeArgs";
 import type { ClaudeSession } from "@/types";
 import { useSessionBatchActions } from "../hooks/useSessionBatchActions";
 import { SessionMultiDeleteDialog } from "./SessionMultiDeleteDialog";
@@ -174,6 +175,19 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
         (s) => getSessionDisplayName(s.session_id, s.summary) || s.actual_session_id
       ),
     [resumableSessions, getSessionDisplayName]
+  );
+
+  const userMetadata = useAppStore((state) => state.userMetadata);
+  const resumeCliArgs = userMetadata?.settings?.resumeCliArgs ?? {};
+
+  const hasDangerousFlags = useMemo(
+    () =>
+      resumableSessions.some((s) => {
+        const provider = s.provider ?? "claude";
+        const rawArgs = resumeCliArgs[provider] ?? "";
+        return hasDangerousFlag(rawArgs);
+      }),
+    [resumableSessions, resumeCliArgs]
   );
 
   const handleConfirmDelete = async () => {
@@ -342,6 +356,7 @@ export const SessionSelectionBar: React.FC<SessionSelectionBarProps> = ({
         names={resumeNames}
         isResuming={isResuming}
         onConfirm={handleConfirmResume}
+        hasDangerousFlags={hasDangerousFlags}
       />
 
       <SessionMultiDeleteDialog

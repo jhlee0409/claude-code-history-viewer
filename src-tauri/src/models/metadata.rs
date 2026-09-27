@@ -248,6 +248,10 @@ pub struct UserSettings {
     /// Providers explicitly discovered by the user and allowed to scan on startup
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub discovered_provider_ids: Vec<String>,
+
+    /// Custom CLI arguments per provider for session resumption
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub resume_cli_args: std::collections::HashMap<String, String>,
 }
 
 #[cfg(test)]

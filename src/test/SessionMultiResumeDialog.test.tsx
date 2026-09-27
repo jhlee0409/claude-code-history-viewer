@@ -49,4 +49,27 @@ describe("SessionMultiResumeDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Resume 2" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
+
+  it("displays dangerous permission warning when hasDangerousFlags is true", () => {
+    const onOpenChange = vi.fn();
+    const onConfirm = vi.fn();
+
+    render(
+      <SessionMultiResumeDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        count={5}
+        skippedCount={0}
+        names={["Session 1", "Session 2"]}
+        isResuming={false}
+        onConfirm={onConfirm}
+        hasDangerousFlags={true}
+      />
+    );
+
+    expect(screen.getByText("Permission checks disabled")).toBeInTheDocument();
+    expect(
+      screen.getByText("This will start 5 agents with permission checks disabled. Continue?")
+    ).toBeInTheDocument();
+  });
 });
