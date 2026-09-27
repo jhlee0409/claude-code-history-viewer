@@ -91,9 +91,18 @@ export const useSettingsManager = () => {
   return context;
 };
 
-// ============================================================================
-// Main Component
-// ============================================================================
+// Module-level target section request for navigation before mount
+let pendingSettingsSectionRequest: string | null = null;
+
+export function requestSettingsSection(sectionId: string) {
+  pendingSettingsSectionRequest = sectionId;
+}
+
+export function consumeRequestedSettingsSection(): string | null {
+  const section = pendingSettingsSectionRequest;
+  pendingSettingsSectionRequest = null;
+  return section;
+}
 
 export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   projectPath: initialProjectPath,
@@ -201,19 +210,6 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   React.useEffect(() => {
     setPendingSettings(null);
   }, [activeScope]);
-
-// Module-level target section request for navigation before mount
-let pendingSettingsSectionRequest: string | null = null;
-
-export function requestSettingsSection(sectionId: string) {
-  pendingSettingsSectionRequest = sectionId;
-}
-
-export function consumeRequestedSettingsSection(): string | null {
-  const section = pendingSettingsSectionRequest;
-  pendingSettingsSectionRequest = null;
-  return section;
-}
 
   // Listen for open-settings-section events to expand and scroll to target card
   React.useEffect(() => {
