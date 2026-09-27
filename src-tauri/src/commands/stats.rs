@@ -1610,7 +1610,8 @@ fn load_stats_messages(
         StatsProvider::OpenInterpreter => providers::openinterpreter::load_messages(session_path),
         StatsProvider::PearAI => providers::pearai::load_messages(session_path),
         StatsProvider::Qwen => providers::qwen::load_messages(session_path),
-        StatsProvider::Zcode => providers::zcode::load_messages(session_path),
+        // Rolls subagent runs into their parent as sidechain usage (#577).
+        StatsProvider::Zcode => providers::zcode::load_messages_with_subagents(session_path),
         StatsProvider::Trae => providers::trae::load_messages(session_path),
         StatsProvider::Vibe => providers::vibe::load_messages(session_path),
         StatsProvider::Zed => providers::zed::load_messages(session_path),

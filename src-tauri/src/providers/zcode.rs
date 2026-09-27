@@ -17,7 +17,10 @@
 //! call/results are split into a `tool_use` block on the assistant message
 //! plus a synthesized user-lane `tool_result` message, mirroring how Claude
 //! Code transcripts record them. Subagent sessions (`task_type =
-//! 'subagent_child'`) are skipped, matching the sidechain exclusion elsewhere.
+//! 'subagent_child'`) are not listed as sessions of their own; for usage
+//! accounting they are rolled into the session that spawned them as sidechain
+//! messages (#577), so `billing_total` stats include them and
+//! `conversation_only` does not.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::providers::ProviderInfo;
@@ -224,6 +227,57 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let (_, session_id) = parse_session_path(session_path)?;
     let conn = open_db(&path)?;
     load_messages_conn(&conn, &session_id)
+}
+
+/// A session's messages plus those of every subagent run it spawned
+/// (recursively), for usage accounting only — the viewer keeps using
+/// [`load_messages`]. Descendant messages are marked `is_sidechain`, so the
+/// stats mode filter counts them under `billing_total` and drops them under
+/// `conversation_only`, as it does for Claude subagents (#577).
+pub fn load_messages_with_subagents(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
+    let Some(path) = db_path() else {
+        return Err("Z Code db not found".to_string());
+    };
+    let (_, session_id) = parse_session_path(session_path)?;
+    let conn = open_db(&path)?;
+    load_messages_with_subagents_conn(&conn, &session_id)
+}
+
+fn load_messages_with_subagents_conn(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Vec<ClaudeMessage>, String> {
+    let mut messages = load_messages_conn(conn, session_id)?;
+    for child_id in descendant_subagent_ids(conn, session_id) {
+        let mut child = load_messages_conn(conn, &child_id)?;
+        for message in &mut child {
+            message.is_sidechain = Some(true);
+        }
+        messages.extend(child);
+    }
+    Ok(messages)
+}
+
+/// Ids of the `subagent_child` sessions below `session_id`, at any depth.
+/// Other rows that point at the session via `parent_id` are listed as
+/// sessions of their own and are left out so they are not counted twice.
+/// `UNION` (not `UNION ALL`) keeps a corrupted `parent_id` cycle finite, and a
+/// store without the `parent_id` column simply rolls up nothing.
+fn descendant_subagent_ids(conn: &Connection, session_id: &str) -> Vec<String> {
+    let Ok(mut stmt) = conn.prepare(
+        "WITH RECURSIVE descendants(id) AS ( \
+             SELECT id FROM session \
+              WHERE parent_id = ?1 AND task_type = 'subagent_child' \
+             UNION \
+             SELECT s.id FROM session s JOIN descendants d ON s.parent_id = d.id \
+              WHERE s.task_type = 'subagent_child' \
+         ) SELECT id FROM descendants",
+    ) else {
+        return Vec::new();
+    };
+    stmt.query_map([session_id], |row| row.get::<_, String>(0))
+        .map(|rows| rows.flatten().collect())
+        .unwrap_or_default()
 }
 
 /// Split `zcode://<directory>#<session_id>` into its two parts.
@@ -554,7 +608,7 @@ mod tests {
     const TEST_SCHEMA: &str = "CREATE TABLE session (
                 id text primary key, project_id text not null, directory text not null,
                 title text not null, task_type text default 'interactive',
-                title_source text default 'first_input',
+                title_source text default 'first_input', parent_id text,
                 time_created integer not null, time_updated integer not null,
                 time_archived integer
             );
@@ -825,6 +879,184 @@ mod tests {
         seed(&conn);
         // No content anywhere contains a literal '%'.
         assert!(search_conn(&conn, "%", 10).unwrap().is_empty());
+    }
+
+    fn insert_child_session(conn: &Connection, id: &str, parent: &str, task_type: &str) {
+        conn.execute(
+            "INSERT INTO session (id, project_id, directory, title, task_type, parent_id, time_created, time_updated) \
+             VALUES (?1, 'p', '/Users/jack/proj', 'child', ?2, ?3, 1788599956241, 1788599999999)",
+            rusqlite::params![id, task_type, parent],
+        )
+        .unwrap();
+    }
+
+    fn assistant_with_tokens(conn: &Connection, id: &str, session: &str, input: u32, output: u32) {
+        insert_message(
+            conn,
+            id,
+            session,
+            0,
+            &format!(
+                r#"{{"role":"assistant","time":{{"created":1788599956241}},"modelID":"glm-5","tokens":{{"input":{input},"output":{output}}}}}"#
+            ),
+        );
+        insert_part(
+            conn,
+            &format!("p-{id}"),
+            id,
+            session,
+            0,
+            r#"{"type":"text","text":"ok"}"#,
+        );
+    }
+
+    /// Parent → subagent child → subagent grandchild, plus a non-subagent row
+    /// that merely points at the parent (it is listed as its own session, so
+    /// rolling it in would double count).
+    fn seed_subagent_tree(conn: &Connection) {
+        insert_session(conn, "parent", "/Users/jack/proj", "main", "interactive");
+        assistant_with_tokens(conn, "m-parent", "parent", 100, 10);
+        insert_child_session(conn, "child", "parent", "subagent_child");
+        assistant_with_tokens(conn, "m-child", "child", 200, 20);
+        insert_child_session(conn, "grandchild", "child", "subagent_child");
+        assistant_with_tokens(conn, "m-grand", "grandchild", 300, 30);
+        insert_child_session(conn, "fork", "parent", "interactive");
+        assistant_with_tokens(conn, "m-fork", "fork", 999, 99);
+    }
+
+    #[test]
+    fn subagent_descendants_are_loaded_as_sidechain() {
+        // #577: Z Code subagent runs are separate `subagent_child` sessions and
+        // never appear in the session list, so their billed usage has to be
+        // rolled into the session that spawned them.
+        let conn = test_db();
+        seed_subagent_tree(&conn);
+
+        let messages = load_messages_with_subagents_conn(&conn, "parent").unwrap();
+        let ids: Vec<_> = messages.iter().map(|m| m.uuid.as_str()).collect();
+        assert!(ids.contains(&"m-parent"));
+        assert!(ids.contains(&"m-child"));
+        assert!(ids.contains(&"m-grand"), "descendants are recursive");
+        assert!(
+            !ids.contains(&"m-fork"),
+            "non-subagent children are their own sessions"
+        );
+
+        for message in &messages {
+            let expected = if message.uuid == "m-parent" {
+                None
+            } else {
+                Some(true)
+            };
+            assert_eq!(message.is_sidechain, expected, "{}", message.uuid);
+        }
+    }
+
+    #[test]
+    fn descendant_walk_terminates_on_a_parent_cycle() {
+        let conn = test_db();
+        insert_session(&conn, "a", "/Users/jack/proj", "a", "interactive");
+        insert_child_session(&conn, "b", "a", "subagent_child");
+        insert_child_session(&conn, "c", "b", "subagent_child");
+        conn.execute("UPDATE session SET parent_id = 'c' WHERE id = 'b'", [])
+            .unwrap();
+        // b and c now point at each other; neither is reachable from a, and the
+        // query must still return.
+        assert!(descendant_subagent_ids(&conn, "a").is_empty());
+        let from_b = descendant_subagent_ids(&conn, "b");
+        assert_eq!(from_b.len(), 2, "b and c each appear once: {from_b:?}");
+    }
+
+    #[test]
+    fn store_without_parent_id_rolls_up_nothing() {
+        // Older stores may lack the column; accounting falls back to the
+        // session's own messages instead of failing.
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(&TEST_SCHEMA.replace(" parent_id text,", ""))
+            .unwrap();
+        insert_session(&conn, "parent", "/Users/jack/proj", "main", "interactive");
+        assistant_with_tokens(&conn, "m-parent", "parent", 100, 10);
+        let messages = load_messages_with_subagents_conn(&conn, "parent").unwrap();
+        assert_eq!(messages.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn session_token_stats_include_subagents_only_in_billing_total() {
+        let (_temp, conn, original) = temp_zcode_home();
+        seed_subagent_tree(&conn);
+        let session_path = "zcode:///Users/jack/proj#parent";
+
+        let billing = crate::commands::stats::get_session_token_stats(
+            session_path.to_string(),
+            None,
+            None,
+            Some("billing_total".to_string()),
+        )
+        .await;
+        let conversation = crate::commands::stats::get_session_token_stats(
+            session_path.to_string(),
+            None,
+            None,
+            Some("conversation_only".to_string()),
+        )
+        .await;
+        restore_zcode_home(original);
+
+        let billing = billing.expect("billing stats");
+        assert_eq!(billing.total_input_tokens, 100 + 200 + 300);
+        assert_eq!(billing.total_output_tokens, 10 + 20 + 30);
+        let conversation = conversation.expect("conversation stats");
+        assert_eq!(conversation.total_input_tokens, 100);
+        assert_eq!(conversation.total_output_tokens, 10);
+    }
+
+    #[tokio::test]
+    async fn project_total_equals_sum_of_its_sessions_with_subagents() {
+        // The invariant from docs/specs/token-stats-consistency-plan.md:
+        // project == Σ session, under the same mode. The fork is listed as its
+        // own session, so it appears once — in its own row, not the parent's.
+        let (_temp, conn, original) = temp_zcode_home();
+        seed_subagent_tree(&conn);
+        let project_path = "zcode:///Users/jack/proj".to_string();
+        let session_paths = [
+            "zcode:///Users/jack/proj#parent",
+            "zcode:///Users/jack/proj#fork",
+        ];
+
+        let mut results = Vec::new();
+        for mode in ["billing_total", "conversation_only"] {
+            let project = crate::commands::stats::get_project_stats_summary(
+                project_path.clone(),
+                None,
+                None,
+                Some(mode.to_string()),
+            )
+            .await;
+            let mut sessions_total = 0u64;
+            for path in session_paths {
+                if let Ok(stats) = crate::commands::stats::get_session_token_stats(
+                    path.to_string(),
+                    None,
+                    None,
+                    Some(mode.to_string()),
+                )
+                .await
+                {
+                    sessions_total += stats.total_tokens;
+                }
+            }
+            results.push((mode, project.map(|p| p.total_tokens), sessions_total));
+        }
+        restore_zcode_home(original);
+
+        for (mode, project_total, sessions_total) in results {
+            let project_total = project_total.expect("project stats");
+            assert_eq!(project_total, sessions_total, "{mode}");
+            // parent 110 + child 220 + grandchild 330 + fork 1098 when
+            // subagents count; parent 110 + fork 1098 when they don't.
+            let expected = if mode == "billing_total" { 1758 } else { 1208 };
+            assert_eq!(project_total, expected, "{mode}");
+        }
     }
 
     #[test]
