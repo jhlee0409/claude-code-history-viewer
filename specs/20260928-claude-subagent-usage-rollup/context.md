@@ -13,6 +13,7 @@
 <!-- resume:end -->
 
 ## Working notes
+- CodeRabbit (PR #594): get_project_stats_summary still counted files as sessions → billing total_sessions 5 vs list 3. Fixed: session count / active dates / duration keyed by owning transcript (totals still from every file). Rechecked on coin-bot + omniverse-autopublisher: summary sessions & tokens == token list in both modes.
 - Real-data check (2026-09-28): coin-bot session 4749bfb6 with 11 subagent files → WebUI session billing 111,307,462 == Python (main 73,608,323 + subagents 37,699,139); conversation 73,608,323; project total == Σ items in both modes; items 2 (was 13 with subagent files listed).
 <!-- Grounding: the real files/data you examined, decisions made, dead ends hit.
      This is what keeps the work from drifting off the original ask. -->

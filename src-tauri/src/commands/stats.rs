@@ -4691,11 +4691,27 @@ pub async fn get_project_stats_summary(
         .collect();
     let scan_time = start.elapsed();
 
+    // Subagent transcripts count toward the project's usage but belong to
+    // the session that spawned them, so session-level figures (count, active
+    // dates, duration) are keyed by the owning transcript (#577).
+    let heads: HashSet<PathBuf> = claude_session_heads(session_files.clone())
+        .into_iter()
+        .collect();
+    let owner_of: HashMap<PathBuf, PathBuf> = heads
+        .iter()
+        .flat_map(|head| {
+            crate::utils::find_subagent_files(head)
+                .into_iter()
+                .map(move |subagent| (subagent, head.clone()))
+        })
+        .collect();
+
     // Phase 2: Process all session files in parallel with per-message date filtering
-    let file_stats: Vec<ProjectSessionFileStats> = session_files
+    let file_stats: Vec<(PathBuf, ProjectSessionFileStats)> = session_files
         .par_iter()
         .filter_map(|path| {
             process_session_file_for_project_stats(path, mode, s_limit.as_ref(), e_limit.as_ref())
+                .map(|stats| (path.clone(), stats))
         })
         .collect();
     let process_time = start.elapsed();
@@ -4703,9 +4719,8 @@ pub async fn get_project_stats_summary(
     // Phase 3: Aggregate results
     let mut summary = ProjectStatsSummary::default();
     summary.project_name = project_name;
-    summary.total_sessions = file_stats.len();
-
-    let mut session_durations: Vec<u32> = Vec::new();
+    // Per session: active dates (union) and duration (longest transcript).
+    let mut sessions: HashMap<PathBuf, (HashSet<String>, u32)> = HashMap::new();
     let mut tool_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut skill_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
     let mut subagent_usage_map: HashMap<String, (u32, u32)> = HashMap::new();
@@ -4716,7 +4731,8 @@ pub async fn get_project_stats_summary(
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
     let mut session_count_by_date: HashMap<String, usize> = HashMap::new();
 
-    for stats in file_stats {
+    for (path, stats) in file_stats {
+        let session_key = owner_of.get(&path).cloned().unwrap_or(path);
         summary.total_messages += stats.total_messages as usize;
 
         // Aggregate token distribution
@@ -4776,17 +4792,23 @@ pub async fn get_project_stats_summary(
             entry.1 += tokens;
         }
 
-        // Aggregate per-day session counts from this session's active dates.
-        for date in stats.session_dates {
-            *session_count_by_date.entry(date).or_insert(0) += 1;
-        }
-
-        // Collect session duration
-        if stats.session_duration_minutes > 0 {
-            session_durations.push(stats.session_duration_minutes);
-        }
+        // Session-level figures are folded per owning session.
+        let (dates, duration) = sessions.entry(session_key).or_default();
+        dates.extend(stats.session_dates);
+        *duration = (*duration).max(stats.session_duration_minutes);
 
         // timestamps are preserved for duration calculations only.
+    }
+
+    summary.total_sessions = sessions.len();
+    let mut session_durations: Vec<u32> = Vec::new();
+    for (dates, duration) in sessions.into_values() {
+        for date in dates {
+            *session_count_by_date.entry(date).or_insert(0) += 1;
+        }
+        if duration > 0 {
+            session_durations.push(duration);
+        }
     }
 
     // Phase 4: Finalize daily stats
@@ -4843,6 +4865,7 @@ pub async fn get_project_stats_summary(
         + summary.token_distribution.cache_creation
         + summary.token_distribution.cache_read
         + summary.token_distribution.reasoning;
+
     summary.avg_tokens_per_session = if summary.total_sessions > 0 {
         summary.total_tokens / summary.total_sessions as u64
     } else {
@@ -7562,6 +7585,19 @@ mod tests {
                 items,
                 "{mode}: subagent files are not items"
             );
+            assert_eq!(
+                project.total_sessions, list.total_count,
+                "{mode}: summary session count == token list count"
+            );
+            if mode == "billing_total" {
+                // 01-02: the parent session (two subagent runs) + the orphan.
+                let day = project
+                    .daily_stats
+                    .iter()
+                    .find(|d| d.date == "2025-01-02")
+                    .expect("2025-01-02 bucket");
+                assert_eq!(day.session_count, 2, "sessions active on 01-02");
+            }
 
             let comparison = get_session_comparison(
                 "s-parent".to_string(),
