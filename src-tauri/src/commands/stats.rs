@@ -4242,62 +4242,204 @@ pub struct PaginatedTokenStats {
     pub has_more: bool,
 }
 
-/// Extract session token stats from a Claude session file synchronously.
-/// Served from the per-file daily-aggregate cache when possible; falls back
-/// to the full scan (see the `cache` module design note).
+/// Session token stats before finalisation: the one shape both the full scan
+/// and the cached composition produce, so several transcripts of one session
+/// (its subagent runs, #577) can be merged losslessly — model, context-tier
+/// and tool maps are combined before `build_model_stats` sorts them and tool
+/// success rates are derived.
+#[derive(Debug, Default)]
+pub(super) struct SessionTokenAccum {
+    pub(super) session_id: String,
+    pub(super) summary: Option<String>,
+    pub(super) input_tokens: u64,
+    pub(super) output_tokens: u64,
+    pub(super) cache_creation_tokens: u64,
+    pub(super) cache_read_tokens: u64,
+    pub(super) reasoning_tokens: u64,
+    pub(super) message_count: usize,
+    pub(super) tool_usage: HashMap<String, (u32, u32)>,
+    pub(super) model_usage: HashMap<String, ModelUsageAggregate>,
+    pub(super) model_context_usage: ModelContextUsageMap,
+    pub(super) model_costs: HashMap<String, f64>,
+    first: Option<(DateTime<Utc>, String)>,
+    last: Option<(DateTime<Utc>, String)>,
+}
+
+impl SessionTokenAccum {
+    pub(super) fn observe_first(&mut self, ts: DateTime<Utc>, raw: &str) {
+        if self
+            .first
+            .as_ref()
+            .map_or(true, |(current, _)| ts < *current)
+        {
+            self.first = Some((ts, raw.to_string()));
+        }
+    }
+
+    pub(super) fn observe_last(&mut self, ts: DateTime<Utc>, raw: &str) {
+        if self
+            .last
+            .as_ref()
+            .map_or(true, |(current, _)| ts > *current)
+        {
+            self.last = Some((ts, raw.to_string()));
+        }
+    }
+
+    /// Fold another transcript of the same session into this one. Identity
+    /// (`session_id`, `summary`) stays with `self`, the main transcript.
+    fn merge(&mut self, other: SessionTokenAccum) {
+        self.input_tokens += other.input_tokens;
+        self.output_tokens += other.output_tokens;
+        self.cache_creation_tokens += other.cache_creation_tokens;
+        self.cache_read_tokens += other.cache_read_tokens;
+        self.reasoning_tokens += other.reasoning_tokens;
+        self.message_count += other.message_count;
+        cache::merge_counter_map(&mut self.tool_usage, &other.tool_usage);
+        cache::merge_model_map(&mut self.model_usage, &other.model_usage);
+        merge_model_context_usage(&mut self.model_context_usage, &other.model_context_usage);
+        for (model, cost) in other.model_costs {
+            *self.model_costs.entry(model).or_insert(0.0) += cost;
+        }
+        if let Some((ts, raw)) = other.first {
+            self.observe_first(ts, &raw);
+        }
+        if let Some((ts, raw)) = other.last {
+            self.observe_last(ts, &raw);
+        }
+        if self.summary.is_none() {
+            self.summary = other.summary;
+        }
+    }
+
+    pub(super) fn into_stats(self, project_name: String) -> SessionTokenStats {
+        let total_tokens = self.input_tokens
+            + self.output_tokens
+            + self.cache_creation_tokens
+            + self.cache_read_tokens
+            + self.reasoning_tokens;
+        SessionTokenStats {
+            session_id: self.session_id,
+            project_name,
+            total_input_tokens: self.input_tokens,
+            total_output_tokens: self.output_tokens,
+            total_cache_creation_tokens: self.cache_creation_tokens,
+            total_cache_read_tokens: self.cache_read_tokens,
+            total_reasoning_tokens: self.reasoning_tokens,
+            total_tokens,
+            message_count: self.message_count,
+            first_message_time: self
+                .first
+                .map_or_else(|| "unknown".to_string(), |(_, raw)| raw),
+            last_message_time: self
+                .last
+                .map_or_else(|| "unknown".to_string(), |(_, raw)| raw),
+            summary: self.summary,
+            model_distribution: build_model_stats(
+                StatsProvider::Claude,
+                self.model_usage,
+                self.model_context_usage,
+                self.model_costs,
+            ),
+            // Unsorted, as both producers always emitted it.
+            most_used_tools: self
+                .tool_usage
+                .into_iter()
+                .map(|(name, (usage, success))| ToolUsageStats {
+                    tool_name: name,
+                    usage_count: usage,
+                    success_rate: if usage > 0 {
+                        (success as f32 / usage as f32) * 100.0
+                    } else {
+                        0.0
+                    },
+                    avg_execution_time: None,
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Token stats for one Claude session. Under `billing_total` the session's
+/// subagent transcripts (`<session>/subagents/**`, found the same way the
+/// `SubAgent Sessions` panel finds them) are folded in, since their usage is
+/// billed sidechain usage; under `conversation_only` only the session's own
+/// transcript counts (#577).
 fn extract_session_token_stats_sync(
     session_path: &PathBuf,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenStats> {
+    let mut accum = extract_session_token_accum_sync(session_path, mode, s_limit, e_limit);
+    if mode.include_sidechain() {
+        for subagent_path in crate::utils::find_subagent_files(session_path) {
+            let Some(subagent) =
+                extract_session_token_accum_sync(&subagent_path, mode, s_limit, e_limit)
+            else {
+                continue;
+            };
+            match accum.as_mut() {
+                Some(main) => main.merge(subagent),
+                None => accum = Some(subagent),
+            }
+        }
+    }
+    accum.map(|accum| accum.into_stats(claude_session_project_name(session_path)))
+}
+
+/// One transcript file's stats before finalisation. Served from the per-file
+/// daily-aggregate cache when possible; falls back to the full scan (see the
+/// `cache` module design note).
+fn extract_session_token_accum_sync(
+    session_path: &PathBuf,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<SessionTokenAccum> {
     if let Some(aggregate) = cache::message_stats_cache().get_or_build(session_path, mode, || {
         cache::build_message_file_aggregate(session_path, mode)
     }) {
-        if let cache::Composed::Ready(stats) = cache::compose_session_token(
-            &aggregate,
-            claude_session_project_name(session_path),
-            s_limit,
-            e_limit,
-        ) {
-            return stats;
+        if let cache::Composed::Ready(accum) =
+            cache::compose_session_token_accum(&aggregate, s_limit, e_limit)
+        {
+            return accum;
         }
     }
-    scan_session_token_stats(session_path, mode, s_limit, e_limit)
+    scan_session_token_accum(session_path, mode, s_limit, e_limit)
 }
 
-/// Synchronous version of session token stats extraction for parallel processing
-#[allow(unsafe_code)] // Required for mmap performance optimization
-/// Full-scan path for session token stats (cache miss / non-composable filter).
+/// Full-scan session token stats for one transcript, finalised (the cache
+/// equivalence tests compare it with the composed path).
+#[cfg(test)]
 fn scan_session_token_stats(
     session_path: &PathBuf,
     mode: StatsMode,
     s_limit: Option<&DateTime<Utc>>,
     e_limit: Option<&DateTime<Utc>>,
 ) -> Option<SessionTokenStats> {
+    scan_session_token_accum(session_path, mode, s_limit, e_limit)
+        .map(|accum| accum.into_stats(claude_session_project_name(session_path)))
+}
+
+/// Full-scan path for one transcript's session token stats (cache miss /
+/// non-composable filter), before finalisation.
+#[allow(unsafe_code)] // Required for mmap performance optimization
+fn scan_session_token_accum(
+    session_path: &PathBuf,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<SessionTokenAccum> {
     let file = fs::File::open(session_path).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
     let mmap = unsafe { Mmap::map(&file) }.ok()?;
 
-    let project_name = claude_session_project_name(session_path);
-
     let mut session_id: Option<String> = None;
-    let mut total_input_tokens = 0u64;
-    let mut total_output_tokens = 0u64;
-    let mut total_cache_creation_tokens = 0u64;
-    let mut total_cache_read_tokens = 0u64;
-    let mut total_reasoning_tokens = 0u64;
-    let mut message_count = 0usize;
-    let mut first_time: Option<String> = None;
-    let mut last_time: Option<String> = None;
     let mut summary: Option<String> = None;
-    let mut tool_usage: HashMap<String, (u32, u32)> = HashMap::new();
-    let mut model_usage: HashMap<String, ModelUsageAggregate> = HashMap::new();
-    let mut model_context_usage: ModelContextUsageMap = HashMap::new();
-    let mut model_costs: HashMap<String, f64> = HashMap::new();
-    let mut included_message_count = 0usize;
+    let mut accum = SessionTokenAccum::default();
 
     // Use SIMD-accelerated line detection
     let line_ranges = find_line_ranges(&mmap);
@@ -4337,8 +4479,7 @@ fn scan_session_token_stats(
             session_id = Some(message.session_id.clone());
         }
 
-        message_count += 1;
-        included_message_count += 1;
+        accum.message_count += 1;
 
         let UsageGrowth {
             totals:
@@ -4362,9 +4503,9 @@ fn scan_session_token_stats(
         let model_name = message.model.as_deref().unwrap_or(UNKNOWN_MODEL_NAME);
         if message.model.is_some() || tokens > 0 || deduped_source_cost.is_some() {
             accumulate_model_usage(
-                &mut model_usage,
-                &mut model_context_usage,
-                &mut model_costs,
+                &mut accum.model_usage,
+                &mut accum.model_context_usage,
+                &mut accum.model_costs,
                 ModelUsageUpdate {
                     model_name,
                     service_tier: usage.service_tier.as_deref(),
@@ -4382,78 +4523,27 @@ fn scan_session_token_stats(
                 },
             );
         }
-        total_input_tokens += input_tokens;
-        total_output_tokens += output_tokens;
-        total_cache_creation_tokens += cache_creation_tokens;
-        total_cache_read_tokens += cache_read_tokens;
-        total_reasoning_tokens += reasoning_tokens;
+        accum.input_tokens += input_tokens;
+        accum.output_tokens += output_tokens;
+        accum.cache_creation_tokens += cache_creation_tokens;
+        accum.cache_read_tokens += cache_read_tokens;
+        accum.reasoning_tokens += reasoning_tokens;
 
         if let Some(ts) = parsed_timestamp {
-            let should_set_first = first_time
-                .as_ref()
-                .and_then(|raw| parse_timestamp_utc(raw))
-                .map_or(true, |current| ts < current);
-            if should_set_first {
-                first_time = Some(message.timestamp.clone());
-            }
-
-            let should_set_last = last_time
-                .as_ref()
-                .and_then(|raw| parse_timestamp_utc(raw))
-                .map_or(true, |current| ts > current);
-            if should_set_last {
-                last_time = Some(message.timestamp.clone());
-            }
+            accum.observe_first(ts, &message.timestamp);
+            accum.observe_last(ts, &message.timestamp);
         }
 
         // Track tool usage
-        track_tool_usage(&message, &mut tool_usage);
+        track_tool_usage(&message, &mut accum.tool_usage);
     }
 
-    let session_id = session_id?;
-    if message_count == 0 || included_message_count == 0 {
+    accum.session_id = session_id?;
+    if accum.message_count == 0 {
         return None;
     }
-
-    let total_tokens = total_input_tokens
-        + total_output_tokens
-        + total_cache_creation_tokens
-        + total_cache_read_tokens
-        + total_reasoning_tokens;
-
-    Some(SessionTokenStats {
-        session_id,
-        project_name,
-        total_input_tokens,
-        total_output_tokens,
-        total_cache_creation_tokens,
-        total_cache_read_tokens,
-        total_reasoning_tokens,
-        total_tokens,
-        message_count: included_message_count,
-        first_message_time: first_time.unwrap_or_else(|| "unknown".to_string()),
-        last_message_time: last_time.unwrap_or_else(|| "unknown".to_string()),
-        summary,
-        model_distribution: build_model_stats(
-            StatsProvider::Claude,
-            model_usage,
-            model_context_usage,
-            model_costs,
-        ),
-        most_used_tools: tool_usage
-            .into_iter()
-            .map(|(name, (usage, success))| ToolUsageStats {
-                tool_name: name,
-                usage_count: usage,
-                success_rate: if usage > 0 {
-                    (success as f32 / usage as f32) * 100.0
-                } else {
-                    0.0
-                },
-                avg_execution_time: None,
-            })
-            .collect(),
-    })
+    accum.summary = summary;
+    Some(accum)
 }
 
 #[tauri::command]
@@ -4493,13 +4583,16 @@ pub async fn get_project_token_stats(
     let offset = offset.unwrap_or(0);
     let limit = limit.unwrap_or(20);
 
-    // Collect all session files
-    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    // Collect all session files; subagent transcripts are folded into their
+    // owning session's item rather than listed as sessions (#577).
+    let session_files: Vec<PathBuf> = claude_session_heads(
+        WalkDir::new(&project_path)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+            .map(|e| e.path().to_path_buf())
+            .collect(),
+    );
 
     #[cfg(debug_assertions)]
     let scan_time = start.elapsed();
@@ -4789,6 +4882,50 @@ struct SessionComparisonStats {
     duration_seconds: i64,
 }
 
+/// The session transcripts of a Claude project: every `.jsonl` except the
+/// subagent transcripts owned by another transcript in the same set, whose
+/// usage is folded into that owner instead (#577). A subagent transcript whose
+/// owner is gone stays in the list, so per-session items still add up to the
+/// project total.
+fn claude_session_heads(files: Vec<PathBuf>) -> Vec<PathBuf> {
+    let owned: HashSet<PathBuf> = files
+        .iter()
+        .flat_map(|file| crate::utils::find_subagent_files(file))
+        .collect();
+    files
+        .into_iter()
+        .filter(|file| !owned.contains(file))
+        .collect()
+}
+
+/// Comparison stats for one Claude session, with its subagent transcripts'
+/// tokens and messages folded in under `billing_total` (#577).
+fn session_comparison_with_subagents(
+    session_path: &PathBuf,
+    mode: StatsMode,
+    s_limit: Option<&DateTime<Utc>>,
+    e_limit: Option<&DateTime<Utc>>,
+) -> Option<SessionComparisonStats> {
+    let mut stats = process_session_file_for_comparison(session_path, mode, s_limit, e_limit);
+    if mode.include_sidechain() {
+        for subagent_path in crate::utils::find_subagent_files(session_path) {
+            let Some(subagent) =
+                process_session_file_for_comparison(&subagent_path, mode, s_limit, e_limit)
+            else {
+                continue;
+            };
+            match stats.as_mut() {
+                Some(main) => {
+                    main.total_tokens += subagent.total_tokens;
+                    main.message_count += subagent.message_count;
+                }
+                None => stats = Some(subagent),
+            }
+        }
+    }
+    stats
+}
+
 /// Process a session file into lightweight comparison stats.
 /// Served from the per-file daily-aggregate cache when possible; falls back
 /// to the full scan (see the `cache` module design note).
@@ -4927,19 +5064,21 @@ pub async fn get_session_comparison(
     let e_limit = parse_date_limit(end_date, "end_date");
 
     // Phase 1: Collect all session files
-    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    let session_files: Vec<PathBuf> = claude_session_heads(
+        WalkDir::new(&project_path)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
+            .map(|e| e.path().to_path_buf())
+            .collect(),
+    );
     let scan_time = start.elapsed();
 
     // Phase 2: Process all session files in parallel with per-message date filtering
     let all_sessions: Vec<SessionComparisonStats> = session_files
         .par_iter()
         .filter_map(|path| {
-            process_session_file_for_comparison(path, mode, s_limit.as_ref(), e_limit.as_ref())
+            session_comparison_with_subagents(path, mode, s_limit.as_ref(), e_limit.as_ref())
         })
         .collect();
     let process_time = start.elapsed();
@@ -7283,6 +7422,188 @@ mod tests {
         assert_eq!(
             session_conversation.total_tokens,
             global_conversation.total_tokens
+        );
+    }
+
+    /// One Claude assistant row as a JSONL line.
+    fn claude_usage_line(
+        uuid: &str,
+        session_id: &str,
+        ts: &str,
+        input: u64,
+        output: u64,
+        sidechain: bool,
+    ) -> String {
+        format!(
+            r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"{ts}","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"x"}}],"id":"m-{uuid}","model":"claude-sonnet-4","usage":{{"input_tokens":{input},"output_tokens":{output}}}}},"isSidechain":{sidechain}}}"#
+        )
+    }
+
+    fn write_lines(path: &Path, lines: &[String]) {
+        fs::create_dir_all(path.parent().expect("parent")).expect("create dirs");
+        let mut file = File::create(path).expect("create file");
+        for line in lines {
+            writeln!(file, "{line}").expect("write line");
+        }
+    }
+
+    /// A project with a parent session, a flat and a workflow subagent run of
+    /// it, an orphaned subagent run whose parent file is gone, and an unrelated
+    /// session. `total_tokens` per row = input + output:
+    /// parent 110, flat 220, workflow 330, orphan 440, other 55.
+    fn write_subagent_project(project_dir: &Path) {
+        write_lines(
+            &project_dir.join("parent.jsonl"),
+            &[claude_usage_line(
+                "p1",
+                "s-parent",
+                "2025-01-01T00:00:00Z",
+                100,
+                10,
+                false,
+            )],
+        );
+        write_lines(
+            &project_dir.join("parent/subagents/agent-a.jsonl"),
+            &[claude_usage_line(
+                "a1",
+                "s-parent",
+                "2025-01-02T00:00:00Z",
+                200,
+                20,
+                true,
+            )],
+        );
+        write_lines(
+            &project_dir.join("parent/subagents/workflows/wf_1/agent-b.jsonl"),
+            &[claude_usage_line(
+                "b1",
+                "s-parent",
+                "2025-01-02T00:05:00Z",
+                300,
+                30,
+                true,
+            )],
+        );
+        write_lines(
+            &project_dir.join("gone/subagents/agent-c.jsonl"),
+            &[claude_usage_line(
+                "c1",
+                "s-gone",
+                "2025-01-02T00:10:00Z",
+                400,
+                40,
+                true,
+            )],
+        );
+        write_lines(
+            &project_dir.join("other.jsonl"),
+            &[claude_usage_line(
+                "o1",
+                "s-other",
+                "2025-01-01T00:20:00Z",
+                50,
+                5,
+                false,
+            )],
+        );
+    }
+
+    #[tokio::test]
+    /// #577: a Claude session's billed usage includes its subagent transcripts
+    /// (`<session>/subagents/**`), and per-session lists stop showing those
+    /// transcripts as sessions of their own, so Σ sessions == project total.
+    async fn test_claude_session_stats_roll_up_subagent_transcripts() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp_dir.path());
+        let project_dir = temp_dir.path().join("projects").join("demo-project");
+        write_subagent_project(&project_dir);
+        let project_path = project_dir.to_string_lossy().to_string();
+        let parent_path = project_dir
+            .join("parent.jsonl")
+            .to_string_lossy()
+            .to_string();
+
+        for (mode, session_total, project_total, items) in [
+            (
+                "billing_total",
+                110 + 220 + 330,
+                110 + 220 + 330 + 440 + 55,
+                3,
+            ),
+            ("conversation_only", 110, 110 + 55, 2),
+        ] {
+            let session =
+                get_session_token_stats(parent_path.clone(), None, None, Some(mode.to_string()))
+                    .await
+                    .expect("session stats");
+            assert_eq!(session.total_tokens, session_total, "{mode}: session");
+
+            let project =
+                get_project_stats_summary(project_path.clone(), None, None, Some(mode.to_string()))
+                    .await
+                    .expect("project summary");
+            assert_eq!(project.total_tokens, project_total, "{mode}: project");
+
+            let list = get_project_token_stats(
+                project_path.clone(),
+                Some(0),
+                Some(50),
+                None,
+                None,
+                Some(mode.to_string()),
+            )
+            .await
+            .expect("project token list");
+            let sum: u64 = list.items.iter().map(|s| s.total_tokens).sum();
+            assert_eq!(sum, project.total_tokens, "{mode}: Σ items == project");
+            assert_eq!(
+                list.items.len(),
+                items,
+                "{mode}: subagent files are not items"
+            );
+
+            let comparison = get_session_comparison(
+                "s-parent".to_string(),
+                project_path.clone(),
+                None,
+                None,
+                Some(mode.to_string()),
+            )
+            .await
+            .expect("session comparison");
+            let expected_share = session_total as f32 / project_total as f32 * 100.0;
+            assert!(
+                (comparison.percentage_of_project_tokens - expected_share).abs() < 0.01,
+                "{mode}: share {} vs {expected_share}",
+                comparison.percentage_of_project_tokens
+            );
+        }
+    }
+
+    #[tokio::test]
+    /// A subagent run entirely outside the date range contributes nothing.
+    async fn test_claude_subagent_roll_up_respects_date_filter() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let _home_guard = EnvVarGuard::set("CCHV_TEST_HOME", temp_dir.path());
+        let project_dir = temp_dir.path().join("projects").join("demo-project");
+        write_subagent_project(&project_dir);
+        let parent_path = project_dir
+            .join("parent.jsonl")
+            .to_string_lossy()
+            .to_string();
+
+        let session = get_session_token_stats(
+            parent_path,
+            Some("2025-01-01T00:00:00Z".to_string()),
+            Some("2025-01-01T23:59:59Z".to_string()),
+            Some("billing_total".to_string()),
+        )
+        .await
+        .expect("session stats");
+        assert_eq!(
+            session.total_tokens, 110,
+            "subagent runs on 01-02 are outside the range"
         );
     }
 
