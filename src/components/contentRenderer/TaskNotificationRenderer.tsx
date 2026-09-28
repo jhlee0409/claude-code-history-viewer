@@ -22,17 +22,15 @@ import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
 import { cn } from "@/lib/utils";
 import { layout, getVariantStyles } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
+import {
+  isTaskNotification,
+  parseTaskNotifications,
+  type TaskNotification,
+} from "@/components/MessageViewer/helpers/messageKinds";
 
 type Props = {
   text: string;
 };
-
-interface TaskNotification {
-  taskId?: string;
-  status?: "completed" | "running" | "failed" | string;
-  summary?: string;
-  result?: string;
-}
 
 const STATUS_CONFIG = {
   completed: {
@@ -230,29 +228,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
   const styles = getVariantStyles("task");
 
   // Parse notifications
-  const notifications = useMemo(() => {
-    const taskNotificationRegex = /<task-notification>([\s\S]*?)<\/task-notification>/g;
-    const matches = [...text.matchAll(taskNotificationRegex)];
-
-    return matches.map((match) => {
-      const content = match[1] || "";
-
-      const extractTag = (tagName: string): string | undefined => {
-        const regex = new RegExp(`<${tagName}>([\\s\\S]*?)<\\/${tagName}>`, "g");
-        const tagMatch = content?.match(regex);
-        return tagMatch?.[0]
-          ?.replace(new RegExp(`</?${tagName}>`, "g"), "")
-          .trim();
-      };
-
-      return {
-        taskId: extractTag("task-id"),
-        status: extractTag("status"),
-        summary: extractTag("summary"),
-        result: extractTag("result"),
-      };
-    });
-  }, [text]);
+  const notifications = useMemo(() => parseTaskNotifications(text), [text]);
 
   // Count by status
   const statusCounts = useMemo(() => {
@@ -477,6 +453,4 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
 /**
  * Check if text contains task-notification tags
  */
-export const hasTaskNotification = (text: string): boolean => {
-  return /<task-notification>[\s\S]*?<\/task-notification>/.test(text);
-};
+export const hasTaskNotification = (text: string): boolean => isTaskNotification(text);

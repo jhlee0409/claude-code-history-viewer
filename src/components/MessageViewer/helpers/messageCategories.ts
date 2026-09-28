@@ -1,6 +1,7 @@
 import type { ClaudeMessage, MessageCategory } from "../../../types";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 import { groupAgentTasks } from "./agentTaskHelpers";
+import { isTaskNotification } from "./messageKinds";
 
 type CategoryCollector = (messages: ClaudeMessage[]) => Set<string>;
 type ContentBlock = Record<string, unknown>;
@@ -91,7 +92,7 @@ const collectClaudeParallelTaskUuids: CategoryCollector = (messages) => {
 
   for (const message of messages) {
     const content = extractClaudeMessageContent(message);
-    if (content?.includes("<task-notification>")) {
+    if (content && isTaskNotification(content)) {
       uuids.add(message.uuid);
     }
   }

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-09-09T12:20:43.282Z
- * 총 키 개수: 1962
+ * 생성 시간: 2026-09-28T18:58:02.183Z
+ * 총 키 개수: 1966
  * Namespace 수: 11
  */
 
@@ -1370,7 +1370,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (101개)
+ * message namespace의 번역 키 (105개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1465,12 +1465,16 @@ export type MessageKeys =
   | 'navigator.a11y.keyboardHelp'
   | 'navigator.close'
   | 'navigator.filter'
+  | 'navigator.kind.agentUpdate'
+  | 'navigator.kind.command'
+  | 'navigator.kind.context'
+  | 'navigator.kind.prompt'
+  | 'navigator.kind.reply'
+  | 'navigator.kind.summary'
+  | 'navigator.kind.system'
+  | 'navigator.kind.tool'
   | 'navigator.messageCount'
   | 'navigator.noMessages'
-  | 'navigator.role.assistant'
-  | 'navigator.role.summary'
-  | 'navigator.role.system'
-  | 'navigator.role.user'
   | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'
@@ -2847,12 +2851,16 @@ export type TranslationKey =
   | 'navigator.a11y.keyboardHelp'
   | 'navigator.close'
   | 'navigator.filter'
+  | 'navigator.kind.agentUpdate'
+  | 'navigator.kind.command'
+  | 'navigator.kind.context'
+  | 'navigator.kind.prompt'
+  | 'navigator.kind.reply'
+  | 'navigator.kind.summary'
+  | 'navigator.kind.system'
+  | 'navigator.kind.tool'
   | 'navigator.messageCount'
   | 'navigator.noMessages'
-  | 'navigator.role.assistant'
-  | 'navigator.role.summary'
-  | 'navigator.role.system'
-  | 'navigator.role.user'
   | 'navigator.showParallelTasks'
   | 'navigator.title'
   | 'navigator.toggle'

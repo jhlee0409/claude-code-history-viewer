@@ -55,6 +55,7 @@ describe("MessageNavigator accessibility", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storeState.showParallelTasksInNavigator = true;
+    storeState.userOnlyFilter = false;
   });
 
   it("supports roving focus and keyboard activation", () => {
@@ -139,5 +140,98 @@ describe("MessageNavigator accessibility", () => {
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(toggle);
     expect(toggleShowParallelTasksMock).toHaveBeenCalledOnce();
+  });
+
+  it("keeps only typed prompts and commands when the user-only filter is on", () => {
+    storeState.userOnlyFilter = true;
+
+    render(
+      <MessageNavigator
+        messages={[
+          {
+            uuid: "prompt",
+            type: "user",
+            content: "Scrub for pii",
+            timestamp: "2026-02-27T10:00:00Z",
+          } as never,
+          {
+            uuid: "command",
+            type: "user",
+            content: "<command-message>wrap</command-message>\n<command-name>/wrap</command-name>",
+            timestamp: "2026-02-27T10:01:00Z",
+          } as never,
+          {
+            uuid: "agent-update",
+            type: "user",
+            content: '<task-notification><task-id>agent-1</task-id><status>completed</status><summary>Agent "Batch A" finished</summary></task-notification>',
+            timestamp: "2026-02-27T10:02:00Z",
+          } as never,
+          {
+            uuid: "orphan-tool-result",
+            type: "user",
+            content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "ok" }],
+            toolUseResult: { stdout: "ok" },
+            timestamp: "2026-02-27T10:03:00Z",
+          } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(screen.getByText("Scrub for pii")).toBeInTheDocument();
+    expect(screen.getByText("/wrap")).toBeInTheDocument();
+    expect(screen.queryByText('Agent "Batch A" finished')).not.toBeInTheDocument();
+  });
+
+  it("previews an agent update by its summary instead of its IDs", () => {
+    render(
+      <MessageNavigator
+        messages={[
+          {
+            uuid: "agent-update",
+            type: "user",
+            content: '<task-notification><task-id>ad2512cc64c5db295</task-id><tool-use-id>toolu_01ATyz</tool-use-id><status>completed</status><summary>Agent "W6 upgrade" finished</summary></task-notification>',
+            timestamp: "2026-02-27T10:02:00Z",
+          } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Agent "W6 upgrade" finished')).toBeInTheDocument();
+    expect(screen.queryByText(/ad2512cc64c5db295/)).not.toBeInTheDocument();
+    expect(screen.getByRole("option")).toHaveAttribute("aria-label", "navigator.a11y.entryLabel");
+  });
+
+  it("marks a failed agent update in the destructive color", () => {
+    render(
+      <MessageNavigator
+        messages={[
+          {
+            uuid: "failed-update",
+            type: "user",
+            content: '<task-notification><task-id>agent-2</task-id><status>failed</status><summary>Agent "Batch B" failed</summary></task-notification>',
+            timestamp: "2026-02-27T10:04:00Z",
+          } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    const icon = screen.getByRole("option").querySelector("svg");
+    expect(icon).toHaveClass("text-destructive");
   });
 });

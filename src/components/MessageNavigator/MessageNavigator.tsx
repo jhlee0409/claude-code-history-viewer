@@ -71,7 +71,9 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   const entries = useMemo(() => {
     let filtered = allEntries;
     if (userOnlyFilter) {
-      filtered = filtered.filter((e) => e.role === "user");
+      // Rows the user typed: prompts and slash commands, not agent updates
+      // or injected context that Claude Code also stores as user messages.
+      filtered = filtered.filter((e) => e.kind === "prompt" || e.kind === "command");
     }
     const lower = filterText.trim().toLowerCase();
     if (lower) {
