@@ -30,6 +30,11 @@ interface SessionMultiResumeDialogProps {
 
 const MAX_PREVIEW = 5;
 
+/**
+ * Confirmation dialog for resuming multiple agent sessions in batch.
+ * Summarizes the sessions to be resumed, skipped sessions, and warns
+ * if dangerous CLI flags are configured.
+ */
 export const SessionMultiResumeDialog: React.FC<SessionMultiResumeDialogProps> = ({
   open,
   onOpenChange,

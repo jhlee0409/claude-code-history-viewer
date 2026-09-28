@@ -24,6 +24,10 @@ interface SessionCopyMenuProps {
   compact?: boolean;
 }
 
+/**
+ * Dropdown menu for copying session IDs or full resume commands,
+ * with direct navigation to configure resume CLI arguments.
+ */
 export const SessionCopyMenu = ({
   project,
   session,

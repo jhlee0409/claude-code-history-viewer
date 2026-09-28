@@ -46,6 +46,16 @@ interface SessionResumeSectionProps {
   readOnly?: boolean;
 }
 
+/**
+ * Settings section for configuring extra CLI arguments when resuming agent sessions.
+ * Displays available CLI agent providers, handles input validation and dangerous flag detection,
+ * and allows saving or resetting custom arguments.
+ *
+ * @param props - Component properties
+ * @param props.isExpanded - Whether this collapsible section is expanded
+ * @param props.onToggle - Callback when expand state changes
+ * @param props.readOnly - Whether modifications are disabled
+ */
 export function SessionResumeSection({
   isExpanded,
   onToggle,
@@ -93,6 +103,12 @@ export function SessionResumeSection({
   // Local draft values so typing is responsive without jumping
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
 
+  /**
+   * Retrieves the current draft or stored extra CLI arguments for a specific provider.
+   *
+   * @param providerId - The CLI provider identifier
+   * @returns Current argument string from drafts or user settings
+   */
   const getValueForProvider = useCallback(
     (providerId: ProviderId): string => {
       if (providerId in draftValues) {
@@ -103,6 +119,12 @@ export function SessionResumeSection({
     [draftValues, userMetadata?.settings]
   );
 
+  /**
+   * Updates local draft state when the user types into an argument input field.
+   *
+   * @param providerId - The CLI provider identifier
+   * @param value - The raw input value
+   */
   const handleInputChange = useCallback(
     (providerId: ProviderId, value: string) => {
       setDraftValues((prev) => ({ ...prev, [providerId]: value }));
@@ -110,6 +132,12 @@ export function SessionResumeSection({
     []
   );
 
+  /**
+   * Generates a localized error message for an invalid extra argument input.
+   *
+   * @param validation - Result from parsing and validating the arguments
+   * @returns Localized error string
+   */
   const getValidationErrorMessage = useCallback(
     (validation: ReturnType<typeof parseResumeArgs>) => {
       if (!validation.errorCode) {
@@ -149,6 +177,11 @@ export function SessionResumeSection({
     [t]
   );
 
+  /**
+   * Validates and persists the extra arguments for a provider to user settings.
+   *
+   * @param providerId - The CLI provider identifier
+   */
   const handleSave = useCallback(
     async (providerId: ProviderId) => {
       const rawValue = getValueForProvider(providerId);
@@ -189,6 +222,11 @@ export function SessionResumeSection({
     [getValueForProvider, storedArgsMap, updateUserSettings, t, getValidationErrorMessage]
   );
 
+  /**
+   * Resets extra arguments for a provider, clearing drafts and removing stored settings.
+   *
+   * @param providerId - The CLI provider identifier
+   */
   const handleReset = useCallback(
     async (providerId: ProviderId) => {
       setDraftValues((prev) => {
