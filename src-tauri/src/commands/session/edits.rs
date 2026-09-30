@@ -33,6 +33,28 @@ fn detect_project_provider(project_path: &str) -> EditsProvider {
     }
 }
 
+/// Whether recent edits for this project are read through a provider (its
+/// path is a provider id) rather than from the project directory on disk.
+#[cfg(feature = "webui-server")]
+pub(crate) fn is_provider_edits_project(project_path: &str) -> bool {
+    detect_project_provider(project_path) != EditsProvider::Claude
+}
+
+/// Whether `session_path` is a provider id minted by the same provider as
+/// `project_path`. Codex sessions are rollout files, so never ids.
+#[cfg(feature = "webui-server")]
+pub(crate) fn is_provider_session_of_project(project_path: &str, session_path: &str) -> bool {
+    let schemes: &[&str] = match detect_project_provider(project_path) {
+        EditsProvider::OpenCode => &["opencode://"],
+        EditsProvider::Kilo => &["kilo://"],
+        EditsProvider::ForgeCode => &["forgecode://", "forgecode-db://"],
+        EditsProvider::Codex | EditsProvider::Claude => &[],
+    };
+    schemes
+        .iter()
+        .any(|scheme| session_path.starts_with(scheme))
+}
+
 /// Page size when the caller does not ask for one.
 const DEFAULT_PAGE_LIMIT: usize = 20;
 

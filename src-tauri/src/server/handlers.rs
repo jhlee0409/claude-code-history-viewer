@@ -18,8 +18,36 @@ use crate::commands;
 /// Caller-supplied session / project paths must sit under a configured history
 /// root. Applied here, at the HTTP trust boundary, rather than in the commands,
 /// which desktop also calls with paths from its own scans and folder picker.
+///
+/// Filesystem paths only. The default for every handler whose command opens
+/// the value as a path.
 fn require_history_path(path: &str) -> Result<(), String> {
+    commands::session::is_safe_history_file_path(std::path::Path::new(path))
+}
+
+/// Also accepts a provider URI (`scheme://…`). Only for handlers whose command
+/// resolves such ids against its own provider store (#560).
+fn require_history_path_or_provider_uri(path: &str) -> Result<(), String> {
     commands::session::is_safe_session_path(std::path::Path::new(path))
+}
+
+/// Recent edits read a provider project through the provider (its path is a
+/// provider id) and any other project from disk. A session is accepted as a
+/// provider id only when it is one of that same provider's ids; anything else
+/// must be a history file.
+fn require_edits_project(project_path: &str, session: Option<&str>) -> Result<(), String> {
+    if commands::session::is_provider_edits_project(project_path) {
+        require_history_path_or_provider_uri(project_path)?;
+    } else {
+        require_history_path(project_path)?;
+    }
+    match session {
+        Some(s) if commands::session::is_provider_session_of_project(project_path, s) => {
+            require_history_path_or_provider_uri(s)
+        }
+        Some(s) => require_history_path(s),
+        None => Ok(()),
+    }
 }
 
 /// A Claude base directory (`~/.claude`-shaped) is accepted when its
@@ -720,7 +748,8 @@ handler_json!(
     get_session_subagents,
     SessionPathParam,
     |p: SessionPathParam| async move {
-        require_history_path(&p.session_path)?;
+        // OpenCode / Kilo subagents are read by provider id.
+        require_history_path_or_provider_uri(&p.session_path)?;
         commands::session::get_session_subagents(p.session_path).await
     }
 );
@@ -738,10 +767,7 @@ handler_json!(
     get_recent_edits,
     RecentEditsParams,
     |p: RecentEditsParams| async move {
-        require_history_path(&p.project_path)?;
-        if let Some(session) = &p.session_file_path {
-            require_history_path(session)?;
-        }
+        require_edits_project(&p.project_path, p.session_file_path.as_deref())?;
         commands::session::get_recent_edits(
             p.project_path,
             p.offset,
@@ -772,10 +798,7 @@ handler_json!(
     RestoreFileParams,
     |p: RestoreFileParams| async move {
         // The edit history that authorises the write must itself be history.
-        require_history_path(&p.project_path)?;
-        if let Some(session) = &p.session_file_path {
-            require_history_path(session)?;
-        }
+        require_edits_project(&p.project_path, p.session_file_path.as_deref())?;
         commands::session::restore_file(p.file_path, p.content, p.project_path, p.session_file_path)
             .await
     }
@@ -873,7 +896,8 @@ handler_json!(
     rename_opencode_session_title,
     RenameOpenCodeParams,
     |p: RenameOpenCodeParams| async move {
-        require_history_path(&p.session_path)?;
+        // OpenCode sessions are addressed by provider id.
+        require_history_path_or_provider_uri(&p.session_path)?;
         commands::session::rename_opencode_session_title(p.session_path, p.new_title).await
     }
 );
@@ -2202,5 +2226,147 @@ mod tests {
             !std::path::Path::new(&cwd).exists(),
             "deleted project dir was recreated"
         );
+    }
+}
+
+/// Which handlers take a provider URI and which take only a filesystem path.
+/// Not `unix`-gated: the values below must be refused on every platform.
+#[cfg(test)]
+mod provider_uri_scope_tests {
+    use super::*;
+    use serial_test::serial;
+
+    const OUTSIDE: &str = commands::session::OUTSIDE_HISTORY_ROOTS;
+
+    /// URI-shaped values that are not history files.
+    const NOT_FILESYSTEM_HISTORY: [&str; 3] = [
+        "c://cchv-none/a/b.jsonl",
+        "x://cchv-none/a/b.jsonl",
+        "opencode://proj-1/ses_abc123",
+    ];
+
+    fn error_of(res: Result<Json<Value>, ApiError>) -> Option<String> {
+        res.err().map(|e| e.0)
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn claude_session_handlers_take_only_filesystem_paths() {
+        let _home = crate::test_utils::SandboxHome::new();
+        for value in NOT_FILESYSTEM_HISTORY {
+            let res = load_session_messages(Json(SessionPathParam {
+                session_path: value.to_string(),
+            }))
+            .await;
+            assert_eq!(error_of(res).as_deref(), Some(OUTSIDE), "{value}");
+
+            let res = load_provider_messages(Json(ProviderMessagesParams {
+                provider: "claude".to_string(),
+                session_path: value.to_string(),
+            }))
+            .await;
+            assert_eq!(error_of(res).as_deref(), Some(OUTSIDE), "{value}");
+
+            let res = delete_session(Json(DeleteSessionParams {
+                file_path: value.to_string(),
+            }))
+            .await;
+            assert_eq!(error_of(res).as_deref(), Some(OUTSIDE), "{value}");
+        }
+    }
+
+    /// A project the recent-edits panel does not route to a provider is read
+    /// from disk, so it must be a history path.
+    #[tokio::test]
+    #[serial]
+    async fn recent_edits_take_a_uri_only_for_provider_projects() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let res = get_recent_edits(Json(RecentEditsParams {
+            project_path: "zz://cchv-none/proj".to_string(),
+            offset: None,
+            limit: None,
+            session_file_path: None,
+            grouping: None,
+        }))
+        .await;
+        assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
+
+        let res = get_recent_edits(Json(RecentEditsParams {
+            project_path: "opencode://cchv-none-proj".to_string(),
+            offset: None,
+            limit: None,
+            session_file_path: Some("opencode://cchv-none-proj/ses_1".to_string()),
+            grouping: None,
+        }))
+        .await;
+        assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
+    }
+
+    /// A session inside a provider project is either that provider's own id
+    /// or a history file; another scheme is neither.
+    #[tokio::test]
+    #[serial]
+    async fn recent_edits_session_must_belong_to_the_project_provider() {
+        let _home = crate::test_utils::SandboxHome::new();
+        for session in ["zz://cchv-none/a/b.jsonl", "kilo://cchv-none-proj/ses_1"] {
+            let res = get_recent_edits(Json(RecentEditsParams {
+                project_path: "opencode://cchv-none-proj".to_string(),
+                offset: None,
+                limit: None,
+                session_file_path: Some(session.to_string()),
+                grouping: None,
+            }))
+            .await;
+            assert_eq!(error_of(res).as_deref(), Some(OUTSIDE), "{session}");
+        }
+    }
+
+    /// Codex projects are provider ids, but their sessions are rollout files.
+    #[tokio::test]
+    #[serial]
+    async fn recent_edits_accept_a_codex_rollout_file_as_the_session() {
+        let home = crate::test_utils::SandboxHome::new();
+        let day = home.path().join(".codex").join("sessions").join("2026");
+        std::fs::create_dir_all(&day).unwrap();
+        let rollout = day.join("rollout-cchv.jsonl");
+        std::fs::write(&rollout, "").unwrap();
+
+        let res = get_recent_edits(Json(RecentEditsParams {
+            project_path: "codex://cchv-none-proj".to_string(),
+            offset: None,
+            limit: None,
+            session_file_path: Some(rollout.to_string_lossy().to_string()),
+            grouping: None,
+        }))
+        .await;
+        assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
+    }
+
+    /// Handlers whose commands resolve database-backed provider ids keep
+    /// accepting them (#560).
+    #[tokio::test]
+    #[serial]
+    async fn provider_uri_handlers_still_accept_provider_ids() {
+        let _home = crate::test_utils::SandboxHome::new();
+        for value in ["opencode://proj-1/ses_abc123", "kilo://proj-1/ses_abc123"] {
+            let res = get_session_subagents(Json(SessionPathParam {
+                session_path: value.to_string(),
+            }))
+            .await;
+            assert_ne!(error_of(res).as_deref(), Some(OUTSIDE), "{value}");
+        }
+
+        let res = rename_opencode_session_title(Json(RenameOpenCodeParams {
+            session_path: "opencode://proj-1/ses_abc123".to_string(),
+            new_title: "t".to_string(),
+        }))
+        .await;
+        assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
+
+        let res = get_session_subagents(Json(SessionPathParam {
+            session_path: "c://cchv-none/a/b.jsonl".to_string(),
+        }))
+        .await;
+        assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
     }
 }
