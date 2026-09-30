@@ -339,7 +339,12 @@ fn is_exportable(msg: &Value) -> bool {
     let typ = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
     !matches!(
         typ,
-        "system" | "summary" | "progress" | "queue-operation" | "file-history-snapshot"
+        "system"
+            | "summary"
+            | "ai-title"
+            | "progress"
+            | "queue-operation"
+            | "file-history-snapshot"
     )
 }
 
@@ -685,18 +690,27 @@ fn resolve_session_path(value: &str) -> Result<PathBuf, String> {
     }
 }
 
-/// Best-effort display title: a `summary` message if present, else the file stem.
+/// Best-effort display title: the last Claude Code `ai-title` if present, else
+/// a `summary` message, else the file stem.
 fn session_title(messages: &[Value], path: &Path) -> String {
+    fn field_of_type(m: &Value, typ: &str, field: &str) -> Option<String> {
+        if m.get("type").and_then(|t| t.as_str()) != Some(typ) {
+            return None;
+        }
+        m.get(field)
+            .and_then(|s| s.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    }
     messages
         .iter()
-        .find_map(|m| {
-            if m.get("type").and_then(|t| t.as_str()) == Some("summary") {
-                m.get("summary")
-                    .and_then(|s| s.as_str())
-                    .map(str::to_string)
-            } else {
-                None
-            }
+        .rev()
+        .find_map(|m| field_of_type(m, "ai-title", "aiTitle"))
+        .or_else(|| {
+            messages
+                .iter()
+                .find_map(|m| field_of_type(m, "summary", "summary"))
         })
         .unwrap_or_else(|| {
             path.file_stem()
@@ -845,8 +859,24 @@ mod tests {
         ));
         assert!(!is_exportable(&json!({ "type": "system" })));
         assert!(!is_exportable(&json!({ "type": "summary" })));
+        assert!(!is_exportable(
+            &json!({ "type": "ai-title", "aiTitle": "T" })
+        ));
         assert!(is_exportable(&json!({ "type": "user" })));
         assert!(is_exportable(&json!({ "type": "assistant" })));
+    }
+
+    #[test]
+    fn session_title_prefers_last_ai_title_over_summary() {
+        let path = Path::new("/tmp/abc-123.jsonl");
+        let messages = vec![
+            json!({ "type": "summary", "summary": "Legacy summary" }),
+            json!({ "type": "ai-title", "aiTitle": "First title" }),
+            json!({ "type": "ai-title", "aiTitle": "Second title" }),
+        ];
+        assert_eq!(session_title(&messages, path), "Second title");
+        assert_eq!(session_title(&messages[..1], path), "Legacy summary");
+        assert_eq!(session_title(&[], path), "abc-123");
     }
 
     #[test]

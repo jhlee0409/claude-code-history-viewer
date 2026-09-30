@@ -445,6 +445,7 @@ fn extract_session_metadata(path: &Path) -> (usize, String, String, Option<Strin
     let mut first_ts: Option<String> = None;
     let mut last_ts: Option<String> = None;
     let mut summary: Option<String> = None;
+    let mut ai_title: Option<String> = None;
 
     for line in reader.lines().map_while(Result::ok) {
         if line.trim().is_empty() {
@@ -482,13 +483,21 @@ fn extract_session_metadata(path: &Path) -> (usize, String, String, Option<Strin
                 summary = Some(s.to_string());
             }
         }
+        // Claude Code's auto-generated title outranks legacy summaries (last one wins)
+        if msg_type == "ai-title" {
+            if let Some(t) = val.get("aiTitle").and_then(serde_json::Value::as_str) {
+                if !t.trim().is_empty() {
+                    ai_title = Some(t.trim().to_string());
+                }
+            }
+        }
     }
 
     (
         count,
         first_ts.unwrap_or_default(),
         last_ts.unwrap_or_default(),
-        summary,
+        ai_title.or(summary),
     )
 }
 
@@ -1669,6 +1678,20 @@ mod tests {
         fs::write(&path, content).unwrap();
         let summary = extract_summary(&path);
         assert_eq!(summary, Some("A great conversation".to_string()));
+    }
+
+    #[test]
+    fn test_extract_session_metadata_prefers_ai_title_over_summary() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("session.jsonl");
+        let content = r#"{"type":"summary","summary":"Legacy summary"}
+{"type":"ai-title","aiTitle":"First title","sessionId":"s1"}
+{"type":"user","timestamp":"2026-01-01T10:00:00Z"}
+{"type":"ai-title","aiTitle":"Second title","sessionId":"s1"}
+"#;
+        fs::write(&path, content).unwrap();
+        let (_, _, _, summary) = extract_session_metadata(&path);
+        assert_eq!(summary, Some("Second title".to_string()));
     }
 
     #[test]
