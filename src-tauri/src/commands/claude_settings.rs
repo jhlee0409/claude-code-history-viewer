@@ -1143,9 +1143,10 @@ mod tests {
         let original = r#"{"oauthAccount":{"id":"a"},"projects":{},}"#;
         fs::write(&path, original).unwrap();
 
+        let project_dir = temp.path().join("project").to_string_lossy().to_string();
         for (source, project) in [
             ("user_claude_json", None),
-            ("local_claude_json", Some("/tmp/project".to_string())),
+            ("local_claude_json", Some(project_dir.clone())),
         ] {
             let result = save_mcp_servers(
                 source.to_string(),
