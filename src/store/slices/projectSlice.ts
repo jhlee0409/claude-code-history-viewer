@@ -827,7 +827,14 @@ export const createProjectSlice: StateCreator<
         limit: SESSION_PAGE_LIMIT,
       });
 
-      if (requestId !== getRequestId("selectProject")) {
+      // A reload keeps the rows on screen and leaves `isLoadingSessions` false,
+      // so this can start mid-reload with the reload's id and the OLD offset.
+      // If the reload landed first, the list no longer ends at that offset and
+      // appending would skip the rows in between.
+      if (
+        requestId !== getRequestId("selectProject") ||
+        get().sessionsOffset !== sessionsOffset
+      ) {
         return;
       }
 

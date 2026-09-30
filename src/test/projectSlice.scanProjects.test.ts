@@ -789,6 +789,52 @@ describe("projectSlice scanProjects", () => {
     });
   });
 
+  it("drops a next page requested while a reload is in flight", async () => {
+    // A reload keeps the rows on screen and leaves the spinner off, so the
+    // list can still ask for the next page at the offset of the OLD list.
+    // Appending that page after the reloaded page 1 skips the rows between.
+    const project = createMockProject("current", "claude");
+    const [s0, s1, s2, s3, s4] = ["s0", "s1", "s2", "s3", "s4"].map((id) =>
+      createMockSession(id, project)
+    );
+    const store = createTestStore();
+    store.setState({
+      selectedProject: project,
+      selectedSession: null,
+      sessions: [s1, s2, s3],
+      sessionsOffset: 3,
+      hasMoreSessions: true,
+    });
+    const firstPage = createDeferred<unknown>();
+    const nextPage = createDeferred<unknown>();
+    vi.mocked(api).mockImplementation((command, args) => {
+      if (command === "load_provider_sessions_page") {
+        return (args as { offset: number }).offset === 0
+          ? (firstPage.promise as Promise<never>)
+          : (nextPage.promise as Promise<never>);
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    const reload = store.getState().reloadProjectSessions(project);
+    const loadMore = store.getState().loadMoreSessions();
+    expect(api).toHaveBeenCalledWith(
+      "load_provider_sessions_page",
+      expect.objectContaining({ offset: 3 })
+    );
+
+    // A new session s0 shifted everything down by one.
+    firstPage.resolve({ sessions: [s0, s1], total: 5, offset: 0, limit: 2, nextOffset: 2, hasMore: true });
+    await reload;
+    nextPage.resolve({ sessions: [s4], total: 5, offset: 3, limit: 2, nextOffset: 4, hasMore: false });
+    await loadMore;
+
+    expect(store.getState().sessions).toEqual([s0, s1]);
+    expect(store.getState().sessionsOffset).toBe(2);
+    expect(store.getState().hasMoreSessions).toBe(true);
+    expect(store.getState().isLoadingMoreSessions).toBe(false);
+  });
+
   it("clears stale selection when the selected project no longer exists", async () => {
     const store = createTestStore();
     const project = createMockProject("deleted", "claude");
