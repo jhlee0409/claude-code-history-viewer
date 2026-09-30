@@ -46,6 +46,8 @@ jobs:
       - name: Record traffic
         env:
           GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+        # Explicit bash adds pipefail, so a failed fetch isn't masked by tee.
+        shell: bash
         run: node src/scripts/record-traffic.mjs data "${{ github.repository }}" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Commit and push
