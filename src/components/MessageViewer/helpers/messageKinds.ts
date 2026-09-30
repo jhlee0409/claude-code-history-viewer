@@ -68,6 +68,16 @@ function readTag(text: string, tagName: string): string | undefined {
   return match?.[1]?.trim();
 }
 
+// Terminal task states that did not succeed. "killed" and "stopped" both mean
+// the task ended before completing (Claude Code writes "stopped" when a
+// background command did not finish before the session ended).
+const FAILED_TASK_STATUSES = new Set(["failed", "error", "killed", "stopped"]);
+
+/** True when a task-notification status means the task ended without succeeding. */
+export function isFailedTaskStatus(status: string | undefined): boolean {
+  return status != null && FAILED_TASK_STATUSES.has(status);
+}
+
 /** True when the text holds at least one complete `<task-notification>` block. */
 export function isTaskNotification(text: string): boolean {
   return /<task-notification>[\s\S]*?<\/task-notification>/.test(text);

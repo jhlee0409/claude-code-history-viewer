@@ -9,6 +9,7 @@ import {
   filterMessagesByCategory,
   getMessageUuidsByCategory,
 } from "../MessageViewer/helpers";
+import { getKindLabelKey } from "./kindLabels";
 import { NavigatorEntry } from "./NavigatorEntry";
 import { useNavigatorEntries } from "./useNavigatorEntries";
 
@@ -67,7 +68,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
   );
   const allEntries = useNavigatorEntries(navigatorMessages);
 
-  // Apply local filter (role + text)
+  // Apply local filter (kind label + text), matching what each row displays
   const entries = useMemo(() => {
     let filtered = allEntries;
     if (userOnlyFilter) {
@@ -80,11 +81,11 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
       filtered = filtered.filter(
         (e) =>
           e.preview.toLowerCase().includes(lower) ||
-          e.role.toLowerCase().includes(lower)
+          t(getKindLabelKey(e.kind)).toLowerCase().includes(lower)
       );
     }
     return filtered;
-  }, [allEntries, filterText, userOnlyFilter]);
+  }, [allEntries, filterText, userOnlyFilter, t]);
 
   // Height estimation function for @tanstack/react-virtual
   const estimateSize = useCallback((index: number) => {

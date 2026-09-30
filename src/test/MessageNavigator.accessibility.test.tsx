@@ -234,4 +234,64 @@ describe("MessageNavigator accessibility", () => {
     const icon = screen.getByRole("option").querySelector("svg");
     expect(icon).toHaveClass("text-destructive");
   });
+
+  it("filters rows by the kind label they display, not the stored role", () => {
+    render(
+      <MessageNavigator
+        messages={[
+          {
+            uuid: "prompt",
+            type: "user",
+            content: "Scrub for pii",
+            timestamp: "2026-02-27T10:00:00Z",
+          } as never,
+          {
+            uuid: "agent-update",
+            type: "user",
+            content: "<task-notification><task-id>bg-4</task-id><status>completed</status><summary>Batch A finished</summary></task-notification>",
+            timestamp: "2026-02-27T10:01:00Z",
+          } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    const filterInput = screen.getByRole("textbox");
+
+    // The i18n mock returns keys, so the agent-update label is "navigator.kind.agentUpdate".
+    fireEvent.change(filterInput, { target: { value: "agent" } });
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(screen.getByText("Batch A finished")).toBeInTheDocument();
+
+    // Both rows are stored as role "user", but neither displays that word.
+    fireEvent.change(filterInput, { target: { value: "user" } });
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+  });
+
+  it("marks a stopped agent update in the destructive color", () => {
+    render(
+      <MessageNavigator
+        messages={[
+          {
+            uuid: "stopped-update",
+            type: "user",
+            content: "<task-notification><task-id>bg-3</task-id><status>stopped</status><summary>Background shell command didn't finish before the previous session ended</summary></task-notification>",
+            timestamp: "2026-02-27T10:05:00Z",
+          } as never,
+        ]}
+        width={260}
+        isResizing={false}
+        onResizeStart={vi.fn()}
+        isCollapsed={false}
+        onToggleCollapse={vi.fn()}
+      />
+    );
+
+    const icon = screen.getByRole("option").querySelector("svg");
+    expect(icon).toHaveClass("text-destructive");
+  });
 });
