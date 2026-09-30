@@ -610,6 +610,59 @@ describe("projectSlice scanProjects", () => {
     expect(store.getState().isRefreshingAllConversations).toBe(false);
   });
 
+  it("keeps the session selected when re-selecting it so the reload is in place (#609)", async () => {
+    // selectSession only treats a call as an in-place reload (keeping the
+    // subagent stack, pagination and search index) when the same session is
+    // still selected. Going through selectProject nulled it first.
+    const store = createTestStore();
+    const project = createMockProject("current", "claude");
+    const selectedSession = createMockSession("session-1", project);
+    const refreshedSession = { ...selectedSession, message_count: 3 };
+    const selectedAtSelectSession: Array<ClaudeSession | null> = [];
+    store.getState().selectSession.mockImplementation(async () => {
+      selectedAtSelectSession.push(store.getState().selectedSession);
+    });
+
+    store.setState({
+      claudePath: "/root/.claude",
+      providers: [
+        {
+          id: "claude",
+          display_name: "Claude Code",
+          base_path: "/root/.claude",
+          is_available: true,
+        },
+      ],
+      selectedProject: project,
+      selectedSession,
+      sessions: [selectedSession],
+      activeProviders: ["claude"],
+    });
+
+    vi.mocked(api).mockImplementation((command) => {
+      if (command === "scan_projects") {
+        return Promise.resolve([project]);
+      }
+      if (command === "load_provider_sessions_page") {
+        return Promise.resolve({
+          sessions: [refreshedSession],
+          total: 1,
+          offset: 0,
+          limit: 250,
+          nextOffset: 1,
+          hasMore: false,
+        });
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    await store.getState().refreshAllConversations();
+
+    expect(store.getState().selectSession).toHaveBeenCalledWith(refreshedSession);
+    expect(selectedAtSelectSession).toHaveLength(1);
+    expect(selectedAtSelectSession[0]?.file_path).toBe(selectedSession.file_path);
+  });
+
   it("clears stale selection when the selected project no longer exists", async () => {
     const store = createTestStore();
     const project = createMockProject("deleted", "claude");

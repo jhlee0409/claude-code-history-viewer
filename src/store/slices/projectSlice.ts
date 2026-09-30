@@ -559,7 +559,10 @@ export const createProjectSlice: StateCreator<
         return;
       }
 
-      await get().selectProject(refreshedProject);
+      // Same project, so refresh its list without `selectProject`, which nulls
+      // `selectedSession` and would turn the re-select below into a fresh load
+      // (dropping the subagent stack, pagination and search) - see #508, #609.
+      await get().reloadProjectSessions(refreshedProject);
 
       let refreshedSession: ClaudeSession | null = null;
       if (previouslySelectedSession) {
