@@ -55,6 +55,10 @@ const UNKNOWN_PROJECT_DIR: &str = "Project directory is not a known project";
 /// How long a scanned list of known project directories is reused.
 const KNOWN_PROJECTS_TTL: std::time::Duration = std::time::Duration::from_secs(30);
 
+/// A miss rescans only if the list is at least this old, so a burst of
+/// unknown paths costs one scan rather than one each.
+const RESCAN_ON_MISS_AFTER: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Whether the endpoint writes into the project directory.
 #[derive(Clone, Copy, PartialEq)]
 enum ProjectAccess {
@@ -82,20 +86,25 @@ fn comparable_path(path: &std::path::Path) -> PathBuf {
 ///
 /// Ceiling: a refresh is one `scan_projects` per Claude directory, the same
 /// cost as the already-exposed `/scan_projects` endpoint. The list is reused
-/// for `KNOWN_PROJECTS_TTL`, and a miss rescans so a project that just
-/// appeared is accepted. If that ever shows up in profiles, throttle the
-/// refresh-on-miss or reuse the frontend's own scan result.
+/// for `KNOWN_PROJECTS_TTL`; a miss rescans (so a project that just appeared
+/// is accepted) at most once per `RESCAN_ON_MISS_AFTER`, which is also how
+/// long a new project can be refused. The scan runs outside the lock, so
+/// concurrent refreshes may each scan once; the last one is kept. If that
+/// ever shows up in profiles, reuse the frontend's own scan result.
 fn is_known_project_dir(candidate: &std::path::Path) -> bool {
     let roots = commands::session::allowed_claude_roots();
-    let mut cache = KNOWN_PROJECTS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(cached) = cache.as_ref() {
-        if cached.roots == roots
-            && cached.scanned_at.elapsed() < KNOWN_PROJECTS_TTL
-            && cached.dirs.iter().any(|d| d == candidate)
-        {
-            return true;
+    {
+        let cache = KNOWN_PROJECTS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(cached) = cache.as_ref().filter(|c| c.roots == roots) {
+            let age = cached.scanned_at.elapsed();
+            if age < KNOWN_PROJECTS_TTL && cached.dirs.iter().any(|d| d == candidate) {
+                return true;
+            }
+            if age < RESCAN_ON_MISS_AFTER {
+                return false;
+            }
         }
     }
     let dirs: Vec<PathBuf> = roots
@@ -106,7 +115,9 @@ fn is_known_project_dir(candidate: &std::path::Path) -> bool {
         .map(|project| comparable_path(std::path::Path::new(&project.actual_path)))
         .collect();
     let known = dirs.iter().any(|d| d == candidate);
-    *cache = Some(KnownProjects {
+    *KNOWN_PROJECTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(KnownProjects {
         roots,
         scanned_at: std::time::Instant::now(),
         dirs,
@@ -2073,6 +2084,57 @@ mod tests {
             .join(".claude")
             .join("settings.local.json")
             .exists());
+    }
+
+    #[test]
+    #[serial]
+    fn misses_right_after_a_scan_do_not_rescan() {
+        let home = crate::test_utils::SandboxHome::new();
+        let _known = known_project(&home);
+        let unknown = tempfile::tempdir().unwrap();
+        assert!(!is_known_project_dir(&comparable_path(unknown.path())));
+
+        // A project recorded after that scan is not picked up by an
+        // immediate miss: a burst of unknown paths costs one scan, not one each.
+        let later = tempfile::tempdir().unwrap();
+        let history = home.path().join(".claude").join("projects").join("-later");
+        std::fs::create_dir_all(&history).unwrap();
+        std::fs::write(
+            history.join("s2.jsonl"),
+            serde_json::json!({
+                "type": "user",
+                "uuid": "u2",
+                "sessionId": "s2",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "cwd": later.path().canonicalize().unwrap().to_string_lossy(),
+                "message": { "role": "user", "content": "hi" }
+            })
+            .to_string()
+                + "\n",
+        )
+        .unwrap();
+        assert!(!is_known_project_dir(&comparable_path(later.path())));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn linked_claude_dir_in_known_project_is_not_written() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (_repo, cwd) = known_project(&home);
+        let elsewhere = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(elsewhere.path(), std::path::Path::new(&cwd).join(".claude"))
+            .unwrap();
+
+        let res = save_settings(Json(SaveSettingsParams {
+            scope: "local".to_string(),
+            content: "{}".to_string(),
+            project_path: Some(cwd),
+        }))
+        .await;
+
+        assert!(res.is_err(), "wrote through a linked .claude");
+        assert_eq!(std::fs::read_dir(elsewhere.path()).unwrap().count(), 0);
     }
 
     #[cfg(unix)]

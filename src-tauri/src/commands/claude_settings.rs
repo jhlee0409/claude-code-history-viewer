@@ -193,10 +193,17 @@ fn write_settings_file(path: &Path, content: &str) -> Result<(), String> {
             .map_err(|e| format!("Failed to create parent directory: {e}"))?;
     }
 
-    // Atomic write pattern: write to temp file then rename
+    // Atomic write pattern: write to temp file then rename. The temp file is
+    // created fresh (`create_new`) so a leftover entry at that name, including
+    // a link to somewhere else, is removed rather than written through. The
+    // rename then replaces a linked target instead of following it.
     let temp_path = path.with_extension("json.tmp");
-    let mut file =
-        fs::File::create(&temp_path).map_err(|e| format!("Failed to create temp file: {e}"))?;
+    let _ = fs::remove_file(&temp_path);
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp_path)
+        .map_err(|e| format!("Failed to create temp file: {e}"))?;
     file.write_all(content.as_bytes())
         .map_err(|e| format!("Failed to write temp file: {e}"))?;
     file.sync_all()
@@ -205,6 +212,47 @@ fn write_settings_file(path: &Path, content: &str) -> Result<(), String> {
     super::fs_utils::atomic_rename(&temp_path, path)?;
 
     Ok(())
+}
+
+/// Write a settings file that lives inside a project directory.
+///
+/// A project directory is often a checked-out repository, and a repository
+/// can carry links (e.g. `.claude -> /elsewhere`). Every directory between
+/// `project_dir` and the file must be a real directory, so a save cannot land
+/// outside the project. Checked before writing; a link swapped in between the
+/// check and the write is not caught.
+fn write_project_settings_file(
+    project_dir: &Path,
+    path: &Path,
+    content: &str,
+) -> Result<(), String> {
+    let relative_dir = path
+        .parent()
+        .and_then(|parent| parent.strip_prefix(project_dir).ok())
+        .ok_or("Settings file is not inside the project directory")?;
+    let mut dir = project_dir.to_path_buf();
+    for component in relative_dir.components() {
+        dir.push(component);
+        if dir
+            .symlink_metadata()
+            .is_ok_and(|m| m.file_type().is_symlink())
+        {
+            return Err(format!(
+                "Refusing to write through a symlink: {}",
+                dir.display()
+            ));
+        }
+    }
+    write_settings_file(path, content)
+}
+
+/// Key of a project in `~/.claude.json` `projects`: the absolute path without
+/// a trailing separator, symlinks resolved, as Claude Code records it.
+fn claude_json_project_key(project_path: &str) -> Result<String, String> {
+    let validated = validate_project_path(project_path)?;
+    Ok(strip_windows_prefix(&validated)
+        .to_string_lossy()
+        .into_owned())
 }
 
 /// Read an existing JSON config that is about to be updated in place.
@@ -272,7 +320,12 @@ pub async fn save_settings(
 
     tauri::async_runtime::spawn_blocking(move || {
         let path = get_settings_path(&scope, project_path.as_deref())?;
-        write_settings_file(&path, &content)
+        match (scope.as_str(), project_path.as_deref()) {
+            ("project" | "local", Some(pp)) => {
+                write_project_settings_file(&validate_project_path(pp)?, &path, &content)
+            }
+            _ => write_settings_file(&path, &content),
+        }
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -439,9 +492,10 @@ pub async fn get_all_mcp_servers(project_path: Option<String>) -> Result<AllMCPS
 
         // Local/Project-scoped MCP from ~/.claude.json → projects.<path>.mcpServers
         let local_claude_json = project_path.as_deref().and_then(|pp| {
+            let key = claude_json_project_key(pp).ok()?;
             claude_json.as_ref().and_then(|json| {
                 json.get("projects")
-                    .and_then(|projects| projects.get(pp))
+                    .and_then(|projects| projects.get(&key))
                     .and_then(|project| project.get("mcpServers").cloned())
             })
         });
@@ -503,7 +557,7 @@ pub async fn save_mcp_servers(
                 let mcp_json = serde_json::json!({ "mcpServers": servers_value });
                 let content = serde_json::to_string_pretty(&mcp_json)
                     .map_err(|e| format!("Failed to serialize MCP config: {e}"))?;
-                write_settings_file(&path, &content)?;
+                write_project_settings_file(&validate_project_path(&pp)?, &path, &content)?;
             }
             "user_claude_json" => {
                 // Update mcpServers field in ~/.claude.json (official)
@@ -517,8 +571,9 @@ pub async fn save_mcp_servers(
             }
             "local_claude_json" => {
                 // Update projects.<path>.mcpServers in ~/.claude.json (official)
-                let pp =
-                    project_path.ok_or("project_path required for local_claude_json source")?;
+                let pp = claude_json_project_key(
+                    &project_path.ok_or("project_path required for local_claude_json source")?,
+                )?;
                 let path = get_claude_json_path()?;
                 let mut claude_json = read_json_for_update(&path)?;
 
@@ -590,8 +645,9 @@ pub async fn get_claude_json_config(
         let mcp_servers = raw.get("mcpServers").cloned();
 
         let project_settings = project_path.and_then(|pp| {
+            let key = claude_json_project_key(&pp).ok()?;
             raw.get("projects")
-                .and_then(|projects| projects.get(&pp).cloned())
+                .and_then(|projects| projects.get(&key).cloned())
         });
 
         Ok(ClaudeJsonConfig {
@@ -716,7 +772,6 @@ pub(crate) fn is_safe_path(path: &Path) -> Result<(), String> {
 /// Strip the `\\?\` extended-length path prefix that Windows `canonicalize()` adds.
 ///
 /// On non-Windows platforms this is a no-op (the prefix never appears).
-#[cfg(feature = "webui-server")]
 fn strip_windows_prefix(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
     if let Some(stripped) = s.strip_prefix(r"\\?\") {
@@ -1314,5 +1369,96 @@ mod tests {
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not in allowed directories"));
         drop(temp);
+    }
+
+    // ─── Symlinks inside a project directory ─────────────────────────────
+
+    /// A project whose `.claude` is a link to another directory, the way a
+    /// checked-out repository can ship it. Returns (project, link target).
+    #[cfg(unix)]
+    fn project_with_linked_claude_dir(temp: &TempDir) -> (PathBuf, PathBuf) {
+        let project = temp.path().join("repo");
+        let elsewhere = temp.path().join("elsewhere");
+        fs::create_dir_all(&project).unwrap();
+        fs::create_dir_all(&elsewhere).unwrap();
+        std::os::unix::fs::symlink(&elsewhere, project.join(".claude")).unwrap();
+        (project, elsewhere)
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn save_settings_refuses_linked_claude_dir() {
+        let temp = setup_test_env();
+        let (project, elsewhere) = project_with_linked_claude_dir(&temp);
+
+        for scope in ["project", "local"] {
+            let res = save_settings(
+                scope.to_string(),
+                "{}".to_string(),
+                Some(project.to_string_lossy().to_string()),
+            )
+            .await;
+            assert!(res.is_err(), "{scope}: wrote through a linked .claude");
+        }
+        assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_settings_file_does_not_write_through_linked_temp_file() {
+        let temp = setup_test_env();
+        let dir = temp.path().join("repo");
+        fs::create_dir_all(&dir).unwrap();
+        let outside = temp.path().join("outside.json");
+        fs::write(&outside, "original").unwrap();
+        std::os::unix::fs::symlink(&outside, dir.join(".mcp.json.tmp")).unwrap();
+
+        let target = dir.join(".mcp.json");
+        write_settings_file(&target, "{}").unwrap();
+
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "original");
+        assert_eq!(fs::read_to_string(&target).unwrap(), "{}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_settings_file_replaces_linked_target_instead_of_following_it() {
+        let temp = setup_test_env();
+        let dir = temp.path().join("repo");
+        fs::create_dir_all(&dir).unwrap();
+        let outside = temp.path().join("outside.json");
+        fs::write(&outside, "original").unwrap();
+        let target = dir.join(".mcp.json");
+        std::os::unix::fs::symlink(&outside, &target).unwrap();
+
+        write_settings_file(&target, "{}").unwrap();
+
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "original");
+        assert!(!target.symlink_metadata().unwrap().file_type().is_symlink());
+    }
+
+    #[tokio::test]
+    async fn local_claude_json_keys_projects_by_canonical_path() {
+        let temp = setup_test_env();
+        let project = temp.path().join("repo");
+        fs::create_dir_all(&project).unwrap();
+        let canonical = strip_windows_prefix(&project.canonicalize().unwrap())
+            .to_string_lossy()
+            .to_string();
+        let with_trailing_separator = format!("{canonical}{}", std::path::MAIN_SEPARATOR);
+
+        save_mcp_servers(
+            "local_claude_json".to_string(),
+            r#"{"s":{"command":"c"}}"#.to_string(),
+            Some(with_trailing_separator),
+        )
+        .await
+        .unwrap();
+
+        let saved: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(temp.path().join(".claude.json")).unwrap())
+                .unwrap();
+        let keys: Vec<&String> = saved["projects"].as_object().unwrap().keys().collect();
+        assert_eq!(keys, vec![&canonical]);
     }
 }
