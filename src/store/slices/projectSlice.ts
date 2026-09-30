@@ -130,8 +130,9 @@ const lookUpSessionBeyondPage = async (
       excludeSidechain,
     });
     // The list borrows summaries across sessions (leafUuid); a single-file
-    // lookup can't, so keep the one the row already showed.
-    return found && { ...found, summary: found.summary ?? held.summary };
+    // lookup can't, so keep the one the row already showed. `||`: an empty
+    // summary counts as none.
+    return found && { ...found, summary: found.summary || held.summary };
   } catch {
     // Unsupported provider or a rejected path: fall back, don't surface an
     // error for a list refresh that otherwise succeeded.

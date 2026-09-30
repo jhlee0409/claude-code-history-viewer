@@ -769,6 +769,16 @@ describe("projectSlice scanProjects", () => {
       expect(store.getState().selectedSession).toBe(subagent);
     });
 
+    it("keeps the row's summary when the lookup has none (empty counts as none)", async () => {
+      const store = setup(() => Promise.resolve({ ...refreshedPagedSession, summary: "" }));
+      store.setState({ selectedSession: { ...pagedSession, summary: "Borrowed title" } });
+
+      await store.getState().reloadProjectSessions(project);
+
+      expect(store.getState().selectedSession?.summary).toBe("Borrowed title");
+      expect(store.getState().sessions[1]?.summary).toBe("Borrowed title");
+    });
+
     it("clears it when its file is gone", async () => {
       const store = setup(() => Promise.resolve(null));
 
