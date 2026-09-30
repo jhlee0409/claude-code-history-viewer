@@ -154,6 +154,10 @@ fn ensure_archives_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Per-archive `manifest.json` schema version.
+/// v2: session `summary` is derived with ai-title > legacy summary precedence (#611).
+const ARCHIVE_MANIFEST_VERSION: u64 = 2;
+
 /// Path to the global archive manifest file.
 fn get_manifest_path() -> Result<PathBuf, String> {
     Ok(get_archives_dir()?.join("archive-manifest.json"))
@@ -811,7 +815,7 @@ pub async fn create_archive(
             let created_at = Utc::now().to_rfc3339();
             let archive_manifest_path = archive_dir.join("manifest.json");
             let archive_manifest = serde_json::json!({
-                "version": 1,
+                "version": ARCHIVE_MANIFEST_VERSION,
                 "archiveId": archive_id,
                 "name": name,
                 "description": description,
@@ -1023,12 +1027,20 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
         }
 
         // Try to load metadata from the per-archive manifest for richer information
-        let per_manifest: Option<serde_json::Value> = {
-            let path = archive_dir.join("manifest.json");
-            fs::read_to_string(&path)
-                .ok()
-                .and_then(|c| serde_json::from_str(&c).ok())
-        };
+        let per_manifest_path = archive_dir.join("manifest.json");
+        let mut per_manifest: Option<serde_json::Value> = fs::read_to_string(&per_manifest_path)
+            .ok()
+            .and_then(|c| serde_json::from_str(&c).ok());
+
+        // Manifests written before #611 cached titles without ai-title precedence.
+        let needs_title_refresh = per_manifest.as_ref().is_some_and(|pm| {
+            pm.get("version")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(1)
+                < ARCHIVE_MANIFEST_VERSION
+        });
+        let mut refreshed_titles: std::collections::HashMap<String, Option<String>> =
+            std::collections::HashMap::new();
 
         let session_meta_map: std::collections::HashMap<String, serde_json::Value> =
             if let Some(ref pm) = per_manifest {
@@ -1093,9 +1105,20 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
                             .and_then(serde_json::Value::as_str)
                             .unwrap_or("")
                             .to_string(),
-                        meta.get("summary")
-                            .and_then(serde_json::Value::as_str)
-                            .map(str::to_string),
+                        {
+                            let cached = meta
+                                .get("summary")
+                                .and_then(serde_json::Value::as_str)
+                                .map(str::to_string);
+                            if needs_title_refresh {
+                                // One-time re-derivation; only the title is refreshed.
+                                let title = extract_session_metadata(&path).3.or(cached);
+                                refreshed_titles.insert(file_name.clone(), title.clone());
+                                title
+                            } else {
+                                cached
+                            }
+                        },
                     )
                 } else {
                     let (mc, first, last, sum) = extract_session_metadata(&path);
@@ -1173,6 +1196,32 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
                 subagent_size_bytes,
                 subagents,
             });
+        }
+
+        // Cache refreshed titles back so the JSONL is only re-read once. Best-effort:
+        // a failed write (e.g. read-only dir) just means re-deriving on the next call.
+        // May race a concurrent rename_archive rewrite of the same file (last write wins).
+        if let Some(pm) = per_manifest.as_mut().filter(|_| needs_title_refresh) {
+            if let Some(arr) = pm
+                .get_mut("sessions")
+                .and_then(serde_json::Value::as_array_mut)
+            {
+                for s in arr.iter_mut() {
+                    let key = s
+                        .get("fileName")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string);
+                    if let Some(title) = key.and_then(|k| refreshed_titles.get(&k)) {
+                        s["summary"] = serde_json::json!(title);
+                    }
+                }
+            }
+            pm["version"] = serde_json::json!(ARCHIVE_MANIFEST_VERSION);
+            if let Ok(content) = serde_json::to_string_pretty(pm) {
+                if let Err(e) = atomic_write_string(&per_manifest_path, &content) {
+                    log::warn!("Failed to cache refreshed archive titles: {e}");
+                }
+            }
         }
 
         // Sort by first message time descending (newest first), falling back to file name
@@ -1918,6 +1967,65 @@ mod tests {
         assert_eq!(sessions[0].file_name, "sess_abc.jsonl");
         assert_eq!(sessions[0].first_message_time, "2026-02-01T08:00:00Z");
         assert_eq!(sessions[0].summary, Some("A good talk".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_get_archive_sessions_refreshes_legacy_manifest_title_from_ai_title() {
+        let _temp = setup_test_env();
+
+        let session_dir = tempfile::tempdir().unwrap();
+        let session_path = session_dir.path().join("legacy.jsonl");
+        let content = r#"{"type":"user","timestamp":"2026-02-01T08:00:00Z","message":{"role":"user","content":"question"}}
+{"type":"summary","summary":"Legacy summary"}
+{"type":"ai-title","aiTitle":"First title","sessionId":"s1"}
+{"type":"ai-title","aiTitle":"Second title","sessionId":"s1"}
+"#;
+        fs::write(&session_path, content).unwrap();
+
+        let entry = create_archive(
+            "Legacy Title".to_string(),
+            None,
+            vec![session_path.to_string_lossy().to_string()],
+            "claude".to_string(),
+            "/p".to_string(),
+            "p".to_string(),
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Rewrite the per-archive manifest as a pre-#611 archive would have it:
+        // version 1, legacy summary, plus a sentinel cached count the JSONL can't produce.
+        let manifest_path = get_archives_dir()
+            .unwrap()
+            .join(&entry.id)
+            .join("manifest.json");
+        let mut pm: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        pm["version"] = serde_json::json!(1);
+        pm["sessions"][0]["summary"] = serde_json::json!("Legacy summary");
+        pm["sessions"][0]["messageCount"] = serde_json::json!(99);
+        fs::write(&manifest_path, serde_json::to_string_pretty(&pm).unwrap()).unwrap();
+
+        let sessions = get_archive_sessions(entry.id.clone()).await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].summary, Some("Second title".to_string()));
+        assert_eq!(sessions[0].message_count, 99);
+        assert_eq!(sessions[0].first_message_time, "2026-02-01T08:00:00Z");
+        assert_eq!(
+            sessions[0].original_file_path,
+            session_path.to_string_lossy().to_string()
+        );
+
+        // The refreshed title is cached back so the JSONL is only re-read once.
+        let pm: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        assert_eq!(pm["version"], serde_json::json!(ARCHIVE_MANIFEST_VERSION));
+        assert_eq!(
+            pm["sessions"][0]["summary"],
+            serde_json::json!("Second title")
+        );
+        assert_eq!(pm["sessions"][0]["messageCount"], serde_json::json!(99));
     }
 
     #[cfg(unix)]
