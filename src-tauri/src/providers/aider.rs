@@ -276,8 +276,12 @@ fn validate_history_file(path: &Path) -> Result<(), String> {
     };
     let canonical = path.canonicalize().map_err(|_| outside())?;
     let project = canonical.parent().ok_or_else(outside)?;
+    // Within scope are also history files a client saved itself through the
+    // export allowlist (e.g. ~/Downloads): it only reads back its own bytes.
     let scanned = get_search_dirs()
         .iter()
+        // The scan refuses to walk a symlinked search dir; so does this.
+        .filter(|dir| !is_symlink(dir))
         .filter_map(|dir| dir.canonicalize().ok())
         .any(|root| {
             project.strip_prefix(&root).is_ok_and(|rel| {
@@ -682,5 +686,21 @@ def fix():
         assert!(!messages.is_empty());
         let sessions = load_sessions(&format!("aider://{}", project.display()), false).unwrap();
         assert!(!sessions.is_empty());
+    }
+
+    /// The scan never walks a symlinked search dir, so an id through one is
+    /// outside what the scan can find.
+    #[cfg(unix)]
+    #[test]
+    #[serial_test::serial]
+    fn load_messages_rejects_history_under_a_symlinked_search_dir() {
+        let home = crate::test_utils::SandboxHome::new();
+        let elsewhere = tempfile::TempDir::new().unwrap();
+        let file = write_history(&elsewhere.path().join("proj"));
+        std::os::unix::fs::symlink(elsewhere.path(), home.path().join("client")).unwrap();
+        let via_link = home.path().join("client").join("proj").join(HISTORY_FILE);
+        assert!(via_link.is_file(), "fixture: {} missing", file.display());
+
+        assert!(load_messages(&format!("aider://{}#0", via_link.display())).is_err());
     }
 }

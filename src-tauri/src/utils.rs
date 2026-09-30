@@ -51,6 +51,23 @@ pub(crate) fn home_dir() -> Option<PathBuf> {
     }
 }
 
+/// The platform config directory (`~/Library/Application Support`,
+/// `$XDG_CONFIG_HOME` or `~/.config`, `%APPDATA%`).
+#[cfg(not(test))]
+pub(crate) fn config_dir() -> Option<PathBuf> {
+    dirs::config_dir()
+}
+
+/// Test build: derived from the sandboxed home, for the same reason as
+/// [`home_dir`]. `dirs::config_dir()` does not follow `HOME` on Windows and
+/// prefers `XDG_CONFIG_HOME` on Linux, so a test using it would resolve the
+/// runner's real config directory.
+#[cfg(test)]
+#[allow(clippy::unnecessary_wraps)]
+pub(crate) fn config_dir() -> Option<PathBuf> {
+    home_dir().map(|home| home.join(".config"))
+}
+
 /// Estimated average bytes per JSONL line (used for capacity pre-allocation)
 /// Based on typical Claude message sizes (800-1200 bytes average)
 const ESTIMATED_BYTES_PER_LINE: usize = 500;

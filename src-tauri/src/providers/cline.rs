@@ -288,7 +288,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 /// Cline-family install was ever discoverable there.
 fn editor_data_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
-    if let Some(config) = dirs::config_dir() {
+    if let Some(config) = crate::utils::config_dir() {
         roots.push(config);
     }
     roots
@@ -838,12 +838,14 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn editor_data_roots_cover_this_platform() {
         // #582: before this, only macOS (unconditional `Library/Application
         // Support`) and Linux had a branch, so Cline was undiscoverable on
         // Windows. Every platform must contribute its editor data root.
+        let _home = crate::test_utils::SandboxHome::new();
         let roots = editor_data_roots();
-        let config = dirs::config_dir().expect("platform config dir");
+        let config = crate::utils::config_dir().expect("platform config dir");
         assert!(
             roots.contains(&config),
             "config dir {config:?} missing from {roots:?}"
@@ -1163,7 +1165,7 @@ mod tests {
     #[serial_test::serial]
     fn load_messages_accepts_a_discovered_extension_dir() {
         let home = crate::test_utils::SandboxHome::new();
-        let config = dirs::config_dir().expect("config dir");
+        let config = crate::utils::config_dir().expect("config dir");
         assert!(config.starts_with(home.path()), "config dir not sandboxed");
         let base = config
             .join("Code")
