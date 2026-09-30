@@ -657,4 +657,27 @@ mod tests {
         assert_eq!(tr["type"], "tool_result");
         assert!(tr["content"].as_str().unwrap().contains("\"k\""));
     }
+
+    #[test]
+    #[serial_test::serial]
+    fn load_messages_rejects_path_outside_root() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let qwen_home = tempfile::TempDir::new().unwrap();
+        fs::create_dir_all(qwen_home.path().join("projects")).unwrap();
+        let previous = std::env::var_os("QWEN_HOME");
+        std::env::set_var("QWEN_HOME", qwen_home.path());
+
+        let outside = tempfile::TempDir::new().unwrap();
+        let file = outside.path().join("chat.jsonl");
+        fs::write(&file, SESSION).unwrap();
+        let res = load_messages(&file.to_string_lossy());
+
+        match previous {
+            Some(v) => std::env::set_var("QWEN_HOME", v),
+            None => std::env::remove_var("QWEN_HOME"),
+        }
+        assert!(res
+            .expect_err("path should be rejected")
+            .contains("outside"));
+    }
 }

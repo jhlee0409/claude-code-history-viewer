@@ -116,6 +116,7 @@ pub fn load_sessions(
     if !history_path.is_file() {
         return Ok(Vec::new());
     }
+    validate_history_file(&history_path)?;
 
     let content =
         fs::read_to_string(&history_path).map_err(|e| format!("Failed to read history: {e}"))?;
@@ -165,9 +166,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     if !path.is_absolute() {
         return Err("Session path must be absolute".to_string());
     }
-    if path.file_name().and_then(|n| n.to_str()) != Some(HISTORY_FILE) {
-        return Err(format!("Invalid Aider history file: {file_path}"));
-    }
+    validate_history_file(&path)?;
 
     let content =
         fs::read_to_string(&file_path).map_err(|e| format!("Failed to read history: {e}"))?;
@@ -249,9 +248,55 @@ fn get_search_dirs() -> Vec<PathBuf> {
     dirs
 }
 
+/// Deepest project directory the scan descends to, below a search dir.
+const MAX_SCAN_DEPTH: usize = 4;
+
+/// Directories the scan never descends into.
+fn is_scanned_dir_name(name: &str) -> bool {
+    !name.starts_with('.')
+        && name != "node_modules"
+        && name != "target"
+        && name != "dist"
+        && name != "build"
+}
+
+/// Confine a caller-supplied history file to what `scan_projects` can find:
+/// below a search dir, within the scan depth, and never inside a directory
+/// the scan skips. Both sides are canonicalised, so a symlink is judged by
+/// where it points.
+fn validate_history_file(path: &Path) -> Result<(), String> {
+    if path.file_name().and_then(|n| n.to_str()) != Some(HISTORY_FILE) {
+        return Err(format!("Invalid Aider history file: {}", path.display()));
+    }
+    let outside = || {
+        format!(
+            "Aider history file is outside the scanned directories: {}",
+            path.display()
+        )
+    };
+    let canonical = path.canonicalize().map_err(|_| outside())?;
+    let project = canonical.parent().ok_or_else(outside)?;
+    let scanned = get_search_dirs()
+        .iter()
+        .filter_map(|dir| dir.canonicalize().ok())
+        .any(|root| {
+            project.strip_prefix(&root).is_ok_and(|rel| {
+                rel.components().count() <= MAX_SCAN_DEPTH
+                    && rel
+                        .components()
+                        .all(|c| is_scanned_dir_name(&c.as_os_str().to_string_lossy()))
+            })
+        });
+    if scanned {
+        Ok(())
+    } else {
+        Err(outside())
+    }
+}
+
 fn find_history_files(dir: &Path, max: usize) -> Option<Vec<PathBuf>> {
     let mut files = Vec::new();
-    find_history_recursive(dir, &mut files, max, 0, 4);
+    find_history_recursive(dir, &mut files, max, 0, MAX_SCAN_DEPTH);
     if files.is_empty() {
         None
     } else {
@@ -286,14 +331,7 @@ fn find_history_recursive(
             let path = entry.path();
             if path.is_dir() && !is_symlink(&path) {
                 let name = path.file_name().unwrap_or_default().to_string_lossy();
-                // Skip hidden dirs, node_modules, target, etc.
-                if !name.starts_with('.')
-                    && name != "node_modules"
-                    && name != "target"
-                    && name != "dist"
-                    && name != "build"
-                    && name != ".git"
-                {
+                if is_scanned_dir_name(&name) {
                     find_history_recursive(&path, results, max, depth + 1, max_depth);
                 }
             }
@@ -597,5 +635,52 @@ def fix():
             .unwrap();
         assert!(text.contains("Line 1"));
         assert!(text.contains("Line 3"));
+    }
+
+    /// Write `SAMPLE_HISTORY` as `<dir>/.aider.chat.history.md`.
+    fn write_history(dir: &Path) -> PathBuf {
+        fs::create_dir_all(dir).unwrap();
+        let file = dir.join(HISTORY_FILE);
+        fs::write(&file, SAMPLE_HISTORY).unwrap();
+        file
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn load_messages_rejects_path_outside_root() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let outside = tempfile::TempDir::new().unwrap();
+        let file = write_history(&outside.path().join("proj"));
+
+        let res = load_messages(&format!("aider://{}#0", file.display()));
+        assert!(res.is_err(), "history outside the scanned dirs was read");
+        let res = load_sessions(
+            &format!("aider://{}", outside.path().join("proj").display()),
+            false,
+        );
+        assert!(res.is_err(), "project outside the scanned dirs was listed");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn load_messages_rejects_history_the_scan_skips() {
+        let home = crate::test_utils::SandboxHome::new();
+        // Hidden directories are never scanned.
+        let file = write_history(&home.path().join(".private").join("proj"));
+
+        assert!(load_messages(&format!("aider://{}#0", file.display())).is_err());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn load_messages_accepts_history_under_a_scanned_dir() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join("client").join("proj");
+        let file = write_history(&project);
+
+        let messages = load_messages(&format!("aider://{}#0", file.display())).unwrap();
+        assert!(!messages.is_empty());
+        let sessions = load_sessions(&format!("aider://{}", project.display()), false).unwrap();
+        assert!(!sessions.is_empty());
     }
 }

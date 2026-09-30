@@ -1099,4 +1099,22 @@ mod tests {
 
         assert!(detect().is_none());
     }
+
+    #[test]
+    #[serial]
+    fn load_messages_rejects_path_outside_root() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let kimi_home = TempDir::new().unwrap();
+        fs::create_dir_all(kimi_home.path().join("sessions")).unwrap();
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _guard = EnvVarGuard::set("KIMI_HOME", kimi_home.path().as_os_str().to_owned());
+
+        let outside = TempDir::new().unwrap();
+        let session = outside.path().join("session_1");
+        fs::create_dir_all(&session).unwrap();
+        fs::write(session.join("context.jsonl"), "{}\n").unwrap();
+
+        let err = load_messages(&session.to_string_lossy()).expect_err("path should be rejected");
+        assert!(err.contains("outside"));
+    }
 }

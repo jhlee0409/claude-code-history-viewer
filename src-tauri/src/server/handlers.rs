@@ -1485,6 +1485,48 @@ mod tests {
         assert!(res.is_err(), "out-of-root session file was served");
     }
 
+    /// Path-bearing provider ids pass the history-root check as ids, so the
+    /// provider loader itself must confine them.
+    #[tokio::test]
+    #[serial]
+    async fn provider_messages_rejects_path_bearing_ids_outside_their_roots() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let outside = tempfile::tempdir().unwrap();
+
+        let aider_dir = outside.path().join("proj");
+        std::fs::create_dir_all(&aider_dir).unwrap();
+        let history = aider_dir.join(".aider.chat.history.md");
+        std::fs::write(
+            &history,
+            "# aider chat started at 2025-03-26 14:32:01\n\n#### hello\n\nhi there\n",
+        )
+        .unwrap();
+
+        let cline_base = outside.path().join("saoudrizwan.claude-dev");
+        let task = cline_base.join("tasks").join("1700000000000");
+        std::fs::create_dir_all(&task).unwrap();
+        std::fs::write(
+            task.join("ui_messages.json"),
+            r#"[{"type":"say","say":"text","text":"hello","ts":1700000000000}]"#,
+        )
+        .unwrap();
+
+        for (provider, session_path) in [
+            ("aider", format!("aider://{}#0", history.display())),
+            (
+                "cline",
+                format!("cline://{}:1700000000000", cline_base.display()),
+            ),
+        ] {
+            let res = load_provider_messages(Json(ProviderMessagesParams {
+                provider: provider.to_string(),
+                session_path,
+            }))
+            .await;
+            assert!(res.is_err(), "{provider} served a path outside its roots");
+        }
+    }
+
     #[tokio::test]
     #[serial]
     async fn session_by_path_rejects_project_outside_history_roots() {

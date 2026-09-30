@@ -127,6 +127,7 @@ pub fn load_sessions(
             .unwrap_or_default());
     }
     let (base_path, target_cwd) = parse_project_path(project_path)?;
+    require_discovered_base(&base_path)?;
     let task_history = load_task_history(&base_path);
 
     let project_name = PathBuf::from(&target_cwd)
@@ -192,6 +193,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
         return cline_sdk::load_messages_in(&root, id);
     }
     let (base_path, task_id) = parse_session_path(session_path)?;
+    require_discovered_base(&base_path)?;
 
     let ui_path = base_path
         .join("tasks")
@@ -476,6 +478,28 @@ fn parse_base_and_tail(path: &str) -> Result<(PathBuf, String), String> {
                 .map(|(base, tail)| (PathBuf::from(base), tail.to_string()))
         })
         .ok_or_else(|| format!("Invalid Cline path: {path}"))
+}
+
+/// A base parsed from a caller-supplied id must be one of the extension
+/// directories discovery found (Cline, Roo Code and Kilo Code under every
+/// supported editor); compared canonically so a symlink cannot stand in.
+fn require_discovered_base(base_path: &Path) -> Result<(), String> {
+    let outside = || {
+        format!(
+            "Cline path is outside the discovered extension directories: {}",
+            base_path.display()
+        )
+    };
+    let canonical = base_path.canonicalize().map_err(|_| outside())?;
+    let discovered = get_all_base_paths()
+        .iter()
+        .filter_map(|(base, _)| base.canonicalize().ok())
+        .any(|base| base == canonical);
+    if discovered {
+        Ok(())
+    } else {
+        Err(outside())
+    }
 }
 
 fn parse_project_path(project_path: &str) -> Result<(PathBuf, String), String> {
@@ -1106,5 +1130,49 @@ mod tests {
         );
         // Empty task, no label -> None.
         assert_eq!(session_summary("", None), None);
+    }
+
+    fn write_task(base: &Path, task_id: &str) {
+        let task = base.join("tasks").join(task_id);
+        fs::create_dir_all(&task).unwrap();
+        fs::write(
+            task.join("ui_messages.json"),
+            r#"[{"type":"say","say":"text","text":"hello","ts":1700000000000}]"#,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn load_messages_rejects_path_outside_root() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let outside = tempfile::TempDir::new().unwrap();
+        let base = outside.path().join("saoudrizwan.claude-dev");
+        write_task(&base, "1700000000000");
+
+        let res = load_messages(&format!("cline://{}:1700000000000", base.display()));
+        assert!(res.is_err(), "task under an undiscovered base was read");
+        let res = load_sessions(&format!("cline://{}:/work", base.display()), false);
+        assert!(
+            res.is_err(),
+            "project under an undiscovered base was listed"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn load_messages_accepts_a_discovered_extension_dir() {
+        let home = crate::test_utils::SandboxHome::new();
+        let config = dirs::config_dir().expect("config dir");
+        assert!(config.starts_with(home.path()), "config dir not sandboxed");
+        let base = config
+            .join("Code")
+            .join("User")
+            .join("globalStorage")
+            .join("rooveterinaryinc.roo-cline");
+        write_task(&base, "1700000000000");
+
+        let messages = load_messages(&format!("cline://{}:1700000000000", base.display())).unwrap();
+        assert!(!messages.is_empty());
     }
 }
