@@ -1246,7 +1246,9 @@ pub async fn load_user_metadata(
         }
     }
 
-    // Load from disk
+    // Load from disk. A load racing a save must not put the pre-save file
+    // back in the cache.
+    let _write = ms.write_lock.lock().await;
     let path = commands::metadata::get_user_data_path().map_err(ApiError::from)?;
     let metadata = tokio::task::spawn_blocking(move || {
         if path.exists() {
@@ -1283,45 +1285,45 @@ pub async fn load_user_metadata(
 /// Ignoring rather than rejecting keeps the frontend, which
 /// always sends the full settings object, able to save everything else. The
 /// cache is updated to what was actually written.
+///
+/// `mutate` is applied to the current metadata under the metadata write lock
+/// (see `commands::metadata::mutate_and_save`), so concurrent saves are
+/// serialized and none is lost.
 async fn save_webui_metadata(
     state: &AppState,
-    mut metadata: crate::models::UserMetadata,
+    mutate: impl FnOnce(&mut crate::models::UserMetadata) + Send + 'static,
 ) -> Result<crate::models::UserMetadata, ApiError> {
-    let saved = tokio::task::spawn_blocking(move || {
-        let incoming = std::mem::take(&mut metadata.settings.custom_claude_paths);
-        let mut kept = commands::metadata::get_user_data_path()
-            .ok()
-            .and_then(|path| std::fs::read_to_string(path).ok())
-            .and_then(|content| serde_json::from_str::<crate::models::UserMetadata>(&content).ok())
-            .map(|persisted| persisted.settings.custom_claude_paths)
-            .unwrap_or_default();
-        // `CLAUDE_CONFIG_DIR` is set on the host, so the frontend recording it
-        // (it registers the detected value automatically) adds no new root.
-        let same =
-            |a: &str, b: &str| a.trim_end_matches(['/', '\\']) == b.trim_end_matches(['/', '\\']);
-        if let Some(config_dir) = commands::project::claude_config_dir() {
-            if !kept.iter().any(|c| same(&c.path, &config_dir)) {
-                kept.extend(
-                    incoming
-                        .into_iter()
-                        .filter(|c| same(&c.path, &config_dir))
-                        .take(1),
-                );
-            }
-        }
-        metadata.settings.custom_claude_paths = kept;
-        commands::metadata::save_metadata_to_disk(&metadata).map(|()| metadata)
+    commands::metadata::mutate_and_save(&state.metadata, move |metadata| {
+        mutate(metadata);
+        keep_persisted_custom_claude_paths(metadata);
     })
     .await
-    .map_err(|e| ApiError(format!("Task join error: {e}")))??;
+    .map_err(ApiError::from)
+}
 
-    let mut cached = state
-        .metadata
-        .metadata
-        .lock()
-        .map_err(|e| ApiError(format!("Lock error: {e}")))?;
-    *cached = Some(saved.clone());
-    Ok(saved)
+fn keep_persisted_custom_claude_paths(metadata: &mut crate::models::UserMetadata) {
+    let incoming = std::mem::take(&mut metadata.settings.custom_claude_paths);
+    let mut kept = commands::metadata::get_user_data_path()
+        .ok()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|content| serde_json::from_str::<crate::models::UserMetadata>(&content).ok())
+        .map(|persisted| persisted.settings.custom_claude_paths)
+        .unwrap_or_default();
+    // `CLAUDE_CONFIG_DIR` is set on the host, so the frontend recording it
+    // (it registers the detected value automatically) adds no new root.
+    let same =
+        |a: &str, b: &str| a.trim_end_matches(['/', '\\']) == b.trim_end_matches(['/', '\\']);
+    if let Some(config_dir) = commands::project::claude_config_dir() {
+        if !kept.iter().any(|c| same(&c.path, &config_dir)) {
+            kept.extend(
+                incoming
+                    .into_iter()
+                    .filter(|c| same(&c.path, &config_dir))
+                    .take(1),
+            );
+        }
+    }
+    metadata.settings.custom_claude_paths = kept;
 }
 
 #[derive(Deserialize)]
@@ -1333,7 +1335,7 @@ pub async fn save_user_metadata(
     State(state): State<Arc<AppState>>,
     Json(p): Json<SaveUserMetadataParams>,
 ) -> Result<Json<Value>, ApiError> {
-    save_webui_metadata(&state, p.metadata).await?;
+    save_webui_metadata(&state, move |m| *m = p.metadata).await?;
     Ok(Json(Value::Null))
 }
 
@@ -1341,22 +1343,14 @@ pub async fn update_session_metadata(
     State(state): State<Arc<AppState>>,
     Json(p): Json<UpdateSessionMetadataParams>,
 ) -> Result<Json<Value>, ApiError> {
-    let metadata_to_save = {
-        let mut cached = state
-            .metadata
-            .metadata
-            .lock()
-            .map_err(|e| ApiError(format!("Lock error: {e}")))?;
-        let metadata = cached.get_or_insert_with(crate::models::UserMetadata::new);
+    let metadata_to_save = save_webui_metadata(&state, move |metadata| {
         if p.update.is_empty() {
             metadata.sessions.remove(&p.session_id);
         } else {
             metadata.sessions.insert(p.session_id, p.update);
         }
-        metadata.clone()
-    };
-
-    let metadata_to_save = save_webui_metadata(&state, metadata_to_save).await?;
+    })
+    .await?;
 
     Ok(Json(serde_json::to_value(metadata_to_save).map_err(
         |e| ApiError(format!("Serialization error: {e}")),
@@ -1369,22 +1363,14 @@ pub async fn update_project_metadata(
 ) -> Result<Json<Value>, ApiError> {
     commands::metadata::validate_project_metadata_key(&p.project_path).map_err(ApiError::from)?;
 
-    let metadata_to_save = {
-        let mut cached = state
-            .metadata
-            .metadata
-            .lock()
-            .map_err(|e| ApiError(format!("Lock error: {e}")))?;
-        let metadata = cached.get_or_insert_with(crate::models::UserMetadata::new);
+    let metadata_to_save = save_webui_metadata(&state, move |metadata| {
         if p.update.is_empty() {
             metadata.projects.remove(&p.project_path);
         } else {
             metadata.projects.insert(p.project_path, p.update);
         }
-        metadata.clone()
-    };
-
-    let metadata_to_save = save_webui_metadata(&state, metadata_to_save).await?;
+    })
+    .await?;
 
     Ok(Json(serde_json::to_value(metadata_to_save).map_err(
         |e| ApiError(format!("Serialization error: {e}")),
@@ -1400,19 +1386,8 @@ pub async fn update_user_settings(
     State(state): State<Arc<AppState>>,
     Json(p): Json<UpdateUserSettingsParams>,
 ) -> Result<Json<Value>, ApiError> {
-    let settings = p.settings;
-    let metadata_to_save = {
-        let mut cached = state
-            .metadata
-            .metadata
-            .lock()
-            .map_err(|e| ApiError(format!("Lock error: {e}")))?;
-        let metadata = cached.get_or_insert_with(crate::models::UserMetadata::new);
-        metadata.settings = settings;
-        metadata.clone()
-    };
-
-    let metadata_to_save = save_webui_metadata(&state, metadata_to_save).await?;
+    let metadata_to_save =
+        save_webui_metadata(&state, move |metadata| metadata.settings = p.settings).await?;
 
     Ok(Json(serde_json::to_value(metadata_to_save).map_err(
         |e| ApiError(format!("Serialization error: {e}")),
@@ -1755,6 +1730,45 @@ mod tests {
         let saved = persisted_metadata().settings.custom_claude_paths;
         assert_eq!(saved.len(), 1, "{saved:?}");
         assert_eq!(saved[0].path, config_dir.to_string_lossy());
+    }
+
+    /// Concurrent `WebUI` session updates must all survive on disk and in the
+    /// cache; an older save must not overwrite a newer one.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[serial]
+    async fn webui_concurrent_session_updates_are_all_persisted() {
+        const N: usize = 16;
+        let _home = crate::test_utils::SandboxHome::new();
+        let state = metadata_state();
+        let barrier = Arc::new(tokio::sync::Barrier::new(N));
+
+        let tasks: Vec<_> = (0..N)
+            .map(|i| {
+                let (state, barrier) = (Arc::clone(&state), Arc::clone(&barrier));
+                tokio::spawn(async move {
+                    barrier.wait().await;
+                    update_session_metadata(
+                        State(state),
+                        Json(UpdateSessionMetadataParams {
+                            session_id: format!("session-{i}"),
+                            update: crate::models::SessionMetadata {
+                                custom_name: Some(format!("name-{i}")),
+                                ..Default::default()
+                            },
+                        }),
+                    )
+                    .await
+                    .is_ok()
+                })
+            })
+            .collect();
+        for t in tasks {
+            assert!(t.await.unwrap(), "update_session_metadata failed");
+        }
+
+        assert_eq!(persisted_metadata().sessions.len(), N, "disk lost updates");
+        let cached = state.metadata.metadata.lock().unwrap().clone().unwrap();
+        assert_eq!(cached.sessions.len(), N, "cache lost updates");
     }
 
     /// Path-bearing provider ids pass the history-root check as ids, so the
