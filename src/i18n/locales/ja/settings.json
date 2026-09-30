@@ -510,6 +510,7 @@
   "settingsManager.visual.selectModel": "モデルを選択",
   "settings.customDirectories": "カスタムClaudeディレクトリ",
   "settings.customDirectories.description": "会話履歴を検索する追加のClaude設定ディレクトリを登録します。",
+  "settings.customDirectories.serverManaged": "Web UI ではこれらのディレクトリは変更できません。デスクトップアプリ、CLAUDE_CONFIG_DIR、またはサーバー上の user-data.json で変更してください。",
   "settings.customDirectories.default": "デフォルト",
   "settings.customDirectories.detected": "検出済み",
   "settings.customDirectories.addDirectory": "ディレクトリを追加",

@@ -510,6 +510,7 @@
   "settingsManager.visual.selectModel": "选择模型",
   "settings.customDirectories": "自定义 Claude 目录",
   "settings.customDirectories.description": "添加额外的 Claude 配置目录以搜索对话历史。",
+  "settings.customDirectories.serverManaged": "在 Web UI 中无法更改这些目录。请在桌面应用、CLAUDE_CONFIG_DIR 或服务器上的 user-data.json 中更改。",
   "settings.customDirectories.default": "默认",
   "settings.customDirectories.detected": "已检测",
   "settings.customDirectories.addDirectory": "添加目录",

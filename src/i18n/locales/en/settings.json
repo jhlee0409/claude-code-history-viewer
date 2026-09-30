@@ -510,6 +510,7 @@
   "settingsManager.visual.selectModel": "Select model",
   "settings.customDirectories": "Custom Claude Directories",
   "settings.customDirectories.description": "Add additional Claude configuration directories to scan for conversation history.",
+  "settings.customDirectories.serverManaged": "In the web UI these directories are read-only. Change them in the desktop app, with CLAUDE_CONFIG_DIR, or in user-data.json on the server.",
   "settings.customDirectories.default": "Default",
   "settings.customDirectories.detected": "Detected",
   "settings.customDirectories.addDirectory": "Add Directory",

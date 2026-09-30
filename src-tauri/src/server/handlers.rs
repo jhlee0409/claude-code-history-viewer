@@ -1139,6 +1139,57 @@ pub async fn load_user_metadata(
     })?))
 }
 
+/// Persist metadata written through the `WebUI`.
+///
+/// Custom Claude directories widen the history roots every path check allows,
+/// so over the `WebUI` they are server configuration (desktop app,
+/// `CLAUDE_CONFIG_DIR`, or `user-data.json` on the host): the list already on
+/// disk is kept and any incoming value is ignored, while every other field
+/// saves normally; the one entry accepted is the host's own `CLAUDE_CONFIG_DIR`.
+/// Ignoring rather than rejecting keeps the frontend, which
+/// always sends the full settings object, able to save everything else. The
+/// cache is updated to what was actually written.
+async fn save_webui_metadata(
+    state: &AppState,
+    mut metadata: crate::models::UserMetadata,
+) -> Result<crate::models::UserMetadata, ApiError> {
+    let saved = tokio::task::spawn_blocking(move || {
+        let incoming = std::mem::take(&mut metadata.settings.custom_claude_paths);
+        let mut kept = commands::metadata::get_user_data_path()
+            .ok()
+            .and_then(|path| std::fs::read_to_string(path).ok())
+            .and_then(|content| serde_json::from_str::<crate::models::UserMetadata>(&content).ok())
+            .map(|persisted| persisted.settings.custom_claude_paths)
+            .unwrap_or_default();
+        // `CLAUDE_CONFIG_DIR` is set on the host, so the frontend recording it
+        // (it registers the detected value automatically) adds no new root.
+        let same =
+            |a: &str, b: &str| a.trim_end_matches(['/', '\\']) == b.trim_end_matches(['/', '\\']);
+        if let Some(config_dir) = commands::project::claude_config_dir() {
+            if !kept.iter().any(|c| same(&c.path, &config_dir)) {
+                kept.extend(
+                    incoming
+                        .into_iter()
+                        .filter(|c| same(&c.path, &config_dir))
+                        .take(1),
+                );
+            }
+        }
+        metadata.settings.custom_claude_paths = kept;
+        commands::metadata::save_metadata_to_disk(&metadata).map(|()| metadata)
+    })
+    .await
+    .map_err(|e| ApiError(format!("Task join error: {e}")))??;
+
+    let mut cached = state
+        .metadata
+        .metadata
+        .lock()
+        .map_err(|e| ApiError(format!("Lock error: {e}")))?;
+    *cached = Some(saved.clone());
+    Ok(saved)
+}
+
 #[derive(Deserialize)]
 pub struct SaveUserMetadataParams {
     pub metadata: crate::models::UserMetadata,
@@ -1148,18 +1199,7 @@ pub async fn save_user_metadata(
     State(state): State<Arc<AppState>>,
     Json(p): Json<SaveUserMetadataParams>,
 ) -> Result<Json<Value>, ApiError> {
-    let metadata = p.metadata;
-    let meta_clone = metadata.clone();
-    tokio::task::spawn_blocking(move || commands::metadata::save_metadata_to_disk(&meta_clone))
-        .await
-        .map_err(|e| ApiError(format!("Task join error: {e}")))??;
-
-    let mut cached = state
-        .metadata
-        .metadata
-        .lock()
-        .map_err(|e| ApiError(format!("Lock error: {e}")))?;
-    *cached = Some(metadata);
+    save_webui_metadata(&state, p.metadata).await?;
     Ok(Json(Value::Null))
 }
 
@@ -1182,10 +1222,7 @@ pub async fn update_session_metadata(
         metadata.clone()
     };
 
-    let meta_clone = metadata_to_save.clone();
-    tokio::task::spawn_blocking(move || commands::metadata::save_metadata_to_disk(&meta_clone))
-        .await
-        .map_err(|e| ApiError(format!("Task join error: {e}")))??;
+    let metadata_to_save = save_webui_metadata(&state, metadata_to_save).await?;
 
     Ok(Json(serde_json::to_value(metadata_to_save).map_err(
         |e| ApiError(format!("Serialization error: {e}")),
@@ -1213,10 +1250,7 @@ pub async fn update_project_metadata(
         metadata.clone()
     };
 
-    let meta_clone = metadata_to_save.clone();
-    tokio::task::spawn_blocking(move || commands::metadata::save_metadata_to_disk(&meta_clone))
-        .await
-        .map_err(|e| ApiError(format!("Task join error: {e}")))??;
+    let metadata_to_save = save_webui_metadata(&state, metadata_to_save).await?;
 
     Ok(Json(serde_json::to_value(metadata_to_save).map_err(
         |e| ApiError(format!("Serialization error: {e}")),
@@ -1244,10 +1278,7 @@ pub async fn update_user_settings(
         metadata.clone()
     };
 
-    let meta_clone = metadata_to_save.clone();
-    tokio::task::spawn_blocking(move || commands::metadata::save_metadata_to_disk(&meta_clone))
-        .await
-        .map_err(|e| ApiError(format!("Task join error: {e}")))??;
+    let metadata_to_save = save_webui_metadata(&state, metadata_to_save).await?;
 
     Ok(Json(serde_json::to_value(metadata_to_save).map_err(
         |e| ApiError(format!("Serialization error: {e}")),
@@ -1483,6 +1514,113 @@ mod tests {
         let res = load_session_messages(Json(SessionPathParam { session_path })).await;
 
         assert!(res.is_err(), "out-of-root session file was served");
+    }
+
+    fn metadata_state() -> Arc<AppState> {
+        let (event_tx, _rx) =
+            tokio::sync::broadcast::channel::<crate::commands::watcher::FileWatchEvent>(1);
+        Arc::new(AppState {
+            metadata: Arc::new(commands::metadata::MetadataState::default()),
+            start_time: std::time::Instant::now(),
+            auth: crate::server::auth::AuthState::Disabled,
+            read_only: false,
+            loopback_bind: false,
+            event_tx,
+        })
+    }
+
+    fn persisted_metadata() -> crate::models::UserMetadata {
+        let path = commands::metadata::get_user_data_path().unwrap();
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    fn custom_path(path: &std::path::Path) -> crate::models::CustomClaudePath {
+        crate::models::CustomClaudePath {
+            path: path.to_string_lossy().to_string(),
+            label: None,
+        }
+    }
+
+    /// Custom Claude directories are server configuration: saving through the
+    /// `WebUI` keeps the persisted list and still saves every other field.
+    #[tokio::test]
+    #[serial]
+    async fn webui_metadata_saves_keep_persisted_custom_claude_paths() {
+        let home = crate::test_utils::SandboxHome::new();
+        let configured = home.path().join("configured-claude");
+        let mut initial = crate::models::UserMetadata::new();
+        initial.settings.custom_claude_paths = vec![custom_path(&configured)];
+        commands::metadata::save_metadata_to_disk(&initial).unwrap();
+        let state = metadata_state();
+        let injected = home.path().join("injected");
+
+        let mut metadata = initial.clone();
+        metadata.settings.custom_claude_paths = vec![custom_path(&injected)];
+        metadata.settings.hidden_patterns = vec!["tmp-*".to_string()];
+        let _ = save_user_metadata(
+            State(Arc::clone(&state)),
+            Json(SaveUserMetadataParams { metadata }),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("save_user_metadata failed"));
+        let saved = persisted_metadata();
+        assert_eq!(
+            saved.settings.custom_claude_paths,
+            initial.settings.custom_claude_paths
+        );
+        assert_eq!(saved.settings.hidden_patterns, vec!["tmp-*".to_string()]);
+
+        let mut settings = saved.settings.clone();
+        settings.custom_claude_paths = Vec::new();
+        settings.hidden_patterns = vec!["other-*".to_string()];
+        let _ = update_user_settings(
+            State(Arc::clone(&state)),
+            Json(UpdateUserSettingsParams { settings }),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("update_user_settings failed"));
+        let saved = persisted_metadata();
+        assert_eq!(
+            saved.settings.custom_claude_paths,
+            initial.settings.custom_claude_paths
+        );
+        assert_eq!(saved.settings.hidden_patterns, vec!["other-*".to_string()]);
+    }
+
+    /// `CLAUDE_CONFIG_DIR` is already server configuration, so the frontend's
+    /// automatic registration of it still persists; nothing else is added.
+    #[tokio::test]
+    #[serial]
+    async fn webui_metadata_saves_accept_the_claude_config_dir_entry() {
+        let home = crate::test_utils::SandboxHome::new();
+        let config_dir = home.path().join("config-claude");
+        std::fs::create_dir_all(config_dir.join("projects")).unwrap();
+        let previous = std::env::var_os("CLAUDE_CONFIG_DIR");
+        std::env::set_var("CLAUDE_CONFIG_DIR", &config_dir);
+        commands::metadata::save_metadata_to_disk(&crate::models::UserMetadata::new()).unwrap();
+
+        let mut settings = crate::models::UserSettings::default();
+        settings.custom_claude_paths = vec![
+            crate::models::CustomClaudePath {
+                path: config_dir.to_string_lossy().to_string(),
+                label: Some("CLAUDE_CONFIG_DIR".to_string()),
+            },
+            custom_path(&home.path().join("injected")),
+        ];
+        let res = update_user_settings(
+            State(metadata_state()),
+            Json(UpdateUserSettingsParams { settings }),
+        )
+        .await;
+
+        match previous {
+            Some(v) => std::env::set_var("CLAUDE_CONFIG_DIR", v),
+            None => std::env::remove_var("CLAUDE_CONFIG_DIR"),
+        }
+        assert!(res.is_ok(), "update_user_settings failed");
+        let saved = persisted_metadata().settings.custom_claude_paths;
+        assert_eq!(saved.len(), 1, "{saved:?}");
+        assert_eq!(saved[0].path, config_dir.to_string_lossy());
     }
 
     /// Path-bearing provider ids pass the history-root check as ids, so the
